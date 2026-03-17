@@ -1,0 +1,740 @@
+/* ── Layout ────────────────────────────────────────────────── */
+
+.main {
+  padding: 16px 16px 48px;
+  max-width: 640px;
+  margin: 0 auto;
+}
+
+@media (min-width: 768px) {
+  .main {
+    padding: 24px 32px 64px;
+  }
+}
+
+.loading {
+  padding: 48px 16px;
+  text-align: center;
+  color: var(--accent-6);
+  font-size: var(--fs-base);
+}
+
+.notFound {
+  padding: 48px 16px;
+  text-align: center;
+  color: var(--accent-6);
+  font-size: var(--fs-base);
+}
+
+/* ── Volver ────────────────────────────────────────────────── */
+
+.btnVolver {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: none;
+  border: none;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  font-family: var(--font-sans), system-ui, sans-serif;
+  color: var(--accent-1);
+  cursor: pointer;
+  padding: 0;
+  margin-bottom: 16px;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ── Info Card ─────────────────────────────────────────────── */
+
+.card {
+  background: var(--background);
+  border: 1px solid var(--divider-1);
+  border-radius: 10px;
+  padding: 16px;
+  margin-bottom: 12px;
+}
+
+.cardEmergencia {
+  border-radius: 0;
+  border-left: 3px solid var(--danger);
+}
+
+.cardTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  gap: 8px;
+}
+
+.ordenId {
+  font-size: var(--fs-base);
+  font-weight: 700;
+  color: var(--black);
+  letter-spacing: 0.04em;
+}
+
+/* ── Badges ────────────────────────────────────────────────── */
+
+.badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 99px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+
+.badgeEmergencia { background: var(--danger-bg);   color: var(--danger);   }
+.badgePendiente  { background: var(--warning-bg);  color: var(--warning);  }
+.badgeEnCurso    { background: var(--info-bg);     color: var(--info);     }
+.badgeEnRevision { background: var(--revision-bg); color: var(--revision); }
+.badgeCompletado { background: var(--success-bg);  color: var(--success);  }
+.badgeCancelado  { background: var(--canceled-bg); color: var(--accent-5); }
+
+.badgeTipoRow {
+  display: inline-block;
+  margin-bottom: 10px;
+}
+
+/* ── Card info text ────────────────────────────────────────── */
+
+.ubicacion {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--accent-5);
+  margin-bottom: 8px;
+}
+
+.descripcion {
+  font-size: var(--fs-base);
+  color: var(--black);
+  line-height: 1.5;
+  margin-bottom: 10px;
+}
+
+.meta {
+  font-size: var(--fs-sm);
+  color: var(--accent-5);
+  margin-bottom: 4px;
+}
+
+.metaFecha {
+  font-size: var(--fs-xs);
+  color: var(--accent-6);
+  margin-top: 8px;
+}
+
+/* ── Sections ──────────────────────────────────────────────── */
+
+.section {
+  background: var(--background);
+  border: 1px solid var(--divider-1);
+  border-radius: 10px;
+  padding: 16px;
+  margin-bottom: 12px;
+}
+
+.sectionTitle {
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--accent-5);
+  margin-bottom: 12px;
+}
+
+/* ── Fotos divider ─────────────────────────────────────────── */
+
+.fotosDivider {
+  height: 1px;
+  background: var(--divider-1);
+  margin: 14px 0;
+}
+
+/* ── Materials list ────────────────────────────────────────── */
+
+.matList {
+  margin-bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.matRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--divider-1);
+}
+
+.matRow:last-child {
+  border-bottom: none;
+}
+
+.matNombre {
+  flex: 1;
+  font-size: var(--fs-base);
+  color: var(--black);
+}
+
+.matCant {
+  font-size: var(--fs-sm);
+  color: var(--accent-5);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.matDelete {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: 1px solid var(--divider-1);
+  border-radius: 6px;
+  font-size: 16px;
+  color: var(--accent-6);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  flex-shrink: 0;
+  transition: background 0.1s, color 0.1s;
+  line-height: 1;
+}
+
+.matDelete:hover {
+  background: var(--danger-bg);
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+/* ── Add material form ─────────────────────────────────────── */
+
+.matForm {
+  display: flex;
+  gap: 6px;
+  align-items: stretch;
+}
+
+.matInput {
+  flex: 1;
+  min-width: 0;
+  padding: 10px 10px;
+  border: 1.5px solid var(--divider-1);
+  border-radius: 8px;
+  font-size: var(--fs-sm);
+  font-family: var(--font-sans), system-ui, sans-serif;
+  color: var(--black);
+  background: var(--background);
+  outline: none;
+  -webkit-appearance: none;
+  box-sizing: border-box;
+}
+
+.matInput:focus {
+  border-color: var(--accent-3);
+}
+
+.matInput::placeholder {
+  color: var(--accent-6);
+}
+
+.matInputCant {
+  max-width: 72px;
+}
+
+.matSelect {
+  padding: 10px 6px;
+  border: 1.5px solid var(--divider-1);
+  border-radius: 8px;
+  font-size: var(--fs-sm);
+  font-family: var(--font-sans), system-ui, sans-serif;
+  color: var(--black);
+  background: var(--background);
+  outline: none;
+  -webkit-appearance: none;
+  max-width: 68px;
+  box-sizing: border-box;
+}
+
+.matAdd {
+  width: 40px;
+  height: auto;
+  background: var(--accent-1);
+  color: var(--white);
+  border: none;
+  border-radius: 8px;
+  font-size: 22px;
+  font-weight: 400;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 0.15s;
+}
+
+.matAdd:disabled {
+  opacity: 0.5;
+}
+
+.matError {
+  font-size: var(--fs-xs);
+  color: var(--danger-dark);
+  margin-top: 8px;
+}
+
+/* ── Material confirm panel (inventory flow) ───────────────── */
+
+.matConfirm {
+  border: 1.5px solid var(--accent-3);
+  border-radius: 10px;
+  padding: 12px;
+  background: var(--accent-2);
+}
+
+.matConfirmInfo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+
+.matConfirmNombre {
+  font-size: var(--fs-base);
+  font-weight: 600;
+  color: var(--black);
+  flex: 1;
+  min-width: 0;
+}
+
+.matConfirmCodigo {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 99px;
+  background: var(--accent-2);
+  border: 1px solid var(--divider-1);
+  color: var(--accent-1);
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  font-family: monospace;
+  flex-shrink: 0;
+}
+
+.matConfirmStock {
+  font-size: var(--fs-xs);
+  color: var(--accent-5);
+  width: 100%;
+}
+
+.matConfirmAlerta {
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--danger);
+  background: var(--danger-bg);
+  border-radius: 6px;
+  padding: 6px 10px;
+  margin-bottom: 10px;
+}
+
+.matConfirmForm {
+  display: flex;
+  gap: 6px;
+  align-items: stretch;
+}
+
+/* ── Btn manual / cancelar ─────────────────────────────────── */
+
+.btnManual {
+  margin-top: 10px;
+  padding: 0;
+  background: none;
+  border: none;
+  font-size: var(--fs-xs);
+  font-family: var(--font-sans), system-ui, sans-serif;
+  color: var(--accent-5);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.btnCancelarMat {
+  margin-top: 10px;
+  display: block;
+  padding: 0;
+  background: none;
+  border: none;
+  font-size: var(--fs-xs);
+  font-family: var(--font-sans), system-ui, sans-serif;
+  color: var(--accent-5);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* ── Manual form ───────────────────────────────────────────── */
+
+.matManual {
+  padding-top: 4px;
+}
+
+/* ── Read-only materials ───────────────────────────────────── */
+
+.matListReadonly {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.matRowReadonly {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--divider-1);
+  font-size: var(--fs-base);
+}
+
+.matRowReadonly:last-child {
+  border-bottom: none;
+}
+
+/* ── Observación ───────────────────────────────────────────── */
+
+.textarea {
+  width: 100%;
+  padding: 12px;
+  border: 1.5px solid var(--divider-1);
+  border-radius: 8px;
+  font-size: var(--fs-base);
+  font-family: var(--font-sans), system-ui, sans-serif;
+  color: var(--black);
+  background: var(--background);
+  outline: none;
+  resize: vertical;
+  min-height: 80px;
+  box-sizing: border-box;
+  line-height: 1.5;
+  -webkit-appearance: none;
+}
+
+.textarea:focus {
+  border-color: var(--accent-3);
+}
+
+.textarea::placeholder {
+  color: var(--accent-6);
+}
+
+.btnGuardarObs {
+  margin-top: 8px;
+  padding: 7px 14px;
+  background: none;
+  border: 1.5px solid var(--divider-1);
+  border-radius: 8px;
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  font-family: var(--font-sans), system-ui, sans-serif;
+  color: var(--accent-5);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  float: right;
+}
+
+.btnGuardarObs:disabled {
+  opacity: 0.5;
+}
+
+/* clearfix for float */
+.section::after {
+  content: "";
+  display: table;
+  clear: both;
+}
+
+.obsText {
+  font-size: var(--fs-base);
+  color: var(--black);
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+/* ── Firma view (completado) ────────────────────────────────── */
+
+.firmaView {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.firmaNombre {
+  font-size: var(--fs-base);
+  font-weight: 600;
+  color: var(--black);
+}
+
+.firmaImg {
+  max-width: 100%;
+  height: auto;
+  border: 1px solid var(--divider-1);
+  border-radius: 6px;
+  background: var(--white);
+}
+
+.firmaFecha {
+  font-size: var(--fs-xs);
+  color: var(--accent-6);
+}
+
+/* ── Cancelar firma (en_curso) ──────────────────────────────── */
+
+.btnCancelarFirma {
+  display: block;
+  margin-top: 12px;
+  padding: 0;
+  background: none;
+  border: none;
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  font-family: var(--font-sans), system-ui, sans-serif;
+  color: var(--accent-6);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  text-decoration: underline;
+}
+
+/* ── Action section ────────────────────────────────────────── */
+
+.actionSection {
+  margin-bottom: 12px;
+}
+
+.btnPrimary {
+  width: 100%;
+  padding: 15px;
+  background: var(--accent-1);
+  color: var(--white);
+  border: none;
+  border-radius: 10px;
+  font-size: var(--fs-md);
+  font-weight: 700;
+  font-family: var(--font-sans), system-ui, sans-serif;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: opacity 0.15s ease;
+}
+
+.btnPrimary:active:not(:disabled) {
+  opacity: 0.8;
+}
+
+.btnPrimary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btnCompletar {
+  background: var(--success);
+}
+
+/* ── Edit mode (card) ──────────────────────────────────────── */
+
+.cardTopRight {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.btnEditar {
+  padding: 4px 12px;
+  background: none;
+  border: 1.5px solid var(--accent-3);
+  border-radius: 7px;
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  font-family: var(--font-sans), system-ui, sans-serif;
+  color: var(--accent-1);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  white-space: nowrap;
+}
+
+.editFields {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-top: 4px;
+}
+
+.editField {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.editLabel {
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--accent-5);
+}
+
+.editInput,
+.editSelect,
+.editTextarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1.5px solid var(--divider-1);
+  border-radius: 8px;
+  font-size: var(--fs-base);
+  font-family: var(--font-sans), system-ui, sans-serif;
+  color: var(--black);
+  background: var(--background);
+  outline: none;
+  box-sizing: border-box;
+  -webkit-appearance: none;
+}
+
+.editInput:focus,
+.editSelect:focus,
+.editTextarea:focus {
+  border-color: var(--accent-3);
+}
+
+.editTextarea {
+  resize: vertical;
+  min-height: 72px;
+  line-height: 1.5;
+}
+
+.editError {
+  font-size: var(--fs-xs);
+  color: var(--danger-dark);
+  background: var(--danger-bg);
+  border-radius: 6px;
+  padding: 8px 10px;
+}
+
+.editActions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  padding-top: 4px;
+}
+
+.btnEditCancel {
+  padding: 8px 16px;
+  background: none;
+  border: 1.5px solid var(--divider-1);
+  border-radius: 8px;
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  font-family: var(--font-sans), system-ui, sans-serif;
+  color: var(--accent-5);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.btnEditSave {
+  padding: 8px 18px;
+  background: var(--accent-1);
+  color: var(--white);
+  border: none;
+  border-radius: 8px;
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  font-family: var(--font-sans), system-ui, sans-serif;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: opacity 0.15s;
+}
+
+.btnEditSave:disabled,
+.btnEditCancel:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ── En revisión banner ────────────────────────────────────── */
+
+.revisionBanner {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  background: var(--revision-bg);
+  border: 1px solid var(--revision);
+  border-radius: 10px;
+  margin-bottom: 12px;
+}
+
+.revisionIcon {
+  font-size: 20px;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.revisionTitle {
+  font-size: var(--fs-base);
+  font-weight: 700;
+  color: var(--revision);
+  margin: 0 0 2px;
+}
+
+.revisionSub {
+  font-size: var(--fs-sm);
+  color: var(--revision);
+  opacity: 0.8;
+  margin: 0;
+  line-height: 1.4;
+}
+
+/* ── Resumen ───────────────────────────────────────────────── */
+
+.resumenGrid {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.resumenItem {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--divider-1);
+}
+
+.resumenItem:last-child {
+  border-bottom: none;
+}
+
+.resumenLabel {
+  font-size: var(--fs-sm);
+  color: var(--accent-5);
+  font-weight: 500;
+}
+
+.resumenVal {
+  font-size: var(--fs-sm);
+  color: var(--black);
+  font-weight: 500;
+}
+
+.resumenDuracion {
+  font-weight: 700;
+  color: var(--success);
+  font-size: var(--fs-base);
+}

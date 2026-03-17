@@ -1,42 +1,79 @@
+/* ── CSS Variables ──────────────────────────────────────────── */
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* ── Tonos del pelaje del Puma concolor (Pangui) ─────────── */
+  --black:      #2C2418;   /* pardo oscuro, punta de la cola     */
+  --white:      #FFFFFF;
+  --background: #FAF8F5;   /* crema pálido, vientre del puma     */
+  --accent-1:   #A0622D;   /* pardo rojizo, pelaje principal      */
+  --accent-2:   #F5EDE3;   /* rubio claro, cuello y mandíbula    */
+  --accent-3:   #C4956A;   /* amarillo-gris del lomo             */
+  --accent-4:   #8B7355;   /* gris terroso, pelaje de invierno   */
+  --accent-5:   #6B5D4F;   /* pardo medio, texto secundario      */
+  --accent-6:   #9A8E82;   /* gris cálido, pelaje joven          */
+  --divider-1:  #E8E0D6;   /* arena suave                        */
+
+  /* ── Colores semánticos ─────────────────────────────────── */
+  --danger:      #8B3A2A;  /* rojizo oscuro                      */
+  --danger-bg:   #F5E0DC;
+  --danger-dark: #6D2B1D;
+  --success:     #5C7A3D;  /* verde bosque nativo del sur        */
+  --success-bg:  #EAF0E3;
+  --warning:     #B8860B;  /* dorado oscuro, ojos del puma       */
+  --warning-bg:  #FDF6E3;
+  --info:        #A0622D;  /* en_curso = accent-1                */
+  --info-bg:     #F5EDE3;  /* en_curso bg = accent-2             */
+  --revision:      #3D6B8A;  /* azul pizarra, pendiente de revisión */
+  --revision-bg:   #E0EBF2;
+  --surface-hover: #F0EBE3;
+  --canceled-bg:   #EBE7E1;
+
+  /* ── Tipografía ─────────────────────────────────────────── */
+  --fs-xs:   11px;
+  --fs-sm:   12px;
+  --fs-base: 14px;
+  --fs-md:   16px;
+  --fs-lg:   20px;
+  --fs-xl:   24px;
+
+  /* ── Layout ─────────────────────────────────────────────── */
+  --topbar-height: 44px;
+  --bottomnav-height: 64px;
+  --container-max: 1200px;
 }
 
-@media (prefers-color-scheme: dark) {
+@media (min-width: 768px) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --fs-xs:   12px;
+    --fs-sm:   13px;
+    --fs-base: 15px;
+    --fs-md:   17px;
   }
+}
+
+/* ── Reset ──────────────────────────────────────────────────── */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
 }
 
 html,
 body {
-  max-width: 100vw;
-  overflow-x: hidden;
-}
-
-body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+  padding-bottom: var(--bottomnav-height);
+  -webkit-tap-highlight-color: transparent;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-}
-
-* {
-  box-sizing: border-box;
-  padding: 0;
-  margin: 0;
+  font-family: var(--font-sans), system-ui, sans-serif;
+  font-size: var(--fs-base);
+  background: var(--background);
+  color: var(--black);
 }
 
 a {
   color: inherit;
   text-decoration: none;
-}
-
-@media (prefers-color-scheme: dark) {
-  html {
-    color-scheme: dark;
-  }
 }

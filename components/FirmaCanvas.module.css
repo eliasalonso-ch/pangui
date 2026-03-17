@@ -1,0 +1,141 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* ── Nombre field ───────────────────────────────────────────── */
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.fieldLabel {
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--accent-5);
+}
+
+.input {
+  width: 100%;
+  padding: 11px 12px;
+  border: 1.5px solid var(--divider-1);
+  border-radius: 8px;
+  font-size: var(--fs-base);
+  font-family: var(--font-sans), system-ui, sans-serif;
+  color: var(--black);
+  background: var(--background);
+  outline: none;
+  box-sizing: border-box;
+  -webkit-appearance: none;
+  transition: border-color 0.15s;
+}
+
+.input:focus {
+  border-color: var(--accent-3);
+}
+
+.input::placeholder {
+  color: var(--accent-6);
+}
+
+.input:disabled {
+  opacity: 0.5;
+}
+
+/* ── Instrucción ────────────────────────────────────────────── */
+
+.instruccion {
+  font-size: var(--fs-sm);
+  color: var(--accent-5);
+  line-height: 1.4;
+}
+
+/* ── Canvas ─────────────────────────────────────────────────── */
+
+.canvasWrap {
+  border: 1.5px solid var(--divider-1);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--white);
+  /* touch-action: none es CRÍTICO para prevenir scroll al dibujar */
+  touch-action: none;
+}
+
+.canvas {
+  display: block;
+  width: 100%;
+  height: 200px;
+  cursor: crosshair;
+  touch-action: none;
+}
+
+/* ── Error ──────────────────────────────────────────────────── */
+
+.error {
+  font-size: var(--fs-xs);
+  color: var(--danger-dark);
+  background: var(--danger-bg);
+  border-radius: 6px;
+  padding: 7px 10px;
+  line-height: 1.4;
+}
+
+/* ── Buttons ────────────────────────────────────────────────── */
+
+.buttons {
+  display: flex;
+  gap: 10px;
+}
+
+.btnLimpiar {
+  flex: 1;
+  padding: 12px;
+  background: none;
+  border: 1.5px solid var(--divider-1);
+  border-radius: 10px;
+  font-size: var(--fs-base);
+  font-weight: 500;
+  font-family: var(--font-sans), system-ui, sans-serif;
+  color: var(--accent-5);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.1s;
+}
+
+.btnLimpiar:active:not(:disabled) {
+  background: var(--surface-hover);
+}
+
+.btnLimpiar:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.btnConfirmar {
+  flex: 2;
+  padding: 12px;
+  background: var(--success);
+  color: var(--white);
+  border: none;
+  border-radius: 10px;
+  font-size: var(--fs-base);
+  font-weight: 700;
+  font-family: var(--font-sans), system-ui, sans-serif;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: opacity 0.15s;
+}
+
+.btnConfirmar:active:not(:disabled) {
+  opacity: 0.8;
+}
+
+.btnConfirmar:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}

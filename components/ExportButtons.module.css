@@ -1,0 +1,37 @@
+.container {
+  display: flex;
+  gap: 8px;
+  margin: 16px 0 8px;
+}
+
+.btnPdf,
+.btnXlsx {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  border-radius: 8px;
+  cursor: pointer;
+  border: 1px solid var(--divider-1);
+  background: var(--background);
+  color: var(--black);
+  transition: background 0.1s;
+}
+
+.btnPdf:active,
+.btnXlsx:active {
+  background: var(--accent-2);
+}
+
+.btnPdf:disabled,
+.btnXlsx:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.btnPdf svg,
+.btnXlsx svg {
+  flex-shrink: 0;
+}

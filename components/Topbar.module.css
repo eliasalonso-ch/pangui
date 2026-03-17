@@ -1,0 +1,268 @@
+/* ── Bar ───────────────────────────────────────────────────── */
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: var(--black);
+  height: var(--topbar-height);
+  padding: 0 max(16px, calc((100% - var(--container-max)) / 2 + 24px));
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-family: var(--font-sans), system-ui, sans-serif;
+}
+
+/* ── Logo button ───────────────────────────────────────────── */
+
+.logoBtn {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.logoImg {
+  width: 20px;
+  height: 20px;
+  display: block;
+  flex-shrink: 0;
+  color: var(--white);
+}
+
+.logoText {
+  font-size: var(--fs-md);
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  color: var(--white);
+  line-height: 1;
+}
+
+/* ── Right ─────────────────────────────────────────────────── */
+
+.right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.userName {
+  font-size: var(--fs-sm);
+  color: rgba(255, 255, 255, 0.5);
+  font-weight: 500;
+  max-width: 110px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Invite button ─────────────────────────────────────────── */
+
+.btnInvitar {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 12px;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 8px;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  font-family: var(--font-sans), system-ui, sans-serif;
+  color: var(--white);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.15s;
+}
+
+.btnInvitar:hover {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+/* ── Overlay + Modal ───────────────────────────────────────── */
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(44, 36, 24, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+  padding: 20px;
+}
+
+.modal {
+  background: var(--background);
+  border-radius: 14px;
+  padding: 24px 20px 20px;
+  width: 100%;
+  max-width: 380px;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.modalTitle {
+  font-size: var(--fs-md);
+  font-weight: 700;
+  color: var(--black);
+  margin: 0 0 20px;
+}
+
+/* ── Form fields ───────────────────────────────────────────── */
+
+.formField {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-bottom: 14px;
+}
+
+.formLabel {
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--accent-5);
+}
+
+.formInput,
+.formSelect {
+  width: 100%;
+  padding: 11px 13px;
+  border: 1.5px solid var(--divider-1);
+  border-radius: 9px;
+  font-size: var(--fs-base);
+  font-family: var(--font-sans), system-ui, sans-serif;
+  color: var(--black);
+  background: var(--background);
+  outline: none;
+  box-sizing: border-box;
+  -webkit-appearance: none;
+  transition: border-color 0.15s;
+}
+
+.formInput:focus,
+.formSelect:focus {
+  border-color: var(--accent-3);
+}
+
+.formInput::placeholder {
+  color: var(--accent-6);
+}
+
+.formError {
+  font-size: var(--fs-sm);
+  color: var(--danger-dark);
+  background: var(--danger-bg);
+  border-radius: 8px;
+  padding: 9px 12px;
+  margin-bottom: 14px;
+}
+
+/* ── Actions ───────────────────────────────────────────────── */
+
+.modalActions {
+  display: flex;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.btnPrimary {
+  flex: 1;
+  padding: 13px;
+  background: var(--accent-1);
+  color: var(--white);
+  border: none;
+  border-radius: 10px;
+  font-size: var(--fs-base);
+  font-weight: 700;
+  font-family: var(--font-sans), system-ui, sans-serif;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: opacity 0.15s;
+}
+
+.btnPrimary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btnGhost {
+  flex: 1;
+  padding: 13px;
+  background: none;
+  border: 1.5px solid var(--divider-1);
+  border-radius: 10px;
+  font-size: var(--fs-base);
+  font-weight: 500;
+  font-family: var(--font-sans), system-ui, sans-serif;
+  color: var(--accent-5);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.btnGhost:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ── Success screen ────────────────────────────────────────── */
+
+.modalSuccess {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.modalSuccessTitle {
+  font-size: var(--fs-md);
+  font-weight: 700;
+  color: var(--success);
+  margin: 0;
+}
+
+.modalSuccessInfo {
+  font-size: var(--fs-base);
+  color: var(--black);
+  line-height: 1.5;
+  margin: 0;
+}
+
+.credBox {
+  background: var(--surface-hover);
+  border-radius: 10px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.credRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.credLabel {
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--accent-5);
+  flex-shrink: 0;
+}
+
+.credVal {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--black);
+  text-align: right;
+  word-break: break-all;
+}

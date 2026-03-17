@@ -1,0 +1,245 @@
+/* ── Layout ──────────────────────────────────────────────────── */
+
+.loading {
+  padding: 48px 16px;
+  text-align: center;
+  color: var(--accent-6);
+  font-size: var(--fs-base);
+}
+
+.main {
+  padding: 32px 20px 64px;
+  max-width: 480px;
+  margin: 0 auto;
+}
+
+/* ── Header ──────────────────────────────────────────────────── */
+
+.header {
+  margin-bottom: 28px;
+}
+
+.titulo {
+  font-size: var(--fs-xl);
+  font-weight: 700;
+  color: var(--black);
+  margin-bottom: 8px;
+  line-height: 1.2;
+}
+
+.sub {
+  font-size: var(--fs-base);
+  color: var(--accent-5);
+  line-height: 1.5;
+}
+
+/* ── Form ────────────────────────────────────────────────────── */
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.label {
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--accent-5);
+}
+
+/* ── Tipo buttons ────────────────────────────────────────────── */
+
+.tipoGrid {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.tipoBtn {
+  padding: 9px 16px;
+  border: 1.5px solid var(--divider-1);
+  border-radius: 99px;
+  background: var(--background);
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  font-family: var(--font-sans), system-ui, sans-serif;
+  color: var(--accent-5);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: all 0.15s;
+}
+
+.tipoBtnActive {
+  background: var(--accent-2);
+  border-color: var(--accent-1);
+  color: var(--accent-1);
+  font-weight: 700;
+}
+
+/* ── Textarea ────────────────────────────────────────────────── */
+
+.textarea {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1.5px solid var(--divider-1);
+  border-radius: 10px;
+  font-size: var(--fs-base);
+  font-family: var(--font-sans), system-ui, sans-serif;
+  color: var(--black);
+  background: var(--background);
+  outline: none;
+  resize: vertical;
+  min-height: 120px;
+  line-height: 1.5;
+  box-sizing: border-box;
+  -webkit-appearance: none;
+  transition: border-color 0.15s;
+}
+
+.textarea:focus {
+  border-color: var(--accent-3);
+}
+
+.textarea::placeholder {
+  color: var(--accent-6);
+}
+
+/* ── Rating ──────────────────────────────────────────────────── */
+
+.ratingRow {
+  display: flex;
+  gap: 10px;
+}
+
+.ratingBtn {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 1.5px solid var(--accent-5);
+  background: var(--background);
+  color: var(--accent-5);
+  font-size: var(--fs-md);
+  font-weight: 700;
+  font-family: var(--font-sans), system-ui, sans-serif;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: all 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ratingBtnActive {
+  background: var(--accent-1);
+  border-color: var(--accent-1);
+  color: var(--white);
+}
+
+.ratingHint {
+  font-size: var(--fs-xs);
+  color: var(--accent-5);
+  height: 16px;
+  margin-top: 2px;
+}
+
+/* ── Error ───────────────────────────────────────────────────── */
+
+.error {
+  font-size: var(--fs-sm);
+  color: var(--danger-dark);
+  background: var(--danger-bg);
+  border-radius: 8px;
+  padding: 10px 12px;
+  line-height: 1.4;
+}
+
+/* ── Submit button ───────────────────────────────────────────── */
+
+.btnEnviar {
+  width: 100%;
+  padding: 15px;
+  background: var(--accent-1);
+  color: var(--white);
+  border: none;
+  border-radius: 10px;
+  font-size: var(--fs-md);
+  font-weight: 700;
+  font-family: var(--font-sans), system-ui, sans-serif;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: opacity 0.15s;
+}
+
+.btnEnviar:active:not(:disabled) {
+  opacity: 0.8;
+}
+
+.btnEnviar:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ── Confirmación ────────────────────────────────────────────── */
+
+.confirmacion {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 40px 0;
+  gap: 12px;
+}
+
+.confirmIcon {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: var(--success-bg);
+  color: var(--success);
+  font-size: 28px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 8px;
+}
+
+.confirmTitulo {
+  font-size: var(--fs-xl);
+  font-weight: 700;
+  color: var(--black);
+}
+
+.confirmSub {
+  font-size: var(--fs-base);
+  color: var(--accent-5);
+  line-height: 1.5;
+  max-width: 300px;
+}
+
+.btnVolver {
+  margin-top: 12px;
+  padding: 12px 32px;
+  background: none;
+  border: 1.5px solid var(--divider-1);
+  border-radius: 10px;
+  font-size: var(--fs-base);
+  font-weight: 600;
+  font-family: var(--font-sans), system-ui, sans-serif;
+  color: var(--accent-5);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.15s;
+}
+
+.btnVolver:hover {
+  background: var(--surface-hover);
+}

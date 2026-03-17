@@ -1,0 +1,184 @@
+/* ── Layout ────────────────────────────────────────────────── */
+
+.main {
+  padding: 20px 16px 48px;
+  max-width: 560px;
+  margin: 0 auto;
+}
+
+@media (min-width: 768px) {
+  .main {
+    padding: 24px 32px 64px;
+  }
+}
+
+.loading {
+  padding: 48px 16px;
+  text-align: center;
+  color: var(--accent-6);
+  font-size: var(--fs-base);
+}
+
+/* ── Sections ──────────────────────────────────────────────── */
+
+.section {
+  margin-bottom: 22px;
+}
+
+.label {
+  display: block;
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--accent-5);
+  margin-bottom: 8px;
+}
+
+/* ── Tipo toggle ───────────────────────────────────────────── */
+
+.toggle {
+  display: flex;
+  gap: 8px;
+}
+
+.toggleBtn {
+  flex: 1;
+  padding: 12px 8px;
+  border: 1.5px solid var(--divider-1);
+  border-radius: 10px;
+  background: var(--background);
+  font-size: var(--fs-base);
+  font-weight: 500;
+  font-family: var(--font-sans), system-ui, sans-serif;
+  color: var(--accent-5);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: all 0.15s ease;
+}
+
+.toggleSolicitud {
+  background: var(--accent-2);
+  border-color: var(--accent-1);
+  color: var(--accent-1);
+  font-weight: 700;
+}
+
+.toggleEmergencia {
+  background: var(--danger-bg);
+  border-color: var(--danger);
+  color: var(--danger);
+  font-weight: 700;
+}
+
+.emergenciaNotice {
+  margin-top: 8px;
+  padding: 9px 12px;
+  background: var(--danger-bg);
+  border-radius: 8px;
+  font-size: var(--fs-sm);
+  color: var(--danger-dark);
+  line-height: 1.4;
+}
+
+/* ── Inputs ────────────────────────────────────────────────── */
+
+.input,
+.select,
+.textarea {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1.5px solid var(--divider-1);
+  border-radius: 10px;
+  font-size: var(--fs-md);
+  font-family: var(--font-sans), system-ui, sans-serif;
+  color: var(--black);
+  background: var(--background);
+  outline: none;
+  box-sizing: border-box;
+  -webkit-appearance: none;
+  transition: border-color 0.15s ease;
+}
+
+.input:focus,
+.select:focus,
+.textarea:focus {
+  border-color: var(--accent-3);
+}
+
+.input::placeholder,
+.textarea::placeholder {
+  color: var(--accent-6);
+}
+
+.textarea {
+  resize: vertical;
+  min-height: 110px;
+  line-height: 1.5;
+}
+
+/* ── Error ─────────────────────────────────────────────────── */
+
+.error {
+  font-size: var(--fs-sm);
+  color: var(--danger-dark);
+  background: var(--danger-bg);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 16px;
+  line-height: 1.4;
+}
+
+/* ── Actions ───────────────────────────────────────────────── */
+
+.actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.btnPrimary {
+  flex: 1;
+  padding: 14px;
+  background: var(--accent-1);
+  color: var(--white);
+  border: none;
+  border-radius: 10px;
+  font-size: var(--fs-md);
+  font-weight: 700;
+  font-family: var(--font-sans), system-ui, sans-serif;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: opacity 0.15s ease;
+}
+
+.btnPrimary:active:not(:disabled) {
+  opacity: 0.8;
+}
+
+.btnPrimary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btnEmergencia {
+  background: var(--danger);
+}
+
+.btnGhost {
+  flex: 1;
+  padding: 14px;
+  background: none;
+  border: 1.5px solid var(--divider-1);
+  border-radius: 10px;
+  font-size: var(--fs-md);
+  font-weight: 500;
+  font-family: var(--font-sans), system-ui, sans-serif;
+  color: var(--accent-5);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.btnGhost:active {
+  background: var(--surface-hover);
+}

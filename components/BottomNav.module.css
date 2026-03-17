@@ -1,0 +1,179 @@
+/* ── Nav bar ──────────────────────────────────────────────── */
+
+.nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: var(--bottomnav-height);
+  background: var(--background);
+  border-top: 1px solid var(--divider-1);
+  display: flex;
+  align-items: stretch;
+  z-index: 30;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* ── Regular items ────────────────────────────────────────── */
+
+.item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--accent-5);
+  -webkit-tap-highlight-color: transparent;
+  transition: color 0.15s;
+  padding: 6px 0 4px;
+  font-family: var(--font-sans), system-ui, sans-serif;
+}
+
+.item:active {
+  color: var(--accent-1);
+}
+
+.active {
+  color: var(--accent-1);
+}
+
+.icon {
+  width: 22px;
+  height: 22px;
+}
+
+.label {
+  font-size: 10px;
+  font-weight: 600;
+}
+
+/* ── Nueva (center) button ────────────────────────────────── */
+
+.itemNueva {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  background: none;
+  border: none;
+  color: var(--accent-5);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: color 0.15s;
+  padding: 6px 0 4px;
+  font-family: var(--font-sans), system-ui, sans-serif;
+}
+
+.itemNueva:active {
+  color: var(--accent-1);
+}
+
+.itemNueva:active .nuevaCircle {
+  opacity: 0.85;
+  transform: scale(0.95);
+}
+
+.nuevaIcon {
+  width: 22px;
+  height: 22px;
+  color: inherit;
+}
+
+/* ── Sheet overlay ────────────────────────────────────────── */
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  z-index: 40;
+  display: flex;
+  align-items: flex-end;
+}
+
+.sheet {
+  width: 100%;
+  background: var(--background);
+  border-radius: 16px 16px 0 0;
+  padding: 8px 0 calc(env(safe-area-inset-bottom) + 16px);
+}
+
+.sheetHandle {
+  width: 36px;
+  height: 4px;
+  border-radius: 99px;
+  background: var(--divider-1);
+  margin: 0 auto 12px;
+}
+
+.sheetItem {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 20px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  text-align: left;
+  font-family: var(--font-sans), system-ui, sans-serif;
+  transition: background 0.1s;
+}
+
+.sheetItem:active {
+  background: var(--surface-hover);
+}
+
+.sheetItemDanger .sheetTitle {
+  color: var(--danger);
+}
+
+.sheetItemDanger .sheetIconWrap {
+  color: var(--danger);
+}
+
+.sheetIconWrap {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: var(--accent-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--accent-1);
+}
+
+.sheetIcon {
+  width: 18px;
+  height: 18px;
+}
+
+.sheetText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sheetTitle {
+  font-size: var(--fs-base);
+  font-weight: 600;
+  color: var(--black);
+}
+
+.sheetSub {
+  font-size: var(--fs-sm);
+  color: var(--accent-5);
+}
+
+.sheetDivider {
+  height: 1px;
+  background: var(--divider-1);
+  margin: 4px 20px;
+}

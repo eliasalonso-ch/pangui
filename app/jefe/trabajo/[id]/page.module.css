@@ -1,0 +1,528 @@
+/* ── Layout ──────────────────────────────────────────────── */
+
+.main {
+  padding: 16px 16px 48px;
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+@media (min-width: 768px) {
+  .main {
+    padding: 24px 32px 64px;
+  }
+}
+
+.loading {
+  padding: 48px 16px;
+  text-align: center;
+  color: var(--accent-6);
+  font-size: var(--fs-base);
+}
+
+.notFound {
+  padding: 48px 16px;
+  text-align: center;
+  color: var(--accent-6);
+  font-size: var(--fs-base);
+}
+
+/* ── Volver ───────────────────────────────────────────────── */
+
+.btnVolver {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: none;
+  border: none;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  font-family: var(--font-sans), system-ui, sans-serif;
+  color: var(--accent-1);
+  cursor: pointer;
+  padding: 0;
+  margin-bottom: 16px;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ── Info Card ────────────────────────────────────────────── */
+
+.card {
+  background: var(--background);
+  border: 1px solid var(--divider-1);
+  border-radius: 10px;
+  padding: 16px;
+  margin-bottom: 12px;
+}
+
+.cardEmergencia {
+  border-radius: 0 10px 10px 0;
+  border-left: 3px solid var(--danger);
+}
+
+.cardTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  gap: 8px;
+}
+
+.ordenId {
+  font-size: var(--fs-base);
+  font-weight: 700;
+  color: var(--black);
+  letter-spacing: 0.04em;
+}
+
+/* ── Badges ───────────────────────────────────────────────── */
+
+.badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 99px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+
+.badgeEmergencia { background: var(--danger-bg);   color: var(--danger);   }
+.badgePendiente  { background: var(--warning-bg);  color: var(--warning);  }
+.badgeEnCurso    { background: var(--info-bg);     color: var(--info);     }
+.badgeEnRevision { background: var(--revision-bg); color: var(--revision); }
+.badgeCompletado { background: var(--success-bg);  color: var(--success);  }
+.badgeCancelado  { background: var(--canceled-bg); color: var(--accent-5); }
+
+.badgeTipoRow {
+  display: inline-block;
+  margin-bottom: 10px;
+}
+
+/* ── Card info text ───────────────────────────────────────── */
+
+.ubicacion {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--accent-5);
+  margin-bottom: 8px;
+}
+
+.descripcion {
+  font-size: var(--fs-base);
+  color: var(--black);
+  line-height: 1.5;
+  margin-bottom: 10px;
+}
+
+.meta {
+  font-size: var(--fs-sm);
+  color: var(--accent-5);
+  margin-bottom: 4px;
+}
+
+.metaFecha {
+  font-size: var(--fs-xs);
+  color: var(--accent-6);
+  margin-top: 8px;
+}
+
+/* ── Sections ─────────────────────────────────────────────── */
+
+.section {
+  background: var(--background);
+  border: 1px solid var(--divider-1);
+  border-radius: 10px;
+  padding: 16px;
+  margin-bottom: 12px;
+}
+
+.sectionTitle {
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--accent-5);
+  margin-bottom: 12px;
+}
+
+/* ── Fotos divider ────────────────────────────────────────── */
+
+.fotosDivider {
+  height: 1px;
+  background: var(--divider-1);
+  margin: 14px 0;
+}
+
+/* ── Resumen ──────────────────────────────────────────────── */
+
+.resumenGrid {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.resumenItem {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--divider-1);
+}
+
+.resumenItem:last-child {
+  border-bottom: none;
+}
+
+.resumenLabel {
+  font-size: var(--fs-sm);
+  color: var(--accent-5);
+  font-weight: 500;
+}
+
+.resumenVal {
+  font-size: var(--fs-sm);
+  color: var(--black);
+  font-weight: 500;
+}
+
+.resumenDuracion {
+  font-weight: 700;
+  color: var(--success);
+  font-size: var(--fs-base);
+}
+
+/* ── Firma view ───────────────────────────────────────────── */
+
+.firmaView {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.firmaNombre {
+  font-size: var(--fs-base);
+  font-weight: 600;
+  color: var(--black);
+}
+
+.firmaImg {
+  max-width: 100%;
+  height: auto;
+  border: 1px solid var(--divider-1);
+  border-radius: 6px;
+  background: var(--white);
+}
+
+.firmaFecha {
+  font-size: var(--fs-xs);
+  color: var(--accent-6);
+}
+
+/* ── Materials list (read-only) ───────────────────────────── */
+
+.matList {
+  display: flex;
+  flex-direction: column;
+}
+
+.matRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--divider-1);
+  font-size: var(--fs-base);
+}
+
+.matRow:last-child {
+  border-bottom: none;
+}
+
+.matNombre {
+  flex: 1;
+  color: var(--black);
+}
+
+.matCant {
+  font-size: var(--fs-sm);
+  color: var(--accent-5);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+/* ── Jefe action bar ──────────────────────────────────────── */
+
+.jefeActions {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.btnAprobar {
+  padding: 9px 18px;
+  background: var(--success);
+  color: var(--white);
+  border: none;
+  border-radius: 9px;
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  font-family: var(--font-sans), system-ui, sans-serif;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: opacity 0.15s;
+}
+
+.btnAprobar:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btnEditar {
+  padding: 9px 18px;
+  background: var(--accent-1);
+  color: var(--white);
+  border: none;
+  border-radius: 9px;
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  font-family: var(--font-sans), system-ui, sans-serif;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: opacity 0.15s;
+}
+
+.btnEditar:active {
+  opacity: 0.8;
+}
+
+.btnCancelarOrden {
+  padding: 9px 18px;
+  background: none;
+  border: 1.5px solid var(--danger);
+  border-radius: 9px;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  font-family: var(--font-sans), system-ui, sans-serif;
+  color: var(--danger);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.15s;
+  margin-left: auto;
+}
+
+.btnCancelarOrden:active {
+  background: var(--danger-bg);
+}
+
+/* ── Edit form (inside card) ──────────────────────────────── */
+
+.editSection {
+  margin-bottom: 14px;
+}
+
+.editTitle {
+  display: block;
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--accent-5);
+  margin-bottom: 6px;
+}
+
+.editInput,
+.editSelect,
+.editTextarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1.5px solid var(--divider-1);
+  border-radius: 8px;
+  font-size: var(--fs-base);
+  font-family: var(--font-sans), system-ui, sans-serif;
+  color: var(--black);
+  background: var(--background);
+  outline: none;
+  box-sizing: border-box;
+  -webkit-appearance: none;
+  transition: border-color 0.15s;
+}
+
+.editInput:focus,
+.editSelect:focus,
+.editTextarea:focus {
+  border-color: var(--accent-3);
+}
+
+.editTextarea {
+  resize: vertical;
+  min-height: 72px;
+  line-height: 1.5;
+}
+
+.tipoToggle {
+  display: flex;
+  gap: 8px;
+}
+
+.tipoBtn {
+  flex: 1;
+  padding: 10px 8px;
+  border: 1.5px solid var(--divider-1);
+  border-radius: 9px;
+  background: var(--background);
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  font-family: var(--font-sans), system-ui, sans-serif;
+  color: var(--accent-5);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: all 0.15s ease;
+}
+
+.tipoBtnSolicitud {
+  background: var(--accent-2);
+  border-color: var(--accent-1);
+  color: var(--accent-1);
+  font-weight: 700;
+}
+
+.tipoBtnEmergencia {
+  background: var(--danger-bg);
+  border-color: var(--danger);
+  color: var(--danger);
+  font-weight: 700;
+}
+
+.editError {
+  font-size: var(--fs-xs);
+  color: var(--danger-dark);
+  background: var(--danger-bg);
+  border-radius: 6px;
+  padding: 8px 10px;
+  margin-bottom: 12px;
+}
+
+.editActions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  padding-top: 4px;
+}
+
+.btnEditCancel {
+  padding: 9px 16px;
+  background: none;
+  border: 1.5px solid var(--divider-1);
+  border-radius: 8px;
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  font-family: var(--font-sans), system-ui, sans-serif;
+  color: var(--accent-5);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.btnEditSave {
+  padding: 9px 20px;
+  background: var(--accent-1);
+  color: var(--white);
+  border: none;
+  border-radius: 8px;
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  font-family: var(--font-sans), system-ui, sans-serif;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: opacity 0.15s;
+}
+
+.btnEditSave:disabled,
+.btnEditCancel:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ── Confirm overlay ──────────────────────────────────────── */
+
+.confirmOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(44, 36, 24, 0.45);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  z-index: 100;
+  padding: 16px;
+}
+
+@media (min-width: 480px) {
+  .confirmOverlay {
+    align-items: center;
+  }
+}
+
+.confirmCard {
+  background: var(--background);
+  border-radius: 14px;
+  padding: 24px 20px 20px;
+  max-width: 380px;
+  width: 100%;
+}
+
+.confirmText {
+  font-size: var(--fs-base);
+  color: var(--black);
+  line-height: 1.5;
+  margin-bottom: 20px;
+  text-align: center;
+}
+
+.confirmActions {
+  display: flex;
+  gap: 10px;
+}
+
+.btnConfirmNo {
+  flex: 1;
+  padding: 13px;
+  background: none;
+  border: 1.5px solid var(--divider-1);
+  border-radius: 10px;
+  font-size: var(--fs-base);
+  font-weight: 500;
+  font-family: var(--font-sans), system-ui, sans-serif;
+  color: var(--accent-5);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.btnConfirmSi {
+  flex: 1;
+  padding: 13px;
+  background: var(--danger);
+  color: var(--white);
+  border: none;
+  border-radius: 10px;
+  font-size: var(--fs-base);
+  font-weight: 700;
+  font-family: var(--font-sans), system-ui, sans-serif;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: opacity 0.15s;
+}
+
+.btnConfirmSi:disabled,
+.btnConfirmNo:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ── Observación ──────────────────────────────────────────── */
+
+.obsText {
+  font-size: var(--fs-base);
+  color: var(--black);
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
