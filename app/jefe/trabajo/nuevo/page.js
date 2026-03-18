@@ -9,6 +9,7 @@ export default function JefeNuevaOrdenPage() {
   const [plantaId, setPlantaId]       = useState(null);
   const [ubicaciones, setUbicaciones] = useState([]);
   const [tecnicos, setTecnicos]       = useState([]);
+  const [clientes, setClientes]       = useState([]);
   const [cargando, setCargando]       = useState(true);
   const [saving, setSaving]           = useState(false);
   const [error, setError]             = useState(null);
@@ -16,6 +17,7 @@ export default function JefeNuevaOrdenPage() {
   const [form, setForm] = useState({
     tipo:             "solicitud",
     numero_meconecta: "",
+    cliente_id:       "",
     ubicacion_id:     "",
     descripcion:      "",
     tecnico_id:       "",
@@ -42,7 +44,7 @@ export default function JefeNuevaOrdenPage() {
       const pId = perfil.planta_id;
       setPlantaId(pId);
 
-      const [{ data: ubics }, { data: tecns }] = await Promise.all([
+      const [{ data: ubics }, { data: tecns }, { data: clis }] = await Promise.all([
         supabase
           .from("ubicaciones")
           .select("id, edificio, piso, detalle")
@@ -55,10 +57,17 @@ export default function JefeNuevaOrdenPage() {
           .eq("planta_id", pId)
           .eq("rol", "tecnico")
           .order("nombre"),
+        supabase
+          .from("clientes")
+          .select("id, nombre, rut")
+          .eq("planta_id", pId)
+          .eq("activo", true)
+          .order("nombre"),
       ]);
 
       setUbicaciones(ubics ?? []);
       setTecnicos(tecns ?? []);
+      setClientes(clis ?? []);
       setCargando(false);
     }
     init();
@@ -67,7 +76,6 @@ export default function JefeNuevaOrdenPage() {
   async function guardar() {
     if (!form.ubicacion_id)       { setError("Selecciona una ubicación."); return; }
     if (!form.descripcion.trim()) { setError("Ingresa una descripción."); return; }
-    if (!form.tecnico_id)         { setError("Asigna un técnico."); return; }
 
     setError(null);
     setSaving(true);
@@ -75,22 +83,57 @@ export default function JefeNuevaOrdenPage() {
     const supabase = createClient();
     const now = new Date().toISOString();
 
-    const { error: insError } = await supabase.from("ordenes_trabajo").insert({
-      planta_id:        plantaId,
-      tecnico_id:       form.tecnico_id,
-      ubicacion_id:     form.ubicacion_id,
-      tipo:             form.tipo,
-      numero_meconecta:
-        form.tipo === "solicitud" && form.numero_meconecta.trim()
-          ? form.numero_meconecta.trim()
-          : null,
-      descripcion:      form.descripcion.trim(),
-      estado:           form.tipo === "emergencia" ? "en_curso" : "pendiente",
-      prioridad:        form.tipo === "emergencia" ? "urgente" : "normal",
-      hora_inicio:      form.tipo === "emergencia" ? now : null,
-    });
+    const { data: nuevaOrden, error: insError } = await supabase
+      .from("ordenes_trabajo")
+      .insert({
+        planta_id:        plantaId,
+        tecnico_id:       form.tecnico_id || null,
+        cliente_id:       form.cliente_id || null,
+        ubicacion_id:     form.ubicacion_id,
+        tipo:             form.tipo,
+        numero_meconecta:
+          form.tipo === "solicitud" && form.numero_meconecta.trim()
+            ? form.numero_meconecta.trim()
+            : null,
+        descripcion:      form.descripcion.trim(),
+        estado:           form.tipo === "emergencia" ? "en_curso" : "pendiente",
+        prioridad:        form.tipo === "emergencia" ? "urgente" : "normal",
+        hora_inicio:      form.tipo === "emergencia" ? now : null,
+      })
+      .select("id")
+      .single();
 
     if (insError) { setError(insError.message); setSaving(false); return; }
+
+    const desc = form.descripcion.trim().slice(0, 60);
+    const ordenUrl = `/tecnico/trabajo/${nuevaOrden.id}`;
+
+    if (form.tipo === "emergencia") {
+      // Notify ALL technicians in the plant
+      fetch("/api/notificar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          planta_id_todos_tecnicos: plantaId,
+          titulo: "🚨 EMERGENCIA",
+          mensaje: desc,
+          url: ordenUrl,
+          urgente: true,
+        }),
+      });
+    } else {
+      // Notify only the assigned technician
+      fetch("/api/notificar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          usuario_id: form.tecnico_id,
+          titulo: "Nueva orden asignada",
+          mensaje: desc,
+          url: ordenUrl,
+        }),
+      });
+    }
 
     router.push("/jefe");
   }
@@ -133,6 +176,30 @@ export default function JefeNuevaOrdenPage() {
         )}
       </div>
 
+      {/* Cliente */}
+      <div className={styles.section}>
+        <label className={styles.label}>Cliente / Institución</label>
+        {clientes.length === 0 ? (
+          <p className={styles.empty}>
+            No hay clientes.{" "}
+            <a href="/jefe/clientes" className={styles.link}>Agregar cliente</a>
+          </p>
+        ) : (
+          <select
+            className={styles.select}
+            value={form.cliente_id}
+            onChange={(e) => set("cliente_id", e.target.value)}
+          >
+            <option value="">Sin cliente asignado</option>
+            {clientes.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.nombre}{c.rut ? ` · ${c.rut}` : ""}
+              </option>
+            ))}
+          </select>
+        )}
+      </div>
+
       {/* N° Me Conecta — solo solicitud */}
       {form.tipo === "solicitud" && (
         <div className={styles.section}>
@@ -172,7 +239,7 @@ export default function JefeNuevaOrdenPage() {
 
       {/* Asignar técnico */}
       <div className={styles.section}>
-        <label className={styles.label}>Asignar a</label>
+        <label className={styles.label}>Asignar a técnico</label>
         {tecnicos.length === 0 ? (
           <p className={styles.empty}>No hay técnicos en la planta.</p>
         ) : (
@@ -181,7 +248,7 @@ export default function JefeNuevaOrdenPage() {
             value={form.tecnico_id}
             onChange={(e) => set("tecnico_id", e.target.value)}
           >
-            <option value="">Seleccionar técnico…</option>
+            <option value="">Sin asignar (asignar después)</option>
             {tecnicos.map((t) => (
               <option key={t.id} value={t.id}>{t.nombre}</option>
             ))}

@@ -27,11 +27,11 @@
 }
 
 .logoImg {
-  width: 20px;
-  height: 20px;
+  width: 26px;
+  height: 26px;
   display: block;
   flex-shrink: 0;
-  color: var(--white);
+  filter: brightness(0) invert(1);
 }
 
 .logoText {
@@ -60,209 +60,183 @@
   white-space: nowrap;
 }
 
-/* ── Invite button ─────────────────────────────────────────── */
+/* ── Bell ───────────────────────────────────────────────────── */
 
-.btnInvitar {
+.refreshBtn {
   display: flex;
   align-items: center;
-  gap: 5px;
-  padding: 6px 12px;
-  background: rgba(255, 255, 255, 0.12);
-  border: 1px solid rgba(255, 255, 255, 0.18);
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  background: rgba(255,255,255,0.10);
+  border: 1px solid rgba(255,255,255,0.14);
   border-radius: 8px;
-  font-size: var(--fs-sm);
-  font-weight: 600;
-  font-family: var(--font-sans), system-ui, sans-serif;
+  color: var(--white);
+  font-size: 16px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.15s;
+}
+.refreshBtn:hover { background: rgba(255,255,255,0.18); }
+
+.bellWrap {
+  position: relative;
+}
+
+.bellBtn {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  background: rgba(255,255,255,0.10);
+  border: 1px solid rgba(255,255,255,0.14);
+  border-radius: 8px;
   color: var(--white);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
   transition: background 0.15s;
 }
+.bellBtn:hover { background: rgba(255,255,255,0.18); }
 
-.btnInvitar:hover {
-  background: rgba(255, 255, 255, 0.18);
-}
-
-/* ── Overlay + Modal ───────────────────────────────────────── */
-
-.overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(44, 36, 24, 0.5);
+.bellBadge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  background: #e53e3e;
+  color: #fff;
+  border-radius: 8px;
+  font-size: 10px;
+  font-weight: 700;
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 200;
-  padding: 20px;
-}
-
-.modal {
-  background: var(--background);
-  border-radius: 14px;
-  padding: 24px 20px 20px;
-  width: 100%;
-  max-width: 380px;
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-}
-
-.modalTitle {
-  font-size: var(--fs-md);
-  font-weight: 700;
-  color: var(--black);
-  margin: 0 0 20px;
-}
-
-/* ── Form fields ───────────────────────────────────────────── */
-
-.formField {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-  margin-bottom: 14px;
-}
-
-.formLabel {
-  font-size: var(--fs-xs);
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.07em;
-  color: var(--accent-5);
-}
-
-.formInput,
-.formSelect {
-  width: 100%;
-  padding: 11px 13px;
-  border: 1.5px solid var(--divider-1);
-  border-radius: 9px;
-  font-size: var(--fs-base);
-  font-family: var(--font-sans), system-ui, sans-serif;
-  color: var(--black);
-  background: var(--background);
-  outline: none;
+  line-height: 1;
   box-sizing: border-box;
-  -webkit-appearance: none;
-  transition: border-color 0.15s;
 }
 
-.formInput:focus,
-.formSelect:focus {
-  border-color: var(--accent-3);
+/* ── Notification panel ─────────────────────────────────────── */
+
+.notifPanel {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: min(320px, calc(100vw - 24px));
+  background: var(--background, #FAF8F5);
+  border: 1px solid var(--divider-1, #E8E0D6);
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(44,36,24,0.14);
+  z-index: 300;
+  overflow: hidden;
 }
 
-.formInput::placeholder {
-  color: var(--accent-6);
-}
-
-.formError {
-  font-size: var(--fs-sm);
-  color: var(--danger-dark);
-  background: var(--danger-bg);
-  border-radius: 8px;
-  padding: 9px 12px;
-  margin-bottom: 14px;
-}
-
-/* ── Actions ───────────────────────────────────────────────── */
-
-.modalActions {
+.notifHeader {
   display: flex;
-  gap: 10px;
-  margin-top: 4px;
-}
-
-.btnPrimary {
-  flex: 1;
-  padding: 13px;
-  background: var(--accent-1);
-  color: var(--white);
-  border: none;
-  border-radius: 10px;
-  font-size: var(--fs-base);
-  font-weight: 700;
-  font-family: var(--font-sans), system-ui, sans-serif;
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-  transition: opacity 0.15s;
-}
-
-.btnPrimary:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.btnGhost {
-  flex: 1;
-  padding: 13px;
-  background: none;
-  border: 1.5px solid var(--divider-1);
-  border-radius: 10px;
-  font-size: var(--fs-base);
-  font-weight: 500;
-  font-family: var(--font-sans), system-ui, sans-serif;
-  color: var(--accent-5);
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-}
-
-.btnGhost:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-/* ── Success screen ────────────────────────────────────────── */
-
-.modalSuccess {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.modalSuccessTitle {
-  font-size: var(--fs-md);
-  font-weight: 700;
-  color: var(--success);
-  margin: 0;
-}
-
-.modalSuccessInfo {
-  font-size: var(--fs-base);
-  color: var(--black);
-  line-height: 1.5;
-  margin: 0;
-}
-
-.credBox {
-  background: var(--surface-hover);
-  border-radius: 10px;
-  padding: 12px 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.credRow {
-  display: flex;
-  justify-content: space-between;
   align-items: center;
-  gap: 8px;
-}
-
-.credLabel {
-  font-size: var(--fs-xs);
+  justify-content: space-between;
+  padding: 12px 14px 10px;
+  font-size: 13px;
   font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--accent-5);
-  flex-shrink: 0;
+  color: var(--black, #2C2418);
+  border-bottom: 0.5px solid var(--divider-1, #E8E0D6);
 }
 
-.credVal {
-  font-size: var(--fs-sm);
+.notifCount {
+  font-size: 11px;
   font-weight: 600;
-  color: var(--black);
-  text-align: right;
-  word-break: break-all;
+  color: var(--accent-5, #7a6a5a);
+  margin-left: 6px;
+}
+
+.notifClearBtn {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent-5, #7a6a5a);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: background 0.15s, color 0.15s;
+}
+
+.notifClearBtn:hover {
+  background: var(--danger-bg, #fff0f0);
+  color: var(--danger, #e53e3e);
+}
+
+.notifEmpty {
+  padding: 20px 14px;
+  font-size: 13px;
+  color: var(--accent-5, #7a6a5a);
+  text-align: center;
+  margin: 0;
+}
+
+.notifList {
+  max-height: 340px;
+  overflow-y: auto;
+}
+
+.notifItem {
+  width: 100%;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 11px 14px;
+  background: none;
+  border: none;
+  border-bottom: 0.5px solid var(--divider-1, #E8E0D6);
+  cursor: pointer;
+  text-align: left;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.1s;
+}
+.notifItem:last-child { border-bottom: none; }
+.notifItem:hover { background: var(--surface-hover, rgba(0,0,0,0.03)); }
+
+.notifUnread { background: rgba(160,98,45,0.05); }
+.notifUnread:hover { background: rgba(160,98,45,0.09); }
+
+.notifDot {
+  flex-shrink: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent-1, #A0622D);
+  margin-top: 5px;
+}
+
+.notifBody {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.notifTitulo {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--black, #2C2418);
+  line-height: 1.3;
+}
+
+.notifMensaje {
+  font-size: 12px;
+  color: var(--accent-5, #7a6a5a);
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.notifTime {
+  font-size: 11px;
+  color: var(--accent-6, #a0927f);
+  margin-top: 2px;
 }

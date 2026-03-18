@@ -91,6 +91,8 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
+  overflow: hidden;
+  min-width: 0;
 }
 
 .kpiDestacado {
@@ -116,6 +118,9 @@
   font-weight: 700;
   color: var(--black);
   line-height: 1.1;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  min-width: 0;
 }
 
 .kpiSuccess {
@@ -503,4 +508,55 @@
   .ordenList {
     grid-template-columns: repeat(3, 1fr);
   }
+}
+
+/* ── Billing badges ───────────────────────────────────────── */
+
+.badgeCobroPendiente {
+  background: var(--warning-bg);
+  color: var(--warning);
+}
+
+.badgeCobrado {
+  background: var(--success-bg);
+  color: var(--success);
+}
+
+/* ── Billing KPI single-column layout ────────────────────── */
+
+.kpiRowColumn {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.kpiRowColumn .kpi {
+  width: 100%;
+}
+
+/* ── Billing KPI sub-line ─────────────────────────────────── */
+
+.kpiSub {
+  font-size: var(--fs-sm);
+  color: var(--accent-1);
+  font-weight: 600;
+  margin-top: 2px;
+}
+
+.kpiHighlight {
+  border-color: var(--accent-1);
+}
+
+/* ── Quick cobrado button ─────────────────────────────────── */
+
+.btnCobrado {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 8px;
+  background: var(--success-bg);
+  color: var(--success);
+  border: none;
+  cursor: pointer;
+  white-space: nowrap;
 }

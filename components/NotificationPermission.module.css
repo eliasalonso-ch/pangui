@@ -1,0 +1,60 @@
+.banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  background: var(--accent-2);
+  border-bottom: 0.5px solid var(--divider-1);
+  font-size: var(--fs-sm);
+  position: sticky;
+  top: 0;
+  z-index: 190;
+}
+
+.icon {
+  font-size: 22px;
+  flex-shrink: 0;
+}
+
+.body {
+  flex: 1;
+  min-width: 0;
+}
+
+.title {
+  font-weight: 600;
+  color: #2C2418;
+}
+
+.sub {
+  color: #7a6a5a;
+  margin-top: 1px;
+}
+
+.actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.btnPrimary {
+  background: var(--accent-1);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 7px 14px;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.btnGhost {
+  background: transparent;
+  color: #7a6a5a;
+  border: none;
+  padding: 7px 10px;
+  font-size: var(--fs-sm);
+  cursor: pointer;
+  white-space: nowrap;
+}

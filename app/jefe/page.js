@@ -11,6 +11,8 @@ const QUERY_SELECT =
   "id, tipo, numero_meconecta, descripcion, estado, prioridad, " +
   "tecnico_id, hora_inicio, hora_termino, duracion_min, observacion, " +
   "created_at, firmado_at, nombre_solicitante, firma_solicitante, " +
+  "estado_cobro, numero_factura, fecha_cobro, " +
+  "costo_materiales, costo_mano_obra, costo_total, " +
   "tecnicos:usuarios(nombre), " +
   "ubicaciones(edificio, piso, detalle), " +
   "materiales_usados(id, nombre, cantidad, unidad)";
@@ -100,6 +102,23 @@ function BadgeEstado({ estado, tipo }) {
       {BADGE_LABEL[key] ?? estado}
     </span>
   );
+}
+
+const COBRO_BADGE = {
+  pendiente_cobro: { cls: styles.badgeCobroPendiente, label: "Pendiente cobro" },
+  cobrado:         { cls: styles.badgeCobrado,         label: "Cobrado" },
+};
+
+function BadgeCobro({ estado_cobro }) {
+  if (!estado_cobro || estado_cobro === "no_cobrable") return null;
+  const b = COBRO_BADGE[estado_cobro];
+  if (!b) return null;
+  return <span className={`${styles.badge} ${b.cls}`}>{b.label}</span>;
+}
+
+function formatPesos(n) {
+  if (n == null) return "$0";
+  return "$" + Number(n).toLocaleString("es-CL");
 }
 
 // ── KPI grid ──────────────────────────────────────────────────
@@ -424,6 +443,12 @@ export default function JefePage() {
         >
           Reportes
         </button>
+        <button
+          className={`${styles.tab} ${tab === "facturacion" ? styles.tabActive : ""}`}
+          onClick={() => setTab("facturacion")}
+        >
+          Facturación
+        </button>
       </div>
 
       <div className={styles.body}>
@@ -449,6 +474,7 @@ export default function JefePage() {
                     <div className={styles.ordenCardTop}>
                       <span className={styles.ordenId}>{formatId(o)}</span>
                       <div className={styles.ordenCardRight}>
+                        <BadgeCobro estado_cobro={o.estado_cobro} />
                         <BadgeEstado estado={o.estado} tipo={o.tipo} />
                         <span className={styles.ordenTime}>
                           {formatFechaHora(o.created_at)}
@@ -508,10 +534,11 @@ export default function JefePage() {
                       <th>Fecha</th>
                       <th>Tipo</th>
                       <th>Técnico</th>
-                      <th>Ubicación</th>
                       <th>Descripción</th>
                       <th>Duración</th>
                       <th>Estado</th>
+                      <th>Cobro</th>
+                      <th>Total</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -526,11 +553,6 @@ export default function JefePage() {
                           {o.tipo === "emergencia" ? "Emergencia" : "Solicitud"}
                         </td>
                         <td>{o.tecnicos?.nombre || "—"}</td>
-                        <td>
-                          {o.ubicaciones
-                            ? `${o.ubicaciones.edificio}${o.ubicaciones.detalle ? ` · ${o.ubicaciones.detalle}` : ""}`
-                            : "—"}
-                        </td>
                         <td className={styles.tdDesc}>{o.descripcion}</td>
                         <td className={styles.tdNoWrap}>
                           {formatDuracion(o.duracion_min)}
@@ -538,6 +560,8 @@ export default function JefePage() {
                         <td>
                           <BadgeEstado estado={o.estado} tipo={o.tipo} />
                         </td>
+                        <td><BadgeCobro estado_cobro={o.estado_cobro} /></td>
+                        <td className={styles.tdNoWrap}>{o.costo_total ? formatPesos(o.costo_total) : "—"}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -675,6 +699,129 @@ export default function JefePage() {
             )}
           </>
         )}
+
+        {/* ── TAB FACTURACIÓN ── */}
+        {tab === "facturacion" && (() => {
+          const pendientes = ordenesPeriodo.filter((o) => o.estado_cobro === "pendiente_cobro");
+          const cobradas   = ordenesPeriodo.filter((o) => o.estado_cobro === "cobrado");
+          const sinCobrar  = ordenesPeriodo.filter((o) => o.estado_cobro === "pendiente_cobro" || o.estado_cobro === "cobrado");
+
+          const sumPendientes = pendientes.reduce((s, o) => s + (Number(o.costo_total) || 0), 0);
+          const sumCobradas   = cobradas.reduce((s, o) => s + (Number(o.costo_total) || 0), 0);
+          const sumTotal      = sinCobrar.reduce((s, o) => s + (Number(o.costo_total) || 0), 0);
+
+          async function marcarCobrado(ordenId) {
+            const supabase = createClient();
+            await supabase.from("ordenes_trabajo")
+              .update({ estado_cobro: "cobrado", fecha_cobro: new Date().toISOString() })
+              .eq("id", ordenId);
+            await cargarOrdenesPeriodo(plantaId, filtroDesde, filtroHasta);
+          }
+
+          return (
+            <>
+              <FiltrosBar
+                tecnicos={tecnicos}
+                filtroTecnico={filtroTecnico}
+                setFiltroTecnico={setFiltroTecnico}
+                filtroDesde={filtroDesde}
+                setFiltroDesde={setFiltroDesde}
+                filtroHasta={filtroHasta}
+                setFiltroHasta={setFiltroHasta}
+                onAplicar={aplicarFiltros}
+              />
+
+              {/* KPIs */}
+              <div className={styles.kpiRowColumn}>
+                <div className={styles.kpi}>
+                  <div className={styles.kpiLabel}>Pendientes cobro</div>
+                  <div className={styles.kpiVal}>{pendientes.length}</div>
+                  <div className={styles.kpiSub}>{formatPesos(sumPendientes)}</div>
+                </div>
+                <div className={styles.kpi}>
+                  <div className={styles.kpiLabel}>Cobrados (período)</div>
+                  <div className={styles.kpiVal}>{cobradas.length}</div>
+                  <div className={styles.kpiSub}>{formatPesos(sumCobradas)}</div>
+                </div>
+                <div className={`${styles.kpi} ${styles.kpiHighlight}`}>
+                  <div className={styles.kpiLabel}>Total acumulado</div>
+                  <div className={styles.kpiVal}>{formatPesos(sumTotal)}</div>
+                </div>
+              </div>
+
+              {/* Lista pendientes con acción rápida */}
+              {pendientes.length > 0 && (
+                <>
+                  <h3 className={styles.seccionTitulo}>Pendientes de cobro</h3>
+                  <div className={styles.tableWrap}>
+                    <table className={styles.tabla}>
+                      <thead>
+                        <tr>
+                          <th>ID</th>
+                          <th>Fecha</th>
+                          <th>Técnico</th>
+                          <th>Total</th>
+                          <th></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {pendientes.map((o) => (
+                          <tr key={o.id} onClick={() => router.push(`/jefe/trabajo/${o.id}`)}>
+                            <td className={styles.tdMono}>{formatId(o)}</td>
+                            <td className={styles.tdNoWrap}>{formatFecha(o.created_at)}</td>
+                            <td>{o.tecnicos?.nombre || "—"}</td>
+                            <td className={styles.tdNoWrap}>{formatPesos(o.costo_total)}</td>
+                            <td>
+                              <button
+                                className={styles.btnCobrado}
+                                onClick={(e) => { e.stopPropagation(); marcarCobrado(o.id); }}
+                              >
+                                ✓ Cobrado
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )}
+
+              {/* Full list with filter */}
+              <h3 className={styles.seccionTitulo}>Todas las órdenes</h3>
+              <div className={styles.tableWrap}>
+                <table className={styles.tabla}>
+                  <thead>
+                    <tr>
+                      <th>ID</th>
+                      <th>Fecha</th>
+                      <th>Técnico</th>
+                      <th>Materiales</th>
+                      <th>M. obra</th>
+                      <th>Total</th>
+                      <th>Estado cobro</th>
+                      <th>N° Factura</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {ordenesFiltradas.map((o) => (
+                      <tr key={o.id} onClick={() => router.push(`/jefe/trabajo/${o.id}`)}>
+                        <td className={styles.tdMono}>{formatId(o)}</td>
+                        <td className={styles.tdNoWrap}>{formatFecha(o.created_at)}</td>
+                        <td>{o.tecnicos?.nombre || "—"}</td>
+                        <td className={styles.tdNoWrap}>{o.costo_materiales ? formatPesos(o.costo_materiales) : "—"}</td>
+                        <td className={styles.tdNoWrap}>{o.costo_mano_obra ? formatPesos(o.costo_mano_obra) : "—"}</td>
+                        <td className={styles.tdNoWrap}>{o.costo_total ? formatPesos(o.costo_total) : "—"}</td>
+                        <td><BadgeCobro estado_cobro={o.estado_cobro} /></td>
+                        <td>{o.numero_factura || "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          );
+        })()}
 
         <div className={styles.footer}>
           Actualizado{" "}

@@ -7,7 +7,7 @@ import FirmaCanvas from "@/components/FirmaCanvas";
 import BuscadorMaterial from "@/components/BuscadorMaterial";
 import styles from "./page.module.css";
 
-const ESTADOS_EDITABLES = ["pendiente", "en_curso"];
+const ESTADOS_EDITABLES = ["pendiente", "en_curso", "en_revision"];
 
 const BADGE_CLASS = {
   pendiente: styles.badgePendiente,
@@ -66,7 +66,9 @@ export default function OrdenDetallePage() {
   const [cargando, setCargando] = useState(true);
   const [starting, setStarting] = useState(false);
   const [completing, setCompleting] = useState(false);
-  const [showFirma, setShowFirma] = useState(false);
+  const [showConfirmRevision, setShowConfirmRevision] = useState(false);
+  const [firmaCapturada, setFirmaCapturada] = useState(null); // { base64, nombre }
+  const [rechazoPopup, setRechazoPopup] = useState(null); // motivo string when rejected
   const [savingObs, setSavingObs] = useState(false);
 
   // ── Edit mode ────────────────────────────────────────────────
@@ -75,6 +77,10 @@ export default function OrdenDetallePage() {
   const [ubicaciones, setUbicaciones] = useState([]);
   const [savingEdit, setSavingEdit] = useState(false);
   const [editError, setEditError] = useState(null);
+
+  // ── Material edit ─────────────────────────────────────────────
+  const [editingMatId, setEditingMatId] = useState(null);
+  const [editingMatCant, setEditingMatCant] = useState("");
 
   // ── Material add state ───────────────────────────────────────
   const [matSeleccionado, setMatSeleccionado] = useState(null); // material from inventory
@@ -146,17 +152,24 @@ export default function OrdenDetallePage() {
       }
 
       channel = supabase
-        .channel(`orden-mat-${id}`)
-        .on(
-          "postgres_changes",
-          {
-            event: "*",
-            schema: "public",
-            table: "materiales_usados",
-            filter: `orden_id=eq.${id}`,
-          },
-          cargarMateriales,
-        )
+        .channel(`orden-${id}`)
+        .on("postgres_changes", {
+          event: "UPDATE",
+          schema: "public",
+          table: "ordenes_trabajo",
+          filter: `id=eq.${id}`,
+        }, (payload) => {
+          setOrden(payload.new);
+          if (payload.new.rechazo_motivo && !payload.old?.rechazo_motivo) {
+            setRechazoPopup(payload.new.rechazo_motivo);
+          }
+        })
+        .on("postgres_changes", {
+          event: "*",
+          schema: "public",
+          table: "materiales_usados",
+          filter: `orden_id=eq.${id}`,
+        }, cargarMateriales)
         .subscribe();
 
       await Promise.all([cargarOrden(), cargarMateriales()]);
@@ -168,6 +181,14 @@ export default function OrdenDetallePage() {
       if (channel) createClient().removeChannel(channel);
     };
   }, [id, cargarOrden, cargarMateriales, router]);
+
+  // ── Global refresh event ────────────────────────────────────
+
+  useEffect(() => {
+    const handler = () => { cargarOrden(); cargarMateriales(); };
+    window.addEventListener("pangi:refresh", handler);
+    return () => window.removeEventListener("pangi:refresh", handler);
+  }, [cargarOrden, cargarMateriales]);
 
   // ── Actions ──────────────────────────────────────────────────
 
@@ -234,7 +255,8 @@ export default function OrdenDetallePage() {
     setEditMode(false);
   }
 
-  async function completarConFirma(base64, nombre) {
+  async function completarConFirma() {
+    if (!firmaCapturada?.base64) return;
     setCompleting(true);
     const supabase = createClient();
     const { error } = await supabase
@@ -243,14 +265,28 @@ export default function OrdenDetallePage() {
         estado: "en_revision",
         hora_termino: new Date().toISOString(),
         observacion: observacion.trim() || null,
-        firma_solicitante: base64,
-        nombre_solicitante: nombre || null,
+        firma_solicitante: firmaCapturada.base64,
+        nombre_solicitante: firmaCapturada.nombre || null,
         firmado_at: new Date().toISOString(),
+        rechazo_motivo: null,
       })
       .eq("id", id);
     if (error) {
       setCompleting(false);
       return;
+    }
+    // Notify the boss that work is ready for review
+    if (plantaId) {
+      fetch("/api/notificar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          planta_id_jefe: plantaId,
+          titulo: "Trabajo listo para revisar",
+          mensaje: orden?.descripcion?.slice(0, 60) ?? "",
+          url: `/jefe/trabajo/${id}`,
+        }),
+      });
     }
     router.push("/tecnico");
   }
@@ -339,6 +375,16 @@ export default function OrdenDetallePage() {
     await supabase.from("materiales_usados").delete().eq("id", matId);
   }
 
+  async function guardarCantidadMaterial(matId) {
+    const cant = parseFloat(editingMatCant);
+    if (!cant || cant <= 0) { setEditingMatId(null); return; }
+    const supabase = createClient();
+    await supabase.from("materiales_usados").update({ cantidad: cant }).eq("id", matId);
+    setEditingMatId(null);
+    setEditingMatCant("");
+  }
+
+
   // ── Render ────────────────────────────────────────────────────
 
   if (cargando || orden === undefined) {
@@ -370,6 +416,12 @@ export default function OrdenDetallePage() {
             >
               {BADGE_LABEL[orden.estado] ?? orden.estado}
             </span>
+            {orden.estado_cobro === "pendiente_cobro" && (
+              <span className={`${styles.badge} ${styles.badgeCobro}`}>Pendiente cobro</span>
+            )}
+            {orden.estado_cobro === "cobrado" && (
+              <span className={`${styles.badge} ${styles.badgeCobrado}`}>Cobrado</span>
+            )}
             {ESTADOS_EDITABLES.includes(orden.estado) && !editMode && (
               <button className={styles.btnEditar} onClick={abrirEdicion}>
                 Editar
@@ -499,6 +551,17 @@ export default function OrdenDetallePage() {
       {/* ── EN CURSO ── */}
       {orden.estado === "en_curso" && (
         <>
+          {/* Rejection banner */}
+          {orden.rechazo_motivo && (
+            <div className={styles.rechazoBanner}>
+              <span className={styles.rechazoIcon}>❌</span>
+              <div>
+                <p className={styles.rechazoBannerTitle}>Trabajo rechazado</p>
+                <p className={styles.rechazoBannerMotivo}>{orden.rechazo_motivo}</p>
+              </div>
+            </div>
+          )}
+
           {/* Materiales usados */}
           <div className={styles.section}>
             <h2 className={styles.sectionTitle}>Materiales usados</h2>
@@ -509,9 +572,29 @@ export default function OrdenDetallePage() {
                 {materiales.map((m) => (
                   <div key={m.id} className={styles.matRow}>
                     <span className={styles.matNombre}>{m.nombre}</span>
-                    <span className={styles.matCant}>
-                      {m.cantidad} {m.unidad}
-                    </span>
+                    {editingMatId === m.id ? (
+                      <input
+                        className={styles.matEditInput}
+                        type="number"
+                        min="0.01"
+                        step="any"
+                        autoFocus
+                        value={editingMatCant}
+                        onChange={(e) => setEditingMatCant(e.target.value)}
+                        onBlur={() => guardarCantidadMaterial(m.id)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") guardarCantidadMaterial(m.id);
+                          if (e.key === "Escape") setEditingMatId(null);
+                        }}
+                      />
+                    ) : (
+                      <button
+                        className={styles.matCantBtn}
+                        onClick={() => { setEditingMatId(m.id); setEditingMatCant(String(m.cantidad)); }}
+                      >
+                        {m.cantidad} {m.unidad}
+                      </button>
+                    )}
                     <button
                       className={styles.matDelete}
                       onClick={() => eliminarMaterial(m.id)}
@@ -692,32 +775,44 @@ export default function OrdenDetallePage() {
             </button>
           </div>
 
-          {/* Firma / Completar */}
-          {showFirma ? (
-            <div className={styles.section}>
-              <h2 className={styles.sectionTitle}>Firma del solicitante</h2>
-              <FirmaCanvas onFirmar={completarConFirma} disabled={completing} />
-              {!completing && (
+          {/* Firma del solicitante — inline, before sending to revision */}
+          <div className={styles.section}>
+            <h2 className={styles.sectionTitle}>Firma del solicitante</h2>
+            {firmaCapturada?.base64 ? (
+              <div className={styles.firmaCapturadaWrap}>
+                <img src={firmaCapturada.base64} alt="Firma" className={styles.firmaImg} />
+                {firmaCapturada.nombre && (
+                  <p className={styles.firmaNombre}>{firmaCapturada.nombre}</p>
+                )}
                 <button
                   type="button"
                   className={styles.btnCancelarFirma}
-                  onClick={() => setShowFirma(false)}
+                  onClick={() => setFirmaCapturada(null)}
                 >
-                  Cancelar
+                  Volver a firmar
                 </button>
-              )}
-            </div>
-          ) : (
-            <div className={styles.actionSection}>
-              <button
-                className={`${styles.btnPrimary} ${styles.btnCompletar}`}
-                onClick={() => setShowFirma(true)}
+              </div>
+            ) : (
+              <FirmaCanvas
+                onFirmar={(b64, nombre) => setFirmaCapturada({ base64: b64, nombre })}
                 disabled={completing}
-              >
-                ✓ Enviar a revisión
-              </button>
-            </div>
-          )}
+              />
+            )}
+          </div>
+
+          {/* Enviar a revisión — locked until signed */}
+          <div className={styles.actionSection}>
+            <button
+              className={`${styles.btnPrimary} ${styles.btnCompletar}`}
+              onClick={() => setShowConfirmRevision(true)}
+              disabled={completing || !firmaCapturada?.base64}
+            >
+              ✓ Enviar a revisión
+            </button>
+            {!firmaCapturada?.base64 && (
+              <p className={styles.firmaRequerida}>Se requiere la firma antes de enviar.</p>
+            )}
+          </div>
         </>
       )}
 
@@ -754,9 +849,9 @@ export default function OrdenDetallePage() {
 
           <div className={styles.section}>
             <h2 className={styles.sectionTitle}>Evidencia fotográfica</h2>
-            <FotoUpload ordenId={id} tipo="antes" readOnly={true} />
+            <FotoUpload ordenId={id} tipo="antes" readOnly={false} />
             <div className={styles.fotosDivider} />
-            <FotoUpload ordenId={id} tipo="despues" readOnly={true} />
+            <FotoUpload ordenId={id} tipo="despues" readOnly={false} />
           </div>
 
           {materiales.length > 0 && (
@@ -775,12 +870,23 @@ export default function OrdenDetallePage() {
             </div>
           )}
 
-          {orden.observacion && (
-            <div className={styles.section}>
-              <h2 className={styles.sectionTitle}>Observación</h2>
-              <p className={styles.obsText}>{orden.observacion}</p>
-            </div>
-          )}
+          <div className={styles.section}>
+            <h2 className={styles.sectionTitle}>Observación</h2>
+            <textarea
+              className={styles.textarea}
+              placeholder="Notas del trabajo (opcional)…"
+              value={observacion}
+              onChange={(e) => setObservacion(e.target.value)}
+              rows={3}
+            />
+            <button
+              className={styles.btnGuardarObs}
+              onClick={guardarObservacion}
+              disabled={savingObs}
+            >
+              {savingObs ? "Guardando…" : "Guardar nota"}
+            </button>
+          </div>
         </>
       )}
 
@@ -867,6 +973,51 @@ export default function OrdenDetallePage() {
           )}
         </>
       )}
+
+      {/* ── Warning modal before revision ── */}
+      {showConfirmRevision && (
+        <div className={styles.confirmOverlay} onClick={() => setShowConfirmRevision(false)}>
+          <div className={styles.confirmCard} onClick={(e) => e.stopPropagation()}>
+            <p className={styles.confirmTitle}>¿Todo listo?</p>
+            <p className={styles.confirmText}>
+              Revisa que las fotos, materiales y observaciones estén completos antes de enviar.
+              Una vez en revisión el jefe deberá aprobar el trabajo.
+            </p>
+            <div className={styles.confirmActions}>
+              <button
+                className={styles.btnConfirmNo}
+                onClick={() => setShowConfirmRevision(false)}
+              >
+                Revisar trabajo
+              </button>
+              <button
+                className={styles.btnConfirmSi}
+                onClick={() => { setShowConfirmRevision(false); completarConFirma(); }}
+              >
+                Continuar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Real-time rejection popup ── */}
+      {rechazoPopup && (
+        <div className={styles.rechazoOverlay}>
+          <div className={styles.rechazoModal}>
+            <span className={styles.rechazoModalIcon}>❌</span>
+            <p className={styles.rechazoModalTitle}>Trabajo rechazado</p>
+            <p className={styles.rechazoModalMotivo}>{rechazoPopup}</p>
+            <button
+              className={styles.btnConfirmSi}
+              onClick={() => setRechazoPopup(null)}
+            >
+              Entendido
+            </button>
+          </div>
+        </div>
+      )}
+
     </main>
   );
 }
