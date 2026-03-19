@@ -7,7 +7,7 @@ import { callEdge } from "@/lib/edge";
 import dynamic from "next/dynamic";
 const FotoUpload = dynamic(() => import("@/components/FotoUpload"), { ssr: false, loading: () => null });
 import styles from "./page.module.css";
-import { Pencil, Ban, Trash2 } from "lucide-react";
+import { Pencil, Ban, Trash2, FileDown } from "lucide-react";
 
 // ── Helpers ───────────────────────────────────────────────────
 
@@ -85,6 +85,9 @@ export default function JefeOrdenDetallePage() {
   const [savingEdit, setSavingEdit] = useState(false);
   const [editError, setEditError] = useState(null);
 
+  // PDF export
+  const [exportandoPDF, setExportandoPDF] = useState(false);
+
   // cancel confirmation
   const [confirmCancelar, setConfirmCancelar] = useState(false);
   const [cancelando, setCancelando] = useState(false);
@@ -112,6 +115,10 @@ export default function JefeOrdenDetallePage() {
   // delete
   const [confirmEliminar, setConfirmEliminar] = useState(false);
   const [eliminando, setEliminando] = useState(false);
+
+  // audit log
+  const [auditLog, setAuditLog] = useState([]);
+  const [auditOpen, setAuditOpen] = useState(false);
 
   const cargarOrden = useCallback(async () => {
     const supabase = createClient();
@@ -146,6 +153,16 @@ export default function JefeOrdenDetallePage() {
         tipo_dte:          data.tipo_dte           ?? null,
       });
     }
+  }, [id]);
+
+  const cargarAuditLog = useCallback(async () => {
+    const supabase = createClient();
+    const { data } = await supabase
+      .from("auditoria_ot")
+      .select("*, usuarios(nombre)")
+      .eq("orden_id", id)
+      .order("created_at", { ascending: false });
+    if (data) setAuditLog(data);
   }, [id]);
 
   const cargarMateriales = useCallback(async () => {
@@ -192,9 +209,10 @@ export default function JefeOrdenDetallePage() {
 
       const pId = perfil.planta_id;
 
-      const [, , { data: ubics }, { data: tecns }] = await Promise.all([
+      const [, , , { data: ubics }, { data: tecns }] = await Promise.all([
         cargarOrden(),
         cargarMateriales(),
+        cargarAuditLog(),
         supabase
           .from("ubicaciones")
           .select("id, edificio, piso, detalle")
@@ -443,6 +461,46 @@ export default function JefeOrdenDetallePage() {
     router.push("/jefe");
   }
 
+  // ── PDF export ────────────────────────────────────────────────
+  async function descargarPDF() {
+    if (exportandoPDF) return;
+    setExportandoPDF(true);
+    try {
+      const supabase = createClient();
+      // Fetch fotos
+      const { data: fotos } = await supabase.storage
+        .from("fotos-ordenes")
+        .list(`${id}/`);
+
+      let fotosConUrl = [];
+      if (fotos && fotos.length > 0) {
+        fotosConUrl = await Promise.all(
+          fotos.map(async (f) => {
+            const tipo = f.name.startsWith("antes_") ? "antes" : "despues";
+            const { data } = supabase.storage
+              .from("fotos-ordenes")
+              .getPublicUrl(`${id}/${f.name}`);
+            return { tipo, url: data.publicUrl };
+          })
+        );
+      }
+
+      // Get planta name
+      const { data: perfil } = await supabase
+        .from("usuarios")
+        .select("plantas(nombre)")
+        .eq("id", (await supabase.auth.getUser()).data.user?.id)
+        .maybeSingle();
+
+      const { exportarOTPDF } = await import("@/lib/exportar-ot");
+      await exportarOTPDF(orden, materiales, fotosConUrl, perfil?.plantas?.nombre ?? "");
+    } catch (err) {
+      console.error("PDF error:", err);
+    } finally {
+      setExportandoPDF(false);
+    }
+  }
+
   // ── Render ────────────────────────────────────────────────────
 
   if (cargando || orden === undefined) {
@@ -465,6 +523,14 @@ export default function JefeOrdenDetallePage() {
       {/* ── Jefe actions bar ── */}
       {!editMode && (
         <div className={styles.iconActionsRow}>
+          <button
+            className={styles.iconBtn}
+            onClick={descargarPDF}
+            disabled={exportandoPDF}
+            title="Descargar PDF"
+          >
+            <FileDown size={20} />
+          </button>
           <button
             className={styles.iconBtn}
             onClick={abrirEdicion}
@@ -1046,6 +1112,46 @@ export default function JefeOrdenDetallePage() {
           {savingBilling ? "Guardando…" : "Guardar facturación"}
         </button>
       </div>
+
+      {/* ── Historial de cambios ── */}
+      {auditLog.length > 0 && (
+        <div className={styles.auditSection}>
+          <button
+            className={styles.auditToggle}
+            onClick={() => setAuditOpen((v) => !v)}
+          >
+            <span>Historial de cambios ({auditLog.length})</span>
+            <span className={styles.auditChevron}>{auditOpen ? "▲" : "▼"}</span>
+          </button>
+          {auditOpen && (
+            <div className={styles.auditList}>
+              {auditLog.map((entry) => (
+                <div key={entry.id} className={styles.auditEntry}>
+                  <div className={styles.auditDot} />
+                  <div className={styles.auditBody}>
+                    <span className={styles.auditWho}>
+                      {entry.usuarios?.nombre ?? "Sistema"}
+                    </span>
+                    {" cambió "}
+                    <span className={styles.auditField}>{entry.campo}</span>
+                    {entry.valor_anterior != null && (
+                      <> de <span className={styles.auditOld}>{String(entry.valor_anterior)}</span></>
+                    )}
+                    {entry.valor_nuevo != null && (
+                      <> a <span className={styles.auditNew}>{String(entry.valor_nuevo)}</span></>
+                    )}
+                    <span className={styles.auditTime}>
+                      {new Date(entry.created_at).toLocaleString("es-CL", {
+                        day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit",
+                      })}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ── Confirm eliminar overlay ── */}
       {confirmEliminar && (

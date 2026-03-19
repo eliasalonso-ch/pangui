@@ -1,0 +1,484 @@
+.page {
+  padding: 0 0 100px;
+  min-height: 100dvh;
+  background: var(--background);
+}
+
+/* ── Header ── */
+.header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 16px 12px;
+  background: var(--background);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  border-bottom: 1px solid var(--border, #e5e7eb);
+}
+
+.backBtn {
+  background: none;
+  border: none;
+  padding: 6px;
+  cursor: pointer;
+  color: var(--black);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.title {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--black);
+  flex: 1;
+  margin: 0;
+}
+
+.addBtn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--blue);
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  padding: 8px 14px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.addBtn:active {
+  opacity: 0.85;
+}
+
+/* ── Sections ── */
+.section {
+  padding: 16px 16px 0;
+}
+
+.sectionTitle {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--gray, #6b7280);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin: 0 0 10px;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.emptyList {
+  font-size: 14px;
+  color: var(--gray, #6b7280);
+  padding: 8px 0;
+}
+
+.empty {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--gray, #6b7280);
+  font-size: 15px;
+}
+
+/* ── User Card ── */
+.card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: #fff;
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 12px;
+  padding: 12px 12px 12px 14px;
+  transition: opacity 0.2s;
+}
+
+.cardInactive {
+  opacity: 0.55;
+}
+
+.avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--blue);
+  color: #fff;
+  font-size: 16px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.name {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--black);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.meBadge {
+  font-size: 10px;
+  font-weight: 600;
+  background: #e0e7ff;
+  color: #4338ca;
+  border-radius: 6px;
+  padding: 1px 6px;
+  flex-shrink: 0;
+}
+
+.rol {
+  font-size: 12px;
+  color: var(--gray, #6b7280);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.cardRight {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.inactivoBadge {
+  font-size: 11px;
+  font-weight: 600;
+  background: #fee2e2;
+  color: #b91c1c;
+  border-radius: 6px;
+  padding: 2px 7px;
+}
+
+/* ── Context menu ── */
+.menuWrap {
+  position: relative;
+}
+
+.menuBtn {
+  background: none;
+  border: none;
+  padding: 6px;
+  cursor: pointer;
+  color: var(--gray, #6b7280);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.menuBtn:active {
+  background: var(--border, #e5e7eb);
+}
+
+.menuBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+}
+
+.menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  background: #fff;
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+  min-width: 180px;
+  z-index: 50;
+  overflow: hidden;
+  padding: 6px;
+}
+
+.menuItem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  background: none;
+  border: none;
+  padding: 10px 12px;
+  font-size: 14px;
+  color: var(--black);
+  cursor: pointer;
+  border-radius: 8px;
+  text-align: left;
+}
+
+.menuItem:hover {
+  background: var(--background);
+}
+
+.menuItemDanger {
+  color: #dc2626;
+}
+
+.menuDivider {
+  height: 1px;
+  background: var(--border, #e5e7eb);
+  margin: 4px 0;
+}
+
+/* ── Modals ── */
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  z-index: 100;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 0;
+}
+
+@media (min-width: 480px) {
+  .overlay {
+    align-items: center;
+  }
+}
+
+.modal {
+  background: #fff;
+  border-radius: 20px 20px 0 0;
+  padding: 24px 20px 32px;
+  width: 100%;
+  max-width: 480px;
+  max-height: 90dvh;
+  overflow-y: auto;
+}
+
+@media (min-width: 480px) {
+  .modal {
+    border-radius: 20px;
+  }
+}
+
+.confirmBox {
+  background: #fff;
+  border-radius: 16px;
+  padding: 24px 20px;
+  width: calc(100% - 32px);
+  max-width: 360px;
+}
+
+.modalTitle {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--black);
+  margin: 0 0 20px;
+}
+
+.confirmTitle {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--black);
+  margin: 0 0 10px;
+}
+
+.confirmSub {
+  font-size: 14px;
+  color: var(--gray, #6b7280);
+  margin: 0 0 20px;
+  line-height: 1.5;
+}
+
+/* ── Form ── */
+.formField {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.formLabel {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--black);
+}
+
+.formInput,
+.formSelect {
+  border: 1.5px solid var(--border, #e5e7eb);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 15px;
+  color: var(--black);
+  background: var(--background);
+  outline: none;
+  width: 100%;
+  box-sizing: border-box;
+  transition: border-color 0.15s;
+}
+
+.formInput:focus,
+.formSelect:focus {
+  border-color: var(--blue);
+}
+
+.formError {
+  font-size: 13px;
+  color: #dc2626;
+  margin: 0 0 10px;
+}
+
+/* ── Success box ── */
+.successBox {
+  text-align: center;
+  padding: 8px 0;
+}
+
+.successTitle {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--black);
+  margin: 0 0 8px;
+}
+
+.successSub {
+  font-size: 14px;
+  color: var(--gray, #6b7280);
+  margin: 0 0 20px;
+}
+
+.credBox {
+  background: var(--background);
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 12px;
+  padding: 12px 16px;
+  margin-bottom: 20px;
+  text-align: left;
+}
+
+.credRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 0;
+  gap: 12px;
+}
+
+.credRow + .credRow {
+  border-top: 1px solid var(--border, #e5e7eb);
+}
+
+.credLabel {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--gray, #6b7280);
+  flex-shrink: 0;
+}
+
+.credVal {
+  font-size: 14px;
+  color: var(--black);
+  font-weight: 500;
+  word-break: break-all;
+  text-align: right;
+}
+
+/* ── Modal actions ── */
+.modalActions {
+  display: flex;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.btnPrimary {
+  flex: 1;
+  background: var(--blue);
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  padding: 12px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btnPrimary:disabled {
+  opacity: 0.6;
+}
+
+.btnGhost {
+  flex: 1;
+  background: none;
+  border: 1.5px solid var(--border, #e5e7eb);
+  border-radius: 10px;
+  padding: 12px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--black);
+  cursor: pointer;
+}
+
+.btnDanger {
+  flex: 1;
+  background: #dc2626;
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  padding: 12px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+@media (prefers-color-scheme: dark) {
+  .card {
+    background: #1e293b;
+    border-color: #334155;
+  }
+  .modal,
+  .confirmBox,
+  .menu {
+    background: #1e293b;
+    border-color: #334155;
+  }
+  .menuItem:hover {
+    background: #0f172a;
+  }
+  .formInput,
+  .formSelect {
+    background: #0f172a;
+    border-color: #334155;
+    color: #f1f5f9;
+  }
+  .credBox {
+    background: #0f172a;
+    border-color: #334155;
+  }
+}
+
+:global(html[data-theme="dark"]) .card { background: #1e293b; border-color: #334155; }
+:global(html[data-theme="dark"]) .modal,
+:global(html[data-theme="dark"]) .confirmBox,
+:global(html[data-theme="dark"]) .menu { background: #1e293b; border-color: #334155; }
+:global(html[data-theme="dark"]) .menuItem:hover { background: #0f172a; }
+:global(html[data-theme="dark"]) .formInput,
+:global(html[data-theme="dark"]) .formSelect { background: #0f172a; border-color: #334155; color: #f1f5f9; }
+:global(html[data-theme="dark"]) .credBox { background: #0f172a; border-color: #334155; }

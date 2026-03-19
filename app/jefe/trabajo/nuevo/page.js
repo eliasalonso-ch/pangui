@@ -66,7 +66,7 @@ export default function JefeNuevaOrdenPage() {
           .order("nombre"),
         supabase
           .from("clientes")
-          .select("id, nombre, rut")
+          .select("id, nombre, rut, contacto_email, contacto_nombre")
           .eq("planta_id", pId)
           .eq("activo", true)
           .order("nombre"),
@@ -132,6 +132,27 @@ export default function JefeNuevaOrdenPage() {
         mensaje: desc,
         url: ordenUrl,
       });
+    }
+
+    // Email al cliente si tiene contacto_email
+    if (form.cliente_id) {
+      const cliente = clientes.find((c) => c.id === form.cliente_id);
+      if (cliente?.contacto_email) {
+        fetch("/api/email-ot", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            ordenId:   nuevaOrden.id,
+            to:        cliente.contacto_email,
+            toNombre:  cliente.contacto_nombre || cliente.nombre,
+            cliente:   cliente.nombre,
+            descripcion: form.descripcion.trim(),
+            tecnico:   form.tecnico_id
+              ? tecnicos.find((t) => t.id === form.tecnico_id)?.nombre ?? null
+              : null,
+          }),
+        }).catch(() => {});
+      }
     }
 
     router.push("/jefe");

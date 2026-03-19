@@ -1,0 +1,215 @@
+.page {
+  min-height: 100dvh;
+  background: #f1f5f9;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 24px 16px 48px;
+}
+
+.card {
+  background: #fff;
+  border-radius: 16px;
+  padding: 28px 24px 32px;
+  width: 100%;
+  max-width: 500px;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+}
+
+.logoRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.logoText {
+  font-size: 18px;
+  font-weight: 800;
+  color: #273d88;
+}
+
+.legalBadge {
+  font-size: 11px;
+  font-weight: 600;
+  background: #eff6ff;
+  color: #1d4ed8;
+  border-radius: 6px;
+  padding: 2px 8px;
+}
+
+.title {
+  font-size: 22px;
+  font-weight: 800;
+  color: #1a1a1a;
+  margin: 0 0 8px;
+}
+
+.subtitle {
+  font-size: 14px;
+  color: #6b7280;
+  line-height: 1.6;
+  margin: 0 0 24px;
+}
+
+/* ── Tipo selector ── */
+.field {
+  margin-bottom: 18px;
+}
+
+.label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: #1a1a1a;
+  margin-bottom: 8px;
+}
+
+.tipoGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.tipoBtn {
+  padding: 10px 8px;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 10px;
+  background: none;
+  font-size: 13px;
+  font-weight: 600;
+  color: #374151;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+  font-family: inherit;
+}
+
+.tipoBtnActive {
+  border-color: #273d88;
+  background: #eff6ff;
+  color: #273d88;
+}
+
+.tipoDesc {
+  font-size: 13px;
+  color: #6b7280;
+  line-height: 1.5;
+  margin: 0;
+  padding: 10px 12px;
+  background: #f8fafc;
+  border-radius: 8px;
+  border-left: 3px solid #273d88;
+}
+
+/* ── Inputs ── */
+.input,
+.textarea {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 15px;
+  color: #1a1a1a;
+  background: #f8fafc;
+  outline: none;
+  transition: border-color 0.15s;
+  font-family: inherit;
+}
+
+.input:focus,
+.textarea:focus {
+  border-color: #273d88;
+}
+
+.textarea {
+  resize: vertical;
+  min-height: 80px;
+}
+
+.error {
+  font-size: 13px;
+  color: #dc2626;
+  margin: 0 0 12px;
+}
+
+.btnSend {
+  display: block;
+  width: 100%;
+  background: #273d88;
+  color: #fff;
+  border: none;
+  border-radius: 12px;
+  padding: 14px;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+  margin-bottom: 16px;
+  transition: opacity 0.15s;
+}
+
+.btnSend:disabled { opacity: 0.6; }
+.btnSend:active:not(:disabled) { opacity: 0.85; }
+
+.legal {
+  font-size: 12px;
+  color: #9ca3af;
+  line-height: 1.5;
+  text-align: center;
+  margin: 0;
+}
+
+/* ── Success ── */
+.successIcon {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: #dcfce7;
+  color: #16a34a;
+  font-size: 28px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 16px;
+}
+
+.successTitle {
+  font-size: 22px;
+  font-weight: 800;
+  color: #1a1a1a;
+  text-align: center;
+  margin: 0 0 12px;
+}
+
+.successText {
+  font-size: 15px;
+  color: #374151;
+  line-height: 1.6;
+  text-align: center;
+  margin: 0;
+}
+
+@media (prefers-color-scheme: dark) {
+  .page { background: #0f172a; }
+  .card { background: #1e293b; box-shadow: none; }
+  .title { color: #f1f5f9; }
+  .label { color: #f1f5f9; }
+  .input, .textarea { background: #0f172a; border-color: #334155; color: #f1f5f9; }
+  .tipoBtn { border-color: #334155; color: #cbd5e1; background: #0f172a; }
+  .tipoDesc { background: #0f172a; }
+  .legal { color: #64748b; }
+}
+
+:global(html[data-theme="dark"]) .page { background: #0f172a; }
+:global(html[data-theme="dark"]) .card { background: #1e293b; box-shadow: none; }
+:global(html[data-theme="dark"]) .title { color: #f1f5f9; }
+:global(html[data-theme="dark"]) .label { color: #f1f5f9; }
+:global(html[data-theme="dark"]) .input,
+:global(html[data-theme="dark"]) .textarea { background: #0f172a; border-color: #334155; color: #f1f5f9; }
+:global(html[data-theme="dark"]) .tipoBtn { border-color: #334155; color: #cbd5e1; background: #0f172a; }
+:global(html[data-theme="dark"]) .tipoDesc { background: #0f172a; }
+:global(html[data-theme="dark"]) .legal { color: #64748b; }

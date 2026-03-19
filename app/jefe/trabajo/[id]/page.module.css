@@ -978,3 +978,95 @@
   padding-top: 6px;
   margin-top: 2px;
 }
+
+/* ── Audit log ──────────────────────────────────────────────── */
+
+.auditSection {
+  margin: 12px 16px 20px;
+  border: 1px solid var(--divider-1);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.auditToggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: var(--surface-secondary, #f8fafc);
+  border: none;
+  cursor: pointer;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--black);
+  font-family: var(--font-sans), system-ui, sans-serif;
+}
+
+.auditChevron {
+  font-size: 10px;
+  color: var(--accent-5);
+}
+
+.auditList {
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  background: var(--background);
+}
+
+.auditEntry {
+  display: flex;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--divider-1);
+  position: relative;
+}
+
+.auditEntry:last-child {
+  border-bottom: none;
+}
+
+.auditDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent-3, #273d88);
+  flex-shrink: 0;
+  margin-top: 5px;
+}
+
+.auditBody {
+  font-size: var(--fs-sm);
+  color: var(--black);
+  line-height: 1.5;
+  flex: 1;
+  min-width: 0;
+}
+
+.auditWho {
+  font-weight: 600;
+}
+
+.auditField {
+  font-weight: 600;
+  font-style: italic;
+}
+
+.auditOld {
+  color: #dc2626;
+  text-decoration: line-through;
+}
+
+.auditNew {
+  color: #16a34a;
+  font-weight: 600;
+}
+
+.auditTime {
+  display: block;
+  font-size: 11px;
+  color: var(--accent-5);
+  margin-top: 2px;
+}

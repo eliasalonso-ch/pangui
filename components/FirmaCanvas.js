@@ -8,6 +8,7 @@ export default function FirmaCanvas({ onFirmar, disabled = false }) {
   const hasFirmaRef = useRef(false);
 
   const [nombre, setNombre] = useState("");
+  const [consentido, setConsentido] = useState(false);
   const [canConfirm, setCanConfirm] = useState(false);
   const [error, setError] = useState(null);
 
@@ -44,7 +45,7 @@ export default function FirmaCanvas({ onFirmar, disabled = false }) {
 
     function handleTouchStart(e) {
       e.preventDefault();
-      if (disabled) return;
+      if (disabled || !consentido) return;
       const t = e.touches[0];
       const pos = getPos(t.clientX, t.clientY);
       isDrawingRef.current = true;
@@ -55,7 +56,7 @@ export default function FirmaCanvas({ onFirmar, disabled = false }) {
 
     function handleTouchMove(e) {
       e.preventDefault();
-      if (!isDrawingRef.current || disabled) return;
+      if (!isDrawingRef.current || disabled || !consentido) return;
       const t = e.touches[0];
       const pos = getPos(t.clientX, t.clientY);
       const ctx = canvas.getContext("2d");
@@ -81,12 +82,12 @@ export default function FirmaCanvas({ onFirmar, disabled = false }) {
       canvas.removeEventListener("touchmove", handleTouchMove);
       canvas.removeEventListener("touchend", handleTouchEnd);
     };
-  }, [disabled]);
+  }, [disabled, consentido]);
 
   // ── Mouse events ──────────────────────────────────────────
 
   function handleMouseDown(e) {
-    if (disabled) return;
+    if (disabled || !consentido) return;
     const canvas = canvasRef.current;
     const rect = canvas.getBoundingClientRect();
     isDrawingRef.current = true;
@@ -96,7 +97,7 @@ export default function FirmaCanvas({ onFirmar, disabled = false }) {
   }
 
   function handleMouseMove(e) {
-    if (!isDrawingRef.current || disabled) return;
+    if (!isDrawingRef.current || disabled || !consentido) return;
     const canvas = canvasRef.current;
     const rect = canvas.getBoundingClientRect();
     const ctx = canvas.getContext("2d");
@@ -119,6 +120,7 @@ export default function FirmaCanvas({ onFirmar, disabled = false }) {
     setCanConfirm(false);
     setError(null);
     setupCanvas();
+    // Keep consentido — signer already agreed, no need to re-check after clearing
   }
 
   function confirmar() {
@@ -151,11 +153,26 @@ export default function FirmaCanvas({ onFirmar, disabled = false }) {
         />
       </div>
 
-      <p className={styles.instruccion}>
-        Firme aquí para confirmar que el trabajo fue realizado
+      <label className={styles.consentRow}>
+        <input
+          type="checkbox"
+          className={styles.consentCheck}
+          checked={consentido}
+          onChange={(e) => setConsentido(e.target.checked)}
+          disabled={disabled}
+        />
+        <span className={styles.consentText}>
+          Al firmar, acepto que mis datos (nombre y firma) quedan registrados en Pangui para acreditar la recepción de los trabajos realizados, conforme a la <strong>Ley 21.719</strong>.
+        </span>
+      </label>
+
+      <p className={`${styles.instruccion} ${!consentido ? styles.instruccionMuted : ""}`}>
+        {consentido
+          ? "Firme aquí para confirmar que el trabajo fue realizado"
+          : "Acepte el consentimiento para habilitar la firma"}
       </p>
 
-      <div className={styles.canvasWrap}>
+      <div className={`${styles.canvasWrap} ${!consentido ? styles.canvasLocked : ""}`}>
         <canvas
           ref={canvasRef}
           className={styles.canvas}
@@ -181,7 +198,7 @@ export default function FirmaCanvas({ onFirmar, disabled = false }) {
           type="button"
           className={styles.btnConfirmar}
           onClick={confirmar}
-          disabled={disabled || !canConfirm}
+          disabled={disabled || !canConfirm || !consentido}
         >
           {disabled ? "Guardando…" : "Confirmar"}
         </button>

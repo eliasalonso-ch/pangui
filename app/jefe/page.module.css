@@ -395,6 +395,16 @@
   font-weight: 600;
 }
 
+.tdSuccess {
+  color: #16a34a;
+  font-weight: 600;
+}
+
+.tdDanger {
+  color: #dc2626;
+  font-weight: 600;
+}
+
 .tdDesc {
   max-width: 220px;
   white-space: nowrap;

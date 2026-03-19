@@ -41,6 +41,12 @@ export default function RootLayout({ children }) {
         <link rel="dns-prefetch" href="https://yqwsryjbmlvcghnwnzik.supabase.co" />
       </head>
       <body>
+        {/* Apply saved theme before first paint to avoid flash */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var t=localStorage.getItem('pangui_theme');if(t==='dark'||t==='light')document.documentElement.setAttribute('data-theme',t);}catch(e){}})();`,
+          }}
+        />
         <ServiceWorker />
         {children}
       </body>

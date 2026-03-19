@@ -351,6 +351,29 @@ export default function OrdenDetallePage() {
       nota: `Orden ${formatId(orden)}`,
     });
 
+    // 3. Check if stock dropped below minimum → notify jefes
+    if (plantaId) {
+      const { data: mat } = await supabase
+        .from("materiales")
+        .select("stock_actual, stock_minimo, nombre")
+        .eq("id", matSeleccionado.id)
+        .maybeSingle();
+      if (mat && mat.stock_minimo > 0 && mat.stock_actual <= mat.stock_minimo) {
+        const critico = mat.stock_actual <= 0;
+        fetch("/api/notificar", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            planta_id_jefe: plantaId,
+            titulo: critico ? "⚠️ Sin stock" : "⚠️ Stock bajo",
+            mensaje: `${mat.nombre}: ${mat.stock_actual} unidades (mín. ${mat.stock_minimo})`,
+            tipo: "orden",
+            url: "/jefe/inventario",
+          }),
+        }).catch(() => {});
+      }
+    }
+
     setMatSeleccionado(null);
     setMatCantidad("");
     setAddingMat(false);
@@ -405,6 +428,32 @@ export default function OrdenDetallePage() {
     setEditingMatCant("");
   }
 
+  // ── PDF export ────────────────────────────────────────────────
+  async function descargarPDF() {
+    try {
+      const supabase = createClient();
+      const { data: fotos } = await supabase.storage
+        .from("fotos-ordenes")
+        .list(`${id}/`);
+
+      let fotosConUrl = [];
+      if (fotos && fotos.length > 0) {
+        fotosConUrl = fotos.map((f) => {
+          const tipo = f.name.startsWith("antes_") ? "antes" : "despues";
+          const { data } = supabase.storage
+            .from("fotos-ordenes")
+            .getPublicUrl(`${id}/${f.name}`);
+          return { tipo, url: data.publicUrl };
+        });
+      }
+
+      const { exportarOTPDF } = await import("@/lib/exportar-ot");
+      await exportarOTPDF(orden, materiales, fotosConUrl, "");
+    } catch (err) {
+      console.error("PDF error:", err);
+    }
+  }
+
   // ── Render ────────────────────────────────────────────────────
 
   if (cargando || orden === undefined) {
@@ -416,13 +465,23 @@ export default function OrdenDetallePage() {
 
   return (
     <main className={styles.main}>
-      {/* Volver */}
-      <button
-        className={styles.btnVolver}
-        onClick={() => router.push("/tecnico")}
-      >
-        ← Volver a mis órdenes
-      </button>
+      {/* Volver + PDF */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 0 4px" }}>
+        <button
+          className={styles.btnVolver}
+          onClick={() => router.push("/tecnico")}
+        >
+          ← Volver a mis órdenes
+        </button>
+        <button
+          className={styles.btnVolver}
+          onClick={descargarPDF}
+          title="Descargar PDF"
+          style={{ display: "flex", alignItems: "center", gap: 6 }}
+        >
+          ↓ PDF
+        </button>
+      </div>
 
       {/* ── Info card ── */}
       <div

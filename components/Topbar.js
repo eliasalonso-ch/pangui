@@ -1,9 +1,26 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Bell } from "lucide-react";
+import { Bell, Settings, Sun, Moon, Monitor } from "lucide-react";
 import { createClient } from "@/lib/supabase";
 import styles from "./Topbar.module.css";
+
+// Theme: "system" | "light" | "dark"
+const THEME_KEY = "pangui_theme";
+const THEME_CYCLE = ["system", "light", "dark"];
+const THEME_ICON  = { system: Monitor, light: Sun, dark: Moon };
+const THEME_LABEL = { system: "Sistema", light: "Claro", dark: "Oscuro" };
+
+function applyTheme(theme) {
+  const html = document.documentElement;
+  if (theme === "system") {
+    html.removeAttribute("data-theme");
+    localStorage.removeItem(THEME_KEY);
+  } else {
+    html.setAttribute("data-theme", theme);
+    localStorage.setItem(THEME_KEY, theme);
+  }
+}
 
 export default function Topbar() {
   const router  = useRouter();
@@ -12,12 +29,28 @@ export default function Topbar() {
   const [nombre,   setNombre]   = useState("");
   const [userId,   setUserId]   = useState(null);
   const [rol,      setRol]      = useState(null);
+  const [theme,    setTheme]    = useState("system");
 
   // notifications
   const [notifs,     setNotifs]     = useState([]);
   const [bellOpen,   setBellOpen]   = useState(false);
 
   const unread = notifs.filter((n) => !n.leida).length;
+
+  // ── Read saved theme on mount ────────────────────────────────
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(THEME_KEY);
+      if (saved === "dark" || saved === "light") setTheme(saved);
+    } catch {}
+  }, []);
+
+  function toggleTheme() {
+    const idx  = THEME_CYCLE.indexOf(theme);
+    const next = THEME_CYCLE[(idx + 1) % THEME_CYCLE.length];
+    setTheme(next);
+    applyTheme(next);
+  }
 
   // ── Load user + subscribe to notifications ──────────────────
   useEffect(() => {
@@ -32,7 +65,7 @@ export default function Topbar() {
 
       const { data: perfil } = await supabase
         .from("usuarios")
-        .select("nombre, rol")
+        .select("nombre, rol, planta_id, plantas(nombre)")
         .eq("id", user.id)
         .maybeSingle();
 
@@ -130,6 +163,30 @@ export default function Topbar() {
         {/* Right side */}
         <div className={styles.right}>
           {nombre && <span className={styles.userName}>{nombre}</span>}
+
+          {/* Settings */}
+          <button
+            className={styles.refreshBtn}
+            onClick={() => router.push("/configuracion")}
+            aria-label="Configuración"
+          >
+            <Settings size={16} />
+          </button>
+
+          {/* Theme toggle */}
+          {(() => {
+            const Icon = THEME_ICON[theme];
+            return (
+              <button
+                className={styles.refreshBtn}
+                onClick={toggleTheme}
+                aria-label={`Tema: ${THEME_LABEL[theme]}`}
+                title={`Tema: ${THEME_LABEL[theme]}`}
+              >
+                <Icon size={16} />
+              </button>
+            );
+          })()}
 
           {/* Refresh */}
           <button

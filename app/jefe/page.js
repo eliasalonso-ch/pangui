@@ -14,6 +14,7 @@ const QUERY_SELECT =
   "id, tipo, numero_meconecta, descripcion, estado, prioridad, " +
   "tecnico_id, hora_inicio, hora_termino, duracion_min, observacion, " +
   "created_at, firmado_at, nombre_solicitante, firma_solicitante, " +
+  "rechazo_motivo, nombre_cliente, " +
   "estado_cobro, numero_factura, fecha_cobro, " +
   "costo_materiales, costo_mano_obra, costo_total, " +
   "tecnicos:usuarios(nombre), " +
@@ -100,7 +101,9 @@ function calcularKPIs(ordenes) {
             conDuracion.length,
         )
       : null;
-  return { total, completadas, pendientes, enCurso, emergencias, promMin };
+  const rechazadas = ordenes.filter((o) => o.rechazo_motivo).length;
+  const rechazoPct = total > 0 ? Math.round((rechazadas / total) * 100) : null;
+  return { total, completadas, pendientes, enCurso, emergencias, promMin, rechazadas, rechazoPct };
 }
 
 // ── Badge ─────────────────────────────────────────────────────
@@ -185,6 +188,14 @@ function KpiGrid({ kpis, destacado = false }) {
         <div className={styles.kpi}>
           <div className={styles.kpiLabel}>T. promedio</div>
           <div className={styles.kpiVal}>{formatDuracion(kpis.promMin)}</div>
+        </div>
+      )}
+      {kpis.rechazoPct != null && (
+        <div className={styles.kpi}>
+          <div className={styles.kpiLabel}>% Rechazo</div>
+          <div className={`${styles.kpiVal} ${kpis.rechazoPct > 0 ? styles.kpiDanger : ""}`}>
+            {kpis.rechazoPct}%
+          </div>
         </div>
       )}
     </div>
@@ -415,6 +426,22 @@ export default function JefePage() {
       map[edificio] = (map[edificio] || 0) + 1;
     });
     return Object.entries(map).sort((a, b) => b[1] - a[1]);
+  }, [ordenesFiltradas]);
+
+  const margenClientes = useMemo(() => {
+    const map = {};
+    ordenesFiltradas
+      .filter((o) => o.estado === "completado" && o.nombre_cliente)
+      .forEach((o) => {
+        const key = o.nombre_cliente;
+        if (!map[key]) map[key] = { nombre: key, facturado: 0, costoMat: 0, ordenes: 0 };
+        map[key].facturado += Number(o.costo_total) || 0;
+        map[key].costoMat  += Number(o.costo_materiales) || 0;
+        map[key].ordenes++;
+      });
+    return Object.values(map)
+      .map((c) => ({ ...c, margen: c.facturado - c.costoMat }))
+      .sort((a, b) => b.facturado - a.facturado);
   }, [ordenesFiltradas]);
 
   const filtrosExport = useMemo(() => ({
@@ -710,6 +737,39 @@ export default function JefePage() {
                             <tr key={edificio}>
                               <td>{edificio}</td>
                               <td>{count}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </>
+                )}
+
+                {/* Margen por cliente */}
+                {margenClientes.length > 0 && (
+                  <>
+                    <h3 className={styles.seccionTitulo}>Margen por cliente</h3>
+                    <div className={styles.tableWrap}>
+                      <table className={styles.tabla}>
+                        <thead>
+                          <tr>
+                            <th>Cliente</th>
+                            <th>Órdenes</th>
+                            <th>Facturado</th>
+                            <th>Costo mat.</th>
+                            <th>Margen</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {margenClientes.map((c) => (
+                            <tr key={c.nombre}>
+                              <td className={styles.tdBold}>{c.nombre}</td>
+                              <td>{c.ordenes}</td>
+                              <td className={styles.tdNoWrap}>{formatPesos(c.facturado)}</td>
+                              <td className={styles.tdNoWrap}>{c.costoMat > 0 ? formatPesos(c.costoMat) : "—"}</td>
+                              <td className={`${styles.tdNoWrap} ${c.margen >= 0 ? styles.tdSuccess : styles.tdDanger}`}>
+                                {formatPesos(c.margen)}
+                              </td>
                             </tr>
                           ))}
                         </tbody>

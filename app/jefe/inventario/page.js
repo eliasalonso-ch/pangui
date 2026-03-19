@@ -51,7 +51,7 @@ function StockBar({ actual, minimo }) {
 
 // ── MaterialCard ──────────────────────────────────────────────
 
-function MaterialCard({ mat, expanded, onToggle, onUpdated }) {
+function MaterialCard({ mat, expanded, onToggle, onUpdated, plantaId }) {
   const estado   = stockEstado(mat.stock_actual, mat.stock_minimo);
   const esBajo   = estado !== "verde";
   const esCrit   = estado === "critico" || estado === "rojo";
@@ -122,6 +122,31 @@ function MaterialCard({ mat, expanded, onToggle, onUpdated }) {
     setNotaInput("");
     setSaving(false);
     onUpdated();
+
+    // Alert jefes if stock dropped below minimum after egreso or ajuste
+    if (plantaId && (tipo === "egreso" || tipo === "ajuste")) {
+      const supabase2 = createClient();
+      const { data: updated } = await supabase2
+        .from("materiales")
+        .select("stock_actual, stock_minimo, nombre")
+        .eq("id", mat.id)
+        .maybeSingle();
+      if (updated && updated.stock_minimo > 0 && updated.stock_actual <= updated.stock_minimo) {
+        const critico = updated.stock_actual <= 0;
+        fetch("/api/notificar", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            planta_id_jefe: plantaId,
+            titulo: critico ? "⚠️ Sin stock" : "⚠️ Stock bajo",
+            mensaje: `${updated.nombre}: ${updated.stock_actual} unidades (mín. ${updated.stock_minimo})`,
+            tipo: "orden",
+            url: "/jefe/inventario",
+          }),
+        }).catch(() => {});
+      }
+    }
+
     // Refresh mini-list
     const { data } = await supabase
       .from("movimientos_stock")
@@ -673,6 +698,7 @@ export default function JefeInventarioPage() {
                     expanded={expandedId === mat.id}
                     onToggle={() => setExpandedId(expandedId === mat.id ? null : mat.id)}
                     onUpdated={onUpdated}
+                    plantaId={plantaId}
                   />
                 ))}
               </div>

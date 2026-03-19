@@ -13,6 +13,10 @@ import {
   BellOff,
   UserPlus,
   Building2,
+  Users,
+  CalendarClock,
+  CalendarDays,
+  ShieldAlert,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase";
 import { subscribeToPush, savePushSubscription } from "@/lib/push-subscribe";
@@ -144,6 +148,54 @@ export default function BottomNav() {
         <div className={styles.overlay} onClick={() => setMoreOpen(false)}>
           <div className={styles.sheet} onClick={(e) => e.stopPropagation()}>
             <div className={styles.sheetHandle} />
+
+            {isJefe && (
+              <button className={styles.sheetItem} onClick={() => { setMoreOpen(false); router.push("/jefe/usuarios"); }}>
+                <span className={styles.sheetIconWrap}>
+                  <Users className={styles.sheetIcon} />
+                </span>
+                <div className={styles.sheetText}>
+                  <span className={styles.sheetTitle}>Equipo</span>
+                  <span className={styles.sheetSub}>Ver y gestionar miembros</span>
+                </div>
+              </button>
+            )}
+
+            {isJefe && (
+              <button className={styles.sheetItem} onClick={() => { setMoreOpen(false); router.push("/jefe/preventivos"); }}>
+                <span className={styles.sheetIconWrap}>
+                  <CalendarClock className={styles.sheetIcon} />
+                </span>
+                <div className={styles.sheetText}>
+                  <span className={styles.sheetTitle}>Preventivos</span>
+                  <span className={styles.sheetSub}>Mantenimiento programado</span>
+                </div>
+              </button>
+            )}
+
+            {isJefe && (
+              <button className={styles.sheetItem} onClick={() => { setMoreOpen(false); router.push("/jefe/calendario"); }}>
+                <span className={styles.sheetIconWrap}>
+                  <CalendarDays className={styles.sheetIcon} />
+                </span>
+                <div className={styles.sheetText}>
+                  <span className={styles.sheetTitle}>Calendario</span>
+                  <span className={styles.sheetSub}>Vista mensual de órdenes</span>
+                </div>
+              </button>
+            )}
+
+            {isJefe && (
+              <button className={styles.sheetItem} onClick={() => { setMoreOpen(false); router.push("/jefe/arco"); }}>
+                <span className={styles.sheetIconWrap}>
+                  <ShieldAlert className={styles.sheetIcon} />
+                </span>
+                <div className={styles.sheetText}>
+                  <span className={styles.sheetTitle}>Solicitudes ARCO</span>
+                  <span className={styles.sheetSub}>Derechos de datos (Ley 21.719)</span>
+                </div>
+              </button>
+            )}
 
             {isJefe && (
               <button className={styles.sheetItem} onClick={abrirInvite}>

@@ -24,12 +24,13 @@ export async function proxy(request) {
   } = await supabase.auth.getUser();
 
   const pathname = request.nextUrl.pathname;
-  const isLogin = pathname === "/login";
+  const isLogin  = pathname === "/login";
   const isTecnico = pathname.startsWith("/tecnico");
-  const isJefe = pathname.startsWith("/jefe");
+  const isJefe    = pathname.startsWith("/jefe");
+  const isPublic  = pathname.startsWith("/arco"); // ARCO portal — unauthenticated
 
-  // Sin sesión → solo puede estar en /login
-  if (!user && !isLogin) {
+  // Sin sesión → solo puede estar en /login o rutas públicas
+  if (!user && !isLogin && !isPublic) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
 
