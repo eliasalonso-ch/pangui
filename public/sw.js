@@ -1,11 +1,22 @@
-const CACHE_NAME = 'pangui-v3';
+const CACHE_NAME = 'pangui-v4';
 
-// App-shell pages to precache on install
-const PRECACHE_URLS = ['/', '/login', '/offline', '/jefe', '/tecnico'];
+// Only precache public pages that always return 200.
+// Auth-gated routes (/jefe, /tecnico) and non-existent pages must NOT be here
+// because cache.addAll() aborts the entire SW install if any URL fails.
+const PRECACHE_URLS = ['/', '/login'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(PRECACHE_URLS))
+    caches.open(CACHE_NAME).then((cache) =>
+      // Use individual puts so one failure doesn't abort the whole install
+      Promise.allSettled(
+        PRECACHE_URLS.map((url) =>
+          fetch(url, { credentials: 'same-origin' }).then((res) => {
+            if (res.ok) return cache.put(url, res);
+          })
+        )
+      )
+    )
   );
   self.skipWaiting();
 });
@@ -72,10 +83,9 @@ self.addEventListener('fetch', (e) => {
           e.waitUntil(networkFetch);
           return cached;
         }
-        // No cache yet — wait for network
+        // No cache yet — wait for network, fall back to inline offline page
         return (
           (await networkFetch) ||
-          (await caches.match('/offline')) ||
           new Response(
             `<!DOCTYPE html><html lang="es"><head><meta charset="utf-8">
             <meta name="viewport" content="width=device-width,initial-scale=1">
