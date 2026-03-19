@@ -64,7 +64,7 @@ export default function NotificationPermission() {
         usuario_id: user.id,
         subscription: sub.toJSON(),
         device_info: navigator.userAgent.slice(0, 200),
-      }, { onConflict: "usuario_id,device_info" });
+      }, { onConflict: "usuario_id" });
     } catch (err) {
       console.error("Push subscription failed:", err);
     }
