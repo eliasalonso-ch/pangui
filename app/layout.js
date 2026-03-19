@@ -18,7 +18,12 @@ export const metadata = {
     title: "Pangui",
   },
   icons: {
-    apple: "/icons/icon-192.png",
+    icon: [
+      { url: "/icons/favicon.ico", sizes: "any" },
+      { url: "/icons/favicon.svg", type: "image/svg+xml" },
+      { url: "/icons/favicon-96x96.png", sizes: "96x96", type: "image/png" },
+    ],
+    apple: "/icons/apple-touch-icon.png",
   },
 };
 
