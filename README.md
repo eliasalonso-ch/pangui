@@ -1,36 +1,102 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Pangui — Gestión de Órdenes de Trabajo
 
-## Getting Started
+Sistema de gestión de mantenimiento para equipos técnicos. Permite crear, asignar y hacer seguimiento de órdenes de trabajo, gestionar inventario, exportar reportes y facturar servicios.
 
-First, run the development server:
+---
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+## Tech Stack
+
+| Capa | Tecnología |
+|------|-----------|
+| Framework | Next.js 16 (App Router) |
+| UI | React 19, CSS Modules, Lucide Icons |
+| Backend / Auth / DB | Supabase (PostgreSQL + Auth + Realtime) |
+| Data fetching | SWR |
+| Exportación | jsPDF + jspdf-autotable, xlsx-js-style |
+| Notificaciones | Web Push API + Service Worker |
+| PWA | manifest.json + Service Worker |
+
+---
+
+## Roles de usuario
+
+| Rol | Acceso |
+|-----|--------|
+| `tecnico` | Ver órdenes asignadas, registrar avance, subir fotos y firma |
+| `jefe` | Dashboard completo, crear/gestionar órdenes, inventario, reportes, facturación |
+| `admin` | Igual que jefe, más gestión de usuarios y plantas |
+
+---
+
+## Funcionalidades principales
+
+- **Órdenes de trabajo** — ciclo de vida completo: pendiente → en curso → en revisión → completado/cancelado
+- **Dashboard en tiempo real** — órdenes del día y por período, KPIs, filtros por técnico
+- **Exportación** — PDF y Excel de reportes por período
+- **Notificaciones push** — alertas a técnicos y jefes vía Web Push (Chrome y iOS PWA)
+- **Gestión de inventario** — stock, movimientos, alertas de stock mínimo
+- **Clientes** — CRUD de clientes y seguimiento de órdenes por cliente
+- **Facturación** — integración con SimpleFactura (emitir y descargar PDF/XML)
+- **Mantenimiento preventivo** — plantillas de mantenciones recurrentes
+- **Modo oscuro** — tema claro / oscuro / sistema
+- **PWA instalable** — funciona como app nativa en móvil y desktop
+
+---
+
+## Estructura de rutas
+
+```
+/login                    Autenticación
+/jefe                     Dashboard principal (jefe)
+/jefe/trabajo/nuevo       Crear orden de trabajo
+/jefe/trabajo/[id]        Ver / gestionar orden
+/jefe/clientes            Gestión de clientes
+/jefe/inventario          Gestión de inventario
+/jefe/preventivos         Mantenimientos preventivos
+/jefe/calendario          Vista calendario de órdenes
+/jefe/usuarios            Gestión de usuarios de la planta
+/tecnico                  Dashboard técnico
+/tecnico/trabajo/[id]     Ejecutar orden de trabajo
+/tecnico/inventario       Consulta de inventario
+/configuracion            Perfil, contraseña y notificaciones
+/arco                     Portal de derechos ARCO (público)
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+---
 
-You can start editing the page by modifying `app/page.js`. The page auto-updates as you edit the file.
+## Estructura del proyecto
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```
+app/              Rutas Next.js (App Router)
+components/       Componentes reutilizables (Topbar, BottomNav, FirmaCanvas, etc.)
+lib/              Utilidades (supabase client, perfil-cache, exportadores, push)
+sql/              Migraciones de base de datos
+supabase/         Configuración y edge functions de Supabase
+public/           Íconos, manifest, service worker
+```
 
-## Learn More
+---
 
-To learn more about Next.js, take a look at the following resources:
+## Variables de entorno
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Crear un archivo `.env.local` en la raíz del proyecto:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```env
+NEXT_PUBLIC_SUPABASE_URL=https://<tu-proyecto>.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=<tu-anon-key>
+VAPID_PUBLIC_KEY=<tu-vapid-public-key>
+VAPID_PRIVATE_KEY=<tu-vapid-private-key>
+RESEND_API_KEY=<tu-resend-key>         # opcional, para email
+SIMPLEFACTURA_API_KEY=<tu-key>         # opcional, para facturación
+```
 
-## Deploy on Vercel
+---
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Desarrollo local
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+npm install
+npm run dev
+```
+
+Abrir [http://localhost:3000](http://localhost:3000).

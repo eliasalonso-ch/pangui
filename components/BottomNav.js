@@ -32,6 +32,7 @@ export default function BottomNav() {
   const [signingOut, setSigningOut] = useState(false);
   const [notifStatus, setNotifStatus] = useState("unknown"); // 'granted'|'denied'|'default'|'unknown'
   const [plantaId, setPlantaId] = useState(null);
+  const [userRol, setUserRol] = useState(null);
   const [isDesktop, setIsDesktop] = useState(false);
 
   // invite modal
@@ -48,10 +49,11 @@ export default function BottomNav() {
       if (!user) return;
       const { data: perfil } = await supabase
         .from("usuarios")
-        .select("planta_id")
+        .select("planta_id, rol")
         .eq("id", user.id)
         .maybeSingle();
       if (perfil?.planta_id) setPlantaId(perfil.planta_id);
+      if (perfil?.rol) setUserRol(perfil.rol);
     }
     loadProfile();
   }, []);
@@ -107,7 +109,8 @@ export default function BottomNav() {
     setInviteOk({ nombre: inviteForm.nombre.trim(), email: inviteForm.email.trim(), password: inviteForm.password });
   }
 
-  const isJefe = pathname.startsWith("/jefe");
+  const isJefe = pathname.startsWith("/jefe") ||
+    (!pathname.startsWith("/tecnico") && (userRol === "jefe" || userRol === "admin"));
   const base = isJefe ? "/jefe" : "/tecnico";
 
   function isActive(href) {
@@ -413,7 +416,6 @@ export default function BottomNav() {
         {/* Settings + Logout — desktop sidebar bottom */}
         {isDesktop && (
           <>
-            <div className={styles.sidebarSpacer} />
             <Link href="/configuracion" className={`${styles.item} ${isActive("/configuracion") ? styles.active : ""}`}>
               <Settings className={styles.icon} />
               <span className={styles.label}>Configuración</span>

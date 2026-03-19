@@ -63,12 +63,6 @@
   }
 }
 
-/* ── Desktop sidebar extras ───────────────────────────────── */
-
-.sidebarSpacer {
-  flex: 1;
-}
-
 .itemDanger {
   color: var(--danger);
 }

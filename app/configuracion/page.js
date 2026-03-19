@@ -3,7 +3,6 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase";
 import { getPerfilCache, setPerfilCache, clearPerfilCache } from "@/lib/perfil-cache";
-import Topbar from "@/components/Topbar";
 import styles from "./page.module.css";
 
 export default function ConfiguracionPage() {
@@ -139,18 +138,11 @@ export default function ConfiguracionPage() {
   const ROL_LABEL = { jefe: "Administrador", tecnico: "Técnico", admin: "Super Admin" };
 
   if (cargando) {
-    return (
-      <>
-        <Topbar />
-        <div className={styles.cargando}>Cargando…</div>
-      </>
-    );
+    return <div className={styles.cargando}>Cargando…</div>;
   }
 
   return (
-    <>
-      <Topbar />
-      <main className={styles.page}>
+    <div className={styles.page}>
         <div className={styles.container}>
           <h1 className={styles.pageTitle}>Configuración</h1>
 
@@ -282,7 +274,6 @@ export default function ConfiguracionPage() {
             </button>
           </section>
         </div>
-      </main>
-    </>
+    </div>
   );
 }
