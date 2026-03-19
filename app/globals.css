@@ -80,6 +80,7 @@ body {
   font-family: var(--font-sans), system-ui, sans-serif;
   font-size: var(--fs-base);
   background: var(--background);
+  overscroll-behavior: none;
   color: var(--black);
 }
 
