@@ -4,15 +4,14 @@ import { createClient } from "@/lib/supabase";
 import { subscribeToPush, savePushSubscription } from "@/lib/push-subscribe";
 import styles from "./NotificationPermission.module.css";
 
-const ASKED_KEY = "pangui_notif_asked";
-const DENIED_DISMISSED_KEY = "pangui_notif_denied_dismissed";
+const SESSION_DISMISSED_KEY = "pangui_notif_dismissed";
 
 export default function NotificationPermission() {
   const [show, setShow] = useState(false);
   const [permission, setPermission] = useState(null);
 
   useEffect(() => {
-    if (typeof Notification === "undefined") return;
+    if (typeof Notification === "undefined" || !("serviceWorker" in navigator)) return;
 
     const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
     const isStandalone =
@@ -23,23 +22,20 @@ export default function NotificationPermission() {
     const perm = Notification.permission;
     setPermission(perm);
 
-    if (perm === "granted") return;
-
-    if (perm === "denied") {
-      // Show Settings reminder once per session (not stored, so it reappears on reload)
-      if (!sessionStorage.getItem(DENIED_DISMISSED_KEY)) {
-        const t = setTimeout(() => setShow(true), 2000);
-        return () => clearTimeout(t);
-      }
+    if (perm === "granted") {
+      // Silently ensure subscription is saved — covers reinstalls / lost subs
+      navigator.serviceWorker.ready.then(async (reg) => {
+        const existing = await reg.pushManager.getSubscription();
+        if (!existing) return;
+        const supabase = createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) await savePushSubscription(existing, user.id);
+      }).catch(() => {});
       return;
     }
 
-    // "default" — show the Activar banner
-    if (
-      !("serviceWorker" in navigator) ||
-      !("PushManager" in window) ||
-      localStorage.getItem(ASKED_KEY)
-    ) return;
+    // Don't show if user dismissed this session
+    if (sessionStorage.getItem(SESSION_DISMISSED_KEY)) return;
 
     const t = setTimeout(() => setShow(true), 2000);
     return () => clearTimeout(t);
@@ -47,7 +43,6 @@ export default function NotificationPermission() {
 
   async function activar() {
     setShow(false);
-    localStorage.setItem(ASKED_KEY, "true");
 
     const perm = await Notification.requestPermission();
     setPermission(perm);
@@ -65,25 +60,29 @@ export default function NotificationPermission() {
   }
 
   function rechazar() {
-    localStorage.setItem(ASKED_KEY, "true");
+    sessionStorage.setItem(SESSION_DISMISSED_KEY, "true");
     setShow(false);
   }
 
   function dismissDenied() {
-    sessionStorage.setItem(DENIED_DISMISSED_KEY, "true");
+    sessionStorage.setItem(SESSION_DISMISSED_KEY, "true");
     setShow(false);
   }
 
   if (!show) return null;
+
+  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
 
   if (permission === "denied") {
     return (
       <div className={styles.banner}>
         <div className={styles.icon}>🔕</div>
         <div className={styles.body}>
-          <div className={styles.title}>Activa las notificaciones</div>
+          <div className={styles.title}>Notificaciones bloqueadas</div>
           <div className={styles.sub}>
-            Ajustes → Pangui → Notificaciones → Permitir
+            {isIOS
+              ? "Ajustes → Pangui → Notificaciones → Permitir"
+              : "Configuración del sitio → Notificaciones → Permitir"}
           </div>
         </div>
         <div className={styles.actions}>
