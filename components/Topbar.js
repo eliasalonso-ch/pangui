@@ -8,7 +8,7 @@ import styles from "./Topbar.module.css";
 // Theme: "system" | "light" | "dark"
 const THEME_KEY = "pangui_theme";
 const THEME_CYCLE = ["system", "light", "dark"];
-const THEME_ICON  = { system: Monitor, light: Sun, dark: Moon };
+const THEME_ICON = { system: Monitor, light: Sun, dark: Moon };
 const THEME_LABEL = { system: "Sistema", light: "Claro", dark: "Oscuro" };
 
 function applyTheme(theme) {
@@ -23,17 +23,17 @@ function applyTheme(theme) {
 }
 
 export default function Topbar() {
-  const router  = useRouter();
+  const router = useRouter();
   const bellRef = useRef(null);
 
-  const [nombre,   setNombre]   = useState("");
-  const [userId,   setUserId]   = useState(null);
-  const [rol,      setRol]      = useState(null);
-  const [theme,    setTheme]    = useState("system");
+  const [nombre, setNombre] = useState("");
+  const [userId, setUserId] = useState(null);
+  const [rol, setRol] = useState(null);
+  const [theme, setTheme] = useState("system");
 
   // notifications
-  const [notifs,     setNotifs]     = useState([]);
-  const [bellOpen,   setBellOpen]   = useState(false);
+  const [notifs, setNotifs] = useState([]);
+  const [bellOpen, setBellOpen] = useState(false);
 
   const unread = notifs.filter((n) => !n.leida).length;
 
@@ -46,7 +46,7 @@ export default function Topbar() {
   }, []);
 
   function toggleTheme() {
-    const idx  = THEME_CYCLE.indexOf(theme);
+    const idx = THEME_CYCLE.indexOf(theme);
     const next = THEME_CYCLE[(idx + 1) % THEME_CYCLE.length];
     setTheme(next);
     applyTheme(next);
@@ -58,7 +58,9 @@ export default function Topbar() {
 
     async function init() {
       const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user) return;
 
       setUserId(user.id);
@@ -70,7 +72,7 @@ export default function Topbar() {
         .maybeSingle();
 
       if (perfil?.nombre) setNombre(perfil.nombre);
-      if (perfil?.rol)    setRol(perfil.rol);
+      if (perfil?.rol) setRol(perfil.rol);
 
       // Load recent notifications
       const { data: ns } = await supabase
@@ -84,19 +86,25 @@ export default function Topbar() {
       // Real-time subscription
       channel = supabase
         .channel(`notifs-${user.id}`)
-        .on("postgres_changes", {
-          event: "INSERT",
-          schema: "public",
-          table: "notifications",
-          filter: `usuario_id=eq.${user.id}`,
-        }, (payload) => {
-          setNotifs((prev) => [payload.new, ...prev].slice(0, 30));
-        })
+        .on(
+          "postgres_changes",
+          {
+            event: "INSERT",
+            schema: "public",
+            table: "notifications",
+            filter: `usuario_id=eq.${user.id}`,
+          },
+          (payload) => {
+            setNotifs((prev) => [payload.new, ...prev].slice(0, 30));
+          },
+        )
         .subscribe();
     }
 
     init();
-    return () => { if (channel) createClient().removeChannel(channel); };
+    return () => {
+      if (channel) createClient().removeChannel(channel);
+    };
   }, []);
 
   // Close bell dropdown on outside click
@@ -141,10 +149,10 @@ export default function Topbar() {
     const d = new Date(iso);
     const now = new Date();
     const diffMin = Math.floor((now - d) / 60000);
-    if (diffMin < 1)  return "Ahora";
+    if (diffMin < 1) return "Ahora";
     if (diffMin < 60) return `Hace ${diffMin} min`;
     const diffH = Math.floor(diffMin / 60);
-    if (diffH < 24)   return `Hace ${diffH}h`;
+    if (diffH < 24) return `Hace ${diffH}h`;
     return d.toLocaleDateString("es-CL", { day: "2-digit", month: "short" });
   }
 
@@ -154,16 +162,23 @@ export default function Topbar() {
         {/* Logo */}
         <button
           className={styles.logoBtn}
-          onClick={() => { if (rol) router.push(rol === "jefe" ? "/jefe" : "/tecnico"); }}
+          onClick={() => {
+            if (rol) router.push(rol === "jefe" ? "/jefe" : "/tecnico");
+          }}
           aria-label="Ir al inicio"
         >
-          <img src="/pangui-logo.svg" className={styles.logoImg} alt="Pangui" fetchPriority="high" width={80} height={80} />
+          <img
+            src="/pangui-logo.svg"
+            className={styles.logoImg}
+            alt="Pangui"
+            fetchPriority="high"
+            width={80}
+            height={80}
+          />
         </button>
 
         {/* Right side */}
         <div className={styles.right}>
-          {nombre && <span className={styles.userName}>{nombre}</span>}
-
           {/* Settings */}
           <button
             className={styles.refreshBtn}
@@ -199,10 +214,16 @@ export default function Topbar() {
 
           {/* Bell */}
           <div className={styles.bellWrap} ref={bellRef}>
-            <button className={styles.bellBtn} onClick={openBell} aria-label="Notificaciones">
+            <button
+              className={styles.bellBtn}
+              onClick={openBell}
+              aria-label="Notificaciones"
+            >
               <Bell size={18} />
               {unread > 0 && (
-                <span className={styles.bellBadge}>{unread > 9 ? "9+" : unread}</span>
+                <span className={styles.bellBadge}>
+                  {unread > 9 ? "9+" : unread}
+                </span>
               )}
             </button>
 
@@ -216,7 +237,10 @@ export default function Topbar() {
                     )}
                   </span>
                   {notifs.length > 0 && (
-                    <button className={styles.notifClearBtn} onClick={limpiarNotificaciones}>
+                    <button
+                      className={styles.notifClearBtn}
+                      onClick={limpiarNotificaciones}
+                    >
                       Limpiar
                     </button>
                   )}
@@ -232,7 +256,10 @@ export default function Topbar() {
                         onClick={() => clickNotif(n)}
                       >
                         {n.tipo === "emergencia" && (
-                          <span className={styles.notifDot} style={{ background: "#e53e3e" }} />
+                          <span
+                            className={styles.notifDot}
+                            style={{ background: "#e53e3e" }}
+                          />
                         )}
                         {n.tipo !== "emergencia" && (
                           <span className={styles.notifDot} />
@@ -240,9 +267,13 @@ export default function Topbar() {
                         <div className={styles.notifBody}>
                           <span className={styles.notifTitulo}>{n.titulo}</span>
                           {n.mensaje && (
-                            <span className={styles.notifMensaje}>{n.mensaje}</span>
+                            <span className={styles.notifMensaje}>
+                              {n.mensaje}
+                            </span>
                           )}
-                          <span className={styles.notifTime}>{formatNotifTime(n.created_at)}</span>
+                          <span className={styles.notifTime}>
+                            {formatNotifTime(n.created_at)}
+                          </span>
                         </div>
                       </button>
                     ))}
@@ -253,7 +284,6 @@ export default function Topbar() {
           </div>
         </div>
       </header>
-
     </>
   );
 }

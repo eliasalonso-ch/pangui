@@ -4,7 +4,7 @@ import NotificationPermission from "@/components/NotificationPermission";
 import PrefetchRoutes from "@/components/PrefetchRoutes";
 
 export const metadata = {
-  title: "Pangui · Jefe mantención",
+  title: "Pangui - Jefe Mantención",
 };
 
 const JEFE_ROUTES = [

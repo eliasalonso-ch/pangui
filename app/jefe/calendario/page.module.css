@@ -128,7 +128,7 @@
 
 .cellToday .dayNum {
   background: var(--accent-1);
-  color: #fff;
+  color: #fff; /* always white on colored circle */
   border-radius: 50%;
   width: 22px;
   height: 22px;
@@ -282,21 +282,4 @@
   border-radius: 50%;
 }
 
-@media (prefers-color-scheme: dark) {
-  .cell { background: #0f172a; }
-  .cellEmpty { background: #0f172a; }
-  .grid { background: #1e293b; border-color: #334155; }
-  .dowHeader { background: #1e293b; }
-  .dayDetail { background: #1e293b; border-color: #334155; }
-  .dayDetailTitle { background: #273347; }
-  .dayItem:active { background: #1e293b; }
-  .filterSelect { background: #0f172a; border-color: #334155; color: #f1f5f9; }
-}
-
-:global(html[data-theme="dark"]) .cell { background: #0f172a; }
-:global(html[data-theme="dark"]) .cellEmpty { background: #0f172a; }
-:global(html[data-theme="dark"]) .grid { background: #1e293b; border-color: #334155; }
-:global(html[data-theme="dark"]) .dowHeader { background: #1e293b; }
-:global(html[data-theme="dark"]) .dayDetail { background: #1e293b; border-color: #334155; }
-:global(html[data-theme="dark"]) .dayDetailTitle { background: #273347; }
-:global(html[data-theme="dark"]) .filterSelect { background: #0f172a; border-color: #334155; color: #f1f5f9; }
+/* Dark mode handled by CSS variables in globals.css */

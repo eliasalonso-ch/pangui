@@ -285,7 +285,7 @@
 }
 
 .metaDuracion {
-  color: #16A34A;
+  color: var(--success);
   font-weight: 600;
 }
 
@@ -312,7 +312,7 @@
 }
 .badgeEnCurso {
   background: var(--info-bg);
-  color: #1D4ED8;
+  color: var(--info);
 }
 .badgeEnRevision {
   background: var(--revision-bg);
@@ -396,12 +396,12 @@
 }
 
 .tdSuccess {
-  color: #16a34a;
+  color: var(--success);
   font-weight: 600;
 }
 
 .tdDanger {
-  color: #dc2626;
+  color: var(--danger-dark);
   font-weight: 600;
 }
 

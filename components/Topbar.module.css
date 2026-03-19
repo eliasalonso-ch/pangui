@@ -20,6 +20,7 @@
   }
 }
 
+
 /* ── Logo button ───────────────────────────────────────────── */
 
 .logoBtn {
@@ -76,23 +77,6 @@
 @media (min-width: 768px) {
   .right {
     gap: 14px;
-  }
-}
-
-.userName {
-  font-size: var(--fs-sm);
-  color: var(--white);
-  font-weight: 500;
-  max-width: 110px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-@media (min-width: 768px) {
-  .userName {
-    font-size: 14px;
-    max-width: 200px;
   }
 }
 

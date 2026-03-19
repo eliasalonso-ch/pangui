@@ -17,6 +17,7 @@ import {
   CalendarClock,
   CalendarDays,
   ShieldAlert,
+  Settings,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase";
 import { subscribeToPush, savePushSubscription } from "@/lib/push-subscribe";
@@ -31,6 +32,7 @@ export default function BottomNav() {
   const [signingOut, setSigningOut] = useState(false);
   const [notifStatus, setNotifStatus] = useState("unknown"); // 'granted'|'denied'|'default'|'unknown'
   const [plantaId, setPlantaId] = useState(null);
+  const [isDesktop, setIsDesktop] = useState(false);
 
   // invite modal
   const [inviteOpen,   setInviteOpen]   = useState(false);
@@ -52,6 +54,14 @@ export default function BottomNav() {
       if (perfil?.planta_id) setPlantaId(perfil.planta_id);
     }
     loadProfile();
+  }, []);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 1024px)");
+    setIsDesktop(mq.matches);
+    const handler = (e) => setIsDesktop(e.matches);
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
   }, []);
 
   useEffect(() => {
@@ -367,13 +377,53 @@ export default function BottomNav() {
           <span className={styles.label}>Inventario</span>
         </Link>
 
-        <button
-          className={`${styles.item} ${moreOpen ? styles.active : ""}`}
-          onClick={() => setMoreOpen(true)}
-        >
-          <MoreHorizontal className={styles.icon} />
-          <span className={styles.label}>Más</span>
-        </button>
+        {/* Desktop-only sidebar items */}
+        {isDesktop && isJefe && (
+          <>
+            <Link href="/jefe/usuarios" className={`${styles.item} ${isActive("/jefe/usuarios") ? styles.active : ""}`}>
+              <Users className={styles.icon} />
+              <span className={styles.label}>Equipo</span>
+            </Link>
+            <Link href="/jefe/preventivos" className={`${styles.item} ${isActive("/jefe/preventivos") ? styles.active : ""}`}>
+              <CalendarClock className={styles.icon} />
+              <span className={styles.label}>Preventivos</span>
+            </Link>
+            <Link href="/jefe/calendario" className={`${styles.item} ${isActive("/jefe/calendario") ? styles.active : ""}`}>
+              <CalendarDays className={styles.icon} />
+              <span className={styles.label}>Calendario</span>
+            </Link>
+            <Link href="/jefe/arco" className={`${styles.item} ${isActive("/jefe/arco") ? styles.active : ""}`}>
+              <ShieldAlert className={styles.icon} />
+              <span className={styles.label}>ARCO</span>
+            </Link>
+          </>
+        )}
+
+        {/* Más — mobile only */}
+        {!isDesktop && (
+          <button
+            className={`${styles.item} ${moreOpen ? styles.active : ""}`}
+            onClick={() => setMoreOpen(true)}
+          >
+            <MoreHorizontal className={styles.icon} />
+            <span className={styles.label}>Más</span>
+          </button>
+        )}
+
+        {/* Settings + Logout — desktop sidebar bottom */}
+        {isDesktop && (
+          <>
+            <div className={styles.sidebarSpacer} />
+            <Link href="/configuracion" className={`${styles.item} ${isActive("/configuracion") ? styles.active : ""}`}>
+              <Settings className={styles.icon} />
+              <span className={styles.label}>Configuración</span>
+            </Link>
+            <button className={`${styles.item} ${styles.itemDanger}`} onClick={cerrarSesion} disabled={signingOut}>
+              <LogOut className={styles.icon} />
+              <span className={styles.label}>{signingOut ? "Saliendo…" : "Cerrar sesión"}</span>
+            </button>
+          </>
+        )}
       </nav>
     </>
   );

@@ -49,11 +49,13 @@
   /* ── Layout ─────────────────────────────────────────────── */
   --topbar-height: 70px;
   --bottomnav-height: 80px;
+  --sidebar-width: 220px;
   --container-max: 1200px;
 }
 
 @media (min-width: 768px) {
   :root {
+    --topbar-height: 80px;
     --fs-xs:   12px;
     --fs-sm:   13px;
     --fs-base: 15px;
@@ -84,6 +86,19 @@ body {
   color: var(--black);
 }
 
+/* ── Desktop sidebar layout ──────────────────────────────────── */
+/* Applied to <main> in shells (not body) so topbar stays full-width */
+
+@media (min-width: 1024px) {
+  body {
+    padding-bottom: 0;
+  }
+
+  .sidebarMain {
+    margin-left: var(--sidebar-width);
+  }
+}
+
 /* ── Dark mode ───────────────────────────────────────────────── */
 /* Three modes: system (auto), light (forced), dark (forced)       */
 
@@ -91,6 +106,7 @@ body {
 @media (prefers-color-scheme: dark) {
   html:not([data-theme="light"]):not([data-theme="dark"]) :root,
   html:not([data-theme="light"]):not([data-theme="dark"]) {
+    color-scheme: dark;
     --black:      #F1F5F9;
     --white:      #1E293B;
     --background: #0F172A;
@@ -114,6 +130,7 @@ body {
 
 /* Explicit dark override */
 html[data-theme="dark"] {
+  color-scheme: dark;
   --black:      #F1F5F9;
   --white:      #1E293B;
   --background: #0F172A;
@@ -136,6 +153,7 @@ html[data-theme="dark"] {
 
 /* Explicit light override — cancels system dark */
 html[data-theme="light"] {
+  color-scheme: light;
   --black:      #1A1A1A;
   --white:      #FFFFFF;
   --background: #FFFFFF;
@@ -159,4 +177,13 @@ html[data-theme="light"] {
 a {
   color: inherit;
   text-decoration: none;
+}
+
+/* ── Native form element theming ────────────────────────────── */
+/* Ensures select, input, textarea respect dark mode             */
+
+input,
+select,
+textarea {
+  color-scheme: inherit;
 }

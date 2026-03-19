@@ -5,7 +5,7 @@ import NotificationPermission from "@/components/NotificationPermission";
 import PrefetchRoutes from "@/components/PrefetchRoutes";
 
 export const metadata = {
-  title: "Pangui · Técnico",
+  title: "Pangui - Técnico",
 };
 
 const TECNICO_ROUTES = [
@@ -20,7 +20,7 @@ export default function TecnicoLayout({ children }) {
       <InstallPrompt />
       <NotificationPermission />
       <Topbar />
-      <main>{children}</main>
+      <main className="sidebarMain">{children}</main>
       <BottomNav />
     </>
   );

@@ -15,6 +15,64 @@
   padding-bottom: 10px;
 }
 
+/* ── Desktop: sidebar ─────────────────────────────────────── */
+
+@media (min-width: 1024px) {
+  .nav {
+    top: var(--topbar-height);
+    bottom: 0;
+    right: auto;
+    width: var(--sidebar-width);
+    height: auto;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    border-top: none;
+    border-right: 1px solid var(--divider-1);
+    padding: 12px 8px;
+    gap: 2px;
+    overflow-y: auto;
+  }
+
+  .item,
+  .itemNueva {
+    flex-direction: row;
+    justify-content: flex-start;
+    gap: 12px;
+    flex: none;
+    width: 100%;
+    padding: 11px 14px;
+    border-radius: 10px;
+  }
+
+  .item.active,
+  .itemNueva.active {
+    background: var(--accent-2);
+  }
+
+  .icon,
+  .nuevaIcon {
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+  }
+
+  .label {
+    font-size: var(--fs-sm);
+    font-weight: 600;
+  }
+}
+
+/* ── Desktop sidebar extras ───────────────────────────────── */
+
+.sidebarSpacer {
+  flex: 1;
+}
+
+.itemDanger {
+  color: var(--danger);
+}
+
 /* ── Regular items ────────────────────────────────────────── */
 
 .item {

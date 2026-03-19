@@ -148,7 +148,7 @@
 
 .badgeEnCurso {
   background: var(--info-bg);
-  color: #1D4ED8;
+  color: var(--info);
 }
 
 .badgeEnRevision {
