@@ -13,6 +13,7 @@ import {
   BellOff,
   UserPlus,
   Building2,
+  Bug,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase";
 import { callEdge } from "@/lib/edge";
@@ -143,11 +144,11 @@ export default function BottomNav() {
       const supabase = createClient();
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
-        await supabase.from("push_subscriptions").insert({
+        await supabase.from("push_subscriptions").upsert({
           usuario_id: user.id,
           subscription: sub.toJSON(),
           device_info: navigator.userAgent.slice(0, 200),
-        });
+        }, { onConflict: "usuario_id" });
       }
     } catch (err) {
       console.error("Push subscription failed:", err);
@@ -202,6 +203,22 @@ export default function BottomNav() {
                   </span>
                 </div>
               </button>
+            )}
+
+            {process.env.NODE_ENV !== "production" && (
+              <Link
+                href="/debug-push"
+                className={styles.sheetItem}
+                onClick={() => setMoreOpen(false)}
+              >
+                <span className={styles.sheetIconWrap}>
+                  <Bug className={styles.sheetIcon} />
+                </span>
+                <div className={styles.sheetText}>
+                  <span className={styles.sheetTitle}>Debug Push</span>
+                  <span className={styles.sheetSub}>Verificar notificaciones</span>
+                </div>
+              </Link>
             )}
 
             <div className={styles.sheetDivider} />

@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase";
 import styles from "./NotificationPermission.module.css";
 
 const ASKED_KEY = "pangui_notif_asked";
+const DENIED_DISMISSED_KEY = "pangui_notif_denied_dismissed";
 
 function urlBase64ToUint8Array(base64String) {
   const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
@@ -14,26 +15,38 @@ function urlBase64ToUint8Array(base64String) {
 
 export default function NotificationPermission() {
   const [show, setShow] = useState(false);
+  const [permission, setPermission] = useState(null);
 
   useEffect(() => {
-    if (
-      typeof Notification === "undefined" ||
-      !("serviceWorker" in navigator) ||
-      !("PushManager" in window)
-    )
-      return;
+    if (typeof Notification === "undefined") return;
 
-    // iOS only supports push when installed as PWA (standalone mode)
     const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
     const isStandalone =
       window.matchMedia("(display-mode: standalone)").matches ||
       window.navigator.standalone === true;
     if (isIOS && !isStandalone) return;
 
-    if (Notification.permission !== "default") return;
-    if (localStorage.getItem(ASKED_KEY)) return;
+    const perm = Notification.permission;
+    setPermission(perm);
 
-    // Small delay so the user is settled in the app
+    if (perm === "granted") return;
+
+    if (perm === "denied") {
+      // Show Settings reminder once per session (not stored, so it reappears on reload)
+      if (!sessionStorage.getItem(DENIED_DISMISSED_KEY)) {
+        const t = setTimeout(() => setShow(true), 2000);
+        return () => clearTimeout(t);
+      }
+      return;
+    }
+
+    // "default" — show the Activar banner
+    if (
+      !("serviceWorker" in navigator) ||
+      !("PushManager" in window) ||
+      localStorage.getItem(ASKED_KEY)
+    ) return;
+
     const t = setTimeout(() => setShow(true), 2000);
     return () => clearTimeout(t);
   }, []);
@@ -42,8 +55,9 @@ export default function NotificationPermission() {
     setShow(false);
     localStorage.setItem(ASKED_KEY, "true");
 
-    const permission = await Notification.requestPermission();
-    if (permission !== "granted") return;
+    const perm = await Notification.requestPermission();
+    setPermission(perm);
+    if (perm !== "granted") return;
 
     try {
       const reg = await navigator.serviceWorker.ready;
@@ -55,9 +69,7 @@ export default function NotificationPermission() {
       });
 
       const supabase = createClient();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
       await supabase.from("push_subscriptions").upsert({
@@ -75,7 +87,31 @@ export default function NotificationPermission() {
     setShow(false);
   }
 
+  function dismissDenied() {
+    sessionStorage.setItem(DENIED_DISMISSED_KEY, "true");
+    setShow(false);
+  }
+
   if (!show) return null;
+
+  if (permission === "denied") {
+    return (
+      <div className={styles.banner}>
+        <div className={styles.icon}>🔕</div>
+        <div className={styles.body}>
+          <div className={styles.title}>Activa las notificaciones</div>
+          <div className={styles.sub}>
+            Ajustes → Pangui → Notificaciones → Permitir
+          </div>
+        </div>
+        <div className={styles.actions}>
+          <button className={styles.btnPrimary} onClick={dismissDenied}>
+            Entendido
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={styles.banner}>

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pangui-v2';
+const CACHE_NAME = 'pangui-v3';
 
 // App-shell pages to precache on install
 const PRECACHE_URLS = ['/', '/login', '/offline', '/jefe', '/tecnico'];
