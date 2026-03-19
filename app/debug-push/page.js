@@ -20,6 +20,7 @@ export default function DebugPushPage() {
   const [testResult, setTestResult] = useState(null);
   const [testing, setTesting] = useState(false);
   const [subscribing, setSubscribing] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     async function collect() {
@@ -125,6 +126,33 @@ export default function DebugPushPage() {
     }
   }
 
+  async function handleSaveToSupabase() {
+    setSaving(true);
+    setTestResult(null);
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      const sub = await reg.pushManager.getSubscription();
+      if (!sub) { setTestResult({ ok: false, msg: "No local subscription found in browser." }); return; }
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { setTestResult({ ok: false, msg: "Not logged in." }); return; }
+      const { error } = await supabase.from("push_subscriptions").upsert({
+        usuario_id: user.id,
+        subscription: sub.toJSON(),
+        device_info: navigator.userAgent.slice(0, 200),
+      }, { onConflict: "usuario_id" });
+      if (error) {
+        setTestResult({ ok: false, msg: "Supabase error: " + error.message });
+      } else {
+        setTestResult({ ok: true, msg: "Saved to Supabase ✓ Now tap Send test push." });
+      }
+    } catch (err) {
+      setTestResult({ ok: false, msg: err.message });
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function handleTestPush() {
     if (!userId) return;
     setTesting(true);
@@ -200,6 +228,16 @@ export default function DebugPushPage() {
             style={{ padding: "10px 20px", background: "#273D88", color: "#fff", border: "none", borderRadius: 8, fontWeight: 600, cursor: "pointer" }}
           >
             {subscribing ? "Subscribing…" : "Subscribe to push"}
+          </button>
+        )}
+
+        {info?.hasSubscription && userId && (
+          <button
+            onClick={handleSaveToSupabase}
+            disabled={saving}
+            style={{ padding: "10px 20px", background: "#ea580c", color: "#fff", border: "none", borderRadius: 8, fontWeight: 600, cursor: "pointer" }}
+          >
+            {saving ? "Saving…" : "Save to Supabase"}
           </button>
         )}
 
