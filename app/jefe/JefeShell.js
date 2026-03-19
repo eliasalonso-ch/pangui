@@ -6,7 +6,7 @@ export default function JefeShell({ children }) {
   return (
     <>
       <Topbar />
-      {children}
+      <main>{children}</main>
       <BottomNav />
     </>
   );

@@ -3,7 +3,7 @@ import webpush from "web-push";
 import { NextResponse } from "next/server";
 
 webpush.setVapidDetails(
-  "mailto:admin@pangi.cl",
+  "mailto:admin@pangui.cl",
   process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY,
   process.env.VAPID_PRIVATE_KEY
 );

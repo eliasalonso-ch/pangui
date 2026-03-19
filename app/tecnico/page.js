@@ -1,7 +1,9 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import useSWR from "swr";
 import { createClient } from "@/lib/supabase";
+import { getPerfilCache, setPerfilCache } from "@/lib/perfil-cache";
 import styles from "./page.module.css";
 
 // ── Helpers ──────────────────────────────────────────────────
@@ -145,37 +147,50 @@ function sortActivas(list) {
   });
 }
 
+// ── SWR fetchers ──────────────────────────────────────────────
+
+async function fetcherActivas([, uid]) {
+  const supabase = createClient();
+  const { data } = await supabase
+    .from("ordenes_trabajo")
+    .select(QUERY_SELECT)
+    .eq("tecnico_id", uid)
+    .neq("estado", "completado")
+    .order("created_at", { ascending: false });
+  return data ? sortActivas(data) : [];
+}
+
+async function fetcherCompletadas([, uid]) {
+  const supabase = createClient();
+  const { data } = await supabase
+    .from("ordenes_trabajo")
+    .select(QUERY_SELECT)
+    .eq("tecnico_id", uid)
+    .eq("estado", "completado")
+    .order("created_at", { ascending: false })
+    .limit(20);
+  return data ?? [];
+}
+
 export default function TecnicoPage() {
   const router = useRouter();
   const [tab, setTab] = useState("activas");
-  const [activas, setActivas] = useState([]);
-  const [completadas, setCompletadas] = useState([]);
-  const [cargando, setCargando] = useState(true);
+  const [userId, setUserId] = useState(null);
   const [nombre, setNombre] = useState("");
 
-  const cargarOrdenes = useCallback(async (uid) => {
-    const supabase = createClient();
+  const { data: activas = [], mutate: mutateActivas, isLoading: loadingActivas } = useSWR(
+    userId ? ["tecnico-activas", userId] : null,
+    fetcherActivas,
+    { revalidateOnFocus: false, dedupingInterval: 30_000 }
+  );
 
-    const [{ data: actv }, { data: comp }] = await Promise.all([
-      supabase
-        .from("ordenes_trabajo")
-        .select(QUERY_SELECT)
-        .eq("tecnico_id", uid)
-        .neq("estado", "completado")
-        .order("created_at", { ascending: false }),
+  const { data: completadas = [], mutate: mutateCompletadas } = useSWR(
+    userId ? ["tecnico-completadas", userId] : null,
+    fetcherCompletadas,
+    { revalidateOnFocus: false, dedupingInterval: 60_000 }
+  );
 
-      supabase
-        .from("ordenes_trabajo")
-        .select(QUERY_SELECT)
-        .eq("tecnico_id", uid)
-        .eq("estado", "completado")
-        .order("created_at", { ascending: false })
-        .limit(20),
-    ]);
-
-    if (actv) setActivas(sortActivas(actv));
-    if (comp) setCompletadas(comp);
-  }, []);
+  const cargando = !userId || loadingActivas;
 
   useEffect(() => {
     let channel;
@@ -189,9 +204,19 @@ export default function TecnicoPage() {
 
         if (!user) { router.push("/login"); return; }
 
-        const { data: perfil } = await supabase
-          .from("usuarios").select("nombre").eq("id", user.id).maybeSingle();
+        let perfil = getPerfilCache(user.id);
+        if (!perfil) {
+          const { data } = await supabase
+            .from("usuarios")
+            .select("planta_id, rol, nombre")
+            .eq("id", user.id)
+            .maybeSingle();
+          perfil = data;
+          if (perfil) setPerfilCache(user.id, perfil);
+        }
         if (perfil?.nombre) setNombre(perfil.nombre);
+
+        setUserId(user.id);
 
         // Suscribir ANTES de cargar para no perder eventos
         channel = supabase
@@ -204,15 +229,11 @@ export default function TecnicoPage() {
               table: "ordenes_trabajo",
               filter: `tecnico_id=eq.${user.id}`,
             },
-            () => cargarOrdenes(user.id)
+            () => { mutateActivas(); mutateCompletadas(); }
           )
           .subscribe();
-
-        await cargarOrdenes(user.id);
       } catch (err) {
         console.error("TecnicoPage init error:", err);
-      } finally {
-        setCargando(false);
       }
     }
 
@@ -221,7 +242,7 @@ export default function TecnicoPage() {
     return () => {
       if (channel) createClient().removeChannel(channel);
     };
-  }, [cargarOrdenes, router]);
+  }, [mutateActivas, mutateCompletadas, router]);
 
   const pendientes = activas.filter((o) => o.estado === "pendiente").length;
 

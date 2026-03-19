@@ -9,13 +9,13 @@ const dmSans = DM_Sans({
 });
 
 export const metadata = {
-  title: "Pangi",
+  title: "Pangui",
   description: "Gestión de órdenes de trabajo",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "Pangi",
+    title: "Pangui",
   },
   icons: {
     apple: "/icons/icon-192.png",
@@ -25,14 +25,17 @@ export const metadata = {
 export const viewport = {
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
-  themeColor: "#2C2418",
+  themeColor: "#273D88",
 };
 
 export default function RootLayout({ children }) {
   return (
     <html lang="es" className={dmSans.variable}>
+      <head>
+        <link rel="preconnect" href="https://yqwsryjbmlvcghnwnzik.supabase.co" />
+        <link rel="dns-prefetch" href="https://yqwsryjbmlvcghnwnzik.supabase.co" />
+        <link rel="preload" as="image" href="/pangui-logo.svg" />
+      </head>
       <body>
         <ServiceWorker />
         {children}

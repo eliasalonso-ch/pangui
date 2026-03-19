@@ -1,8 +1,11 @@
 "use client";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import useSWR from "swr";
 import { createClient } from "@/lib/supabase";
-import ExportButtons from "@/components/ExportButtons";
+import { getPerfilCache, setPerfilCache } from "@/lib/perfil-cache";
+import dynamic from "next/dynamic";
+const ExportButtons = dynamic(() => import("@/components/ExportButtons"), { ssr: false, loading: () => null });
 import styles from "./page.module.css";
 
 // ── Query ─────────────────────────────────────────────────────
@@ -16,6 +19,33 @@ const QUERY_SELECT =
   "tecnicos:usuarios(nombre), " +
   "ubicaciones(edificio, piso, detalle), " +
   "materiales_usados(id, nombre, cantidad, unidad)";
+
+// ── SWR fetchers (module-level, outside component) ────────────
+
+async function fetcherHoy([, pId]) {
+  const supabase = createClient();
+  const inicio = new Date();
+  inicio.setHours(0, 0, 0, 0);
+  const { data } = await supabase
+    .from("ordenes_trabajo")
+    .select(QUERY_SELECT)
+    .eq("planta_id", pId)
+    .gte("created_at", inicio.toISOString())
+    .order("created_at", { ascending: false });
+  return data ?? [];
+}
+
+async function fetcherPeriodo([, pId, desde, hasta]) {
+  const supabase = createClient();
+  const { data } = await supabase
+    .from("ordenes_trabajo")
+    .select(QUERY_SELECT)
+    .eq("planta_id", pId)
+    .gte("created_at", `${desde}T00:00:00`)
+    .lte("created_at", `${hasta}T23:59:59`)
+    .order("created_at", { ascending: false });
+  return data ?? [];
+}
 
 // ── Helpers ───────────────────────────────────────────────────
 
@@ -211,46 +241,34 @@ function FiltrosBar({ tecnicos, filtroTecnico, setFiltroTecnico, filtroDesde, se
 export default function JefePage() {
   const router = useRouter();
 
-  const [plantaId, setPlantaId]         = useState(null);
-  const [nombre, setNombre]             = useState("");
-  const [tab, setTab]                   = useState("hoy");
-  const [ordenesHoy, setOrdenesHoy]     = useState([]);
-  const [ordenesPeriodo, setOrdenesPeriodo] = useState([]);
-  const [tecnicos, setTecnicos]         = useState([]);
-  const [cargando, setCargando]         = useState(true);
-  const [ultimaAct, setUltimaAct]       = useState(new Date());
+  const [plantaId, setPlantaId]           = useState(null);
+  const [nombre, setNombre]               = useState("");
+  const [tab, setTab]                     = useState("hoy");
+  const [tecnicos, setTecnicos]           = useState([]);
+  const [cargando, setCargando]           = useState(true);
 
   const [filtroTecnico, setFiltroTecnico] = useState("");
-  const [filtroDesde, setFiltroDesde]   = useState("");
-  const [filtroHasta, setFiltroHasta]   = useState("");
+  const [filtroDesde, setFiltroDesde]     = useState("");
+  const [filtroHasta, setFiltroHasta]     = useState("");
+  const [filtroAplicado, setFiltroAplicado] = useState({ desde: "", hasta: "" });
+
+  // ── SWR — instant navigation via stale-while-revalidate ───────
+  const { data: ordenesHoy = [], mutate: mutateHoy } = useSWR(
+    plantaId ? ["ordenes-hoy", plantaId] : null,
+    fetcherHoy,
+    { revalidateOnFocus: false, dedupingInterval: 30_000 }
+  );
+
+  const { data: ordenesPeriodo = [], mutate: mutatePeriodo } = useSWR(
+    plantaId && filtroAplicado.desde
+      ? ["ordenes-periodo", plantaId, filtroAplicado.desde, filtroAplicado.hasta]
+      : null,
+    fetcherPeriodo,
+    { revalidateOnFocus: false, dedupingInterval: 60_000 }
+  );
 
   // ── Loaders ────────────────────────────────────────────────
 
-  const cargarOrdenesHoy = useCallback(async (pId) => {
-    const supabase = createClient();
-    const inicio = new Date();
-    inicio.setHours(0, 0, 0, 0);
-    const { data } = await supabase
-      .from("ordenes_trabajo")
-      .select(QUERY_SELECT)
-      .eq("planta_id", pId)
-      .gte("created_at", inicio.toISOString())
-      .order("created_at", { ascending: false });
-    if (data) setOrdenesHoy(data);
-    setUltimaAct(new Date());
-  }, []);
-
-  const cargarOrdenesPeriodo = useCallback(async (pId, desde, hasta) => {
-    const supabase = createClient();
-    const { data } = await supabase
-      .from("ordenes_trabajo")
-      .select(QUERY_SELECT)
-      .eq("planta_id", pId)
-      .gte("created_at", `${desde}T00:00:00`)
-      .lte("created_at", `${hasta}T23:59:59`)
-      .order("created_at", { ascending: false });
-    if (data) setOrdenesPeriodo(data);
-  }, []);
 
   async function cargarTecnicos(pId) {
     const supabase = createClient();
@@ -281,11 +299,16 @@ export default function JefePage() {
         } = await supabase.auth.getUser();
         if (!user) { router.push("/login"); return; }
 
-        const { data: perfil } = await supabase
-          .from("usuarios")
-          .select("planta_id, nombre")
-          .eq("id", user.id)
-          .maybeSingle();
+        let perfil = getPerfilCache(user.id);
+        if (!perfil) {
+          const { data } = await supabase
+            .from("usuarios")
+            .select("planta_id, rol, nombre")
+            .eq("id", user.id)
+            .maybeSingle();
+          perfil = data;
+          if (perfil) setPerfilCache(user.id, perfil);
+        }
         if (!perfil) { router.push("/login"); return; }
 
         const pId = perfil.planta_id;
@@ -299,12 +322,11 @@ export default function JefePage() {
         const hastaStr = hoy.toISOString().split("T")[0];
         setFiltroDesde(desdeStr);
         setFiltroHasta(hastaStr);
+        setFiltroAplicado({ desde: desdeStr, hasta: hastaStr });
 
-        await Promise.all([
-          cargarOrdenesHoy(pId),
-          cargarOrdenesPeriodo(pId, desdeStr, hastaStr),
-          cargarTecnicos(pId),
-        ]);
+        // SWR will auto-fetch once plantaId is set above.
+        // We only need to kick off the technicians list manually.
+        await cargarTecnicos(pId);
 
         channel = supabase
           .channel(`jefe-rt-${user.id}`)
@@ -316,7 +338,7 @@ export default function JefePage() {
               table: "ordenes_trabajo",
               filter: `planta_id=eq.${pId}`,
             },
-            () => cargarOrdenesHoy(pId),
+            () => mutateHoy(),
           )
           .subscribe();
       } catch (err) {
@@ -330,10 +352,10 @@ export default function JefePage() {
     return () => {
       if (channel) createClient().removeChannel(channel);
     };
-  }, [cargarOrdenesHoy, cargarOrdenesPeriodo, router]);
+  }, [mutateHoy, router]);
 
   function aplicarFiltros() {
-    if (plantaId) cargarOrdenesPeriodo(plantaId, filtroDesde, filtroHasta);
+    setFiltroAplicado({ desde: filtroDesde, hasta: filtroHasta });
   }
 
   // ── Derived data ───────────────────────────────────────────
@@ -715,7 +737,7 @@ export default function JefePage() {
             await supabase.from("ordenes_trabajo")
               .update({ estado_cobro: "cobrado", fecha_cobro: new Date().toISOString() })
               .eq("id", ordenId);
-            await cargarOrdenesPeriodo(plantaId, filtroDesde, filtroHasta);
+            await mutatePeriodo();
           }
 
           return (
@@ -823,14 +845,6 @@ export default function JefePage() {
           );
         })()}
 
-        <div className={styles.footer}>
-          Actualizado{" "}
-          {ultimaAct.toLocaleTimeString("es-CL", {
-            hour: "2-digit",
-            minute: "2-digit",
-            second: "2-digit",
-          })}
-        </div>
       </div>
 
     </>

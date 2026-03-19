@@ -47,8 +47,7 @@ export default function LoginPage() {
   return (
     <div className={styles.page}>
       <div className={styles.logo}>
-        <img src="/pangi-puma.svg" alt="" className={styles.logoImage} />
-        <span className={styles.logoText}>Pangi</span>
+        <img src="/pangui-logo-inv.svg" alt="" className={styles.logoImage} />
       </div>
 
       <div className={styles.card}>

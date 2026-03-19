@@ -15,6 +15,7 @@ import {
   Building2,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase";
+import { callEdge } from "@/lib/edge";
 import styles from "./BottomNav.module.css";
 
 function urlBase64ToUint8Array(base64String) {
@@ -82,16 +83,12 @@ export default function BottomNav() {
     setInviteError(null);
     setInviteSaving(true);
 
-    const res = await fetch("/api/invitar", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        nombre:    inviteForm.nombre.trim(),
-        email:     inviteForm.email.trim(),
-        password:  inviteForm.password,
-        rol:       inviteForm.rol,
-        planta_id: plantaId,
-      }),
+    const res = await callEdge("invitar", {
+      nombre:    inviteForm.nombre.trim(),
+      email:     inviteForm.email.trim(),
+      password:  inviteForm.password,
+      rol:       inviteForm.rol,
+      planta_id: plantaId,
     });
 
     const body = await res.json();
@@ -116,7 +113,7 @@ export default function BottomNav() {
   }
 
   function darFeedback() {
-    window.open("mailto:feedback@pangi.cl?subject=Feedback%20Pangi", "_blank");
+    window.open("mailto:feedback@pangui.cl?subject=Feedback%20Pangui", "_blank");
     setMoreOpen(false);
   }
 

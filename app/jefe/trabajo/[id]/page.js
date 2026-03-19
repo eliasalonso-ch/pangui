@@ -2,7 +2,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase";
-import FotoUpload from "@/components/FotoUpload";
+import { getPerfilCache, setPerfilCache } from "@/lib/perfil-cache";
+import { callEdge } from "@/lib/edge";
+import dynamic from "next/dynamic";
+const FotoUpload = dynamic(() => import("@/components/FotoUpload"), { ssr: false, loading: () => null });
 import styles from "./page.module.css";
 import { Pencil, Ban, Trash2 } from "lucide-react";
 
@@ -172,11 +175,16 @@ export default function JefeOrdenDetallePage() {
         return;
       }
 
-      const { data: perfil } = await supabase
-        .from("usuarios")
-        .select("planta_id, rol")
-        .eq("id", user.id)
-        .maybeSingle();
+      let perfil = getPerfilCache(user.id);
+      if (!perfil) {
+        const { data } = await supabase
+          .from("usuarios")
+          .select("planta_id, rol, nombre")
+          .eq("id", user.id)
+          .maybeSingle();
+        perfil = data;
+        if (perfil) setPerfilCache(user.id, perfil);
+      }
       if (!perfil) {
         router.push("/login");
         return;
@@ -212,8 +220,8 @@ export default function JefeOrdenDetallePage() {
 
   useEffect(() => {
     const handler = () => { cargarOrden(); cargarMateriales(); };
-    window.addEventListener("pangi:refresh", handler);
-    return () => window.removeEventListener("pangi:refresh", handler);
+    window.addEventListener("pangui:refresh", handler);
+    return () => window.removeEventListener("pangui:refresh", handler);
   }, [cargarOrden, cargarMateriales]);
 
   // ── Edit helpers ─────────────────────────────────────────────
@@ -270,15 +278,11 @@ export default function JefeOrdenDetallePage() {
     // Notify assigned technician of the edit
     const tecnicoId = patch.tecnico_id || orden?.tecnico_id;
     if (tecnicoId) {
-      fetch("/api/notificar", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          usuario_id: tecnicoId,
-          titulo: "Orden actualizada",
-          mensaje: patch.descripcion?.slice(0, 60) ?? "",
-          url: `/tecnico/trabajo/${id}`,
-        }),
+      callEdge("notificar", {
+        usuario_id: tecnicoId,
+        titulo: "Orden actualizada",
+        mensaje: patch.descripcion?.slice(0, 60) ?? "",
+        url: `/tecnico/trabajo/${id}`,
       });
     }
     await cargarOrden();
@@ -295,15 +299,11 @@ export default function JefeOrdenDetallePage() {
       .update({ estado: "en_curso", rechazo_motivo: rechazoInput.trim() })
       .eq("id", id);
     if (orden?.tecnico_id) {
-      fetch("/api/notificar", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          usuario_id: orden.tecnico_id,
-          titulo: "❌ Trabajo rechazado",
-          mensaje: rechazoInput.trim().slice(0, 80),
-          url: `/tecnico/trabajo/${id}`,
-        }),
+      callEdge("notificar", {
+        usuario_id: orden.tecnico_id,
+        titulo: "❌ Trabajo rechazado",
+        mensaje: rechazoInput.trim().slice(0, 80),
+        url: `/tecnico/trabajo/${id}`,
       });
     }
     setRechazando(false);
@@ -320,15 +320,11 @@ export default function JefeOrdenDetallePage() {
       .update({ estado: "completado" })
       .eq("id", id);
     if (orden?.tecnico_id) {
-      fetch("/api/notificar", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          usuario_id: orden.tecnico_id,
-          titulo: "✅ Trabajo aprobado",
-          mensaje: orden.descripcion?.slice(0, 60) ?? "",
-          url: `/tecnico/trabajo/${id}`,
-        }),
+      callEdge("notificar", {
+        usuario_id: orden.tecnico_id,
+        titulo: "✅ Trabajo aprobado",
+        mensaje: orden.descripcion?.slice(0, 60) ?? "",
+        url: `/tecnico/trabajo/${id}`,
       });
     }
     await cargarOrden();
@@ -344,16 +340,11 @@ export default function JefeOrdenDetallePage() {
       .eq("id", id);
 
     if (orden?.tecnico_id) {
-      const desc = orden.descripcion?.slice(0, 50) ?? "";
-      fetch("/api/notificar", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          usuario_id: orden.tecnico_id,
-          titulo: "Orden cancelada",
-          mensaje: desc,
-          url: `/tecnico/trabajo/${id}`,
-        }),
+      callEdge("notificar", {
+        usuario_id: orden.tecnico_id,
+        titulo: "Orden cancelada",
+        mensaje: orden.descripcion?.slice(0, 50) ?? "",
+        url: `/tecnico/trabajo/${id}`,
       });
     }
 

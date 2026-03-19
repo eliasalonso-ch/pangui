@@ -91,7 +91,7 @@ export default function FeedbackPage() {
             <div className={styles.confirmIcon}>✓</div>
             <h1 className={styles.confirmTitulo}>Gracias por tu feedback</h1>
             <p className={styles.confirmSub}>
-              Lo leemos con atención para mejorar Pangi.
+              Lo leemos con atención para mejorar Pangui.
             </p>
             <button className={styles.btnVolver} onClick={volver}>
               Volver
@@ -102,7 +102,7 @@ export default function FeedbackPage() {
             <div className={styles.header}>
               <h1 className={styles.titulo}>Ayúdanos a mejorar</h1>
               <p className={styles.sub}>
-                Tu opinión nos ayuda a hacer Pangi mejor para ti y tu equipo.
+                Tu opinión nos ayuda a hacer Pangui mejor para ti y tu equipo.
               </p>
             </div>
 
@@ -145,7 +145,7 @@ export default function FeedbackPage() {
               {/* Rating */}
               <div className={styles.field}>
                 <label className={styles.label}>
-                  ¿Qué tan satisfecho estás con Pangi?
+                  ¿Qué tan satisfecho estás con Pangui?
                 </label>
                 <div className={styles.ratingRow}>
                   {[1, 2, 3, 4, 5].map((n) => (

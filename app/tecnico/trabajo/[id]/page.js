@@ -2,9 +2,12 @@
 import { useCallback, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase";
-import FotoUpload from "@/components/FotoUpload";
-import FirmaCanvas from "@/components/FirmaCanvas";
-import BuscadorMaterial from "@/components/BuscadorMaterial";
+import { getPerfilCache, setPerfilCache } from "@/lib/perfil-cache";
+import { callEdge } from "@/lib/edge";
+import dynamic from "next/dynamic";
+const FotoUpload = dynamic(() => import("@/components/FotoUpload"), { ssr: false, loading: () => null });
+const FirmaCanvas = dynamic(() => import("@/components/FirmaCanvas"), { ssr: false, loading: () => <div style={{ height: 160 }} /> });
+const BuscadorMaterial = dynamic(() => import("@/components/BuscadorMaterial"), { ssr: false, loading: () => null });
 import styles from "./page.module.css";
 
 const ESTADOS_EDITABLES = ["pendiente", "en_curso", "en_revision"];
@@ -135,11 +138,16 @@ export default function OrdenDetallePage() {
 
       setUserId(user.id);
 
-      const { data: perfil } = await supabase
-        .from("usuarios")
-        .select("planta_id")
-        .eq("id", user.id)
-        .maybeSingle();
+      let perfil = getPerfilCache(user.id);
+      if (!perfil) {
+        const { data } = await supabase
+          .from("usuarios")
+          .select("planta_id, rol, nombre")
+          .eq("id", user.id)
+          .maybeSingle();
+        perfil = data;
+        if (perfil) setPerfilCache(user.id, perfil);
+      }
       if (perfil?.planta_id) {
         setPlantaId(perfil.planta_id);
         const { data: ubics } = await supabase
@@ -153,23 +161,31 @@ export default function OrdenDetallePage() {
 
       channel = supabase
         .channel(`orden-${id}`)
-        .on("postgres_changes", {
-          event: "UPDATE",
-          schema: "public",
-          table: "ordenes_trabajo",
-          filter: `id=eq.${id}`,
-        }, (payload) => {
-          setOrden(payload.new);
-          if (payload.new.rechazo_motivo && !payload.old?.rechazo_motivo) {
-            setRechazoPopup(payload.new.rechazo_motivo);
-          }
-        })
-        .on("postgres_changes", {
-          event: "*",
-          schema: "public",
-          table: "materiales_usados",
-          filter: `orden_id=eq.${id}`,
-        }, cargarMateriales)
+        .on(
+          "postgres_changes",
+          {
+            event: "UPDATE",
+            schema: "public",
+            table: "ordenes_trabajo",
+            filter: `id=eq.${id}`,
+          },
+          (payload) => {
+            setOrden(payload.new);
+            if (payload.new.rechazo_motivo && !payload.old?.rechazo_motivo) {
+              setRechazoPopup(payload.new.rechazo_motivo);
+            }
+          },
+        )
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "materiales_usados",
+            filter: `orden_id=eq.${id}`,
+          },
+          cargarMateriales,
+        )
         .subscribe();
 
       await Promise.all([cargarOrden(), cargarMateriales()]);
@@ -185,9 +201,12 @@ export default function OrdenDetallePage() {
   // ── Global refresh event ────────────────────────────────────
 
   useEffect(() => {
-    const handler = () => { cargarOrden(); cargarMateriales(); };
-    window.addEventListener("pangi:refresh", handler);
-    return () => window.removeEventListener("pangi:refresh", handler);
+    const handler = () => {
+      cargarOrden();
+      cargarMateriales();
+    };
+    window.addEventListener("pangui:refresh", handler);
+    return () => window.removeEventListener("pangui:refresh", handler);
   }, [cargarOrden, cargarMateriales]);
 
   // ── Actions ──────────────────────────────────────────────────
@@ -277,15 +296,11 @@ export default function OrdenDetallePage() {
     }
     // Notify the boss that work is ready for review
     if (plantaId) {
-      fetch("/api/notificar", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          planta_id_jefe: plantaId,
-          titulo: "Trabajo listo para revisar",
-          mensaje: orden?.descripcion?.slice(0, 60) ?? "",
-          url: `/jefe/trabajo/${id}`,
-        }),
+      callEdge("notificar", {
+        planta_id_jefe: plantaId,
+        titulo: "Trabajo listo para revisar",
+        mensaje: orden?.descripcion?.slice(0, 60) ?? "",
+        url: `/jefe/trabajo/${id}`,
       });
     }
     router.push("/tecnico");
@@ -377,13 +392,18 @@ export default function OrdenDetallePage() {
 
   async function guardarCantidadMaterial(matId) {
     const cant = parseFloat(editingMatCant);
-    if (!cant || cant <= 0) { setEditingMatId(null); return; }
+    if (!cant || cant <= 0) {
+      setEditingMatId(null);
+      return;
+    }
     const supabase = createClient();
-    await supabase.from("materiales_usados").update({ cantidad: cant }).eq("id", matId);
+    await supabase
+      .from("materiales_usados")
+      .update({ cantidad: cant })
+      .eq("id", matId);
     setEditingMatId(null);
     setEditingMatCant("");
   }
-
 
   // ── Render ────────────────────────────────────────────────────
 
@@ -417,10 +437,14 @@ export default function OrdenDetallePage() {
               {BADGE_LABEL[orden.estado] ?? orden.estado}
             </span>
             {orden.estado_cobro === "pendiente_cobro" && (
-              <span className={`${styles.badge} ${styles.badgeCobro}`}>Pendiente cobro</span>
+              <span className={`${styles.badge} ${styles.badgeCobro}`}>
+                Pendiente cobro
+              </span>
             )}
             {orden.estado_cobro === "cobrado" && (
-              <span className={`${styles.badge} ${styles.badgeCobrado}`}>Cobrado</span>
+              <span className={`${styles.badge} ${styles.badgeCobrado}`}>
+                Cobrado
+              </span>
             )}
             {ESTADOS_EDITABLES.includes(orden.estado) && !editMode && (
               <button className={styles.btnEditar} onClick={abrirEdicion}>
@@ -557,7 +581,9 @@ export default function OrdenDetallePage() {
               <span className={styles.rechazoIcon}>❌</span>
               <div>
                 <p className={styles.rechazoBannerTitle}>Trabajo rechazado</p>
-                <p className={styles.rechazoBannerMotivo}>{orden.rechazo_motivo}</p>
+                <p className={styles.rechazoBannerMotivo}>
+                  {orden.rechazo_motivo}
+                </p>
               </div>
             </div>
           )}
@@ -590,7 +616,10 @@ export default function OrdenDetallePage() {
                     ) : (
                       <button
                         className={styles.matCantBtn}
-                        onClick={() => { setEditingMatId(m.id); setEditingMatCant(String(m.cantidad)); }}
+                        onClick={() => {
+                          setEditingMatId(m.id);
+                          setEditingMatCant(String(m.cantidad));
+                        }}
                       >
                         {m.cantidad} {m.unidad}
                       </button>
@@ -780,7 +809,11 @@ export default function OrdenDetallePage() {
             <h2 className={styles.sectionTitle}>Firma del solicitante</h2>
             {firmaCapturada?.base64 ? (
               <div className={styles.firmaCapturadaWrap}>
-                <img src={firmaCapturada.base64} alt="Firma" className={styles.firmaImg} />
+                <img
+                  src={firmaCapturada.base64}
+                  alt="Firma"
+                  className={styles.firmaImg}
+                />
                 {firmaCapturada.nombre && (
                   <p className={styles.firmaNombre}>{firmaCapturada.nombre}</p>
                 )}
@@ -794,7 +827,9 @@ export default function OrdenDetallePage() {
               </div>
             ) : (
               <FirmaCanvas
-                onFirmar={(b64, nombre) => setFirmaCapturada({ base64: b64, nombre })}
+                onFirmar={(b64, nombre) =>
+                  setFirmaCapturada({ base64: b64, nombre })
+                }
                 disabled={completing}
               />
             )}
@@ -807,10 +842,12 @@ export default function OrdenDetallePage() {
               onClick={() => setShowConfirmRevision(true)}
               disabled={completing || !firmaCapturada?.base64}
             >
-              ✓ Enviar a revisión
+              Enviar a revisión
             </button>
             {!firmaCapturada?.base64 && (
-              <p className={styles.firmaRequerida}>Se requiere la firma antes de enviar.</p>
+              <p className={styles.firmaRequerida}>
+                Se requiere la firma antes de enviar.
+              </p>
             )}
           </div>
         </>
@@ -976,12 +1013,19 @@ export default function OrdenDetallePage() {
 
       {/* ── Warning modal before revision ── */}
       {showConfirmRevision && (
-        <div className={styles.confirmOverlay} onClick={() => setShowConfirmRevision(false)}>
-          <div className={styles.confirmCard} onClick={(e) => e.stopPropagation()}>
+        <div
+          className={styles.confirmOverlay}
+          onClick={() => setShowConfirmRevision(false)}
+        >
+          <div
+            className={styles.confirmCard}
+            onClick={(e) => e.stopPropagation()}
+          >
             <p className={styles.confirmTitle}>¿Todo listo?</p>
             <p className={styles.confirmText}>
-              Revisa que las fotos, materiales y observaciones estén completos antes de enviar.
-              Una vez en revisión el jefe deberá aprobar el trabajo.
+              Revisa que las fotos, materiales y observaciones estén completos
+              antes de enviar. Una vez en revisión el jefe deberá aprobar el
+              trabajo.
             </p>
             <div className={styles.confirmActions}>
               <button
@@ -992,7 +1036,10 @@ export default function OrdenDetallePage() {
               </button>
               <button
                 className={styles.btnConfirmSi}
-                onClick={() => { setShowConfirmRevision(false); completarConFirma(); }}
+                onClick={() => {
+                  setShowConfirmRevision(false);
+                  completarConFirma();
+                }}
               >
                 Continuar
               </button>
@@ -1017,7 +1064,6 @@ export default function OrdenDetallePage() {
           </div>
         </div>
       )}
-
     </main>
   );
 }

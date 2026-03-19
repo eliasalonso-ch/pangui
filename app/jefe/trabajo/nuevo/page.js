@@ -2,6 +2,8 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase";
+import { getPerfilCache, setPerfilCache } from "@/lib/perfil-cache";
+import { callEdge } from "@/lib/edge";
 import styles from "./page.module.css";
 
 export default function JefeNuevaOrdenPage() {
@@ -33,11 +35,16 @@ export default function JefeNuevaOrdenPage() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { router.push("/login"); return; }
 
-      const { data: perfil } = await supabase
-        .from("usuarios")
-        .select("planta_id, rol")
-        .eq("id", user.id)
-        .maybeSingle();
+      let perfil = getPerfilCache(user.id);
+      if (!perfil) {
+        const { data } = await supabase
+          .from("usuarios")
+          .select("planta_id, rol, nombre")
+          .eq("id", user.id)
+          .maybeSingle();
+        perfil = data;
+        if (perfil) setPerfilCache(user.id, perfil);
+      }
 
       if (!perfil || perfil.rol !== "jefe") { router.push("/login"); return; }
 
@@ -110,28 +117,20 @@ export default function JefeNuevaOrdenPage() {
 
     if (form.tipo === "emergencia") {
       // Notify ALL technicians in the plant
-      fetch("/api/notificar", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          planta_id_todos_tecnicos: plantaId,
-          titulo: "🚨 EMERGENCIA",
-          mensaje: desc,
-          url: ordenUrl,
-          urgente: true,
-        }),
+      callEdge("notificar", {
+        planta_id_todos_tecnicos: plantaId,
+        titulo: "🚨 EMERGENCIA",
+        mensaje: desc,
+        url: ordenUrl,
+        urgente: true,
       });
-    } else {
+    } else if (form.tecnico_id) {
       // Notify only the assigned technician
-      fetch("/api/notificar", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          usuario_id: form.tecnico_id,
-          titulo: "Nueva orden asignada",
-          mensaje: desc,
-          url: ordenUrl,
-        }),
+      callEdge("notificar", {
+        usuario_id: form.tecnico_id,
+        titulo: "Nueva orden asignada",
+        mensaje: desc,
+        url: ordenUrl,
       });
     }
 

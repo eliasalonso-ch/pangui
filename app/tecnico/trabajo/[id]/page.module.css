@@ -544,7 +544,7 @@
 }
 
 .btnCompletar {
-  background: var(--success);
+  background: var(--accent-1);
 }
 
 /* ── Edit mode (card) ──────────────────────────────────────── */
@@ -809,7 +809,7 @@
 }
 
 .confirmCard {
-  background: var(--background, #FAF8F5);
+  background: var(--background, #FFFFFF);
   border-radius: 14px;
   padding: 24px 20px 20px;
   width: 100%;
@@ -874,7 +874,7 @@
 }
 
 .firmaModal {
-  background: var(--background, #FAF8F5);
+  background: var(--background, #FFFFFF);
   border-radius: 20px 20px 0 0;
   padding: 24px 20px 36px;
   width: 100%;
@@ -925,7 +925,7 @@
 }
 
 .rechazoModal {
-  background: var(--background, #FAF8F5);
+  background: var(--background, #FFFFFF);
   border-radius: 16px;
   padding: 28px 24px 24px;
   width: 100%;

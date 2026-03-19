@@ -2,8 +2,6 @@
 
 .saludo {
   padding: 14px 16px 10px;
-  max-width: 800px;
-  margin: 0 auto;
 }
 
 .saludoNombre {
@@ -15,7 +13,7 @@
 
 .saludoSub {
   font-size: var(--fs-sm);
-  color: var(--accent-6);
+  color: var(--accent-5);
   margin: 0;
 }
 
@@ -28,7 +26,7 @@
   background: var(--background);
   border-bottom: 1px solid var(--divider-1);
   display: flex;
-  padding: 0 max(0px, calc((100% - 800px) / 2));
+  padding: 0 16px;
 }
 
 .tab {
@@ -40,7 +38,7 @@
   font-size: var(--fs-sm);
   font-weight: 500;
   font-family: var(--font-sans), system-ui, sans-serif;
-  color: var(--accent-6);
+  color: var(--accent-5);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
   transition: color 0.15s ease, border-color 0.15s ease;
@@ -54,9 +52,8 @@
 /* ── Main ──────────────────────────────────────────────────── */
 
 .main {
+  background: var(--white);
   padding: 12px 16px 100px;
-  max-width: 800px;
-  margin: 0 auto;
 }
 
 .list {
@@ -68,7 +65,7 @@
 .empty {
   text-align: center;
   padding: 56px 16px;
-  color: var(--accent-6);
+  color: var(--accent-5);
   font-size: var(--fs-base);
   line-height: 1.5;
 }
@@ -123,7 +120,7 @@
 
 .cardTime {
   font-size: var(--fs-xs);
-  color: var(--accent-6);
+  color: var(--accent-5);
 }
 
 /* ── Badges ────────────────────────────────────────────────── */
@@ -151,7 +148,7 @@
 
 .badgeEnCurso {
   background: var(--info-bg);
-  color: var(--info);
+  color: #1D4ED8;
 }
 
 .badgeEnRevision {
@@ -200,7 +197,7 @@
 
 .cardMeta {
   font-size: var(--fs-xs);
-  color: var(--accent-6);
+  color: var(--accent-5);
 }
 
 .cardMetaDivider {
@@ -260,6 +257,20 @@
 
 @media (min-width: 900px) {
   .main {
-    padding: 24px 32px 64px;
+    padding: 24px 40px 64px;
+  }
+
+  .list {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (min-width: 1280px) {
+  .main {
+    padding: 28px 48px 64px;
+  }
+
+  .list {
+    grid-template-columns: repeat(4, 1fr);
   }
 }

@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase";
+import { getPerfilCache, setPerfilCache } from "@/lib/perfil-cache";
 import Topbar from "@/components/Topbar";
 import BuscadorMaterial from "@/components/BuscadorMaterial";
 import styles from "./page.module.css";
@@ -38,13 +39,18 @@ export default function TecnicoInventarioPage() {
     const supabase = createClient();
     supabase.auth.getUser().then(async ({ data: { user } }) => {
       if (!user) { router.replace("/"); return; }
-      const { data } = await supabase
-        .from("usuarios")
-        .select("planta_id, rol")
-        .eq("id", user.id)
-        .single();
-      if (!data || data.rol !== "tecnico") { router.replace("/"); return; }
-      setPlantaId(data.planta_id);
+      let perfil = getPerfilCache(user.id);
+      if (!perfil) {
+        const { data } = await supabase
+          .from("usuarios")
+          .select("planta_id, rol, nombre")
+          .eq("id", user.id)
+          .single();
+        perfil = data;
+        if (perfil) setPerfilCache(user.id, perfil);
+      }
+      if (!perfil || perfil.rol !== "tecnico") { router.replace("/"); return; }
+      setPlantaId(perfil.planta_id);
       setLoading(false);
     });
   }, [router]);

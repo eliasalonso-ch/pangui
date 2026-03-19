@@ -23,11 +23,11 @@
 
 .title {
   font-weight: 600;
-  color: #2C2418;
+  color: #1A1A1A;
 }
 
 .sub {
-  color: #7a6a5a;
+  color: #6B7280;
   margin-top: 1px;
 }
 
@@ -51,7 +51,7 @@
 
 .btnGhost {
   background: transparent;
-  color: #7a6a5a;
+  color: #6B7280;
   border: none;
   padding: 7px 10px;
   font-size: var(--fs-sm);

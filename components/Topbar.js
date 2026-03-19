@@ -124,8 +124,7 @@ export default function Topbar() {
           onClick={() => { if (rol) router.push(rol === "jefe" ? "/jefe" : "/tecnico"); }}
           aria-label="Ir al inicio"
         >
-          <img src="/pangi-puma.svg" className={styles.logoImg} alt="Pangi" />
-          <span className={styles.logoText}>Pangi</span>
+          <img src="/pangui-logo.svg" className={styles.logoImg} alt="Pangui" fetchPriority="high" width={80} height={80} />
         </button>
 
         {/* Right side */}

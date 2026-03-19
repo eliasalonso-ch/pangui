@@ -1,32 +1,42 @@
+/* ── View Transitions (Chrome 126+) ─────────────────────────── */
+
+@view-transition { navigation: auto; }
+
+::view-transition-old(root) { animation: 120ms ease-out both vt-fade-out; }
+::view-transition-new(root) { animation: 120ms ease-in  both vt-fade-in;  }
+
+@keyframes vt-fade-out { from { opacity: 1; } to   { opacity: 0; } }
+@keyframes vt-fade-in  { from { opacity: 0; } to   { opacity: 1; } }
+
 /* ── CSS Variables ──────────────────────────────────────────── */
 
 :root {
-  /* ── Tonos del pelaje del Puma concolor (Pangui) ─────────── */
-  --black:      #2C2418;   /* pardo oscuro, punta de la cola     */
+  /* ── Paleta corporativa Pangui ────────────────────────────── */
+  --black:      #1A1A1A;   /* texto primario                     */
   --white:      #FFFFFF;
-  --background: #FAF8F5;   /* crema pálido, vientre del puma     */
-  --accent-1:   #A0622D;   /* pardo rojizo, pelaje principal      */
-  --accent-2:   #F5EDE3;   /* rubio claro, cuello y mandíbula    */
-  --accent-3:   #C4956A;   /* amarillo-gris del lomo             */
-  --accent-4:   #8B7355;   /* gris terroso, pelaje de invierno   */
-  --accent-5:   #6B5D4F;   /* pardo medio, texto secundario      */
-  --accent-6:   #9A8E82;   /* gris cálido, pelaje joven          */
-  --divider-1:  #E8E0D6;   /* arena suave                        */
+  --background: #FFFFFF;   /* fondo general                      */
+  --accent-1:   #273D88;   /* azul primario — botones, activos   */
+  --accent-2:   #EEF1FB;   /* azul muy claro — highlights, badges*/
+  --accent-3:   #1F316E;   /* azul oscuro — hover, focus         */
+  --accent-4:   #3D52A0;   /* azul medio                         */
+  --accent-5:   #6B7280;   /* texto secundario                   */
+  --accent-6:   #9CA3AF;   /* texto terciario, placeholders      */
+  --divider-1:  #E2E6F0;   /* bordes y separadores               */
 
   /* ── Colores semánticos ─────────────────────────────────── */
-  --danger:      #8B3A2A;  /* rojizo oscuro                      */
-  --danger-bg:   #F5E0DC;
-  --danger-dark: #6D2B1D;
-  --success:     #5C7A3D;  /* verde bosque nativo del sur        */
-  --success-bg:  #EAF0E3;
-  --warning:     #B8860B;  /* dorado oscuro, ojos del puma       */
-  --warning-bg:  #FDF6E3;
-  --info:        #A0622D;  /* en_curso = accent-1                */
-  --info-bg:     #F5EDE3;  /* en_curso bg = accent-2             */
-  --revision:      #3D6B8A;  /* azul pizarra, pendiente de revisión */
-  --revision-bg:   #E0EBF2;
-  --surface-hover: #F0EBE3;
-  --canceled-bg:   #EBE7E1;
+  --danger:      #EF4444;
+  --danger-bg:   #FEF2F2;
+  --danger-dark: #DC2626;
+  --success:     #22C55E;
+  --success-bg:  #F0FDF4;
+  --warning:     #F59E0B;
+  --warning-bg:  #FFFBEB;
+  --info:        #3B82F6;
+  --info-bg:     #EFF6FF;
+  --revision:      #6366F1;
+  --revision-bg:   #EEF2FF;
+  --surface-hover: #F0F2FF;
+  --canceled-bg:   #F3F4F6;
 
   /* ── Tipografía ─────────────────────────────────────────── */
   --fs-xs:   11px;
@@ -37,7 +47,7 @@
   --fs-xl:   24px;
 
   /* ── Layout ─────────────────────────────────────────────── */
-  --topbar-height: 44px;
+  --topbar-height: 70px;
   --bottomnav-height: 80px;
   --container-max: 1200px;
 }

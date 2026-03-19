@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase";
 import styles from "./NotificationPermission.module.css";
 
-const ASKED_KEY = "pangi_notif_asked";
+const ASKED_KEY = "pangui_notif_asked";
 
 function urlBase64ToUint8Array(base64String) {
   const padding = "=".repeat((4 - (base64String.length % 4)) % 4);

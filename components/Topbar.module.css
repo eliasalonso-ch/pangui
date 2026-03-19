@@ -4,13 +4,20 @@
   position: sticky;
   top: 0;
   z-index: 100;
-  background: var(--black);
+  background: var(--accent-1);
   height: var(--topbar-height);
   padding: 0 max(16px, calc((100% - var(--container-max)) / 2 + 24px));
   display: flex;
   align-items: center;
   justify-content: space-between;
   font-family: var(--font-sans), system-ui, sans-serif;
+}
+
+@media (min-width: 768px) {
+  .topbar {
+    height: 80px;
+    padding: 0 40px;
+  }
 }
 
 /* ── Logo button ───────────────────────────────────────────── */
@@ -27,19 +34,33 @@
 }
 
 .logoImg {
-  width: 26px;
-  height: 26px;
+  width: 80px;
+  height: 80px;
   display: block;
   flex-shrink: 0;
-  filter: brightness(0) invert(1);
+  filter: none;
 }
 
 .logoText {
-  font-size: var(--fs-md);
+  display: none;
+  font-size: 18px;
   font-weight: 700;
   letter-spacing: -0.5px;
   color: var(--white);
   line-height: 1;
+}
+
+@media (min-width: 768px) {
+  .logoBtn {
+    gap: 10px;
+  }
+  .logoImg {
+    width: 100px;
+    height: 80px;
+  }
+  .logoText {
+    display: block;
+  }
 }
 
 /* ── Right ─────────────────────────────────────────────────── */
@@ -48,16 +69,31 @@
   display: flex;
   align-items: center;
   gap: 10px;
+  min-width: 110px;
+  justify-content: flex-end;
+}
+
+@media (min-width: 768px) {
+  .right {
+    gap: 14px;
+  }
 }
 
 .userName {
   font-size: var(--fs-sm);
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--white);
   font-weight: 500;
   max-width: 110px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+@media (min-width: 768px) {
+  .userName {
+    font-size: 14px;
+    max-width: 200px;
+  }
 }
 
 /* ── Bell ───────────────────────────────────────────────────── */
@@ -68,8 +104,8 @@
   justify-content: center;
   width: 34px;
   height: 34px;
-  background: rgba(255,255,255,0.10);
-  border: 1px solid rgba(255,255,255,0.14);
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: 8px;
   color: var(--white);
   font-size: 16px;
@@ -77,7 +113,18 @@
   -webkit-tap-highlight-color: transparent;
   transition: background 0.15s;
 }
-.refreshBtn:hover { background: rgba(255,255,255,0.18); }
+.refreshBtn:hover {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+@media (min-width: 768px) {
+  .refreshBtn {
+    width: 42px;
+    height: 42px;
+    font-size: 18px;
+    border-radius: 10px;
+  }
+}
 
 .bellWrap {
   position: relative;
@@ -90,15 +137,25 @@
   justify-content: center;
   width: 34px;
   height: 34px;
-  background: rgba(255,255,255,0.10);
-  border: 1px solid rgba(255,255,255,0.14);
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: 8px;
   color: var(--white);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
   transition: background 0.15s;
 }
-.bellBtn:hover { background: rgba(255,255,255,0.18); }
+.bellBtn:hover {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+@media (min-width: 768px) {
+  .bellBtn {
+    width: 42px;
+    height: 42px;
+    border-radius: 10px;
+  }
+}
 
 .bellBadge {
   position: absolute;
@@ -107,7 +164,7 @@
   min-width: 16px;
   height: 16px;
   padding: 0 4px;
-  background: #e53e3e;
+  background: #ef4444;
   color: #fff;
   border-radius: 8px;
   font-size: 10px;
@@ -126,10 +183,10 @@
   top: calc(100% + 8px);
   right: 0;
   width: min(320px, calc(100vw - 24px));
-  background: var(--background, #FAF8F5);
-  border: 1px solid var(--divider-1, #E8E0D6);
+  background: var(--background, #ffffff);
+  border: 1px solid var(--divider-1, #e8e0d6);
   border-radius: 12px;
-  box-shadow: 0 8px 24px rgba(44,36,24,0.14);
+  box-shadow: 0 8px 24px rgba(26, 26, 26, 0.14);
   z-index: 300;
   overflow: hidden;
 }
@@ -141,8 +198,8 @@
   padding: 12px 14px 10px;
   font-size: 13px;
   font-weight: 700;
-  color: var(--black, #2C2418);
-  border-bottom: 0.5px solid var(--divider-1, #E8E0D6);
+  color: var(--black, #2c2418);
+  border-bottom: 0.5px solid var(--divider-1, #e8e0d6);
 }
 
 .notifCount {
@@ -161,7 +218,9 @@
   cursor: pointer;
   padding: 2px 6px;
   border-radius: 4px;
-  transition: background 0.15s, color 0.15s;
+  transition:
+    background 0.15s,
+    color 0.15s;
 }
 
 .notifClearBtn:hover {
@@ -190,24 +249,32 @@
   padding: 11px 14px;
   background: none;
   border: none;
-  border-bottom: 0.5px solid var(--divider-1, #E8E0D6);
+  border-bottom: 0.5px solid var(--divider-1, #e8e0d6);
   cursor: pointer;
   text-align: left;
   -webkit-tap-highlight-color: transparent;
   transition: background 0.1s;
 }
-.notifItem:last-child { border-bottom: none; }
-.notifItem:hover { background: var(--surface-hover, rgba(0,0,0,0.03)); }
+.notifItem:last-child {
+  border-bottom: none;
+}
+.notifItem:hover {
+  background: var(--surface-hover, rgba(0, 0, 0, 0.03));
+}
 
-.notifUnread { background: rgba(160,98,45,0.05); }
-.notifUnread:hover { background: rgba(160,98,45,0.09); }
+.notifUnread {
+  background: rgba(39, 61, 136, 0.05);
+}
+.notifUnread:hover {
+  background: rgba(39, 61, 136, 0.09);
+}
 
 .notifDot {
   flex-shrink: 0;
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: var(--accent-1, #A0622D);
+  background: var(--accent-1, #a0622d);
   margin-top: 5px;
 }
 
@@ -221,7 +288,7 @@
 .notifTitulo {
   font-size: 13px;
   font-weight: 600;
-  color: var(--black, #2C2418);
+  color: var(--black, #2c2418);
   line-height: 1.3;
 }
 
@@ -237,6 +304,6 @@
 
 .notifTime {
   font-size: 11px;
-  color: var(--accent-6, #a0927f);
+  color: var(--accent-5, #6B7280);
   margin-top: 2px;
 }

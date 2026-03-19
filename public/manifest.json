@@ -1,11 +1,11 @@
 {
-  "name": "pangi",
-  "short_name": "pangi",
+  "name": "Pangui",
+  "short_name": "Pangui",
   "description": "Gestión de órdenes de trabajo",
   "start_url": "/login",
   "display": "standalone",
-  "background_color": "#FAF8F5",
-  "theme_color": "#2C2418",
+  "background_color": "#FFFFFF",
+  "theme_color": "#273D88",
   "orientation": "portrait",
   "icons": [
     {

@@ -296,12 +296,12 @@
 }
 
 .iconBtnWarn {
-  border-color: #d97706;
-  color: #d97706;
+  border-color: #F59E0B;
+  color: #F59E0B;
 }
 
 .iconBtnWarn:hover {
-  background: #fef3c7;
+  background: #FFFBEB;
 }
 
 .iconBtnDanger {

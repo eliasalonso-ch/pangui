@@ -3,14 +3,14 @@
 .cargando {
   padding: 48px 16px;
   text-align: center;
-  color: var(--accent-6);
+  color: var(--accent-5);
   font-size: var(--fs-base);
 }
 
 /* ── Greeting ──────────────────────────────────────────────── */
 
 .saludo {
-  padding: 14px max(16px, calc((100% - var(--container-max)) / 2 + 16px)) 10px;
+  padding: 14px 16px 10px;
 }
 
 .saludoNombre {
@@ -22,7 +22,7 @@
 
 .saludoSub {
   font-size: var(--fs-sm);
-  color: var(--accent-6);
+  color: var(--accent-5);
   margin: 0;
 }
 
@@ -32,7 +32,7 @@
   display: flex;
   border-bottom: 1px solid var(--divider-1);
   background: var(--background);
-  padding: 0 max(16px, calc((100% - var(--container-max)) / 2 + 16px));
+  padding: 0 16px;
   position: sticky;
   top: var(--topbar-height);
   z-index: 10;
@@ -64,8 +64,6 @@
 
 .body {
   padding: 16px 16px 48px;
-  max-width: var(--container-max);
-  margin: 0 auto;
 }
 
 /* ── KPI grid ─────────────────────────────────────────────── */
@@ -111,6 +109,10 @@
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--accent-5);
+}
+
+.kpiDestacado .kpiLabel {
+  color: var(--accent-1);
 }
 
 .kpiVal {
@@ -203,7 +205,7 @@
 .empty {
   padding: 32px 0;
   text-align: center;
-  color: var(--accent-6);
+  color: var(--accent-5);
   font-size: var(--fs-base);
 }
 
@@ -259,7 +261,7 @@
 
 .ordenTime {
   font-size: var(--fs-xs);
-  color: var(--accent-6);
+  color: var(--accent-5);
   white-space: nowrap;
 }
 
@@ -283,7 +285,7 @@
 }
 
 .metaDuracion {
-  color: var(--success);
+  color: #16A34A;
   font-weight: 600;
 }
 
@@ -310,7 +312,7 @@
 }
 .badgeEnCurso {
   background: var(--info-bg);
-  color: var(--info);
+  color: #1D4ED8;
 }
 .badgeEnRevision {
   background: var(--revision-bg);
@@ -449,7 +451,7 @@
 
 .ordenDescCancelado {
   text-decoration: line-through;
-  color: var(--accent-6);
+  color: var(--accent-5);
 }
 
 /* ── Footer ───────────────────────────────────────────────── */
@@ -457,7 +459,7 @@
 .footer {
   margin-top: 24px;
   font-size: var(--fs-xs);
-  color: var(--accent-6);
+  color: var(--accent-5);
   text-align: center;
 }
 
@@ -465,7 +467,7 @@
 
 @media (min-width: 768px) {
   .body {
-    padding: 24px 32px 64px;
+    padding: 24px 40px 64px;
   }
 
   .kpiRow {
@@ -487,7 +489,7 @@
 
   .ordenList {
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(3, 1fr);
   }
 
   .tabla th,
@@ -504,9 +506,17 @@
   }
 }
 
-@media (min-width: 1024px) {
+@media (min-width: 1280px) {
+  .body {
+    padding: 28px 48px 64px;
+  }
+
   .ordenList {
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(4, 1fr);
+  }
+
+  .kpiRow {
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
   }
 }
 
