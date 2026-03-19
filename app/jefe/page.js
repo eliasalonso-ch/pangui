@@ -848,14 +848,12 @@ export default function JefePage() {
 
       </div>
 
-      {process.env.NODE_ENV !== "production" && (
-        <Link
-          href="/debug-push"
-          style={{ position: "fixed", bottom: 80, right: 16, fontSize: 11, background: "#273D88", color: "#fff", padding: "6px 10px", borderRadius: 8, opacity: 0.7, textDecoration: "none", zIndex: 999 }}
-        >
-          debug push
-        </Link>
-      )}
+      <Link
+        href="/debug-push"
+        style={{ position: "fixed", bottom: 80, right: 16, fontSize: 11, background: "#273D88", color: "#fff", padding: "6px 10px", borderRadius: 8, opacity: 0.7, textDecoration: "none", zIndex: 999 }}
+      >
+        debug push
+      </Link>
     </>
   );
 }

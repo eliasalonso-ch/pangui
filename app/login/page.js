@@ -51,11 +51,9 @@ export default function LoginPage() {
         <img src="/pangui-logo-inv.svg" alt="" className={styles.logoImage} />
       </div>
 
-      {process.env.NODE_ENV !== "production" && (
-        <Link href="/debug-push" style={{ position: "fixed", bottom: 16, right: 16, fontSize: 12, color: "black", opacity: 0.5, textDecoration: "none" }}>
-          debug push
-        </Link>
-      )}
+      <Link href="/debug-push" style={{ position: "fixed", bottom: 16, right: 16, fontSize: 12, color: "black", opacity: 0.5, textDecoration: "none" }}>
+        debug push
+      </Link>
 
       <div className={styles.card}>
         <h1 className={styles.heading}>Iniciar sesión</h1>

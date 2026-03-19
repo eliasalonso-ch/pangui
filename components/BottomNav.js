@@ -205,7 +205,6 @@ export default function BottomNav() {
               </button>
             )}
 
-            {process.env.NODE_ENV !== "production" && (
               <Link
                 href="/debug-push"
                 className={styles.sheetItem}
@@ -219,7 +218,6 @@ export default function BottomNav() {
                   <span className={styles.sheetSub}>Verificar notificaciones</span>
                 </div>
               </Link>
-            )}
 
             <div className={styles.sheetDivider} />
 
