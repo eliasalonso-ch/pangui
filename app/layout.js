@@ -39,7 +39,6 @@ export default function RootLayout({ children }) {
       <head>
         <link rel="preconnect" href="https://yqwsryjbmlvcghnwnzik.supabase.co" />
         <link rel="dns-prefetch" href="https://yqwsryjbmlvcghnwnzik.supabase.co" />
-        <link rel="preload" as="image" href="/pangui-logo.svg" />
       </head>
       <body>
         <ServiceWorker />

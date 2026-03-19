@@ -106,8 +106,8 @@ self.addEventListener('push', (e) => {
   e.waitUntil(
     self.registration.showNotification(data.titulo || 'Pangui', {
       body: data.mensaje || '',
-      icon: '/icons/icon-192.png',
-      badge: '/icons/icon-192.png',
+      icon: '/icons/web-app-manifest-192x192.png',
+      badge: '/icons/web-app-manifest-192x192.png',
       data: { url: data.url || '/' },
       tag: data.tag || 'pangui',
       renotify: true,

@@ -23,6 +23,13 @@ export default function NotificationPermission() {
     )
       return;
 
+    // iOS only supports push when installed as PWA (standalone mode)
+    const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+    const isStandalone =
+      window.matchMedia("(display-mode: standalone)").matches ||
+      window.navigator.standalone === true;
+    if (isIOS && !isStandalone) return;
+
     if (Notification.permission !== "default") return;
     if (localStorage.getItem(ASKED_KEY)) return;
 
@@ -53,11 +60,11 @@ export default function NotificationPermission() {
       } = await supabase.auth.getUser();
       if (!user) return;
 
-      await supabase.from("push_subscriptions").insert({
+      await supabase.from("push_subscriptions").upsert({
         usuario_id: user.id,
         subscription: sub.toJSON(),
         device_info: navigator.userAgent.slice(0, 200),
-      });
+      }, { onConflict: "usuario_id,device_info" });
     } catch (err) {
       console.error("Push subscription failed:", err);
     }
