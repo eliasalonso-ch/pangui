@@ -1,7 +1,6 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { createClient } from "@/lib/supabase";
 import styles from "./page.module.css";
 
@@ -50,10 +49,6 @@ export default function LoginPage() {
       <div className={styles.logo}>
         <img src="/pangui-logo-inv.svg" alt="" className={styles.logoImage} />
       </div>
-
-      <Link href="/debug-push" style={{ position: "fixed", bottom: 16, right: 16, fontSize: 12, color: "black", opacity: 0.5, textDecoration: "none" }}>
-        debug push
-      </Link>
 
       <div className={styles.card}>
         <h1 className={styles.heading}>Iniciar sesión</h1>

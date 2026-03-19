@@ -1,17 +1,11 @@
 "use client";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase";
+import { subscribeToPush, savePushSubscription } from "@/lib/push-subscribe";
 import styles from "./NotificationPermission.module.css";
 
 const ASKED_KEY = "pangui_notif_asked";
 const DENIED_DISMISSED_KEY = "pangui_notif_denied_dismissed";
-
-function urlBase64ToUint8Array(base64String) {
-  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
-  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
-  const raw = atob(base64);
-  return Uint8Array.from([...raw].map((c) => c.charCodeAt(0)));
-}
 
 export default function NotificationPermission() {
   const [show, setShow] = useState(false);
@@ -60,23 +54,11 @@ export default function NotificationPermission() {
     if (perm !== "granted") return;
 
     try {
-      const reg = await navigator.serviceWorker.ready;
-      const sub = await reg.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(
-          process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
-        ),
-      });
-
+      const sub = await subscribeToPush();
       const supabase = createClient();
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
-
-      await supabase.from("push_subscriptions").upsert({
-        usuario_id: user.id,
-        subscription: sub.toJSON(),
-        device_info: navigator.userAgent.slice(0, 200),
-      }, { onConflict: "usuario_id" });
+      await savePushSubscription(sub, user.id);
     } catch (err) {
       console.error("Push subscription failed:", err);
     }

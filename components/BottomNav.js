@@ -13,18 +13,12 @@ import {
   BellOff,
   UserPlus,
   Building2,
-  Bug,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase";
+import { subscribeToPush, savePushSubscription } from "@/lib/push-subscribe";
 import { callEdge } from "@/lib/edge";
 import styles from "./BottomNav.module.css";
 
-function urlBase64ToUint8Array(base64String) {
-  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
-  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
-  const raw = atob(base64);
-  return Uint8Array.from([...raw].map((c) => c.charCodeAt(0)));
-}
 
 export default function BottomNav() {
   const pathname = usePathname();
@@ -134,22 +128,10 @@ export default function BottomNav() {
     if (permission !== "granted") return;
 
     try {
-      const reg = await navigator.serviceWorker.ready;
-      const sub = await reg.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(
-          process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
-        ),
-      });
+      const sub = await subscribeToPush();
       const supabase = createClient();
       const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        await supabase.from("push_subscriptions").upsert({
-          usuario_id: user.id,
-          subscription: sub.toJSON(),
-          device_info: navigator.userAgent.slice(0, 200),
-        }, { onConflict: "usuario_id" });
-      }
+      if (user) await savePushSubscription(sub, user.id);
     } catch (err) {
       console.error("Push subscription failed:", err);
     }
@@ -204,20 +186,6 @@ export default function BottomNav() {
                 </div>
               </button>
             )}
-
-              <Link
-                href="/debug-push"
-                className={styles.sheetItem}
-                onClick={() => setMoreOpen(false)}
-              >
-                <span className={styles.sheetIconWrap}>
-                  <Bug className={styles.sheetIcon} />
-                </span>
-                <div className={styles.sheetText}>
-                  <span className={styles.sheetTitle}>Debug Push</span>
-                  <span className={styles.sheetSub}>Verificar notificaciones</span>
-                </div>
-              </Link>
 
             <div className={styles.sheetDivider} />
 
