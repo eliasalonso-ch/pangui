@@ -32,7 +32,9 @@ export async function proxy(request) {
   const isPublic =
     pathname.startsWith("/arco") ||
     pathname.startsWith("/privacidad") ||
-    pathname.startsWith("/terminos");
+    pathname.startsWith("/terminos") ||
+    pathname === "/api/suscripcion/webhook" ||
+    pathname === "/api/suscripcion/seed-planes";
 
   // Sin sesión → permitir /, /login y rutas públicas
   if (!user && !isLogin && !isRoot && !isPublic) {
@@ -74,6 +76,6 @@ export async function proxy(request) {
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon\\.ico|manifest\\.json|icons|sw\\.js|.*\\.svg$).*)",
+    "/((?!_next/static|_next/image|favicon\\.ico|manifest\\.json|icons|sw\\.js|.*\\.svg$|.*\\.png$|.*\\.jpg$|.*\\.jpeg$|.*\\.webp$|.*\\.ico$|.*\\.gif$).*)",
   ],
 };

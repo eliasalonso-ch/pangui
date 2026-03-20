@@ -6,7 +6,7 @@ export default function JefeShell({ children }) {
   return (
     <>
       <Topbar />
-      <main className="sidebarMain">{children}</main>
+      <main className="sidebarMain" style={{ paddingBottom: "calc(var(--bottomnav-height) + 16px)" }}>{children}</main>
       <BottomNav />
     </>
   );

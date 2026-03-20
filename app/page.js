@@ -100,7 +100,7 @@ function LandingNav() {
         scrolled ? "shadow-lg" : ""
       }`}
     >
-      <div className="max-w-7xl mx-auto px-4 sm:px-10 flex items-center justify-between h-[70px] md:h-[80px]">
+      <div className="mx-auto px-4 sm:px-10 flex items-center justify-between h-[70px] md:h-[80px]">
         {/* Logo */}
         <a href="#" className="flex items-center">
           <img src="/pangui-logo.svg" alt="Pangui" className="w-[80px] md:w-[100px] h-auto" />
@@ -332,118 +332,12 @@ function Hero() {
             transition={{ delay: 0.3, duration: 0.7, ease: "easeOut" }}
             className="flex justify-center lg:justify-end"
           >
-            <div className="relative">
-              {/* Desktop card */}
-              <div
-                className="hidden sm:block absolute -left-8 top-6 w-64 rounded-2xl p-4 shadow-2xl"
-                style={{
-                  background: "linear-gradient(135deg, #1e293b, #0f172a)",
-                  border: "1px solid #334155",
-                }}
-              >
-                <div className="flex items-center gap-2 mb-3">
-                  <div className="w-2 h-2 rounded-full bg-accent" />
-                  <span className="text-xs text-slate-400 font-medium">
-                    Dashboard Jefe
-                  </span>
-                </div>
-                <div className="space-y-2">
-                  {[
-                    { label: "OT Hoy", value: "12", color: "text-brand" },
-                    { label: "Completadas", value: "9", color: "text-accent" },
-                    {
-                      label: "En terreno",
-                      value: "3",
-                      color: "text-yellow-400",
-                    },
-                  ].map((s) => (
-                    <div
-                      key={s.label}
-                      className="flex justify-between items-center"
-                    >
-                      <span className="text-xs text-slate-400">{s.label}</span>
-                      <span className={`text-sm font-bold ${s.color}`}>
-                        {s.value}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Mobile device */}
-              <div className="device-mockup w-60 sm:w-64 mx-auto">
-                <div className="device-notch" />
-                <div
-                  className="px-4 pb-6 pt-2 space-y-3"
-                  style={{ background: "#f8fafc" }}
-                >
-                  <div className="flex items-center justify-between py-2">
-                    <span className="text-xs font-bold text-slate-800">
-                      Mis órdenes
-                    </span>
-                    <span className="text-xs bg-brand text-white px-2 py-0.5 rounded-full">
-                      3 nuevas
-                    </span>
-                  </div>
-                  {[
-                    {
-                      id: "OT-081",
-                      desc: "Cambio luminaria — Piso 3",
-                      estado: "Urgente",
-                      color: "bg-red-500",
-                    },
-                    {
-                      id: "OT-082",
-                      desc: "Revisión UPS servidor",
-                      estado: "Normal",
-                      color: "bg-brand",
-                    },
-                    {
-                      id: "OT-083",
-                      desc: "Mantención tablero eléctrico",
-                      estado: "Completada",
-                      color: "bg-accent",
-                    },
-                  ].map((ot) => (
-                    <div
-                      key={ot.id}
-                      className="bg-white rounded-xl p-3 shadow-sm border border-slate-100"
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <div>
-                          <p className="text-xs font-semibold text-slate-800">
-                            {ot.id}
-                          </p>
-                          <p className="text-xs text-slate-500 mt-0.5 leading-tight">
-                            {ot.desc}
-                          </p>
-                        </div>
-                        <span
-                          className={`${ot.color} text-white text-xs px-2 py-0.5 rounded-full whitespace-nowrap font-medium`}
-                        >
-                          {ot.estado}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                  {/* Notification bubble */}
-                  <div className="bg-brand/10 border border-brand/20 rounded-xl p-3 flex items-center gap-2">
-                    <Bell size={14} className="text-brand flex-shrink-0" />
-                    <p className="text-xs text-brand font-medium">
-                      Nueva OT asignada por jefe
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Notification badge */}
-              <div
-                className="absolute -right-4 bottom-16 bg-accent text-white text-xs font-bold px-3 py-1.5 rounded-full shadow-lg"
-                style={{ whiteSpace: "nowrap" }}
-              >
-                ✓ Firmado en terreno
-              </div>
-            </div>
+            <img
+              src="/iphone-mockup.png"
+              alt="Pangui en móvil"
+              className="h-auto object-contain drop-shadow-2xl"
+              style={{ maxHeight: "700px", width: "auto", maxWidth: "480px" }}
+            />
           </motion.div>
         </div>
 
@@ -460,7 +354,7 @@ function Hero() {
             { value: "1 clic", label: "Para facturar" },
             { value: "Offline", label: "Funciona sin señal" },
           ].map((s) => (
-            <div key={s.label} className="text-left sm:border-r sm:border-slate-700 sm:last:border-r-0 sm:pr-8 sm:pl-8 sm:first:pl-0">
+            <div key={s.label} className="text-center sm:border-r sm:border-slate-700 sm:last:border-r-0 sm:pr-8 sm:pl-8 sm:first:pl-0">
               <p className="text-2xl sm:text-3xl lg:text-4xl font-black text-white tracking-tight">
                 {s.value}
               </p>

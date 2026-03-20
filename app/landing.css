@@ -1,8 +1,6 @@
 @tailwind utilities;
 
 /* Landing-specific base overrides (scoped to landing wrapper) */
-.body {padding-bottom: 0;
-}
 
 .landing-root *,
 .landing-root *::before,

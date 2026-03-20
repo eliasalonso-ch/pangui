@@ -30,6 +30,7 @@ export default function Topbar() {
   const [userId, setUserId] = useState(null);
   const [rol, setRol] = useState(null);
   const [theme, setTheme] = useState("system");
+  const [trialDays, setTrialDays] = useState(null); // null = no trial banner
 
   // notifications
   const [notifs, setNotifs] = useState([]);
@@ -67,12 +68,18 @@ export default function Topbar() {
 
       const { data: perfil } = await supabase
         .from("usuarios")
-        .select("nombre, rol, planta_id, plantas(nombre)")
+        .select("nombre, rol, planta_id, plan, plan_status, trial_end, plantas(nombre)")
         .eq("id", user.id)
         .maybeSingle();
 
       if (perfil?.nombre) setNombre(perfil.nombre);
       if (perfil?.rol) setRol(perfil.rol);
+
+      // Trial countdown banner (only for jefe/admin in trial)
+      if (perfil?.plan_status === "trial" && perfil?.trial_end) {
+        const days = Math.max(0, Math.ceil((new Date(perfil.trial_end) - Date.now()) / 86400000));
+        if (days >= 0) setTrialDays(days);
+      }
 
       // Load recent notifications
       const { data: ns } = await supabase
@@ -158,6 +165,33 @@ export default function Topbar() {
 
   return (
     <>
+      {/* Trial countdown banner */}
+      {trialDays !== null && rol !== "tecnico" && (
+        <div style={{
+          background: trialDays <= 5 ? "#b91c1c" : "var(--accent-1)",
+          color: "#fff",
+          fontSize: 12,
+          fontWeight: 600,
+          textAlign: "center",
+          padding: "6px 16px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 10,
+        }}>
+          {trialDays === 0
+            ? "⚠️ Tu período de prueba terminó hoy."
+            : `⏳ Prueba gratuita: ${trialDays} días restantes.`}
+          <a href="/jefe/suscripcion" style={{
+            color: "#fff",
+            fontWeight: 700,
+            textDecoration: "underline",
+            fontSize: 12,
+          }}>
+            Ver planes →
+          </a>
+        </div>
+      )}
       <header className={styles.topbar}>
         {/* Logo */}
         <button

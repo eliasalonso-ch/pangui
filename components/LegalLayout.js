@@ -135,7 +135,8 @@ export default function LegalLayout({ children, title, description }) {
           display: "flex",
           alignItems: "center",
           borderBottom: "1px solid rgba(255,255,255,0.08)",
-          padding: "0 max(16px, calc((100% - 72rem) / 2 + 32px))",
+          paddingLeft: "2.5rem",
+          paddingRight: "2.5rem"
         }}
       >
         <div
@@ -151,7 +152,7 @@ export default function LegalLayout({ children, title, description }) {
             <img
               src="/pangui-logo.svg"
               alt="Pangui"
-              style={{ width: 90, height: "auto", display: "block" }}
+              style={{ width: 100, height: "auto" }}
             />
           </Link>
 
