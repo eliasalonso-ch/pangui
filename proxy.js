@@ -12,11 +12,11 @@ export async function proxy(request) {
         getAll: () => request.cookies.getAll(),
         setAll: (cookiesToSet) => {
           cookiesToSet.forEach(({ name, value, options }) =>
-            response.cookies.set(name, value, options)
+            response.cookies.set(name, value, options),
           );
         },
       },
-    }
+    },
   );
 
   const {
@@ -24,13 +24,18 @@ export async function proxy(request) {
   } = await supabase.auth.getUser();
 
   const pathname = request.nextUrl.pathname;
-  const isLogin  = pathname === "/login";
-  const isTecnico = pathname.startsWith("/tecnico");
-  const isJefe    = pathname.startsWith("/jefe");
-  const isPublic  = pathname.startsWith("/arco"); // ARCO portal — unauthenticated
 
-  // Sin sesión → solo puede estar en /login o rutas públicas
-  if (!user && !isLogin && !isPublic) {
+  const isLogin = pathname === "/login";
+  const isRoot = pathname === "/"; // ← add this
+  const isTecnico = pathname.startsWith("/tecnico");
+  const isJefe = pathname.startsWith("/jefe");
+  const isPublic =
+    pathname.startsWith("/arco") ||
+    pathname.startsWith("/privacidad") ||
+    pathname.startsWith("/terminos");
+
+  // Sin sesión → permitir /, /login y rutas públicas
+  if (!user && !isLogin && !isRoot && !isPublic) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
 
@@ -49,8 +54,7 @@ export async function proxy(request) {
 
     // En /login con sesión → redirigir al dashboard correcto
     if (isLogin) {
-      const destino =
-        rol === "tecnico" ? "/tecnico" : "/jefe";
+      const destino = rol === "tecnico" ? "/tecnico" : "/jefe";
       return NextResponse.redirect(new URL(destino, request.url));
     }
 

@@ -35,7 +35,7 @@ export const viewport = {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="es" className={dmSans.variable}>
+    <html lang="es" className={dmSans.variable} suppressHydrationWarning>
       <head>
         <link rel="preconnect" href="https://yqwsryjbmlvcghnwnzik.supabase.co" />
         <link rel="dns-prefetch" href="https://yqwsryjbmlvcghnwnzik.supabase.co" />

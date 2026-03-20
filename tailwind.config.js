@@ -1,14 +1,21 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
-  content: ["./app/page.js", "./app/landing.css"],
+  content: [
+    "./app/page.js",
+    "./app/landing.css",
+    "./app/privacidad/**/*.js",
+    "./app/terminos/**/*.js",
+    "./components/LegalLayout.js",
+  ],
   darkMode: "class",
   theme: {
     extend: {
       colors: {
         brand: {
-          DEFAULT: "#0066FF",
-          dark: "#0052CC",
-          light: "#EBF2FF",
+          DEFAULT: "#273D88",
+          dark: "#1F316E",
+          light: "#EEF1FB",
+          mid: "#3D52A0",
         },
         accent: {
           DEFAULT: "#10B981",
