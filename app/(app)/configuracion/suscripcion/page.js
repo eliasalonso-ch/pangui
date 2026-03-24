@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Script from "next/script";
 import { createClient } from "@/lib/supabase";
@@ -426,6 +426,14 @@ function CheckoutPanel({ perfil, mpReady, onSuccess, onCancel }) {
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 export default function SuscripcionPage() {
+  return (
+    <Suspense>
+      <SuscripcionContent />
+    </Suspense>
+  );
+}
+
+function SuscripcionContent() {
   const searchParams = useSearchParams();
   const preapprovalId = searchParams.get("preapproval_id");
 
