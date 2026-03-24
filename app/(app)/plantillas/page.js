@@ -7,7 +7,7 @@ export default function PlantillasRedirect() {
   useEffect(() => { router.replace("/ordenes/crear/pautas"); }, []);
   return null;
 }
-/* Legacy code below — kept for reference but unreachable */
+/* Legacy code below — kept for reference but unreachable
 function _Legacy() {
 import {
   ArrowLeft, Plus, Pencil, Trash2, ClipboardList,
@@ -382,3 +382,4 @@ export default function PlantillasPage() {
     </main>
   );
 } // end _Legacy
+*/
