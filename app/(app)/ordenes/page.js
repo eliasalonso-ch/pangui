@@ -1075,7 +1075,7 @@ export default function BandejaOrdenes() {
             <div className={styles.captureRow}>
               <input
                 className={styles.captureInput}
-                placeholder="¿Qué pasó?"
+                placeholder="¿Qué hay que hacer?"
                 value={capturaTitulo}
                 onChange={e => setCapturaTitulo(e.target.value)}
                 onKeyDown={e => { if (e.key === "Enter") crearRapida(); }}
@@ -1129,20 +1129,6 @@ export default function BandejaOrdenes() {
             )}
           </div>
         )}
-
-        {/* Header */}
-        <div className={styles.listHeader}>
-          <h1 className={styles.listTitle}>Órdenes</h1>
-          <button
-            className={styles.btnNueva}
-            onClick={otLimitReached ? () => window.location.href = "/configuracion/suscripcion" : abrirCrear}
-            title={otLimitReached ? "Límite de OTs alcanzado — Actualiza a Pro" : undefined}
-            style={otLimitReached ? { opacity: 0.6 } : undefined}
-          >
-            <Plus size={16} />
-            <span>Nueva OT</span>
-          </button>
-        </div>
 
         {/* Search */}
         <div className={styles.searchWrap}>

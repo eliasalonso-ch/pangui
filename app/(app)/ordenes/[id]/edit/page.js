@@ -180,7 +180,7 @@ export default function EditOrden() {
       });
     } catch { /* graceful */ }
 
-    router.push("/ordenes");
+    router.push(`/ordenes/${id}`);
   }
 
   if (loading) return <div className={styles.loading}>Cargando…</div>;

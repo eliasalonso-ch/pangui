@@ -1210,7 +1210,6 @@
 /* ── Capture zone ── */
 .captureZone {
   padding: 12px 14px 8px;
-  border-bottom: 1px solid var(--divider-1);
   flex-shrink: 0;
   background: var(--background);
 }
@@ -1223,14 +1222,14 @@
 
 .captureInput {
   flex: 1;
-  font-size: 17px;
+  font-size: 22px;
   font-weight: 500;
   color: var(--black);
   background: transparent;
   border: none;
   border-bottom: 2px solid var(--accent-1);
   border-radius: 0;
-  padding: 6px 2px;
+  padding: 8px 2px;
   outline: none;
   font-family: inherit;
   caret-color: var(--accent-1);

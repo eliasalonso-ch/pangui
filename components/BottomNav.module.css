@@ -12,7 +12,7 @@
   align-items: stretch;
   z-index: 30;
   padding-top: 10px;
-  padding-bottom: 10px;
+  padding-bottom: max(14px, env(safe-area-inset-bottom));
 }
 
 /* ── Desktop: sidebar ─────────────────────────────────────── */

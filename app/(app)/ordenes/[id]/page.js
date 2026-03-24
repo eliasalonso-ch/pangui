@@ -20,6 +20,7 @@ import {
   CheckSquare, FileText, Camera, Play,
   CheckCircle2, Calendar, Loader2, X, ChevronDown, Minus, ChevronUp,
   Circle, PauseCircle, PlayCircle, XCircle, ChevronsRight,
+  Trash2, MessageSquare, Send,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase";
 import { callEdge } from "@/lib/edge";
@@ -135,6 +136,9 @@ export default function OTDetalleMobile() {
   const [showCloseSheet, setShowCloseSheet] = useState(false);
   const [completing,     setCompleting]     = useState(false);
   const [lightboxUrl,    setLightboxUrl]    = useState(null);
+  const [comentarios,    setComentarios]    = useState([]);
+  const [comentarioTexto, setComentarioTexto] = useState("");
+  const [sendingComment, setSendingComment] = useState(false);
 
   // ── Data load — 2 parallel round-trips instead of 5 sequential awaits ───────
   useEffect(() => {
@@ -148,23 +152,28 @@ export default function OTDetalleMobile() {
     async function load() {
       const sb = createClient();
 
-      // Round-trip 1: user session + order row + attachments — all independent
+      // Round-trip 1: user session + order row + attachments + comments — all independent
       const [
         { data: { user } },
         { data },
         { data: arcs },
+        { data: coms },
       ] = await Promise.all([
         sb.auth.getUser(),
         sb.from("ordenes_trabajo")
           .select("*, categorias_ot(id,nombre,icono,color), ubicaciones(id,edificio,piso,detalle), activos(id,nombre,codigo), plantillas_procedimiento(id,nombre)")
           .eq("id", id).maybeSingle(),
         sb.from("archivos_orden").select("*").eq("orden_id", id).order("created_at"),
+        sb.from("comentarios_orden")
+          .select("id, tipo, contenido, created_at, usuario_id, usuarios(nombre)")
+          .eq("orden_id", id).order("created_at"),
       ]);
 
       setMyId(user?.id ?? null);
       workspaceIdRef.current = data?.workspace_id ?? null;
       setOrden(data);
       setArchivos(arcs ?? []);
+      setComentarios(coms ?? []);
 
       // Round-trip 2: workspace users + checklist steps — both depend on order data
       const [{ data: users }, { data: ps }] = await Promise.all([
@@ -361,6 +370,27 @@ export default function OTDetalleMobile() {
   const closeCloseSheet  = useCallback(() => setShowCloseSheet(false), []);
   const closeLightbox    = useCallback(() => setLightboxUrl(null),     []);
 
+  const agregarComentario = useCallback(async () => {
+    const texto = comentarioTexto.trim();
+    if (!texto || !workspaceIdRef.current || !myId) return;
+    setSendingComment(true);
+    const sb = createClient();
+    const { data: nuevo } = await sb.from("comentarios_orden").insert({
+      orden_id: id, workspace_id: workspaceIdRef.current, usuario_id: myId,
+      tipo: "comentario", contenido: texto,
+    }).select("id, tipo, contenido, created_at, usuario_id, usuarios(nombre)").single();
+    if (nuevo) setComentarios(prev => [...prev, nuevo]);
+    setComentarioTexto("");
+    setSendingComment(false);
+  }, [id, myId, comentarioTexto]);
+
+  const eliminarOT = useCallback(async () => {
+    if (!window.confirm("¿Eliminar esta orden de trabajo permanentemente? Esta acción no se puede deshacer.")) return;
+    const sb = createClient();
+    await sb.from("ordenes_trabajo").delete().eq("id", id);
+    router.back();
+  }, [id, router]);
+
   // ── Render ────────────────────────────────────────────────────────────────
   if (loading) return <div className={styles.loading}>Cargando…</div>;
   if (!orden)  return <div className={styles.loading}>OT no encontrada.</div>;
@@ -373,6 +403,7 @@ export default function OTDetalleMobile() {
         CatIcon={CatIcon}
         ordenId={orden.id}
         onBack={handleBack}
+        onDelete={eliminarOT}
       />
 
       <div className={styles.body}>
@@ -489,6 +520,59 @@ export default function OTDetalleMobile() {
             ))}
           </div>
         )}
+
+        {/* ── Comentarios ── */}
+        <div className={styles.comentariosSection}>
+          <div className={styles.sectionHeaderRow}>
+            <p className={styles.sectionLabel}>
+              <MessageSquare size={14} style={{ marginRight: 6, verticalAlign: "middle" }} />
+              Comentarios
+              {comentarios.filter(c => c.tipo === "comentario").length > 0 &&
+                <span className={styles.stepsCount} style={{ marginLeft: 8 }}>
+                  {comentarios.filter(c => c.tipo === "comentario").length}
+                </span>}
+            </p>
+          </div>
+          <div className={styles.comentariosList}>
+            {comentarios.map(c => (
+              <div key={c.id} className={`${styles.comentarioItem} ${c.tipo === "sistema" ? styles.comentarioSistema : ""}`}>
+                {c.tipo === "comentario" && (
+                  <div className={styles.comentarioAvatar}>
+                    {(c.usuarios?.nombre ?? "?").slice(0, 1).toUpperCase()}
+                  </div>
+                )}
+                <div className={styles.comentarioContent}>
+                  {c.tipo === "comentario" && (
+                    <span className={styles.comentarioAutor}>{c.usuarios?.nombre ?? "Usuario"}</span>
+                  )}
+                  <p className={styles.comentarioTexto}>{c.contenido}</p>
+                  <span className={styles.comentarioFecha}>
+                    {new Date(c.created_at).toLocaleDateString("es-CL", { day: "numeric", month: "short" })}
+                    {" "}
+                    {new Date(c.created_at).toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" })}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className={styles.comentarioInputRow}>
+            <textarea
+              className={styles.comentarioInput}
+              placeholder="Escribe un comentario…"
+              rows={2}
+              value={comentarioTexto}
+              onChange={e => setComentarioTexto(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); agregarComentario(); } }}
+            />
+            <button
+              className={styles.comentarioSendBtn}
+              onClick={agregarComentario}
+              disabled={!comentarioTexto.trim() || sendingComment}
+            >
+              {sendingComment ? <Loader2 size={18} className={styles.spinIcon} /> : <Send size={18} />}
+            </button>
+          </div>
+        </div>
       </div>
 
       {enAccion && (
@@ -515,7 +599,7 @@ export default function OTDetalleMobile() {
 // ─── Sub-components ───────────────────────────────────────────────────────────
 // All wrapped in memo() — React skips the re-render if props are identical
 
-const Header = memo(function Header({ otId, categoria, CatIcon, ordenId, onBack }) {
+const Header = memo(function Header({ otId, categoria, CatIcon, ordenId, onBack, onDelete }) {
   return (
     <div className={styles.header}>
       <button className={styles.backBtn} onClick={onBack}><ArrowLeft size={20} /></button>
@@ -529,6 +613,9 @@ const Header = memo(function Header({ otId, categoria, CatIcon, ordenId, onBack 
         )}
       </div>
       <a href={`/ordenes/${ordenId}/edit`} className={styles.externalLink}><ExternalLink size={18} /></a>
+      <button className={styles.deleteBtn} onClick={onDelete} title="Eliminar OT">
+        <Trash2 size={18} />
+      </button>
     </div>
   );
 });

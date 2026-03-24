@@ -264,6 +264,23 @@ export default function BottomNav() {
           <div className={styles.sheet} onClick={(e) => e.stopPropagation()}>
             <div className={styles.sheetHandle} />
 
+            {puedeVer("inventario") && (
+              <button
+                className={styles.sheetItem}
+                onClick={() => {
+                  setMoreOpen(false);
+                  router.push("/partes");
+                }}
+              >
+                <span className={styles.sheetIconWrap}>
+                  <Boxes className={styles.sheetIcon} />
+                </span>
+                <div className={styles.sheetText}>
+                  <span className={styles.sheetTitle}>Partes</span>
+                  <span className={styles.sheetSub}>Inventario de repuestos</span>
+                </div>
+              </button>
+            )}
             {isAdmin && puedeVer("usuarios") && (
               <button
                 className={styles.sheetItem}
@@ -571,6 +588,24 @@ export default function BottomNav() {
           <span className={styles.label}>Órdenes</span>
         </Link>
 
+        {/* Notifications — mobile: right beside Órdenes */}
+        {!isDesktop && (
+          <Link
+            href={`/notificaciones`}
+            className={`${styles.item} ${isActive(`/notificaciones`) ? styles.active : ""}`}
+          >
+            <span className={styles.bellWrap}>
+              <Bell className={styles.icon} />
+              {notifUnread > 0 && (
+                <span className={styles.notifDot}>
+                  {notifUnread > 9 ? "9+" : notifUnread}
+                </span>
+              )}
+            </span>
+            <span className={styles.label}>Avisos</span>
+          </Link>
+        )}
+
         <Link
           href={base}
           className={`${styles.item} ${pathname === base ? styles.active : ""}`}
@@ -589,7 +624,7 @@ export default function BottomNav() {
           </Link>
         )}
 
-        {puedeVer("inventario") && (
+        {isDesktop && puedeVer("inventario") && (
           <Link
             href={`/partes`}
             className={`${styles.item} ${isActive(`/partes`) ? styles.active : ""}`}
@@ -632,24 +667,6 @@ export default function BottomNav() {
               </Link>
             )}
           </>
-        )}
-
-        {/* Notifications — mobile: in nav bar */}
-        {!isDesktop && (
-          <Link
-            href={`/notificaciones`}
-            className={`${styles.item} ${isActive(`/notificaciones`) ? styles.active : ""}`}
-          >
-            <span className={styles.bellWrap}>
-              <Bell className={styles.icon} />
-              {notifUnread > 0 && (
-                <span className={styles.notifDot}>
-                  {notifUnread > 9 ? "9+" : notifUnread}
-                </span>
-              )}
-            </span>
-            <span className={styles.label}>Avisos</span>
-          </Link>
         )}
 
         {/* Más — mobile only */}
