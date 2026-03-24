@@ -20,6 +20,7 @@ import {
   Camera, Check as CheckIcon,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase";
+import { callEdge } from "@/lib/edge";
 import PanelCrearOT from "@/components/PanelCrearOT";
 import styles from "./page.module.css";
 import { limitesParaPlan } from "@/lib/planes";
@@ -813,6 +814,19 @@ export default function BandejaOrdenes() {
       `Estado cambiado de "${ESTADO_LABEL[estadoAnterior] ?? estadoAnterior}" a "${ESTADO_LABEL[nuevoEstado] ?? nuevoEstado}"`,
       { campo: "estado", de: estadoAnterior, a: nuevoEstado }
     );
+    // Notify all assigned users when job is initiated
+    if (nuevoEstado === "en_curso") {
+      const orden = ordenes.find(o => o.id === ordenId);
+      const asignados = (orden?.asignados_ids ?? []).filter(uid => uid !== myId);
+      if (asignados.length > 0) {
+        callEdge("notificar", {
+          usuario_ids: asignados,
+          titulo: "Orden de trabajo iniciada",
+          mensaje: orden?.titulo || "Se ha iniciado una orden de trabajo",
+          url: `/ordenes/${ordenId}`,
+        }).catch(() => {});
+      }
+    }
   }
 
   async function cambiarPrioridad(ordenId, nuevaPrioridad) {
@@ -852,6 +866,15 @@ export default function BandejaOrdenes() {
     await registrarActividad(sb, ordenId, "cambio_tecnico",
       added ? `Responsable agregado: ${u?.nombre ?? "técnico"}` : `Responsable removido: ${u?.nombre ?? "técnico"}`
     );
+    if (added) {
+      const orden = ordenes.find(o => o.id === ordenId);
+      callEdge("notificar", {
+        usuario_id: userId,
+        titulo: "Te han asignado una orden de trabajo",
+        mensaje: orden?.titulo || "Nueva asignación",
+        url: `/ordenes/${ordenId}`,
+      }).catch(() => {});
+    }
   }
 
   async function limpiarResponsables(ordenId) {

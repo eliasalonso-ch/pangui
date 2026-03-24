@@ -52,7 +52,7 @@ Deno.serve(async (req: Request) => {
   }
 
   // Parse body
-  const { nombre, email, password, rol } = await req.json();
+  const { nombre, email, password, rol, workspace_id: bodyWorkspaceId } = await req.json();
 
   if (!nombre || !email || !password || !rol) {
     return json({ error: "Faltan campos requeridos." }, 400);
@@ -64,6 +64,13 @@ Deno.serve(async (req: Request) => {
     return json({ error: "Rol inválido." }, 400);
   }
 
+  // Prefer workspace from DB profile (secure); fall back to body value for
+  // accounts that pre-date the workspace_id column and still have it as null.
+  const workspaceId = callerPerfil.workspace_id ?? bodyWorkspaceId ?? null;
+  if (!workspaceId) {
+    return json({ error: "No se pudo determinar el workspace. Vuelve a iniciar sesión." }, 400);
+  }
+
   // Create auth user
   const { data: newUser, error: createError } = await admin.auth.admin.createUser({
     email,
@@ -73,10 +80,10 @@ Deno.serve(async (req: Request) => {
 
   if (createError) return json({ error: createError.message }, 400);
 
-  // Insert profile in usuarios table (same workspace as inviting user)
+  // Insert profile in usuarios table
   const { error: dbError } = await admin.from("usuarios").insert({
     id:           newUser.user.id,
-    workspace_id: callerPerfil.workspace_id,
+    workspace_id: workspaceId,
     nombre:       nombre.trim(),
     rol,
   });

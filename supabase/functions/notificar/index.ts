@@ -45,6 +45,7 @@ Deno.serve(async (req: Request) => {
 
   const {
     usuario_id,
+    usuario_ids,
     workspace_id_todos_tecnicos,
     workspace_id_jefe,
     titulo,
@@ -56,7 +57,9 @@ Deno.serve(async (req: Request) => {
   // Collect target user IDs
   let userIds: string[] = [];
 
-  if (usuario_id) {
+  if (usuario_ids && Array.isArray(usuario_ids) && usuario_ids.length) {
+    userIds = usuario_ids;
+  } else if (usuario_id) {
     userIds = [usuario_id];
   } else if (workspace_id_todos_tecnicos) {
     const { data } = await admin

@@ -22,6 +22,7 @@ import {
   Circle, PauseCircle, PlayCircle, XCircle, ChevronsRight,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase";
+import { callEdge } from "@/lib/edge";
 import styles from "./page.module.css";
 
 // ─── Module-level constants — never recreated on render ──────────────────────
@@ -235,12 +236,16 @@ export default function OTDetalleMobile() {
   const toggleResponsable = useCallback(async (userId) => {
     // Compute next state inside setOrden to avoid stale closure on asignados_ids
     let anterior;
+    let added = false;
+    let ordenTitulo = "";
     setOrden(prev => {
       if (!prev) return prev;
       anterior = prev.asignados_ids ?? [];
-      const siguiente = anterior.includes(userId)
-        ? anterior.filter(uid => uid !== userId)
-        : [...anterior, userId];
+      added = !anterior.includes(userId);
+      ordenTitulo = prev.titulo ?? "";
+      const siguiente = added
+        ? [...anterior, userId]
+        : anterior.filter(uid => uid !== userId);
       const sb = createClient();
       sb.from("ordenes_trabajo").update({ asignados_ids: siguiente }).eq("id", id)
         .then(({ error }) => {
@@ -248,6 +253,14 @@ export default function OTDetalleMobile() {
         });
       return { ...prev, asignados_ids: siguiente };
     });
+    if (added) {
+      callEdge("notificar", {
+        usuario_id: userId,
+        titulo: "Te han asignado una orden de trabajo",
+        mensaje: ordenTitulo || "Nueva asignación",
+        url: `/ordenes/${id}`,
+      }).catch(() => {});
+    }
   }, [id]);
 
   const limpiarResponsables = useCallback(() => {
@@ -279,8 +292,20 @@ export default function OTDetalleMobile() {
     setTimerStart(now);
     const sb = createClient();
     await sb.from("ordenes_trabajo").update({ estado: "en_curso" }).eq("id", id);
-    setOrden(prev => prev ? { ...prev, estado: "en_curso" } : prev);
-  }, [id]);
+    setOrden(prev => {
+      if (!prev) return prev;
+      const asignados = (prev.asignados_ids ?? []).filter(uid => uid !== myId);
+      if (asignados.length > 0) {
+        callEdge("notificar", {
+          usuario_ids: asignados,
+          titulo: "Orden de trabajo iniciada",
+          mensaje: prev.titulo || "Se ha iniciado una orden de trabajo",
+          url: `/ordenes/${id}`,
+        }).catch(() => {});
+      }
+      return { ...prev, estado: "en_curso" };
+    });
+  }, [id, myId]);
 
   // notas is passed in from CloseSheet so this callback doesn't depend on
   // notasCierre state → no re-creation on each keystroke → CloseSheet stays stable
