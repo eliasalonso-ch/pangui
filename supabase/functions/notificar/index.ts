@@ -45,8 +45,8 @@ Deno.serve(async (req: Request) => {
 
   const {
     usuario_id,
-    planta_id_todos_tecnicos,
-    planta_id_jefe,
+    workspace_id_todos_tecnicos,
+    workspace_id_jefe,
     titulo,
     mensaje,
     url,
@@ -58,18 +58,18 @@ Deno.serve(async (req: Request) => {
 
   if (usuario_id) {
     userIds = [usuario_id];
-  } else if (planta_id_todos_tecnicos) {
+  } else if (workspace_id_todos_tecnicos) {
     const { data } = await admin
       .from("usuarios")
       .select("id")
-      .eq("planta_id", planta_id_todos_tecnicos)
+      .eq("workspace_id", workspace_id_todos_tecnicos)
       .eq("rol", "tecnico");
     userIds = (data ?? []).map((u: { id: string }) => u.id);
-  } else if (planta_id_jefe) {
+  } else if (workspace_id_jefe) {
     const { data } = await admin
       .from("usuarios")
       .select("id")
-      .eq("planta_id", planta_id_jefe)
+      .eq("workspace_id", workspace_id_jefe)
       .eq("rol", "jefe");
     userIds = (data ?? []).map((u: { id: string }) => u.id);
   }

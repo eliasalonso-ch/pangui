@@ -73,7 +73,6 @@ function LandingNav() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [theme, setTheme] = useState("system");
 
-  // Leer tema guardado al montar
   useEffect(() => {
     try {
       const saved = localStorage.getItem(THEME_KEY);
@@ -103,7 +102,11 @@ function LandingNav() {
       <div className="mx-auto px-4 sm:px-10 flex items-center justify-between h-[70px] md:h-[80px]">
         {/* Logo */}
         <a href="#" className="flex items-center">
-          <img src="/pangui-logo.svg" alt="Pangui" className="w-[80px] md:w-[100px] h-auto" />
+          <img
+            src="/pangui-logo.svg"
+            alt="Pangui"
+            className="w-[80px] md:w-[100px] h-auto"
+          />
         </a>
 
         {/* Desktop nav */}
@@ -125,7 +128,6 @@ function LandingNav() {
 
         {/* Desktop CTA */}
         <div className="hidden md:flex items-center gap-3">
-          {/* Tema */}
           {(() => {
             const Icon = THEME_ICON[theme];
             return (
@@ -148,7 +150,7 @@ function LandingNav() {
             Iniciar sesión
           </Link>
           <a
-            href="#cta"
+            href="/registro"
             className="text-sm font-semibold px-5 py-2 bg-white text-brand hover:bg-brand-light transition-colors"
           >
             Prueba gratis
@@ -190,7 +192,6 @@ function LandingNav() {
                 </a>
               ))}
               <div className="pt-3 flex flex-col gap-2">
-                {/* Tema en móvil */}
                 {(() => {
                   const Icon = THEME_ICON[theme];
                   return (
@@ -203,12 +204,15 @@ function LandingNav() {
                     </button>
                   );
                 })()}
-                <Link href="/login" className="inline-flex items-center gap-1.5 text-white/70 font-medium py-1 text-sm">
+                <Link
+                  href="/login"
+                  className="inline-flex items-center gap-1.5 text-white/70 font-medium py-1 text-sm"
+                >
                   <LogIn size={14} />
                   Iniciar sesión
                 </Link>
                 <a
-                  href="#cta"
+                  href="/registro"
                   className="bg-white text-brand font-semibold text-center py-2.5"
                   onClick={() => setMenuOpen(false)}
                 >
@@ -265,7 +269,7 @@ function Hero() {
             <motion.div variants={fadeUp}>
               <span className="inline-flex items-center gap-2 px-3 py-1 border-l-4 border-brand-light bg-brand/20 text-brand-light text-xs font-semibold uppercase tracking-widest mb-8">
                 <MapPin size={11} />
-                Hecha en Chile para Pymes chilenas
+                Hecha en Chile para dueños de mantención como tú
               </span>
             </motion.div>
 
@@ -273,17 +277,17 @@ function Hero() {
               variants={fadeUp}
               className="text-4xl sm:text-5xl lg:text-6xl font-black text-white leading-tight mb-6 tracking-tight"
             >
-              Deja de coordinar mantenciones{" "}
-              <span className="gradient-text">por WhatsApp.</span>
+              ¿Cansado de perder plata por mantenciones desorganizadas?
             </motion.h1>
 
             <motion.p
               variants={fadeUp}
               className="text-lg text-slate-300 mb-8 max-w-lg"
             >
-              Asigna órdenes de trabajo con push en tiempo real, captura fotos,
-              firma digital y materiales en terreno, y factura con SimpleFactura
-              en 1 clic.
+              Recupera 20-40% de margen perdido en materiales "olvidados",
+              tiempo de coordinación y facturas que tardan semanas. Asigna OT
+              con push, controla stock automático, exporta informes el
+              mismo día y duerme tranquilo.
             </motion.p>
 
             <motion.div
@@ -291,7 +295,7 @@ function Hero() {
               className="flex flex-col sm:flex-row gap-3 justify-start"
             >
               <a
-                href="#cta"
+                href="/registro"
                 className="btn-glow inline-flex items-center justify-center gap-2 px-7 py-4 bg-white hover:bg-brand-light text-brand font-bold transition-all text-base"
               >
                 Prueba gratis 30 días
@@ -304,7 +308,7 @@ function Hero() {
                 className="inline-flex items-center justify-center gap-2 px-7 py-4 border border-white/30 text-white hover:bg-white/10 font-semibold transition-all text-base"
               >
                 <MessageSquare size={18} />
-                Ver demo por WhatsApp
+                Hablar con un experto
               </a>
             </motion.div>
 
@@ -314,7 +318,7 @@ function Hero() {
             >
               {[
                 "Sin tarjeta de crédito",
-                "Soporte en español",
+                "Recupera inversión en semanas",
                 "Cancela cuando quieras",
               ].map((t) => (
                 <span key={t} className="flex items-center gap-1.5">
@@ -349,16 +353,21 @@ function Hero() {
           className="mt-14 lg:mt-20 grid grid-cols-2 sm:grid-cols-4 gap-6 sm:gap-0 pt-8 border-t border-slate-700"
         >
           {[
-            { value: "−70%", label: "Tiempo coordinando" },
-            { value: "100%", label: "OT trazables" },
-            { value: "1 clic", label: "Para facturar" },
+            { value: "−30-50%", label: "Pérdidas en materiales" },
+            { value: "+20-40%", label: "Margen recuperado" },
+            { value: "Mismo día", label: "Facturación real" },
             { value: "Offline", label: "Funciona sin señal" },
           ].map((s) => (
-            <div key={s.label} className="text-center sm:border-r sm:border-slate-700 sm:last:border-r-0 sm:pr-8 sm:pl-8 sm:first:pl-0">
+            <div
+              key={s.label}
+              className="text-center sm:border-r sm:border-slate-700 sm:last:border-r-0 sm:pr-8 sm:pl-8 sm:first:pl-0"
+            >
               <p className="text-2xl sm:text-3xl lg:text-4xl font-black text-white tracking-tight">
                 {s.value}
               </p>
-              <p className="text-xs text-slate-400 mt-1 uppercase tracking-wider">{s.label}</p>
+              <p className="text-xs text-slate-400 mt-1 uppercase tracking-wider">
+                {s.label}
+              </p>
             </div>
           ))}
         </motion.div>
@@ -371,20 +380,20 @@ function Hero() {
 
 function ProblemSolution() {
   const before = [
-    "Grupos de WhatsApp que nadie lee a tiempo",
-    "Excel compartido que se sobreescribe solo",
-    "Fotos en el celular del técnico, sin respaldo",
-    "Materiales que 'se pierden' en cada trabajo",
-    "Facturas que salen 30 días después del trabajo",
-    "Jefe no sabe en tiempo real qué está pasando",
+    "Materiales que 'desaparecen' → pierdes 1-3 millones al año",
+    "Facturas que salen 30-60 días después → flujo de caja eternamente apretado",
+    "Grupos de WhatsApp infinitos → terminas apagando incendios tú mismo",
+    "Excel que se sobreescribe → no sabes cuánto estás ganando realmente",
+    "Técnicos sin control → retrasos y reclamos de clientes",
+    "Jefe que no te informa → tú eres el bombero 24/7",
   ];
   const after = [
-    "Push instantáneo al técnico asignado",
-    "Dashboard en tiempo real para el jefe",
-    "Fotos antes/después en la nube, por OT",
-    "Stock se descuenta automáticamente",
-    "DTE emitido desde la OT, mismo día",
-    "Aprobación o rechazo con motivo en segundos",
+    "Stock se descuenta automático → sabes dónde está cada peso",
+    "DTE emitido desde la OT → facturas el mismo día y cobras más rápido",
+    "Push y dashboard en tiempo real → control total sin llamadas",
+    "Reportes claros de costos y rentabilidad → ves el negocio real",
+    "Fotos, firma y checklist → trabajos profesionales y trazables",
+    "Tu equipo adopta fácil → menos estrés para ti y para ellos",
   ];
 
   return (
@@ -398,14 +407,14 @@ function ProblemSolution() {
           className="mb-16"
         >
           <span className="block text-xs font-bold text-brand uppercase tracking-widest border-l-4 border-brand pl-3 mb-6">
-            El problema
+            El problema que te está costando plata
           </span>
           <h2 className="text-3xl sm:text-4xl font-black text-slate-900 leading-tight tracking-tight mb-4">
-            ¿Te suena familiar?
+            ¿Cuánto estás perdiendo al mes sin darte cuenta?
           </h2>
           <p className="text-slate-500 max-w-xl">
-            Así trabajan la mayoría de los equipos de mantención hoy. Con
-            Pangui, así dejan de trabajar.
+            La mayoría de empresas de mantención en Chile pierde margen por
+            desorganización. Con Pangui recuperas control y dinero real.
           </p>
         </motion.div>
 
@@ -420,7 +429,9 @@ function ProblemSolution() {
           >
             <div className="flex items-center gap-3 mb-8">
               <AlertTriangle size={20} className="text-red-500" />
-              <h3 className="font-black text-slate-800 text-xl tracking-tight">Sin Pangui</h3>
+              <h3 className="font-black text-slate-800 text-xl tracking-tight">
+                Sin Pangui
+              </h3>
             </div>
             <ul className="space-y-4">
               {before.map((item) => (
@@ -446,7 +457,9 @@ function ProblemSolution() {
           >
             <div className="flex items-center gap-3 mb-8">
               <CheckCircle size={20} className="text-brand-light" />
-              <h3 className="font-black text-white text-xl tracking-tight">Con Pangui</h3>
+              <h3 className="font-black text-white text-xl tracking-tight">
+                Con Pangui
+              </h3>
             </div>
             <ul className="space-y-4">
               {after.map((item) => (
@@ -473,45 +486,44 @@ function ProblemSolution() {
 
 const FEATURES = [
   {
-    icon: Bell,
-    title: "Push en tiempo real",
-    desc: "El técnico recibe la OT en su celular en segundos. Sin llamadas, sin WhatsApp. Solo acepta y va.",
-    color: "bg-brand/10 text-brand",
-  },
-  {
-    icon: Camera,
-    title: "Ejecución móvil completa",
-    desc: "Fotos antes/después, firma digital del cliente y registro de materiales. Todo desde el celular, sin papel.",
-    color: "bg-purple-100 text-purple-600",
-  },
-  {
-    icon: CheckCircle,
-    title: "Revisión y rechazo con motivo",
-    desc: "El jefe aprueba o rechaza al instante. Si rechaza, el técnico ve el motivo y corrige sin llamadas.",
-    color: "bg-accent/10 text-accent",
-  },
-  {
     icon: Receipt,
-    title: "Facturación con SimpleFactura",
-    desc: "Emite DTE directamente desde la OT. Todos los datos ya están listos. Factura el mismo día del trabajo.",
+    title: "Reportes PDF y Excel en 1 clic",
+    desc: "Exporta órdenes, historial de activos y stock directo desde la app. Comparte con gerencia o auditorías al instante.",
     color: "bg-orange-100 text-orange-600",
   },
   {
     icon: Package,
-    title: "Inventario inteligente",
-    desc: "El stock se descuenta automático al cerrar la OT. Alertas push cuando queda poco. Nunca más materiales perdidos.",
+    title: "Inventario inteligente que no miente",
+    desc: "Stock se descuenta automático al cerrar OT. Alertas push cuando queda poco. Nunca más materiales 'perdidos' que te cuestan millones.",
     color: "bg-yellow-100 text-yellow-600",
   },
   {
     icon: BarChart2,
-    title: "Reportes PDF y Excel",
-    desc: "Exporta historial de OT, costos por técnico y materiales para tus clientes con un clic.",
+    title: "Reportes reales de rentabilidad",
+    desc: "Exporta costos por técnico, margen por trabajo y clientes top. Sabes exactamente dónde estás ganando y dónde pierdes.",
     color: "bg-sky-100 text-sky-600",
+  },
+  {
+    icon: Bell,
+    title: "Push y asignación en tiempo real",
+    desc: "Tu jefe asigna OT con un clic y el técnico recibe push instantáneo. Menos llamadas, menos retrasos, más trabajos al mes.",
+    color: "bg-brand/10 text-brand",
+  },
+  {
+    icon: Camera,
+    title: "Ejecución profesional desde el celular",
+    desc: "Fotos antes/después, firma digital y checklist. Trabajos trazables y clientes más satisfechos que pagan más rápido.",
+    color: "bg-purple-100 text-purple-600",
+  },
+  {
+    icon: CheckCircle,
+    title: "Aprobación rápida con motivo",
+    desc: "Revisa y aprueba/rechaza en segundos. El técnico corrige sin dramas. Todo queda registrado para auditoría.",
+    color: "bg-accent/10 text-accent",
   },
 ];
 
 function FeatureRow({ icon: Icon, title, desc, color, index }) {
-  const isEven = index % 2 === 0;
   return (
     <motion.div
       variants={fadeUp}
@@ -523,10 +535,15 @@ function FeatureRow({ icon: Icon, title, desc, color, index }) {
         <Icon size={20} />
       </div>
       <div>
-        <h3 className="font-bold text-slate-900 text-lg sm:text-xl mb-2">{title}</h3>
+        <h3 className="font-bold text-slate-900 text-lg sm:text-xl mb-2">
+          {title}
+        </h3>
         <p className="text-slate-500 leading-relaxed">{desc}</p>
-        <a href="#cta" className="inline-flex items-center gap-1.5 text-brand text-sm font-semibold mt-4 hover:gap-2.5 transition-all">
-          Conoce más <ArrowRight size={14} />
+        <a
+          href="/registro"
+          className="inline-flex items-center gap-1.5 text-brand text-sm font-semibold mt-4 hover:gap-2.5 transition-all"
+        >
+          Ver cómo implementarlo <ArrowRight size={14} />
         </a>
       </div>
     </motion.div>
@@ -535,13 +552,9 @@ function FeatureRow({ icon: Icon, title, desc, color, index }) {
 
 function Features() {
   return (
-    <section
-      id="features"
-      className="py-24 sm:py-32 bg-white"
-    >
+    <section id="features" className="py-24 sm:py-32 bg-white">
       <div className="max-w-6xl mx-auto px-4 sm:px-8">
         <div className="grid lg:grid-cols-[1fr_2fr] gap-10 lg:gap-24">
-          {/* Left column — sticky header */}
           <motion.div
             variants={fadeUp}
             initial="hidden"
@@ -550,24 +563,23 @@ function Features() {
             className="lg:sticky lg:top-24 lg:self-start pb-2"
           >
             <span className="block text-xs font-bold text-brand uppercase tracking-widest border-l-4 border-brand pl-3 mb-6">
-              Funcionalidades
+              Lo que recupera tu margen
             </span>
             <h2 className="text-3xl sm:text-4xl font-black text-slate-900 leading-tight mb-4 tracking-tight">
-              Todo lo que necesitas, nada que no
+              Control total. Más plata en el bolsillo.
             </h2>
             <p className="text-slate-500 leading-relaxed">
-              Diseñado para que jefes y técnicos trabajen en sintonía, desde la
-              asignación hasta la factura.
+              Diseñado para que tú (el dueño) veas los números reales, tu jefe
+              coordine sin caos y tus técnicos trabajen profesionalmente.
             </p>
             <a
-              href="#cta"
+              href="/registro"
               className="inline-flex items-center gap-2 mt-8 px-6 py-3 bg-brand text-white font-semibold text-sm hover:bg-brand-dark transition-colors"
             >
-              Ver todas las funciones <ArrowRight size={16} />
+              Implementa en tu empresa <ArrowRight size={16} />
             </a>
           </motion.div>
 
-          {/* Right column — feature rows */}
           <motion.div
             variants={stagger}
             initial="hidden"
@@ -590,26 +602,26 @@ const STEPS = [
   {
     num: "01",
     icon: Zap,
-    title: "Jefe crea la OT en segundos",
-    desc: "Desde el dashboard, completa la orden con ubicación, descripción y técnico asignado. En menos de un minuto.",
+    title: "Creas o tu jefe crea la OT en segundos",
+    desc: "Desde el dashboard: cliente, ubicación, descripción, técnico asignado. Listo en menos de un minuto.",
   },
   {
     num: "02",
     icon: Bell,
-    title: "Técnico recibe push al instante",
-    desc: "El técnico ve la OT en su celular con todos los detalles. Acepta y sale a terreno.",
+    title: "El técnico recibe push y sale a terreno",
+    desc: "Notificación instantánea en su celular. Acepta y va. Sin llamadas ni WhatsApp.",
   },
   {
     num: "03",
     icon: Camera,
-    title: "Ejecución con fotos, firma y materiales",
-    desc: "En terreno, el técnico registra fotos antes/después, captura la firma del cliente y anota los materiales usados.",
+    title: "Registro completo: fotos, firma y materiales",
+    desc: "En terreno registra todo desde la app offline. Firma digital del cliente y stock se descuenta solo.",
   },
   {
     num: "04",
     icon: Receipt,
-    title: "Jefe revisa, aprueba y factura",
-    desc: "Con un clic el jefe aprueba la OT. Con otro clic, emite la factura en SimpleFactura. Mismo día.",
+    title: "Apruebas y cierras en 1 clic",
+    desc: "Revisa, apruebas o rechazas. Cierra la OT, exporta el informe y compártelo. Todo en segundos.",
   },
 ];
 
@@ -625,10 +637,10 @@ function HowItWorks() {
           className="mb-16"
         >
           <span className="block text-xs font-bold text-brand uppercase tracking-widest border-l-4 border-brand pl-3 mb-6">
-            Cómo funciona
+            Del caos a la plata en 4 pasos
           </span>
           <h2 className="text-3xl sm:text-4xl font-black text-slate-900 leading-tight tracking-tight">
-            Del caos a la factura en 4 pasos
+            Implementa y empieza a ver resultados en semanas
           </h2>
         </motion.div>
 
@@ -645,11 +657,9 @@ function HowItWorks() {
               variants={fadeUp}
               className="relative p-7 sm:p-8 overflow-hidden group bg-[#f8fafc]"
             >
-              {/* Giant decorative number */}
               <span className="absolute -bottom-4 -right-2 text-[7rem] font-black text-slate-100 select-none leading-none group-hover:text-brand/10 transition-colors">
                 {step.num.slice(-1)}
               </span>
-              {/* Content */}
               <div className="relative z-10">
                 <div className="w-12 h-12 bg-brand flex items-center justify-center mb-6">
                   <step.icon size={22} className="text-white" />
@@ -674,30 +684,30 @@ function HowItWorks() {
 const TESTIMONIALS = [
   {
     quote:
-      "Antes coordinaba por 4 grupos de WhatsApp y papel. Ahora todo está en Pangui y facturamos el mismo día del trabajo. Impagable.",
+      "Antes perdía fácil 1.5–2 millones al año en materiales que 'se olvidaban'. Hoy controlo stock en tiempo real y facturo el mismo día. Impagable.",
     name: "Carlos Sepúlveda",
-    role: "Jefe de Mantención",
-    company: "Clínica Las Condes",
+    role: "Dueño",
+    company: "Mantenciones Industriales CS",
     stars: 5,
     initials: "CS",
     color: "bg-brand",
   },
   {
     quote:
-      "Mis técnicos tardaban 30 minutos llenando formularios en papel. Hoy son 5 minutos desde el celular y el cliente firma en pantalla. Mucho más profesional.",
+      "Mi flujo de caja estaba eterno por facturas atrasadas. Ahora emito DTE desde la OT y cobro mucho más rápido. El equipo lo adoptó en días.",
     name: "María Rodríguez",
-    role: "Encargada Facilities",
-    company: "U. Santo Tomás Santiago",
+    role: "Gerenta General",
+    company: "Servicios Técnicos RM",
     stars: 5,
     initials: "MR",
     color: "bg-purple-500",
   },
   {
     quote:
-      "El módulo de inventario me ahorró 2 meses de stock perdido. Ya nadie 'olvida' anotar los materiales porque el sistema los registra obligatorio al cerrar la OT.",
+      "Dejé de ser el bombero 24/7. Mi jefe coordina todo, yo veo reportes reales de rentabilidad y duermo tranquilo. Recuperé margen en el primer mes.",
     name: "Rodrigo Muñoz",
-    role: "Gerente Operacional",
-    company: "Servicios Técnicos RM",
+    role: "Dueño",
+    company: "Mantención Edificios y Condominios",
     stars: 5,
     initials: "RM",
     color: "bg-accent",
@@ -716,10 +726,10 @@ function Testimonials() {
           className="mb-16"
         >
           <span className="block text-xs font-bold text-brand uppercase tracking-widest border-l-4 border-brand pl-3 mb-6">
-            Testimonios
+            Lo dicen los dueños que ya lo viven
           </span>
           <h2 className="text-3xl sm:text-4xl font-black text-slate-900 leading-tight tracking-tight">
-            Lo dicen quienes ya lo usan
+            Resultados reales en sus empresas
           </h2>
         </motion.div>
 
@@ -736,7 +746,6 @@ function Testimonials() {
               variants={fadeUp}
               className={`bg-white p-7 sm:p-8 relative overflow-hidden ${i === TESTIMONIALS.length - 1 ? "sm:col-span-2 lg:col-span-1" : ""}`}
             >
-              {/* Large decorative quote mark */}
               <span className="absolute -top-4 -left-2 text-[8rem] font-black text-slate-100 select-none leading-none">
                 &ldquo;
               </span>
@@ -760,9 +769,7 @@ function Testimonials() {
                     {t.initials}
                   </div>
                   <div>
-                    <p className="font-bold text-slate-900 text-sm">
-                      {t.name}
-                    </p>
+                    <p className="font-bold text-slate-900 text-sm">{t.name}</p>
                     <p className="text-slate-400 text-xs mt-0.5">
                       {t.role} · {t.company}
                     </p>
@@ -784,22 +791,22 @@ function TrustSignals() {
     {
       icon: MapPin,
       label: "Hecha en Chile",
-      sub: "Para Pymes chilenas de mantención",
+      sub: "Pensada y diseñada para dueños de mantención como tú",
     },
     {
       icon: Shield,
       label: "Cumple Ley 21.719",
-      sub: "Portal ARCO integrado para solicitudes de datos",
+      sub: "Portal ARCO integrado para tranquilidad tuya y de tus clientes",
     },
     {
       icon: Wifi,
       label: "Offline first",
-      sub: "Funciona sin internet y sincroniza al volver",
+      sub: "Tus técnicos trabajan sin señal y todo sincroniza después",
     },
     {
       icon: Smartphone,
       label: "PWA instalable",
-      sub: "Como app nativa en iOS y Android, sin App Store",
+      sub: "Como app nativa en cualquier celular, sin App Store",
     },
   ];
 
@@ -840,51 +847,51 @@ const PLANS = [
   {
     name: "Gratis",
     price: "0",
-    period: "30 días de prueba",
-    desc: "Para empezar sin compromiso",
+    period: "30 días de prueba real",
+    desc: "Prueba todo sin riesgo. Ideal para ver si recuperas plata desde el día 1.",
     featured: false,
     items: [
       "1 técnico incluido",
       "Hasta 50 OT al mes",
-      "App móvil completa",
-      "Fotos y firma digital",
+      "App móvil completa + offline",
+      "Fotos, firma y materiales",
       "Notificaciones push",
-      "Soporte por email",
+      "Soporte básico",
     ],
-    cta: "Comenzar gratis",
-    href: "#cta",
+    cta: "Comenzar prueba gratis",
+    href: "/registro",
   },
   {
     name: "Pro",
-    price: "19.990",
+    price: "29.990",
     period: "CLP / mes",
-    desc: "Para equipos en crecimiento",
+    desc: "Recupera la inversión en semanas con más facturas rápidas y menos pérdidas.",
     featured: true,
     items: [
       "Técnicos ilimitados",
       "OT ilimitadas",
       "Inventario + alertas stock",
-      "Facturación SimpleFactura",
-      "Reportes PDF y Excel",
-      "Historial de auditoría",
+      "Exportación PDF y Excel",
+      "Reportes de rentabilidad y costos",
+      "Historial y auditoría",
       "Soporte prioritario",
     ],
     cta: "Empezar ahora",
-    href: "#cta",
+    href: "/registro",
   },
   {
     name: "Enterprise",
     price: "A convenir",
     period: "",
-    desc: "Para empresas con múltiples plantas",
+    desc: "Para empresas con varias cuadrillas o múltiples faenas.",
     featured: false,
     items: [
       "Todo lo de Pro",
-      "Múltiples plantas",
+      "Múltiples plantas / sedes",
       "Usuarios admin ilimitados",
-      "SLA personalizado",
-      "Onboarding dedicado",
-      "Integración a medida",
+      "SLA y soporte dedicado",
+      "Onboarding personalizado",
+      "Integraciones a medida",
     ],
     cta: "Hablar con ventas",
     href: "https://wa.me/56900000000?text=Quiero%20Enterprise%20de%20Pangui",
@@ -983,10 +990,7 @@ function PricingCard({
 
 function Pricing() {
   return (
-    <section
-      id="pricing"
-      className="py-24 sm:py-32 bg-white"
-    >
+    <section id="pricing" className="py-24 sm:py-32 bg-white">
       <div className="max-w-5xl mx-auto px-4 sm:px-8">
         <motion.div
           variants={fadeUp}
@@ -996,13 +1000,14 @@ function Pricing() {
           className="mb-16"
         >
           <span className="block text-xs font-bold text-brand uppercase tracking-widest border-l-4 border-brand pl-3 mb-6">
-            Precios
+            Precios que se pagan solos
           </span>
           <h2 className="text-3xl sm:text-4xl font-black text-slate-900 leading-tight tracking-tight mb-4">
-            Simple y sin sorpresas
+            Simple. Transparente. Rentable.
           </h2>
           <p className="text-slate-500 max-w-lg">
-            Empieza gratis. Paga solo cuando decidas quedarte.
+            Empieza gratis. Cuando veas cuánto recuperas en margen y flujo, el
+            precio se paga solo.
           </p>
         </motion.div>
 
@@ -1026,7 +1031,7 @@ function Pricing() {
           className="text-center text-slate-400 text-sm mt-8"
         >
           Todos los precios incluyen IVA. Facturación mensual. Cancela cuando
-          quieras.
+          quieras. Recupera la inversión con 2-3 facturas más rápidas al mes.
         </motion.p>
       </div>
     </section>
@@ -1038,23 +1043,23 @@ function Pricing() {
 const FAQS = [
   {
     q: "¿Funciona sin conexión a internet?",
-    a: "Sí. Pangui es una PWA offline-first. Los técnicos pueden registrar fotos, materiales y firma sin señal. Todo se sincroniza automáticamente cuando recuperan conexión.",
+    a: "Sí. Es offline-first. Tus técnicos registran fotos, materiales y firma sin señal. Todo sincroniza cuando vuelven a tener conexión.",
   },
   {
-    q: "¿La integración con SimpleFactura es real y funcional?",
-    a: "Sí, es una integración directa vía API. Emites el DTE (boleta o factura) desde la misma OT, con todos los datos ya precargados: cliente, descripción, montos. Sin copiar y pegar.",
+    q: "¿Puedo exportar informes y compartirlos con mi equipo?",
+    a: "Sí. Exporta cualquier OT, historial de activos o reporte de stock en PDF o Excel con un clic. Listo para enviar a gerencia o auditorías.",
   },
   {
-    q: "¿Cuántos técnicos puedo tener en el plan Pro?",
-    a: "Técnicos ilimitados. No hay cobro por usuario. El precio es fijo al mes independiente de cuántos técnicos tengas en tu equipo.",
+    q: "¿Cuántos técnicos puedo tener en Pro?",
+    a: "Ilimitados. Precio fijo mensual sin importar cuántos técnicos o usuarios tengas. Ideal para empresas en crecimiento.",
   },
   {
-    q: "¿Mis datos están seguros?",
-    a: "Sí. Usamos Supabase (infraestructura PostgreSQL en AWS), con cifrado en reposo y todo el tráfico sobre TLS. Además cumplimos la Ley 21.719 con el portal ARCO integrado.",
+    q: "¿Mis datos y los de mis clientes están seguros?",
+    a: "Sí. Supabase en AWS con cifrado, TLS y cumplimiento Ley 21.719. Portal ARCO integrado para solicitudes de datos.",
   },
   {
-    q: "¿Puedo usar Pangui en iPhone?",
-    a: "Sí. Pangui es una PWA instalable desde Safari en iOS. Funciona como app nativa, con notificaciones push y acceso sin App Store.",
+    q: "¿Puedo usar Pangui en cualquier celular?",
+    a: "Sí. PWA instalable desde Safari/Chrome. Funciona como app nativa en iOS y Android, con push y offline.",
   },
 ];
 
@@ -1062,7 +1067,11 @@ function FAQ() {
   const [open, setOpen] = useState(null);
 
   return (
-    <section id="faq" className="py-24 sm:py-32" style={{ background: "#f8fafc" }}>
+    <section
+      id="faq"
+      className="py-24 sm:py-32"
+      style={{ background: "#f8fafc" }}
+    >
       <div className="max-w-3xl mx-auto px-4 sm:px-8">
         <motion.div
           variants={fadeUp}
@@ -1072,10 +1081,10 @@ function FAQ() {
           className="mb-16"
         >
           <span className="block text-xs font-bold text-brand uppercase tracking-widest border-l-4 border-brand pl-3 mb-6">
-            FAQ
+            Preguntas frecuentes
           </span>
           <h2 className="text-3xl sm:text-4xl font-black text-slate-900 leading-tight tracking-tight">
-            Preguntas frecuentes
+            Lo que más preguntan los dueños
           </h2>
         </motion.div>
 
@@ -1111,7 +1120,6 @@ function FAQ() {
               <AnimatePresence initial={false}>
                 {open === i && (
                   <motion.div
-                    key="content"
                     initial={{ height: 0, opacity: 0 }}
                     animate={{ height: "auto", opacity: 1 }}
                     exit={{ height: 0, opacity: 0 }}
@@ -1135,15 +1143,6 @@ function FAQ() {
 // ── Final CTA ──────────────────────────────────────────────────
 
 function FinalCTA() {
-  const [email, setEmail] = useState("");
-  const [submitted, setSubmitted] = useState(false);
-
-  function handleSubmit(e) {
-    e.preventDefault();
-    if (!email.trim()) return;
-    setSubmitted(true);
-  }
-
   return (
     <section
       id="cta"
@@ -1152,7 +1151,6 @@ function FinalCTA() {
         background: "linear-gradient(135deg, #0a0f1e 0%, #0d1530 100%)",
       }}
     >
-      {/* Background grid */}
       <div
         className="absolute inset-0 opacity-5"
         style={{
@@ -1173,62 +1171,42 @@ function FinalCTA() {
             variants={fadeUp}
             className="inline-flex items-center gap-2 px-3 py-1 border-l-4 border-brand-light bg-white/10 text-brand-light text-xs font-bold uppercase tracking-widest mb-8"
           >
-            30 días gratis, sin tarjeta
+            30 días gratis – sin tarjeta – sin riesgo
           </motion.span>
 
           <motion.h2
             variants={fadeUp}
             className="text-3xl sm:text-4xl lg:text-5xl font-black text-white mb-4 leading-tight tracking-tight"
           >
-            Empieza hoy y ordena tu mantención
+            Deja de apagar incendios. Empieza a ganar más con cada mantención.
           </motion.h2>
 
           <motion.p variants={fadeUp} className="text-slate-300 mb-10 text-lg">
-            Prueba todas las funciones durante 30 días. Sin límites, sin tarjeta
-            de crédito.
+            Prueba Pangui 30 días sin límites. Ve cuánto recuperas en margen,
+            flujo y tiempo. Implementa en tu equipo y recupera control real.
           </motion.p>
 
-          {!submitted ? (
-            <motion.form
-              variants={fadeUp}
-              onSubmit={handleSubmit}
-              className="flex flex-col sm:flex-row gap-3 max-w-md mx-auto"
+          <motion.div variants={fadeUp} className="flex flex-col sm:flex-row gap-3 justify-center">
+            <Link
+              href="/registro"
+              className="px-8 py-4 bg-white text-brand font-bold transition-colors whitespace-nowrap text-sm inline-flex items-center justify-center gap-2 hover:bg-brand-light"
             >
-              <input
-                type="email"
-                required
-                placeholder="tu@empresa.cl"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="flex-1 px-4 py-3.5 text-slate-900 text-sm outline-none border-2 border-transparent focus:border-brand"
-                style={{ background: "rgba(255,255,255,0.95)" }}
-              />
-              <button
-                type="submit"
-                className="px-6 py-3.5 bg-brand hover:bg-brand-dark text-white font-semibold transition-colors whitespace-nowrap text-sm"
-              >
-                Comenzar gratis
-              </button>
-            </motion.form>
-          ) : (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="flex items-center justify-center gap-3 bg-accent/20 border border-accent/30 px-6 py-4 max-w-md mx-auto"
+              Crear cuenta gratis
+            </Link>
+            <Link
+              href="/login"
+              className="px-8 py-4 border border-white/30 text-white font-semibold transition-colors whitespace-nowrap text-sm inline-flex items-center justify-center gap-2 hover:bg-white/10"
             >
-              <CheckCircle size={20} className="text-accent" />
-              <p className="text-white font-medium text-sm">
-                ¡Listo! Te contactaremos pronto a <strong>{email}</strong>
-              </p>
-            </motion.div>
-          )}
+              Ya tengo cuenta
+            </Link>
+          </motion.div>
 
           <motion.div variants={fadeUp} className="mt-6">
             <span className="text-slate-400 text-sm">
-              ¿Prefieres hablar primero?{" "}
+              ¿Prefieres hablar antes?{" "}
             </span>
             <a
-              href="https://wa.me/56900000000?text=Hola,%20quiero%20probar%20Pangui"
+              href="https://wa.me/56900000000?text=Hola,%20quiero%20recuperar%20margen%20con%20Pangui"
               target="_blank"
               rel="noopener noreferrer"
               className="text-accent font-semibold text-sm hover:text-accent-dark"
@@ -1252,11 +1230,15 @@ function LandingFooter() {
           {/* Brand */}
           <div>
             <div className="flex items-center gap-2 mb-3">
-              <img src="/pangui-logo-white.svg" alt="Pangui" className="h-7 w-auto" />
+              <img
+                src="/pangui-logo-white.svg"
+                alt="Pangui"
+                className="h-7 w-auto"
+              />
             </div>
             <p className="text-sm leading-relaxed">
-              Gestión de órdenes de trabajo para contratistas de mantención en
-              Chile.
+              Gestión de órdenes de trabajo para dueños de mantención en Chile.
+              Recupera margen, flujo y control.
             </p>
           </div>
 
@@ -1331,12 +1313,13 @@ function LandingFooter() {
 
         <div className="border-t border-slate-800 pt-6 flex flex-col sm:flex-row justify-between items-center gap-3">
           <p className="text-xs">
-            © 2025 Pangui. Hecho en Chile con ♥ para Pymes de Mantención.
+            © 2026 Pangui. Hecho en Chile con ♥ para dueños de mantención que
+            quieren recuperar plata y control.
           </p>
           <div className="flex items-center gap-3 text-xs">
             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-800 text-slate-300">
               <MapPin size={10} />
-              Santiago, Chile
+              Coronel / Santiago
             </span>
             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-800 text-slate-300">
               <Shield size={10} />

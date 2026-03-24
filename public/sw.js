@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pangui-v5';
+const CACHE_NAME = 'pangui-v6';
 
 // Solo assets seguros (NO páginas dinámicas como '/')
 const STATIC_ASSETS = [];
@@ -35,22 +35,25 @@ self.addEventListener('fetch', (e) => {
     return;
   }
 
-  // ── 2. Navegación (HTML) → SIEMPRE network-first ────────
-  // 🚨 CLAVE: no cachear páginas como '/'
- if (request.mode === 'navigate') {
-  e.respondWith(
-    fetch(request)
-      .then((response) => {
-        // Important: return the fresh network response when online
-        return response;
+  // ── 2. Navegación (HTML) → stale-while-revalidate ───────
+  // Serve cached shell instantly; fetch fresh in background to update cache.
+  // Safe for Next.js App Router: dynamic data always comes from client-side Supabase calls.
+  if (request.mode === 'navigate') {
+    e.respondWith(
+      caches.open(CACHE_NAME).then(async (cache) => {
+        const cached = await cache.match(request);
+        const networkFetch = fetch(request).then((response) => {
+          if (response && response.ok) cache.put(request, response.clone());
+          return response;
+        }).catch(() => null);
+        if (cached) return cached; // instant — update cache in background
+        const networkResponse = await networkFetch;
+        if (networkResponse) return networkResponse;
+        return caches.match('/login'); // fully offline fallback
       })
-      .catch(() => {
-        // Only when network completely fails (offline) → fallback to /login
-        return caches.match('/login');
-      })
-  );
-  return;
-}
+    );
+    return;
+  }
 
   // ── 3. Assets estáticos → cache-first ───────────────────
   if (url.pathname.match(/\.(css|js|woff2?|png|svg|ico|webp|jpg|jpeg)$/)) {

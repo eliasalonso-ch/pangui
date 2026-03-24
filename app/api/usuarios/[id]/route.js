@@ -26,12 +26,12 @@ export async function PATCH(request, { params }) {
 
     const { data: callerPerfil } = await supabase
       .from("usuarios")
-      .select("rol, planta_id")
+      .select("rol, workspace_id")
       .eq("id", caller.id)
       .maybeSingle();
 
-    if (!callerPerfil || callerPerfil.rol !== "jefe") {
-      return NextResponse.json({ error: "Solo el jefe puede modificar usuarios." }, { status: 403 });
+    if (!callerPerfil || !["jefe", "admin"].includes(callerPerfil.rol)) {
+      return NextResponse.json({ error: "No tienes permisos para modificar usuarios." }, { status: 403 });
     }
 
     const { id } = await params;
@@ -50,17 +50,22 @@ export async function PATCH(request, { params }) {
 
     const { data: target } = await adminClient
       .from("usuarios")
-      .select("planta_id")
+      .select("workspace_id")
       .eq("id", id)
       .maybeSingle();
 
-    if (!target || target.planta_id !== callerPerfil.planta_id) {
+    if (!target || target.workspace_id !== callerPerfil.workspace_id) {
       return NextResponse.json({ error: "Usuario no encontrado." }, { status: 404 });
     }
 
     const updates = {};
     if (typeof body.activo === "boolean") updates.activo = body.activo;
-    if (body.rol && ["tecnico", "jefe"].includes(body.rol)) updates.rol = body.rol;
+    if (body.rol) {
+      const rolesPermitidos = callerPerfil.rol === "admin"
+        ? ["tecnico", "jefe", "admin"]
+        : ["tecnico", "jefe"];
+      if (rolesPermitidos.includes(body.rol)) updates.rol = body.rol;
+    }
 
     if (Object.keys(updates).length === 0) {
       return NextResponse.json({ error: "Nada que actualizar." }, { status: 400 });
@@ -95,12 +100,12 @@ export async function DELETE(request, { params }) {
 
     const { data: callerPerfil } = await supabase
       .from("usuarios")
-      .select("rol, planta_id")
+      .select("rol, workspace_id")
       .eq("id", caller.id)
       .maybeSingle();
 
-    if (!callerPerfil || callerPerfil.rol !== "jefe") {
-      return NextResponse.json({ error: "Solo el jefe puede eliminar usuarios." }, { status: 403 });
+    if (!callerPerfil || callerPerfil.rol !== "admin") {
+      return NextResponse.json({ error: "Solo el administrador puede eliminar usuarios." }, { status: 403 });
     }
 
     const { id } = await params;
@@ -116,11 +121,11 @@ export async function DELETE(request, { params }) {
 
     const { data: target } = await adminClient
       .from("usuarios")
-      .select("planta_id")
+      .select("workspace_id")
       .eq("id", id)
       .maybeSingle();
 
-    if (!target || target.planta_id !== callerPerfil.planta_id) {
+    if (!target || target.workspace_id !== callerPerfil.workspace_id) {
       return NextResponse.json({ error: "Usuario no encontrado." }, { status: 404 });
     }
 

@@ -47,13 +47,12 @@ Deno.serve(async (req) => {
       const { data: newOrden, error: insErr } = await supabase
         .from("ordenes_trabajo")
         .insert({
-          planta_id:    p.planta_id,
-          tecnico_id:   p.tecnico_id  ?? null,
+          workspace_id: p.workspace_id,
           cliente_id:   p.cliente_id  ?? null,
           ubicacion_id: p.ubicacion_id ?? null,
           tipo:         "solicitud",
           descripcion:  `[PREVENTIVO] ${p.descripcion}`,
-          estado:       p.tecnico_id ? "pendiente" : "pendiente",
+          estado:       "pendiente",
           prioridad:    "normal",
         })
         .select("id")
@@ -73,17 +72,6 @@ Deno.serve(async (req) => {
         .from("preventivos")
         .update({ proxima_fecha: nextStr })
         .eq("id", p.id);
-
-      // Notify assigned technician (if any)
-      if (p.tecnico_id) {
-        await supabase.from("notifications").insert({
-          usuario_id: p.tecnico_id,
-          titulo:     "Nueva OT preventiva",
-          mensaje:    p.descripcion,
-          tipo:       "orden",
-          url:        `/tecnico/trabajo/${newOrden.id}`,
-        });
-      }
 
       created++;
     } catch (err) {

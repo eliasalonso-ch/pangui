@@ -1,0 +1,424 @@
+/* ── Container ────────────────────────────────────────────── */
+
+.dash {
+  margin: 0 auto;
+  width: 100%;
+}
+
+.loading,
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 80px 24px;
+  color: var(--accent-5);
+  font-size: 14px;
+  text-align: center;
+  line-height: 1.6;
+}
+
+/* ── Header ───────────────────────────────────────────────── */
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.headerTitle {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--black);
+  margin: 0;
+}
+
+.headerSub {
+  font-size: 13px;
+  color: var(--accent-5);
+  margin: 2px 0 0;
+}
+
+.printBtn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: 1.5px solid var(--divider-1);
+  border-radius: 8px;
+  padding: 7px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent-5);
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  font-family: var(--font-sans), system-ui, sans-serif;
+}
+.printBtn:hover {
+  background: var(--surface-hover);
+  color: var(--black);
+}
+
+/* ── KPI Grid ─────────────────────────────────────────────── */
+
+
+.kpiGrid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+@media (min-width: 1024px) {
+  .kpiGrid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.kpiCard {
+  background: var(--white);
+  border: 1px solid var(--divider-1);
+  border-radius: 12px;
+  padding: 12px;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+@media (min-width: 640px) {
+  .kpiCard {
+    padding: 14px;
+    gap: 12px;
+  }
+}
+
+.kpiCardAlert {
+  border-color: #EF444440;
+  background: var(--danger-bg);
+}
+
+.kpiCardWarn {
+  border-color: #F59E0B40;
+  background: #FFFBEB;
+}
+
+.kpiCardIcon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+@media (min-width: 640px) {
+  .kpiCardIcon {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+  }
+}
+
+.kpiCardBody {
+  min-width: 0;
+  flex: 1;
+}
+
+.kpiCardLabel {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent-5);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.kpiCardVal {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--black);
+  line-height: 1.2;
+  margin-top: 2px;
+}
+
+@media (min-width: 640px) {
+  .kpiCardVal {
+    font-size: 20px;
+  }
+}
+
+.kpiCardSub {
+  font-size: 11px;
+  color: var(--accent-6);
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Chart Grid ───────────────────────────────────────────── */
+
+.chartGrid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+@media (min-width: 640px) {
+  .chartGrid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.chartCard {
+  background: var(--white);
+  border: 1px solid var(--divider-1);
+  border-radius: 12px;
+  padding: 16px 16px 12px;
+}
+
+.chartWide {
+  grid-column: 1 / -1;
+}
+
+.chartTitle {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--black);
+  margin: 0 0 14px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ── Legend ───────────────────────────────────────────────── */
+
+.legend {
+  display: flex;
+  gap: 16px;
+  margin-top: 10px;
+  justify-content: center;
+}
+
+.legendItem {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--accent-5);
+}
+
+.legendDot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* ── Custom Tooltip ───────────────────────────────────────── */
+
+.tooltip {
+  background: var(--white);
+  border: 1px solid var(--divider-1);
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.tooltipLabel {
+  font-weight: 700;
+  color: var(--black);
+  margin: 0 0 4px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+/* ── Table section ────────────────────────────────────────── */
+
+.tableSection {
+  background: var(--white);
+  border: 1px solid var(--divider-1);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.tableSectionHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--divider-1);
+}
+
+.tableSectionTitle {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--black);
+  margin: 0;
+  flex: 1;
+}
+
+.tableBadge {
+  background: #EF4444;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 20px;
+  padding: 1px 7px;
+  min-width: 20px;
+  text-align: center;
+}
+
+.tableWrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.table th {
+  padding: 9px 14px;
+  text-align: left;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--accent-5);
+  border-bottom: 1px solid var(--divider-1);
+  white-space: nowrap;
+}
+
+.table td {
+  padding: 10px 14px;
+  color: var(--black);
+  border-bottom: 1px solid var(--divider-1);
+}
+
+.table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.table tbody tr:hover {
+  background: var(--surface-hover);
+}
+
+.tdBold {
+  font-weight: 600;
+}
+
+.tdDanger {
+  color: #EF4444;
+  font-weight: 700;
+}
+
+.badgeOut {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 700;
+  background: var(--danger-bg);
+  color: var(--danger-dark);
+}
+
+.badgeLow {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 700;
+  background: #FEF3C720;
+  color: #F59E0B;
+}
+
+/* ── Cumplimiento de preventivos ─────────────────────────── */
+
+.cumplimientoWrap {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 16px 0 8px;
+}
+
+.cumplimientoCircle {
+  width: 88px;
+  height: 88px;
+  border-radius: 50%;
+  background: conic-gradient(#22C55E calc(var(--pct, 0) * 1%), var(--divider-1) 0%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  position: relative;
+}
+
+.cumplimientoCircle::after {
+  content: "";
+  position: absolute;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: var(--background);
+}
+
+.cumplimientoPct {
+  position: relative;
+  z-index: 1;
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--black);
+  line-height: 1;
+}
+
+.cumplimientoLbl {
+  position: relative;
+  z-index: 1;
+  font-size: 10px;
+  color: var(--accent-5);
+  font-weight: 600;
+}
+
+.cumplimientoStats {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.cumplimientoStat {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--black);
+}
+
+.cumplimientoStatDot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* ── Print ────────────────────────────────────────────────── */
+
+@media print {
+  .printBtn {
+    display: none;
+  }
+}

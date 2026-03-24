@@ -29,12 +29,12 @@ export async function POST(request) {
 
     const { data: callerPerfil } = await supabase
       .from("usuarios")
-      .select("rol, planta_id")
+      .select("rol, workspace_id")
       .eq("id", caller.id)
       .maybeSingle();
 
-    if (!callerPerfil || callerPerfil.rol !== "jefe") {
-      return NextResponse.json({ error: "Solo el jefe puede invitar miembros." }, { status: 403 });
+    if (!callerPerfil || !["jefe", "admin"].includes(callerPerfil.rol)) {
+      return NextResponse.json({ error: "No tienes permisos para invitar miembros." }, { status: 403 });
     }
 
     // 2. Parse request body
@@ -43,7 +43,10 @@ export async function POST(request) {
     if (!nombre || !email || !password || !rol) {
       return NextResponse.json({ error: "Faltan campos requeridos." }, { status: 400 });
     }
-    if (!["tecnico", "jefe"].includes(rol)) {
+    const rolesPermitidos = callerPerfil.rol === "admin"
+      ? ["tecnico", "jefe", "admin"]
+      : ["tecnico", "jefe"];
+    if (!rolesPermitidos.includes(rol)) {
       return NextResponse.json({ error: "Rol inválido." }, { status: 400 });
     }
 
@@ -68,9 +71,9 @@ export async function POST(request) {
     const { error: dbError } = await adminClient
       .from("usuarios")
       .insert({
-        id:        newUser.user.id,
-        planta_id: callerPerfil.planta_id,
-        nombre:    nombre.trim(),
+        id:           newUser.user.id,
+        workspace_id: callerPerfil.workspace_id,
+        nombre:       nombre.trim(),
         rol,
       });
 

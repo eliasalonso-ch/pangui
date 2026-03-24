@@ -68,7 +68,7 @@ export default function Topbar() {
 
       const { data: perfil } = await supabase
         .from("usuarios")
-        .select("nombre, rol, planta_id, plan, plan_status, trial_end, plantas(nombre)")
+        .select("nombre, rol, workspace_id, plan, plan_status, trial_end, workspaces(nombre)")
         .eq("id", user.id)
         .maybeSingle();
 
@@ -182,7 +182,7 @@ export default function Topbar() {
           {trialDays === 0
             ? "⚠️ Tu período de prueba terminó hoy."
             : `⏳ Prueba gratuita: ${trialDays} días restantes.`}
-          <a href="/jefe/suscripcion" style={{
+          <a href="/configuracion/suscripcion" style={{
             color: "#fff",
             fontWeight: 700,
             textDecoration: "underline",
@@ -197,7 +197,7 @@ export default function Topbar() {
         <button
           className={styles.logoBtn}
           onClick={() => {
-            if (rol) router.push(rol === "jefe" ? "/jefe" : "/tecnico");
+            router.push("/ordenes");
           }}
           aria-label="Ir al inicio"
         >

@@ -1,7 +1,11 @@
 "use client";
+
 import { useState } from "react";
 import { createClient } from "@/lib/supabase";
 import styles from "./page.module.css";
+import LegalLayout, { LegalSection, fadeUp } from "@/components/LegalLayout";
+import { motion } from "framer-motion";
+import { Shield } from "lucide-react";  // ← AQUÍ está el fix: importar Shield explícitamente
 
 const TIPOS = [
   { value: "acceso",        label: "Acceso", desc: "Quiero saber qué datos personales míos tiene registrado el sistema." },
@@ -12,11 +16,11 @@ const TIPOS = [
 
 export default function ARCOPage() {
   const [form, setForm] = useState({ tipo: "acceso", rut: "", email: "", detalle: "" });
-  const [saving,  setSaving]  = useState(false);
-  const [ok,      setOk]      = useState(false);
-  const [error,   setError]   = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [ok, setOk] = useState(false);
+  const [error, setError] = useState(null);
 
-  function set(field, value) {
+  function setField(field, value) {
     setForm((f) => ({ ...f, [field]: value }));
   }
 
@@ -39,43 +43,55 @@ export default function ARCOPage() {
     });
 
     setSaving(false);
-    if (dbErr) { setError("Error al enviar. Intenta nuevamente."); return; }
+    if (dbErr) {
+      setError("Error al enviar. Intenta nuevamente.");
+      console.error("Error Supabase:", dbErr);
+      return;
+    }
     setOk(true);
   }
 
   if (ok) {
     return (
-      <main className={styles.page}>
-        <div className={styles.card}>
+      <LegalLayout
+        title="Solicitud ARCO enviada"
+        description="Tu solicitud fue registrada exitosamente. Te contactaremos en un plazo máximo de 10 días hábiles."
+      >
+        <motion.div
+          variants={fadeUp}
+          className={styles.card}
+          style={{
+            textAlign: "center",
+            padding: "40px 24px",
+          }}
+        >
           <div className={styles.successIcon}>✓</div>
           <h1 className={styles.successTitle}>Solicitud enviada</h1>
           <p className={styles.successText}>
             Tu solicitud de <strong>{TIPOS.find((t) => t.value === form.tipo)?.label}</strong> fue
-            registrada. Nos contactaremos al email <strong>{form.email}</strong> en un plazo máximo de 10 días
-            hábiles, conforme a la Ley 21.719.
+            registrada correctamente.<br /><br />
+            Nos contactaremos al email <strong>{form.email}</strong> en un plazo máximo de{" "}
+            <strong>10 días hábiles</strong>, conforme a la Ley 21.719.
           </p>
-        </div>
-      </main>
+        </motion.div>
+      </LegalLayout>
     );
   }
 
   const tipoInfo = TIPOS.find((t) => t.value === form.tipo);
 
   return (
-    <main className={styles.page}>
-      <div className={styles.card}>
-        <div className={styles.logoRow}>
-          <span className={styles.logoText}>Pangui</span>
-          <span className={styles.legalBadge}>Ley 21.719</span>
-        </div>
-
-        <h1 className={styles.title}>Portal ARCO</h1>
-        <p className={styles.subtitle}>
-          Ejerce tus derechos sobre tus datos personales conforme a la Ley 21.719 de
-          Protección de Datos Personales de Chile.
+    <LegalLayout
+      title="Portal ARCO"
+      description="Ejerce tus derechos ARCO conforme a la Ley 21.719 de Protección de Datos Personales de Chile."
+    >
+      <LegalSection icon={Shield} title="Portal ARCO">
+        <p style={{ marginBottom: 24 }}>
+          Completa el formulario a continuación para ejercer tus derechos sobre tus datos personales
+          conforme a la <strong>Ley 21.719</strong> (Protección de Datos Personales).
         </p>
 
-        {/* Tipo */}
+        {/* Tipo de solicitud */}
         <div className={styles.field}>
           <label className={styles.label}>Tipo de solicitud</label>
           <div className={styles.tipoGrid}>
@@ -84,7 +100,7 @@ export default function ARCOPage() {
                 key={t.value}
                 type="button"
                 className={`${styles.tipoBtn} ${form.tipo === t.value ? styles.tipoBtnActive : ""}`}
-                onClick={() => set("tipo", t.value)}
+                onClick={() => setField("tipo", t.value)}
               >
                 {t.label}
               </button>
@@ -101,7 +117,7 @@ export default function ARCOPage() {
             type="text"
             placeholder="12.345.678-9"
             value={form.rut}
-            onChange={(e) => set("rut", e.target.value)}
+            onChange={(e) => setField("rut", e.target.value)}
           />
         </div>
 
@@ -113,7 +129,7 @@ export default function ARCOPage() {
             type="email"
             placeholder="tu@email.com"
             value={form.email}
-            onChange={(e) => set("email", e.target.value)}
+            onChange={(e) => setField("email", e.target.value)}
           />
         </div>
 
@@ -122,24 +138,24 @@ export default function ARCOPage() {
           <label className={styles.label}>Detalle adicional (opcional)</label>
           <textarea
             className={styles.textarea}
-            rows={3}
+            rows={4}
             placeholder="Describe tu solicitud con más detalle si lo deseas…"
             value={form.detalle}
-            onChange={(e) => set("detalle", e.target.value)}
+            onChange={(e) => setField("detalle", e.target.value)}
           />
         </div>
 
         {error && <p className={styles.error}>{error}</p>}
 
         <button className={styles.btnSend} onClick={enviar} disabled={saving}>
-          {saving ? "Enviando…" : "Enviar solicitud"}
+          {saving ? "Enviando…" : "Enviar solicitud ARCO"}
         </button>
 
         <p className={styles.legal}>
-          Tus datos son tratados exclusivamente para gestionar esta solicitud conforme a la
-          Ley 21.719 y serán eliminados una vez resuelta.
+          Tus datos serán tratados exclusivamente para gestionar esta solicitud conforme a la Ley 21.719
+          y serán eliminados una vez resuelta. El plazo de respuesta es de máximo 10 días hábiles.
         </p>
-      </div>
-    </main>
+      </LegalSection>
+    </LegalLayout>
   );
 }

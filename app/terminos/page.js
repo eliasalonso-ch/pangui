@@ -106,6 +106,7 @@ export default function TerminosPage() {
       title="Términos y Condiciones"
       description="Condiciones de uso del servicio Pangui conforme a la Ley 19.496 de Protección al Consumidor y el Código Civil de Chile."
     >
+      
       {/* Intro */}
       <motion.p
         variants={fadeUp}
@@ -147,7 +148,7 @@ export default function TerminosPage() {
         />
         <DefItem
           term="DTE"
-          definition="Documento Tributario Electrónico emitido mediante la integración con SimpleFactura."
+          definition="Documento Tributario Electrónico según normativa del SII de Chile."
         />
         <DefItem
           term="Nosotros / Pangui"
@@ -170,7 +171,6 @@ export default function TerminosPage() {
             "Crear y gestionar Órdenes de Trabajo con asignación a técnicos.",
             "Ejecutar trabajos en terreno con registro de fotos, firma digital y materiales.",
             "Gestionar inventario de materiales con alertas de stock mínimo.",
-            "Emitir Documentos Tributarios Electrónicos mediante SimpleFactura.",
             "Recibir notificaciones push en tiempo real.",
             "Exportar reportes en PDF y Excel.",
             "Funcionar parcialmente sin conexión a internet (modo offline PWA).",
@@ -232,9 +232,9 @@ export default function TerminosPage() {
             </thead>
             <tbody>
               {[
-                ["Gratis", "30 días de prueba", "1", "Hasta 50/mes", "No incluida"],
-                ["Pro", "$19.990 CLP/mes", "Ilimitados", "Ilimitadas", "SimpleFactura ✓"],
-                ["Enterprise", "A convenir", "Ilimitados", "Ilimitadas", "SimpleFactura ✓"],
+                ["Gratis", "30 días de prueba", "1", "Hasta 10/mes", "No incluida"],
+                ["Pro", "$29.990 CLP/mes", "Ilimitados", "Ilimitadas", "PDF y Excel ✓"],
+                ["Enterprise", "A convenir", "Ilimitados", "Ilimitadas", "PDF y Excel ✓"],
               ].map(([plan, precio, tec, ot, fact], i) => (
                 <tr
                   key={plan}
@@ -338,7 +338,7 @@ export default function TerminosPage() {
           items={[
             "Pérdidas económicas indirectas o lucro cesante derivados de interrupciones del servicio.",
             "Errores en los datos ingresados por los usuarios.",
-            "Fallas en servicios de terceros (Supabase, SimpleFactura, Vercel) fuera de nuestro control.",
+            "Fallas en servicios de terceros (Supabase, Vercel) fuera de nuestro control.",
             "Interrupciones por fuerza mayor: desastres naturales, cortes de energía masivos, ciberataques externos de gran escala.",
             "Uso incorrecto de las funciones de facturación o interpretación errónea de datos exportados.",
           ]}

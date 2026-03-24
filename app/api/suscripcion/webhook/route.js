@@ -50,7 +50,7 @@ export async function POST(req) {
 
       const mpStatus = sub.status; // authorized | paused | cancelled | pending
 
-      let plan = "gratis";
+      let plan = "basic";
       let plan_status = "inactive";
 
       if (mpStatus === "authorized") {
@@ -60,7 +60,7 @@ export async function POST(req) {
         plan = planNombre;
         plan_status = "paused";
       } else if (mpStatus === "cancelled") {
-        plan = "gratis";
+        plan = "basic";
         plan_status = "cancelled";
       }
 

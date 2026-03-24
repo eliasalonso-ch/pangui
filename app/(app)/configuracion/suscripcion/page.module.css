@@ -1,0 +1,492 @@
+/* ── Page wrapper ─────────────────────────────────────────── */
+
+.page {
+  min-height: 100dvh;
+  padding: 2rem 1.25rem calc(var(--bottomnav-height) + 2rem);
+  font-family: var(--font-sans, system-ui, sans-serif);
+  display: flex;
+  flex-direction: column;
+}
+
+@media (min-width: 1024px) {
+  .page {
+    padding: 3rem 3rem 3rem;
+  }
+}
+
+/* ── Header ───────────────────────────────────────────────── */
+
+.header {
+  text-align: center;
+  margin-bottom: 48px;
+}
+
+.badge {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent-1);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  background: var(--accent-2);
+  padding: 4px 14px;
+  border-radius: 20px;
+  margin-bottom: 16px;
+}
+
+.title {
+  font-size: clamp(1.6rem, 4vw, 2.4rem);
+  font-weight: 900;
+  color: var(--black);
+  letter-spacing: -0.03em;
+  margin: 0 0 10px;
+}
+
+.subtitle {
+  font-size: 15px;
+  color: var(--accent-5);
+  margin: 0;
+}
+
+/* ── Banners ──────────────────────────────────────────────── */
+
+.bannerSuccess,
+.bannerWarning,
+.bannerError {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 18px;
+  border-radius: 10px;
+  margin-bottom: 28px;
+  font-size: 14px;
+  width: 100%;
+}
+
+.bannerSuccess {
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  color: #166534;
+}
+
+.bannerWarning {
+  background: var(--accent-2);
+  border: 1px solid var(--accent-1);
+  color: var(--accent-1);
+}
+
+.bannerError {
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  color: #9a3412;
+}
+
+/* ── Plan grid ────────────────────────────────────────────── */
+
+.planGrid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 20px;
+  flex: 1;
+}
+
+@media (min-width: 640px) {
+  .planGrid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+/* ── Checkout layout (full-page split) ────────────────────── */
+
+.checkoutWrap {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  margin-top: 8px;
+}
+
+@media (min-width: 1024px) {
+  .checkoutWrap {
+    display: grid;
+    grid-template-columns: 2fr 3fr;
+    gap: 0;
+    border-radius: 20px;
+    overflow: hidden;
+    border: 1px solid var(--divider-1);
+    box-shadow: 0 8px 40px rgba(0, 0, 0, 0.10);
+    min-height: 520px;
+    margin-top: 0;
+  }
+}
+
+/* ── Checkout left: plan summary ──────────────────────────── */
+
+.checkoutSummary {
+  background: var(--accent-1);
+  color: #fff;
+  padding: 28px 24px;
+  display: flex;
+  flex-direction: column;
+  border-radius: 16px;
+  margin-bottom: 16px;
+}
+
+@media (min-width: 1024px) {
+  .checkoutSummary {
+    padding: 48px 40px;
+    border-radius: 0;
+    margin-bottom: 0;
+    justify-content: center;
+  }
+}
+
+.summaryLabel {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  opacity: 0.7;
+  margin-bottom: 16px;
+}
+
+.summaryPrice {
+  font-size: 42px;
+  font-weight: 900;
+  letter-spacing: -0.04em;
+  line-height: 1;
+  margin-bottom: 4px;
+}
+
+.summaryPrice span {
+  font-size: 15px;
+  font-weight: 500;
+  opacity: 0.75;
+  letter-spacing: 0;
+}
+
+.summaryDesc {
+  font-size: 13px;
+  opacity: 0.7;
+  margin-bottom: 28px;
+  line-height: 1.5;
+}
+
+.summaryFeatures {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.summaryFeature {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.summaryFeatureIcon {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.summarySecure {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  opacity: 0.6;
+  margin-top: auto;
+  padding-top: 20px;
+  border-top: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+/* ── Checkout right: form ─────────────────────────────────── */
+
+.checkoutForm {
+  background: var(--background);
+  display: flex;
+  flex-direction: column;
+}
+
+@media (min-width: 1024px) {
+  .checkoutForm {
+    overflow-y: auto;
+  }
+}
+
+/* ── Method tabs ──────────────────────────────────────────── */
+
+.methodTabs {
+  padding: 20px 28px 0;
+}
+
+.methodTabsInner {
+  display: flex;
+  gap: 8px;
+  background: var(--accent-2);
+  padding: 4px;
+  border-radius: 10px;
+}
+
+.methodTab {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 11px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-family: var(--font-sans, system-ui, sans-serif);
+  transition: all 0.15s;
+}
+
+.methodTabActive {
+  background: var(--accent-1);
+  color: #fff;
+}
+
+.methodTabInactive {
+  background: transparent;
+  color: var(--accent-5);
+}
+
+/* ── Form body ────────────────────────────────────────────── */
+
+.formBody {
+  padding: 24px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  flex: 1;
+}
+
+.formRow2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.formRowDoc {
+  display: grid;
+  grid-template-columns: 130px 1fr;
+  gap: 14px;
+}
+
+.formLabel {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent-5);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  margin-bottom: 6px;
+  
+  
+}
+
+/* ── Inputs & selects ─────────────────────────────────────── */
+
+.formInput,
+.formSelect {
+  width: 100%;
+  height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--divider-1);
+  border-radius: 8px;
+  font-size: 14px;
+  font-family: var(--font-sans, system-ui, sans-serif);
+  font-weight: 400;
+  color: var(--black);
+  background: var(--background);
+  outline: none;
+  box-sizing: border-box;
+  line-height: 44px;
+  -webkit-appearance: none;
+  appearance: none;
+  transition: border-color 0.15s;
+}
+
+.formInput::placeholder {
+  color: var(--accent-6);
+  font-size: 14px;
+}
+
+.formInput:focus,
+.formSelect:focus {
+  border-color: var(--accent-3);
+}
+
+/* ── MercadoPago containers — ID-only, no class ───────────────
+   No className on these divs so MP can't copy a stray class
+   onto its rendered input elements.
+   Container styles + MP custom-property injection all live here. */
+
+:global(#cf-cardNumber),
+:global(#cf-expirationDate),
+:global(#cf-securityCode) {
+  /* visual container — matches .formInput exactly */
+  height: 44px;
+  border: 1px solid var(--divider-1);
+  border-radius: 8px;
+  background: var(--background);
+  box-sizing: border-box;
+  overflow: hidden;
+  transition: border-color 0.15s;
+
+  /* MP reads these custom properties via `inherit` on its input */
+  --height: 44px;
+  --width: 100%;
+  --position: relative;
+  --left: 0;
+  --top: 0;
+
+  --font-size: 14px;
+  --font-family: var(--font-sans, system-ui, sans-serif);
+  --font-weight: 400;
+  --font-style: normal;
+  --font-variant: normal;
+  --color: #1a1a1a;
+  --text-align: left;
+  --webkit-font-smoothing: antialiased;
+  --moz-osx-font-smoothing: grayscale;
+
+  --padding-top: 0px;
+  --padding-bottom: 0px;
+  --padding-left: 12px;
+  --padding-right: 12px;
+  --margin-top: 0px;
+  --margin-bottom: 0px;
+  --margin-left: 0px;
+  --margin-right: 0px;
+}
+
+:global(#cf-cardNumber iframe),
+:global(#cf-expirationDate iframe),
+:global(#cf-securityCode iframe) {
+  display: block !important;
+  width: 100% !important;
+  height: 44px !important;
+  border: none !important;
+  background: transparent !important;
+}
+
+.formError {
+  display: flex;
+  gap: 8px;
+  padding: 10px 12px;
+  background: #fef2f2;
+  border-radius: 8px;
+  font-size: 13px;
+  color: #991b1b;
+  align-items: flex-start;
+}
+
+.formActions {
+  display: flex;
+  gap: 10px;
+}
+
+.btnCancel {
+  flex: 0 0 auto;
+  padding: 12px 18px;
+  background: transparent;
+  color: var(--accent-5);
+  border: 1px solid var(--divider-1);
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: var(--font-sans, system-ui, sans-serif);
+}
+
+.btnSubmit {
+  flex: 1;
+  padding: 12px 20px;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: var(--font-sans, system-ui, sans-serif);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+/* ── MP method body ───────────────────────────────────────── */
+
+.mpBody {
+  padding: 28px 28px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  flex: 1;
+}
+
+.mpInfo {
+  background: var(--accent-2);
+  border-radius: 10px;
+  padding: 16px 18px;
+}
+
+.mpInfoTitle {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--black);
+  margin: 0 0 4px;
+}
+
+.mpInfoDesc {
+  font-size: 12px;
+  color: var(--accent-5);
+  margin: 0;
+  line-height: 1.6;
+}
+
+.mpActions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* ── Form secure footer ───────────────────────────────────── */
+
+.formFooter {
+  padding: 14px 28px;
+  border-top: 1px solid var(--divider-1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--accent-5);
+}
+
+/* ── Legal text ───────────────────────────────────────────── */
+
+.legal {
+  margin-top: 32px;
+  font-size: 12px;
+  color: var(--accent-5);
+  line-height: 1.7;
+  text-align: center;
+  border-top: 1px solid var(--divider-1);
+  padding-top: 24px;
+}

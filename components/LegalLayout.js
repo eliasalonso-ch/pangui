@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { ArrowLeft, Sun, Moon, Monitor } from "lucide-react";
 import { motion } from "framer-motion";
 
@@ -44,7 +45,6 @@ export function LegalSection({ icon: Icon, title, children }) {
         borderBottom: "1px solid var(--divider-1)",
       }}
     >
-      {/* Heading con eyebrow SLB editorial */}
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
         {Icon && (
           <div
@@ -76,7 +76,6 @@ export function LegalSection({ icon: Icon, title, children }) {
         </h2>
       </div>
 
-      {/* Contenido */}
       <div
         style={{
           color: "var(--accent-5)",
@@ -92,9 +91,9 @@ export function LegalSection({ icon: Icon, title, children }) {
 
 // ── Layout principal ───────────────────────────────────────────
 export default function LegalLayout({ children, title, description }) {
+  const router = useRouter();
   const [theme, setTheme] = useState("system");
 
-  // Leer tema guardado al montar
   useEffect(() => {
     try {
       const saved = localStorage.getItem(THEME_KEY);
@@ -107,6 +106,14 @@ export default function LegalLayout({ children, title, description }) {
     const next = THEME_CYCLE[(idx + 1) % THEME_CYCLE.length];
     setTheme(next);
     applyTheme(next);
+  }
+
+  function handleBack() {
+    if (typeof window !== "undefined" && window.history.length > 1) {
+      router.back();
+    } else {
+      router.push("/");
+    }
   }
 
   const ThemeIcon = THEME_ICON[theme];
@@ -122,21 +129,19 @@ export default function LegalLayout({ children, title, description }) {
         color: "var(--black)",
       }}
     >
-      {/* ── Navbar ─────────────────────────────────────────────── */}
+      {/* ── Navbar (sticky) ─────────────────────────────────────── */}
       <header
         style={{
-          position: "fixed",
+          position: "sticky",
           top: 0,
-          left: 0,
-          right: 0,
           zIndex: 50,
           background: "var(--accent-1)",
-          height: "var(--topbar-height, 70px)",
+          height: 60,
           display: "flex",
           alignItems: "center",
           borderBottom: "1px solid rgba(255,255,255,0.08)",
-          paddingLeft: "2.5rem",
-          paddingRight: "2.5rem"
+          paddingLeft: "clamp(1rem, 4vw, 2.5rem)",
+          paddingRight: "clamp(1rem, 4vw, 2.5rem)",
         }}
       >
         <div
@@ -152,12 +157,12 @@ export default function LegalLayout({ children, title, description }) {
             <img
               src="/pangui-logo.svg"
               alt="Pangui"
-              style={{ width: 100, height: "auto" }}
+              style={{ width: 90, height: "auto" }}
             />
           </Link>
 
           {/* Controles derecha */}
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             {/* Toggle de tema */}
             <button
               onClick={toggleTheme}
@@ -167,8 +172,8 @@ export default function LegalLayout({ children, title, description }) {
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                width: 36,
-                height: 36,
+                width: 34,
+                height: 34,
                 background: "rgba(255,255,255,0.1)",
                 border: "1px solid rgba(255,255,255,0.15)",
                 borderRadius: 0,
@@ -179,12 +184,12 @@ export default function LegalLayout({ children, title, description }) {
               onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.18)")}
               onMouseLeave={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.1)")}
             >
-              <ThemeIcon size={16} />
+              <ThemeIcon size={15} />
             </button>
 
-            {/* Volver a la landing */}
-            <Link
-              href="/"
+            {/* Volver */}
+            <button
+              onClick={handleBack}
               style={{
                 display: "inline-flex",
                 alignItems: "center",
@@ -192,11 +197,14 @@ export default function LegalLayout({ children, title, description }) {
                 fontSize: 13,
                 fontWeight: 600,
                 color: "rgba(255,255,255,0.8)",
-                textDecoration: "none",
-                padding: "7px 14px",
+                background: "transparent",
+                padding: "6px clamp(8px, 2vw, 14px)",
                 border: "1px solid rgba(255,255,255,0.2)",
                 borderRadius: 0,
+                cursor: "pointer",
                 transition: "color 0.15s, background 0.15s",
+                whiteSpace: "nowrap",
+                fontFamily: "inherit",
               }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.color = "#fff";
@@ -209,23 +217,22 @@ export default function LegalLayout({ children, title, description }) {
             >
               <ArrowLeft size={13} />
               Volver
-            </Link>
+            </button>
           </div>
         </div>
       </header>
 
-      {/* ── Hero del encabezado legal (siempre oscuro, diseño editorial) ── */}
+      {/* ── Hero del encabezado legal ────────────────────────────── */}
       <div
         style={{
           background: "linear-gradient(135deg, #0a0f1e 0%, #0d1530 100%)",
-          paddingTop: "calc(var(--topbar-height, 70px) + 3.5rem)",
+          paddingTop: "3.5rem",
           paddingBottom: "3rem",
           paddingLeft: "max(16px, calc((100% - 48rem) / 2))",
           paddingRight: "max(16px, calc((100% - 48rem) / 2))",
         }}
       >
         <motion.div initial="hidden" animate="visible" variants={stagger}>
-          {/* Eyebrow label estilo SLB */}
           <motion.span
             variants={fadeUp}
             style={{
@@ -314,7 +321,7 @@ export default function LegalLayout({ children, title, description }) {
           }}
         >
           <p style={{ margin: 0 }}>
-            © 2025 Pangui. Hecho en Chile con ♥ para pymes de mantención.
+            © 2026 Pangui. Hecho en Chile con ♥ para pymes de mantención.
           </p>
           <div style={{ display: "flex", gap: 20 }}>
             {[

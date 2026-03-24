@@ -19,19 +19,27 @@
 
 @media (min-width: 1024px) {
   .nav {
-    top: var(--topbar-height);
+    top: 0;
     bottom: 0;
     right: auto;
     width: var(--sidebar-width);
-    height: auto;
+    height: 100dvh;
     flex-direction: column;
+    padding-top: 0;
     align-items: stretch;
     justify-content: flex-start;
     border-top: none;
     border-right: 1px solid var(--divider-1);
-    padding: 12px 8px;
-    gap: 2px;
     overflow-y: auto;
+    overflow-x: hidden;
+    scrollbar-width: none;
+  }
+
+  .nav::-webkit-scrollbar { display: none; }
+
+  /* Collapsed state */
+  .navCollapsed {
+    width: 64px;
   }
 
   .item,
@@ -41,9 +49,16 @@
     gap: 12px;
     flex: none;
     width: 100%;
-    padding: 11px 14px;
-    border-radius: 10px;
   }
+
+  .navCollapsed .item,
+  .navCollapsed .itemNueva {
+    justify-content: center;
+    padding: 11px 0;
+    gap: 0;
+  }
+
+  .navCollapsed .label { display: none; }
 
   .item.active,
   .itemNueva.active {
@@ -60,7 +75,100 @@
   .label {
     font-size: var(--fs-sm);
     font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
   }
+}
+
+/* ── Sidebar logo section ───────────────────────────────── */
+
+/* Expanded: flex row, children stretch to full height */
+.sidebarLogoArea {
+  display: flex;
+  align-items: stretch;
+  border-bottom: 1px solid var(--divider-1);
+}
+.sidebarLogoWrap {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 14px 10px;
+}
+
+.sidebarLogoImg {
+  height: 44px;
+  width: auto;
+  display: block;
+}
+
+/* Full-height collapse button on the right */
+.collapseBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  border-left: 1px solid var(--divider-1);
+  cursor: pointer;
+  color: var(--accent-5);
+  transition: background 0.15s, color 0.15s;
+}
+.collapseBtn:hover {
+  background: var(--surface-hover);
+  color: var(--black);
+}
+
+/* Collapsed: small logo centered, whole area is the expand button */
+.sidebarLogoCollapsed {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 14px 0;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--divider-1);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.sidebarLogoCollapsed:hover { background: var(--surface-hover); }
+
+.sidebarLogoImgSm {
+  height: 28px;
+  width: auto;
+  display: block;
+}
+
+/* ── Sidebar spacer ─────────────────────────────────────── */
+.sidebarSpacer { flex: 1; }
+
+/* ── Notification badge ──────────────────────────────────── */
+.bellWrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.notifDot {
+  position: absolute;
+  top: -5px;
+  right: -7px;
+  background: #EF4444;
+  color: #fff;
+  font-size: 9px;
+  font-weight: 700;
+  min-width: 16px;
+  height: 16px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 3px;
+  line-height: 1;
 }
 
 .itemDanger {

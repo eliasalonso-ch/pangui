@@ -24,7 +24,7 @@ function applyTheme(theme) {
 const FEATURES = [
   "Órdenes de trabajo en tiempo real",
   "Gestión de inventario y stock crítico",
-  "Facturación electrónica con SimpleFactura",
+  "Informes PDF y Excel exportables",
   "Firma digital del cliente en terreno",
 ];
 
@@ -78,11 +78,7 @@ export default function LoginPage() {
 
     const rol = perfil?.rol;
 
-    if (rol === "tecnico") {
-      router.push("/tecnico");
-    } else {
-      router.push("/jefe");
-    }
+    router.push("/ordenes");
   }
 
   return (
@@ -462,7 +458,7 @@ export default function LoginPage() {
           flexWrap: "wrap",
           gap: 8,
         }}>
-          <span>© 2025 Pangui</span>
+          <span>© 2026 Pangui</span>
           <div style={{ display: "flex", gap: 16 }}>
             <Link href="/privacidad" style={{ color: "var(--accent-5)", textDecoration: "none" }}
               onMouseEnter={(e) => (e.currentTarget.style.color = "var(--accent-1)")}

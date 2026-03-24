@@ -43,12 +43,12 @@ Deno.serve(async (req: Request) => {
 
   const { data: callerPerfil } = await admin
     .from("usuarios")
-    .select("rol, planta_id")
+    .select("rol, workspace_id")
     .eq("id", caller.id)
     .maybeSingle();
 
-  if (!callerPerfil || callerPerfil.rol !== "jefe") {
-    return json({ error: "Solo el jefe puede invitar miembros." }, 403);
+  if (!callerPerfil || !["jefe", "admin"].includes(callerPerfil.rol)) {
+    return json({ error: "No tienes permisos para invitar miembros." }, 403);
   }
 
   // Parse body
@@ -57,7 +57,10 @@ Deno.serve(async (req: Request) => {
   if (!nombre || !email || !password || !rol) {
     return json({ error: "Faltan campos requeridos." }, 400);
   }
-  if (!["tecnico", "jefe"].includes(rol)) {
+  const rolesPermitidos = callerPerfil.rol === "admin"
+    ? ["tecnico", "jefe", "admin"]
+    : ["tecnico", "jefe"];
+  if (!rolesPermitidos.includes(rol)) {
     return json({ error: "Rol inválido." }, 400);
   }
 
@@ -70,11 +73,11 @@ Deno.serve(async (req: Request) => {
 
   if (createError) return json({ error: createError.message }, 400);
 
-  // Insert profile in usuarios table
+  // Insert profile in usuarios table (same workspace as inviting user)
   const { error: dbError } = await admin.from("usuarios").insert({
-    id:        newUser.user.id,
-    planta_id: callerPerfil.planta_id,
-    nombre:    nombre.trim(),
+    id:           newUser.user.id,
+    workspace_id: callerPerfil.workspace_id,
+    nombre:       nombre.trim(),
     rol,
   });
 

@@ -189,7 +189,6 @@ export default function PrivacidadPage() {
           items={[
             "Crear, asignar y gestionar Órdenes de Trabajo entre técnicos y jefes de mantención.",
             "Enviar notificaciones push en tiempo real sobre cambios en el estado de las OT.",
-            "Emitir Documentos Tributarios Electrónicos (DTE) mediante la API de SimpleFactura, usando tu RUT y razón social.",
             "Gestionar el inventario de materiales y generar alertas de stock mínimo.",
             "Exportar reportes PDF y Excel para auditoría interna de tu empresa.",
             "Autenticarte de forma segura mediante Supabase Auth.",
@@ -227,7 +226,6 @@ export default function PrivacidadPage() {
         <Ul
           items={[
             "Supabase Inc. (EE.UU.) — Base de datos PostgreSQL, autenticación y almacenamiento de archivos. Infraestructura en AWS us-east-1. Cumple SOC 2 Type II.",
-            "SimpleFactura S.A. (Chile) — API de emisión de DTE. Solo recibe los datos tributarios necesarios para generar la factura o boleta.",
             "Vercel Inc. (EE.UU.) — Hosting del frontend. No almacena datos de usuarios más allá de logs de acceso temporales.",
             "Resend Inc. (EE.UU.) — Envío de correos transaccionales (confirmación de cuenta, avisos). Solo recibe email y contenido del mensaje.",
           ]}

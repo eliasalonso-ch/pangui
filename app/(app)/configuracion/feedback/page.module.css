@@ -1,0 +1,375 @@
+.cargando {
+  padding: 48px 16px;
+  text-align: center;
+  color: var(--accent-5);
+}
+
+.page {
+  min-height: 100dvh;
+  background: var(--background);
+  padding-bottom: 100px;
+}
+
+.container {
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 24px 16px;
+}
+
+@media (min-width: 1024px) {
+  .container {
+    padding: 32px 24px;
+  }
+}
+
+.backBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: none;
+  color: var(--accent-1);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+  margin-bottom: 16px;
+  font-family: var(--font-sans), system-ui, sans-serif;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.pageTitle {
+  font-size: var(--fs-lg);
+  font-weight: 700;
+  color: var(--black);
+  margin: 0 0 20px;
+}
+
+/* ── Form section ── */
+
+.formSection {
+  background: var(--white);
+  border: 1px solid var(--divider-1);
+  border-radius: 14px;
+  padding: 20px;
+  margin-bottom: 24px;
+}
+
+.formIntro {
+  font-size: var(--fs-sm);
+  color: var(--accent-5);
+  margin: 0 0 18px;
+  line-height: 1.5;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.label {
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--accent-5);
+}
+
+/* ── Tipo buttons ── */
+
+.tipoGrid {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.tipoBtn {
+  padding: 8px 14px;
+  border: 1.5px solid var(--divider-1);
+  border-radius: 99px;
+  background: var(--background);
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  font-family: var(--font-sans), system-ui, sans-serif;
+  color: var(--accent-5);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: all 0.15s;
+}
+
+.tipoBtnActive {
+  background: var(--accent-2);
+  border-color: var(--accent-1);
+  color: var(--accent-1);
+  font-weight: 700;
+}
+
+/* ── Textarea ── */
+
+.textarea {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1.5px solid var(--divider-1);
+  border-radius: 10px;
+  font-size: var(--fs-base);
+  font-family: var(--font-sans), system-ui, sans-serif;
+  color: var(--black);
+  background: var(--background);
+  outline: none;
+  resize: vertical;
+  min-height: 100px;
+  line-height: 1.5;
+  box-sizing: border-box;
+  -webkit-appearance: none;
+  transition: border-color 0.15s;
+}
+
+.textarea:focus {
+  border-color: var(--accent-1);
+}
+
+.textarea::placeholder {
+  color: var(--accent-6);
+}
+
+/* ── Rating ── */
+
+.ratingRow {
+  display: flex;
+  gap: 10px;
+}
+
+.ratingBtn {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1.5px solid var(--accent-5);
+  background: var(--background);
+  color: var(--accent-5);
+  font-size: var(--fs-base);
+  font-weight: 700;
+  font-family: var(--font-sans), system-ui, sans-serif;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: all 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ratingBtnActive {
+  background: var(--accent-1);
+  border-color: var(--accent-1);
+  color: var(--white);
+}
+
+.ratingHint {
+  font-size: var(--fs-xs);
+  color: var(--accent-5);
+  height: 16px;
+  margin: 0;
+}
+
+/* ── Error ── */
+
+.error {
+  font-size: var(--fs-sm);
+  color: var(--danger);
+  background: var(--danger-bg);
+  border-radius: 8px;
+  padding: 10px 12px;
+  line-height: 1.4;
+}
+
+/* ── Buttons ── */
+
+.btnEnviar {
+  width: 100%;
+  padding: 12px;
+  background: var(--accent-1);
+  color: var(--white);
+  border: none;
+  border-radius: 10px;
+  font-size: var(--fs-base);
+  font-weight: 600;
+  font-family: var(--font-sans), system-ui, sans-serif;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: opacity 0.15s;
+}
+
+.btnEnviar:active:not(:disabled) {
+  opacity: 0.8;
+}
+
+.btnEnviar:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btnSecondary {
+  padding: 10px 24px;
+  background: none;
+  border: 1.5px solid var(--divider-1);
+  border-radius: 10px;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  font-family: var(--font-sans), system-ui, sans-serif;
+  color: var(--accent-5);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.15s;
+}
+
+.btnSecondary:hover {
+  background: var(--background);
+}
+
+/* ── Confirmation ── */
+
+.confirmacion {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 24px 0;
+  gap: 8px;
+}
+
+.confirmIcon {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--success-bg);
+  color: var(--success);
+  font-size: 24px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 4px;
+}
+
+.confirmTitulo {
+  font-size: var(--fs-lg);
+  font-weight: 700;
+  color: var(--black);
+  margin: 0;
+}
+
+.confirmSub {
+  font-size: var(--fs-sm);
+  color: var(--accent-5);
+  line-height: 1.5;
+  margin: 0 0 8px;
+}
+
+/* ── Admin section ── */
+
+.adminSection {
+  margin-top: 8px;
+}
+
+.adminTitle {
+  font-size: var(--fs-base);
+  font-weight: 700;
+  color: var(--black);
+  margin: 0 0 4px;
+}
+
+.subtitle {
+  font-size: var(--fs-sm);
+  color: var(--accent-5);
+  margin: 0 0 16px;
+}
+
+/* ── Empty state ── */
+
+.empty {
+  text-align: center;
+  padding: 32px 16px;
+  color: var(--accent-5);
+}
+
+.emptyIcon {
+  color: var(--accent-6);
+  margin-bottom: 12px;
+}
+
+/* ── Feedback cards ── */
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.card {
+  background: var(--white);
+  border: 1px solid var(--divider-1);
+  border-radius: 14px;
+  padding: 16px 20px;
+}
+
+.cardHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.tipoBadge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 20px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.ratingDisplay {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--black);
+}
+
+.starIcon {
+  color: #f59e0b;
+  fill: #f59e0b;
+}
+
+.mensaje {
+  font-size: var(--fs-base);
+  color: var(--black);
+  line-height: 1.55;
+  margin: 0 0 12px;
+  white-space: pre-wrap;
+}
+
+.cardFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.autor {
+  font-size: var(--fs-xs);
+  color: var(--accent-5);
+  font-weight: 500;
+}
+
+.fecha {
+  font-size: var(--fs-xs);
+  color: var(--accent-6);
+}

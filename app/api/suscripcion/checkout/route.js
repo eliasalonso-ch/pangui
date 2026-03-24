@@ -11,21 +11,15 @@ const MP_API = "https://api.mercadopago.com";
 const TOKEN = process.env.MERCADOPAGO_ACCESS_TOKEN;
 
 const PLAN_IDS = {
-  basic:   process.env.MP_PLAN_BASIC_ID,
-  pro:     process.env.MP_PLAN_PRO_ID,
-  empresa: process.env.MP_PLAN_EMPRESA_ID,
+  pro: process.env.MP_PLAN_BASIC_ID, // Pro = $9.990/mes
 };
 
 const PLAN_AMOUNTS = {
-  basic:   9990,
-  pro:     19990,
-  empresa: 39990,
+  pro: 9990,
 };
 
 const PLAN_NAMES = {
-  basic:   "Pangui Basic",
-  pro:     "Pangui Pro",
-  empresa: "Pangui Empresa",
+  pro: "Pangui Pro",
 };
 
 const adminClient = createClient(
@@ -47,10 +41,6 @@ export async function POST(req) {
     }, { status: 400 });
   }
 
-  const now = new Date();
-  const startDate = new Date(now);
-  startDate.setMonth(startDate.getMonth() + 1); // empieza a cobrar después del mes gratis
-
   const res = await fetch(`${MP_API}/preapproval`, {
     method: "POST",
     headers: {
@@ -66,11 +56,10 @@ export async function POST(req) {
       auto_recurring: {
         frequency: 1,
         frequency_type: "months",
-        start_date: startDate.toISOString(),
         transaction_amount: PLAN_AMOUNTS[plan],
         currency_id: "CLP",
       },
-      back_url: "https://pangui.cl/jefe/suscripcion",
+      back_url: `${process.env.NEXT_PUBLIC_APP_URL}/configuracion/suscripcion`,
       status: "authorized",
     }),
   });

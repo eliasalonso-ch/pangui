@@ -2,18 +2,32 @@
   min-height: 100dvh;
   background: #f1f5f9;
   display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  padding: 24px 16px 48px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 16px 12px 48px;
 }
 
 .card {
   background: #fff;
   border-radius: 16px;
-  padding: 28px 24px 32px;
+  padding: 24px 16px 32px;
   width: 100%;
-  max-width: 500px;
-  box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+  max-width: 520px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+  margin-top: 16px;
+}
+
+/* Header (logo + controles) */
+.header {
+  width: 100%;
+  max-width: 520px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 0 12px;
+  flex-wrap: wrap;
+  gap: 12px;
 }
 
 .logoRow {
@@ -52,9 +66,9 @@
   margin: 0 0 24px;
 }
 
-/* ── Tipo selector ── */
+/* ── Campo genérico ── */
 .field {
-  margin-bottom: 18px;
+  margin-bottom: 20px;
 }
 
 .label {
@@ -65,24 +79,34 @@
   margin-bottom: 8px;
 }
 
+/* ── Selector de tipo ── */
 .tipoGrid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-  margin-bottom: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
 }
 
 .tipoBtn {
-  padding: 10px 8px;
+  padding: 12px 10px;
   border: 1.5px solid #e5e7eb;
-  border-radius: 10px;
+  border-radius: 12px;
   background: none;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   color: #374151;
   cursor: pointer;
-  transition: border-color 0.15s, background 0.15s;
-  font-family: inherit;
+  transition: all 0.15s ease;
+  min-height: 48px; /* mejor touch target */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.tipoBtn:hover {
+  border-color: #9ca3af;
+  background: #f8fafc;
 }
 
 .tipoBtnActive {
@@ -110,29 +134,31 @@
   box-sizing: border-box;
   border: 1.5px solid #e5e7eb;
   border-radius: 10px;
-  padding: 10px 12px;
+  padding: 12px 14px;
   font-size: 15px;
   color: #1a1a1a;
   background: #f8fafc;
   outline: none;
-  transition: border-color 0.15s;
+  transition: border-color 0.2s, box-shadow 0.2s;
   font-family: inherit;
 }
 
 .input:focus,
 .textarea:focus {
   border-color: #273d88;
+  box-shadow: 0 0 0 3px rgba(39, 61, 136, 0.1);
 }
 
 .textarea {
   resize: vertical;
-  min-height: 80px;
+  min-height: 90px;
 }
 
 .error {
   font-size: 13px;
   color: #dc2626;
-  margin: 0 0 12px;
+  margin: 4px 0 12px;
+  padding-left: 2px;
 }
 
 .btnSend {
@@ -142,17 +168,24 @@
   color: #fff;
   border: none;
   border-radius: 12px;
-  padding: 14px;
+  padding: 14px 16px;
   font-size: 16px;
   font-weight: 700;
   cursor: pointer;
   font-family: inherit;
-  margin-bottom: 16px;
-  transition: opacity 0.15s;
+  margin: 20px 0 16px;
+  transition: background 0.15s, transform 0.1s;
+  min-height: 52px;
 }
 
-.btnSend:disabled { opacity: 0.6; }
-.btnSend:active:not(:disabled) { opacity: 0.85; }
+.btnSend:hover:not(:disabled) {
+  background: #1f316e;
+}
+
+.btnSend:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
 
 .legal {
   font-size: 12px;
@@ -164,21 +197,21 @@
 
 /* ── Success ── */
 .successIcon {
-  width: 56px;
-  height: 56px;
+  width: 64px;
+  height: 64px;
   border-radius: 50%;
   background: #dcfce7;
   color: #16a34a;
-  font-size: 28px;
+  font-size: 32px;
   font-weight: 700;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin: 0 auto 16px;
+  margin: 0 auto 20px;
 }
 
 .successTitle {
-  font-size: 22px;
+  font-size: 24px;
   font-weight: 800;
   color: #1a1a1a;
   text-align: center;
@@ -193,23 +226,73 @@
   margin: 0;
 }
 
+/* ── Dark mode ── */
 @media (prefers-color-scheme: dark) {
   .page { background: #0f172a; }
   .card { background: #1e293b; box-shadow: none; }
-  .title { color: #f1f5f9; }
-  .label { color: #f1f5f9; }
-  .input, .textarea { background: #0f172a; border-color: #334155; color: #f1f5f9; }
-  .tipoBtn { border-color: #334155; color: #cbd5e1; background: #0f172a; }
-  .tipoDesc { background: #0f172a; }
-  .legal { color: #64748b; }
+  .title, .label { color: #f1f5f9; }
+  .subtitle, .tipoDesc, .legal, .error { color: #94a3b8; }
+  .input, .textarea {
+    background: #0f172a;
+    border-color: #334155;
+    color: #f1f5f9;
+  }
+  .tipoBtn {
+    border-color: #334155;
+    color: #cbd5e1;
+    background: #1e293b;
+  }
+  .tipoBtn:hover { background: #334155; }
+  .tipoBtnActive {
+    border-color: #4b6cb7;
+    background: #1e40af1a;
+    color: #c7d2fe;
+  }
+  .successIcon { background: #14532d; color: #86efac; }
+  .successTitle { color: #f1f5f9; }
+  .successText { color: #cbd5e1; }
 }
 
+/* Soporte explícito para data-theme="dark" (como usas en el sitio) */
 :global(html[data-theme="dark"]) .page { background: #0f172a; }
 :global(html[data-theme="dark"]) .card { background: #1e293b; box-shadow: none; }
-:global(html[data-theme="dark"]) .title { color: #f1f5f9; }
+:global(html[data-theme="dark"]) .title,
 :global(html[data-theme="dark"]) .label { color: #f1f5f9; }
+:global(html[data-theme="dark"]) .subtitle,
+:global(html[data-theme="dark"]) .tipoDesc,
+:global(html[data-theme="dark"]) .legal,
+:global(html[data-theme="dark"]) .error { color: #94a3b8; }
 :global(html[data-theme="dark"]) .input,
-:global(html[data-theme="dark"]) .textarea { background: #0f172a; border-color: #334155; color: #f1f5f9; }
-:global(html[data-theme="dark"]) .tipoBtn { border-color: #334155; color: #cbd5e1; background: #0f172a; }
-:global(html[data-theme="dark"]) .tipoDesc { background: #0f172a; }
-:global(html[data-theme="dark"]) .legal { color: #64748b; }
+:global(html[data-theme="dark"]) .textarea {
+  background: #0f172a;
+  border-color: #334155;
+  color: #f1f5f9;
+}
+:global(html[data-theme="dark"]) .tipoBtn {
+  border-color: #334155;
+  color: #cbd5e1;
+  background: #1e293b;
+}
+:global(html[data-theme="dark"]) .tipoBtn:hover { background: #334155; }
+:global(html[data-theme="dark"]) .tipoBtnActive {
+  border-color: #4b6cb7;
+  background: #1e40af1a;
+  color: #c7d2fe;
+}
+
+/* ── Breakpoints ── */
+
+@media (max-width: 480px) {
+  .page { padding: 12px 10px 40px; }
+  .card { padding: 20px 14px 28px; }
+  .tipoGrid { grid-template-columns: 1fr; gap: 8px; }
+  .tipoBtn { font-size: 13px; padding: 12px 8px; }
+  .title { font-size: 20px; }
+  .subtitle { font-size: 13px; }
+  .btnSend { font-size: 15px; padding: 13px; }
+}
+
+@media (max-width: 360px) {
+  .header { flex-direction: column; align-items: flex-start; gap: 16px; }
+  .logoRow { margin-bottom: 12px; }
+}

@@ -41,12 +41,6 @@ async function crearPlan({ reason, amount }) {
       auto_recurring: {
         frequency: 1,
         frequency_type: "months",
-        billing_day: 1,
-        billing_day_proportional: true,
-        free_trial: {
-          frequency: 1,
-          frequency_type: "months",
-        },
         transaction_amount: amount,
         currency_id: "CLP",
       },
@@ -54,7 +48,7 @@ async function crearPlan({ reason, amount }) {
         payment_types: [{ id: "credit_card" }, { id: "debit_card" }],
         payment_methods: [],
       },
-      back_url: "https://pangui.cl/jefe/suscripcion",
+      back_url: `${process.env.NEXT_PUBLIC_APP_URL}/configuracion/suscripcion`,
     }),
   });
 

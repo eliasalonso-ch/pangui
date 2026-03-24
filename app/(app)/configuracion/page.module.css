@@ -1,0 +1,332 @@
+.cargando {
+  padding: 48px 16px;
+  text-align: center;
+  color: var(--accent-5);
+}
+
+.page {
+  min-height: 100dvh;
+  background: var(--background);
+  padding-bottom: 100px;
+}
+
+.container {
+  max-width: 540px;
+  margin: 0 auto;
+  padding: 24px 16px;
+}
+
+@media (min-width: 1024px) {
+  .container {
+    max-width: 600px;
+    padding: 32px 24px;
+  }
+}
+
+.pageTitle {
+  font-size: var(--fs-lg);
+  font-weight: 700;
+  color: var(--black);
+  margin: 0 0 24px;
+}
+
+/* ── Section ──────────────────────────────────────────── */
+
+.section {
+  background: var(--white);
+  border: 1px solid var(--divider-1);
+  border-radius: 14px;
+  padding: 20px;
+  margin-bottom: 12px;
+}
+
+.sectionHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.sectionIcon {
+  color: var(--accent-1);
+  flex-shrink: 0;
+}
+
+.sectionTitle {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--accent-5);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin: 0;
+}
+
+/* ── Link cards ──────────────────────────────────────── */
+
+.linkCard {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--white);
+  border: 1px solid var(--divider-1);
+  border-radius: 14px;
+  padding: 16px 20px;
+  margin-bottom: 12px;
+  text-decoration: none;
+  transition: border-color 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.linkCard:hover {
+  border-color: var(--accent-1);
+}
+
+.linkCardLeft {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+
+.linkCardIcon {
+  color: var(--accent-1);
+  flex-shrink: 0;
+}
+
+.linkCardTitle {
+  display: block;
+  font-size: var(--fs-base);
+  font-weight: 600;
+  color: var(--black);
+}
+
+.linkCardSub {
+  display: block;
+  font-size: var(--fs-xs);
+  color: var(--accent-5);
+  margin-top: 2px;
+}
+
+.linkCardArrow {
+  color: var(--accent-5);
+  flex-shrink: 0;
+}
+
+/* ── Info rows ────────────────────────────────────────── */
+
+.infoRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--divider-1);
+  gap: 12px;
+}
+
+.infoRow:last-of-type {
+  border-bottom: none;
+}
+
+.infoLabel {
+  font-size: var(--fs-sm);
+  color: var(--accent-5);
+  flex-shrink: 0;
+}
+
+.infoValue {
+  font-size: var(--fs-sm);
+  color: var(--black);
+  font-weight: 500;
+  text-align: right;
+  word-break: break-all;
+}
+
+/* ── Role badge ───────────────────────────────────────── */
+
+.rolBadge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 20px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.rol_admin {
+  background: var(--accent-2);
+  color: var(--accent-1);
+}
+
+.rol_jefe {
+  background: var(--accent-2);
+  color: var(--accent-1);
+}
+
+.rol_tecnico {
+  background: var(--success-bg);
+  color: var(--success);
+}
+
+/* ── Form ─────────────────────────────────────────────── */
+
+.form {
+  display: flex;
+  flex-direction: column;
+  margin-top: 16px;
+}
+
+.label {
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  color: var(--black);
+  margin-bottom: 6px;
+}
+
+.input {
+  width: 100%;
+  padding: 10px 13px;
+  border: 1.5px solid var(--divider-1);
+  border-radius: 10px;
+  font-size: var(--fs-base);
+  font-family: var(--font-sans), system-ui, sans-serif;
+  color: var(--black);
+  background: var(--background);
+  box-sizing: border-box;
+  transition: border-color 0.15s;
+  outline: none;
+}
+
+.input:focus {
+  border-color: var(--accent-1);
+}
+
+.inputRow {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.inputRow .input {
+  flex: 1;
+}
+
+/* ── Buttons ──────────────────────────────────────────── */
+
+.btnPrimary {
+  padding: 11px 20px;
+  background: var(--accent-1);
+  color: var(--white);
+  border: none;
+  border-radius: 10px;
+  font-size: var(--fs-base);
+  font-weight: 600;
+  cursor: pointer;
+  font-family: var(--font-sans), system-ui, sans-serif;
+  transition: opacity 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.btnPrimary:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.btnPrimary:not(:disabled):hover {
+  opacity: 0.9;
+}
+
+.btnSecondary {
+  padding: 10px 16px;
+  background: var(--accent-2);
+  color: var(--accent-1);
+  border: none;
+  border-radius: 10px;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  cursor: pointer;
+  font-family: var(--font-sans), system-ui, sans-serif;
+  white-space: nowrap;
+  transition: opacity 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.btnSecondary:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.btnDanger {
+  width: 100%;
+  padding: 12px;
+  background: var(--danger-bg);
+  color: var(--danger);
+  border: 1.5px solid var(--danger);
+  border-radius: 10px;
+  font-size: var(--fs-base);
+  font-weight: 600;
+  cursor: pointer;
+  font-family: var(--font-sans), system-ui, sans-serif;
+  transition: background 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.btnDanger:hover {
+  background: var(--danger);
+  color: var(--white);
+}
+
+/* ── Messages ─────────────────────────────────────────── */
+
+.errorMsg {
+  font-size: var(--fs-sm);
+  color: var(--danger);
+  margin: 8px 0 0;
+}
+
+.successMsg {
+  font-size: var(--fs-sm);
+  color: var(--success);
+  margin: 8px 0 0;
+  font-weight: 500;
+}
+
+/* ── Notifications ────────────────────────────────────── */
+
+.notifStatus {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--fs-sm);
+  color: var(--black);
+}
+
+.notifDotGreen {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--success);
+  flex-shrink: 0;
+}
+
+.notifDotGray {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--accent-6);
+  flex-shrink: 0;
+}
+
+.notifDotRed {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--danger);
+  flex-shrink: 0;
+}
+
+.infoText {
+  font-size: var(--fs-sm);
+  color: var(--accent-5);
+  margin: 8px 0 0;
+  line-height: 1.5;
+}
