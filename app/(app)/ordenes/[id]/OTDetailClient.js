@@ -1,17 +1,4 @@
 "use client";
-/**
- * OT Detail — Mobile (Client Component)
- *
- * Key optimizations applied:
- * 1. TimerBanner owns its own state  → only it re-renders each second (not the whole page)
- * 2. All sub-components are memo()   → skipped when props haven't changed
- * 3. Handlers in useCallback         → stable references so memo'd children don't re-render
- * 4. Filtered arrays in useMemo      → not recomputed on every render
- * 5. Data fetching parallelized      → 2 Promise.all round-trips instead of 5 sequential awaits
- * 6. comprimirImagen is module-level → not recreated on every render
- * 7. notasCierre state lives in CloseSheet → completarOT doesn't depend on it, no churn
- * 8. Server Component passes initial data → zero client-side loading waterfall
- */
 import { useCallback, useEffect, useMemo, useRef, useState, memo } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -25,36 +12,47 @@ import {
 } from "lucide-react";
 import { createClient } from "@/lib/supabase";
 import { callEdge } from "@/lib/edge";
+import { Button }                          from "@/components/ui/button";
+import { Badge }                           from "@/components/ui/badge";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Progress }                        from "@/components/ui/progress";
+import { Avatar, AvatarFallback }          from "@/components/ui/avatar";
+import { Separator }                       from "@/components/ui/separator";
+import { Textarea }                        from "@/components/ui/textarea";
 import styles from "./page.module.css";
 
-// ─── Module-level constants — never recreated on render ──────────────────────
+// ─── Module-level constants ───────────────────────────────────────────────────
 const LUCIDE_ICONS = {
   Zap, Wrench, Wind, HardHat, ShieldAlert, Flame, Sparkles,
   AlertTriangle, CheckSquare, BadgeCheck, Settings2, Wifi, Paintbrush, Leaf,
 };
 
-const ESTADO_COLOR = {
-  pendiente:   { bg: "#EFF6FF", text: "#3B82F6" },
-  en_espera:   { bg: "#FFFBEB", text: "#D97706" },
-  en_curso:    { bg: "#EEF2FF", text: "#6366F1" },
-  en_revision: { bg: "#EEF2FF", text: "#6366F1" },
-  completado:  { bg: "#F0FDF4", text: "#22C55E" },
-  cancelado:   { bg: "#F3F4F6", text: "#6B7280" },
+const ESTADO_CONFIG = {
+  pendiente:   { label: "Abierta",   variant: "info",    Icon: Circle       },
+  en_espera:   { label: "En espera", variant: "warning",  Icon: PauseCircle  },
+  en_curso:    { label: "En curso",  variant: "secondary",Icon: PlayCircle   },
+  en_revision: { label: "Revisión",  variant: "secondary",Icon: PlayCircle   },
+  completado:  { label: "Completada",variant: "success",  Icon: CheckCircle2 },
+  cancelado:   { label: "Cancelada", variant: "muted",    Icon: XCircle      },
 };
 
-const PRIORIDAD_COLOR = {
-  ninguna: null, baja: "#9CA3AF", media: "#3B82F6", alta: "#F97316", urgente: "#EF4444",
+const PRIORIDAD_CONFIG = {
+  ninguna: { label: "Sin prioridad", color: null,       Icon: Minus         },
+  baja:    { label: "Baja",          color: "#9CA3AF",  Icon: ChevronDown   },
+  media:   { label: "Media",         color: "#3B82F6",  Icon: Minus         },
+  alta:    { label: "Alta",          color: "#F97316",  Icon: ChevronUp     },
+  urgente: { label: "Urgente",       color: "#EF4444",  Icon: AlertTriangle },
 };
-const PRIORIDAD_LABEL    = { ninguna: "Sin prioridad", baja: "Baja", media: "Media", alta: "Alta", urgente: "Urgente" };
+
 const TIPO_TRABAJO_LABEL = { reactiva: "Reactiva", preventiva: "Preventiva", inspeccion: "Inspección", mejora: "Mejora" };
 
-// Static arrays keep map() from rebuilding the options list on every render
 const STATUS_BTNS = [
   { value: "pendiente", label: "Abierta",   Icon: Circle      },
   { value: "en_espera", label: "En espera", Icon: PauseCircle },
   { value: "en_curso",  label: "En curso",  Icon: PlayCircle  },
   { value: "cancelado", label: "Cancelada", Icon: XCircle     },
 ];
+
 const PRIORITY_BTNS = [
   { value: "baja",    label: "Baja",    Icon: ChevronDown,   color: "#9CA3AF" },
   { value: "media",   label: "Media",   Icon: Minus,         color: "#3B82F6" },
@@ -62,7 +60,7 @@ const PRIORITY_BTNS = [
   { value: "urgente", label: "Urgente", Icon: AlertTriangle, color: "#EF4444" },
 ];
 
-// ─── Module-level utilities — not recreated on render ────────────────────────
+// ─── Utilities ────────────────────────────────────────────────────────────────
 function vencimiento(fecha) {
   if (!fecha) return null;
   const diff = Math.ceil((new Date(fecha) - Date.now()) / 86400000);
@@ -86,7 +84,10 @@ function fmtTimer(secs) {
   return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
 
-// Outside the component — not re-created on each render
+function initials(nombre) {
+  return (nombre ?? "?").split(" ").map(w => w[0]).slice(0, 2).join("").toUpperCase();
+}
+
 async function comprimirImagen(file) {
   return new Promise((resolve) => {
     const img    = new Image();
@@ -109,28 +110,22 @@ async function comprimirImagen(file) {
   });
 }
 
-// ─── Main client component ────────────────────────────────────────────────────
+// ─── Main component ───────────────────────────────────────────────────────────
 export default function OTDetailClient({ id, initialOrden, initialArchivos, initialComentarios, initialPasos, usuarios: initialUsuarios, myId: initialMyId }) {
-  const router  = useRouter();
+  const router = useRouter();
 
   const [orden,        setOrden]        = useState(initialOrden);
   const [pasos,        setPasos]        = useState(initialPasos);
   const [archivos,     setArchivos]     = useState(initialArchivos);
   const [loading,      setLoading]      = useState(false);
   const [myId,         setMyId]         = useState(initialMyId);
-  // Derived from orden.workspace_id — keeping as ref avoids an extra state slot
-  // and prevents completarOT from depending on a separate piece of state that
-  // changes at load time (which would re-create the callback).
   const workspaceIdRef = useRef(initialOrden?.workspace_id ?? null);
 
-  // Epoch-ms timestamp when the timer was started; stored in localStorage for persistence
-  const [timerStart,   setTimerStart]   = useState(null);
-
+  const [timerStart,     setTimerStart]     = useState(null);
   const fotoContextoRef  = useRef(null);
   const fotoEvidenciaRef = useRef(null);
-  const [uploadingCtx, setUploadingCtx] = useState(false);
-  const [uploadingEvd, setUploadingEvd] = useState(false);
-
+  const [uploadingCtx,   setUploadingCtx]   = useState(false);
+  const [uploadingEvd,   setUploadingEvd]   = useState(false);
   const [stepsDone,      setStepsDone]      = useState(new Set());
   const [usuarios,       setUsuarios]       = useState(initialUsuarios);
   const [showCloseSheet, setShowCloseSheet] = useState(false);
@@ -138,11 +133,10 @@ export default function OTDetailClient({ id, initialOrden, initialArchivos, init
   const [lightboxUrl,    setLightboxUrl]    = useState(null);
   const [comentarios,    setComentarios]    = useState(initialComentarios);
   const [comentarioTexto, setComentarioTexto] = useState("");
-  const [sendingComment, setSendingComment] = useState(false);
+  const [sendingComment,  setSendingComment]  = useState(false);
 
-  // ── Restore timer + checklist from localStorage; redirect desktop ───────────
+  // ── Redirect desktop, restore timer/steps ────────────────────────────────────
   useEffect(() => {
-    // Redirect desktop to the side-panel version
     if (window.matchMedia("(min-width: 1024px)").matches) {
       sessionStorage.setItem("pangui_open_ot", id);
       router.replace("/ordenes");
@@ -150,12 +144,10 @@ export default function OTDetailClient({ id, initialOrden, initialArchivos, init
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    // Restore timer
     try {
       const ts = parseInt(localStorage.getItem(`pangui_start_${id}`));
       if (!isNaN(ts) && ts > 0 && initialOrden?.estado === "en_curso") setTimerStart(ts);
     } catch {}
-    // Restore step completion state
     if (initialPasos?.length) {
       try {
         const saved = JSON.parse(localStorage.getItem(`pangui_steps_${id}`) || "[]");
@@ -164,7 +156,7 @@ export default function OTDetailClient({ id, initialOrden, initialArchivos, init
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Realtime: reflect edits from the edit page instantly ─────────────────────
+  // ── Realtime UPDATE ───────────────────────────────────────────────────────────
   useEffect(() => {
     const sb = createClient();
     const ch = sb.channel(`ot-detail-${id}`)
@@ -172,29 +164,25 @@ export default function OTDetailClient({ id, initialOrden, initialArchivos, init
         event: "UPDATE", schema: "public", table: "ordenes_trabajo",
         filter: `id=eq.${id}`,
       }, (payload) => {
-        // Spread raw columns over existing state — preserves joined objects (categorias_ot, etc.)
         setOrden(prev => prev ? { ...prev, ...payload.new } : prev);
       })
       .subscribe();
     return () => { sb.removeChannel(ch); };
   }, [id]);
 
-  // ── Memoized derived values — skip recomputation when archivos/orden unchanged
+  // ── Derived values ────────────────────────────────────────────────────────────
   const { fotosContexto, fotosEvidencia, otrosArcs } = useMemo(() => ({
     fotosContexto:  archivos.filter(a => a.tipo_mime?.startsWith("image/") && a.tipo === "contexto"),
     fotosEvidencia: archivos.filter(a => a.tipo_mime?.startsWith("image/") && a.tipo !== "contexto"),
     otrosArcs:      archivos.filter(a => !a.tipo_mime?.startsWith("image/")),
   }), [archivos]);
 
-  // Depend only on the three primitives used — never change after load.
-  // Previously depended on [orden] so it recomputed on every estado/prioridad change.
   const otId = useMemo(() =>
     orden
       ? `${orden.tipo === "emergencia" ? "EM" : "OT"}-${new Date(orden.created_at).getFullYear()}-${orden.id.slice(-4).toUpperCase()}`
       : "",
   [orden?.id, orden?.tipo, orden?.created_at]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Depend on the icono string (primitive) not the whole object.
   const CatIcon = useMemo(() =>
     orden?.categorias_ot ? (LUCIDE_ICONS[orden.categorias_ot.icono] ?? null) : null,
   [orden?.categorias_ot?.icono]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -203,7 +191,7 @@ export default function OTDetailClient({ id, initialOrden, initialArchivos, init
     ["pendiente", "en_espera", "en_curso", "en_revision"].includes(orden?.estado),
   [orden?.estado]);
 
-  // ── Action handlers — useCallback keeps references stable for memo'd children ─
+  // ── Handlers ──────────────────────────────────────────────────────────────────
   const cambiarEstado = useCallback(async (nuevoEstado) => {
     const sb = createClient();
     await sb.from("ordenes_trabajo").update({ estado: nuevoEstado }).eq("id", id);
@@ -217,7 +205,6 @@ export default function OTDetailClient({ id, initialOrden, initialArchivos, init
   }, [id]);
 
   const toggleResponsable = useCallback(async (userId) => {
-    // Compute next state inside setOrden to avoid stale closure on asignados_ids
     let anterior;
     let added = false;
     let ordenTitulo = "";
@@ -290,11 +277,6 @@ export default function OTDetailClient({ id, initialOrden, initialArchivos, init
     });
   }, [id, myId]);
 
-  // notas is passed in from CloseSheet so this callback doesn't depend on
-  // notasCierre state → no re-creation on each keystroke → CloseSheet stays stable
-  // workspaceId and myId are read via refs/state that only change once at load —
-  // using workspaceIdRef removes workspaceId from deps entirely so this callback
-  // is created once and never re-created.
   const completarOT = useCallback(async (notas) => {
     setCompleting(true);
     const sb    = createClient();
@@ -332,17 +314,12 @@ export default function OTDetailClient({ id, initialOrden, initialArchivos, init
     setUpl(false);
   }, [id]);
 
-  // Stable per-section wrappers — prevents inline arrow fns in JSX from breaking memo on FotoSection
   const subirFotoCtx = useCallback((f) => subirFoto(f, "contexto"), [subirFoto]);
   const subirFotoEvd = useCallback((f) => subirFoto(f, "evidencia"), [subirFoto]);
-
-  // These four replace inline () => ... in JSX.
-  // Without these, every parent re-render passes a new function reference to a
-  // memo'd child, defeating memo entirely for Header, ActionBar, Lightbox, CloseSheet.
-  const handleBack       = useCallback(() => router.back(),            [router]);
-  const openCloseSheet   = useCallback(() => setShowCloseSheet(true),  []);
-  const closeCloseSheet  = useCallback(() => setShowCloseSheet(false), []);
-  const closeLightbox    = useCallback(() => setLightboxUrl(null),     []);
+  const handleBack      = useCallback(() => router.back(),            [router]);
+  const openCloseSheet  = useCallback(() => setShowCloseSheet(true),  []);
+  const closeCloseSheet = useCallback(() => setShowCloseSheet(false), []);
+  const closeLightbox   = useCallback(() => setLightboxUrl(null),     []);
 
   const agregarComentario = useCallback(async () => {
     const texto = comentarioTexto.trim();
@@ -353,9 +330,7 @@ export default function OTDetailClient({ id, initialOrden, initialArchivos, init
       orden_id: id, planta_id: workspaceIdRef.current, usuario_id: myId,
       tipo: "comentario", contenido: texto,
     }).select("id, tipo, contenido, created_at, usuario_id").single();
-    if (nuevo) {
-      setComentarios(prev => [...prev, nuevo]);
-    }
+    if (nuevo) setComentarios(prev => [...prev, nuevo]);
     setComentarioTexto("");
     setSendingComment(false);
   }, [id, myId, comentarioTexto]);
@@ -367,38 +342,65 @@ export default function OTDetailClient({ id, initialOrden, initialArchivos, init
     router.back();
   }, [id, router]);
 
-  // ── Render ────────────────────────────────────────────────────────────────
-  if (!orden)  return <div className={styles.loading}>OT no encontrada.</div>;
+  // ── Render ────────────────────────────────────────────────────────────────────
+  if (!orden) return <div className={styles.loading}>OT no encontrada.</div>;
+
+  const estadoCfg   = ESTADO_CONFIG[orden.estado]   ?? ESTADO_CONFIG.pendiente;
+  const prioridadCfg = PRIORIDAD_CONFIG[orden.prioridad] ?? PRIORIDAD_CONFIG.ninguna;
+  const venc = vencimiento(orden.fecha_termino);
 
   return (
     <main className={styles.page}>
-      <Header
-        otId={otId}
-        categoria={orden.categorias_ot}
-        CatIcon={CatIcon}
-        ordenId={orden.id}
-        onBack={handleBack}
-        onDelete={eliminarOT}
-      />
+      {/* ── Header ─────────────────────────────────────────────────────── */}
+      <div className={styles.header}>
+        <Button variant="ghost" size="icon" onClick={handleBack}>
+          <ArrowLeft size={20} />
+        </Button>
+        <div className={styles.headerCenter}>
+          <span className={styles.otId}>{otId}</span>
+          {CatIcon && orden.categorias_ot && (
+            <Badge variant="outline" style={{ borderColor: orden.categorias_ot.color, color: orden.categorias_ot.color }}>
+              <CatIcon size={11} />
+              {orden.categorias_ot.nombre}
+            </Badge>
+          )}
+        </div>
+        <Button variant="ghost" size="icon" asChild>
+          <a href={`/ordenes/${orden.id}/edit`}><ExternalLink size={18} /></a>
+        </Button>
+        <Button variant="ghost" size="icon" onClick={eliminarOT} className="text-destructive hover:text-destructive">
+          <Trash2 size={18} />
+        </Button>
+      </div>
 
+      {/* ── Body ───────────────────────────────────────────────────────── */}
       <div className={styles.body}>
+        {/* Title + meta badges */}
         <h1 className={styles.titulo}>{orden.titulo || orden.descripcion?.slice(0, 100) || "Sin título"}</h1>
 
-        {((orden.prioridad && orden.prioridad !== "ninguna") || orden.tipo_trabajo) && (
-          <div className={styles.titleMeta}>
-            <span className={styles.titleMetaLabel}>Prioridad:</span>
-            {orden.prioridad && orden.prioridad !== "ninguna" && (
-              <span className={styles.prioridadBadge} style={{ color: PRIORIDAD_COLOR[orden.prioridad], borderColor: PRIORIDAD_COLOR[orden.prioridad] }}>
-                {PRIORIDAD_LABEL[orden.prioridad]}
-              </span>
-            )}
-            {orden.tipo_trabajo && (
-              <span className={styles.tipoBadge}>{TIPO_TRABAJO_LABEL[orden.tipo_trabajo]}</span>
-            )}
-          </div>
-        )}
+        <div className="flex flex-wrap items-center gap-2 mb-3">
+          <Badge variant={estadoCfg.variant}>
+            <estadoCfg.Icon size={11} />
+            {estadoCfg.label}
+          </Badge>
+          {orden.prioridad && orden.prioridad !== "ninguna" && (
+            <Badge variant="outline" style={{ borderColor: prioridadCfg.color, color: prioridadCfg.color }}>
+              <prioridadCfg.Icon size={11} />
+              {prioridadCfg.label}
+            </Badge>
+          )}
+          {orden.tipo_trabajo && (
+            <Badge variant="secondary">{TIPO_TRABAJO_LABEL[orden.tipo_trabajo]}</Badge>
+          )}
+          {venc && (
+            <Badge variant={venc.urgent ? "destructive" : "outline"} suppressHydrationWarning>
+              <Calendar size={11} />
+              {venc.label}
+            </Badge>
+          )}
+        </div>
 
-        <p className={styles.createdAt}>
+        <p className={styles.createdAt} suppressHydrationWarning>
           <Calendar size={12} />
           Creada el{" "}
           {new Date(orden.created_at).toLocaleDateString("es-CL", { day: "numeric", month: "long", year: "numeric" })}
@@ -406,6 +408,9 @@ export default function OTDetailClient({ id, initialOrden, initialArchivos, init
           {new Date(orden.created_at).toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" })}
         </p>
 
+        <Separator className="my-4" />
+
+        {/* Fotos del problema */}
         <FotoSection
           titulo="Fotos del Problema"
           fotos={fotosContexto}
@@ -417,24 +422,28 @@ export default function OTDetailClient({ id, initialOrden, initialArchivos, init
           wrapperClass={styles.fotosTop}
         />
 
-        {/* TimerBanner is isolated — only it re-renders each second */}
+        {/* Timer banner */}
         {orden.estado === "en_curso" && timerStart && (
           <TimerBanner timerStart={timerStart} tiempoEstimado={orden.tiempo_estimado} />
         )}
 
+        {/* Completed banner */}
         {orden.estado === "completado" && (
-          <div className={styles.completadoBanner}>
+          <div className={styles.completadoBanner} suppressHydrationWarning>
             <CheckCircle2 size={16} />
-            <span>
+            <span suppressHydrationWarning>
               Completada
               {orden.completado_en && ` · ${new Date(orden.completado_en).toLocaleDateString("es-CL", { day: "numeric", month: "short" })} ${new Date(orden.completado_en).toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" })}`}
             </span>
           </div>
         )}
 
+        {/* Estado selector */}
         <EstadoSelector estado={orden.estado} onChange={cambiarEstado} />
+        {/* Prioridad selector */}
         <PrioritySelector prioridad={orden.prioridad} onChange={cambiarPrioridad} />
 
+        {/* Responsables */}
         {usuarios.length > 0 && (
           <Responsables
             usuarios={usuarios}
@@ -444,6 +453,9 @@ export default function OTDetailClient({ id, initialOrden, initialArchivos, init
           />
         )}
 
+        <Separator className="my-4" />
+
+        {/* Descripción */}
         {orden.descripcion && (
           <div className={styles.section}>
             <p className={styles.sectionLabel}>Descripción</p>
@@ -451,6 +463,28 @@ export default function OTDetailClient({ id, initialOrden, initialArchivos, init
           </div>
         )}
 
+        {/* Datos de solicitud (scanned) */}
+        {(orden.numero_meconecta || orden.solicitante || orden.ubicacion_texto || orden.lugar) && (
+          <div className={styles.section}>
+            <p className={styles.sectionLabel}>Datos de solicitud</p>
+            <div className="mt-2 rounded-xl border border-border overflow-hidden">
+              {orden.numero_meconecta && (
+                <ScanRow label="N° Referencia" value={orden.numero_meconecta} />
+              )}
+              {orden.solicitante && (
+                <ScanRow label="Solicitante" value={orden.solicitante} />
+              )}
+              {orden.ubicacion_texto && (
+                <ScanRow label="Edificio" value={orden.ubicacion_texto} />
+              )}
+              {orden.lugar && (
+                <ScanRow label="Lugar" value={orden.lugar} last />
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Checklist */}
         {pasos.length > 0 && (
           <Checklist
             pasos={pasos}
@@ -460,6 +494,7 @@ export default function OTDetailClient({ id, initialOrden, initialArchivos, init
           />
         )}
 
+        {/* Partes requeridas */}
         {Array.isArray(orden.partes_requeridas) && orden.partes_requeridas.length > 0 && (
           <div className={styles.section}>
             <p className={styles.sectionLabel}>Repuestos requeridos</p>
@@ -472,6 +507,7 @@ export default function OTDetailClient({ id, initialOrden, initialArchivos, init
           </div>
         )}
 
+        {/* Fotos evidencia */}
         <FotoSection
           titulo="Fotos del trabajo realizado"
           fotos={fotosEvidencia}
@@ -483,6 +519,7 @@ export default function OTDetailClient({ id, initialOrden, initialArchivos, init
           wrapperClass={styles.section}
         />
 
+        {/* Archivos adjuntos */}
         {otrosArcs.length > 0 && (
           <div className={styles.section}>
             <p className={styles.sectionLabel}>Archivos adjuntos</p>
@@ -496,63 +533,67 @@ export default function OTDetailClient({ id, initialOrden, initialArchivos, init
           </div>
         )}
 
-        {/* ── Comentarios ── */}
+        {/* Comentarios */}
+        <Separator className="mb-4" />
         <div className={styles.comentariosSection}>
           <div className={styles.sectionHeaderRow}>
             <p className={styles.sectionLabel}>
               <MessageSquare size={14} style={{ marginRight: 6, verticalAlign: "middle" }} />
               Comentarios
-              {comentarios.filter(c => c.tipo === "comentario").length > 0 &&
-                <span className={styles.stepsCount} style={{ marginLeft: 8 }}>
+              {comentarios.filter(c => c.tipo === "comentario").length > 0 && (
+                <Badge variant="secondary" className="ml-2 text-xs px-1.5 py-0">
                   {comentarios.filter(c => c.tipo === "comentario").length}
-                </span>}
+                </Badge>
+              )}
             </p>
           </div>
           <div className={styles.comentariosList}>
             {comentarios.map(c => {
               const autor = usuarios.find(u => u.id === c.usuario_id);
               return (
-              <div key={c.id} className={`${styles.comentarioItem} ${c.tipo === "sistema" ? styles.comentarioSistema : ""}`}>
-                {c.tipo === "comentario" && (
-                  <div className={styles.comentarioAvatar}>
-                    {(autor?.nombre ?? "?").slice(0, 1).toUpperCase()}
-                  </div>
-                )}
-                <div className={styles.comentarioContent}>
+                <div key={c.id} className={`${styles.comentarioItem} ${c.tipo === "sistema" ? styles.comentarioSistema : ""}`}>
                   {c.tipo === "comentario" && (
-                    <span className={styles.comentarioAutor}>{autor?.nombre ?? "Usuario"}</span>
+                    <Avatar className="size-7 shrink-0">
+                      <AvatarFallback className="text-[10px]">{initials(autor?.nombre)}</AvatarFallback>
+                    </Avatar>
                   )}
-                  <p className={styles.comentarioTexto}>{c.contenido}</p>
-                  <span className={styles.comentarioFecha}>
-                    {new Date(c.created_at).toLocaleDateString("es-CL", { day: "numeric", month: "short" })}
-                    {" "}
-                    {new Date(c.created_at).toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" })}
-                  </span>
+                  <div className={styles.comentarioContent}>
+                    {c.tipo === "comentario" && (
+                      <span className={styles.comentarioAutor}>{autor?.nombre ?? "Usuario"}</span>
+                    )}
+                    <p className={styles.comentarioTexto}>{c.contenido}</p>
+                    <span className={styles.comentarioFecha} suppressHydrationWarning>
+                      {new Date(c.created_at).toLocaleDateString("es-CL", { day: "numeric", month: "short" })}
+                      {" "}
+                      {new Date(c.created_at).toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" })}
+                    </span>
+                  </div>
                 </div>
-              </div>
               );
             })}
           </div>
           <div className={styles.comentarioInputRow}>
-            <textarea
-              className={styles.comentarioInput}
+            <Textarea
               placeholder="Escribe un comentario…"
               rows={2}
               value={comentarioTexto}
               onChange={e => setComentarioTexto(e.target.value)}
               onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); agregarComentario(); } }}
+              className="resize-none"
             />
-            <button
-              className={styles.comentarioSendBtn}
+            <Button
+              variant="default"
+              size="icon"
               onClick={agregarComentario}
               disabled={!comentarioTexto.trim() || sendingComment}
             >
               {sendingComment ? <Loader2 size={18} className={styles.spinIcon} /> : <Send size={18} />}
-            </button>
+            </Button>
           </div>
         </div>
       </div>
 
+      {/* ── Action bar ─────────────────────────────────────────────────── */}
       {enAccion && (
         <ActionBar
           estado={orden.estado}
@@ -561,52 +602,37 @@ export default function OTDetailClient({ id, initialOrden, initialArchivos, init
         />
       )}
 
+      {/* ── Lightbox ───────────────────────────────────────────────────── */}
       {lightboxUrl && <Lightbox url={lightboxUrl} onClose={closeLightbox} />}
 
-      {showCloseSheet && (
-        <CloseSheet
-          onClose={closeCloseSheet}
-          onConfirm={completarOT}
-          completing={completing}
-        />
-      )}
+      {/* ── Close sheet ────────────────────────────────────────────────── */}
+      <Sheet open={showCloseSheet} onOpenChange={setShowCloseSheet}>
+        <SheetContent side="bottom" className="pb-safe max-h-[80vh] overflow-y-auto">
+          <CloseSheetBody onClose={closeCloseSheet} onConfirm={completarOT} completing={completing} />
+        </SheetContent>
+      </Sheet>
     </main>
   );
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
-// All wrapped in memo() — React skips the re-render if props are identical
 
-const Header = memo(function Header({ otId, categoria, CatIcon, ordenId, onBack, onDelete }) {
+function ScanRow({ label, value, last }) {
   return (
-    <div className={styles.header}>
-      <button className={styles.backBtn} onClick={onBack}><ArrowLeft size={20} /></button>
-      <div className={styles.headerCenter}>
-        <span className={styles.otId}>{otId}</span>
-        {CatIcon && (
-          <span className={styles.catLabel} style={{ color: categoria.color }}>
-            <CatIcon size={13} />
-            {categoria.nombre}
-          </span>
-        )}
-      </div>
-      <a href={`/ordenes/${ordenId}/edit`} className={styles.externalLink}><ExternalLink size={18} /></a>
-      <button className={styles.deleteBtn} onClick={onDelete} title="Eliminar OT">
-        <Trash2 size={18} />
-      </button>
+    <div className={`flex items-baseline justify-between gap-3 px-3 py-2.5 bg-background ${!last ? "border-b border-border" : ""}`}>
+      <span className="text-xs text-muted-foreground font-medium shrink-0">{label}</span>
+      <span className="text-sm font-semibold text-right">{value}</span>
     </div>
   );
-});
+}
 
-// Critical isolation: this component owns its own `secs` state.
-// The parent's state never changes on each tick → no cascade re-render.
 const TimerBanner = memo(function TimerBanner({ timerStart, tiempoEstimado }) {
   const [secs, setSecs] = useState(() => Math.floor((Date.now() - timerStart) / 1000));
 
   useEffect(() => {
     const tick = () => setSecs(Math.floor((Date.now() - timerStart) / 1000));
     const t = setInterval(tick, 1000);
-    return () => clearInterval(t); // cleanup prevents memory leak
+    return () => clearInterval(t);
   }, [timerStart]);
 
   return (
@@ -621,16 +647,15 @@ const TimerBanner = memo(function TimerBanner({ timerStart, tiempoEstimado }) {
   );
 });
 
-// Single reusable component for both photo sections (contexto + evidencia)
 const FotoSection = memo(function FotoSection({ titulo, fotos, uploading, inputRef, onAdd, onOpenLightbox, emptyText, wrapperClass }) {
   return (
     <div className={wrapperClass}>
       <div className={styles.sectionHeaderRow}>
         <p className={styles.sectionLabel}>{titulo}</p>
-        <button className={styles.addFotoBtn} onClick={() => inputRef.current?.click()} disabled={uploading}>
+        <Button variant="outline" size="sm" onClick={() => inputRef.current?.click()} disabled={uploading}>
           {uploading ? <Loader2 size={13} className={styles.spinIcon} /> : <Camera size={13} />}
           {uploading ? "Subiendo…" : "Agregar"}
-        </button>
+        </Button>
       </div>
       <input
         ref={inputRef}
@@ -662,12 +687,16 @@ const EstadoSelector = memo(function EstadoSelector({ estado, onChange }) {
       </div>
       <div className={styles.statusBtnsRow}>
         {STATUS_BTNS.map(({ value, label, Icon }) => {
+          const cfg = ESTADO_CONFIG[value] ?? ESTADO_CONFIG.pendiente;
           const active = estado === value;
-          const c = ESTADO_COLOR[value] ?? { bg: "#F3F4F6", text: "#6B7280" };
           return (
             <button key={value} type="button"
               className={`${styles.statusBtn} ${active ? styles.statusBtnActive : ""}`}
-              style={active ? { background: c.bg, color: c.text, borderColor: c.text } : {}}
+              style={active ? (() => {
+                const colorMap = { info: { bg:"#EFF6FF",text:"#3B82F6"}, warning:{bg:"#FFFBEB",text:"#D97706"}, secondary:{bg:"#EEF2FF",text:"#6366F1"}, success:{bg:"#F0FDF4",text:"#22C55E"}, muted:{bg:"#F3F4F6",text:"#6B7280"} };
+                const c = colorMap[cfg.variant] ?? colorMap.muted;
+                return { background: c.bg, color: c.text, borderColor: c.text };
+              })() : {}}
               onClick={() => onChange(value)}>
               <Icon size={14} />
               {label}
@@ -705,26 +734,30 @@ const Responsables = memo(function Responsables({ usuarios, asignadosIds, onTogg
   return (
     <div className={styles.section}>
       <p className={styles.sectionLabel}>Responsables</p>
-      <div className={styles.assignChipsRow}>
+      <div className="flex flex-wrap gap-2 mt-2">
         <button type="button"
           className={`${styles.assignChip} ${!asignadosIds?.length ? styles.assignChipActive : ""}`}
           onClick={onLimpiar}>
-          <span className={styles.assignAvatar} style={{ background: "#E5E7EB", color: "#6B7280" }}>–</span>
+          <Avatar className="size-[22px]">
+            <AvatarFallback className="text-[9px] bg-muted text-muted-foreground">–</AvatarFallback>
+          </Avatar>
           Sin asignar
         </button>
         {usuarios.map(u => {
-          const initials = u.nombre.split(" ").map(w => w[0]).slice(0, 2).join("").toUpperCase();
-          const active   = asignadosIds?.includes(u.id);
+          const active = asignadosIds?.includes(u.id);
           return (
             <button key={u.id} type="button"
               className={`${styles.assignChip} ${active ? styles.assignChipActive : ""}`}
               onClick={() => onToggle(u.id)}>
-              <span className={styles.assignAvatar}
-                style={active
-                  ? { background: "var(--accent-1)", color: "#fff" }
-                  : { background: "#EEF2FF", color: "var(--accent-1)" }}>
-                {initials}
-              </span>
+              <Avatar className="size-[22px]">
+                <AvatarFallback
+                  className="text-[9px] font-bold"
+                  style={active
+                    ? { background: "var(--accent-1)", color: "#fff" }
+                    : { background: "#EEF2FF", color: "var(--accent-1)" }}>
+                  {initials(u.nombre)}
+                </AvatarFallback>
+              </Avatar>
               {u.nombre.split(" ")[0]}
             </button>
           );
@@ -742,11 +775,9 @@ const Checklist = memo(function Checklist({ pasos, plantillaNombre, stepsDone, o
         <p className={styles.sectionLabel}>
           Procedimiento{plantillaNombre ? ` — ${plantillaNombre}` : ""}
         </p>
-        <span className={styles.stepsCount}>{stepsDone.size}/{pasos.length}</span>
+        <Badge variant="secondary">{stepsDone.size}/{pasos.length}</Badge>
       </div>
-      <div className={styles.stepsProgress}>
-        <div className={styles.stepsProgressFill} style={{ width: `${pct}%` }} />
-      </div>
+      <Progress value={pct} className="mt-2 mb-3" />
       <div className={styles.pasosList}>
         {pasos.map(p => {
           const done = stepsDone.has(p.id);
@@ -772,19 +803,19 @@ const ActionBar = memo(function ActionBar({ estado, onIniciar, onOpenCloseSheet 
   return (
     <div className={styles.actionBar}>
       {(estado === "pendiente" || estado === "en_espera") && (
-        <button className={styles.actionBtnPrimary} onClick={onIniciar}>
+        <Button size="full" onClick={onIniciar}>
           <Play size={20} /> Iniciar trabajo
-        </button>
+        </Button>
       )}
       {estado === "en_curso" && (
-        <button className={styles.actionBtnSuccess} onClick={onOpenCloseSheet}>
+        <Button size="full" variant="success" onClick={onOpenCloseSheet}>
           <CheckCircle2 size={20} /> Completar OT
-        </button>
+        </Button>
       )}
       {estado === "en_revision" && (
-        <button className={styles.actionBtnSuccess} onClick={onOpenCloseSheet}>
+        <Button size="full" variant="success" onClick={onOpenCloseSheet}>
           <BadgeCheck size={20} /> Aprobar y cerrar
-        </button>
+        </Button>
       )}
     </div>
   );
@@ -793,40 +824,40 @@ const ActionBar = memo(function ActionBar({ estado, onIniciar, onOpenCloseSheet 
 const Lightbox = memo(function Lightbox({ url, onClose }) {
   return (
     <div className={styles.lightboxOverlay} onClick={onClose}>
-      <button className={styles.lightboxClose} onClick={onClose}><X size={22} /></button>
+      <Button variant="ghost" size="icon" className={styles.lightboxClose} onClick={onClose}>
+        <X size={22} />
+      </Button>
       <img src={url} className={styles.lightboxImg} onClick={e => e.stopPropagation()} alt="" />
     </div>
   );
 });
 
-// CloseSheet owns notasCierre state — keeps completarOT callback stable
-// (no dependency on a frequently-changing state value)
-const CloseSheet = memo(function CloseSheet({ onClose, onConfirm, completing }) {
+// CloseSheet content lives inside the Radix Sheet — owns its own notas state
+const CloseSheetBody = memo(function CloseSheetBody({ onClose, onConfirm, completing }) {
   const [notas, setNotas] = useState("");
   return (
-    <div className={styles.sheetOverlay} onClick={onClose}>
-      <div className={styles.sheet} onClick={e => e.stopPropagation()}>
-        <div className={styles.sheetHandle} />
-        <div className={styles.sheetHeader}>
-          <p className={styles.sheetTitle}>Cerrar orden de trabajo</p>
-          <button className={styles.sheetClose} onClick={onClose}><X size={18} /></button>
-        </div>
-        <p className={styles.sheetHint}>
-          Agrega notas de lo que hiciste (opcional) y confirma para cerrar la OT.
-        </p>
-        <textarea
-          className={styles.notasInput}
-          placeholder="Ej: Se reemplazó el sello de la bomba. Sistema funcionando con normalidad."
-          value={notas}
-          onChange={e => setNotas(e.target.value)}
-          rows={4}
-          autoFocus
-        />
-        <button className={styles.actionBtnSuccess} onClick={() => onConfirm(notas)} disabled={completing}>
-          {completing ? <Loader2 size={18} className={styles.spinIcon} /> : <CheckCircle2 size={18} />}
-          {completing ? "Cerrando…" : "Confirmar y cerrar"}
-        </button>
-      </div>
+    <div className="px-5 pb-6">
+      <SheetHeader className="px-0 pt-0 pb-4">
+        <SheetTitle>Cerrar orden de trabajo</SheetTitle>
+        <Button variant="ghost" size="icon" onClick={onClose} className="-mr-1">
+          <X size={18} />
+        </Button>
+      </SheetHeader>
+      <p className="text-sm text-muted-foreground mb-3">
+        Agrega notas de lo que hiciste (opcional) y confirma para cerrar la OT.
+      </p>
+      <Textarea
+        placeholder="Ej: Se reemplazó el sello de la bomba. Sistema funcionando con normalidad."
+        value={notas}
+        onChange={e => setNotas(e.target.value)}
+        rows={4}
+        autoFocus
+        className="mb-4"
+      />
+      <Button size="full" variant="success" onClick={() => onConfirm(notas)} disabled={completing}>
+        {completing ? <Loader2 size={18} className={styles.spinIcon} /> : <CheckCircle2 size={18} />}
+        {completing ? "Cerrando…" : "Confirmar y cerrar"}
+      </Button>
     </div>
   );
 });

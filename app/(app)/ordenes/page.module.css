@@ -149,8 +149,8 @@
 }
 .sectionTab {
   flex: 1;
-  padding: 11px 0;
-  font-size: 14px;
+  padding: 13px 0;
+  font-size: 15px;
   font-weight: 600;
   color: var(--accent-5);
   background: none;
@@ -192,8 +192,8 @@
   color: #fff;
   border: none;
   border-radius: 8px;
-  padding: 8px 14px;
-  font-size: 13px;
+  padding: 9px 15px;
+  font-size: 14px;
   font-weight: 600;
   cursor: pointer;
   white-space: nowrap;
@@ -230,7 +230,7 @@
   min-width: 0;
   background: transparent;
   border: none;
-  font-size: 12px;
+  font-size: 13px;
   color: var(--black);
   outline: none;
   cursor: pointer;
@@ -245,7 +245,7 @@
   border-radius: 8px;
   padding: 6px 10px;
   background: var(--background);
-  font-size: 12px;
+  font-size: 13px;
   color: var(--black);
   cursor: pointer;
   white-space: nowrap;
@@ -268,8 +268,8 @@
 .sortItem {
   display: block;
   width: 100%;
-  padding: 9px 12px;
-  font-size: 13px;
+  padding: 10px 12px;
+  font-size: 14px;
   text-align: left;
   background: none;
   border: none;
@@ -308,9 +308,9 @@
   gap: 8px;
   background: #b91c1c;
   color: #fff;
-  padding: 8px 14px;
+  padding: 10px 16px;
   flex-shrink: 0;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
 }
 .trialText { flex: 1; line-height: 1.4; }
@@ -332,13 +332,13 @@
 .otCard {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 7px;
   width: 100%;
   text-align: left;
   background: var(--background);
   border: 1.5px solid var(--divider-1);
   border-radius: 12px;
-  padding: 13px 14px;
+  padding: 14px 16px;
   cursor: pointer;
   margin-bottom: 8px;
   box-shadow: 0 1px 4px rgba(0,0,0,0.06);
@@ -366,15 +366,15 @@
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 700;
-  padding: 3px 10px;
+  padding: 4px 11px;
   border-radius: 20px;
   white-space: nowrap;
 }
 
 .otTimeAgo {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--accent-5);
   white-space: nowrap;
   flex-shrink: 0;
@@ -416,9 +416,9 @@
 }
 .otBadge {
   flex-shrink: 0;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 600;
-  padding: 2px 7px;
+  padding: 3px 8px;
   border-radius: 20px;
   white-space: nowrap;
 }
@@ -431,7 +431,7 @@
   display: flex;
   align-items: center;
   gap: 4px;
-  font-size: 12px;
+  font-size: 13px;
   color: var(--accent-5);
   white-space: nowrap;
 }
@@ -513,23 +513,23 @@
   flex-shrink: 0;
 }
 .panelTitle {
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 700;
   color: var(--black);
   margin: 0;
 }
 .panelOTId {
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 700;
   color: var(--accent-5);
   font-family: monospace;
 }
 .panelCreatedAt {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--accent-6, var(--accent-5));
 }
 .copiedLabel {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   color: var(--success);
   white-space: nowrap;
@@ -538,7 +538,7 @@
   display: flex;
   align-items: center;
   gap: 4px;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 500;
 }
 .panelClose {
@@ -588,8 +588,8 @@
   align-items: center;
   gap: 9px;
   width: 100%;
-  padding: 8px 10px;
-  font-size: 13px;
+  padding: 9px 12px;
+  font-size: 14px;
   font-weight: 500;
   color: var(--black);
   background: none;
@@ -621,10 +621,10 @@
   border-radius: 10px;
 }
 .deleteConfirmText {
-  font-size: 13px;
+  font-size: 14px;
   color: #7F1D1D;
-  margin-bottom: 10px;
-  line-height: 1.4;
+  margin-bottom: 12px;
+  line-height: 1.5;
 }
 .deleteConfirmBtns {
   display: flex;
@@ -635,8 +635,8 @@
   background: none;
   border: 1.5px solid var(--divider-1);
   border-radius: 8px;
-  padding: 6px 14px;
-  font-size: 13px;
+  padding: 8px 16px;
+  font-size: 14px;
   font-weight: 600;
   cursor: pointer;
   color: var(--black);
@@ -647,8 +647,8 @@
   background: #EF4444;
   border: none;
   border-radius: 8px;
-  padding: 6px 14px;
-  font-size: 13px;
+  padding: 8px 16px;
+  font-size: 14px;
   font-weight: 600;
   cursor: pointer;
   color: #fff;
@@ -694,10 +694,10 @@
 .formField { margin-bottom: 20px; }
 .fieldHint {
   display: block;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--accent-5);
   margin-bottom: 5px;
-  line-height: 1.45;
+  line-height: 1.5;
 }
 .fieldLabelRow {
   display: flex;
@@ -751,12 +751,12 @@
 .formLabel {
   display: flex;
   align-items: center;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   color: var(--accent-5);
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  margin-bottom: 5px;
+  margin-bottom: 6px;
 }
 .formInput,
 .formSelect,
@@ -892,7 +892,7 @@
   background: none;
   border: none;
   cursor: pointer;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
   color: var(--accent-1);
   padding: 2px;
@@ -1000,13 +1000,13 @@
   align-items: center;
   justify-content: center;
   gap: 5px;
-  padding: 9px 4px;
+  padding: 11px 4px;
   border: 1.5px solid var(--divider-1);
   border-radius: 10px;
   background: var(--background);
   color: var(--accent-5);
   cursor: pointer;
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 500;
   line-height: 1;
 }
@@ -1025,13 +1025,13 @@
   align-items: center;
   justify-content: center;
   gap: 5px;
-  padding: 9px 4px;
+  padding: 11px 4px;
   border: 1.5px solid var(--divider-1);
   border-radius: 10px;
   background: var(--background);
   color: var(--accent-5);
   cursor: pointer;
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 500;
   line-height: 1;
 }
@@ -1041,9 +1041,9 @@
 .tipoBadge {
   display: inline-flex;
   align-items: center;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 500;
-  padding: 3px 8px;
+  padding: 3px 9px;
   border-radius: 20px;
   background: var(--surface-hover);
   color: var(--accent-5);
@@ -1056,17 +1056,17 @@
 }
 .detSection:last-child { border-bottom: none; }
 .detSectionLabel {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--accent-5);
-  margin: 0 0 8px;
+  margin: 0 0 10px;
 }
 .detText {
-  font-size: 14px;
+  font-size: 15px;
   color: var(--black);
-  line-height: 1.55;
+  line-height: 1.6;
   margin: 0;
   white-space: pre-wrap;
 }
@@ -1088,13 +1088,13 @@
 .metaIcon { color: var(--accent-5); flex-shrink: 0; margin-top: 2px; }
 .metaKey {
   display: block;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--accent-5);
   margin-bottom: 2px;
 }
 .metaVal {
   display: block;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   color: var(--black);
 }
@@ -1104,18 +1104,18 @@
 .pasosList { display: flex; flex-direction: column; gap: 8px; }
 .pasoItem { display: flex; align-items: flex-start; gap: 8px; }
 .pasoContenido {
-  font-size: 13px;
+  font-size: 15px;
   color: var(--black);
-  line-height: 1.5;
+  line-height: 1.55;
 }
 
 /* Partes view */
 .parteViewRow {
   display: flex;
   justify-content: space-between;
-  padding: 6px 0;
+  padding: 9px 0;
   border-bottom: 1px solid var(--divider-1);
-  font-size: 13px;
+  font-size: 14px;
 }
 .parteViewRow:last-child { border-bottom: none; }
 .parteNombre { color: var(--black); }
@@ -1135,7 +1135,7 @@
 .archivoIcon { color: var(--accent-5); flex-shrink: 0; }
 .archivoNombre {
   flex: 1;
-  font-size: 13px;
+  font-size: 14px;
   color: var(--accent-1);
   text-decoration: none;
   overflow: hidden;
@@ -1143,7 +1143,7 @@
   white-space: nowrap;
 }
 .archivoNombre:hover { text-decoration: underline; }
-.archivoSize { font-size: 11px; color: var(--accent-5); flex-shrink: 0; }
+.archivoSize { font-size: 12px; color: var(--accent-5); flex-shrink: 0; }
 .archivoDelete {
   background: none;
   border: none;
@@ -1170,7 +1170,7 @@
 }
 
 .actividadVacia {
-  font-size: 13px;
+  font-size: 14px;
   color: var(--accent-5);
   margin: 0;
   padding: 8px 0;
@@ -1208,21 +1208,21 @@
 }
 
 .actividadAutor {
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 700;
   color: var(--black);
 }
 
 .actividadTexto {
-  font-size: 13px;
+  font-size: 14px;
   color: var(--black);
-  line-height: 1.45;
+  line-height: 1.55;
   white-space: pre-wrap;
   word-break: break-word;
 }
 
 .actividadTs {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--accent-5);
 }
 
@@ -1236,13 +1236,13 @@
   flex: 1;
   border: 1.5px solid var(--divider-1);
   border-radius: 10px;
-  padding: 9px 12px;
-  font-size: 13px;
+  padding: 10px 12px;
+  font-size: 14px;
   color: var(--black);
   background: var(--background);
   outline: none;
   resize: none;
-  line-height: 1.4;
+  line-height: 1.5;
   font-family: inherit;
 }
 .comentarioInput:focus { border-color: var(--accent-1); }
@@ -1267,7 +1267,7 @@
   display: inline-flex;
   align-items: center;
   gap: 3px;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 600;
   color: var(--accent-1);
   background: rgba(99,102,241,0.1);
@@ -1340,6 +1340,53 @@
 }
 .captureSubmitBtn:disabled { opacity: 0.35; cursor: default; }
 .captureSubmitBtn:not(:disabled):active { opacity: 0.85; }
+
+/* Scan spinner */
+@keyframes spin { to { transform: rotate(360deg); } }
+.spinIcon { animation: spin 0.8s linear infinite; }
+
+/* Scan result card */
+.scanResultCard {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  margin-top: 6px;
+  background: #EFF6FF;
+  border: 1px solid #BFDBFE;
+  border-radius: 8px;
+  position: relative;
+}
+.scanResultBadge {
+  font-size: 11px;
+  font-weight: 700;
+  color: #2563EB;
+  background: #DBEAFE;
+  border-radius: 4px;
+  padding: 2px 7px;
+  letter-spacing: 0.3px;
+}
+.scanResultMeta {
+  font-size: 11px;
+  color: #374151;
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.scanResultClear {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 2px;
+  color: #9CA3AF;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+.scanResultClear:hover { color: #EF4444; }
 
 .frecuentesRow {
   display: flex;
@@ -1750,3 +1797,217 @@
   font-family: inherit;
 }
 .filterApplyBtn:active { opacity: 0.88; }
+
+/* ── Scan Sheet ── */
+.sheetHandle {
+  width: 36px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--divider-1);
+  margin: 10px auto 0;
+  flex-shrink: 0;
+}
+.scanOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.55);
+  z-index: 120;
+  display: flex;
+  align-items: flex-end;
+}
+.scanSheet {
+  width: 100%;
+  max-height: 92dvh;
+  background: #fff;
+  border-radius: 20px 20px 0 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.scanSheetHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px 10px;
+  flex-shrink: 0;
+}
+.scanSheetTitle {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--black);
+}
+.scanSheetClose {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--accent-5);
+  padding: 4px;
+  display: flex;
+}
+.scanSheetBody {
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px 16px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.scanPhotoThumb {
+  width: 100%;
+  max-height: 140px;
+  object-fit: cover;
+  border-radius: 10px;
+  border: 1px solid var(--divider-1);
+}
+.scanFieldRow {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.scanLabel {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--accent-5);
+}
+.scanInputWrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.scanInput {
+  width: 100%;
+  padding: 10px 34px 10px 12px;
+  border-radius: 8px;
+  border: 1.5px solid var(--divider-1);
+  font-size: 14px;
+  font-family: inherit;
+  outline: none;
+  color: var(--black);
+  background: #fff;
+}
+.scanInput:focus { border-color: var(--accent-1); }
+.scanInputOk { border-color: #BBF7D0; background: #F0FDF4; }
+.scanInputOk:focus { border-color: #22C55E; }
+.scanInputWarn { border-color: #FDE68A; background: #FFFBEB; }
+.scanInputWarn:focus { border-color: #F59E0B; }
+.scanConfHigh {
+  position: absolute;
+  right: 10px;
+  color: #22C55E;
+  flex-shrink: 0;
+  pointer-events: none;
+}
+.scanConfLow {
+  position: absolute;
+  right: 10px;
+  color: #F59E0B;
+  flex-shrink: 0;
+  pointer-events: none;
+}
+.scanDupError {
+  font-size: 12px;
+  color: #EF4444;
+  margin: 0;
+}
+.scanPrioRow {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.scanPrioBtn {
+  flex: 1;
+  min-width: 60px;
+  padding: 8px 4px;
+  border-radius: 8px;
+  border: 1.5px solid var(--divider-1);
+  background: none;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  color: var(--accent-5);
+  transition: all 0.12s;
+}
+.scanAssignRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.scanAssignChip {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 12px 6px 6px;
+  border-radius: 20px;
+  border: 1.5px solid var(--divider-1);
+  background: none;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: inherit;
+  color: var(--black);
+}
+.scanAssignChipActive {
+  border-color: var(--accent-1);
+  background: #EEF2FF;
+  color: var(--accent-1);
+}
+.scanAssignAvatar {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: #EEF2FF;
+  color: var(--accent-1);
+  font-size: 11px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.scanSheetFooter {
+  padding: 12px 16px max(16px, env(safe-area-inset-bottom));
+  border-top: 1px solid var(--divider-1);
+  flex-shrink: 0;
+}
+.scanConfirmBtn {
+  width: 100%;
+  padding: 14px;
+  border-radius: 12px;
+  border: none;
+  background: var(--accent-1);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.scanConfirmBtn:disabled { opacity: 0.45; cursor: default; }
+.scanSuccessCard {
+  margin: auto;
+  background: #fff;
+  border-radius: 20px;
+  padding: 40px 32px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  text-align: center;
+}
+.scanSuccessTitle {
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--black);
+  margin: 0;
+}
+.scanSuccessSub {
+  font-size: 14px;
+  color: var(--accent-5);
+  margin: 0;
+}

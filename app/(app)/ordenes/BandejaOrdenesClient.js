@@ -17,7 +17,7 @@ import {
   // OT actions menu
   MoreHorizontal, Copy, Ban, Pencil, Link,
   // Capture zone
-  Camera, Check as CheckIcon,
+  Camera, Check as CheckIcon, ScanLine, Loader2,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase";
 import { callEdge } from "@/lib/edge";
@@ -263,6 +263,12 @@ export default function BandejaOrdenesClient({
   const [capturaTitulo,  setCapturaTitulo]  = useState("");
   const [capturaActivo,  setCapturaActivo]  = useState(null); // { id, nombre }
   const [capturaPhoto,   setCapturaPhoto]   = useState(null); // File
+  const [scanningDoc,    setScanningDoc]    = useState(false);
+  const [scanResult,     setScanResult]     = useState(null); // parsed scan fields
+  const [showScanSheet, setShowScanSheet] = useState(false);
+  const [scanCreating,  setScanCreating]  = useState(false);
+  const [scanSuccess,   setScanSuccess]   = useState(false);
+  const [scanDupError,  setScanDupError]  = useState(false);
   const capturaImgRef = useRef(null);
   const ordenesRTChannelRef = useRef(null);
 
@@ -618,13 +624,124 @@ export default function BandejaOrdenesClient({
       .filter(Boolean);
   }, [ordenes, activos]);
 
+  // ── Document scanner ──────────────────────────────────────────
+  async function escanearDocumento(file) {
+    setScanningDoc(true);
+    setScanResult(null);
+    try {
+      // Compress to ≤1000px — enough for text recognition, smaller payload
+      const compressed = await new Promise((resolve) => {
+        const img = new Image();
+        const blobUrl = URL.createObjectURL(file);
+        img.onload = () => {
+          URL.revokeObjectURL(blobUrl);
+          const MAX = 1000;
+          const scale = img.width > MAX ? MAX / img.width : 1;
+          const canvas = document.createElement("canvas");
+          canvas.width  = Math.round(img.width  * scale);
+          canvas.height = Math.round(img.height * scale);
+          canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
+          canvas.toBlob(
+            (blob) => resolve(new File([blob], "scan.jpg", { type: "image/jpeg" })),
+            "image/jpeg", 0.85,
+          );
+        };
+        img.onerror = () => { URL.revokeObjectURL(blobUrl); resolve(file); };
+        img.src = blobUrl;
+      });
+
+      // Convert to base64
+      const base64 = await new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result.split(",")[1]);
+        reader.readAsDataURL(compressed);
+      });
+
+      const res = await callEdge("escanear-orden", { imageBase64: base64, mimeType: "image/jpeg" });
+      if (!res.ok) throw new Error("scan failed");
+      const data = await res.json();
+
+      setScanResult(data);
+      setShowScanSheet(true);
+    } catch {
+      // Scan failed silently — photo still attached as regular attachment
+    } finally {
+      setScanningDoc(false);
+    }
+  }
+
+  // ── Crear desde escaneo ───────────────────────────────────────
+  async function crearDesdeEscaneo({ titulo, numero_meconecta, solicitante, prioridad, asignadosIds, ubicacion, lugar, descripcion }) {
+    setScanCreating(true);
+    setScanDupError(false);
+    const sb = createClient();
+
+    // Duplicate check
+    if (numero_meconecta?.trim()) {
+      const { data: dup } = await sb.from("ordenes_trabajo")
+        .select("id").eq("workspace_id", plantaId)
+        .eq("numero_meconecta", numero_meconecta.trim()).maybeSingle();
+      if (dup) {
+        setScanDupError(true);
+        setScanCreating(false);
+        return;
+      }
+    }
+
+    const { data, error } = await sb.from("ordenes_trabajo").insert({
+      workspace_id: plantaId, creado_por: myId,
+      titulo: titulo.trim() || "Sin título",
+      descripcion: descripcion?.trim() || "",
+      numero_meconecta: numero_meconecta?.trim() || null,
+      solicitante: solicitante?.trim() || null,
+      ubicacion_texto: ubicacion?.trim() || null,
+      lugar: lugar?.trim() || null,
+      tipo: "solicitud", estado: "pendiente",
+      prioridad: prioridad || "media", recurrencia: "ninguna",
+      asignados_ids: asignadosIds.length > 0 ? asignadosIds : null,
+    }).select("id, titulo, descripcion, estado, prioridad, tipo, tipo_trabajo, fecha_termino, recurrencia, created_at, categoria_id, ubicacion_id, activo_id, creado_por, asignados_ids, numero_meconecta, solicitante, ubicacion_texto, lugar, categorias_ot(nombre,icono,color), ubicaciones(edificio), activos(nombre)").single();
+
+    if (error || !data) { setScanCreating(false); return; }
+
+    // Upload scan photo as attachment
+    const photoSnap = capturaPhoto;
+    if (photoSnap) {
+      try {
+        const path = `${plantaId}/${data.id}/scan_${Date.now()}.jpg`;
+        const { error: upErr } = await sb.storage.from("archivos-ordenes").upload(path, photoSnap, { upsert: false });
+        if (!upErr) {
+          const { data: { publicUrl } } = sb.storage.from("archivos-ordenes").getPublicUrl(path);
+          await sb.from("archivos_orden").insert({
+            orden_id: data.id, nombre: "orden_escaneada.jpg",
+            url: publicUrl, tipo_mime: "image/jpeg", tipo: "contexto",
+            tamano_kb: Math.round(photoSnap.size / 1024),
+          });
+        }
+      } catch { /* non-blocking */ }
+    }
+
+    setOrdenes(prev => [data, ...prev]);
+    setScanSuccess(true);
+
+    setTimeout(() => {
+      setShowScanSheet(false);
+      setScanSuccess(false);
+      setScanResult(null);
+      setCapturaPhoto(null);
+      setScanCreating(false);
+      setScanDupError(false);
+      abrirOT(data.id);
+    }, 1400);
+  }
+
   // ── Quick capture ─────────────────────────────────────────────
   async function crearRapida() {
     const titulo = capturaTitulo.trim();
     if (!titulo && !capturaPhoto) return;
     const finalTitulo = titulo || "Foto adjunta";
-    const activoSnap = capturaActivo; // snapshot before clearing
-    const photoSnap  = capturaPhoto;
+    const activoSnap  = capturaActivo;
+    const photoSnap   = capturaPhoto;
+    const scanSnap    = scanResult;
     const tempId = `temp-${Date.now()}`;
     const optimistic = {
       id: tempId, titulo: finalTitulo, estado: "pendiente",
@@ -636,6 +753,7 @@ export default function BandejaOrdenesClient({
     setCapturaTitulo("");
     setCapturaActivo(null);
     setCapturaPhoto(null);
+    setScanResult(null);
 
     // Offline queue — no network? save locally and return
     if (!navigator.onLine) {
@@ -647,11 +765,22 @@ export default function BandejaOrdenesClient({
       return;
     }
 
+    // Build description from scan data if available
+    const descParts = [
+      scanSnap?.numero_meconecta && `N° ${scanSnap.numero_meconecta}`,
+      scanSnap?.ubicacion && `📍 ${scanSnap.ubicacion}${scanSnap.lugar ? ` — ${scanSnap.lugar}` : ""}`,
+      scanSnap?.solicitante && `Solicitante: ${scanSnap.solicitante}`,
+      scanSnap?.descripcion,
+    ].filter(Boolean);
+    const finalDescripcion = descParts.join("\n\n");
+    const VALID_PRIOS = new Set(["urgente", "alta", "media", "baja"]);
+    const finalPrioridad = VALID_PRIOS.has(scanSnap?.prioridad) ? scanSnap.prioridad : "media";
+
     const sb = createClient();
     const { data, error } = await sb.from("ordenes_trabajo").insert({
       workspace_id: plantaId, creado_por: myId,
-      titulo: finalTitulo, descripcion: "",
-      tipo: "solicitud", estado: "pendiente", prioridad: "media", recurrencia: "ninguna",
+      titulo: finalTitulo, descripcion: finalDescripcion,
+      tipo: "solicitud", estado: "pendiente", prioridad: finalPrioridad, recurrencia: "ninguna",
       activo_id: activoSnap?.id ?? null,
     }).select("id, titulo, descripcion, estado, prioridad, tipo, tipo_trabajo, fecha_termino, recurrencia, created_at, categoria_id, ubicacion_id, activo_id, creado_por, asignados_ids, categorias_ot(nombre,icono,color), ubicaciones(edificio), activos(nombre)").single();
 
@@ -659,7 +788,11 @@ export default function BandejaOrdenesClient({
       setOrdenes(prev => prev.filter(o => o.id !== tempId)); // rollback
       return;
     }
-    setOrdenes(prev => prev.map(o => o.id === tempId ? { ...data, _pending: false } : o));
+    // Replace temp item and remove any realtime duplicate that may have arrived in the race
+    setOrdenes(prev => {
+      const without = prev.filter(o => o.id !== tempId && o.id !== data.id);
+      return [{ ...data, _pending: false }, ...without];
+    });
 
     // Upload photo if attached
     if (photoSnap) {
@@ -1116,22 +1249,31 @@ export default function BandejaOrdenesClient({
                 inputMode="text"
                 autoComplete="off"
               />
-              {/* Hidden camera file input */}
+              {/* Hidden camera file input — triggers document scan */}
               <input
                 ref={capturaImgRef}
                 type="file"
                 accept="image/*"
                 capture="environment"
                 style={{ display: "none" }}
-                onChange={e => { const f = e.target.files?.[0]; if (f) setCapturaPhoto(f); e.target.value = ""; }}
+                onChange={e => {
+                  const f = e.target.files?.[0];
+                  if (f) { setCapturaPhoto(f); escanearDocumento(f); }
+                  e.target.value = "";
+                }}
               />
               <button
                 className={`${styles.captureIconBtn} ${capturaPhoto ? styles.captureIconBtnActive : ""}`}
                 onClick={() => capturaImgRef.current?.click()}
-                title="Adjuntar foto"
+                title="Escanear documento"
                 type="button"
+                disabled={scanningDoc}
               >
-                {capturaPhoto ? <CheckIcon size={17} /> : <Camera size={17} />}
+                {scanningDoc
+                  ? <Loader2 size={17} className={styles.spinIcon} />
+                  : capturaPhoto
+                    ? <CheckIcon size={17} />
+                    : <ScanLine size={17} />}
               </button>
               <button
                 className={styles.captureSubmitBtn}
@@ -1143,6 +1285,8 @@ export default function BandejaOrdenesClient({
                 <Plus size={19} strokeWidth={2.5} />
               </button>
             </div>
+
+            {/* Scan sheet is rendered below as an overlay */}
 
             {/* Frequent asset chips */}
             {frecuentes.length > 0 && (
@@ -1376,6 +1520,20 @@ export default function BandejaOrdenesClient({
           ubicaciones={ubicaciones}
           activos={activos}
           categorias={categorias}
+        />
+      )}
+
+      {/* ── SCAN SHEET OVERLAY ── */}
+      {showScanSheet && scanResult && (
+        <ScanSheet
+          scanResult={scanResult}
+          capturaPhoto={capturaPhoto}
+          usuarios={usuarios}
+          creating={scanCreating}
+          success={scanSuccess}
+          dupError={scanDupError}
+          onClose={() => { setShowScanSheet(false); setScanResult(null); setCapturaPhoto(null); setScanDupError(false); }}
+          onConfirm={crearDesdeEscaneo}
         />
       )}
     </div>
@@ -2111,6 +2269,210 @@ function PanelVer({ orden, archivos, fileRef, uploadingFile, subirArchivo, elimi
               <Send size={15} />
             </button>
           </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── ScanSheet ─────────────────────────────────────────────────
+
+function ScanSheet({ scanResult, capturaPhoto, usuarios, creating, success, dupError, onClose, onConfirm }) {
+  const [titulo,        setTitulo]        = useState(scanResult?.titulo ?? "");
+  const [numero,        setNumero]        = useState(scanResult?.numero_meconecta ?? "");
+  const [ubicacion,     setUbicacion]     = useState(scanResult?.ubicacion ?? "");
+  const [lugar,         setLugar]         = useState(scanResult?.lugar ?? "");
+  const [descripcion,   setDescripcion]   = useState(scanResult?.descripcion ?? "");
+  const [solicitante,   setSolicitante]   = useState(scanResult?.solicitante ?? "");
+  const [prioridad,     setPrioridad]     = useState(scanResult?.prioridad ?? "media");
+  const [asignadosIds,  setAsignadosIds]  = useState([]);
+  const [photoUrl,      setPhotoUrl]      = useState(null);
+
+  useEffect(() => {
+    if (!capturaPhoto) return;
+    const url = URL.createObjectURL(capturaPhoto);
+    setPhotoUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [capturaPhoto]);
+
+  const isLow = (field) => scanResult?.[`${field}_conf`] === "low" || scanResult?.[field] == null;
+  const PRIO_BTNS = [
+    { value: "baja",    label: "Baja",    color: "#9CA3AF" },
+    { value: "media",   label: "Media",   color: "#3B82F6" },
+    { value: "alta",    label: "Alta",    color: "#F97316" },
+    { value: "urgente", label: "Urgente", color: "#EF4444" },
+  ];
+
+  if (success) {
+    return (
+      <div className={styles.scanOverlay}>
+        <div className={styles.scanSuccessCard}>
+          <CheckCircle2 size={48} style={{ color: "#22C55E" }} />
+          <p className={styles.scanSuccessTitle}>Orden creada</p>
+          <p className={styles.scanSuccessSub}>Lista para asignar ✔</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className={styles.scanOverlay} onClick={onClose}>
+      <div className={styles.scanSheet} onClick={e => e.stopPropagation()}>
+        <div className={styles.sheetHandle} />
+        <div className={styles.scanSheetHeader}>
+          <span className={styles.scanSheetTitle}>Orden escaneada</span>
+          <button className={styles.scanSheetClose} onClick={onClose} type="button"><X size={18} /></button>
+        </div>
+
+        <div className={styles.scanSheetBody}>
+          {photoUrl && (
+            <img src={photoUrl} alt="Orden escaneada" className={styles.scanPhotoThumb} />
+          )}
+
+          {/* N° Solicitud */}
+          <div className={styles.scanFieldRow}>
+            <label className={styles.scanLabel}>
+              N° Referencia
+            </label>
+            <div className={styles.scanInputWrap}>
+              <input
+                className={`${styles.scanInput} ${isLow("numero_meconecta") ? styles.scanInputWarn : styles.scanInputOk}`}
+                value={numero}
+                onChange={e => setNumero(e.target.value)}
+                placeholder="Nº de referencia"
+              />
+              {!isLow("numero_meconecta") && <CheckCircle2 size={15} className={styles.scanConfHigh} />}
+              {isLow("numero_meconecta") && <AlertTriangle size={15} className={styles.scanConfLow} />}
+            </div>
+            {dupError && <p className={styles.scanDupError}>⚠ Este número ya existe en el sistema</p>}
+          </div>
+
+          {/* Título */}
+          <div className={styles.scanFieldRow}>
+            <label className={styles.scanLabel}>Título <span style={{ color: "#EF4444" }}>*</span></label>
+            <div className={styles.scanInputWrap}>
+              <input
+                className={`${styles.scanInput} ${isLow("titulo") ? styles.scanInputWarn : styles.scanInputOk}`}
+                value={titulo}
+                onChange={e => setTitulo(e.target.value)}
+                placeholder="¿Qué hay que hacer?"
+              />
+              {!isLow("titulo") && <CheckCircle2 size={15} className={styles.scanConfHigh} />}
+              {isLow("titulo") && <AlertTriangle size={15} className={styles.scanConfLow} />}
+            </div>
+          </div>
+
+          {/* Ubicación */}
+          <div className={styles.scanFieldRow}>
+            <label className={styles.scanLabel}>Ubicación (edificio)</label>
+            <div className={styles.scanInputWrap}>
+              <input
+                className={`${styles.scanInput} ${isLow("ubicacion") ? styles.scanInputWarn : styles.scanInputOk}`}
+                value={ubicacion}
+                onChange={e => setUbicacion(e.target.value)}
+                placeholder="Ej: Aulas Centrales Salvador Gálvez"
+              />
+              {!isLow("ubicacion") && <CheckCircle2 size={15} className={styles.scanConfHigh} />}
+              {isLow("ubicacion") && <AlertTriangle size={15} className={styles.scanConfLow} />}
+            </div>
+          </div>
+
+          {/* Lugar */}
+          <div className={styles.scanFieldRow}>
+            <label className={styles.scanLabel}>Lugar (sector específico)</label>
+            <div className={styles.scanInputWrap}>
+              <input
+                className={`${styles.scanInput} ${isLow("lugar") ? styles.scanInputWarn : styles.scanInputOk}`}
+                value={lugar}
+                onChange={e => setLugar(e.target.value)}
+                placeholder="Ej: Pasos cubiertos aula 9"
+              />
+              {!isLow("lugar") && lugar && <CheckCircle2 size={15} className={styles.scanConfHigh} />}
+              {isLow("lugar") && <AlertTriangle size={15} className={styles.scanConfLow} />}
+            </div>
+          </div>
+
+          {/* Descripción */}
+          <div className={styles.scanFieldRow}>
+            <label className={styles.scanLabel}>Detalle / Descripción</label>
+            <textarea
+              className={`${styles.scanInput} ${styles.scanTextarea}`}
+              value={descripcion}
+              onChange={e => setDescripcion(e.target.value)}
+              placeholder="Detalle de lo que hay que hacer…"
+              rows={3}
+            />
+          </div>
+
+          {/* Solicitante */}
+          <div className={styles.scanFieldRow}>
+            <label className={styles.scanLabel}>Solicitante</label>
+            <div className={styles.scanInputWrap}>
+              <input
+                className={`${styles.scanInput} ${isLow("solicitante") ? styles.scanInputWarn : styles.scanInputOk}`}
+                value={solicitante}
+                onChange={e => setSolicitante(e.target.value)}
+                placeholder="Nombre del solicitante"
+              />
+              {!isLow("solicitante") && <CheckCircle2 size={15} className={styles.scanConfHigh} />}
+              {isLow("solicitante") && <AlertTriangle size={15} className={styles.scanConfLow} />}
+            </div>
+          </div>
+
+          {/* Prioridad */}
+          <div className={styles.scanFieldRow}>
+            <label className={styles.scanLabel}>Prioridad</label>
+            <div className={styles.scanPrioRow}>
+              {PRIO_BTNS.map(p => (
+                <button
+                  key={p.value}
+                  type="button"
+                  className={styles.scanPrioBtn}
+                  style={prioridad === p.value ? { borderColor: p.color, color: p.color, background: `${p.color}18` } : {}}
+                  onClick={() => setPrioridad(p.value)}
+                >{p.label}</button>
+              ))}
+            </div>
+          </div>
+
+          {/* Asignar */}
+          {usuarios.length > 0 && (
+            <div className={styles.scanFieldRow}>
+              <label className={styles.scanLabel}>Asignar a</label>
+              <div className={styles.scanAssignRow}>
+                {usuarios.map(u => {
+                  const active = asignadosIds.includes(u.id);
+                  const initials = u.nombre.split(" ").map(w => w[0]).slice(0,2).join("").toUpperCase();
+                  return (
+                    <button
+                      key={u.id}
+                      type="button"
+                      className={`${styles.scanAssignChip} ${active ? styles.scanAssignChipActive : ""}`}
+                      onClick={() => setAsignadosIds(prev => active ? prev.filter(id => id !== u.id) : [...prev, u.id])}
+                    >
+                      <span className={styles.scanAssignAvatar} style={active ? { background: "var(--accent-1)", color: "#fff" } : {}}>
+                        {initials}
+                      </span>
+                      {u.nombre.split(" ")[0]}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className={styles.scanSheetFooter}>
+          <button
+            className={styles.scanConfirmBtn}
+            type="button"
+            disabled={creating || !titulo.trim()}
+            onClick={() => onConfirm({ titulo, numero_meconecta: numero, solicitante, prioridad, asignadosIds, ubicacion, lugar, descripcion })}
+          >
+            {creating
+              ? <><Loader2 size={18} className={styles.spinIcon} /> Creando…</>
+              : <><CheckCircle2 size={18} /> Confirmar y crear</>}
+          </button>
         </div>
       </div>
     </div>
