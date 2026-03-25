@@ -698,8 +698,8 @@
 /* ── Comments section ── */
 .comentariosSection {
   margin-top: 8px;
+  margin-bottom: 3rem;
   padding-top: 24px;
-  border-top: 1px solid var(--divider-1);
 }
 .comentariosList {
   display: flex;

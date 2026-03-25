@@ -26,6 +26,147 @@
   }
 }
 
+/* Page title header */
+.pageHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--divider-1);
+  flex-shrink: 0;
+}
+
+/* Inline search in header */
+.pageHeaderSearch {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--surface-1, #F5F5F5);
+  border: 1.5px solid transparent;
+  border-radius: 10px;
+  padding: 0 10px;
+  height: 36px;
+  transition: border-color 0.15s;
+}
+.pageHeaderSearch:focus-within {
+  border-color: var(--accent-1);
+  background: var(--background);
+}
+.pageHeaderSearchIcon { color: var(--accent-5); flex-shrink: 0; }
+.pageHeaderSearchInput {
+  flex: 1;
+  border: none;
+  background: transparent;
+  font-size: 14px;
+  color: var(--black);
+  outline: none;
+  font-family: inherit;
+}
+.pageHeaderSearchInput::placeholder { color: var(--accent-5); }
+.pageHeaderSearchClear {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  color: var(--accent-5);
+  flex-shrink: 0;
+}
+.pageHeaderBack {
+  background: none;
+  border: none;
+  padding: 4px;
+  cursor: pointer;
+  color: var(--black);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+.pageHeaderBack:active { background: var(--surface-hover); }
+.pageHeaderActions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.pageHeaderBtn {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: 1.5px solid var(--divider-1);
+  border-radius: 10px;
+  background: var(--background);
+  color: var(--accent-5);
+  cursor: pointer;
+  transition: border-color 0.12s, background 0.12s, color 0.12s;
+}
+.pageHeaderBtn:hover { background: var(--surface-hover); color: var(--black); }
+.pageHeaderBtnActive {
+  border-color: var(--accent-1);
+  background: var(--accent-2);
+  color: var(--accent-1);
+}
+.pageHeaderBtnDot {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent-1);
+  border: 1.5px solid var(--background);
+}
+.pageHeaderBtnBadge {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  min-width: 17px;
+  height: 17px;
+  border-radius: 20px;
+  background: var(--accent-1);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 3px;
+  border: 1.5px solid var(--background);
+}
+
+/* ── Section tabs ── */
+.sectionTabs {
+  display: flex;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--divider-1);
+}
+.sectionTab {
+  flex: 1;
+  padding: 11px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--accent-5);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  font-family: inherit;
+  transition: color 0.12s, border-color 0.12s;
+  margin-bottom: -1px;
+}
+.sectionTab:hover { color: var(--black); }
+.sectionTabActive {
+  color: var(--accent-1);
+  border-bottom-color: var(--accent-1);
+}
+
 /* List header */
 .listHeader {
   display: flex;
@@ -60,47 +201,6 @@
 .btnNueva:active { opacity: 0.85; }
 
 /* Search */
-.searchWrap {
-  position: relative;
-  padding: 8px 12px 0;
-  flex-shrink: 0;
-  min-width: 0;
-  width: 100%;
-  box-sizing: border-box;
-}
-.searchIcon {
-  position: absolute;
-  left: 22px;
-  top: 50%;
-  transform: translateY(-30%);
-  color: var(--accent-5);
-  pointer-events: none;
-}
-.searchInput {
-  width: 100%;
-  box-sizing: border-box;
-  padding: 8px 32px;
-  border: 1.5px solid var(--divider-1);
-  border-radius: 8px;
-  font-size: 13px;
-  background: var(--background);
-  color: var(--black);
-  outline: none;
-}
-.searchInput:focus { border-color: var(--accent-1); }
-.searchClear {
-  position: absolute;
-  right: 22px;
-  top: 50%;
-  transform: translateY(-30%);
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: var(--accent-5);
-  padding: 2px;
-  display: flex;
-  align-items: center;
-}
 
 /* Filters row */
 .filtersRow {
@@ -180,37 +280,6 @@
 .sortItem:hover { background: var(--surface-hover); }
 .sortItemActive { color: var(--accent-1); font-weight: 600; }
 
-/* Status pills */
-.pillsRow {
-  display: flex;
-  flex-wrap: nowrap;
-  gap: 6px;
-  padding: 0 12px 10px;
-  flex-shrink: 0;
-  width: 100%;
-  box-sizing: border-box;
-  overflow-x: auto;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-}
-.pillsRow::-webkit-scrollbar { display: none; }
-.pill {
-  padding: 7px 16px;
-  border-radius: 20px;
-  font-size: 13px;
-  font-weight: 600;
-  border: 1.5px solid var(--divider-1);
-  background: var(--background);
-  color: var(--accent-5);
-  cursor: pointer;
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-.pillActive {
-  background: var(--accent-2);
-  border-color: var(--accent-1);
-  color: var(--accent-1);
-}
 
 /* OT list scroll area */
 .otList {
@@ -1222,7 +1291,7 @@
 
 .captureInput {
   flex: 1;
-  font-size: 22px;
+  font-size: 20px;
   font-weight: 500;
   color: var(--black);
   background: transparent;
@@ -1398,3 +1467,286 @@
   font-size: 8px;
   font-weight: 700;
 }
+
+/* ── Full-screen overlays (Calendar + Filter) ── */
+.overlayFull {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  background: var(--background);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+@media (min-width: 1024px) {
+  .overlayFull {
+    left: 0;
+    max-width: 440px;
+    border-right: 1px solid var(--divider-1);
+    box-shadow: 4px 0 24px rgba(0,0,0,0.08);
+  }
+}
+
+.overlayHeader {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--divider-1);
+  flex-shrink: 0;
+}
+.overlayBack {
+  background: none;
+  border: none;
+  padding: 4px;
+  cursor: pointer;
+  color: var(--black);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+.overlayBack:active { background: var(--surface-hover); }
+.overlayTitle {
+  flex: 1;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--black);
+}
+.overlayClearBtn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent-1);
+  padding: 4px 8px;
+  border-radius: 6px;
+  flex-shrink: 0;
+  font-family: inherit;
+}
+.overlayClearBtn:active { background: var(--accent-2); }
+
+/* ── Calendar ── */
+.calendarWrap {
+  padding: 16px;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--divider-1);
+}
+.calendarNav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+.calNavBtn {
+  background: none;
+  border: 1.5px solid var(--divider-1);
+  border-radius: 8px;
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--black);
+}
+.calNavBtn:hover { background: var(--surface-hover); }
+.calMonthLabel {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--black);
+  text-transform: capitalize;
+}
+.calDowRow {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  margin-bottom: 4px;
+}
+.calDow {
+  text-align: center;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent-5);
+  padding: 4px 0;
+}
+.calGrid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+.calDay {
+  position: relative;
+  aspect-ratio: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  border: none;
+  background: none;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--black);
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.1s;
+  gap: 2px;
+}
+.calDay:hover { background: var(--surface-hover); }
+.calDayToday { font-weight: 700; color: var(--accent-1); }
+.calDaySelected {
+  background: var(--accent-1) !important;
+  color: #fff !important;
+}
+.calDayDot {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--accent-1);
+  flex-shrink: 0;
+}
+.calDaySelected .calDayDot { background: rgba(255,255,255,0.7); }
+
+.calResults {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+}
+.calResultsLabel {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent-5);
+  margin: 0 0 12px;
+}
+.calResultsList { display: flex; flex-direction: column; gap: 8px; }
+.calResultCard {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1.5px solid var(--divider-1);
+  border-radius: 10px;
+  background: var(--background);
+}
+.calResultTitle {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--black);
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.calHint {
+  font-size: 13px;
+  color: var(--accent-5);
+  text-align: center;
+  padding: 24px 16px;
+  margin: 0;
+}
+
+/* ── Filter body ── */
+.filterBody {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0;
+}
+.filterSection {
+  padding: 16px 16px 14px;
+  border-bottom: 1px solid var(--divider-1);
+}
+.filterSectionLabel {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent-5);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 0 0 10px;
+}
+.filterChipRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+.filterChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 500;
+  border: 1.5px solid var(--divider-1);
+  background: var(--background);
+  color: var(--black);
+  cursor: pointer;
+  font-family: inherit;
+  transition: border-color 0.12s, background 0.12s, color 0.12s;
+}
+.filterChip:hover { border-color: var(--accent-1); }
+.filterChipActive {
+  border-color: var(--accent-1);
+  background: var(--accent-2);
+  color: var(--accent-1);
+  font-weight: 600;
+}
+.filterAvatar {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--accent-2);
+  color: var(--accent-1);
+  font-size: 9px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.filterDateRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.filterDateField { display: flex; flex-direction: column; gap: 5px; }
+.filterDateLabel {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent-5);
+}
+.filterDateInput {
+  border: 1.5px solid var(--divider-1);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 13px;
+  color: var(--black);
+  background: var(--background);
+  outline: none;
+  font-family: inherit;
+  width: 100%;
+  box-sizing: border-box;
+}
+.filterDateInput:focus { border-color: var(--accent-1); }
+
+/* ── Overlay footer (apply button) ── */
+.filterFooter {
+  padding: 12px 16px;
+  border-top: 1px solid var(--divider-1);
+  background: var(--background);
+  flex-shrink: 0;
+  padding-bottom: max(12px, env(safe-area-inset-bottom));
+}
+.filterApplyBtn {
+  width: 100%;
+  background: var(--accent-1);
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  padding: 13px 20px;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+}
+.filterApplyBtn:active { opacity: 0.88; }
