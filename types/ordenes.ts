@@ -34,6 +34,14 @@ export type RolUsuario = "admin" | "jefe" | "tecnico";
 
 export type Plan = "basic" | "pro" | "enterprise";
 
+export interface ScanResult {
+  id?: string;
+  codigo?: string;
+  nombre?: string;
+  tipo?: "activo" | "ubicacion" | "orden" | "otro";
+  raw: string; // raw scanned value
+}
+
 // ─── Row types ────────────────────────────────────────────────────────────────
 
 export interface CategoriaOT {
