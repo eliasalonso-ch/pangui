@@ -35,11 +35,22 @@ export type RolUsuario = "admin" | "jefe" | "tecnico";
 export type Plan = "basic" | "pro" | "enterprise";
 
 export interface ScanResult {
-  id?: string;
-  codigo?: string;
-  nombre?: string;
-  tipo?: "activo" | "ubicacion" | "orden" | "otro";
-  raw: string; // raw scanned value
+  raw: string;
+
+  // OT-related
+  titulo?: string;
+  numero_meconecta?: string;
+
+  // Location-related
+  ubicacion?: string;
+  lugar?: string;
+
+  // Asset-related
+  activo_id?: string;
+  activo_nombre?: string;
+
+  // Optional metadata
+  tipo?: "activo" | "ubicacion" | "orden" | "qr_libre";
 }
 
 // ─── Row types ────────────────────────────────────────────────────────────────
