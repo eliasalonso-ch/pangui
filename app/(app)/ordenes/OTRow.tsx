@@ -89,7 +89,7 @@ export default function OTRow({ orden, usuarios, isSelected, onClick }: Props) {
       aria-selected={isSelected}
       onClick={isPending ? undefined : onClick}
       style={{
-        padding: "14px 16px",
+        padding: "14px 20px",
         background: isSelected ? "#F0F4FF" : "#fff",
         borderBottom: "1px solid #F1F3F5",
         borderLeft: isSelected ? "3px solid #273D88" : "3px solid transparent",

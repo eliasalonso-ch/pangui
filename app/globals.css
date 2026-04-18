@@ -1,7 +1,9 @@
 
 /* ── Prevent iOS/Android auto-zoom on input focus ───────────── */
-input, textarea, select {
-  font-size: max(16px, 1em);
+@media (max-width: 1023px) {
+  input, textarea, select {
+    font-size: max(16px, 1em);
+  }
 }
 
 /* ── shadcn/ui required tokens ──────────────────────────────── */
@@ -115,6 +117,24 @@ input, textarea, select {
   --fs-lg:   18px;
   --fs-xl:   22px;
   --fs-xxl:  26px;
+
+  /* ── Fonts ───────────────────────────────────────────────── */
+  --font-sans:    "Geist", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-heading: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono:    ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+
+  /* ── Radii ───────────────────────────────────────────────── */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 10px;
+
+  /* ── Shadows ─────────────────────────────────────────────── */
+  --shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.04);
+  --shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.06), 0 1px 2px rgba(15, 23, 42, 0.04);
+  --shadow-md: 0 4px 8px rgba(15, 23, 42, 0.08), 0 2px 4px rgba(15, 23, 42, 0.04);
+  --shadow-lg: 0 12px 24px rgba(15, 23, 42, 0.10), 0 4px 8px rgba(15, 23, 42, 0.06);
+  --shadow-focus: 0 0 0 3px rgba(39, 61, 136, 0.18);
 }
 
 /* ── Reset ──────────────────────────────────────────────────── */
@@ -138,7 +158,7 @@ body {
   -webkit-tap-highlight-color: transparent;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-family: var(--font-sans, "Geist"), system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   font-size: var(--fs-base);
   background: var(--mx-bg);
   overscroll-behavior: none;
@@ -153,105 +173,6 @@ a { color: inherit; text-decoration: none; }
 
 input, select, textarea { color-scheme: inherit; }
 
-/* ── Shadcn sidebar overrides — MaintainX style ─────────────── */
-
-[data-sidebar="sidebar"] {
-  background: #fff !important;
-  border-right: 1px solid #E5E7EB !important;
-}
-
-[data-sidebar="header"] {
-  border-bottom: 1px solid #E5E7EB !important;
-  padding: 0 !important;
-}
-
-/* More vertical spacing between nav items */
-[data-sidebar="menu"] {
-  gap: 4px !important;
-}
-
-/* Nav item buttons — larger, MaintainX style */
-[data-sidebar="menu-button"] {
-  height: 40px !important;
-  padding: 0 12px !important;
-  gap: 12px !important;
-  border-radius: 6px !important;
-  font-size: 13px !important;
-  font-weight: 500 !important;
-  color: #4D5A66 !important;
-  transition: background 0.1s, color 0.1s !important;
-}
-
-/* Icons: 24px like MaintainX */
-[data-sidebar="menu-button"] svg {
-  width: 24px !important;
-  height: 24px !important;
-  flex-shrink: 0 !important;
-  color: #677888 !important;
-}
-
-[data-sidebar="menu-button"]:hover:not([data-active="true"]) {
-  background: #F9FAFB !important;
-  color: #1E2429 !important;
-}
-[data-sidebar="menu-button"]:hover:not([data-active="true"]) svg {
-  color: #1E2429 !important;
-}
-
-[data-sidebar="menu-button"][data-active="true"] {
-  background: #EEF1FB !important;
-  color: #273D88 !important;
-  font-weight: 600 !important;
-}
-[data-sidebar="menu-button"][data-active="true"] svg {
-  color: #273D88 !important;
-}
-
-/* Collapsed icon-only mode: center the 24px icon */
-[data-collapsible="icon"] [data-sidebar="menu-button"] {
-  width: 40px !important;
-  height: 40px !important;
-  padding: 0 !important;
-  justify-content: center !important;
-}
-
-/* Hide text labels when sidebar is collapsed to icon-only mode */
-[data-collapsible="icon"] [data-sidebar="menu-button"] span {
-  display: none !important;
-}
-
-/* Hide menu badges when collapsed */
-[data-collapsible="icon"] [data-sidebar="menu-badge"] {
-  display: none !important;
-}
-
-[data-sidebar="menu-badge"] {
-  background: #EF4444 !important;
-  color: #fff !important;
-  border-radius: 10px !important;
-  font-size: 11px !important;
-  font-weight: 700 !important;
-  min-width: 18px !important;
-  height: 18px !important;
-  padding: 0 4px !important;
-}
-
-[data-sidebar="footer"] {
-  border-top: 1px solid #E5E7EB !important;
-  padding: 8px !important;
-}
-
-[data-sidebar="group-content"] {
-  padding: 0 8px !important;
-}
-
-[data-sidebar="menu"] {
-  list-style: none !important;
-}
-
-[data-sidebar="menu-item"] {
-  list-style: none !important;
-}
 
 
 /* ── Print ───────────────────────────────────────────────────── */

@@ -10,12 +10,12 @@ import {
   Settings,
   ClipboardList,
   Rocket,
-  ChevronsLeft,
-  ChevronsRight,
+  LogOut,
+  ChevronUp,
+  LayoutDashboard,
 } from "lucide-react";
 
 import { createClient } from "@/lib/supabase";
-import { callEdge } from "@/lib/edge";
 import { usePermisos } from "@/lib/permisos";
 import { ROL_LABEL } from "@/lib/roles";
 
@@ -28,86 +28,121 @@ import {
   SidebarMenu,
   SidebarMenuItem,
   SidebarMenuButton,
-  useSidebar,
 } from "@/components/ui/sidebar";
 
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-
-import { Separator } from "@/components/ui/separator";
-
-// ── Types ─────────────────────────────────────
-interface InviteForm {
+interface UserData {
   nombre: string;
-  email: string;
-  password: string;
   rol: string;
 }
 
-interface InviteOk {
-  nombre: string;
-  email: string;
-  password: string;
-}
+function SidebarUserFooter({ user }: { user: UserData | null }) {
+  const [open, setOpen] = useState(false);
 
-// ── Header ────────────────────────────────────
-function SidebarHeaderInner() {
-  const { state, toggleSidebar } = useSidebar();
-  const collapsed = state === "collapsed";
+  async function handleLogout() {
+    const sb = createClient();
+    await sb.auth.signOut();
+    window.location.href = "/login";
+  }
+
+  function initials(name: string) {
+    const p = name.trim().split(/\s+/);
+    return p.length === 1 ? p[0].slice(0, 2).toUpperCase() : (p[0][0] + p[p.length - 1][0]).toUpperCase();
+  }
+
+  if (!user) return null;
+
+  const rolLabel = (ROL_LABEL as Record<string, string>)[user.rol] ?? user.rol;
 
   return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        alignItems: collapsed ? "center" : "stretch",
-        padding: collapsed ? "8px 0 4px" : "12px 8px 4px",
-      }}
-    >
-      {collapsed ? (
+    <div style={{ position: "relative" }}>
+      {open && (
         <>
-          <img src="/logo.svg" style={{ width: 26 }} />
-          <button onClick={toggleSidebar}>
-            <ChevronsRight size={16} />
-          </button>
+          <div style={{ position: "fixed", inset: 0, zIndex: 40 }} onClick={() => setOpen(false)} />
+          <div style={{
+            position: "absolute",
+            bottom: "calc(100% + 6px)",
+            left: 0,
+            right: 0,
+            zIndex: 50,
+            background: "#fff",
+            border: "1px solid #E5E7EB",
+            borderRadius: 8,
+            boxShadow: "0 4px 12px rgba(15,23,42,0.12)",
+            overflow: "hidden",
+          }}>
+            <button
+              onClick={handleLogout}
+              style={{
+                width: "100%",
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                padding: "10px 12px",
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                fontSize: 13,
+                fontWeight: 500,
+                color: "#DC2626",
+                fontFamily: "inherit",
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = "#FEF2F2"; }}
+              onMouseLeave={e => { e.currentTarget.style.background = "none"; }}
+            >
+              <LogOut size={14} />
+              Cerrar sesión
+            </button>
+          </div>
         </>
-      ) : (
-        <div style={{ position: "relative" }}>
-          <img src="/logo.svg" style={{ width: "100%", maxHeight: 48 }} />
-          <button
-            onClick={toggleSidebar}
-            style={{ position: "absolute", right: 5, bottom: 5 }}
-          >
-            <ChevronsLeft size={14} />
-          </button>
-        </div>
       )}
+
+      <button
+        onClick={() => setOpen(v => !v)}
+        style={{
+          width: "100%",
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+          padding: "8px 10px",
+          background: "none",
+          border: "none",
+          borderRadius: 6,
+          cursor: "pointer",
+          fontFamily: "inherit",
+          transition: "background 0.1s",
+        }}
+        onMouseEnter={e => { e.currentTarget.style.background = "#F9FAFB"; }}
+        onMouseLeave={e => { e.currentTarget.style.background = "none"; }}
+      >
+        <span style={{
+          width: 32, height: 32, borderRadius: "50%",
+          background: "#273D88", color: "#fff",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          fontSize: 11, fontWeight: 700, flexShrink: 0,
+        }}>
+          {initials(user.nombre)}
+        </span>
+        <div style={{ flex: 1, minWidth: 0, textAlign: "left" }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: "#1E2429", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {user.nombre}
+          </div>
+          <div style={{ fontSize: 11, color: "#8594A3", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {rolLabel}
+          </div>
+        </div>
+        <ChevronUp size={14} style={{ color: "#8594A3", flexShrink: 0, transform: open ? "rotate(0deg)" : "rotate(180deg)", transition: "transform 0.15s" }} />
+      </button>
     </div>
   );
 }
 
-// ── Main ──────────────────────────────────────
 export default function AppSidebar() {
   const pathname = usePathname();
   const channelRef = useRef<any>(null);
 
-  const [plantaId, setPlantaId] = useState<string | null>(null);
-  const [userRol, setUserRol] = useState<string | null>(null);
   const [onboardingDone, setOnboardingDone] = useState(true);
-
-  const [inviteOpen, setInviteOpen] = useState(false);
-  const [inviteForm, setInviteForm] = useState<InviteForm>({
-    nombre: "",
-    email: "",
-    password: "",
-    rol: "tecnico",
-  });
-  const [inviteError, setInviteError] = useState<string | null>(null);
-  const [inviteOk, setInviteOk] = useState<InviteOk | null>(null);
+  const [userRol, setUserRol] = useState<string | null>(null);
+  const [userData, setUserData] = useState<UserData | null>(null);
 
   const { puedeVer } = usePermisos();
   const isAdmin = userRol === "jefe" || userRol === "admin";
@@ -120,17 +155,16 @@ export default function AppSidebar() {
 
       const { data } = await sb
         .from("usuarios")
-        .select("workspace_id, rol, onboarding_done")
+        .select("workspace_id, rol, onboarding_done, nombre")
         .eq("id", user.id)
         .maybeSingle();
 
-      if (data?.workspace_id) setPlantaId(data.workspace_id);
       if (data?.rol) setUserRol(data.rol);
       setOnboardingDone(data?.onboarding_done ?? false);
+      if (data?.nombre && data?.rol) setUserData({ nombre: data.nombre, rol: data.rol });
 
       channelRef.current = sb.channel("sidebar").subscribe();
     }
-
     load();
   }, []);
 
@@ -139,83 +173,81 @@ export default function AppSidebar() {
   }
 
   return (
-    <>
-      {/* ── Sidebar ── */}
-      <Sidebar>
-        <SidebarHeader>
-          <SidebarHeaderInner />
-        </SidebarHeader>
+    <Sidebar>
+      <SidebarHeader>
+        <div style={{
+          height: 48,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: "0 14px",
+          borderBottom: "1px solid #E5E7EB",
+        }}>
+          <img src="/logo2.svg" alt="Pangui" style={{ height: 24, width: "auto", maxWidth: 130 }} />
+        </div>
+      </SidebarHeader>
 
-        <SidebarContent>
-          {/* Main */}
-          <SidebarGroup>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {!onboardingDone && (
-                  <SidebarMenuItem>
-                    <Link href="/empezando">
-                      <SidebarMenuButton isActive={isActive("/empezando")}>
-                        <Rocket /> Empezando
-                      </SidebarMenuButton>
-                    </Link>
-                  </SidebarMenuItem>
-                )}
-
+      <SidebarContent>
+        <SidebarGroup>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {!onboardingDone && (
                 <SidebarMenuItem>
-                  <Link href="/ordenes">
-                    <SidebarMenuButton isActive={isActive("/ordenes")}>
-                      <ClipboardList /> Órdenes
-                    </SidebarMenuButton>
-                  </Link>
+                  <SidebarMenuButton asChild isActive={isActive("/empezando")}>
+                    <Link href="/empezando"><Rocket /><span>Empezando</span></Link>
+                  </SidebarMenuButton>
                 </SidebarMenuItem>
+              )}
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={isActive("/inicio")}>
+                  <Link href="/inicio"><LayoutDashboard /><span>Inicio</span></Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
 
-                {puedeVer("inventario") && (
-                  <SidebarMenuItem>
-                    <Link href="/partes">
-                      <SidebarMenuButton isActive={isActive("/partes")}>
-                        <Boxes /> Partes
-                      </SidebarMenuButton>
-                    </Link>
-                  </SidebarMenuItem>
-                )}
-
-                {isAdmin && puedeVer("usuarios") && (
-                  <SidebarMenuItem>
-                    <Link href="/usuarios">
-                      <SidebarMenuButton isActive={isActive("/usuarios")}>
-                        <Users /> Equipo
-                      </SidebarMenuButton>
-                    </Link>
-                  </SidebarMenuItem>
-                )}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-
-          {/* Bottom */}
-          <SidebarGroup>
-            <SidebarGroupContent>
-              <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={isActive("/ordenes")}>
+                  <Link href="/ordenes"><ClipboardList /><span>Órdenes</span></Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              {puedeVer("inventario") && (
                 <SidebarMenuItem>
-                  <Link href="/notificaciones">
-                    <SidebarMenuButton isActive={isActive("/notificaciones")}>
-                      <Bell /> Notificaciones
-                    </SidebarMenuButton>
-                  </Link>
+                  <SidebarMenuButton asChild isActive={isActive("/partes")}>
+                    <Link href="/partes"><Boxes /><span>Partes</span></Link>
+                  </SidebarMenuButton>
                 </SidebarMenuItem>
-
+              )}
+              {isAdmin && puedeVer("usuarios") && (
                 <SidebarMenuItem>
-                  <Link href="/configuracion">
-                    <SidebarMenuButton isActive={isActive("/configuracion")}>
-                      <Settings /> Configuración
-                    </SidebarMenuButton>
-                  </Link>
+                  <SidebarMenuButton asChild isActive={isActive("/usuarios")}>
+                    <Link href="/usuarios"><Users /><span>Equipo</span></Link>
+                  </SidebarMenuButton>
                 </SidebarMenuItem>
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        </SidebarContent>
-      </Sidebar>
-    </>
+              )}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarGroup>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={isActive("/notificaciones")}>
+                  <Link href="/notificaciones"><Bell /><span>Notificaciones</span></Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={isActive("/configuracion")}>
+                  <Link href="/configuracion"><Settings /><span>Configuración</span></Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+      </SidebarContent>
+
+      <div style={{ borderTop: "1px solid #E5E7EB", padding: "8px" }}>
+        <SidebarUserFooter user={userData} />
+      </div>
+    </Sidebar>
   );
 }

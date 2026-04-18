@@ -238,9 +238,9 @@ export default function OrdenesBandeja({
         {/* Top row */}
         <div style={{
           display:"flex", alignItems:"center", justifyContent:"space-between",
-          padding:"0 16px", height:56, gap:12,
+          padding:"0 20px", height:56, gap:12,
         }}>
-          <h1 style={{ fontSize:22, fontWeight:700, color:"#1E2429", letterSpacing:"-0.3px", lineHeight:1.25, flexShrink:0 }}>
+          <h1 style={{ fontSize:20, fontWeight:700, color:"#1E2429", letterSpacing:"-0.3px", lineHeight:1.25, flexShrink:0 }}>
             Órdenes de Trabajo
           </h1>
 
@@ -298,7 +298,7 @@ export default function OrdenesBandeja({
         {/* Sub-nav: filter chips + sort */}
         <div style={{
           display:"flex", alignItems:"center", justifyContent:"space-between",
-          padding:"0 16px", height:40, gap:8,
+          padding:"0 20px", height:40, gap:8,
         }}>
           <div style={{ display:"flex", alignItems:"center", gap:6 }}>
             {/* Active filter chips */}
@@ -427,7 +427,7 @@ export default function OrdenesBandeja({
           )}
 
           {/* Tabs */}
-          <div style={{ display:"flex", borderBottom:"1px solid #E5E7EB", padding:"0 16px", flexShrink:0 }}>
+          <div style={{ display:"flex", borderBottom:"1px solid #E5E7EB", padding:"0 20px", flexShrink:0 }}>
             {[
               { key:"activas",  label:"Pendientes", count:activeCount },
               { key:"cerradas", label:"Completas",  count:closedCount },

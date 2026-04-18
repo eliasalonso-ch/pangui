@@ -134,12 +134,16 @@ function NOTBadge({ nOT }: { nOT: string }) {
     <button
       type="button"
       onClick={copy}
-      className="inline-flex items-center gap-1.5 text-[11px] font-mono font-semibold text-muted-foreground hover:text-foreground transition-colors group"
+      style={{
+        display: "inline-flex", alignItems: "center", gap: 3,
+        fontSize: 11, fontFamily: "monospace", fontWeight: 600,
+        color: "#273D88", background: "none", border: "none", cursor: "pointer", padding: 0,
+      }}
     >
       <span>{nOT}</span>
       {copied
-        ? <Check className="size-3 text-green-600" />
-        : <Copy className="size-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+        ? <Check size={10} style={{ color: "#16A34A" }} />
+        : <Copy size={10} style={{ color: "#C4CDD6" }} />
       }
     </button>
   );

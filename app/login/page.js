@@ -3,23 +3,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase";
-import { Sun, Moon, Monitor, ArrowLeft, CheckCircle2 } from "lucide-react";
-
-const THEME_KEY = "pangui_theme";
-const THEME_CYCLE = ["system", "light", "dark"];
-const THEME_ICON = { system: Monitor, light: Sun, dark: Moon };
-const THEME_LABEL = { system: "Sistema", light: "Claro", dark: "Oscuro" };
-
-function applyTheme(theme) {
-  const html = document.documentElement;
-  if (theme === "system") {
-    html.removeAttribute("data-theme");
-    localStorage.removeItem(THEME_KEY);
-  } else {
-    html.setAttribute("data-theme", theme);
-    localStorage.setItem(THEME_KEY, theme);
-  }
-}
+import { ArrowLeft, CheckCircle2, Eye, EyeOff, Loader2 } from "lucide-react";
 
 const FEATURES = [
   "Órdenes de trabajo en tiempo real",
@@ -28,56 +12,42 @@ const FEATURES = [
   "Firma digital del cliente en terreno",
 ];
 
+const inp = {
+  width: "100%",
+  padding: "10px 12px",
+  border: "1px solid #E5E7EB",
+  borderRadius: 6,
+  fontSize: 13.5,
+  fontFamily: "inherit",
+  color: "#1E2429",
+  background: "#fff",
+  outline: "none",
+  boxSizing: "border-box",
+  transition: "border-color 0.12s, box-shadow 0.12s",
+};
+
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPw, setShowPw] = useState(false);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [theme, setTheme] = useState("system");
-
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem(THEME_KEY);
-      if (saved === "dark" || saved === "light") setTheme(saved);
-    } catch {}
-  }, []);
-
-  function toggleTheme() {
-    const idx = THEME_CYCLE.indexOf(theme);
-    const next = THEME_CYCLE[(idx + 1) % THEME_CYCLE.length];
-    setTheme(next);
-    applyTheme(next);
-  }
-
-  const ThemeIcon = THEME_ICON[theme];
 
   async function handleSubmit(e) {
     e.preventDefault();
     setError(null);
     setLoading(true);
-
     const supabase = createClient();
-
     const { data, error: authError } = await supabase.auth.signInWithPassword({
       email: email.trim().toLowerCase(),
       password,
     });
-
     if (authError) {
       setError("Correo o contraseña incorrectos.");
       setLoading(false);
       return;
     }
-
-    const { data: perfil } = await supabase
-      .from("usuarios")
-      .select("rol")
-      .eq("id", data.user.id)
-      .maybeSingle();
-
-    const rol = perfil?.rol;
-
     router.push("/ordenes");
   }
 
@@ -85,115 +55,62 @@ export default function LoginPage() {
     <div style={{
       display: "flex",
       minHeight: "100vh",
-      fontFamily: "var(--font-sans, 'DM Sans', system-ui, sans-serif)",
+      fontFamily: 'var(--font-sans, "Geist"), system-ui, sans-serif',
     }}>
 
-      {/* ── Panel izquierdo (brand) ──────────────────────────────── */}
-      <div style={{
-        display: "none",
-        flexDirection: "column",
-        justifyContent: "space-between",
-        width: "55%",
-        minHeight: "100vh",
-        background: "linear-gradient(160deg, #0d1530 0%, #1a2a6c 60%, #273D88 100%)",
-        padding: "40px 52px",
-        position: "relative",
-        overflow: "hidden",
-      }}
+      {/* ── Left panel (brand) ── */}
+      <div
         className="login-left-panel"
+        style={{
+          display: "none",
+          flexDirection: "column",
+          justifyContent: "space-between",
+          width: "55%",
+          minHeight: "100vh",
+          background: "linear-gradient(160deg, #0d1530 0%, #1a2a6c 60%, #273D88 100%)",
+          padding: "40px 52px",
+          position: "relative",
+          overflow: "hidden",
+        }}
       >
         {/* Decorative circles */}
-        <div style={{
-          position: "absolute",
-          top: -120,
-          right: -120,
-          width: 480,
-          height: 480,
-          borderRadius: "50%",
-          border: "1px solid rgba(255,255,255,0.06)",
-          pointerEvents: "none",
-        }} />
-        <div style={{
-          position: "absolute",
-          bottom: -80,
-          left: -80,
-          width: 320,
-          height: 320,
-          borderRadius: "50%",
-          border: "1px solid rgba(255,255,255,0.05)",
-          pointerEvents: "none",
-        }} />
+        <div style={{ position: "absolute", top: -120, right: -120, width: 480, height: 480, borderRadius: "50%", border: "1px solid rgba(255,255,255,0.06)", pointerEvents: "none" }} />
+        <div style={{ position: "absolute", bottom: -80, left: -80, width: 320, height: 320, borderRadius: "50%", border: "1px solid rgba(255,255,255,0.05)", pointerEvents: "none" }} />
 
-        {/* Top: logo + theme toggle */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", position: "relative", zIndex: 1 }}>
-          <img src="/pangui-logo.svg" alt="Pangui" style={{ width: 100, height: "auto" }} />
-          <button
-            onClick={toggleTheme}
-            aria-label={`Tema: ${THEME_LABEL[theme]}`}
-            title={`Tema: ${THEME_LABEL[theme]}`}
-            style={{
-              display: "flex", alignItems: "center", justifyContent: "center",
-              width: 34, height: 34,
-              background: "rgba(255,255,255,0.08)",
-              border: "1px solid rgba(255,255,255,0.14)",
-              borderRadius: 0,
-              color: "rgba(255,255,255,0.75)",
-              cursor: "pointer",
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.15)")}
-            onMouseLeave={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.08)")}
-          >
-            <ThemeIcon size={15} />
-          </button>
+        {/* Logo */}
+        <div style={{ position: "relative", zIndex: 1 }}>
+          <img src="/pangui-logo-white.svg" alt="Pangui" style={{ width: 100, height: "auto" }}
+            onError={e => { e.currentTarget.src = "/pangui-logo.svg"; e.currentTarget.style.filter = "brightness(0) invert(1)"; }}
+          />
         </div>
 
-        {/* Center: headline */}
+        {/* Headline */}
         <div style={{ position: "relative", zIndex: 1 }}>
           <span style={{
             display: "inline-block",
-            fontSize: 11,
-            fontWeight: 700,
+            fontSize: 11, fontWeight: 700,
             color: "#EEF1FB",
-            textTransform: "uppercase",
-            letterSpacing: "0.14em",
-            borderLeft: "3px solid #EEF1FB",
-            paddingLeft: 10,
+            textTransform: "uppercase", letterSpacing: "0.14em",
+            borderLeft: "3px solid #EEF1FB", paddingLeft: 10,
             marginBottom: 24,
           }}>
             Plataforma de mantención
           </span>
-
           <h1 style={{
             fontSize: "clamp(1.8rem, 3vw, 2.6rem)",
-            fontWeight: 900,
-            color: "#fff",
-            lineHeight: 1.12,
-            letterSpacing: "-0.025em",
+            fontWeight: 900, color: "#fff",
+            lineHeight: 1.12, letterSpacing: "-0.025em",
             marginBottom: 20,
+            fontFamily: '"Inter", system-ui, sans-serif',
           }}>
             Gestiona tu equipo<br />desde cualquier lugar.
           </h1>
-
-          <p style={{
-            fontSize: 15,
-            color: "rgba(255,255,255,0.55)",
-            lineHeight: 1.7,
-            maxWidth: 380,
-            marginBottom: 40,
-          }}>
+          <p style={{ fontSize: 15, color: "rgba(255,255,255,0.55)", lineHeight: 1.7, maxWidth: 380, marginBottom: 40 }}>
             Órdenes de trabajo, inventario y facturación para pymes de mantención en Chile.
           </p>
-
           <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
-            {FEATURES.map((f) => (
-              <li key={f} style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-                marginBottom: 12,
-                fontSize: 14,
-                color: "rgba(255,255,255,0.7)",
-              }}>
+            {FEATURES.map(f => (
+              <li key={f} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12, fontSize: 14, color: "rgba(255,255,255,0.7)" }}>
                 <CheckCircle2 size={15} style={{ color: "#10b981", flexShrink: 0 }} />
                 {f}
               </li>
@@ -201,82 +118,43 @@ export default function LoginPage() {
           </ul>
         </div>
 
-        {/* Bottom: back link */}
-        <div style={{ position: "relative", zIndex: 1 }}>
-          <Link
-            href="/"
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 6,
-              fontSize: 13,
-              color: "rgba(255,255,255,0.45)",
-              textDecoration: "none",
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.color = "rgba(255,255,255,0.8)")}
-            onMouseLeave={(e) => (e.currentTarget.style.color = "rgba(255,255,255,0.45)")}
-          >
-            <ArrowLeft size={13} />
-            Volver al sitio
-          </Link>
-        </div>
+        {/* Back link */}
+        <Link
+          href="/"
+          style={{ position: "relative", zIndex: 1, display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, color: "rgba(255,255,255,0.45)", textDecoration: "none" }}
+          onMouseEnter={e => e.currentTarget.style.color = "rgba(255,255,255,0.8)"}
+          onMouseLeave={e => e.currentTarget.style.color = "rgba(255,255,255,0.45)"}
+        >
+          <ArrowLeft size={13} />
+          Volver al sitio
+        </Link>
       </div>
 
-      {/* ── Panel derecho (form) ─────────────────────────────────── */}
+      {/* ── Mobile top bar ── */}
+      <div className="login-mobile-bar" style={{
+        position: "fixed", top: 0, left: 0, right: 0, zIndex: 10,
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        padding: "14px 24px",
+        background: "#273D88",
+        borderBottom: "1px solid rgba(255,255,255,0.1)",
+      }}>
+        <img src="/pangui-logo.svg" alt="Pangui" style={{ width: 72, height: "auto", filter: "brightness(0) invert(1)" }}
+          onError={e => { e.currentTarget.style.filter = "none"; }} />
+        <Link href="/"
+          style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12, fontWeight: 600, color: "rgba(255,255,255,0.75)", textDecoration: "none" }}>
+          <ArrowLeft size={12} />
+          Volver
+        </Link>
+      </div>
+
+      {/* ── Right panel (form) ── */}
       <div style={{
         flex: 1,
         display: "flex",
         flexDirection: "column",
-        background: "var(--background)",
+        background: "#fff",
         minHeight: "100vh",
       }}>
-        {/* Mobile top bar */}
-        <div style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          padding: "20px 24px",
-          borderBottom: "1px solid var(--divider-1)",
-          background: "var(--accent-1)",
-        }}
-          className="login-mobile-bar"
-        >
-          <img src="/pangui-logo.svg" alt="Pangui" style={{ width: 80, height: "auto" }} />
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <button
-              onClick={toggleTheme}
-              aria-label={`Tema: ${THEME_LABEL[theme]}`}
-              style={{
-                display: "flex", alignItems: "center", justifyContent: "center",
-                width: 32, height: 32,
-                background: "rgba(255,255,255,0.1)",
-                border: "1px solid rgba(255,255,255,0.15)",
-                borderRadius: 0,
-                color: "rgba(255,255,255,0.8)",
-                cursor: "pointer",
-              }}
-            >
-              <ThemeIcon size={14} />
-            </button>
-            <Link
-              href="/"
-              style={{
-                display: "inline-flex", alignItems: "center", gap: 5,
-                fontSize: 12, fontWeight: 600,
-                color: "rgba(255,255,255,0.75)",
-                textDecoration: "none",
-                padding: "6px 12px",
-                border: "1px solid rgba(255,255,255,0.2)",
-                borderRadius: 0,
-              }}
-            >
-              <ArrowLeft size={12} />
-              Volver
-            </Link>
-          </div>
-        </div>
-
-        {/* Form area */}
         <div style={{
           flex: 1,
           display: "flex",
@@ -287,119 +165,78 @@ export default function LoginPage() {
           <div style={{ width: "100%", maxWidth: 380 }}>
 
             {/* Heading */}
-            <div style={{ marginBottom: 36 }}>
-              <span style={{
-                display: "inline-block",
-                fontSize: 11,
-                fontWeight: 700,
-                color: "var(--accent-1)",
-                textTransform: "uppercase",
-                letterSpacing: "0.12em",
-                borderLeft: "3px solid var(--accent-1)",
-                paddingLeft: 8,
-                marginBottom: 14,
+            <div style={{ marginBottom: 28 }}>
+              <h2 style={{
+                fontSize: 24, fontWeight: 800,
+                color: "#0A0F1E", margin: "0 0 6px",
+                letterSpacing: "-0.02em",
+                fontFamily: '"Inter", system-ui, sans-serif',
               }}>
-                Acceso
-              </span>
-              <h1 style={{
-                fontSize: "clamp(1.5rem, 4vw, 1.9rem)",
-                fontWeight: 900,
-                color: "var(--black)",
-                letterSpacing: "-0.025em",
-                lineHeight: 1.15,
-                marginBottom: 8,
-              }}>
-                Iniciar sesión
-              </h1>
-              <p style={{ fontSize: 14, color: "var(--accent-5)", lineHeight: 1.5 }}>
-                Gestión de órdenes de trabajo
+                Inicia sesión
+              </h2>
+              <p style={{ color: "#4D5A66", fontSize: 13.5, margin: 0 }}>
+                Accede a tu panel de mantención.
               </p>
             </div>
 
             {/* Form */}
-            <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+            <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
               <div>
-                <label style={{
-                  display: "block",
-                  fontSize: 11,
-                  fontWeight: 700,
-                  color: "var(--accent-5)",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.08em",
-                  marginBottom: 7,
-                }}>
-                  Correo electrónico
+                <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#4D5A66", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 6 }}>
+                  Email
                 </label>
                 <input
                   type="email"
-                  placeholder="usuario@empresa.cl"
+                  placeholder="tu@empresa.cl"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={e => setEmail(e.target.value)}
                   required
                   autoComplete="email"
                   autoCapitalize="none"
-                  style={{
-                    width: "100%",
-                    padding: "11px 14px",
-                    border: "1.5px solid var(--divider-1)",
-                    borderRadius: 0,
-                    fontSize: 15,
-                    fontFamily: "inherit",
-                    color: "var(--black)",
-                    background: "var(--background)",
-                    outline: "none",
-                    boxSizing: "border-box",
-                    transition: "border-color 0.15s",
-                  }}
-                  onFocus={(e) => (e.currentTarget.style.borderColor = "var(--accent-1)")}
-                  onBlur={(e) => (e.currentTarget.style.borderColor = "var(--divider-1)")}
+                  style={inp}
+                  onFocus={e => { e.currentTarget.style.borderColor = "#273D88"; e.currentTarget.style.boxShadow = "0 0 0 3px rgba(39,61,136,0.15)"; }}
+                  onBlur={e => { e.currentTarget.style.borderColor = "#E5E7EB"; e.currentTarget.style.boxShadow = "none"; }}
                 />
               </div>
 
               <div>
-                <label style={{
-                  display: "block",
-                  fontSize: 11,
-                  fontWeight: 700,
-                  color: "var(--accent-5)",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.08em",
-                  marginBottom: 7,
-                }}>
-                  Contraseña
-                </label>
-                <input
-                  type="password"
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  autoComplete="current-password"
-                  style={{
-                    width: "100%",
-                    padding: "11px 14px",
-                    border: "1.5px solid var(--divider-1)",
-                    borderRadius: 0,
-                    fontSize: 15,
-                    fontFamily: "inherit",
-                    color: "var(--black)",
-                    background: "var(--background)",
-                    outline: "none",
-                    boxSizing: "border-box",
-                    transition: "border-color 0.15s",
-                  }}
-                  onFocus={(e) => (e.currentTarget.style.borderColor = "var(--accent-1)")}
-                  onBlur={(e) => (e.currentTarget.style.borderColor = "var(--divider-1)")}
-                />
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: "#4D5A66", textTransform: "uppercase", letterSpacing: "0.07em" }}>
+                    Contraseña
+                  </label>
+                  <a href="mailto:hola@pangui.cl" style={{ fontSize: 12, color: "#273D88", fontWeight: 600, textDecoration: "none" }}>
+                    ¿Olvidaste?
+                  </a>
+                </div>
+                <div style={{ position: "relative" }}>
+                  <input
+                    type={showPw ? "text" : "password"}
+                    placeholder="••••••••"
+                    value={password}
+                    onChange={e => setPassword(e.target.value)}
+                    required
+                    autoComplete="current-password"
+                    style={{ ...inp, paddingRight: 38 }}
+                    onFocus={e => { e.currentTarget.style.borderColor = "#273D88"; e.currentTarget.style.boxShadow = "0 0 0 3px rgba(39,61,136,0.15)"; }}
+                    onBlur={e => { e.currentTarget.style.borderColor = "#E5E7EB"; e.currentTarget.style.boxShadow = "none"; }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPw(v => !v)}
+                    style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "#9CA3AF", display: "flex" }}
+                  >
+                    {showPw ? <EyeOff size={14} /> : <Eye size={14} />}
+                  </button>
+                </div>
               </div>
 
               {error && (
                 <div style={{
-                  fontSize: 13,
-                  color: "var(--accent-1)",
-                  background: "var(--accent-2)",
-                  borderLeft: "3px solid var(--accent-1)",
+                  fontSize: 12.5, color: "#DC2626",
+                  background: "#FEF2F2",
+                  borderLeft: "3px solid #DC2626",
                   padding: "10px 12px",
+                  borderRadius: "0 6px 6px 0",
                   lineHeight: 1.4,
                 }}>
                   {error}
@@ -411,63 +248,44 @@ export default function LoginPage() {
                 disabled={loading}
                 style={{
                   width: "100%",
-                  padding: "13px",
+                  padding: "12px",
                   marginTop: 4,
-                  background: loading ? "var(--accent-5)" : "var(--accent-1)",
+                  background: loading ? "#4D5A66" : "#273D88",
                   color: "#fff",
                   border: "none",
-                  borderRadius: 0,
-                  fontSize: 15,
+                  borderRadius: 6,
+                  fontSize: 14,
                   fontWeight: 700,
                   fontFamily: "inherit",
-                  letterSpacing: "0.01em",
                   cursor: loading ? "not-allowed" : "pointer",
-                  transition: "opacity 0.15s",
+                  transition: "background 0.15s",
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
                 }}
-                onMouseEnter={(e) => { if (!loading) e.currentTarget.style.opacity = "0.88"; }}
-                onMouseLeave={(e) => { e.currentTarget.style.opacity = "1"; }}
+                onMouseEnter={e => { if (!loading) e.currentTarget.style.background = "#1F316E"; }}
+                onMouseLeave={e => { if (!loading) e.currentTarget.style.background = "#273D88"; }}
               >
-                {loading ? "Ingresando…" : "Ingresar"}
+                {loading && <Loader2 size={15} className="animate-spin" />}
+                {loading ? "Ingresando…" : "Iniciar sesión"}
               </button>
             </form>
 
-            {/* Footer */}
-            <p style={{
-              marginTop: 32,
-              fontSize: 12,
-              color: "var(--accent-5)",
-              textAlign: "center",
-              lineHeight: 1.6,
-            }}>
-              ¿Problemas para acceder?{" "}
-              <a href="mailto:hola@pangui.cl" style={{ color: "var(--accent-1)", textDecoration: "none", fontWeight: 600 }}>
-                Contáctanos
+            <div style={{ marginTop: 28, paddingTop: 20, borderTop: "1px solid #F1F3F5", fontSize: 13, color: "#4D5A66", textAlign: "center" }}>
+              ¿Aún no tienes cuenta?{" "}
+              <a href="mailto:hola@pangui.cl" style={{ color: "#273D88", fontWeight: 600, textDecoration: "none" }}>
+                Contáctanos →
               </a>
-            </p>
+            </div>
           </div>
         </div>
 
-        {/* Bottom copyright */}
-        <div style={{
-          padding: "16px 24px",
-          borderTop: "1px solid var(--divider-1)",
-          fontSize: 12,
-          color: "var(--accent-5)",
-          display: "flex",
-          justifyContent: "space-between",
-          flexWrap: "wrap",
-          gap: 8,
-        }}>
+        <div style={{ padding: "16px 24px", borderTop: "1px solid #F1F3F5", fontSize: 12, color: "#9CA3AF", display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
           <span>© 2026 Pangui</span>
           <div style={{ display: "flex", gap: 16 }}>
-            <Link href="/privacidad" style={{ color: "var(--accent-5)", textDecoration: "none" }}
-              onMouseEnter={(e) => (e.currentTarget.style.color = "var(--accent-1)")}
-              onMouseLeave={(e) => (e.currentTarget.style.color = "var(--accent-5)")}
-            >Privacidad</Link>
-            <Link href="/terminos" style={{ color: "var(--accent-5)", textDecoration: "none" }}
-              onMouseEnter={(e) => (e.currentTarget.style.color = "var(--accent-1)")}
-              onMouseLeave={(e) => (e.currentTarget.style.color = "var(--accent-5)")}
-            >Términos</Link>
+            <Link href="/privacidad" style={{ color: "#9CA3AF", textDecoration: "none" }}
+              onMouseEnter={e => e.currentTarget.style.color = "#273D88"}
+              onMouseLeave={e => e.currentTarget.style.color = "#9CA3AF"}>
+              Privacidad
+            </Link>
           </div>
         </div>
       </div>
@@ -476,6 +294,10 @@ export default function LoginPage() {
         @media (min-width: 768px) {
           .login-left-panel { display: flex !important; }
           .login-mobile-bar { display: none !important; }
+        }
+        @media (max-width: 767px) {
+          .login-mobile-bar { display: flex !important; }
+          .pg-form-wrap { padding-top: 72px !important; }
         }
       `}</style>
     </div>

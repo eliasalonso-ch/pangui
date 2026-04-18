@@ -4,91 +4,30 @@ import * as React from "react"
 import { Slot } from "@radix-ui/react-slot"
 import { cn } from "@/lib/utils"
 
-// ─────────────────────────────────────────────
-// Context
-// ─────────────────────────────────────────────
-type SidebarContextType = {
-  state: "expanded" | "collapsed"
-  toggleSidebar: () => void
-}
-
-const SidebarContext = React.createContext<SidebarContextType | null>(null)
-
-export function useSidebar() {
-  const ctx = React.useContext(SidebarContext)
-  if (!ctx) throw new Error("useSidebar must be used within SidebarProvider")
-  return ctx
-}
-
-// ─────────────────────────────────────────────
-// Provider
-// ─────────────────────────────────────────────
 export function SidebarProvider({ children }: { children: React.ReactNode }) {
-  const [open, setOpen] = React.useState(true)
-
-  return (
-    <SidebarContext.Provider
-      value={{
-        state: open ? "expanded" : "collapsed",
-        toggleSidebar: () => setOpen((o) => !o),
-      }}
-    >
-      <div className="flex min-h-screen w-full">{children}</div>
-    </SidebarContext.Provider>
-  )
+  return <div className="flex min-h-screen w-full">{children}</div>
 }
 
-// ─────────────────────────────────────────────
-// Sidebar
-// ─────────────────────────────────────────────
-type SidebarProps = React.HTMLAttributes<HTMLDivElement> & {
-  collapsible?: "icon" | "offcanvas" | "none"
-}
+export const Sidebar = ({ children, className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
+  <aside
+    className={cn("w-[220px] flex flex-col flex-shrink-0", className)}
+    style={{ background: "#fff", borderRight: "1px solid #E5E7EB" }}
+    {...props}
+  >
+    {children}
+  </aside>
+)
 
-export const Sidebar = ({
-  children,
-  className,
-  collapsible = "none",
-}: SidebarProps) => {
-  const { state } = useSidebar()
+export const SidebarInset = ({ children }: { children: React.ReactNode }) => (
+  <main className="flex-1 min-w-0">{children}</main>
+)
 
-  const collapsed = state === "collapsed" && collapsible === "icon"
-
-  return (
-    <aside
-      data-state={state}
-      data-collapsible={collapsible}
-      className={cn(
-        "bg-sidebar border-r transition-all duration-200 flex flex-col",
-        collapsed ? "w-[56px]" : "w-[220px]",
-        className
-      )}
-    >
-      {children}
-    </aside>
-  )
-}
-
-// ─────────────────────────────────────────────
-// Layout
-// ─────────────────────────────────────────────
-export const SidebarInset = ({
-  children,
-}: {
-  children: React.ReactNode
-}) => {
-  return <main className="flex-1">{children}</main>
-}
-
-// ─────────────────────────────────────────────
-// Sections
-// ─────────────────────────────────────────────
 export const SidebarHeader = (props: React.HTMLAttributes<HTMLDivElement>) => (
-  <div className="p-2" {...props} />
+  <div {...props} />
 )
 
 export const SidebarContent = (props: React.HTMLAttributes<HTMLDivElement>) => (
-  <div className="flex-1 overflow-auto p-2" {...props} />
+  <div className="flex-1 overflow-auto" style={{ padding: "8px" }} {...props} />
 )
 
 export const SidebarGroup = (props: React.HTMLAttributes<HTMLDivElement>) => (
@@ -99,15 +38,12 @@ export const SidebarGroupContent = (props: React.HTMLAttributes<HTMLDivElement>)
   <div className="flex flex-col gap-1" {...props} />
 )
 
-// ─────────────────────────────────────────────
-// Menu
-// ─────────────────────────────────────────────
 export const SidebarMenu = (props: React.HTMLAttributes<HTMLUListElement>) => (
-  <ul className="flex flex-col gap-1" {...props} />
+  <ul className="flex flex-col gap-1 list-none" {...props} />
 )
 
 export const SidebarMenuItem = (props: React.HTMLAttributes<HTMLLIElement>) => (
-  <li {...props} />
+  <li className="list-none" {...props} />
 )
 
 export const SidebarMenuButton = ({
@@ -123,10 +59,13 @@ export const SidebarMenuButton = ({
 
   return (
     <Comp
+      data-active={isActive ? "true" : undefined}
       className={cn(
-        "flex items-center gap-2 rounded-md px-2 py-2 text-sm transition-colors",
-        "hover:bg-muted",
-        isActive && "bg-muted font-medium",
+        "flex w-full items-center gap-3 rounded-md px-3 text-sm transition-colors",
+        "h-10 border-none bg-transparent outline-none cursor-pointer",
+        "font-medium text-[#4D5A66]",
+        "hover:bg-[#F9FAFB] hover:text-[#1E2429]",
+        isActive && "bg-[#EEF1FB] text-[#273D88] font-semibold",
         className
       )}
       {...props}
