@@ -1,11 +1,15 @@
-import { DM_Sans } from "next/font/google";
+import { Inter, Geist } from "next/font/google";
 import "./globals.css";
-import ServiceWorker from "@/components/ServiceWorker";
 
-const dmSans = DM_Sans({
+const inter = Inter({
+  variable: "--font-heading",
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+});
+
+const geist = Geist({
   variable: "--font-sans",
   subsets: ["latin"],
-  weight: ["400", "500", "700"],
 });
 
 export const metadata = {
@@ -35,7 +39,7 @@ export const viewport = {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="es" className={dmSans.variable} suppressHydrationWarning>
+    <html lang="es" className={`${inter.variable} ${geist.variable}`} suppressHydrationWarning>
       <head>
         <link rel="preconnect" href="https://yqwsryjbmlvcghnwnzik.supabase.co" />
         <link rel="dns-prefetch" href="https://yqwsryjbmlvcghnwnzik.supabase.co" />
@@ -47,7 +51,6 @@ export default function RootLayout({ children }) {
             __html: `(function(){try{var t=localStorage.getItem('pangui_theme');if(t==='dark'||t==='light')document.documentElement.setAttribute('data-theme',t);}catch(e){}})();`,
           }}
         />
-        <ServiceWorker />
         {children}
       </body>
     </html>

@@ -4,6 +4,11 @@ const nextConfig = {
   experimental: {
     viewTransition: true,
   },
+  turbopack: {
+    resolveAlias: {
+      canvas: "./empty-module.js",
+    },
+  },
 };
 
 export default nextConfig;

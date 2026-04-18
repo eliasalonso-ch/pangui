@@ -1,4 +1,9 @@
 
+/* ── Prevent iOS/Android auto-zoom on input focus ───────────── */
+input, textarea, select {
+  font-size: max(16px, 1em);
+}
+
 /* ── shadcn/ui required tokens ──────────────────────────────── */
 @tailwind base;
 @tailwind components;
@@ -6,89 +11,124 @@
 
 @layer base {
   :root {
-    --background-hsl: 0 0% 100%;
-    --foreground:     222 47% 11%;
-    --card:           0 0% 100%;
-    --card-foreground: 222 47% 11%;
-    --popover:        0 0% 100%;
-    --popover-foreground: 222 47% 11%;
-    --primary:        228 57% 35%;
-    --primary-foreground: 0 0% 100%;
-    --secondary:      225 43% 94%;
-    --secondary-foreground: 228 57% 35%;
-    --muted:          220 14% 96%;
-    --muted-foreground: 220 9% 46%;
-    --accent-hsl:     225 43% 94%;
-    --accent-foreground: 228 57% 35%;
-    --destructive:    0 84% 60%;
+    --background-hsl:        0 0% 100%;
+    --foreground:            222 47% 11%;
+    --card:                  0 0% 100%;
+    --card-foreground:       222 47% 11%;
+    --popover:               0 0% 100%;
+    --popover-foreground:    222 47% 11%;
+
+    --primary:               228 55% 35%;
+    --primary-foreground:    0 0% 100%;
+
+    --secondary:             228 57% 96%;
+    --secondary-foreground:  228 55% 35%;
+
+    --muted:                 220 14% 96%;
+    --muted-foreground:      220 9% 46%;
+
+    --accent:                228 57% 96%;
+    --accent-foreground:     228 55% 35%;
+
+    --destructive:           0 84% 60%;
     --destructive-foreground: 0 0% 100%;
-    --border:         220 14% 89%;
-    --input:          220 14% 89%;
-    --ring:           228 57% 35%;
-    --radius:         0.625rem;
+
+    --border:                220 13% 91%;
+    --input:                 220 13% 91%;
+    --ring:                  228 55% 35%;
+    --radius:                0rem;
+
+    /* ── Sidebar — clean light ── */
+    --sidebar-background:    0 0% 100%;
+    --sidebar-foreground:    222 20% 30%;
+    --sidebar-primary:       228 55% 35%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent:        228 57% 96%;
+    --sidebar-accent-foreground: 228 55% 35%;
+    --sidebar-border:        220 13% 91%;
+    --sidebar-ring:          228 55% 60%;
+  }
+
+  .dark {
+    --background-hsl:        222 47% 7%;
+    --foreground:            210 40% 98%;
+    --card:                  222 47% 10%;
+    --card-foreground:       210 40% 98%;
+    --popover:               222 47% 10%;
+    --popover-foreground:    210 40% 98%;
+    --primary:               228 70% 65%;
+    --primary-foreground:    222 47% 11%;
+    --secondary:             217 33% 18%;
+    --secondary-foreground:  210 40% 98%;
+    --muted:                 217 33% 18%;
+    --muted-foreground:      215 20% 55%;
+    --accent:                217 33% 18%;
+    --accent-foreground:     210 40% 98%;
+    --destructive:           0 63% 31%;
+    --destructive-foreground: 0 0% 98%;
+    --border:                217 33% 18%;
+    --input:                 217 33% 18%;
+    --ring:                  228 70% 65%;
+    --sidebar-background:    222 47% 7%;
+    --sidebar-foreground:    228 40% 88%;
+    --sidebar-primary:       228 70% 65%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent:        228 45% 16%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border:        228 45% 16%;
+    --sidebar-ring:          228 70% 65%;
   }
 }
 
 /* ── CSS Variables ──────────────────────────────────────────── */
 
 :root {
-  /* ── Paleta corporativa Pangui ────────────────────────────── */
-  --black:      #1A1A1A;   /* texto primario                     */
-  --white:      #FFFFFF;
-  --background: #FFFFFF;   /* fondo general                      */
-  --accent-1:   #273D88;   /* azul primario — botones, activos   */
-  --accent-2:   #EEF1FB;   /* azul muy claro — highlights, badges*/
-  --accent-3:   #1F316E;   /* azul oscuro — hover, focus         */
-  --accent-4:   #3D52A0;   /* azul medio                         */
-  --accent-5:   #6B7280;   /* texto secundario                   */
-  --accent-6:   #9CA3AF;   /* texto terciario, placeholders      */
-  --divider-1:  #E2E6F0;   /* bordes y separadores               */
+  /* ── Pangui brand colors ─────────────────────────────────── */
+  --brand:        #273D88;   /* primary blue                  */
+  --brand-hover:  #1F316E;   /* darker blue on hover          */
+  --brand-light:  #EEF1FB;   /* light blue tint               */
 
-  /* ── Colores semánticos ─────────────────────────────────── */
-  --danger:      #EF4444;
-  --danger-bg:   #FEF2F2;
-  --danger-dark: #DC2626;
-  --success:     #22C55E;
-  --success-bg:  #F0FDF4;
-  --warning:     #F59E0B;
-  --warning-bg:  #FFFBEB;
-  --info:        #3B82F6;
-  --info-bg:     #EFF6FF;
-  --revision:      #6366F1;
-  --revision-bg:   #EEF2FF;
-  --surface-hover: #F0F2FF;
-  --canceled-bg:   #F3F4F6;
-
-  /* ── Tipografía ─────────────────────────────────────────── */
-  --fs-xs:   11px;
-  --fs-sm:   12px;
-  --fs-base: 14px;
-  --fs-md:   16px;
-  --fs-lg:   20px;
-  --fs-xl:   24px;
+  /* ── MaintainX-inspired design tokens ───────────────────── */
+  --mx-bg:           #FFFFFF;
+  --mx-bg-hover:     #F9FAFB;
+  --mx-bg-selected:  #EEF1FB;
+  --mx-sidebar-bg:   #FFFFFF;
+  --mx-sidebar-border: #E5E7EB;
+  --mx-text-primary: #1E2429;
+  --mx-text-secondary: #4D5A66;
+  --mx-text-muted:   #8594A3;
+  --mx-border:       #E5E7EB;
+  --mx-border-hover: #B5C0C9;
+  --mx-accent:       #273D88;
+  --mx-accent-light: #EEF1FB;
+  --mx-accent-text:  #273D88;
 
   /* ── Layout ─────────────────────────────────────────────── */
   --topbar-height: 0px;
-  --bottomnav-height: 80px;
   --sidebar-width: 220px;
-  --container-max: 1200px;
-}
 
-@media (min-width: 768px) {
-  :root {
-    --fs-xs:   12px;
-    --fs-sm:   13px;
-    --fs-base: 15px;
-    --fs-md:   17px;
-  }
+  /* ── Typography ─────────────────────────────────────────── */
+  --fs-xs:   11px;
+  --fs-sm:   12px;
+  --fs-base: 13px;
+  --fs-md:   15px;
+  --fs-lg:   18px;
+  --fs-xl:   22px;
+  --fs-xxl:  26px;
 }
 
 /* ── Reset ──────────────────────────────────────────────────── */
 
+html {
+  box-sizing: border-box;
+}
+
 *,
 *::before,
 *::after {
-  box-sizing: border-box;
+  box-sizing: inherit;
+  flex: none;
+  min-height: 0;
   margin: 0;
   padding: 0;
 }
@@ -98,57 +138,127 @@ body {
   -webkit-tap-highlight-color: transparent;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  font-family: var(--font-sans), system-ui, sans-serif;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   font-size: var(--fs-base);
-  background: var(--background);
+  background: var(--mx-bg);
   overscroll-behavior: none;
-  color: var(--black);
+  color: var(--mx-text-primary);
 }
-
-/* ── Desktop sidebar layout ──────────────────────────────────── */
-/* Applied to <main> in shells (not body) so topbar stays full-width */
 
 @media (min-width: 1024px) {
-  body {
-    padding-bottom: 0;
-  }
-
-  .sidebarMain {
-    margin-left: var(--sidebar-width);
-  }
+  body { padding-bottom: 0; }
 }
 
-a {
-  color: inherit;
-  text-decoration: none;
+a { color: inherit; text-decoration: none; }
+
+input, select, textarea { color-scheme: inherit; }
+
+/* ── Shadcn sidebar overrides — MaintainX style ─────────────── */
+
+[data-sidebar="sidebar"] {
+  background: #fff !important;
+  border-right: 1px solid #E5E7EB !important;
 }
 
-/* ── Native form element theming ────────────────────────────── */
-/* Ensures select, input, textarea respect dark mode             */
+[data-sidebar="header"] {
+  border-bottom: 1px solid #E5E7EB !important;
+  padding: 0 !important;
+}
 
-input,
-select,
-textarea {
-  color-scheme: inherit;
+/* More vertical spacing between nav items */
+[data-sidebar="menu"] {
+  gap: 4px !important;
+}
+
+/* Nav item buttons — larger, MaintainX style */
+[data-sidebar="menu-button"] {
+  height: 40px !important;
+  padding: 0 12px !important;
+  gap: 12px !important;
+  border-radius: 6px !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  color: #4D5A66 !important;
+  transition: background 0.1s, color 0.1s !important;
+}
+
+/* Icons: 24px like MaintainX */
+[data-sidebar="menu-button"] svg {
+  width: 24px !important;
+  height: 24px !important;
+  flex-shrink: 0 !important;
+  color: #677888 !important;
+}
+
+[data-sidebar="menu-button"]:hover:not([data-active="true"]) {
+  background: #F9FAFB !important;
+  color: #1E2429 !important;
+}
+[data-sidebar="menu-button"]:hover:not([data-active="true"]) svg {
+  color: #1E2429 !important;
+}
+
+[data-sidebar="menu-button"][data-active="true"] {
+  background: #EEF1FB !important;
+  color: #273D88 !important;
+  font-weight: 600 !important;
+}
+[data-sidebar="menu-button"][data-active="true"] svg {
+  color: #273D88 !important;
+}
+
+/* Collapsed icon-only mode: center the 24px icon */
+[data-collapsible="icon"] [data-sidebar="menu-button"] {
+  width: 40px !important;
+  height: 40px !important;
+  padding: 0 !important;
+  justify-content: center !important;
+}
+
+/* Hide text labels when sidebar is collapsed to icon-only mode */
+[data-collapsible="icon"] [data-sidebar="menu-button"] span {
+  display: none !important;
+}
+
+/* Hide menu badges when collapsed */
+[data-collapsible="icon"] [data-sidebar="menu-badge"] {
+  display: none !important;
+}
+
+[data-sidebar="menu-badge"] {
+  background: #EF4444 !important;
+  color: #fff !important;
+  border-radius: 10px !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  min-width: 18px !important;
+  height: 18px !important;
+  padding: 0 4px !important;
+}
+
+[data-sidebar="footer"] {
+  border-top: 1px solid #E5E7EB !important;
+  padding: 8px !important;
+}
+
+[data-sidebar="group-content"] {
+  padding: 0 8px !important;
+}
+
+[data-sidebar="menu"] {
+  list-style: none !important;
+}
+
+[data-sidebar="menu-item"] {
+  list-style: none !important;
 }
 
 
 /* ── Print ───────────────────────────────────────────────────── */
 
 @media print {
-  nav,
-  [class*="BottomNav"],
-  [class*="nav"],
-  [class*="sidebar"] {
+  nav, [class*="BottomNav"], [class*="nav"], [class*="sidebar"] {
     display: none !important;
   }
-
-  .sidebarMain {
-    margin-left: 0 !important;
-    padding: 0 !important;
-  }
-
-  body {
-    background: #fff !important;
-  }
+  body { background: #fff !important; }
 }
