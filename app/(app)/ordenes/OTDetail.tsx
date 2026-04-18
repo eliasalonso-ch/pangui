@@ -733,7 +733,7 @@ export default function OTDetail({
                         <div style={{ position: "absolute", left: 15, top: 26, bottom: 0, width: 1, background: "#F1F3F5" }} />
                       )}
                       <div className={cn("mt-1 size-7 rounded-full border-2 border-white bg-gray-50 flex items-center justify-center shrink-0 shadow-sm z-10", colorClass)} style={{ minWidth: 28, minHeight: 28 }}>
-                        <Icon size={12} />
+                        <Icon className="w-3 h-3" />
                       </div>
                       <div style={{ flex: 1, minWidth: 0, paddingBottom: isLast ? 0 : 16 }}>
                         <div style={{ display: "flex", alignItems: "baseline", gap: 6, flexWrap: "wrap" }}>
