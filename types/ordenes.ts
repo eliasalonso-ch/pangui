@@ -39,7 +39,10 @@ export interface ScanResult {
 
   // OT-related
   titulo?: string;
+  descripcion?: string;
+  solicitante?: string;
   numero_meconecta?: string;
+  prioridad?: Prioridad;
 
   // Location-related
   ubicacion?: string;
