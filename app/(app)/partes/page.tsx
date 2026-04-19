@@ -5,36 +5,24 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase";
 import {
   Boxes, Plus, Search, X, ChevronRight, Loader2,
-  Package, Minus, AlertTriangle, Check, Pencil, Trash2, Upload,
-  MapPin, Tag, Link2, User2,
+  Package, Minus, Pencil, Trash2, Upload,
+  MapPin, Tag,
 } from "lucide-react";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
-interface TipoParte  { id: string; nombre: string; }
-interface Ubicacion  { id: string; edificio: string; piso?: string; }
-interface Activo     { id: string; nombre: string; codigo?: string; }
-interface Proveedor  { id: string; nombre: string; }
 
 interface Parte {
   id: string;
   nombre: string;
   descripcion?: string;
   codigo?: string;
-  tipo_parte_id?: string;
+  unidad?: string;
   precio_unitario?: number;
-  ubicacion_id?: string;
+  ubicacion_bodega?: string;
   stock_actual?: number;
   stock_minimo?: number;
-  activo_id?: string;
-  grupo_responsable?: string;
-  proveedor_id?: string;
   imagen_url?: string;
-  archivo_url?: string;
-  archivo_nombre?: string;
-  tipos_parte?: { nombre: string };
-  ubicaciones?: { edificio: string; piso?: string };
-  activos?: { nombre: string; codigo?: string };
-  proveedores?: { nombre: string };
+  workspace_id?: string;
 }
 
 type StockFilter = "todos" | "agotado" | "bajo" | "ok";
@@ -67,9 +55,8 @@ const inputStyle: React.CSSProperties = {
 function emptyForm(): Partial<Parte> {
   return {
     nombre: "", descripcion: "", codigo: "",
-    tipo_parte_id: "", precio_unitario: undefined,
-    ubicacion_id: "", stock_actual: 0, stock_minimo: 0,
-    activo_id: "", grupo_responsable: "", proveedor_id: "",
+    unidad: "un", precio_unitario: undefined,
+    ubicacion_bodega: "", stock_actual: 0, stock_minimo: 0,
   };
 }
 
@@ -191,10 +178,6 @@ export default function PartesPage() {
   const router = useRouter();
   const [plantaId, setPlantaId] = useState<string | null>(null);
   const [partes, setPartes] = useState<Parte[]>([]);
-  const [tiposParte, setTiposParte] = useState<TipoParte[]>([]);
-  const [ubicaciones, setUbicaciones] = useState<Ubicacion[]>([]);
-  const [activos, setActivos] = useState<Activo[]>([]);
-  const [proveedores, setProveedores] = useState<Proveedor[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [busqueda, setBusqueda] = useState("");
@@ -206,7 +189,6 @@ export default function PartesPage() {
 
   const [imgPreview, setImgPreview] = useState<string | null>(null);
   const [imgFile, setImgFile] = useState<File | null>(null);
-  const [adjFile, setAdjFile] = useState<File | null>(null);
   const [uploadingImg, setUploadingImg] = useState(false);
 
   const [saving, setSaving] = useState(false);
@@ -214,7 +196,6 @@ export default function PartesPage() {
   const [confirm, setConfirm] = useState<Parte | null>(null);
 
   const imgInputRef = useRef<HTMLInputElement>(null);
-  const adjInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     async function load() {
@@ -228,19 +209,10 @@ export default function PartesPage() {
       const pId = perfil.workspace_id;
       setPlantaId(pId);
 
-      const [p, t, u, a, pr] = await Promise.all([
-        sb.from("partes").select("*, tipos_parte(nombre), ubicaciones(edificio,piso), activos(nombre,codigo), proveedores(nombre)")
-          .eq("workspace_id", pId).eq("activo", true).order("nombre"),
-        sb.from("tipos_parte").select("id,nombre").order("nombre"),
-        sb.from("ubicaciones").select("id,edificio,piso").eq("workspace_id", pId).eq("activa", true).order("edificio"),
-        sb.from("activos").select("id,nombre,codigo").eq("workspace_id", pId).eq("activo", true).order("nombre"),
-        sb.from("proveedores").select("id,nombre").eq("workspace_id", pId).order("nombre"),
-      ]);
-      setPartes(p.data ?? []);
-      setTiposParte(t.data ?? []);
-      setUbicaciones(u.data ?? []);
-      setActivos(a.data ?? []);
-      setProveedores(pr.data ?? []);
+      const { data: p } = await sb.from("partes")
+        .select("id, nombre, descripcion, codigo, unidad, stock_actual, stock_minimo, precio_unitario, ubicacion_bodega, imagen_url, workspace_id")
+        .eq("workspace_id", pId).eq("activo", true).order("nombre");
+      setPartes(p ?? []);
       setLoading(false);
     }
     load();
@@ -250,7 +222,7 @@ export default function PartesPage() {
     if (!plantaId) return;
     const sb = createClient();
     const { data } = await sb.from("partes")
-      .select("*, tipos_parte(nombre), ubicaciones(edificio,piso), activos(nombre,codigo), proveedores(nombre)")
+      .select("id, nombre, descripcion, codigo, unidad, stock_actual, stock_minimo, precio_unitario, ubicacion_bodega, imagen_url, workspace_id")
       .eq("workspace_id", plantaId).eq("activo", true).order("nombre");
     setPartes(data ?? []);
   }
@@ -265,14 +237,12 @@ export default function PartesPage() {
     setParteData(p);
     setForm({
       nombre: p.nombre, descripcion: p.descripcion ?? "", codigo: p.codigo ?? "",
-      tipo_parte_id: p.tipo_parte_id ?? "", precio_unitario: p.precio_unitario,
-      ubicacion_id: p.ubicacion_id ?? "", stock_actual: p.stock_actual ?? 0,
-      stock_minimo: p.stock_minimo ?? 0, activo_id: p.activo_id ?? "",
-      grupo_responsable: p.grupo_responsable ?? "", proveedor_id: p.proveedor_id ?? "",
+      unidad: p.unidad ?? "un", precio_unitario: p.precio_unitario,
+      ubicacion_bodega: p.ubicacion_bodega ?? "", stock_actual: p.stock_actual ?? 0,
+      stock_minimo: p.stock_minimo ?? 0,
     });
     setImgPreview(p.imagen_url ?? null);
     setImgFile(null);
-    setAdjFile(null);
     setSaveErr(null);
     setPanelMode("edit");
   }
@@ -282,7 +252,6 @@ export default function PartesPage() {
     setForm(emptyForm());
     setImgPreview(null);
     setImgFile(null);
-    setAdjFile(null);
     setSaveErr(null);
     setPanelMode("create");
   }
@@ -293,7 +262,6 @@ export default function PartesPage() {
     setSaveErr(null);
     setImgPreview(null);
     setImgFile(null);
-    setAdjFile(null);
   }
 
   function setF<K extends keyof Parte>(k: K, v: Parte[K]) {
@@ -327,34 +295,17 @@ export default function PartesPage() {
       setUploadingImg(false);
     }
 
-    let archivo_url = parteData?.archivo_url;
-    let archivo_nombre = parteData?.archivo_nombre;
-    if (adjFile) {
-      const path = `${plantaId}/${Date.now()}_${adjFile.name}`;
-      const { data: up } = await sb.storage.from("partes-archivos").upload(path, adjFile, { upsert: true });
-      if (up) {
-        const { data: { publicUrl } } = sb.storage.from("partes-archivos").getPublicUrl(up.path);
-        archivo_url = publicUrl;
-        archivo_nombre = adjFile.name;
-      }
-    }
-
     const payload = {
       workspace_id: plantaId,
       nombre: form.nombre!.trim(),
       descripcion: form.descripcion || null,
       codigo: form.codigo || null,
-      tipo_parte_id: form.tipo_parte_id || null,
+      unidad: form.unidad?.trim() || "un",
       precio_unitario: form.precio_unitario ?? null,
-      ubicacion_id: form.ubicacion_id || null,
+      ubicacion_bodega: form.ubicacion_bodega || null,
       stock_actual: form.stock_actual ?? 0,
       stock_minimo: form.stock_minimo ?? 0,
-      activo_id: form.activo_id || null,
-      grupo_responsable: form.grupo_responsable || null,
-      proveedor_id: form.proveedor_id || null,
       imagen_url: imagen_url ?? null,
-      archivo_url: archivo_url ?? null,
-      archivo_nombre: archivo_nombre ?? null,
       activo: true,
     };
 
@@ -377,18 +328,6 @@ export default function PartesPage() {
     setPartes(prev => prev.filter(x => x.id !== p.id));
     setConfirm(null);
     closePanel();
-  }
-
-  // Combo helpers
-  async function crearTipo(nombre: string) {
-    const sb = createClient();
-    const { data } = await sb.from("tipos_parte").insert({ nombre, workspace_id: plantaId }).select("id,nombre").maybeSingle();
-    if (data) { setTiposParte(prev => [...prev, data]); setF("tipo_parte_id", data.id); }
-  }
-  async function crearProveedor(nombre: string) {
-    const sb = createClient();
-    const { data } = await sb.from("proveedores").insert({ nombre, workspace_id: plantaId }).select("id,nombre").maybeSingle();
-    if (data) { setProveedores(prev => [...prev, data]); setF("proveedor_id", data.id); }
   }
 
   const filtered = partes.filter(p => {
@@ -527,8 +466,8 @@ export default function PartesPage() {
                         )}
                       </div>
                       <div style={{ fontSize: 11, color: "#6B7280", marginTop: 1 }}>
-                        {p.tipos_parte?.nombre ?? "—"}
-                        {p.ubicaciones && ` · ${p.ubicaciones.edificio}`}
+                        {p.unidad ?? ""}
+                        {p.ubicacion_bodega && ` · ${p.ubicacion_bodega}`}
                       </div>
                     </div>
                     <div style={{ textAlign: "right", flexShrink: 0 }}>
@@ -626,10 +565,9 @@ export default function PartesPage() {
                 </div>
                 {/* Meta */}
                 {[
-                  { icon: Tag,    label: "Tipo",       val: parteData.tipos_parte?.nombre },
-                  { icon: MapPin, label: "Ubicación",  val: parteData.ubicaciones ? `${parteData.ubicaciones.edificio}${parteData.ubicaciones.piso ? ` – Piso ${parteData.ubicaciones.piso}` : ""}` : undefined },
-                  { icon: Link2,  label: "Activo",     val: parteData.activos?.nombre },
-                  { icon: User2,  label: "Responsable",val: parteData.grupo_responsable },
+                  { icon: Tag,    label: "Código",     val: parteData.codigo },
+                  { icon: MapPin, label: "Ubicación",  val: parteData.ubicacion_bodega },
+                  { icon: Package, label: "Unidad",    val: parteData.unidad },
                 ].filter(m => m.val).map(m => (
                   <div key={m.label} style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
                     <m.icon size={14} style={{ color: "#9CA3AF", marginTop: 2, flexShrink: 0 }} />
@@ -649,13 +587,6 @@ export default function PartesPage() {
                 )}
                 {parteData.descripcion && (
                   <p style={{ fontSize: 12, color: "#6B7280", margin: 0, lineHeight: 1.6 }}>{parteData.descripcion}</p>
-                )}
-                {parteData.archivo_url && (
-                  <a href={parteData.archivo_url} target="_blank" rel="noreferrer"
-                    style={{ fontSize: 12, color: "#273D88", display: "flex", alignItems: "center", gap: 5 }}>
-                    <Upload size={12} />
-                    {parteData.archivo_nombre ?? "Ver adjunto"}
-                  </a>
                 )}
               </div>
             )}
@@ -716,14 +647,11 @@ export default function PartesPage() {
                 </div>
 
                 <div>
-                  <label style={labelStyle}>Tipo de parte</label>
-                  <ComboCreate
-                    items={tiposParte.map(t => ({ id: t.id, label: t.nombre }))}
-                    value={form.tipo_parte_id ?? ""}
-                    onChange={v => setF("tipo_parte_id", v)}
-                    onCreate={crearTipo}
-                    placeholder="Seleccionar tipo…"
-                  />
+                  <label style={labelStyle}>Unidad *</label>
+                  <input style={inputStyle} value={form.unidad ?? "un"} placeholder="un, kg, m, lt…"
+                    onChange={e => setF("unidad", e.target.value)}
+                    onFocus={e => { e.currentTarget.style.borderColor = "#273D88"; }}
+                    onBlur={e => { e.currentTarget.style.borderColor = "#E5E7EB"; }} />
                 </div>
 
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
@@ -755,59 +683,11 @@ export default function PartesPage() {
                 </div>
 
                 <div>
-                  <label style={labelStyle}>Ubicación</label>
-                  <select style={inputStyle} value={form.ubicacion_id ?? ""}
-                    onChange={e => setF("ubicacion_id", e.target.value)}>
-                    <option value="">Sin ubicación</option>
-                    {ubicaciones.map(u => (
-                      <option key={u.id} value={u.id}>
-                        {u.edificio}{u.piso ? ` – Piso ${u.piso}` : ""}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label style={labelStyle}>Activo relacionado</label>
-                  <select style={inputStyle} value={form.activo_id ?? ""}
-                    onChange={e => setF("activo_id", e.target.value)}>
-                    <option value="">Sin activo</option>
-                    {activos.map(a => (
-                      <option key={a.id} value={a.id}>
-                        {a.nombre}{a.codigo ? ` (${a.codigo})` : ""}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label style={labelStyle}>Proveedor</label>
-                  <ComboCreate
-                    items={proveedores.map(p => ({ id: p.id, label: p.nombre }))}
-                    value={form.proveedor_id ?? ""}
-                    onChange={v => setF("proveedor_id", v)}
-                    onCreate={crearProveedor}
-                    placeholder="Seleccionar proveedor…"
-                  />
-                </div>
-
-                <div>
-                  <label style={labelStyle}>Grupo responsable</label>
-                  <input style={inputStyle} value={form.grupo_responsable ?? ""} placeholder="Ej. Mantenimiento"
-                    onChange={e => setF("grupo_responsable", e.target.value)}
+                  <label style={labelStyle}>Ubicación en bodega</label>
+                  <input style={inputStyle} value={form.ubicacion_bodega ?? ""} placeholder="Ej. Estante A3, Bodega 2…"
+                    onChange={e => setF("ubicacion_bodega", e.target.value)}
                     onFocus={e => { e.currentTarget.style.borderColor = "#273D88"; }}
                     onBlur={e => { e.currentTarget.style.borderColor = "#E5E7EB"; }} />
-                </div>
-
-                <div>
-                  <label style={labelStyle}>Adjunto</label>
-                  <button type="button" onClick={() => adjInputRef.current?.click()}
-                    style={{ ...inputStyle, display: "flex", alignItems: "center", gap: 6, cursor: "pointer", color: adjFile ? "#111827" : "#9CA3AF" }}>
-                    <Upload size={13} />
-                    {adjFile ? adjFile.name : (parteData?.archivo_nombre ?? "Subir archivo…")}
-                  </button>
-                  <input ref={adjInputRef} type="file" style={{ display: "none" }}
-                    onChange={e => { const f = e.target.files?.[0]; if (f) setAdjFile(f); }} />
                 </div>
 
                 {saveErr && <p style={{ fontSize: 12, color: "#DC2626", margin: 0 }}>{saveErr}</p>}
