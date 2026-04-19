@@ -89,8 +89,8 @@ export default function ScanSheet({
   }, [capturaPhoto]);
 
   const isLow = (field: string) =>
-    (scanResult as Record<string, unknown>)?.[`${field}_conf`] === "low" ||
-    (scanResult as Record<string, unknown>)?.[field] == null;
+    (scanResult as unknown as Record<string, unknown>)?.[`${field}_conf`] === "low" ||
+    (scanResult as unknown as Record<string, unknown>)?.[field] == null;
 
   const toggleAsignado = (uid: string) =>
     setAsignadosIds((prev) =>
