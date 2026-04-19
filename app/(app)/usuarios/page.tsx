@@ -104,7 +104,7 @@ const labelStyle: React.CSSProperties = {
 };
 const inputStyle: React.CSSProperties = {
   width: "100%", height: 36, padding: "0 12px",
-  border: "1px solid #E5E7EB", borderRadius: 6,
+  border: "1px solid #E2E8F0", borderRadius: 6,
   fontSize: 13, fontFamily: "inherit", color: "#111827",
   background: "#fff", outline: "none", boxSizing: "border-box",
 };
@@ -358,12 +358,12 @@ export default function UsuariosPage() {
 
       {/* Header */}
       <div style={{
-        flexShrink: 0, borderBottom: "1px solid #E5E7EB",
+        flexShrink: 0, borderBottom: "1px solid #E2E8F0",
         padding: "0 24px", height: 56,
         display: "flex", alignItems: "center", justifyContent: "space-between",
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <h1 style={{ fontSize: 20, fontWeight: 700, color: "#1E2429", margin: 0, letterSpacing: "-0.3px" }}>
+          <h1 style={{ fontSize: 20, fontWeight: 700, color: "#0F172A", margin: 0, letterSpacing: "-0.3px" }}>
             {activeTab === "equipo" ? "Equipo" : "Cuadrillas"}
           </h1>
         </div>
@@ -376,7 +376,7 @@ export default function UsuariosPage() {
               style={{
                 height: 32, width: 32,
                 display: "flex", alignItems: "center", justifyContent: "center",
-                background: "none", border: "1px solid #E5E7EB", borderRadius: 6,
+                background: "none", border: "1px solid #E2E8F0", borderRadius: 6,
                 cursor: "pointer", color: "#6B7280",
               }}
             >
@@ -390,7 +390,7 @@ export default function UsuariosPage() {
               style={{
                 height: 32, padding: "0 14px",
                 display: "flex", alignItems: "center", gap: 6,
-                background: "#273D88", border: "none", borderRadius: 6,
+                background: "#1E3A8A", border: "none", borderRadius: 6,
                 fontSize: 13, fontWeight: 600, color: "#fff",
                 cursor: "pointer", fontFamily: "inherit",
               }}
@@ -403,7 +403,7 @@ export default function UsuariosPage() {
       </div>
 
       {/* Tabs */}
-      <div style={{ flexShrink: 0, borderBottom: "1px solid #E5E7EB", padding: "0 24px", display: "flex" }}>
+      <div style={{ flexShrink: 0, borderBottom: "1px solid #E2E8F0", padding: "0 24px", display: "flex" }}>
         {(["equipo", "cuadrillas"] as const).map(t => (
           <button
             key={t}
@@ -412,8 +412,8 @@ export default function UsuariosPage() {
             style={{
               height: 40, padding: "0 16px",
               background: "none", border: "none",
-              borderBottom: activeTab === t ? "2px solid #273D88" : "2px solid transparent",
-              color: activeTab === t ? "#273D88" : "#9CA3AF",
+              borderBottom: activeTab === t ? "2px solid #1E3A8A" : "2px solid transparent",
+              color: activeTab === t ? "#1E3A8A" : "#9CA3AF",
               fontSize: 13, fontWeight: activeTab === t ? 600 : 500,
               cursor: "pointer", fontFamily: "inherit",
               marginBottom: -1, transition: "color 0.1s", textTransform: "capitalize",
@@ -469,7 +469,7 @@ export default function UsuariosPage() {
                     >
                       <div style={{
                         width: 36, height: 36, borderRadius: "50%", flexShrink: 0,
-                        background: isActive ? "#273D88" : "#E5E7EB",
+                        background: isActive ? "#1E3A8A" : "#E2E8F0",
                         display: "flex", alignItems: "center", justifyContent: "center",
                         fontSize: 14, fontWeight: 700,
                         color: isActive ? "#fff" : "#9CA3AF",
@@ -557,7 +557,7 @@ export default function UsuariosPage() {
         {showPanel && (
           <div style={{
             width: 360, flexShrink: 0,
-            borderLeft: "1px solid #E5E7EB",
+            borderLeft: "1px solid #E2E8F0",
             display: "flex", flexDirection: "column",
             overflowY: "auto",
           }}>
@@ -597,7 +597,7 @@ export default function UsuariosPage() {
                       </div>
                     </div>
                     <button type="button" onClick={closePanel}
-                      style={{ height: 36, border: "none", borderRadius: 6, background: "#273D88", color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+                      style={{ height: 36, border: "none", borderRadius: 6, background: "#1E3A8A", color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
                       Listo
                     </button>
                   </div>
@@ -607,7 +607,7 @@ export default function UsuariosPage() {
                     <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 16px", background: "#F8F9FF", borderRadius: 8 }}>
                       <div style={{
                         width: 44, height: 44, borderRadius: "50%", flexShrink: 0,
-                        background: (panelData as Usuario).activo !== false ? "#273D88" : "#E5E7EB",
+                        background: (panelData as Usuario).activo !== false ? "#1E3A8A" : "#E2E8F0",
                         display: "flex", alignItems: "center", justifyContent: "center",
                         fontSize: 18, fontWeight: 700,
                         color: (panelData as Usuario).activo !== false ? "#fff" : "#9CA3AF",
@@ -617,7 +617,7 @@ export default function UsuariosPage() {
                       <div>
                         <p style={{ fontSize: 14, fontWeight: 700, color: "#111827", margin: 0 }}>{(panelData as Usuario).nombre}</p>
                         <div style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 3 }}>
-                          <span style={{ fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 20, background: "#EEF1FB", color: "#273D88" }}>
+                          <span style={{ fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 20, background: "#EFF6FF", color: "#1E3A8A" }}>
                             {(ROL_LABEL as Record<string, string>)[(panelData as Usuario).rol] ?? (panelData as Usuario).rol}
                           </span>
                           {(panelData as Usuario).activo === false && (
@@ -645,7 +645,7 @@ export default function UsuariosPage() {
                           type="button"
                           onClick={() => toggleActivo(panelData as Usuario)}
                           style={{
-                            flex: 1, height: 34, border: "1px solid #E5E7EB", borderRadius: 6,
+                            flex: 1, height: 34, border: "1px solid #E2E8F0", borderRadius: 6,
                             background: "none", fontSize: 12, fontWeight: 600,
                             color: (panelData as Usuario).activo !== false ? "#DC2626" : "#16A34A",
                             cursor: "pointer", fontFamily: "inherit",
@@ -670,8 +670,8 @@ export default function UsuariosPage() {
                           placeholder={field === "nombre" ? "Ej. Juan Pérez" : field === "email" ? "usuario@empresa.cl" : "Mínimo 8 caracteres"}
                           value={userForm[field]}
                           onChange={e => setUserForm(f => ({ ...f, [field]: e.target.value }))}
-                          onFocus={e => { e.currentTarget.style.borderColor = "#273D88"; }}
-                          onBlur={e => { e.currentTarget.style.borderColor = "#E5E7EB"; }}
+                          onFocus={e => { e.currentTarget.style.borderColor = "#1E3A8A"; }}
+                          onBlur={e => { e.currentTarget.style.borderColor = "#E2E8F0"; }}
                         />
                       </div>
                     ))}
@@ -705,7 +705,7 @@ export default function UsuariosPage() {
                       disabled={saving}
                       style={{
                         height: 36, border: "none", borderRadius: 6,
-                        background: "#273D88", color: "#fff",
+                        background: "#1E3A8A", color: "#fff",
                         fontSize: 13, fontWeight: 600,
                         cursor: saving ? "default" : "pointer", fontFamily: "inherit",
                         display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
@@ -730,8 +730,8 @@ export default function UsuariosPage() {
                     placeholder="Ej. Cuadrilla Eléctrica"
                     value={cuadrillaForm.nombre}
                     onChange={e => setCuadrillaForm(f => ({ ...f, nombre: e.target.value }))}
-                    onFocus={e => { e.currentTarget.style.borderColor = "#273D88"; }}
-                    onBlur={e => { e.currentTarget.style.borderColor = "#E5E7EB"; }}
+                    onFocus={e => { e.currentTarget.style.borderColor = "#1E3A8A"; }}
+                    onBlur={e => { e.currentTarget.style.borderColor = "#E2E8F0"; }}
                   />
                 </div>
                 <div>
@@ -757,7 +757,7 @@ export default function UsuariosPage() {
                           style={{
                             display: "flex", alignItems: "center", gap: 7,
                             padding: "7px 10px", borderRadius: 6,
-                            border: sel ? `1.5px solid ${t.color}` : "1.5px solid #E5E7EB",
+                            border: sel ? `1.5px solid ${t.color}` : "1.5px solid #E2E8F0",
                             background: sel ? `${t.color}12` : "#fff",
                             cursor: "pointer", fontFamily: "inherit",
                           }}
@@ -771,7 +771,7 @@ export default function UsuariosPage() {
                 </div>
                 <div>
                   <label style={labelStyle}>Miembros</label>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 160, overflowY: "auto", border: "1px solid #E5E7EB", borderRadius: 6, padding: "4px 0" }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 160, overflowY: "auto", border: "1px solid #E2E8F0", borderRadius: 6, padding: "4px 0" }}>
                     {usuarios.filter(u => u.activo !== false && u.id !== myId).map(u => {
                       const sel = panelMembers.includes(u.id);
                       return (
@@ -789,7 +789,7 @@ export default function UsuariosPage() {
                             onChange={() => setPanelMembers(prev =>
                               sel ? prev.filter(id => id !== u.id) : [...prev, u.id]
                             )}
-                            style={{ accentColor: "#273D88" }}
+                            style={{ accentColor: "#1E3A8A" }}
                           />
                           <span style={{ fontSize: 12, color: "#374151" }}>{u.nombre}</span>
                           <span style={{ fontSize: 11, color: "#9CA3AF", marginLeft: "auto" }}>{(ROL_LABEL as Record<string, string>)[u.rol] ?? u.rol}</span>
@@ -819,7 +819,7 @@ export default function UsuariosPage() {
                     disabled={saving}
                     style={{
                       flex: 1, height: 36, border: "none", borderRadius: 6,
-                      background: "#273D88", color: "#fff",
+                      background: "#1E3A8A", color: "#fff",
                       fontSize: 13, fontWeight: 600,
                       cursor: saving ? "default" : "pointer", fontFamily: "inherit",
                       display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
@@ -850,7 +850,7 @@ export default function UsuariosPage() {
             display: "flex", flexDirection: "column", overflow: "hidden",
             boxShadow: "0 20px 60px rgba(0,0,0,0.15)",
           }}>
-            <div style={{ padding: "16px 20px", borderBottom: "1px solid #E5E7EB", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <div style={{ padding: "16px 20px", borderBottom: "1px solid #E2E8F0", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <span style={{ fontSize: 15, fontWeight: 700, color: "#111827" }}>Gestión de permisos</span>
               <button type="button" onClick={() => setPermisosOpen(false)}
                 style={{ background: "none", border: "none", cursor: "pointer", color: "#9CA3AF", display: "flex" }}>
@@ -887,7 +887,7 @@ export default function UsuariosPage() {
                                 ...prev,
                                 [u.id]: { ...(prev[u.id] ?? {}), [m.id]: !checked },
                               }))}
-                              style={{ accentColor: "#273D88" }}
+                              style={{ accentColor: "#1E3A8A" }}
                             />
                           </td>
                         );
@@ -897,7 +897,7 @@ export default function UsuariosPage() {
                 </tbody>
               </table>
             </div>
-            <div style={{ padding: "12px 20px", borderTop: "1px solid #E5E7EB", display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 10 }}>
+            <div style={{ padding: "12px 20px", borderTop: "1px solid #E2E8F0", display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 10 }}>
               {permMsg && (
                 <span style={{ fontSize: 12, color: "#16A34A", display: "flex", alignItems: "center", gap: 4 }}>
                   <Check size={12} /> {permMsg}
@@ -909,7 +909,7 @@ export default function UsuariosPage() {
                 disabled={permSaving}
                 style={{
                   height: 34, padding: "0 16px", border: "none", borderRadius: 6,
-                  background: "#273D88", color: "#fff", fontSize: 13, fontWeight: 600,
+                  background: "#1E3A8A", color: "#fff", fontSize: 13, fontWeight: 600,
                   cursor: permSaving ? "default" : "pointer", fontFamily: "inherit",
                   display: "flex", alignItems: "center", gap: 6, opacity: permSaving ? 0.7 : 1,
                 }}

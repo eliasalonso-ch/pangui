@@ -9,9 +9,7 @@ const ESTADOS: { value: Estado; label: string; color: string }[] = [
   { value: "pendiente",   label: "Abierta",     color: "#3B82F6" },
   { value: "en_espera",   label: "En espera",   color: "#F59E0B" },
   { value: "en_curso",    label: "En curso",    color: "#8B5CF6" },
-  { value: "en_revision", label: "En revisión", color: "#06B6D4" },
   { value: "completado",  label: "Completada",  color: "#10B981" },
-  { value: "cancelado",   label: "Cancelada",   color: "#6B7280" },
 ];
 
 const PRIORIDADES: { value: Prioridad; label: string; color: string }[] = [

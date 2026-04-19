@@ -13,6 +13,8 @@ import {
   LogOut,
   ChevronUp,
   LayoutDashboard,
+  MapPin,
+  BarChart2,
 } from "lucide-react";
 
 import { createClient } from "@/lib/supabase";
@@ -22,12 +24,15 @@ import { ROL_LABEL } from "@/lib/roles";
 import {
   Sidebar,
   SidebarContent,
+  SidebarFooter,
   SidebarHeader,
   SidebarGroup,
+  SidebarGroupLabel,
   SidebarGroupContent,
   SidebarMenu,
   SidebarMenuItem,
   SidebarMenuButton,
+  SidebarSeparator,
 } from "@/components/ui/sidebar";
 
 interface UserData {
@@ -64,10 +69,10 @@ function SidebarUserFooter({ user }: { user: UserData | null }) {
             left: 0,
             right: 0,
             zIndex: 50,
-            background: "#fff",
-            border: "1px solid #E5E7EB",
+            background: "#1E293B",
+            border: "1px solid rgba(255,255,255,0.08)",
             borderRadius: 8,
-            boxShadow: "0 4px 12px rgba(15,23,42,0.12)",
+            boxShadow: "0 8px 24px rgba(0,0,0,0.40)",
             overflow: "hidden",
           }}>
             <button
@@ -83,10 +88,10 @@ function SidebarUserFooter({ user }: { user: UserData | null }) {
                 cursor: "pointer",
                 fontSize: 13,
                 fontWeight: 500,
-                color: "#DC2626",
+                color: "#F87171",
                 fontFamily: "inherit",
               }}
-              onMouseEnter={e => { e.currentTarget.style.background = "#FEF2F2"; }}
+              onMouseEnter={e => { e.currentTarget.style.background = "rgba(239,68,68,0.12)"; }}
               onMouseLeave={e => { e.currentTarget.style.background = "none"; }}
             >
               <LogOut size={14} />
@@ -106,31 +111,32 @@ function SidebarUserFooter({ user }: { user: UserData | null }) {
           padding: "8px 10px",
           background: "none",
           border: "none",
-          borderRadius: 6,
+          borderRadius: 8,
           cursor: "pointer",
           fontFamily: "inherit",
-          transition: "background 0.1s",
+          transition: "background 0.15s",
         }}
-        onMouseEnter={e => { e.currentTarget.style.background = "#F9FAFB"; }}
+        onMouseEnter={e => { e.currentTarget.style.background = "rgba(255,255,255,0.06)"; }}
         onMouseLeave={e => { e.currentTarget.style.background = "none"; }}
       >
         <span style={{
           width: 32, height: 32, borderRadius: "50%",
-          background: "#273D88", color: "#fff",
+          background: "linear-gradient(135deg, #1E3A8A, #2563EB)",
+          color: "#fff",
           display: "flex", alignItems: "center", justifyContent: "center",
           fontSize: 11, fontWeight: 700, flexShrink: 0,
         }}>
           {initials(user.nombre)}
         </span>
         <div style={{ flex: 1, minWidth: 0, textAlign: "left" }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: "#1E2429", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: "#E2E8F0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
             {user.nombre}
           </div>
-          <div style={{ fontSize: 11, color: "#8594A3", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          <div style={{ fontSize: 11, color: "#64748B", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
             {rolLabel}
           </div>
         </div>
-        <ChevronUp size={14} style={{ color: "#8594A3", flexShrink: 0, transform: open ? "rotate(0deg)" : "rotate(180deg)", transition: "transform 0.15s" }} />
+        <ChevronUp size={14} style={{ color: "#64748B", flexShrink: 0, transform: open ? "rotate(0deg)" : "rotate(180deg)", transition: "transform 0.15s" }} />
       </button>
     </div>
   );
@@ -144,8 +150,9 @@ export default function AppSidebar() {
   const [userRol, setUserRol] = useState<string | null>(null);
   const [userData, setUserData] = useState<UserData | null>(null);
 
-  const { puedeVer } = usePermisos();
-  const isAdmin = userRol === "jefe" || userRol === "admin";
+  const { puedeVer, userRol: permisosRol } = usePermisos();
+  const effectiveRol = userRol ?? permisosRol;
+  const isAdmin = effectiveRol === "jefe" || effectiveRol === "admin" || effectiveRol === "owner";
 
   useEffect(() => {
     async function load() {
@@ -176,50 +183,56 @@ export default function AppSidebar() {
     <Sidebar>
       <SidebarHeader>
         <div style={{
-          height: 48,
+          height: 56,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          padding: "0 14px",
-          borderBottom: "1px solid #E5E7EB",
+          padding: "0 16px",
+          borderBottom: "1px solid rgba(255,255,255,0.06)",
         }}>
-          <img src="/logo2.svg" alt="Pangui" style={{ height: 24, width: "auto", maxWidth: 130 }} />
+          <img src="/logo6.svg" alt="Pangui" style={{ height: 26, width: "auto", maxWidth: 130, }} />
         </div>
       </SidebarHeader>
 
       <SidebarContent>
         <SidebarGroup>
+          <SidebarGroupLabel>Workspace</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {!onboardingDone && (
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild isActive={isActive("/empezando")}>
-                    <Link href="/empezando"><Rocket /><span>Empezando</span></Link>
+                    <Link href="/empezando"><Rocket size={16} /><span>Empezando</span></Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               )}
               <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={isActive("/inicio")}>
-                  <Link href="/inicio"><LayoutDashboard /><span>Inicio</span></Link>
+                  <Link href="/inicio"><LayoutDashboard size={16} /><span>Inicio</span></Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
 
               <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={isActive("/ordenes")}>
-                  <Link href="/ordenes"><ClipboardList /><span>Órdenes</span></Link>
+                  <Link href="/ordenes"><ClipboardList size={16} /><span>Órdenes</span></Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={isActive("/analitica")}>
+                  <Link href="/analitica"><BarChart2 size={16} /><span>Analítica</span></Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
               {puedeVer("inventario") && (
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild isActive={isActive("/partes")}>
-                    <Link href="/partes"><Boxes /><span>Partes</span></Link>
+                    <Link href="/partes"><Boxes size={16} /><span>Partes</span></Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               )}
               {isAdmin && puedeVer("usuarios") && (
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild isActive={isActive("/usuarios")}>
-                    <Link href="/usuarios"><Users /><span>Equipo</span></Link>
+                    <Link href="/usuarios"><Users size={16} /><span>Equipo</span></Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               )}
@@ -227,17 +240,27 @@ export default function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
+        <SidebarSeparator />
+
         <SidebarGroup>
+          <SidebarGroupLabel>Cuenta</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={isActive("/notificaciones")}>
-                  <Link href="/notificaciones"><Bell /><span>Notificaciones</span></Link>
+                  <Link href="/notificaciones"><Bell size={16} /><span>Notificaciones</span></Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
+              {isAdmin && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={isActive("/configuracion/ubicaciones")}>
+                    <Link href="/configuracion/ubicaciones"><MapPin size={16} /><span>Ubicaciones</span></Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )}
               <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={isActive("/configuracion")}>
-                  <Link href="/configuracion"><Settings /><span>Configuración</span></Link>
+                <SidebarMenuButton asChild isActive={pathname === "/configuracion" || (pathname.startsWith("/configuracion") && !pathname.startsWith("/configuracion/ubicaciones"))}>
+                  <Link href="/configuracion"><Settings size={16} /><span>Configuración</span></Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             </SidebarMenu>
@@ -245,9 +268,9 @@ export default function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
 
-      <div style={{ borderTop: "1px solid #E5E7EB", padding: "8px" }}>
+      <SidebarFooter>
         <SidebarUserFooter user={userData} />
-      </div>
+      </SidebarFooter>
     </Sidebar>
   );
 }

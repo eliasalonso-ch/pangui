@@ -302,9 +302,7 @@ export async function updateOrdenEstado(id: string, estado: Estado, userId: stri
     pendiente:   "Abierta",
     en_espera:   "En espera",
     en_curso:    "En curso",
-    en_revision: "En revisión",
     completado:  "Completada",
-    cancelado:   "Cancelada",
   };
   const sb = createClient();
   const { error } = await sb.from("ordenes_trabajo").update({ estado }).eq("id", id);

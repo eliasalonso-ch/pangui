@@ -8,6 +8,8 @@ import {
   CircleDot, PauseCircle, PlayCircle, CheckCircle2, XCircle,
   ChevronDown, Plus, Image, Building2, Hash,
   Play, Pause, Square, RotateCcw,
+  Download, FileText, Sheet, FileDown,
+  Package, Search,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -38,9 +40,7 @@ const ESTADOS: { value: Estado; label: string; icon: React.ComponentType<{ class
   { value: "pendiente",   label: "Abierta",     icon: CircleDot,    className: "text-blue-600" },
   { value: "en_espera",   label: "En espera",   icon: PauseCircle,  className: "text-amber-600" },
   { value: "en_curso",    label: "En curso",    icon: PlayCircle,   className: "text-purple-600" },
-  { value: "en_revision", label: "En revisión", icon: PlayCircle,   className: "text-cyan-600" },
   { value: "completado",  label: "Completada",  icon: CheckCircle2, className: "text-green-600" },
-  { value: "cancelado",   label: "Cancelada",   icon: XCircle,      className: "text-zinc-400" },
 ];
 
 const PRIORIDADES: { value: Prioridad; label: string; color: string }[] = [
@@ -137,7 +137,7 @@ function NOTBadge({ nOT }: { nOT: string }) {
       style={{
         display: "inline-flex", alignItems: "center", gap: 3,
         fontSize: 11, fontFamily: "monospace", fontWeight: 600,
-        color: "#273D88", background: "none", border: "none", cursor: "pointer", padding: 0,
+        color: "#1E3A8A", background: "none", border: "none", cursor: "pointer", padding: 0,
       }}
     >
       <span>{nOT}</span>
@@ -163,7 +163,30 @@ interface Props {
   onOrdenUpdated: (o: Partial<OrdenTrabajo>) => void;
 }
 
-type Tab = "detalle" | "actividad" | "fotos"; // "sub_ordenes" — not yet a feature
+type Tab = "detalle" | "actividad" | "fotos" | "materiales";
+
+// ── Parts types ───────────────────────────────────────────────────────────────
+
+interface OrdenParte {
+  id: string;
+  parte_id: string;
+  cantidad: number;
+  cantidad_utilizada: number | null;
+  parte: {
+    nombre: string;
+    unidad: string;
+    precio_unitario: number;
+    stock_actual: number;
+  } | null;
+}
+
+interface ParteCatalogo {
+  id: string;
+  nombre: string;
+  unidad: string;
+  precio_unitario: number;
+  stock_actual: number;
+}
 
 // ── Timer hook ────────────────────────────────────────────────────────────────
 
@@ -213,9 +236,35 @@ export default function OTDetail({
   const [lightboxIdx, setLightboxIdx] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const [exporting, setExporting] = useState<"pdf" | "csv" | "txt" | null>(null);
+  const [exportMenuOpen, setExportMenuOpen] = useState(false);
+  const exportMenuRef = useRef<HTMLDivElement>(null);
+
+  // ── Partes state ─────────────────────────────────────────────────────────────
+  const [ordenPartes, setOrdenPartes] = useState<OrdenParte[]>([]);
+  const [loadingPartes, setLoadingPartes] = useState(false);
+  const [catalogSearch, setCatalogSearch] = useState("");
+  const [catalogo, setCatalogo] = useState<ParteCatalogo[]>([]);
+  const [loadingCatalog, setLoadingCatalog] = useState(false);
+  const [addingParte, setAddingParte] = useState(false);
+  const [deletingParteId, setDeletingParteId] = useState<string | null>(null);
+  const [showManualForm, setShowManualForm] = useState(false);
+  const [manualCantidad, setManualCantidad] = useState("1");
+  const [manualParteId, setManualParteId] = useState("");
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (exportMenuRef.current && !exportMenuRef.current.contains(e.target as Node)) {
+        setExportMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
   const elapsed = useTimer(orden);
   const canManage = myRol === "admin" || myRol === "jefe";
-  const isActive = orden.estado !== "completado" && orden.estado !== "cancelado";
+  const isActive = orden.estado !== "completado";
 
   // Sync fotos when orden prop updates (realtime)
   useEffect(() => {
@@ -269,6 +318,108 @@ export default function OTDetail({
   }, [tab, orden.id]);
 
 
+  // Load orden_partes when tab opens
+  useEffect(() => {
+    if (tab !== "materiales") return;
+    setLoadingPartes(true);
+    const sb = createClient();
+    sb.from("orden_partes")
+      .select("id, parte_id, cantidad, cantidad_utilizada, parte:partes!parte_id(nombre, unidad, precio_unitario, stock_actual)")
+      .eq("orden_id", orden.id)
+      .order("created_at", { ascending: true })
+      .then(({ data }) => {
+        const normalized = (data ?? []).map((row: any) => ({
+          ...row,
+          parte: Array.isArray(row.parte) ? (row.parte[0] ?? null) : row.parte,
+        }));
+        setOrdenPartes(normalized as OrdenParte[]);
+        setLoadingPartes(false);
+      });
+  }, [tab, orden.id]);
+
+  // Load partes catalogue (lazy, once per open)
+  useEffect(() => {
+    if (tab !== "materiales" || catalogo.length > 0) return;
+    setLoadingCatalog(true);
+    const sb = createClient();
+    sb.from("partes")
+      .select("id, nombre, unidad, precio_unitario, stock_actual")
+      .eq("activo", true)
+      .order("nombre", { ascending: true })
+      .limit(500)
+      .then(({ data }) => {
+        setCatalogo((data ?? []) as ParteCatalogo[]);
+        setLoadingCatalog(false);
+      });
+  }, [tab, catalogo.length]);
+
+  async function handleAddParte(parte: ParteCatalogo) {
+    // Prevent duplicate
+    if (ordenPartes.some(op => op.parte_id === parte.id)) return;
+    const cantidad = 1;
+    setAddingParte(true);
+    const sb = createClient();
+    const { data, error } = await sb.from("orden_partes").insert({
+      orden_id: orden.id,
+      parte_id: parte.id,
+      cantidad,
+    }).select("id, parte_id, cantidad, cantidad_utilizada").single();
+
+    if (!error && data) {
+      setOrdenPartes(prev => [...prev, { ...(data as any), parte }]);
+      setCatalogSearch("");
+      // Deduct stock
+      const stockNuevo = Math.max(0, parte.stock_actual - cantidad);
+      await sb.from("partes").update({ stock_actual: stockNuevo }).eq("id", parte.id);
+      setCatalogo(prev => prev.map(p => p.id === parte.id ? { ...p, stock_actual: stockNuevo } : p));
+    }
+    setAddingParte(false);
+  }
+
+  async function handleUpdateCantidad(id: string, newCantidad: number) {
+    if (newCantidad <= 0) return;
+    const prev = ordenPartes.find(op => op.id === id);
+    if (!prev) return;
+    const diff = newCantidad - prev.cantidad;
+    const sb = createClient();
+    await sb.from("orden_partes").update({ cantidad: newCantidad }).eq("id", id);
+    setOrdenPartes(p => p.map(op => op.id === id ? { ...op, cantidad: newCantidad } : op));
+    // Adjust stock by the difference
+    if (prev.parte_id) {
+      const cat = catalogo.find(c => c.id === prev.parte_id);
+      if (cat) {
+        const stockNuevo = Math.max(0, cat.stock_actual - diff);
+        await sb.from("partes").update({ stock_actual: stockNuevo }).eq("id", prev.parte_id);
+        setCatalogo(p => p.map(c => c.id === prev.parte_id ? { ...c, stock_actual: stockNuevo } : c));
+      }
+    }
+  }
+
+  async function handleDeleteParte(id: string) {
+    setDeletingParteId(id);
+    const op = ordenPartes.find(p => p.id === id);
+    const sb = createClient();
+    await sb.from("orden_partes").delete().eq("id", id);
+    setOrdenPartes(prev => prev.filter(p => p.id !== id));
+    // Restore stock
+    if (op?.parte_id) {
+      const cat = catalogo.find(c => c.id === op.parte_id);
+      const stockNuevo = (cat?.stock_actual ?? 0) + op.cantidad;
+      await sb.from("partes").update({ stock_actual: stockNuevo }).eq("id", op.parte_id);
+      setCatalogo(prev => prev.map(c => c.id === op.parte_id ? { ...c, stock_actual: stockNuevo } : c));
+    }
+    setDeletingParteId(null);
+  }
+
+  const filteredCatalog = catalogSearch.length >= 1
+    ? catalogo
+        .filter(p => p.nombre.toLowerCase().includes(catalogSearch.toLowerCase()))
+        .filter(p => !ordenPartes.some(op => op.parte_id === p.id))
+        .slice(0, 8)
+    : [];
+
+  const totalPartes = ordenPartes.reduce((s, op) => s + (op.parte?.precio_unitario ?? 0) * op.cantidad, 0);
+
   const estadoCfg = ESTADOS.find(e => e.value === orden.estado) ?? ESTADOS[0];
   const StatusIcon = estadoCfg.icon;
 
@@ -304,6 +455,161 @@ export default function OTDetail({
       setSending(false);
     }
   };
+
+  // ── Export helpers ────────────────────────────────────────────────────────
+
+  function downloadBlob(content: string, filename: string, mime: string) {
+    const blob = new Blob([content], { type: mime });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement("a");
+    a.href = url; a.download = filename; a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function fmtDate(iso: string | null | undefined) {
+    return iso ? iso.slice(0, 10) : "—";
+  }
+  function fmtDuration(sec: number | null | undefined) {
+    if (!sec || sec <= 0) return "—";
+    const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60;
+    return [h ? `${h}h` : null, m ? `${m}m` : null, s ? `${s}s` : null].filter(Boolean).join(" ");
+  }
+  function esc(v: unknown) {
+    const s = v == null ? "" : String(v);
+    if (s.includes(",") || s.includes('"') || s.includes("\n")) return `"${s.replace(/"/g, '""')}"`;
+    return s;
+  }
+
+  async function fetchActividadForExport() {
+    try { return await fetchActividad(orden.id); } catch { return []; }
+  }
+
+  async function fetchWorkspaceName(): Promise<string> {
+    try {
+      const sb = createClient();
+      const { data } = await sb.from("workspaces").select("nombre").eq("id", wsId).maybeSingle();
+      return (data as any)?.nombre ?? "Pangui";
+    } catch { return "Pangui"; }
+  }
+
+  const exporterName = () => {
+    const u = usuarios.find(u => u.id === myId);
+    return u?.nombre ?? "Usuario";
+  };
+
+  const meta = parseDescMeta(orden.descripcion ?? null);
+  const nOT  = meta.nOT ?? `OT-${orden.id.slice(-8).toUpperCase()}`;
+
+  async function handleExportPDF() {
+    setExporting("pdf");
+    setExportMenuOpen(false);
+    try {
+      const [act, wsNombre] = await Promise.all([fetchActividadForExport(), fetchWorkspaceName()]);
+      const res = await fetch("/api/export-pdf", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          orden, actividad: act, usuarios,
+          exportadoPor: exporterName(),
+          workspaceNombre: wsNombre,
+          nOT: meta.nOT,
+          partes: [], subOrdenes: [],
+        }),
+      });
+      if (!res.ok) throw new Error(`PDF service error ${res.status}`);
+      const blob = await res.blob();
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement("a");
+      const date = new Date().toISOString().slice(0, 10);
+      a.href = url;
+      a.download = `OT-${nOT}_${date}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      alert(`No se pudo generar el PDF: ${err instanceof Error ? err.message : err}`);
+    } finally {
+      setExporting(null);
+    }
+  }
+
+  async function handleExportCSV() {
+    setExporting("csv");
+    setExportMenuOpen(false);
+    try {
+      const asignadosNames = (orden.asignados_ids ?? [])
+        .map(id => usuarios.find(u => u.id === id)?.nombre ?? id)
+        .join("; ");
+
+      const headers = [
+        "N° OT","ID","Título","Solicitante","Hito","Estado","Prioridad","Tipo de trabajo",
+        "Categoría","Descripción","Asignados","Empresa","Ubicación","Lugar específico",
+        "Fecha inicio","Fecha límite","Tiempo trabajado","Creada el",
+      ];
+      const row = [
+        meta.nOT ?? "",
+        orden.id,
+        orden.titulo ?? "",
+        meta.solicitante ?? "",
+        meta.hito ?? "",
+        orden.estado,
+        orden.prioridad,
+        orden.tipo_trabajo ?? "",
+        (orden as any).categorias_ot?.nombre ?? "",
+        meta.descripcion ?? "",
+        asignadosNames,
+        (orden as any).sociedad?.nombre ?? "",
+        orden.ubicaciones ? [orden.ubicaciones.edificio, orden.ubicaciones.piso].filter(Boolean).join(" · ") : "",
+        (orden as any).lugar?.nombre ?? "",
+        fmtDate(orden.fecha_inicio),
+        fmtDate(orden.fecha_termino),
+        fmtDuration(orden.tiempo_total_segundos),
+        orden.created_at ? orden.created_at.slice(0, 19).replace("T", " ") : "",
+      ];
+
+      const csv = "\uFEFF" + [headers.map(esc).join(","), row.map(esc).join(",")].join("\r\n");
+      downloadBlob(csv, `OT-${nOT}.csv`, "text/csv;charset=utf-8");
+    } finally {
+      setExporting(null);
+    }
+  }
+
+  function handleExportTXT() {
+    setExportMenuOpen(false);
+    const asignadosNames = (orden.asignados_ids ?? [])
+      .map(id => usuarios.find(u => u.id === id)?.nombre ?? id)
+      .join(", ");
+
+    const lines = [
+      `ORDEN DE TRABAJO`,
+      `${"─".repeat(48)}`,
+      `N° OT:           ${meta.nOT ?? "—"}`,
+      `ID:              ${orden.id}`,
+      `Título:          ${orden.titulo ?? "Sin título"}`,
+      `Estado:          ${orden.estado}`,
+      `Prioridad:       ${orden.prioridad}`,
+      `Tipo de trabajo: ${orden.tipo_trabajo ?? "—"}`,
+      ``,
+      `Descripción:`,
+      `  ${meta.descripcion ?? "—"}`,
+      ``,
+      `Solicitante:     ${meta.solicitante ?? "—"}`,
+      `Hito:            ${meta.hito ?? "—"}`,
+      ``,
+      `Asignados:       ${asignadosNames || "—"}`,
+      `Empresa:         ${(orden as any).sociedad?.nombre ?? "—"}`,
+      `Ubicación:       ${orden.ubicaciones ? [orden.ubicaciones.edificio, orden.ubicaciones.piso].filter(Boolean).join(" · ") : "—"}`,
+      `Lugar:           ${(orden as any).lugar?.nombre ?? "—"}`,
+      ``,
+      `Fecha inicio:    ${fmtDate(orden.fecha_inicio)}`,
+      `Fecha límite:    ${fmtDate(orden.fecha_termino)}`,
+      `Tiempo trabajado:${fmtDuration(orden.tiempo_total_segundos)}`,
+      `Creada el:       ${orden.created_at ? orden.created_at.slice(0, 19).replace("T", " ") : "—"}`,
+      ``,
+      `${"─".repeat(48)}`,
+      `Exportado con Pangui — ${new Date().toLocaleString("es-CL")}`,
+    ];
+    downloadBlob(lines.join("\n"), `OT-${nOT}.txt`, "text/plain;charset=utf-8");
+  }
 
   const handleIniciar = async () => {
     setTimerBusy(true);
@@ -399,9 +705,7 @@ export default function OTDetail({
     pendiente:   { bg: "#EFF6FF", color: "#1D4ED8", dot: "#3B82F6" },
     en_espera:   { bg: "#FFF7ED", color: "#C2410C", dot: "#F97316" },
     en_curso:    { bg: "#F0FDF4", color: "#15803D", dot: "#22C55E" },
-    en_revision: { bg: "#F0F9FF", color: "#0369A1", dot: "#0EA5E9" },
     completado:  { bg: "#F0FDF4", color: "#166534", dot: "#16A34A" },
-    cancelado:   { bg: "#F9FAFB", color: "#6B7280", dot: "#9CA3AF" },
   };
   const PRIO_COLOR: Record<string, string> = {
     ninguna: "#9CA3AF", baja: "#9CA3AF", media: "#3B82F6", alta: "#F97316", urgente: "#EF4444",
@@ -410,13 +714,11 @@ export default function OTDetail({
   const prioColor   = PRIO_COLOR[orden.prioridad] ?? "#9CA3AF";
   const prioLabel   = PRIORIDADES.find(p => p.value === orden.prioridad)?.label ?? "Sin prioridad";
 
-  const meta = parseDescMeta(orden.descripcion ?? null);
-
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden", background: "#fff" }}>
 
       {/* ── Header ── */}
-      <div style={{ flexShrink: 0, borderBottom: "1px solid #F1F3F5", background: "#fff" }}>
+      <div style={{ flexShrink: 0, borderBottom: "1px solid #E2E8F0", background: "#fff" }}>
         {/* Top bar: status + priority dropdowns + actions */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 16px", height: 52, gap: 8 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -427,7 +729,7 @@ export default function OTDetail({
                   display: "flex", alignItems: "center", gap: 6,
                   height: 30, padding: "0 10px",
                   background: estadoStyle.bg, color: estadoStyle.color,
-                  border: "none", borderRadius: 20,
+                  border: `1px solid ${estadoStyle.color}30`, borderRadius: 6,
                   fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
                 }}>
                   <span style={{ width: 6, height: 6, borderRadius: "50%", background: estadoStyle.dot, flexShrink: 0 }} />
@@ -455,8 +757,8 @@ export default function OTDetail({
                 <button style={{
                   display: "flex", alignItems: "center", gap: 5,
                   height: 30, padding: "0 10px",
-                  background: prioColor + "15", color: prioColor,
-                  border: "none", borderRadius: 20,
+                  background: prioColor + "18", color: prioColor,
+                  border: `1px solid ${prioColor}30`, borderRadius: 6,
                   fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
                 }}>
                   {prioLabel}
@@ -476,12 +778,60 @@ export default function OTDetail({
 
           {/* Action buttons */}
           <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
+
+            {/* Export dropdown */}
+            <div ref={exportMenuRef} style={{ position: "relative" }}>
+              <button
+                type="button"
+                onClick={() => setExportMenuOpen(v => !v)}
+                title="Exportar"
+                style={{ width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", borderRadius: 6, cursor: "pointer", color: "#64748B" }}
+                onMouseEnter={e => { e.currentTarget.style.background = "#F1F5F9"; }}
+                onMouseLeave={e => { e.currentTarget.style.background = "none"; }}
+              >
+                {exporting ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+              </button>
+              {exportMenuOpen && (
+                <div style={{
+                  position: "absolute", top: "calc(100% + 4px)", right: 0, zIndex: 300,
+                  background: "#fff", border: "1px solid #E2E8F0", borderRadius: 8,
+                  boxShadow: "0 8px 24px rgba(15,23,42,0.12)", width: 180, overflow: "hidden",
+                }}>
+                  {[
+                    { key: "pdf",  icon: <FileDown size={13} />,  label: "Exportar PDF",   action: handleExportPDF },
+                    { key: "csv",  icon: <Sheet size={13} />,     label: "Exportar Excel",  action: handleExportCSV },
+                    { key: "txt",  icon: <FileText size={13} />,  label: "Exportar TXT",    action: handleExportTXT },
+                  ].map(item => (
+                    <button
+                      key={item.key}
+                      type="button"
+                      onClick={item.action}
+                      disabled={!!exporting}
+                      style={{
+                        width: "100%", display: "flex", alignItems: "center", gap: 8,
+                        padding: "9px 12px", background: "none", border: "none",
+                        cursor: exporting ? "default" : "pointer", fontSize: 13,
+                        color: "#0F172A", fontFamily: "inherit", textAlign: "left",
+                        opacity: exporting && exporting !== item.key ? 0.5 : 1,
+                      }}
+                      onMouseEnter={e => { if (!exporting) e.currentTarget.style.background = "#F8FAFC"; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = "none"; }}
+                    >
+                      <span style={{ color: "#94A3B8" }}>{item.icon}</span>
+                      {item.label}
+                      {exporting === item.key && <Loader2 size={11} className="animate-spin" style={{ marginLeft: "auto" }} />}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
             {canManage && (
               <>
                 <button
                   type="button" onClick={onEdit}
-                  style={{ width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", borderRadius: 6, cursor: "pointer", color: "#6B7280" }}
-                  onMouseEnter={e => { e.currentTarget.style.background = "#F3F4F6"; }}
+                  style={{ width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", borderRadius: 6, cursor: "pointer", color: "#64748B" }}
+                  onMouseEnter={e => { e.currentTarget.style.background = "#F1F5F9"; }}
                   onMouseLeave={e => { e.currentTarget.style.background = "none"; }}
                 >
                   <Pencil size={14} />
@@ -512,8 +862,8 @@ export default function OTDetail({
             )}
             <button
               type="button" onClick={onClose}
-              style={{ width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", borderRadius: 6, cursor: "pointer", color: "#9CA3AF" }}
-              onMouseEnter={e => { e.currentTarget.style.background = "#F3F4F6"; }}
+              style={{ width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", borderRadius: 6, cursor: "pointer", color: "#94A3B8" }}
+              onMouseEnter={e => { e.currentTarget.style.background = "#F1F5F9"; }}
               onMouseLeave={e => { e.currentTarget.style.background = "none"; }}
             >
               <X size={15} />
@@ -523,7 +873,7 @@ export default function OTDetail({
 
         {/* Tabs */}
         <div style={{ display: "flex", padding: "0 16px", gap: 0 }}>
-          {(["detalle", "actividad", "fotos"] as Tab[]).map(t => (
+          {(["detalle", "actividad", "fotos", "materiales"] as Tab[]).map(t => (
             <button
               key={t}
               type="button"
@@ -531,14 +881,17 @@ export default function OTDetail({
               style={{
                 height: 38, padding: "0 14px",
                 background: "none", border: "none",
-                borderBottom: tab === t ? "2px solid #273D88" : "2px solid transparent",
-                color: tab === t ? "#273D88" : "#9CA3AF",
+                borderBottom: tab === t ? "2px solid #2563EB" : "2px solid transparent",
+                color: tab === t ? "#1D4ED8" : "#94A3B8",
                 fontSize: 13, fontWeight: tab === t ? 600 : 500,
                 cursor: "pointer", fontFamily: "inherit",
                 marginBottom: -1, transition: "color 0.1s",
               }}
             >
-              {t === "detalle" ? "Detalle" : t === "actividad" ? "Actividad" : `Fotos${fotos.length > 0 ? ` (${fotos.length})` : ""}`}
+              {t === "detalle" ? "Detalle"
+                : t === "actividad" ? "Actividad"
+                : t === "fotos" ? `Fotos${fotos.length > 0 ? ` (${fotos.length})` : ""}`
+                : `Partes${ordenPartes.length > 0 ? ` (${ordenPartes.length})` : ""}`}
             </button>
           ))}
         </div>
@@ -561,18 +914,18 @@ export default function OTDetail({
 
             {/* Description / meta text */}
             {(meta.descripcion || meta.solicitante || meta.hito) && (
-              <div style={{ marginTop: 8, padding: "10px 12px", background: "#F8F9FA", borderRadius: 6, borderLeft: "3px solid #273D88" }}>
+              <div style={{ marginTop: 8, padding: "12px 14px", background: "#F8FAFC", borderRadius: 8, borderLeft: "3px solid #2563EB" }}>
                 {meta.descripcion && (
-                  <p style={{ fontSize: 13, color: "#374151", lineHeight: 1.6, whiteSpace: "pre-wrap", margin: 0 }}>{meta.descripcion}</p>
+                  <p style={{ fontSize: 13, color: "#475569", lineHeight: 1.65, whiteSpace: "pre-wrap", margin: 0 }}>{meta.descripcion}</p>
                 )}
                 {meta.solicitante && (
-                  <p style={{ fontSize: 12, color: "#6B7280", marginTop: meta.descripcion ? 6 : 0, marginBottom: 0 }}>
-                    Solicitante: <span style={{ color: "#374151", fontWeight: 500 }}>{meta.solicitante}</span>
+                  <p style={{ fontSize: 12, color: "#94A3B8", marginTop: meta.descripcion ? 6 : 0, marginBottom: 0 }}>
+                    Solicitante: <span style={{ color: "#475569", fontWeight: 500 }}>{meta.solicitante}</span>
                   </p>
                 )}
                 {meta.hito && (
-                  <p style={{ fontSize: 12, color: "#6B7280", marginTop: 2, marginBottom: 0 }}>
-                    Hito: <span style={{ color: "#374151", fontWeight: 500 }}>{meta.hito}</span>
+                  <p style={{ fontSize: 12, color: "#94A3B8", marginTop: 2, marginBottom: 0 }}>
+                    Hito: <span style={{ color: "#475569", fontWeight: 500 }}>{meta.hito}</span>
                   </p>
                 )}
               </div>
@@ -580,10 +933,10 @@ export default function OTDetail({
 
             {/* Timer card */}
             {isActive && (
-              <div style={{ marginTop: 16, background: "#F8F9FF", border: "1px solid #E0E7FF", borderRadius: 8, padding: 14 }}>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: timerAction ? 10 : 10 }}>
-                  <span style={{ fontSize: 11, fontWeight: 600, color: "#6B7280", textTransform: "uppercase", letterSpacing: "0.06em" }}>Tiempo trabajado</span>
-                  <span style={{ fontSize: 22, fontWeight: 700, fontFamily: "monospace", color: "#273D88", tabularNums: true } as React.CSSProperties}>
+              <div style={{ marginTop: 16, background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 10, padding: 14 }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: "#64748B", textTransform: "uppercase", letterSpacing: "0.07em" }}>Tiempo trabajado</span>
+                  <span style={{ fontSize: 22, fontWeight: 700, fontFamily: "monospace", color: "#1E3A8A", tabularNums: true } as React.CSSProperties}>
                     {fmtSecs(elapsed)}
                   </span>
                 </div>
@@ -595,15 +948,15 @@ export default function OTDetail({
                       placeholder={timerAction === "pausar" ? "Motivo de pausa (opcional)…" : "Comentario de cierre (opcional)…"}
                       value={timerComment}
                       onChange={e => setTimerComment(e.target.value)}
-                      style={{ width: "100%", fontSize: 12.5, border: "1px solid #E5E7EB", borderRadius: 4, padding: "8px 10px", resize: "none", outline: "none", fontFamily: "inherit", background: "#fff", boxSizing: "border-box" }}
+                      style={{ width: "100%", fontSize: 13, border: "1px solid #E2E8F0", borderRadius: 8, padding: "8px 10px", resize: "none", outline: "none", fontFamily: "inherit", background: "#fff", boxSizing: "border-box" }}
                     />
                     <div style={{ display: "flex", gap: 8 }}>
                       <button type="button" onClick={() => { setTimerAction(null); setTimerComment(""); }} disabled={timerBusy}
-                        style={{ flex: 1, height: 34, border: "1px solid #E5E7EB", borderRadius: 6, background: "#fff", fontSize: 13, fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}>
+                        style={{ flex: 1, height: 36, border: "1px solid #E2E8F0", borderRadius: 8, background: "#fff", fontSize: 13, fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}>
                         Cancelar
                       </button>
                       <button type="button" onClick={confirmTimerAction} disabled={timerBusy}
-                        style={{ flex: 1, height: 34, border: "none", borderRadius: 6, background: timerAction === "completar" ? "#16A34A" : "#273D88", color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+                        style={{ flex: 1, height: 36, border: "none", borderRadius: 8, background: timerAction === "completar" ? "#16A34A" : "#1E3A8A", color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
                         {timerAction === "pausar" ? "Pausar" : "Completar"}
                       </button>
                     </div>
@@ -614,19 +967,19 @@ export default function OTDetail({
                       <button type="button"
                         onClick={orden.estado === "en_espera" || orden.estado === "en_curso" ? handleReanudar : handleIniciar}
                         disabled={timerBusy}
-                        style={{ flex: 1, height: 38, border: "none", borderRadius: 6, background: "#16A34A", color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, fontFamily: "inherit" }}>
+                        style={{ flex: 1, height: 38, border: "none", borderRadius: 8, background: "#16A34A", color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, fontFamily: "inherit" }}>
                         <Play size={14} />
                         {orden.pausado_at ? "Reanudar" : "Iniciar"}
                       </button>
                     ) : (
                       <>
                         <button type="button" onClick={() => setTimerAction("pausar")} disabled={timerBusy}
-                          style={{ flex: 1, height: 38, border: "1px solid #E5E7EB", borderRadius: 6, background: "#fff", fontSize: 13, fontWeight: 500, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, fontFamily: "inherit", color: "#374151" }}>
+                          style={{ flex: 1, height: 38, border: "1px solid #E2E8F0", borderRadius: 8, background: "#fff", fontSize: 13, fontWeight: 500, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, fontFamily: "inherit", color: "#475569" }}>
                           <Pause size={14} />
                           Pausar
                         </button>
                         <button type="button" onClick={() => setTimerAction("completar")} disabled={timerBusy}
-                          style={{ flex: 1, height: 38, border: "none", borderRadius: 6, background: "#16A34A", color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, fontFamily: "inherit" }}>
+                          style={{ flex: 1, height: 38, border: "none", borderRadius: 8, background: "#16A34A", color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, fontFamily: "inherit" }}>
                           <Square size={14} />
                           Completar
                         </button>
@@ -650,9 +1003,9 @@ export default function OTDetail({
                 (orden.tiempo_total_segundos != null && orden.tiempo_total_segundos > 0) && { label: "Tiempo total", value: fmtSecs(orden.tiempo_total_segundos), icon: <RotateCcw size={13} /> },
               ].filter(Boolean).map((field: any) => (
                 <div key={field.label}>
-                  <p style={{ fontSize: 10, fontWeight: 600, color: "#9CA3AF", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 3, marginTop: 0 }}>{field.label}</p>
-                  <p style={{ fontSize: 13, color: "#111827", margin: 0, display: "flex", alignItems: "center", gap: 5 }}>
-                    <span style={{ color: "#9CA3AF", flexShrink: 0 }}>{field.icon}</span>
+                  <p style={{ fontSize: 11, fontWeight: 600, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 3, marginTop: 0 }}>{field.label}</p>
+                  <p style={{ fontSize: 13, color: "#0F172A", margin: 0, display: "flex", alignItems: "center", gap: 5 }}>
+                    <span style={{ color: "#94A3B8", flexShrink: 0 }}>{field.icon}</span>
                     {field.value}
                   </p>
                 </div>
@@ -661,12 +1014,12 @@ export default function OTDetail({
 
             {/* Category */}
             {orden.categorias_ot?.nombre && (
-              <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid #F1F3F5" }}>
+              <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid #E2E8F0" }}>
                 <span style={{
                   display: "inline-flex", alignItems: "center", gap: 5,
-                  fontSize: 12, fontWeight: 600, padding: "4px 10px", borderRadius: 20,
-                  background: (orden.categorias_ot.color ?? "#6B7280") + "18",
-                  color: orden.categorias_ot.color ?? "#6B7280",
+                  fontSize: 12, fontWeight: 600, padding: "4px 10px", borderRadius: 6,
+                  background: (orden.categorias_ot.color ?? "#64748B") + "18",
+                  color: orden.categorias_ot.color ?? "#64748B",
                 }}>
                   {orden.categorias_ot.icono && <span>{orden.categorias_ot.icono}</span>}
                   {orden.categorias_ot.nombre}
@@ -676,22 +1029,22 @@ export default function OTDetail({
 
             {/* Assigned */}
             {assigned.length > 0 && (
-              <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid #F1F3F5" }}>
-                <p style={{ fontSize: 10, fontWeight: 600, color: "#9CA3AF", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 10, marginTop: 0 }}>Asignados</p>
+              <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid #E2E8F0" }}>
+                <p style={{ fontSize: 11, fontWeight: 600, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 10, marginTop: 0 }}>Asignados</p>
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                   {assigned.map(u => (
                     <div key={u.id} style={{ display: "flex", alignItems: "center", gap: 10 }}>
                       <span style={{
-                        width: 30, height: 30, borderRadius: "50%",
-                        background: "#273D88", color: "#fff",
+                        width: 32, height: 32, borderRadius: "50%",
+                        background: "linear-gradient(135deg, #1E3A8A, #2563EB)", color: "#fff",
                         display: "flex", alignItems: "center", justifyContent: "center",
                         fontSize: 11, fontWeight: 700, flexShrink: 0,
                       }}>
                         {initials(u.nombre)}
                       </span>
                       <div>
-                        <p style={{ fontSize: 13, fontWeight: 600, color: "#111827", margin: 0 }}>{u.nombre}</p>
-                        <p style={{ fontSize: 11, color: "#9CA3AF", margin: 0, textTransform: "capitalize" }}>{u.rol}</p>
+                        <p style={{ fontSize: 13, fontWeight: 600, color: "#0F172A", margin: 0 }}>{u.nombre}</p>
+                        <p style={{ fontSize: 11, color: "#94A3B8", margin: 0, textTransform: "capitalize" }}>{u.rol}</p>
                       </div>
                     </div>
                   ))}
@@ -701,10 +1054,10 @@ export default function OTDetail({
 
             {/* Creador */}
             {orden.creador?.nombre && (
-              <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid #F1F3F5", display: "flex", alignItems: "center", gap: 6 }}>
-                <User size={13} style={{ color: "#9CA3AF" }} />
-                <span style={{ fontSize: 12, color: "#9CA3AF" }}>Creado por</span>
-                <span style={{ fontSize: 12, fontWeight: 600, color: "#374151" }}>{orden.creador.nombre}</span>
+              <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid #E2E8F0", display: "flex", alignItems: "center", gap: 6 }}>
+                <User size={13} style={{ color: "#94A3B8" }} />
+                <span style={{ fontSize: 12, color: "#94A3B8" }}>Creado por</span>
+                <span style={{ fontSize: 12, fontWeight: 600, color: "#475569" }}>{orden.creador.nombre}</span>
               </div>
             )}
           </div>
@@ -734,7 +1087,7 @@ export default function OTDetail({
                     <div key={act.id} style={{ display: "flex", gap: 12, position: "relative" }}>
                       {/* Timeline line */}
                       {!isLast && (
-                        <div style={{ position: "absolute", left: 15, top: 26, bottom: 0, width: 1, background: "#F1F3F5" }} />
+                        <div style={{ position: "absolute", left: 15, top: 26, bottom: 0, width: 1, background: "#E2E8F0" }} />
                       )}
                       <div className={cn("mt-1 size-7 rounded-full border-2 border-white bg-gray-50 flex items-center justify-center shrink-0 shadow-sm z-10", colorClass)} style={{ minWidth: 28, minHeight: 28 }}>
                         <Icon className="w-3 h-3" />
@@ -751,11 +1104,11 @@ export default function OTDetail({
                         </div>
                         {act.comentario && (
                           <div style={{
-                            marginTop: 4, fontSize: 13, lineHeight: 1.55, color: isComment ? "#111827" : "#6B7280",
-                            background: isComment ? "#F8F9FF" : "transparent",
+                            marginTop: 4, fontSize: 13, lineHeight: 1.6, color: isComment ? "#0F172A" : "#64748B",
+                            background: isComment ? "#F8FAFC" : "transparent",
                             padding: isComment ? "8px 10px" : "0",
                             borderRadius: isComment ? 6 : 0,
-                            borderLeft: isComment ? "2px solid #273D88" : "none",
+                            borderLeft: isComment ? "2px solid #2563EB" : "none",
                           }}>
                             {act.comentario}
                           </div>
@@ -787,7 +1140,7 @@ export default function OTDetail({
                     fontSize: 13, fontWeight: 500, cursor: uploadingFoto ? "default" : "pointer",
                     fontFamily: "inherit", transition: "border-color 0.1s, background 0.1s",
                   }}
-                  onMouseEnter={e => { if (!uploadingFoto) { e.currentTarget.style.borderColor = "#273D88"; e.currentTarget.style.background = "#F0F4FF"; e.currentTarget.style.color = "#273D88"; } }}
+                  onMouseEnter={e => { if (!uploadingFoto) { e.currentTarget.style.borderColor = "#2563EB"; e.currentTarget.style.background = "#EFF6FF"; e.currentTarget.style.color = "#1D4ED8"; } }}
                   onMouseLeave={e => { e.currentTarget.style.borderColor = "#D1D5DB"; e.currentTarget.style.background = "#FAFAFA"; e.currentTarget.style.color = "#6B7280"; }}
                 >
                   {uploadingFoto ? <><Loader2 className="size-4 animate-spin" /> Subiendo…</> : <><Plus size={15} /> Agregar foto</>}
@@ -881,24 +1234,160 @@ export default function OTDetail({
             )}
           </div>
         )}
+        {/* ── Partes ── */}
+        {tab === "materiales" && (
+          <div style={{ padding: "16px 20px 100px" }}>
+
+            {/* Total cost summary */}
+            {ordenPartes.length > 0 && (
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", background: "#F8FAFC", borderRadius: 8, border: "1px solid #E2E8F0", marginBottom: 14 }}>
+                <span style={{ fontSize: 12, fontWeight: 600, color: "#64748B", textTransform: "uppercase", letterSpacing: "0.05em" }}>Costo total partes</span>
+                <span style={{ fontSize: 16, fontWeight: 800, color: "#0F172A" }}>
+                  {totalPartes > 0 ? `$${totalPartes.toLocaleString("es-CL")}` : "—"}
+                </span>
+              </div>
+            )}
+
+            {/* Search catalogue */}
+            {isActive && (
+              <div style={{ marginBottom: 14 }}>
+                <div style={{ position: "relative" }}>
+                  <Search size={13} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "#94A3B8", pointerEvents: "none" }} />
+                  <input
+                    type="text"
+                    placeholder="Buscar parte en inventario…"
+                    value={catalogSearch}
+                    onChange={e => setCatalogSearch(e.target.value)}
+                    style={{
+                      width: "100%", height: 38, paddingLeft: 32, paddingRight: 12,
+                      fontSize: 13, border: "1px solid #E2E8F0", borderRadius: 8,
+                      background: "#F8FAFC", outline: "none", fontFamily: "inherit",
+                      boxSizing: "border-box", color: "#0F172A",
+                    }}
+                    onFocus={e => { e.currentTarget.style.borderColor = "#2563EB"; e.currentTarget.style.background = "#fff"; e.currentTarget.style.boxShadow = "0 0 0 3px rgba(37,99,235,0.10)"; }}
+                    onBlur={e => { e.currentTarget.style.borderColor = "#E2E8F0"; e.currentTarget.style.background = "#F8FAFC"; e.currentTarget.style.boxShadow = "none"; }}
+                  />
+                </div>
+
+                {filteredCatalog.length > 0 && (
+                  <div style={{ marginTop: 4, border: "1px solid #E2E8F0", borderRadius: 8, overflow: "hidden", background: "#fff", boxShadow: "0 4px 12px rgba(15,23,42,0.08)" }}>
+                    {filteredCatalog.map(p => (
+                      <button
+                        key={p.id}
+                        type="button"
+                        disabled={addingParte}
+                        onClick={() => handleAddParte(p)}
+                        style={{
+                          width: "100%", display: "flex", alignItems: "center", gap: 12,
+                          padding: "9px 12px", background: "none", border: "none",
+                          borderBottom: "1px solid #F1F5F9", cursor: "pointer",
+                          fontFamily: "inherit", textAlign: "left",
+                        }}
+                        onMouseEnter={e => { e.currentTarget.style.background = "#F8FAFC"; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = "none"; }}
+                      >
+                        <Package size={14} style={{ color: "#94A3B8", flexShrink: 0 }} />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 13, fontWeight: 500, color: "#0F172A", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.nombre}</div>
+                          <div style={{ fontSize: 11, color: p.stock_actual <= 0 ? "#EF4444" : "#94A3B8" }}>
+                            {p.unidad} · Stock: {p.stock_actual}
+                          </div>
+                        </div>
+                        <span style={{ fontSize: 12, fontWeight: 600, color: "#475569", flexShrink: 0 }}>
+                          ${p.precio_unitario.toLocaleString("es-CL")} / {p.unidad}
+                        </span>
+                        <span style={{ fontSize: 11, color: "#2563EB", fontWeight: 600, flexShrink: 0 }}>+ Agregar</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {loadingCatalog && <div style={{ marginTop: 4, padding: "8px 0", fontSize: 12, color: "#94A3B8" }}>Cargando inventario…</div>}
+                {catalogSearch.length >= 1 && filteredCatalog.length === 0 && !loadingCatalog && (
+                  <div style={{ marginTop: 4, padding: "8px 0", fontSize: 12, color: "#94A3B8" }}>
+                    Sin resultados. Agrega la parte en <a href="/partes" style={{ color: "#2563EB" }}>Inventario</a> primero.
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Parts list */}
+            {loadingPartes ? (
+              <div style={{ display: "flex", justifyContent: "center", padding: "32px 0" }}>
+                <Loader2 size={18} style={{ color: "#9CA3AF", animation: "spin 1s linear infinite" }} />
+              </div>
+            ) : ordenPartes.length === 0 ? (
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "40px 0", gap: 8, color: "#9CA3AF" }}>
+                <Package size={32} style={{ opacity: 0.2 }} />
+                <p style={{ fontSize: 13, margin: 0 }}>Sin partes registradas</p>
+                {isActive && <p style={{ fontSize: 12, margin: 0 }}>Busca una parte del inventario arriba</p>}
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 90px 110px 32px", gap: 8, padding: "6px 10px", borderBottom: "1px solid #E2E8F0" }}>
+                  {["Parte", "Cantidad", "Subtotal", ""].map(h => (
+                    <span key={h} style={{ fontSize: 10, fontWeight: 600, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.05em" }}>{h}</span>
+                  ))}
+                </div>
+                {ordenPartes.map(op => (
+                  <div key={op.id} style={{ display: "grid", gridTemplateColumns: "1fr 90px 110px 32px", gap: 8, alignItems: "center", padding: "8px 10px", borderBottom: "1px solid #F1F5F9" }}>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 500, color: "#0F172A" }}>{op.parte?.nombre ?? "—"}</div>
+                      <div style={{ fontSize: 11, color: "#94A3B8" }}>{op.parte?.unidad} · ${op.parte?.precio_unitario.toLocaleString("es-CL") ?? "—"} c/u</div>
+                    </div>
+                    {isActive ? (
+                      <input
+                        type="number"
+                        min="0.01"
+                        step="any"
+                        value={op.cantidad}
+                        onChange={e => handleUpdateCantidad(op.id, parseFloat(e.target.value) || op.cantidad)}
+                        style={{ height: 30, padding: "0 8px", fontSize: 13, border: "1px solid #E2E8F0", borderRadius: 6, outline: "none", fontFamily: "inherit", background: "#fff", width: "100%" }}
+                      />
+                    ) : (
+                      <span style={{ fontSize: 13, color: "#475569" }}>{op.cantidad}</span>
+                    )}
+                    <span style={{ fontSize: 12, fontWeight: 600, color: "#0F172A" }}>
+                      {op.parte?.precio_unitario
+                        ? `$${(op.parte.precio_unitario * op.cantidad).toLocaleString("es-CL")}`
+                        : "—"}
+                    </span>
+                    {isActive ? (
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteParte(op.id)}
+                        disabled={deletingParteId === op.id}
+                        style={{ width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", borderRadius: 6, cursor: "pointer", color: "#EF4444" }}
+                        onMouseEnter={e => { e.currentTarget.style.background = "#FEF2F2"; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = "none"; }}
+                      >
+                        {deletingParteId === op.id ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={13} />}
+                      </button>
+                    ) : <span />}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
       </div>
 
       {/* ── Comment input ── */}
-      <div style={{ flexShrink: 0, borderTop: "1px solid #F1F3F5", padding: "12px 16px", background: "#fff" }}>
+      <div style={{ flexShrink: 0, borderTop: "1px solid #E2E8F0", padding: "12px 16px", background: "#fff" }}>
         <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
           <textarea
             style={{
               flex: 1, minHeight: 42, maxHeight: 96, resize: "none",
-              fontSize: 13, border: "1px solid #E5E7EB", borderRadius: 8,
+              fontSize: 13, border: "1px solid #E2E8F0", borderRadius: 8,
               padding: "10px 12px", outline: "none", fontFamily: "inherit",
-              background: "#FAFAFA", color: "#111827", lineHeight: 1.5,
-              transition: "border-color 0.1s",
+              background: "#F8FAFC", color: "#0F172A", lineHeight: 1.5,
+              transition: "border-color 0.12s, box-shadow 0.12s",
             }}
             placeholder="Agregar comentario…"
             value={commentText}
             onChange={e => setCommentText(e.target.value)}
-            onFocus={e => { e.currentTarget.style.borderColor = "#273D88"; e.currentTarget.style.background = "#fff"; }}
-            onBlur={e => { e.currentTarget.style.borderColor = "#E5E7EB"; e.currentTarget.style.background = "#FAFAFA"; }}
+            onFocus={e => { e.currentTarget.style.borderColor = "#2563EB"; e.currentTarget.style.background = "#fff"; e.currentTarget.style.boxShadow = "0 0 0 3px rgba(37,99,235,0.10)"; }}
+            onBlur={e => { e.currentTarget.style.borderColor = "#E2E8F0"; e.currentTarget.style.background = "#F8FAFC"; e.currentTarget.style.boxShadow = "none"; }}
             onKeyDown={e => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) sendComment(); }}
           />
           <button
@@ -907,16 +1396,16 @@ export default function OTDetail({
             disabled={!commentText.trim() || sending}
             style={{
               width: 38, height: 38, flexShrink: 0,
-              background: commentText.trim() ? "#273D88" : "#E5E7EB",
+              background: commentText.trim() ? "linear-gradient(135deg, #1E3A8A, #2563EB)" : "#E2E8F0",
               border: "none", borderRadius: 8, cursor: commentText.trim() ? "pointer" : "default",
               display: "flex", alignItems: "center", justifyContent: "center",
-              transition: "background 0.15s",
+              transition: "opacity 0.15s",
             }}
           >
-            {sending ? <Loader2 size={15} style={{ color: "#fff", animation: "spin 1s linear infinite" }} /> : <Send size={15} style={{ color: commentText.trim() ? "#fff" : "#9CA3AF" }} />}
+            {sending ? <Loader2 size={15} style={{ color: "#fff", animation: "spin 1s linear infinite" }} /> : <Send size={15} style={{ color: commentText.trim() ? "#fff" : "#94A3B8" }} />}
           </button>
         </div>
-        <p style={{ fontSize: 10, color: "#9CA3AF", marginTop: 5, marginBottom: 0 }}>Ctrl+Enter para enviar</p>
+        <p style={{ fontSize: 11, color: "#94A3B8", marginTop: 5, marginBottom: 0 }}>Ctrl+Enter para enviar</p>
       </div>
 
       <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>

@@ -16,18 +16,14 @@ const ESTADO_LABEL: Record<string, string> = {
   pendiente: "Abierta",
   en_espera: "En espera",
   en_curso: "En curso",
-  en_revision: "En revisión",
   completado: "Completada",
-  cancelado: "Cancelada",
 };
 
 const ESTADO_COLORS: Record<string, { bg: string; text: string }> = {
   pendiente:   { bg: "#EFF6FF", text: "#2563EB" },
   en_espera:   { bg: "#FFFBEB", text: "#D97706" },
   en_curso:    { bg: "#EEF2FF", text: "#6366F1" },
-  en_revision: { bg: "#EEF2FF", text: "#6366F1" },
   completado:  { bg: "#F0FDF4", text: "#16A34A" },
-  cancelado:   { bg: "#F4F4F5", text: "#71717A" },
 };
 
 function sameDay(a: Date | null, b: Date | null): boolean {

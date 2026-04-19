@@ -92,12 +92,12 @@ export default function ConfiguracionPage() {
     <div style={{ display: "flex", flexDirection: "column", height: "100dvh", overflow: "hidden", background: "#fff" }}>
 
       {/* Header */}
-      <div style={{ flexShrink: 0, borderBottom: "1px solid #E5E7EB", padding: "0 24px", height: 56, display: "flex", alignItems: "center" }}>
-        <h1 style={{ fontSize: 20, fontWeight: 700, color: "#1E2429", margin: 0, letterSpacing: "-0.3px" }}>Configuración</h1>
+      <div style={{ flexShrink: 0, borderBottom: "1px solid #E2E8F0", padding: "0 24px", height: 56, display: "flex", alignItems: "center" }}>
+        <h1 style={{ fontSize: 20, fontWeight: 700, color: "#0F172A", margin: 0, letterSpacing: "-0.3px" }}>Configuración</h1>
       </div>
 
       {/* Tabs */}
-      <div style={{ flexShrink: 0, borderBottom: "1px solid #E5E7EB", padding: "0 24px", display: "flex", gap: 0 }}>
+      <div style={{ flexShrink: 0, borderBottom: "1px solid #E2E8F0", padding: "0 24px", display: "flex", gap: 0 }}>
         {([["perfil", "Perfil"], ["notificaciones", "Notificaciones"]] as [Tab, string][]).map(([key, label]) => (
           <button
             key={key}
@@ -106,8 +106,8 @@ export default function ConfiguracionPage() {
             style={{
               height: 40, padding: "0 16px",
               background: "none", border: "none",
-              borderBottom: tab === key ? "2px solid #273D88" : "2px solid transparent",
-              color: tab === key ? "#273D88" : "#9CA3AF",
+              borderBottom: tab === key ? "2px solid #1E3A8A" : "2px solid transparent",
+              color: tab === key ? "#1E3A8A" : "#9CA3AF",
               fontSize: 13, fontWeight: tab === key ? 600 : 500,
               cursor: "pointer", fontFamily: "inherit",
               marginBottom: -1, transition: "color 0.1s",
@@ -129,7 +129,7 @@ export default function ConfiguracionPage() {
             <div style={{ padding: "16px 20px", background: "#F8F9FF", border: "1px solid #E0E7FF", borderRadius: 10, marginBottom: 24, display: "flex", alignItems: "center", gap: 14 }}>
               <div style={{
                 width: 48, height: 48, borderRadius: "50%",
-                background: "#273D88", color: "#fff",
+                background: "#1E3A8A", color: "#fff",
                 display: "flex", alignItems: "center", justifyContent: "center",
                 fontSize: 18, fontWeight: 700, flexShrink: 0,
               }}>
@@ -142,7 +142,7 @@ export default function ConfiguracionPage() {
                   <span style={{
                     display: "inline-block", marginTop: 5, fontSize: 11, fontWeight: 600,
                     padding: "2px 8px", borderRadius: 20,
-                    background: "#EEF1FB", color: "#273D88",
+                    background: "#EFF6FF", color: "#1E3A8A",
                   }}>
                     {ROL_LABEL[rol] ?? rol}
                   </span>
@@ -186,12 +186,12 @@ export default function ConfiguracionPage() {
                           onChange={e => i === 0 ? setPwNueva(e.target.value) : setPwConfirm(e.target.value)}
                           style={{
                             width: "100%", height: 38, padding: "0 36px 0 12px",
-                            border: "1px solid #E5E7EB", borderRadius: 6,
+                            border: "1px solid #E2E8F0", borderRadius: 6,
                             fontSize: 13, color: "#111827", outline: "none",
                             fontFamily: "inherit", background: "#fff", boxSizing: "border-box",
                           }}
-                          onFocus={e => { e.currentTarget.style.borderColor = "#273D88"; }}
-                          onBlur={e => { e.currentTarget.style.borderColor = "#E5E7EB"; }}
+                          onFocus={e => { e.currentTarget.style.borderColor = "#1E3A8A"; }}
+                          onBlur={e => { e.currentTarget.style.borderColor = "#E2E8F0"; }}
                         />
                         {i === 0 && (
                           <button type="button" onClick={() => setShowPw(v => !v)}
@@ -213,7 +213,7 @@ export default function ConfiguracionPage() {
                     disabled={pwSaving || pwOk}
                     style={{
                       height: 38, border: "none", borderRadius: 6,
-                      background: pwOk ? "#16A34A" : "#273D88",
+                      background: pwOk ? "#16A34A" : "#1E3A8A",
                       color: "#fff", fontSize: 13, fontWeight: 600,
                       cursor: pwSaving || pwOk ? "default" : "pointer",
                       fontFamily: "inherit", display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
@@ -293,7 +293,7 @@ function NotificacionesTab() {
     granted:     { label: "Activadas",  color: "#16A34A", bg: "#F0FDF4", border: "#BBF7D0" },
     denied:      { label: "Bloqueadas", color: "#DC2626", bg: "#FEF2F2", border: "#FECACA" },
     default:     { label: "Sin configurar", color: "#D97706", bg: "#FFFBEB", border: "#FDE68A" },
-    unsupported: { label: "No disponible", color: "#6B7280", bg: "#F9FAFB", border: "#E5E7EB" },
+    unsupported: { label: "No disponible", color: "#6B7280", bg: "#F9FAFB", border: "#E2E8F0" },
   }[permission];
 
   return (
@@ -315,7 +315,7 @@ function NotificacionesTab() {
               style={{
                 height: 32, padding: "0 14px",
                 border: "none", borderRadius: 6,
-                background: "#273D88", color: "#fff",
+                background: "#1E3A8A", color: "#fff",
                 fontSize: 12, fontWeight: 600, cursor: subscribing ? "default" : "pointer",
                 fontFamily: "inherit", display: "flex", alignItems: "center", gap: 5,
               }}

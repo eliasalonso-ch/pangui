@@ -13,42 +13,42 @@
 
 @layer base {
   :root {
-    --background-hsl:        0 0% 100%;
-    --foreground:            222 47% 11%;
+    --background-hsl:        210 40% 98%;
+    --foreground:            222 47% 6%;
     --card:                  0 0% 100%;
-    --card-foreground:       222 47% 11%;
+    --card-foreground:       222 47% 6%;
     --popover:               0 0% 100%;
-    --popover-foreground:    222 47% 11%;
+    --popover-foreground:    222 47% 6%;
 
-    --primary:               228 55% 35%;
+    --primary:               224 76% 32%;
     --primary-foreground:    0 0% 100%;
 
-    --secondary:             228 57% 96%;
-    --secondary-foreground:  228 55% 35%;
+    --secondary:             213 100% 97%;
+    --secondary-foreground:  224 76% 32%;
 
-    --muted:                 220 14% 96%;
-    --muted-foreground:      220 9% 46%;
+    --muted:                 210 40% 96%;
+    --muted-foreground:      215 16% 47%;
 
-    --accent:                228 57% 96%;
-    --accent-foreground:     228 55% 35%;
+    --accent:                213 100% 97%;
+    --accent-foreground:     224 76% 32%;
 
     --destructive:           0 84% 60%;
     --destructive-foreground: 0 0% 100%;
 
-    --border:                220 13% 91%;
-    --input:                 220 13% 91%;
-    --ring:                  228 55% 35%;
-    --radius:                0rem;
+    --border:                214 32% 89%;
+    --input:                 214 32% 89%;
+    --ring:                  221 83% 53%;
+    --radius:                0.5rem;
 
-    /* ── Sidebar — clean light ── */
-    --sidebar-background:    0 0% 100%;
-    --sidebar-foreground:    222 20% 30%;
-    --sidebar-primary:       228 55% 35%;
+    /* ── Sidebar — dark navy ── */
+    --sidebar-background:    222 47% 6%;
+    --sidebar-foreground:    215 20% 65%;
+    --sidebar-primary:       221 83% 53%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent:        228 57% 96%;
-    --sidebar-accent-foreground: 228 55% 35%;
-    --sidebar-border:        220 13% 91%;
-    --sidebar-ring:          228 55% 60%;
+    --sidebar-accent:        221 83% 20%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border:        222 47% 12%;
+    --sidebar-ring:          221 83% 53%;
   }
 
   .dark {
@@ -58,7 +58,7 @@
     --card-foreground:       210 40% 98%;
     --popover:               222 47% 10%;
     --popover-foreground:    210 40% 98%;
-    --primary:               228 70% 65%;
+    --primary:               221 83% 63%;
     --primary-foreground:    222 47% 11%;
     --secondary:             217 33% 18%;
     --secondary-foreground:  210 40% 98%;
@@ -70,15 +70,15 @@
     --destructive-foreground: 0 0% 98%;
     --border:                217 33% 18%;
     --input:                 217 33% 18%;
-    --ring:                  228 70% 65%;
-    --sidebar-background:    222 47% 7%;
-    --sidebar-foreground:    228 40% 88%;
-    --sidebar-primary:       228 70% 65%;
+    --ring:                  221 83% 63%;
+    --sidebar-background:    222 47% 5%;
+    --sidebar-foreground:    215 20% 60%;
+    --sidebar-primary:       221 83% 63%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent:        228 45% 16%;
+    --sidebar-accent:        221 83% 18%;
     --sidebar-accent-foreground: 0 0% 100%;
-    --sidebar-border:        228 45% 16%;
-    --sidebar-ring:          228 70% 65%;
+    --sidebar-border:        222 47% 10%;
+    --sidebar-ring:          221 83% 63%;
   }
 }
 
@@ -86,37 +86,62 @@
 
 :root {
   /* ── Pangui brand colors ─────────────────────────────────── */
-  --brand:        #273D88;   /* primary blue                  */
-  --brand-hover:  #1F316E;   /* darker blue on hover          */
-  --brand-light:  #EEF1FB;   /* light blue tint               */
+  --brand:        #1E3A8A;   /* primary brand (blue-800)        */
+  --brand-mid:    #2563EB;   /* interactive blue (blue-600)     */
+  --brand-hover:  #1D4ED8;   /* hover (blue-700)                */
+  --brand-light:  #EFF6FF;   /* brand tint (blue-50)            */
 
-  /* ── MaintainX-inspired design tokens ───────────────────── */
-  --mx-bg:           #FFFFFF;
-  --mx-bg-hover:     #F9FAFB;
-  --mx-bg-selected:  #EEF1FB;
-  --mx-sidebar-bg:   #FFFFFF;
-  --mx-sidebar-border: #E5E7EB;
-  --mx-text-primary: #1E2429;
-  --mx-text-secondary: #4D5A66;
-  --mx-text-muted:   #8594A3;
-  --mx-border:       #E5E7EB;
-  --mx-border-hover: #B5C0C9;
-  --mx-accent:       #273D88;
-  --mx-accent-light: #EEF1FB;
-  --mx-accent-text:  #273D88;
+  /* ── Surface & background ───────────────────────────────── */
+  --c-bg:         #F8FAFC;   /* app background (slate-50)       */
+  --c-surface:    #FFFFFF;   /* cards, panels                   */
+  --c-surface-2:  #F1F5F9;   /* nested bg (slate-100)           */
+
+  /* ── Borders ────────────────────────────────────────────── */
+  --c-border:     #E2E8F0;   /* default border (slate-200)      */
+  --c-border-strong: #CBD5E1; /* hover border (slate-300)       */
+
+  /* ── Text ───────────────────────────────────────────────── */
+  --c-text-1:     #0F172A;   /* primary (slate-900)             */
+  --c-text-2:     #475569;   /* secondary (slate-600)           */
+  --c-text-3:     #94A3B8;   /* muted (slate-400)               */
+
+  /* ── Semantic colors ────────────────────────────────────── */
+  --c-success:    #10B981;
+  --c-success-bg: #ECFDF5;
+  --c-warning:    #F59E0B;
+  --c-warning-bg: #FFFBEB;
+  --c-danger:     #EF4444;
+  --c-danger-bg:  #FEF2F2;
+  --c-info:       #3B82F6;
+  --c-info-bg:    #EFF6FF;
+
+  /* ── Legacy aliases (keep for backward compat) ──────────── */
+  --mx-bg:           #F8FAFC;
+  --mx-bg-hover:     #F1F5F9;
+  --mx-bg-selected:  #EFF6FF;
+  --mx-sidebar-bg:   #0F172A;
+  --mx-sidebar-border: #1E293B;
+  --mx-text-primary: #0F172A;
+  --mx-text-secondary: #475569;
+  --mx-text-muted:   #94A3B8;
+  --mx-border:       #E2E8F0;
+  --mx-border-hover: #CBD5E1;
+  --mx-accent:       #2563EB;
+  --mx-accent-light: #EFF6FF;
+  --mx-accent-text:  #1E3A8A;
 
   /* ── Layout ─────────────────────────────────────────────── */
   --topbar-height: 0px;
-  --sidebar-width: 220px;
+  --sidebar-width: 240px;
 
   /* ── Typography ─────────────────────────────────────────── */
   --fs-xs:   11px;
   --fs-sm:   12px;
-  --fs-base: 13px;
+  --fs-base: 14px;
   --fs-md:   15px;
   --fs-lg:   18px;
   --fs-xl:   22px;
-  --fs-xxl:  26px;
+  --fs-xxl:  28px;
 
   /* ── Fonts ───────────────────────────────────────────────── */
   --font-sans:    "Geist", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -124,17 +149,17 @@
   --font-mono:    ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
 
   /* ── Radii ───────────────────────────────────────────────── */
-  --radius-sm: 4px;
-  --radius-md: 6px;
-  --radius-lg: 8px;
-  --radius-xl: 10px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
 
   /* ── Shadows ─────────────────────────────────────────────── */
-  --shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.04);
-  --shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.06), 0 1px 2px rgba(15, 23, 42, 0.04);
-  --shadow-md: 0 4px 8px rgba(15, 23, 42, 0.08), 0 2px 4px rgba(15, 23, 42, 0.04);
-  --shadow-lg: 0 12px 24px rgba(15, 23, 42, 0.10), 0 4px 8px rgba(15, 23, 42, 0.06);
-  --shadow-focus: 0 0 0 3px rgba(39, 61, 136, 0.18);
+  --shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.05);
+  --shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.08), 0 1px 2px rgba(15, 23, 42, 0.04);
+  --shadow-md: 0 4px 6px -1px rgba(15, 23, 42, 0.08), 0 2px 4px -1px rgba(15, 23, 42, 0.04);
+  --shadow-lg: 0 10px 15px -3px rgba(15, 23, 42, 0.10), 0 4px 6px -2px rgba(15, 23, 42, 0.05);
+  --shadow-focus: 0 0 0 3px rgba(37, 99, 235, 0.20);
 }
 
 /* ── Reset ──────────────────────────────────────────────────── */
@@ -160,9 +185,9 @@ body {
   -moz-osx-font-smoothing: grayscale;
   font-family: var(--font-sans, "Geist"), system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   font-size: var(--fs-base);
-  background: var(--mx-bg);
+  background: var(--c-bg);
   overscroll-behavior: none;
-  color: var(--mx-text-primary);
+  color: var(--c-text-1);
 }
 
 @media (min-width: 1024px) {

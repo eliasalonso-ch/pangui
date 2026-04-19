@@ -47,7 +47,7 @@ const labelStyle: React.CSSProperties = {
 };
 const inputStyle: React.CSSProperties = {
   width: "100%", height: 36, padding: "0 12px",
-  border: "1px solid #E5E7EB", borderRadius: 6,
+  border: "1px solid #E2E8F0", borderRadius: 6,
   fontSize: 13, fontFamily: "inherit", color: "#111827",
   background: "#fff", outline: "none", boxSizing: "border-box",
 };
@@ -112,7 +112,7 @@ function ComboCreate({
       {open && (
         <div style={{
           position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, zIndex: 20,
-          background: "#fff", border: "1px solid #E5E7EB", borderRadius: 8,
+          background: "#fff", border: "1px solid #E2E8F0", borderRadius: 8,
           boxShadow: "0 4px 16px rgba(0,0,0,0.08)", overflow: "hidden",
         }}>
           <input
@@ -153,17 +153,17 @@ function ComboCreate({
                 style={{ ...inputStyle, height: 30, flex: 1, fontSize: 12 }}
               />
               <button type="button" onClick={handleCreate}
-                style={{ height: 30, padding: "0 10px", background: "#273D88", border: "none", borderRadius: 6, color: "#fff", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
+                style={{ height: 30, padding: "0 10px", background: "#1E3A8A", border: "none", borderRadius: 6, color: "#fff", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
                 Crear
               </button>
               <button type="button" onClick={() => { setCreating(false); setNewName(""); }}
-                style={{ height: 30, width: 30, background: "none", border: "1px solid #E5E7EB", borderRadius: 6, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                style={{ height: 30, width: 30, background: "none", border: "1px solid #E2E8F0", borderRadius: 6, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <X size={12} style={{ color: "#9CA3AF" }} />
               </button>
             </div>
           ) : (
             <button type="button" onClick={() => setCreating(true)}
-              style={{ width: "100%", padding: "8px 12px", background: "none", border: "none", borderTop: "1px solid #F3F4F6", cursor: "pointer", textAlign: "left", fontSize: 12, color: "#273D88", fontWeight: 600, fontFamily: "inherit" }}>
+              style={{ width: "100%", padding: "8px 12px", background: "none", border: "none", borderTop: "1px solid #F3F4F6", cursor: "pointer", textAlign: "left", fontSize: 12, color: "#1E3A8A", fontWeight: 600, fontFamily: "inherit" }}>
               + Crear nuevo
             </button>
           )}
@@ -356,18 +356,18 @@ export default function PartesPage() {
 
       {/* Header */}
       <div style={{
-        flexShrink: 0, borderBottom: "1px solid #E5E7EB",
+        flexShrink: 0, borderBottom: "1px solid #E2E8F0",
         padding: "0 24px", height: 56,
         display: "flex", alignItems: "center", justifyContent: "space-between",
       }}>
-        <h1 style={{ fontSize: 20, fontWeight: 700, color: "#1E2429", margin: 0, letterSpacing: "-0.3px" }}>Partes</h1>
+        <h1 style={{ fontSize: 20, fontWeight: 700, color: "#0F172A", margin: 0, letterSpacing: "-0.3px" }}>Partes</h1>
         <button
           type="button"
           onClick={openCreate}
           style={{
             height: 32, padding: "0 14px",
             display: "flex", alignItems: "center", gap: 6,
-            background: "#273D88", border: "none", borderRadius: 6,
+            background: "#1E3A8A", border: "none", borderRadius: 6,
             fontSize: 13, fontWeight: 600, color: "#fff",
             cursor: "pointer", fontFamily: "inherit",
           }}
@@ -406,7 +406,7 @@ export default function PartesPage() {
               onClick={() => setFiltroStock(k)}
               style={{
                 height: 28, padding: "0 10px",
-                background: filtroStock === k ? "#273D88" : "#F3F4F6",
+                background: filtroStock === k ? "#1E3A8A" : "#F3F4F6",
                 border: "none", borderRadius: 20,
                 fontSize: 11, fontWeight: 600,
                 color: filtroStock === k ? "#fff" : "#6B7280",
@@ -490,7 +490,7 @@ export default function PartesPage() {
         {panelMode !== null && (
           <div style={{
             width: 380, flexShrink: 0,
-            borderLeft: "1px solid #E5E7EB",
+            borderLeft: "1px solid #E2E8F0",
             display: "flex", flexDirection: "column",
             overflowY: "auto",
           }}>
@@ -508,7 +508,7 @@ export default function PartesPage() {
                   <>
                     <button type="button" onClick={() => openEdit(parteData!)}
                       title="Editar"
-                      style={{ width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "1px solid #E5E7EB", borderRadius: 6, cursor: "pointer", color: "#6B7280" }}>
+                      style={{ width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "1px solid #E2E8F0", borderRadius: 6, cursor: "pointer", color: "#6B7280" }}>
                       <Pencil size={13} />
                     </button>
                     <button type="button" onClick={() => setConfirm(parteData!)}
@@ -554,12 +554,12 @@ export default function PartesPage() {
                 {/* Stock adjust */}
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   <button type="button" onClick={() => ajustarStock(parteData, -1)}
-                    style={{ width: 32, height: 32, border: "1px solid #E5E7EB", borderRadius: 6, background: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#6B7280" }}>
+                    style={{ width: 32, height: 32, border: "1px solid #E2E8F0", borderRadius: 6, background: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#6B7280" }}>
                     <Minus size={14} />
                   </button>
                   <span style={{ flex: 1, textAlign: "center", fontSize: 13, color: "#374151", fontWeight: 600 }}>Ajustar stock</span>
                   <button type="button" onClick={() => ajustarStock(parteData, 1)}
-                    style={{ width: 32, height: 32, border: "1px solid #E5E7EB", borderRadius: 6, background: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#6B7280" }}>
+                    style={{ width: 32, height: 32, border: "1px solid #E2E8F0", borderRadius: 6, background: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#6B7280" }}>
                     <Plus size={14} />
                   </button>
                 </div>
@@ -602,7 +602,7 @@ export default function PartesPage() {
                     onClick={() => imgInputRef.current?.click()}
                     style={{
                       width: "100%", aspectRatio: "16/9", borderRadius: 8,
-                      border: "1.5px dashed #E5E7EB", cursor: "pointer",
+                      border: "1.5px dashed #E2E8F0", cursor: "pointer",
                       overflow: "hidden", background: "#F9FAFB",
                       display: "flex", alignItems: "center", justifyContent: "center",
                     }}
@@ -625,16 +625,16 @@ export default function PartesPage() {
                 <div>
                   <label style={labelStyle}>Nombre *</label>
                   <input style={inputStyle} value={form.nombre ?? ""} onChange={e => setF("nombre", e.target.value)}
-                    onFocus={e => { e.currentTarget.style.borderColor = "#273D88"; }}
-                    onBlur={e => { e.currentTarget.style.borderColor = "#E5E7EB"; }} />
+                    onFocus={e => { e.currentTarget.style.borderColor = "#1E3A8A"; }}
+                    onBlur={e => { e.currentTarget.style.borderColor = "#E2E8F0"; }} />
                 </div>
 
                 <div>
                   <label style={labelStyle}>Código</label>
                   <input style={inputStyle} value={form.codigo ?? ""} placeholder="SKU, código interno…"
                     onChange={e => setF("codigo", e.target.value)}
-                    onFocus={e => { e.currentTarget.style.borderColor = "#273D88"; }}
-                    onBlur={e => { e.currentTarget.style.borderColor = "#E5E7EB"; }} />
+                    onFocus={e => { e.currentTarget.style.borderColor = "#1E3A8A"; }}
+                    onBlur={e => { e.currentTarget.style.borderColor = "#E2E8F0"; }} />
                 </div>
 
                 <div>
@@ -650,8 +650,8 @@ export default function PartesPage() {
                   <label style={labelStyle}>Unidad *</label>
                   <input style={inputStyle} value={form.unidad ?? "un"} placeholder="un, kg, m, lt…"
                     onChange={e => setF("unidad", e.target.value)}
-                    onFocus={e => { e.currentTarget.style.borderColor = "#273D88"; }}
-                    onBlur={e => { e.currentTarget.style.borderColor = "#E5E7EB"; }} />
+                    onFocus={e => { e.currentTarget.style.borderColor = "#1E3A8A"; }}
+                    onBlur={e => { e.currentTarget.style.borderColor = "#E2E8F0"; }} />
                 </div>
 
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
@@ -660,16 +660,16 @@ export default function PartesPage() {
                     <input type="number" min={0} style={inputStyle}
                       value={form.stock_actual ?? 0}
                       onChange={e => setF("stock_actual", Number(e.target.value))}
-                      onFocus={e => { e.currentTarget.style.borderColor = "#273D88"; }}
-                      onBlur={e => { e.currentTarget.style.borderColor = "#E5E7EB"; }} />
+                      onFocus={e => { e.currentTarget.style.borderColor = "#1E3A8A"; }}
+                      onBlur={e => { e.currentTarget.style.borderColor = "#E2E8F0"; }} />
                   </div>
                   <div>
                     <label style={labelStyle}>Stock mínimo</label>
                     <input type="number" min={0} style={inputStyle}
                       value={form.stock_minimo ?? 0}
                       onChange={e => setF("stock_minimo", Number(e.target.value))}
-                      onFocus={e => { e.currentTarget.style.borderColor = "#273D88"; }}
-                      onBlur={e => { e.currentTarget.style.borderColor = "#E5E7EB"; }} />
+                      onFocus={e => { e.currentTarget.style.borderColor = "#1E3A8A"; }}
+                      onBlur={e => { e.currentTarget.style.borderColor = "#E2E8F0"; }} />
                   </div>
                 </div>
 
@@ -678,16 +678,16 @@ export default function PartesPage() {
                   <input type="number" min={0} style={inputStyle} placeholder="0"
                     value={form.precio_unitario ?? ""}
                     onChange={e => setF("precio_unitario", e.target.value ? Number(e.target.value) : undefined)}
-                    onFocus={e => { e.currentTarget.style.borderColor = "#273D88"; }}
-                    onBlur={e => { e.currentTarget.style.borderColor = "#E5E7EB"; }} />
+                    onFocus={e => { e.currentTarget.style.borderColor = "#1E3A8A"; }}
+                    onBlur={e => { e.currentTarget.style.borderColor = "#E2E8F0"; }} />
                 </div>
 
                 <div>
                   <label style={labelStyle}>Ubicación en bodega</label>
                   <input style={inputStyle} value={form.ubicacion_bodega ?? ""} placeholder="Ej. Estante A3, Bodega 2…"
                     onChange={e => setF("ubicacion_bodega", e.target.value)}
-                    onFocus={e => { e.currentTarget.style.borderColor = "#273D88"; }}
-                    onBlur={e => { e.currentTarget.style.borderColor = "#E5E7EB"; }} />
+                    onFocus={e => { e.currentTarget.style.borderColor = "#1E3A8A"; }}
+                    onBlur={e => { e.currentTarget.style.borderColor = "#E2E8F0"; }} />
                 </div>
 
                 {saveErr && <p style={{ fontSize: 12, color: "#DC2626", margin: 0 }}>{saveErr}</p>}
@@ -698,7 +698,7 @@ export default function PartesPage() {
                   disabled={saving}
                   style={{
                     height: 38, border: "none", borderRadius: 6,
-                    background: "#273D88", color: "#fff",
+                    background: "#1E3A8A", color: "#fff",
                     fontSize: 13, fontWeight: 600,
                     cursor: saving ? "default" : "pointer", fontFamily: "inherit",
                     display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
@@ -737,7 +737,7 @@ export default function PartesPage() {
             </p>
             <div style={{ display: "flex", gap: 8 }}>
               <button type="button" onClick={() => setConfirm(null)}
-                style={{ flex: 1, height: 36, border: "1px solid #E5E7EB", borderRadius: 6, background: "none", fontSize: 13, fontWeight: 600, color: "#374151", cursor: "pointer", fontFamily: "inherit" }}>
+                style={{ flex: 1, height: 36, border: "1px solid #E2E8F0", borderRadius: 6, background: "none", fontSize: 13, fontWeight: 600, color: "#374151", cursor: "pointer", fontFamily: "inherit" }}>
                 Cancelar
               </button>
               <button type="button" onClick={() => eliminar(confirm)}

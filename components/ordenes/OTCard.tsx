@@ -51,9 +51,7 @@ const ESTADO_CONFIG: Record<
   pendiente:   { label: "Abierta",      bg: "#EEF1FB", color: "#273D88" },
   en_espera:   { label: "En espera",    bg: "#fffbeb", color: "#b45309" },
   en_curso:    { label: "En curso",     bg: "#f0f3ff", color: "#3D52A0" },
-  en_revision: { label: "En revisión",  bg: "#F5F3FF", color: "#7c3aed" },
   completado:  { label: "Completada",   bg: "#ECFDF5", color: "#059669" },
-  cancelado:   { label: "Cancelada",    bg: "#f4f4f5", color: "#71717a" },
 };
 
 // ─── Priority config ──────────────────────────────────────────────────────────

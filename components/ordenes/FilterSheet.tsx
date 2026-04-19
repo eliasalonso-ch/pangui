@@ -12,9 +12,7 @@ const ESTADOS: Estado[] = [
   "pendiente",
   "en_espera",
   "en_curso",
-  "en_revision",
   "completado",
-  "cancelado",
 ]
 
 const PRIORIDADES: Prioridad[] = [
