@@ -124,14 +124,13 @@ export default function LoginPage() {
       {/* ── Mobile top bar ── */}
       <div className="login-mobile-bar" style={{
         position: "fixed", top: 0, left: 0, right: 0, zIndex: 10,
-        display: "flex", alignItems: "center", justifyContent: "space-between",
+        display: "flex", alignItems: "center",
         padding: "14px 24px",
         background: "#273D88",
         borderBottom: "1px solid rgba(255,255,255,0.1)",
       }}>
         <img src="/pangui-logo.svg" alt="Pangui" style={{ width: 72, height: "auto", filter: "brightness(0) invert(1)" }}
           onError={e => { e.currentTarget.style.filter = "none"; }} />
-        <div />
       </div>
 
       {/* ── Right panel (form) ── */}
