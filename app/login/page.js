@@ -118,16 +118,7 @@ export default function LoginPage() {
           </ul>
         </div>
 
-        {/* Back link */}
-        <Link
-          href="/"
-          style={{ position: "relative", zIndex: 1, display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, color: "rgba(255,255,255,0.45)", textDecoration: "none" }}
-          onMouseEnter={e => e.currentTarget.style.color = "rgba(255,255,255,0.8)"}
-          onMouseLeave={e => e.currentTarget.style.color = "rgba(255,255,255,0.45)"}
-        >
-          <ArrowLeft size={13} />
-          Volver al sitio
-        </Link>
+        <div />
       </div>
 
       {/* ── Mobile top bar ── */}
@@ -140,11 +131,7 @@ export default function LoginPage() {
       }}>
         <img src="/pangui-logo.svg" alt="Pangui" style={{ width: 72, height: "auto", filter: "brightness(0) invert(1)" }}
           onError={e => { e.currentTarget.style.filter = "none"; }} />
-        <Link href="/"
-          style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12, fontWeight: 600, color: "rgba(255,255,255,0.75)", textDecoration: "none" }}>
-          <ArrowLeft size={12} />
-          Volver
-        </Link>
+        <div />
       </div>
 
       {/* ── Right panel (form) ── */}
@@ -278,15 +265,8 @@ export default function LoginPage() {
           </div>
         </div>
 
-        <div style={{ padding: "16px 24px", borderTop: "1px solid #F1F3F5", fontSize: 12, color: "#9CA3AF", display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
+        <div style={{ padding: "16px 24px", borderTop: "1px solid #F1F3F5", fontSize: 12, color: "#9CA3AF" }}>
           <span>© 2026 Pangui</span>
-          <div style={{ display: "flex", gap: 16 }}>
-            <Link href="/privacidad" style={{ color: "#9CA3AF", textDecoration: "none" }}
-              onMouseEnter={e => e.currentTarget.style.color = "#273D88"}
-              onMouseLeave={e => e.currentTarget.style.color = "#9CA3AF"}>
-              Privacidad
-            </Link>
-          </div>
         </div>
       </div>
 
