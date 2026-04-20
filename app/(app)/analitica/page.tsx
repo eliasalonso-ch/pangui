@@ -14,9 +14,16 @@ import {
   Wrench, Users, DollarSign, Activity,
   ArrowUpRight, ArrowDownRight, Minus, BarChart2,
   Zap, ShieldAlert, CheckCircle2, XCircle,
+  Brain, Target, RotateCcw, Timer, GitBranch,
+  Lock, Package, PhoneOff, DoorClosed,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase";
 import type { Estado, Prioridad, TipoTrabajo } from "@/types/ordenes";
+import {
+  getResponseTime, getResolutionTime, getWorkingTime, getBlockedDuration,
+  avgResponseTime, avgResolutionTime, aggregateTimeDistribution, calcFTFR,
+  isOverdue, getOverdueDays as otGetOverdueDays,
+} from "@/lib/ot-metrics";
 
 // ── Palette ──────────────────────────────────────────────────────────────────
 const C = {
@@ -25,6 +32,7 @@ const C = {
   warning: "#F59E0B", warningBg: "#FFFBEB",
   danger: "#EF4444",  dangerBg: "#FEF2F2",
   info: "#3B82F6",    infoBg: "#EFF6FF",
+  purple: "#7C3AED",  purpleBg: "#F5F3FF",
   text1: "#0F172A", text2: "#475569", text3: "#94A3B8",
   border: "#E2E8F0", bg: "#F8FAFC", surface: "#FFFFFF",
 };
@@ -39,7 +47,6 @@ interface OTRow {
   created_at: string;
   fecha_termino: string | null;
   iniciado_at: string | null;
-  // completado is set when estado === "completado", use updated_at as proxy
   updated_at: string | null;
   asignados_ids: string[] | null;
   activo_id: string | null;
@@ -83,9 +90,37 @@ function daysSince(d: string) {
   return Math.floor((Date.now() - new Date(d).getTime()) / 864e5);
 }
 function monthKey(d: string) { return d.slice(0, 7); }
-// Resolve unit price: use row value first, fall back to joined material catalogue price
 function unitPrice(m: MaterialUsadoRow): number {
   return m.precio_unitario ?? m.materiales?.precio_unitario ?? 0;
+}
+
+// ── Analytics helpers (local, non-metric) ────────────────────────────────────
+
+function calculateFlow(ots: OTRow[], rangeMonths: number): Array<{ label: string; created: number; completed: number }> {
+  const days: Array<{ label: string; created: number; completed: number }> = [];
+  const now = new Date();
+  const useWeeks = rangeMonths > 2;
+  const buckets = useWeeks ? rangeMonths * 4 : rangeMonths * 30;
+  const bucketSize = useWeeks ? 7 : 1;
+
+  for (let i = buckets - 1; i >= 0; i--) {
+    const start = new Date(now);
+    start.setDate(start.getDate() - i * bucketSize);
+    const end = new Date(start);
+    end.setDate(end.getDate() + bucketSize);
+    const startStr = start.toISOString().slice(0, 10);
+    const endStr   = end.toISOString().slice(0, 10);
+    days.push({
+      label:     start.toLocaleDateString("es-CL", { day: "numeric", month: "short" }),
+      created:   ots.filter(o => o.created_at.slice(0, 10) >= startStr && o.created_at.slice(0, 10) < endStr).length,
+      completed: ots.filter(o => o.estado === "completado" && o.updated_at && o.updated_at.slice(0, 10) >= startStr && o.updated_at.slice(0, 10) < endStr).length,
+    });
+  }
+  if (days.length > 20) {
+    const step = Math.ceil(days.length / 20);
+    return days.filter((_, i) => i % step === 0 || i === days.length - 1);
+  }
+  return days;
 }
 
 // ── Sub-components ────────────────────────────────────────────────────────────
@@ -186,6 +221,328 @@ function ClipboardIcon({ size, color }: { size: number; color?: string }) {
   );
 }
 
+// ── NEW: Time Distribution Section ────────────────────────────────────────────
+function TimeDistributionSection({ ots }: { ots: OTRow[] }) {
+  const times = useMemo(() => {
+    const t = aggregateTimeDistribution(ots);
+    return { working: t.workingHours, waiting: t.waitingHours, total: t.totalHours };
+  }, [ots]);
+  const workPct    = times.total > 0 ? Math.round((times.working / times.total) * 100) : 0;
+  const waitPct    = times.total > 0 ? Math.round((times.waiting / times.total) * 100) : 0;
+
+  const pieData = [
+    { name: "Tiempo activo",  value: Math.round(times.working), color: C.success },
+    { name: "En espera",      value: Math.round(times.waiting), color: C.warning },
+  ].filter(d => d.value > 0);
+
+  const hasData = times.total > 0;
+
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+      <Card>
+        <CardHeader title="Distribución del tiempo" subtitle="Tiempo activo vs tiempo en espera (estimado)" />
+        <div style={{ padding: "16px 20px" }}>
+          {!hasData ? (
+            <div style={{ padding: "20px 0", textAlign: "center", color: C.text3, fontSize: 13 }}>
+              Sin datos de tiempo suficientes (requiere iniciado_at)
+            </div>
+          ) : (
+            <>
+              <div style={{ display: "flex", gap: 20, justifyContent: "center", marginBottom: 16 }}>
+                <ResponsiveContainer width="100%" height={160}>
+                  <PieChart>
+                    <Pie data={pieData} cx="50%" cy="50%" innerRadius={40} outerRadius={70} paddingAngle={2} dataKey="value">
+                      {pieData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
+                    </Pie>
+                    <Tooltip contentStyle={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12 }} formatter={v => [`${Number(v).toFixed(1)}h`, ""]} />
+                    <Legend wrapperStyle={{ fontSize: 12 }} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                <div style={{ padding: "10px 14px", borderRadius: 8, background: C.successBg, border: `1px solid ${C.success}30` }}>
+                  <div style={{ fontSize: 10, fontWeight: 600, color: C.success, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>Tiempo activo</div>
+                  <div style={{ fontSize: 20, fontWeight: 800, color: C.text1 }}>{workPct}%</div>
+                  <div style={{ fontSize: 11, color: C.text2 }}>{times.working.toFixed(1)}h</div>
+                </div>
+                <div style={{ padding: "10px 14px", borderRadius: 8, background: C.warningBg, border: `1px solid ${C.warning}30` }}>
+                  <div style={{ fontSize: 10, fontWeight: 600, color: C.warning, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>En espera</div>
+                  <div style={{ fontSize: 20, fontWeight: 800, color: C.text1 }}>{waitPct}%</div>
+                  <div style={{ fontSize: 11, color: C.text2 }}>{times.waiting.toFixed(1)}h</div>
+                </div>
+              </div>
+              {waitPct > 40 && (
+                <div style={{ marginTop: 12, padding: "8px 12px", borderRadius: 8, background: C.warningBg, border: `1px solid ${C.warning}40`, fontSize: 12, color: C.text1 }}>
+                  ⚠️ <strong>{waitPct}% del tiempo se pierde esperando.</strong> Identificar causas de bloqueo puede reducir el tiempo de ciclo.
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </Card>
+
+      <Card>
+        <CardHeader title="Tiempos de respuesta vs resolución" subtitle="Desde creación hasta inicio / cierre" />
+        <div style={{ padding: "16px 20px" }}>
+          <ResponseResolutionChart ots={ots} />
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+function ResponseResolutionChart({ ots }: { ots: OTRow[] }) {
+  const { avgResponse, avgResolution } = useMemo(() => ({
+    avgResponse: avgResponseTime(ots),
+    avgResolution: avgResolutionTime(ots),
+  }), [ots]);
+
+  if (avgResponse === 0 && avgResolution === 0) {
+    return <div style={{ padding: "20px 0", textAlign: "center", color: C.text3, fontSize: 13 }}>Sin datos de tiempos suficientes</div>;
+  }
+
+  const barData = [
+    { label: "Respuesta", value: parseFloat(avgResponse.toFixed(1)), color: C.info, help: "Creación → inicio de trabajo" },
+    { label: "Resolución", value: parseFloat(avgResolution.toFixed(1)), color: C.mid, help: "Creación → completada" },
+  ];
+
+  const max = Math.max(...barData.map(b => b.value), 1);
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      {barData.map(bar => (
+        <div key={bar.label}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 }}>
+            <div>
+              <span style={{ fontSize: 13, fontWeight: 600, color: C.text1 }}>{bar.label}</span>
+              <span style={{ fontSize: 11, color: C.text3, marginLeft: 6 }}>{bar.help}</span>
+            </div>
+            <span style={{ fontSize: 16, fontWeight: 800, color: bar.color }}>{bar.value > 0 ? `${bar.value}h` : "—"}</span>
+          </div>
+          <div style={{ height: 10, borderRadius: 6, background: C.bg, border: `1px solid ${C.border}`, overflow: "hidden" }}>
+            <div style={{ height: "100%", width: `${(bar.value / max) * 100}%`, background: bar.color, borderRadius: 6, transition: "width 0.4s" }} />
+          </div>
+        </div>
+      ))}
+      {avgResolution > 0 && avgResponse > 0 && (
+        <div style={{ padding: "8px 12px", borderRadius: 8, background: C.bg, border: `1px solid ${C.border}`, fontSize: 12, color: C.text2 }}>
+          El <strong>{Math.round((avgResponse / avgResolution) * 100)}%</strong> del tiempo de resolución se consume solo en responder (antes de empezar a trabajar).
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── NEW: Work Flow Section ────────────────────────────────────────────────────
+function WorkFlowSection({ ots, rangeMonths }: { ots: OTRow[]; rangeMonths: number }) {
+  const flowData = useMemo(() => calculateFlow(ots, rangeMonths), [ots, rangeMonths]);
+
+  const recentHalf = flowData.slice(Math.floor(flowData.length / 2));
+  const totalCreatedRecent   = recentHalf.reduce((s, d) => s + d.created, 0);
+  const totalCompletedRecent = recentHalf.reduce((s, d) => s + d.completed, 0);
+  const backlogGrowing = totalCreatedRecent > totalCompletedRecent && totalCreatedRecent > 0;
+
+  return (
+    <Card>
+      <CardHeader
+        title="Flujo de trabajo"
+        subtitle="Órdenes creadas vs completadas en el tiempo"
+        action={
+          backlogGrowing ? (
+            <span style={{ fontSize: 11, fontWeight: 600, padding: "3px 10px", borderRadius: 6, background: C.dangerBg, color: C.danger, display: "flex", alignItems: "center", gap: 4 }}>
+              <TrendingUp size={11} /> Backlog creciendo
+            </span>
+          ) : (
+            <span style={{ fontSize: 11, fontWeight: 600, padding: "3px 10px", borderRadius: 6, background: C.successBg, color: C.success }}>
+              ✓ Flujo estable
+            </span>
+          )
+        }
+      />
+      <div style={{ padding: "16px 8px" }}>
+        {flowData.every(d => d.created === 0 && d.completed === 0) ? (
+          <div style={{ padding: "20px", textAlign: "center", color: C.text3, fontSize: 13 }}>Sin datos en el período</div>
+        ) : (
+          <>
+            <ResponsiveContainer width="100%" height={200}>
+              <LineChart data={flowData} margin={{ left: -10 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
+                <XAxis dataKey="label" tick={{ fontSize: 11, fill: C.text3 }} interval="preserveStartEnd" />
+                <YAxis tick={{ fontSize: 12, fill: C.text3 }} allowDecimals={false} />
+                <Tooltip contentStyle={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12 }} />
+                <Legend wrapperStyle={{ fontSize: 12 }} />
+                <Line type="monotone" dataKey="created"   stroke={C.warning} strokeWidth={2} dot={false} name="Creadas" />
+                <Line type="monotone" dataKey="completed" stroke={C.success} strokeWidth={2} dot={false} name="Completadas" />
+              </LineChart>
+            </ResponsiveContainer>
+            {backlogGrowing && (
+              <div style={{ margin: "12px 12px 0", padding: "8px 12px", borderRadius: 8, background: C.dangerBg, border: `1px solid ${C.danger}30`, fontSize: 12, color: C.text1 }}>
+                ⚠️ En la segunda mitad del período, se crearon <strong>{totalCreatedRecent}</strong> órdenes pero solo se completaron <strong>{totalCompletedRecent}</strong>. El backlog está aumentando.
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </Card>
+  );
+}
+
+// ── NEW: FTFR KPI + Rework ────────────────────────────────────────────────────
+function ReworkSection({ ots, activos }: { ots: OTRow[]; activos: ActiveRow[] }) {
+  const ftfr = useMemo(() => calcFTFR(ots), [ots]);
+
+  const reworkByAsset = useMemo(() => {
+    return activos.map(a => ({
+      name:  a.nombre.length > 22 ? a.nombre.slice(0, 20) + "…" : a.nombre,
+      count: ots.filter(o => o.activo_id === a.id && o.tipo_trabajo === "reactiva").length,
+    }))
+      .filter(x => x.count >= 2)
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5);
+  }, [ots, activos]);
+
+  const ftfrColor = ftfr >= 80 ? C.success : ftfr >= 60 ? C.warning : C.danger;
+
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "220px 1fr", gap: 14 }}>
+      {/* FTFR KPI card */}
+      <Card style={{ padding: "20px", display: "flex", flexDirection: "column", gap: 12 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <div style={{ width: 36, height: 36, borderRadius: 10, background: ftfrColor + "18", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <Target size={20} color={ftfrColor} />
+          </div>
+          <div style={{ fontSize: 11, fontWeight: 600, color: C.text3, textTransform: "uppercase", letterSpacing: "0.06em" }}>Primera visita</div>
+        </div>
+        <div>
+          <div style={{ fontSize: 36, fontWeight: 800, color: ftfrColor, lineHeight: 1 }}>{ftfr > 0 ? `${ftfr}%` : "—"}</div>
+          <div style={{ fontSize: 12, color: C.text2, marginTop: 4 }}>Tasa de solución en 1ª visita</div>
+        </div>
+        <div style={{ height: 6, borderRadius: 4, background: C.bg, border: `1px solid ${C.border}` }}>
+          <div style={{ height: "100%", width: `${ftfr}%`, background: ftfrColor, borderRadius: 4 }} />
+        </div>
+        <div style={{ fontSize: 11, color: C.text3, lineHeight: 1.4 }}>
+          {ftfr >= 80 ? "Buen nivel. La mayoría se resuelven sin reincidencia." : ftfr >= 60 ? "Nivel medio. Revisar activos con fallas repetidas." : "Nivel bajo. Alta tasa de reincidencia en activos."}
+        </div>
+      </Card>
+
+      {/* Repeat failures */}
+      <Card>
+        <CardHeader title="Re-trabajos por activo" subtitle="Activos con 2+ fallas reactivas en el período" />
+        {reworkByAsset.length === 0 ? (
+          <div style={{ padding: "20px", display: "flex", alignItems: "center", gap: 8 }}>
+            <CheckCircle2 size={16} color={C.success} />
+            <span style={{ fontSize: 13, color: C.text2 }}>Sin fallas repetidas en el período</span>
+          </div>
+        ) : (
+          <div style={{ padding: "16px 8px" }}>
+            <ResponsiveContainer width="100%" height={Math.max(130, reworkByAsset.length * 36)}>
+              <BarChart data={reworkByAsset} layout="vertical" margin={{ left: 10, right: 30 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
+                <XAxis type="number" tick={{ fontSize: 12, fill: C.text3 }} allowDecimals={false} />
+                <YAxis type="category" dataKey="name" tick={{ fontSize: 11, fill: C.text2 }} width={120} />
+                <Tooltip contentStyle={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12 }} />
+                <Bar dataKey="count" fill={C.danger} radius={[0, 4, 4, 0]} name="Fallas reactivas">
+                  {reworkByAsset.map((_, i) => <Cell key={i} fill={i === 0 ? C.danger : C.warning} />)}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+// ── NEW: Operational Insights ─────────────────────────────────────────────────
+function OperationalInsights({ ots, activos, rangeMonths }: { ots: OTRow[]; activos: ActiveRow[]; rangeMonths: number }) {
+  const insights = useMemo(() => {
+    const result: { level: "critical" | "warning" | "info" | "success"; text: string }[] = [];
+    const today = new Date().toISOString().slice(0, 10);
+    const open = ots.filter(o => o.estado !== "completado");
+    const completed = ots.filter(o => o.estado === "completado");
+
+    // Time distribution
+    const { waitingPct, totalHours } = aggregateTimeDistribution(ots);
+    if (totalHours > 0) {
+      if (waitingPct > 50) result.push({ level: "critical", text: `El ${waitingPct}% del tiempo se pierde en espera. La mayoría de las OTs están bloqueadas antes de trabajarse.` });
+      else if (waitingPct > 30) result.push({ level: "warning", text: `El ${waitingPct}% del tiempo es tiempo de espera, no de trabajo. Revisar cuellos de botella.` });
+    }
+
+    // Blockers
+    const bloqueadas = open.filter(o => o.estado === "en_espera");
+    if (bloqueadas.length > 0) {
+      const pct = Math.round((bloqueadas.length / Math.max(open.length, 1)) * 100);
+      result.push({ level: "warning", text: `${bloqueadas.length} de ${open.length} órdenes abiertas están bloqueadas (${pct}%). Resolver bloqueos tiene alto impacto.` });
+    }
+
+    // Backlog flow
+    const flowData = calculateFlow(ots, rangeMonths);
+    const recent   = flowData.slice(Math.floor(flowData.length / 2));
+    const c = recent.reduce((s, d) => s + d.created, 0);
+    const done = recent.reduce((s, d) => s + d.completed, 0);
+    if (c > done && c > 0) result.push({ level: "warning", text: `El backlog está creciendo: ${c} nuevas vs ${done} completadas en la segunda mitad del período.` });
+
+    // FTFR
+    const ftfr = calcFTFR(ots);
+    if (ftfr > 0 && ftfr < 60) result.push({ level: "warning", text: `Tasa de solución en primera visita baja (${ftfr}%). Muchos activos requieren intervenciones repetidas.` });
+    else if (ftfr >= 85) result.push({ level: "success" as any, text: `Excelente tasa de solución en primera visita (${ftfr}%). Las intervenciones son efectivas.` });
+
+    // Response time
+    const avgResponse   = avgResponseTime(ots);
+    const avgResolution = avgResolutionTime(ots);
+    if (avgResponse > 0 && avgResolution > 0) {
+      const responsePct = Math.round((avgResponse / avgResolution) * 100);
+      if (responsePct > 40) result.push({ level: "warning", text: `El ${responsePct}% del tiempo de resolución se gasta solo en responder (antes de iniciar trabajo). Mejorar asignación reduce tiempos.` });
+    }
+
+    // Unassigned
+    const unassigned = open.filter(o => !o.asignados_ids || o.asignados_ids.length === 0);
+    if (unassigned.length >= 3) result.push({ level: "warning", text: `${unassigned.length} órdenes abiertas sin técnico asignado. Las OTs sin asignar no progresan.` });
+
+    // Overdue
+    const overdue = open.filter(o => o.fecha_termino && o.fecha_termino.slice(0, 10) < today);
+    if (overdue.length > 0) result.push({ level: "critical", text: `${overdue.length} orden${overdue.length > 1 ? "es" : ""} vencida${overdue.length > 1 ? "s" : ""}. SLA comprometido.` });
+
+    if (result.length === 0) result.push({ level: "success" as any, text: "Sin alertas activas. Las operaciones de mantenimiento están en buen estado." });
+
+    return result;
+  }, [ots, activos, rangeMonths]);
+
+  const levelStyle: Record<string, { bg: string; border: string; iconColor: string; Icon: React.ElementType }> = {
+    critical: { bg: C.dangerBg,   border: C.danger + "40",  iconColor: C.danger,  Icon: XCircle },
+    warning:  { bg: C.warningBg,  border: C.warning + "40", iconColor: C.warning, Icon: AlertTriangle },
+    info:     { bg: C.infoBg,     border: C.info + "40",    iconColor: C.info,    Icon: Activity },
+    success:  { bg: C.successBg,  border: C.success + "40", iconColor: C.success, Icon: CheckCircle2 },
+  };
+
+  return (
+    <Card style={{ marginBottom: 24 }}>
+      <CardHeader
+        title="Insights operacionales"
+        subtitle="Diagnóstico automático basado en los datos del período"
+        action={
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <Brain size={14} color={C.purple} />
+            <span style={{ fontSize: 11, fontWeight: 600, color: C.purple }}>{insights.length} análisis</span>
+          </div>
+        }
+      />
+      <div style={{ padding: "12px 20px", display: "flex", flexDirection: "column", gap: 8 }}>
+        {insights.map((ins, i) => {
+          const s = levelStyle[ins.level] ?? levelStyle.info;
+          const Icon = s.Icon;
+          return (
+            <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: "10px 14px", borderRadius: 8, background: s.bg, border: `1px solid ${s.border}` }}>
+              <Icon size={16} color={s.iconColor} style={{ flexShrink: 0, marginTop: 1 }} />
+              <p style={{ margin: 0, fontSize: 13, color: C.text1, flex: 1, lineHeight: 1.5 }}>{ins.text}</p>
+            </div>
+          );
+        })}
+      </div>
+    </Card>
+  );
+}
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 export default function AnaliticaPage() {
   const [loading, setLoading] = useState(true);
@@ -217,9 +574,8 @@ export default function AnaliticaPage() {
       if (!wsId) { setLoading(false); return; }
       setWorkspaceId(wsId);
 
-      // Date cutoff: last N months (fetch generous range, filter client-side)
       const cutoff = new Date();
-      cutoff.setMonth(cutoff.getMonth() - 12); // always fetch 12 months, filter in useMemo
+      cutoff.setMonth(cutoff.getMonth() - 12);
       const cutoffStr = cutoff.toISOString().slice(0, 10);
 
       const [otsRes, usersRes, activosRes, matsRes] = await Promise.all([
@@ -238,13 +594,11 @@ export default function AnaliticaPage() {
           .select("id, nombre, descripcion, ubicacion_id, ubicaciones(edificio)")
           .eq("workspace_id", wsId)
           .eq("activo", true),
-        // Join materiales to get fallback precio_unitario when it's null on the row
         sb.from("materiales_usados")
           .select("id, orden_id, nombre, cantidad, precio_unitario, material_id, materiales(precio_unitario), created_at")
           .gte("created_at", cutoffStr),
       ]);
 
-      // Supabase may return joined relations as arrays; normalize to single object
       const normalizeJoin = <T,>(v: T | T[] | null): T | null =>
         Array.isArray(v) ? (v[0] ?? null) : v;
 
@@ -307,9 +661,7 @@ export default function AnaliticaPage() {
     color: p === "urgente" ? C.danger : p === "alta" ? C.warning : p === "media" ? C.info : C.text3,
   }));
 
-  // All workspace members (active), any role can be assigned to OTs
   const techs = usuarios;
-  // Techs with at least one open OT assigned to them
   const activeTechIds = new Set(openOTs.flatMap(o => o.asignados_ids ?? []));
 
   // ── KPIs ────────────────────────────────────────────────────────────────────
@@ -318,7 +670,6 @@ export default function AnaliticaPage() {
     ? completedOTs.reduce((s, o) => s + hoursFromDates(o.iniciado_at!, o.updated_at!), 0) / completedOTs.length
     : 0;
 
-  // MTBF: per asset, time between consecutive completions as proxy
   const assetCompletions: Record<string, number[]> = {};
   completedOTs.forEach(o => {
     if (!o.activo_id) return;
@@ -370,7 +721,6 @@ export default function AnaliticaPage() {
       const aMats = mats.filter(m => aOTs.some(o => o.id === m.orden_id));
       const cost = aMats.reduce((s, m) => s + unitPrice(m) * m.cantidad, 0);
 
-      // Trending: more failures in second half of the period vs first half
       const mid = new Date(); mid.setMonth(mid.getMonth() - rangeMonths / 2);
       const midStr = mid.toISOString().slice(0, 10);
       const recent = aOTs.filter(o => o.created_at.slice(0, 10) >= midStr).length;
@@ -406,15 +756,17 @@ export default function AnaliticaPage() {
     count: ots.filter(o => o.activo_id === a.id && o.tipo_trabajo === "reactiva").length,
   })).filter(x => x.count >= 2).sort((a, b) => b.count - a.count).slice(0, 6);
 
-  // ── Team Performance ─────────────────────────────────────────────────────────
+  // ── Team Performance (enhanced) ──────────────────────────────────────────────
   const techPerf = techs.map(t => {
     const tOTs = ots.filter(o => o.asignados_ids?.includes(t.id));
     const done = tOTs.filter(o => o.estado === "completado" && o.iniciado_at && o.updated_at);
     const avgTime = done.length ? done.reduce((s, o) => s + hoursFromDates(o.iniciado_at!, o.updated_at!), 0) / done.length : 0;
     const active = tOTs.filter(o => o.estado === "en_curso").length;
+    const blocked = tOTs.filter(o => o.estado === "en_espera").length;
     const avgPerTech = ots.length / Math.max(techs.length, 1);
     const utilization = Math.min(Math.round((tOTs.length / Math.max(avgPerTech, 1)) * 100), 100);
-    return { ...t, jobs: tOTs.length, avgTime, active, utilization };
+    const blockedPct  = tOTs.length > 0 ? Math.round((blocked / tOTs.length) * 100) : 0;
+    return { ...t, jobs: tOTs.length, avgTime, active, blocked, blockedPct, utilization };
   }).sort((a, b) => b.jobs - a.jobs);
 
   // ── Cost Analytics ───────────────────────────────────────────────────────────
@@ -436,31 +788,23 @@ export default function AnaliticaPage() {
   const assetDetail = selectedAsset ? activos.find(a => a.id === selectedAsset) : null;
   const assetOTs = selectedAsset ? ots.filter(o => o.activo_id === selectedAsset).sort((a, b) => b.created_at.localeCompare(a.created_at)) : [];
 
-  // ── Insights ────────────────────────────────────────────────────────────────
-  const insights: { level: "critical" | "warning" | "info"; text: string }[] = [];
-
+  // ── Legacy Insights (top of page) ───────────────────────────────────────────
+  const legacyInsights: { level: "critical" | "warning" | "info"; text: string }[] = [];
   if (overdueOTs.length > 0)
-    insights.push({ level: "critical", text: `${overdueOTs.length} orden${overdueOTs.length > 1 ? "es" : ""} vencida${overdueOTs.length > 1 ? "s" : ""}. Requieren atención inmediata.` });
-
+    legacyInsights.push({ level: "critical", text: `${overdueOTs.length} orden${overdueOTs.length > 1 ? "es" : ""} vencida${overdueOTs.length > 1 ? "s" : ""}. Requieren atención inmediata.` });
   const trendingAssets = assetRisk.filter(a => a.trending);
   if (trendingAssets.length > 0)
-    insights.push({ level: "warning", text: `Tendencia creciente de fallas en: ${trendingAssets.map(a => a.nombre).join(", ")}.` });
-
+    legacyInsights.push({ level: "warning", text: `Tendencia creciente de fallas en: ${trendingAssets.map(a => a.nombre).join(", ")}.` });
   if (pmCompliance > 0 && pmCompliance < 70)
-    insights.push({ level: "warning", text: `Cumplimiento PM bajo (${pmCompliance}%). Revisar programa de mantenimiento preventivo.` });
-  else if (pmCompliance >= 85 && reactiveRatio > 60)
-    insights.push({ level: "warning", text: `PM compliance alto (${pmCompliance}%) pero ${reactiveRatio}% de OTs son reactivas. Posibles fallas no anticipadas.` });
-
+    legacyInsights.push({ level: "warning", text: `Cumplimiento PM bajo (${pmCompliance}%). Revisar programa de mantenimiento preventivo.` });
   const overloaded = techPerf.filter(t => t.active >= 3);
   if (overloaded.length > 0)
-    insights.push({ level: "warning", text: `Técnico${overloaded.length > 1 ? "s" : ""} con carga alta: ${overloaded.map(t => t.nombre.split(" ")[0]).join(", ")} (3+ órdenes activas).` });
-
+    legacyInsights.push({ level: "warning", text: `Técnico${overloaded.length > 1 ? "s" : ""} con carga alta: ${overloaded.map(t => t.nombre.split(" ")[0]).join(", ")} (3+ órdenes activas).` });
   const backlogOld = openOTs.filter(o => daysSince(o.created_at) >= 7).length;
   if (backlogOld > 3)
-    insights.push({ level: "warning", text: `Backlog envejeciendo: ${backlogOld} órdenes llevan más de 7 días abiertas.` });
-
-  if (insights.length === 0)
-    insights.push({ level: "info", text: "Sin alertas activas en el período seleccionado." });
+    legacyInsights.push({ level: "warning", text: `Backlog envejeciendo: ${backlogOld} órdenes llevan más de 7 días abiertas.` });
+  if (legacyInsights.length === 0)
+    legacyInsights.push({ level: "info", text: "Sin alertas activas en el período seleccionado." });
 
   // ── Loading ─────────────────────────────────────────────────────────────────
   if (loading) {
@@ -517,15 +861,18 @@ export default function AnaliticaPage() {
         </div>
       </div>
 
-      {/* Insights */}
+      {/* ── Operational Insights (NEW, top) ── */}
+      <OperationalInsights ots={ots} activos={activos} rangeMonths={rangeMonths} />
+
+      {/* Legacy quick alerts */}
       <Card style={{ marginBottom: 24 }}>
         <CardHeader
-          title="Insights automáticos"
-          subtitle="Anomalías y recomendaciones generadas por el sistema"
-          action={<span style={{ fontSize: 11, fontWeight: 600, padding: "4px 10px", borderRadius: 6, background: C.infoBg, color: C.info }}>{insights.length} alertas</span>}
+          title="Alertas del sistema"
+          subtitle="Anomalías detectadas automáticamente"
+          action={<span style={{ fontSize: 11, fontWeight: 600, padding: "4px 10px", borderRadius: 6, background: C.infoBg, color: C.info }}>{legacyInsights.length} alertas</span>}
         />
         <div style={{ padding: "12px 20px", display: "flex", flexDirection: "column", gap: 10 }}>
-          {insights.map((ins, i) => (
+          {legacyInsights.map((ins, i) => (
             <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: "10px 12px", borderRadius: 8, background: ins.level === "critical" ? C.dangerBg : ins.level === "warning" ? C.warningBg : C.infoBg }}>
               <InsightBadge level={ins.level} />
               <p style={{ margin: 0, fontSize: 13, color: C.text1, flex: 1, lineHeight: 1.5 }}>{ins.text}</p>
@@ -537,10 +884,10 @@ export default function AnaliticaPage() {
       {/* Operations Overview */}
       <SectionLabel icon={Activity} label="Operations Overview" />
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14, marginBottom: 24 }}>
-        <StatCard label="Órdenes abiertas"         value={openOTs.length}         sub={`${totalOTs} total en período`}             icon={ClipboardIcon}  color={C.mid}     trend="neutral" />
-        <StatCard label="Órdenes vencidas"          value={overdueOTs.length}      sub="Requieren acción hoy"                       icon={AlertTriangle}  color={C.danger}  trend={overdueOTs.length > 0 ? "up" : "neutral"} />
-        <StatCard label="Órdenes en ejecución"      value={inCurso.length}         sub="En proceso ahora"                           icon={Wrench}         color={C.info}    trend="neutral" />
-        <StatCard label="Con OTs asignadas"          value={activeTechIds.size}     sub={`de ${techs.length} en el workspace`}       icon={Users}          color={C.success} trend="neutral" />
+        <StatCard label="Órdenes abiertas"     value={openOTs.length}     sub={`${totalOTs} total en período`}             icon={ClipboardIcon}  color={C.mid}     trend="neutral" />
+        <StatCard label="Órdenes vencidas"      value={overdueOTs.length}  sub="Requieren acción hoy"                       icon={AlertTriangle}  color={C.danger}  trend={overdueOTs.length > 0 ? "up" : "neutral"} />
+        <StatCard label="Órdenes en ejecución"  value={inCurso.length}     sub="En proceso ahora"                           icon={Wrench}         color={C.info}    trend="neutral" />
+        <StatCard label="Con OTs asignadas"     value={activeTechIds.size} sub={`de ${techs.length} en el workspace`}       icon={Users}          color={C.success} trend="neutral" />
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "280px 1fr", gap: 14, marginBottom: 24 }}>
@@ -598,6 +945,18 @@ export default function AnaliticaPage() {
         </Card>
       </div>
 
+      {/* ── Time Intelligence ── */}
+      <SectionLabel icon={Timer} label="Inteligencia de Tiempo" />
+      <div style={{ marginBottom: 24 }}>
+        <TimeDistributionSection ots={ots} />
+      </div>
+
+      {/* ── Work Flow ── */}
+      <SectionLabel icon={GitBranch} label="Flujo de Trabajo" />
+      <div style={{ marginBottom: 24 }}>
+        <WorkFlowSection ots={ots} rangeMonths={rangeMonths} />
+      </div>
+
       {/* KPI Metrics */}
       <SectionLabel icon={BarChart2} label="KPIs de Mantenimiento" />
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14, marginBottom: 24 }}>
@@ -638,6 +997,12 @@ export default function AnaliticaPage() {
             </ResponsiveContainer>
           </div>
         </Card>
+      </div>
+
+      {/* ── First-Time Fix Rate + Rework ── */}
+      <SectionLabel icon={RotateCcw} label="Re-trabajos y Efectividad" />
+      <div style={{ marginBottom: 24 }}>
+        <ReworkSection ots={ots} activos={activos} />
       </div>
 
       {/* Asset Risk Ranking */}
@@ -783,10 +1148,10 @@ export default function AnaliticaPage() {
         </Card>
       </div>
 
-      {/* Team Performance */}
+      {/* Team Performance — enhanced */}
       <SectionLabel icon={Users} label="Rendimiento del Equipo" />
       <Card style={{ marginBottom: 24 }}>
-        <CardHeader title="Carga por técnico" subtitle="Órdenes asignadas y tiempo promedio de resolución" />
+        <CardHeader title="Carga por técnico" subtitle="Órdenes asignadas, tiempo activo y bloqueos" />
         {techPerf.length === 0
           ? <div style={{ padding: 20 }}><p style={{ fontSize: 13, color: C.text3, margin: 0 }}>Sin técnicos registrados</p></div>
           : (
@@ -794,40 +1159,61 @@ export default function AnaliticaPage() {
               <table style={{ width: "100%", borderCollapse: "collapse" }}>
                 <thead>
                   <tr style={{ borderBottom: `1px solid ${C.border}` }}>
-                    {["Técnico", "Rol", "Total OTs", "Activas", "Tiempo promedio", "Utilización relativa"].map(h => (
+                    {["Técnico", "Rol", "Total OTs", "Activas", "Bloqueadas", "Tiempo promedio", "% Bloqueado", "Carga"].map(h => (
                       <th key={h} style={{ padding: "10px 16px", fontSize: 11, fontWeight: 600, color: C.text3, textAlign: "left", textTransform: "uppercase", letterSpacing: "0.05em" }}>{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {techPerf.map(t => (
-                    <tr key={t.id} style={{ borderBottom: `1px solid ${C.border}` }}>
-                      <td style={{ padding: "12px 16px" }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                          <div style={{ width: 32, height: 32, borderRadius: "50%", background: `linear-gradient(135deg, ${C.brand}, ${C.mid})`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: "#fff", flexShrink: 0 }}>
-                            {t.nombre.split(" ").map(p => p[0]).slice(0, 2).join("")}
+                  {techPerf.map(t => {
+                    const isOverloaded = t.active >= 3;
+                    const highBlocked  = t.blockedPct >= 30;
+                    return (
+                      <tr
+                        key={t.id}
+                        style={{ borderBottom: `1px solid ${C.border}`, background: isOverloaded ? C.dangerBg + "80" : highBlocked ? C.warningBg + "80" : "transparent" }}
+                      >
+                        <td style={{ padding: "12px 16px" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                            <div style={{ width: 32, height: 32, borderRadius: "50%", background: `linear-gradient(135deg, ${C.brand}, ${C.mid})`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: "#fff", flexShrink: 0 }}>
+                              {t.nombre.split(" ").map(p => p[0]).slice(0, 2).join("")}
+                            </div>
+                            <div>
+                              <div style={{ fontSize: 13, fontWeight: 600, color: C.text1 }}>{t.nombre}</div>
+                              {isOverloaded && <div style={{ fontSize: 10, color: C.danger, fontWeight: 600 }}>⚠ Sobrecargado</div>}
+                              {!isOverloaded && highBlocked && <div style={{ fontSize: 10, color: C.warning, fontWeight: 600 }}>⏸ Alto bloqueo</div>}
+                            </div>
                           </div>
-                          <span style={{ fontSize: 13, fontWeight: 600, color: C.text1 }}>{t.nombre}</span>
-                        </div>
-                      </td>
-                      <td style={{ padding: "12px 16px", fontSize: 12, color: C.text2, textTransform: "capitalize" }}>{t.rol}</td>
-                      <td style={{ padding: "12px 16px", fontSize: 13, fontWeight: 700, color: C.text1 }}>{t.jobs}</td>
-                      <td style={{ padding: "12px 16px" }}>
-                        <span style={{ fontSize: 12, fontWeight: 600, padding: "2px 8px", borderRadius: 6, background: t.active >= 2 ? C.dangerBg : t.active === 1 ? C.warningBg : C.successBg, color: t.active >= 2 ? C.danger : t.active === 1 ? C.warning : C.success }}>
-                          {t.active} activas
-                        </span>
-                      </td>
-                      <td style={{ padding: "12px 16px", fontSize: 12, color: C.text2 }}>{t.avgTime > 0 ? `${t.avgTime.toFixed(1)}h` : "—"}</td>
-                      <td style={{ padding: "12px 16px" }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                          <div style={{ flex: 1, height: 6, borderRadius: 4, background: C.bg, overflow: "hidden", minWidth: 80 }}>
-                            <div style={{ height: "100%", width: `${t.utilization}%`, background: t.utilization >= 80 ? C.danger : t.utilization >= 60 ? C.warning : C.success, borderRadius: 4 }} />
+                        </td>
+                        <td style={{ padding: "12px 16px", fontSize: 12, color: C.text2, textTransform: "capitalize" }}>{t.rol}</td>
+                        <td style={{ padding: "12px 16px", fontSize: 13, fontWeight: 700, color: C.text1 }}>{t.jobs}</td>
+                        <td style={{ padding: "12px 16px" }}>
+                          <span style={{ fontSize: 12, fontWeight: 600, padding: "2px 8px", borderRadius: 6, background: t.active >= 2 ? C.dangerBg : t.active === 1 ? C.warningBg : C.successBg, color: t.active >= 2 ? C.danger : t.active === 1 ? C.warning : C.success }}>
+                            {t.active}
+                          </span>
+                        </td>
+                        <td style={{ padding: "12px 16px" }}>
+                          <span style={{ fontSize: 12, fontWeight: 600, padding: "2px 8px", borderRadius: 6, background: t.blocked >= 2 ? C.warningBg : "transparent", color: t.blocked >= 2 ? C.warning : C.text3 }}>
+                            {t.blocked > 0 ? t.blocked : "—"}
+                          </span>
+                        </td>
+                        <td style={{ padding: "12px 16px", fontSize: 12, color: C.text2 }}>{t.avgTime > 0 ? `${t.avgTime.toFixed(1)}h` : "—"}</td>
+                        <td style={{ padding: "12px 16px" }}>
+                          <span style={{ fontSize: 12, fontWeight: 600, color: t.blockedPct >= 30 ? C.warning : C.text3 }}>
+                            {t.jobs > 0 ? `${t.blockedPct}%` : "—"}
+                          </span>
+                        </td>
+                        <td style={{ padding: "12px 16px" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <div style={{ flex: 1, height: 6, borderRadius: 4, background: C.bg, overflow: "hidden", minWidth: 80 }}>
+                              <div style={{ height: "100%", width: `${t.utilization}%`, background: t.utilization >= 80 ? C.danger : t.utilization >= 60 ? C.warning : C.success, borderRadius: 4 }} />
+                            </div>
+                            <span style={{ fontSize: 12, fontWeight: 600, color: C.text1, minWidth: 32 }}>{t.utilization}%</span>
                           </div>
-                          <span style={{ fontSize: 12, fontWeight: 600, color: C.text1, minWidth: 32 }}>{t.utilization}%</span>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

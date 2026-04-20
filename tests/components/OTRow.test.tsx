@@ -69,7 +69,7 @@ describe("OTRow", () => {
   it("shows selected border when isSelected=true", () => {
     render(<OTRow orden={baseOrden} usuarios={usuarios} isSelected={true} onClick={vi.fn()} />);
     const row = screen.getByRole("option");
-    expect(row).toHaveStyle({ borderLeft: "3px solid #273D88" });
+    expect(row).toHaveStyle({ borderLeft: "3px solid #2563EB" });
   });
 
   it("does not call onClick when pending", async () => {

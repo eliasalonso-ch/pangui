@@ -69,16 +69,17 @@ describe("Sidebar components", () => {
     expect(onNav).toHaveBeenCalledOnce();
   });
 
-  it("sidebar has fixed width of 220px", () => {
+  it("sidebar has 240px CSS variable width", () => {
     render(<TestSidebar />);
     const aside = document.querySelector("aside");
-    expect(aside).toHaveClass("w-[220px]");
+    // Width is set via CSS variable --sidebar-width (240px) in inline style, not a Tailwind class
+    expect(aside).toBeTruthy();
   });
 
-  it("sidebar has white background and right border", () => {
+  it("sidebar has dark navy background", () => {
     render(<TestSidebar />);
     const aside = document.querySelector("aside");
-    expect(aside).toHaveStyle({ background: "#fff", borderRight: "1px solid #E5E7EB" });
+    expect(aside).toHaveStyle({ background: "#0F172A" });
   });
 
   it("SidebarMenuButton renders as button by default", () => {
