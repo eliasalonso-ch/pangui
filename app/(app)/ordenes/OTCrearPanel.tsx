@@ -963,21 +963,6 @@ export default function OTCrearPanel({
             />
           </FieldRow>
 
-          {/* Fecha de vencimiento */}
-          <FieldRow icon={<CalendarDays size={14} />} label="Fecha de vencimiento">
-            <input
-              type="date"
-              value={form.fecha_termino}
-              onChange={e => setF("fecha_termino", e.target.value)}
-              style={{
-                height: 40, padding: "0 10px",
-                border: "1px solid #E2E8F0", borderRadius: 8,
-                fontSize: 13, color: form.fecha_termino ? "#0F172A" : "#94A3B8",
-                outline: "none", fontFamily: "inherit", background: "#fff",
-              }}
-            />
-          </FieldRow>
-
           {/* Fecha de inicio */}
           <FieldRow icon={<CalendarDays size={14} />} label="Fecha de inicio">
             <input
@@ -988,6 +973,21 @@ export default function OTCrearPanel({
                 height: 40, padding: "0 10px",
                 border: "1px solid #E2E8F0", borderRadius: 8,
                 fontSize: 13, color: form.fecha_inicio ? "#0F172A" : "#94A3B8",
+                outline: "none", fontFamily: "inherit", background: "#fff",
+              }}
+            />
+          </FieldRow>
+
+          {/* Fecha de vencimiento */}
+          <FieldRow icon={<CalendarDays size={14} />} label="Fecha de vencimiento">
+            <input
+              type="date"
+              value={form.fecha_termino}
+              onChange={e => setF("fecha_termino", e.target.value)}
+              style={{
+                height: 40, padding: "0 10px",
+                border: "1px solid #E2E8F0", borderRadius: 8,
+                fontSize: 13, color: form.fecha_termino ? "#0F172A" : "#94A3B8",
                 outline: "none", fontFamily: "inherit", background: "#fff",
               }}
             />
