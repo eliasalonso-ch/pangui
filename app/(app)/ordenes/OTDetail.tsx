@@ -240,6 +240,43 @@ export default function OTDetail({
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
   const exportMenuRef = useRef<HTMLDivElement>(null);
 
+  type ExportField =
+    | "n_ot" | "id" | "titulo" | "estado" | "prioridad" | "tipo_trabajo" | "categoria" | "solicitante" | "hito"
+    | "descripcion"
+    | "asignados" | "empresa" | "ubicacion" | "lugar"
+    | "creada_el" | "fecha_inicio" | "fecha_limite" | "tiempo_trabajado"
+    | "materiales"
+    | "actividad";
+
+  const EXPORT_FIELDS: { key: ExportField; label: string; group: string }[] = [
+    { key: "n_ot",            label: "N° OT",               group: "Información general" },
+    { key: "id",              label: "ID",                   group: "Información general" },
+    { key: "titulo",          label: "Título",               group: "Información general" },
+    { key: "estado",          label: "Estado",               group: "Información general" },
+    { key: "prioridad",       label: "Prioridad",            group: "Información general" },
+    { key: "tipo_trabajo",    label: "Tipo de trabajo",      group: "Información general" },
+    { key: "categoria",       label: "Categoría",            group: "Información general" },
+    { key: "solicitante",     label: "Solicitante",          group: "Información general" },
+    { key: "hito",            label: "Hito",                 group: "Información general" },
+    { key: "descripcion",     label: "Descripción",          group: "Información general" },
+    { key: "asignados",       label: "Asignados",            group: "Personas y ubicación" },
+    { key: "empresa",         label: "Empresa",              group: "Personas y ubicación" },
+    { key: "ubicacion",       label: "Ubicación",            group: "Personas y ubicación" },
+    { key: "lugar",           label: "Lugar específico",     group: "Personas y ubicación" },
+    { key: "creada_el",       label: "Creada el",            group: "Fechas y tiempos" },
+    { key: "fecha_inicio",    label: "Fecha inicio",         group: "Fechas y tiempos" },
+    { key: "fecha_limite",    label: "Fecha límite",         group: "Fechas y tiempos" },
+    { key: "tiempo_trabajado",label: "Tiempo trabajado",     group: "Fechas y tiempos" },
+    { key: "materiales",      label: "Materiales / partes",  group: "Otros" },
+    { key: "actividad",       label: "Historial de actividad", group: "Otros" },
+  ];
+
+  const ALL_FIELDS_ON = Object.fromEntries(EXPORT_FIELDS.map(f => [f.key, true])) as Record<ExportField, boolean>;
+  const ALL_FIELDS_OFF = Object.fromEntries(EXPORT_FIELDS.map(f => [f.key, false])) as Record<ExportField, boolean>;
+
+  const [exportConfigOpen, setExportConfigOpen] = useState(false);
+  const [exportFields, setExportFields] = useState<Record<ExportField, boolean>>(ALL_FIELDS_ON);
+
   // ── Partes state ─────────────────────────────────────────────────────────────
   const [ordenPartes, setOrdenPartes] = useState<OrdenParte[]>([]);
   const [loadingPartes, setLoadingPartes] = useState(false);
@@ -536,42 +573,143 @@ export default function OTDetail({
     }
   }
 
-  async function handleExportCSV() {
+  async function handleExportExcel() {
     setExporting("csv");
-    setExportMenuOpen(false);
+    setExportConfigOpen(false);
     try {
+      const XLS = (await import("xlsx-js-style")).default;
+
       const asignadosNames = (orden.asignados_ids ?? [])
         .map(id => usuarios.find(u => u.id === id)?.nombre ?? id)
         .join("; ");
 
-      const headers = [
-        "N° OT","ID","Título","Solicitante","Hito","Estado","Prioridad","Tipo de trabajo",
-        "Categoría","Descripción","Asignados","Empresa","Ubicación","Lugar específico",
-        "Fecha inicio","Fecha límite","Tiempo trabajado","Creada el",
-      ];
-      const row = [
-        meta.nOT ?? "",
-        orden.id,
-        orden.titulo ?? "",
-        meta.solicitante ?? "",
-        meta.hito ?? "",
-        orden.estado,
-        orden.prioridad,
-        orden.tipo_trabajo ?? "",
-        (orden as any).categorias_ot?.nombre ?? "",
-        meta.descripcion ?? "",
-        asignadosNames,
-        (orden as any).sociedad?.nombre ?? "",
-        orden.ubicaciones ? [orden.ubicaciones.edificio, orden.ubicaciones.piso].filter(Boolean).join(" · ") : "",
-        (orden as any).lugar?.nombre ?? "",
-        fmtDate(orden.fecha_inicio),
-        fmtDate(orden.fecha_termino),
-        fmtDuration(orden.tiempo_total_segundos),
-        orden.created_at ? orden.created_at.slice(0, 19).replace("T", " ") : "",
-      ];
+      // ── Style tokens ─────────────────────────────────────────────────────────
+      const thin = { style: "thin" as const, color: { rgb: "D1D5DB" } };
+      const borders = { top: thin, bottom: thin, left: thin, right: thin };
 
-      const csv = "\uFEFF" + [headers.map(esc).join(","), row.map(esc).join(",")].join("\r\n");
-      downloadBlob(csv, `OT-${nOT}.csv`, "text/csv;charset=utf-8");
+      const hdrStyle = {
+        font: { bold: true, color: { rgb: "FFFFFF" }, sz: 10, name: "Calibri" },
+        fill: { patternType: "solid" as const, fgColor: { rgb: "1E3A8A" } },
+        alignment: { horizontal: "center" as const, vertical: "center" as const, wrapText: true },
+        border: borders,
+      };
+      const cellStyle = {
+        font: { sz: 10, name: "Calibri", color: { rgb: "0F172A" } },
+        alignment: { vertical: "top" as const, wrapText: true },
+        border: borders,
+      };
+      const cellAltStyle = {
+        ...cellStyle,
+        fill: { patternType: "solid" as const, fgColor: { rgb: "F8FAFC" } },
+      };
+      const totalLabelStyle = {
+        font: { bold: true, sz: 10, name: "Calibri", color: { rgb: "1E3A8A" } },
+        fill: { patternType: "solid" as const, fgColor: { rgb: "EFF6FF" } },
+        alignment: { horizontal: "right" as const, vertical: "center" as const },
+        border: borders,
+      };
+      const totalValueStyle = {
+        font: { bold: true, sz: 11, name: "Calibri" },
+        fill: { patternType: "solid" as const, fgColor: { rgb: "DBEAFE" } },
+        alignment: { horizontal: "center" as const, vertical: "center" as const },
+        border: borders,
+      };
+
+      function applyStyles(ws: any, headers: string[], dataRows: number, colWidths: number[]) {
+        headers.forEach((_, ci) => {
+          const addr = XLS.utils.encode_cell({ r: 0, c: ci });
+          if (!ws[addr]) ws[addr] = { v: headers[ci], t: "s" };
+          ws[addr].s = hdrStyle;
+        });
+        for (let ri = 1; ri <= dataRows; ri++) {
+          const s = ri % 2 === 0 ? cellAltStyle : cellStyle;
+          headers.forEach((_, ci) => {
+            const addr = XLS.utils.encode_cell({ r: ri, c: ci });
+            if (!ws[addr]) ws[addr] = { v: "", t: "s" };
+            ws[addr].s = s;
+          });
+        }
+        ws["!cols"] = colWidths.map(wch => ({ wch }));
+        ws["!rows"] = [{ hpt: 30 }];
+      }
+
+      const wb = XLS.utils.book_new();
+      const f = exportFields;
+
+      // ── Sheet 1: Resumen (one row, selected fields as columns) ───────────────
+      const resCols: { header: string; value: string | number; width: number }[] = [];
+      if (f.n_ot)            resCols.push({ header: "N° OT",            value: meta.nOT ?? "—",                   width: 14 });
+      if (f.id)              resCols.push({ header: "ID",               value: orden.id,                          width: 34 });
+      if (f.titulo)          resCols.push({ header: "Título",           value: orden.titulo ?? "—",               width: 36 });
+      if (f.estado)          resCols.push({ header: "Estado",           value: orden.estado,                      width: 14 });
+      if (f.prioridad)       resCols.push({ header: "Prioridad",        value: orden.prioridad,                   width: 12 });
+      if (f.tipo_trabajo)    resCols.push({ header: "Tipo de trabajo",  value: orden.tipo_trabajo ?? "—",         width: 16 });
+      if (f.categoria)       resCols.push({ header: "Categoría",        value: (orden as any).categorias_ot?.nombre ?? "—", width: 18 });
+      if (f.solicitante)     resCols.push({ header: "Solicitante",      value: meta.solicitante ?? "—",           width: 22 });
+      if (f.hito)            resCols.push({ header: "Hito",             value: meta.hito ?? "—",                  width: 18 });
+      if (f.descripcion)     resCols.push({ header: "Descripción",      value: meta.descripcion ?? "—",           width: 44 });
+      if (f.asignados)       resCols.push({ header: "Asignados",        value: asignadosNames || "—",             width: 28 });
+      if (f.empresa)         resCols.push({ header: "Empresa",          value: (orden as any).sociedad?.nombre ?? "—", width: 20 });
+      if (f.ubicacion)       resCols.push({ header: "Ubicación",        value: orden.ubicaciones ? [orden.ubicaciones.edificio, orden.ubicaciones.piso].filter(Boolean).join(" · ") : "—", width: 26 });
+      if (f.lugar)           resCols.push({ header: "Lugar específico", value: (orden as any).lugar?.nombre ?? "—", width: 20 });
+      if (f.creada_el)       resCols.push({ header: "Creada el",        value: orden.created_at ? orden.created_at.slice(0, 19).replace("T", " ") : "—", width: 18 });
+      if (f.fecha_inicio)    resCols.push({ header: "Fecha inicio",     value: fmtDate(orden.fecha_inicio),       width: 14 });
+      if (f.fecha_limite)    resCols.push({ header: "Fecha límite",     value: fmtDate(orden.fecha_termino),      width: 14 });
+      if (f.tiempo_trabajado)resCols.push({ header: "Tiempo trabajado", value: fmtDuration(orden.tiempo_total_segundos), width: 16 });
+
+      if (resCols.length > 0) {
+        const wsRes = XLS.utils.aoa_to_sheet([
+          resCols.map(c => c.header),
+          resCols.map(c => c.value),
+        ]);
+        applyStyles(wsRes, resCols.map(c => c.header), 1, resCols.map(c => c.width));
+        XLS.utils.book_append_sheet(wb, wsRes, "Resumen");
+      }
+
+      // ── Sheet 2: Materiales ──────────────────────────────────────────────────
+      if (f.materiales) {
+        const matH = ["Parte / Material", "Unidad", "Cant. solicitada", "Cant. utilizada", "Precio unitario", "Subtotal"];
+        const matRows = ordenPartes.map(op => {
+          const p = op.parte as any;
+          const qty = op.cantidad_utilizada ?? op.cantidad;
+          const price = p?.precio_unitario ?? 0;
+          return [p?.nombre ?? "—", p?.unidad ?? "—", op.cantidad, op.cantidad_utilizada ?? "—", price || "—", price ? qty * price : "—"];
+        });
+        const totalCost = ordenPartes.reduce((s, op) => {
+          const p = op.parte as any;
+          const qty = op.cantidad_utilizada ?? op.cantidad;
+          return s + (p?.precio_unitario ? qty * p.precio_unitario : 0);
+        }, 0);
+
+        const wsMat = XLS.utils.aoa_to_sheet([matH, ...matRows]);
+        applyStyles(wsMat, matH, matRows.length, [32, 12, 16, 16, 16, 14]);
+
+        if (totalCost > 0) {
+          const tr = matRows.length + 1;
+          wsMat[XLS.utils.encode_cell({ r: tr, c: 4 })] = { v: "TOTAL", t: "s", s: totalLabelStyle };
+          wsMat[XLS.utils.encode_cell({ r: tr, c: 5 })] = { v: totalCost, t: "n", s: totalValueStyle };
+          const rng = XLS.utils.decode_range(wsMat["!ref"] || "A1");
+          rng.e.r = Math.max(rng.e.r, tr);
+          wsMat["!ref"] = XLS.utils.encode_range(rng);
+        }
+        XLS.utils.book_append_sheet(wb, wsMat, "Materiales");
+      }
+
+      // ── Sheet 3: Actividad ───────────────────────────────────────────────────
+      if (f.actividad && actividad.length > 0) {
+        const actH = ["Fecha y hora", "Usuario", "Tipo", "Comentario / Detalle"];
+        const actRows = [...actividad].reverse().map(act => [
+          act.created_at ? act.created_at.slice(0, 19).replace("T", " ") : "—",
+          (act as any).usuario?.nombre ?? "—",
+          act.tipo,
+          act.comentario ?? "",
+        ]);
+        const wsAct = XLS.utils.aoa_to_sheet([actH, ...actRows]);
+        applyStyles(wsAct, actH, actRows.length, [20, 22, 18, 50]);
+        XLS.utils.book_append_sheet(wb, wsAct, "Actividad");
+      }
+
+      XLS.writeFile(wb, `OT-${nOT}.xlsx`);
     } finally {
       setExporting(null);
     }
@@ -806,9 +944,9 @@ export default function OTDetail({
                   boxShadow: "0 8px 24px rgba(15,23,42,0.12)", width: 180, overflow: "hidden",
                 }}>
                   {[
-                    { key: "pdf",  icon: <FileDown size={13} />,  label: "Exportar PDF",   action: handleExportPDF },
-                    { key: "csv",  icon: <Sheet size={13} />,     label: "Exportar Excel",  action: handleExportCSV },
-                    { key: "txt",  icon: <FileText size={13} />,  label: "Exportar TXT",    action: handleExportTXT },
+                    { key: "pdf",  icon: <FileDown size={13} />,  label: "Exportar PDF",        action: handleExportPDF },
+                    { key: "csv",  icon: <Sheet size={13} />,     label: "Exportar Excel…",     action: () => { setExportMenuOpen(false); setExportConfigOpen(true); } },
+                    { key: "txt",  icon: <FileText size={13} />,  label: "Exportar TXT",        action: handleExportTXT },
                   ].map(item => (
                     <button
                       key={item.key}
@@ -1417,6 +1555,106 @@ export default function OTDetail({
       </div>
 
       <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+
+      {/* ── Export config modal ── */}
+      {exportConfigOpen && (
+        <div
+          style={{ position: "fixed", inset: 0, zIndex: 400, background: "rgba(15,23,42,0.45)", display: "flex", alignItems: "center", justifyContent: "center" }}
+          onClick={() => setExportConfigOpen(false)}
+        >
+          <div
+            style={{ background: "#fff", borderRadius: 14, width: 420, boxShadow: "0 20px 60px rgba(15,23,42,0.20)", overflow: "hidden" }}
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div style={{ padding: "18px 20px 14px", borderBottom: "1px solid #E2E8F0", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div>
+                <div style={{ fontSize: 15, fontWeight: 700, color: "#0F172A" }}>Exportar Excel</div>
+                <div style={{ fontSize: 12, color: "#94A3B8", marginTop: 2 }}>Selecciona las secciones a incluir</div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setExportConfigOpen(false)}
+                style={{ width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", borderRadius: 6, cursor: "pointer", color: "#94A3B8" }}
+                onMouseEnter={e => { e.currentTarget.style.background = "#F1F5F9"; }}
+                onMouseLeave={e => { e.currentTarget.style.background = "none"; }}
+              >
+                <X size={15} />
+              </button>
+            </div>
+
+            {/* Fields grouped */}
+            <div style={{ padding: "8px 20px 4px", maxHeight: 380, overflowY: "auto" }}>
+              {Array.from(new Set(EXPORT_FIELDS.map(f => f.group))).map(group => (
+                <div key={group} style={{ marginBottom: 12 }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 4, paddingLeft: 10 }}>
+                    {group}
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1 }}>
+                    {EXPORT_FIELDS.filter(f => f.group === group).map(field => (
+                      <label
+                        key={field.key}
+                        style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 10px", borderRadius: 7, cursor: "pointer" }}
+                        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#F8FAFC"; }}
+                        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={exportFields[field.key]}
+                          onChange={e => setExportFields(prev => ({ ...prev, [field.key]: e.target.checked }))}
+                          style={{ width: 14, height: 14, accentColor: "#2563EB", cursor: "pointer", flexShrink: 0 }}
+                        />
+                        <span style={{ fontSize: 12.5, color: exportFields[field.key] ? "#0F172A" : "#94A3B8" }}>{field.label}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Select all / none */}
+            <div style={{ padding: "0 20px 10px", display: "flex", gap: 8, borderTop: "1px solid #F1F5F9", paddingTop: 8 }}>
+              <button type="button" onClick={() => setExportFields(ALL_FIELDS_ON)}
+                style={{ fontSize: 12, color: "#2563EB", background: "none", border: "none", cursor: "pointer", padding: "2px 0", fontFamily: "inherit" }}>
+                Seleccionar todo
+              </button>
+              <span style={{ color: "#E2E8F0" }}>·</span>
+              <button type="button" onClick={() => setExportFields(ALL_FIELDS_OFF)}
+                style={{ fontSize: 12, color: "#94A3B8", background: "none", border: "none", cursor: "pointer", padding: "2px 0", fontFamily: "inherit" }}>
+                Limpiar
+              </button>
+              <span style={{ marginLeft: "auto", fontSize: 12, color: "#94A3B8" }}>
+                {Object.values(exportFields).filter(Boolean).length} seleccionados
+              </span>
+            </div>
+
+            {/* Footer */}
+            <div style={{ padding: "10px 20px 16px", borderTop: "1px solid #E2E8F0", display: "flex", justifyContent: "flex-end", gap: 8 }}>
+              <button
+                type="button"
+                onClick={() => setExportConfigOpen(false)}
+                style={{ height: 36, padding: "0 16px", borderRadius: 8, border: "1px solid #E2E8F0", background: "#fff", fontSize: 13, color: "#475569", cursor: "pointer", fontFamily: "inherit" }}
+                onMouseEnter={e => { e.currentTarget.style.background = "#F8FAFC"; }}
+                onMouseLeave={e => { e.currentTarget.style.background = "#fff"; }}
+              >Cancelar</button>
+              <button
+                type="button"
+                onClick={handleExportExcel}
+                disabled={!Object.values(exportFields).some(Boolean)}
+                style={{
+                  height: 36, padding: "0 18px", borderRadius: 8, border: "none",
+                  background: Object.values(exportFields).some(Boolean) ? "#2563EB" : "#CBD5E1",
+                  fontSize: 13, fontWeight: 600, color: "#fff",
+                  cursor: Object.values(exportFields).some(Boolean) ? "pointer" : "default",
+                  fontFamily: "inherit", display: "flex", alignItems: "center", gap: 6,
+                }}
+              >
+                {exporting === "csv" ? <><Loader2 size={13} className="animate-spin" />Exportando…</> : <><Sheet size={13} />Exportar Excel</>}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
