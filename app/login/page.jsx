@@ -48,7 +48,7 @@ export default function LoginPage() {
       setLoading(false);
       return;
     }
-    router.push("/ordenes");
+    router.push("/inicio");
   }
 
   return (

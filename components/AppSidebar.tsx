@@ -253,13 +253,13 @@ export default function AppSidebar() {
               </SidebarMenuItem>
               {isAdmin && (
                 <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={isActive("/configuracion/ubicaciones")}>
-                    <Link href="/configuracion/ubicaciones"><MapPin size={16} /><span>Ubicaciones</span></Link>
+                  <SidebarMenuButton asChild isActive={isActive("/ubicaciones")}>
+                    <Link href="/ubicaciones"><MapPin size={16} /><span>Ubicaciones</span></Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               )}
               <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={pathname === "/configuracion" || (pathname.startsWith("/configuracion") && !pathname.startsWith("/configuracion/ubicaciones"))}>
+                <SidebarMenuButton asChild isActive={pathname === "/configuracion"}>
                   <Link href="/configuracion"><Settings size={16} /><span>Configuración</span></Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>

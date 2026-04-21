@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase";
 import { callEdge } from "@/lib/edge";
-import { ROL_LABEL, esAdmin } from "@/lib/roles";
+import { ROL_LABEL, esAdmin, esOwner } from "@/lib/roles";
 import {
   Users, UserPlus, Shield, Wrench, Search, X, Loader2,
   ChevronRight, Zap, Settings2, HardHat, Sparkles, Wind,
@@ -639,7 +639,8 @@ export default function UsuariosPage() {
                         <div><strong>Última actividad:</strong> {timeAgo((panelData as Usuario).last_active)}</div>
                       )}
                     </div>
-                    {(panelData as Usuario).id !== myId && esAdmin(myRol) && (
+                    {(panelData as Usuario).id !== myId && esAdmin(myRol) &&
+                     (esOwner(myRol) || !(esAdmin((panelData as Usuario).rol))) && (
                       <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
                         <button
                           type="button"
@@ -682,9 +683,10 @@ export default function UsuariosPage() {
                         value={userForm.rol}
                         onChange={e => setUserForm(f => ({ ...f, rol: e.target.value }))}
                       >
-                        <option value="tecnico">{ROL_LABEL.tecnico}</option>
-                        <option value="jefe">{ROL_LABEL.jefe}</option>
-                        {myRol === "admin" && <option value="admin">{ROL_LABEL.admin}</option>}
+                        <option value="requester">{ROL_LABEL.requester}</option>
+                        <option value="member">{ROL_LABEL.member}</option>
+                        {esAdmin(myRol) && <option value="admin">{ROL_LABEL.admin}</option>}
+                        {esOwner(myRol) && <option value="owner">{ROL_LABEL.owner}</option>}
                       </select>
                     </div>
                     <div>
