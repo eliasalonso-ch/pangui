@@ -77,8 +77,6 @@ interface MaterialUsadoRow {
   nombre: string;
   cantidad: number;
   precio_unitario: number | null;
-  material_id: string | null;
-  materiales: { precio_unitario: number | null } | null;
   created_at: string;
 }
 
@@ -91,7 +89,7 @@ function daysSince(d: string) {
 }
 function monthKey(d: string) { return d.slice(0, 7); }
 function unitPrice(m: MaterialUsadoRow): number {
-  return m.precio_unitario ?? m.materiales?.precio_unitario ?? 0;
+  return m.precio_unitario ?? 0;
 }
 
 // ── Analytics helpers (local, non-metric) ────────────────────────────────────
@@ -595,8 +593,8 @@ export default function AnaliticaPage() {
           .select("id, nombre, descripcion, ubicacion_id, ubicaciones(edificio)")
           .eq("workspace_id", wsId)
           .eq("activo", true),
-        sb.from("materiales_usados")
-          .select("id, orden_id, nombre, cantidad, precio_unitario, material_id, materiales(precio_unitario), created_at")
+        sb.from("orden_partes")
+          .select("id, orden_id, cantidad, cantidad_utilizada, created_at, parte:partes!parte_id(nombre, precio_unitario)")
           .gte("created_at", cutoffStr),
       ]);
 
@@ -613,10 +611,17 @@ export default function AnaliticaPage() {
         ...a,
         ubicaciones: normalizeJoin(a.ubicaciones),
       })) as ActiveRow[]);
-      setMaterialesUsados(((matsRes.data ?? []) as unknown[]).map((m: any) => ({
-        ...m,
-        materiales: normalizeJoin(m.materiales),
-      })) as MaterialUsadoRow[]);
+      setMaterialesUsados(((matsRes.data ?? []) as unknown[]).map((m: any) => {
+        const parte = normalizeJoin(m.parte) as any;
+        return {
+          id: m.id,
+          orden_id: m.orden_id,
+          nombre: parte?.nombre ?? "—",
+          cantidad: m.cantidad_utilizada ?? m.cantidad,
+          precio_unitario: parte?.precio_unitario ?? null,
+          created_at: m.created_at,
+        };
+      }) as MaterialUsadoRow[]);
       setLoading(false);
     }
     load();
