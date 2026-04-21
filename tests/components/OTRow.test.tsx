@@ -23,7 +23,7 @@ const baseOrden: OrdenListItem = {
   numero: 1,
   parent_id: null,
   categorias_ot: null,
-  ubicaciones: { edificio: "Edificio Central", piso: null },
+  ubicaciones: { id: "u1", edificio: "Edificio Central", piso: null, sociedad_id: null },
   activos: null,
 };
 

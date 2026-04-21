@@ -3,6 +3,11 @@ import type {
   OrdenTrabajo, OrdenListItem, ActividadOT, ActividadTipo,
   Estado, Prioridad, TipoTrabajo, Recurrencia,
 } from "@/types/ordenes";
+import {
+  notifyOTCreada,
+  notifyOTAsignada,
+  notifyOTEstadoCambiado,
+} from "@/lib/notificar";
 
 // ── Desc-meta helpers ─────────────────────────────────────────────────────────
 
@@ -202,6 +207,22 @@ export async function createOrden(payload: {
   if (payload.asignados_ids?.length) {
     await insertActividad(orden.id, payload.creadoPor, "asignado", payload.asignados_ids.join(","));
   }
+
+  notifyOTCreada({
+    workspaceId: payload.workspaceId,
+    ordenId: orden.id,
+    titulo: orden.titulo ?? payload.titulo,
+    urgente: payload.prioridad === "urgente",
+  });
+
+  if (payload.asignados_ids?.length) {
+    notifyOTAsignada({
+      asignadosIds: payload.asignados_ids,
+      ordenId: orden.id,
+      titulo: orden.titulo ?? payload.titulo,
+    });
+  }
+
   return orden;
 }
 
@@ -289,6 +310,12 @@ export async function updateOrden(
     const added = [...next].filter((uid) => !prev.has(uid));
     if (added.length > 0) {
       await insertActividad(id, userId, "asignado", added.join(","));
+      const orden = data as unknown as OrdenTrabajo;
+      notifyOTAsignada({
+        asignadosIds: added,
+        ordenId: id,
+        titulo: orden.titulo ?? "",
+      });
     }
   }
   if (payload.titulo !== undefined || payload.descripcion !== undefined || payload.tipo_trabajo !== undefined) {
@@ -297,7 +324,12 @@ export async function updateOrden(
   return data as unknown as OrdenTrabajo;
 }
 
-export async function updateOrdenEstado(id: string, estado: Estado, userId: string): Promise<void> {
+export async function updateOrdenEstado(
+  id: string,
+  estado: Estado,
+  userId: string,
+  ordenCtx?: { titulo: string; workspaceId: string; asignadosIds: string[] },
+): Promise<void> {
   const ESTADO_LABELS: Record<Estado, string> = {
     pendiente:   "Abierta",
     en_espera:   "En espera",
@@ -308,6 +340,17 @@ export async function updateOrdenEstado(id: string, estado: Estado, userId: stri
   const { error } = await sb.from("ordenes_trabajo").update({ estado }).eq("id", id);
   if (error) throw error;
   await insertActividad(id, userId, "estado_cambiado", ESTADO_LABELS[estado]);
+
+  if (ordenCtx) {
+    notifyOTEstadoCambiado({
+      asignadosIds: ordenCtx.asignadosIds,
+      workspaceId: ordenCtx.workspaceId,
+      ordenId: id,
+      titulo: ordenCtx.titulo,
+      estado,
+      changedByUserId: userId,
+    });
+  }
 }
 
 export async function updateOrdenPrioridad(id: string, prioridad: Prioridad, userId: string): Promise<void> {
@@ -376,6 +419,7 @@ export async function completarOrden(
   userId: string,
   comentario: string | undefined,
   segundosAcumulados: number,
+  ordenCtx?: { titulo: string; workspaceId: string; asignadosIds: string[] },
 ): Promise<void> {
   const sb = createClient();
   const { error } = await sb
@@ -389,6 +433,17 @@ export async function completarOrden(
     .eq("id", id);
   if (error) throw error;
   await insertActividad(id, userId, "completado", comentario);
+
+  if (ordenCtx) {
+    notifyOTEstadoCambiado({
+      asignadosIds: ordenCtx.asignadosIds,
+      workspaceId: ordenCtx.workspaceId,
+      ordenId: id,
+      titulo: ordenCtx.titulo,
+      estado: "completado",
+      changedByUserId: userId,
+    });
+  }
 }
 
 // ── Delete ────────────────────────────────────────────────────────────────────

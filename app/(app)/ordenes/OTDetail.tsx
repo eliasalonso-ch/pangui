@@ -430,7 +430,11 @@ export default function OTDetail({
   // ── Actions ────────────────────────────────────────────────────────────────
 
   const changeStatus = async (newEstado: Estado) => {
-    await updateOrdenEstado(orden.id, newEstado, myId);
+    await updateOrdenEstado(orden.id, newEstado, myId, wsId && orden.titulo ? {
+      titulo: orden.titulo,
+      workspaceId: wsId,
+      asignadosIds: orden.asignados_ids ?? [],
+    } : undefined);
     onOrdenUpdated({ estado: newEstado });
   };
 
@@ -644,7 +648,11 @@ export default function OTDetail({
           estado: "en_espera",
         });
       } else {
-        await completarOrden(orden.id, myId, timerComment || undefined, elapsed);
+        await completarOrden(orden.id, myId, timerComment || undefined, elapsed, wsId && orden.titulo ? {
+          titulo: orden.titulo,
+          workspaceId: wsId,
+          asignadosIds: orden.asignados_ids ?? [],
+        } : undefined);
         onOrdenUpdated({
           en_ejecucion: false,
           tiempo_total_segundos: elapsed,
