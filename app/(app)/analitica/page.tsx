@@ -556,6 +556,7 @@ export default function AnaliticaPage() {
   const [selectedAsset, setSelectedAsset] = useState<string | null>(null);
   const [rangeMonths, setRangeMonths] = useState(3);
   const [ubicacionFilter, setUbicacionFilter] = useState("all");
+  const [usuarioFilter, setUsuarioFilter] = useState("all");
 
   // ── Load data ───────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -631,8 +632,9 @@ export default function AnaliticaPage() {
   const ots = useMemo(() => allOTs.filter(o => {
     const inRange = o.created_at.slice(0, 10) >= cutoffDate;
     const inLoc = ubicacionFilter === "all" || o.ubicacion_id === ubicacionFilter;
-    return inRange && inLoc;
-  }), [allOTs, cutoffDate, ubicacionFilter]);
+    const inUser = usuarioFilter === "all" || (o.asignados_ids ?? []).includes(usuarioFilter);
+    return inRange && inLoc && inUser;
+  }), [allOTs, cutoffDate, ubicacionFilter, usuarioFilter]);
 
   const mats = useMemo(() => materialesUsados.filter(m => {
     const ot = ots.find(o => o.id === m.orden_id);
@@ -857,6 +859,16 @@ export default function AnaliticaPage() {
           >
             <option value="all">Todas las ubicaciones</option>
             {ubicaciones.map(([id, nombre]) => <option key={id} value={id}>{nombre}</option>)}
+          </select>
+          <select
+            value={usuarioFilter}
+            onChange={e => setUsuarioFilter(e.target.value)}
+            style={{ height: 36, padding: "0 12px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.surface, fontSize: 13, color: C.text1, cursor: "pointer" }}
+          >
+            <option value="all">Todos los técnicos</option>
+            {usuarios.filter(u => u.rol === "tecnico" || u.rol === "jefe").map(u => (
+              <option key={u.id} value={u.id}>{u.nombre}</option>
+            ))}
           </select>
         </div>
       </div>
