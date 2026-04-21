@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import {
   X, Loader2, User, MapPin, Settings2,
-  CalendarDays, Tag, Check, ChevronDown, Building2, Hash, FileUp,
+  CalendarDays, Tag, Check, ChevronDown, Building2, Hash, FileUp, Plus,
 } from "lucide-react";
+import { createClient } from "@/lib/supabase";
 import { createOrden, buildDescripcion } from "@/lib/ordenes-api";
 import type {
   Usuario, Ubicacion, LugarEspecifico, Sociedad, Activo, CategoriaOT,
@@ -507,6 +508,149 @@ function AssigneeSelect({ usuarios, value, onChange }: {
   );
 }
 
+// ── HitoSelect ───────────────────────────────────────────────────────────────
+
+function HitoSelect({ value, onChange, wsId }: {
+  value: string;
+  onChange: (v: string) => void;
+  wsId: string;
+}) {
+  const [open, setOpen]         = useState(false);
+  const [query, setQuery]       = useState("");
+  const [hitos, setHitos]       = useState<{ id: string; nombre: string }[]>([]);
+  const [creating, setCreating] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  const load = useCallback(async () => {
+    const sb = createClient();
+    const { data } = await sb.from("hitos").select("id, nombre")
+      .eq("workspace_id", wsId).order("nombre");
+    setHitos(data ?? []);
+  }, [wsId]);
+
+  useEffect(() => { if (open) load(); }, [open, load]);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const filtered = hitos.filter(h => h.nombre.toLowerCase().includes(query.toLowerCase()));
+  const exactMatch = hitos.some(h => h.nombre.toLowerCase() === query.toLowerCase().trim());
+  const canCreate = query.trim().length > 0 && !exactMatch;
+
+  async function handleCreate() {
+    const nombre = query.trim();
+    if (!nombre) return;
+    setCreating(true);
+    try {
+      const sb = createClient();
+      const { data } = await sb.from("hitos").insert({ workspace_id: wsId, nombre })
+        .select("id, nombre").single();
+      if (data) {
+        setHitos(prev => [...prev, data].sort((a, b) => a.nombre.localeCompare(b.nombre)));
+        onChange(data.nombre);
+        setQuery("");
+        setOpen(false);
+      }
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  return (
+    <div ref={ref} style={{ position: "relative" }}>
+      <button
+        type="button"
+        onClick={() => { setOpen(!open); setQuery(""); }}
+        style={{
+          width: "100%", height: 40, display: "flex", alignItems: "center", gap: 8,
+          padding: "0 10px", border: "1px solid #E2E8F0", borderRadius: 8,
+          background: "#fff", fontSize: 13, color: value ? "#0F172A" : "#94A3B8",
+          cursor: "pointer", textAlign: "left", fontFamily: "inherit",
+        }}
+      >
+        <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {value || "Seleccionar o crear hito…"}
+        </span>
+        <ChevronDown size={13} style={{ flexShrink: 0, color: "#94A3B8" }} />
+      </button>
+      {open && (
+        <div style={{
+          position: "absolute", top: "calc(100% + 3px)", left: 0, right: 0, zIndex: 200,
+          background: "#fff", border: "1px solid #E2E8F0", borderRadius: 8,
+          boxShadow: "0 4px 16px rgba(0,0,0,0.10)", overflow: "hidden",
+        }}>
+          <div style={{ padding: "6px 6px 3px" }}>
+            <input
+              autoFocus
+              placeholder="Buscar o crear…"
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              style={{
+                width: "100%", height: 30, padding: "0 8px",
+                border: "1px solid #E2E8F0", borderRadius: 8,
+                fontSize: 12.5, outline: "none", color: "#0F172A",
+                fontFamily: "inherit", boxSizing: "border-box",
+              }}
+            />
+          </div>
+          <div style={{ maxHeight: 220, overflowY: "auto" }}>
+            {value && (
+              <button
+                type="button"
+                onClick={() => { onChange(""); setOpen(false); }}
+                style={{ display: "block", width: "100%", textAlign: "left", padding: "7px 10px", fontSize: 13, color: "#94A3B8", background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}
+              >
+                Quitar hito
+              </button>
+            )}
+            {filtered.map(h => (
+              <button
+                key={h.id}
+                type="button"
+                onClick={() => { onChange(h.nombre); setOpen(false); }}
+                style={{
+                  display: "flex", alignItems: "center", gap: 6,
+                  width: "100%", padding: "7px 10px", fontSize: 13,
+                  background: value === h.nombre ? "#EFF6FF" : "transparent",
+                  border: "none", cursor: "pointer", fontFamily: "inherit", color: "#0F172A",
+                }}
+              >
+                {value === h.nombre && <Check size={11} style={{ color: "#1E3A8A", flexShrink: 0 }} />}
+                {h.nombre}
+              </button>
+            ))}
+            {canCreate && (
+              <button
+                type="button"
+                onClick={handleCreate}
+                disabled={creating}
+                style={{
+                  display: "flex", alignItems: "center", gap: 6,
+                  width: "100%", padding: "7px 10px", fontSize: 13, fontWeight: 600,
+                  background: "#F0F3FF", color: "#1E3A8A",
+                  border: "none", borderTop: "1px solid #E2E8F0",
+                  cursor: creating ? "default" : "pointer", fontFamily: "inherit",
+                }}
+              >
+                {creating ? <Loader2 size={11} className="animate-spin" /> : <Plus size={11} />}
+                Crear "{query.trim()}"
+              </button>
+            )}
+            {filtered.length === 0 && !canCreate && (
+              <div style={{ padding: "8px 10px", fontSize: 12.5, color: "#94A3B8" }}>Sin hitos</div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 export default function OTCrearPanel({
@@ -767,13 +911,7 @@ export default function OTCrearPanel({
           </FieldRow>
 
           <FieldRow icon={<Tag size={14} />} label="Hito">
-            <input
-              type="text"
-              placeholder="Hito o referencia…"
-              value={form.hito}
-              onChange={e => setF("hito", e.target.value)}
-              style={{ width:"100%", height:40, padding:"0 10px", border:"1px solid #E2E8F0", borderRadius:8, fontSize:13, color:"#0F172A", outline:"none", fontFamily:"inherit", background:"#fff" }}
-            />
+            <HitoSelect value={form.hito} onChange={v => setF("hito", v)} wsId={wsId} />
           </FieldRow>
 
           {/* Sociedad */}
