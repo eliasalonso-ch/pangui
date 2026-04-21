@@ -866,7 +866,7 @@ export default function AnaliticaPage() {
             style={{ height: 36, padding: "0 12px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.surface, fontSize: 13, color: C.text1, cursor: "pointer" }}
           >
             <option value="all">Todos los técnicos</option>
-            {usuarios.filter(u => u.rol === "tecnico" || u.rol === "jefe").map(u => (
+            {usuarios.map(u => (
               <option key={u.id} value={u.id}>{u.nombre}</option>
             ))}
           </select>
