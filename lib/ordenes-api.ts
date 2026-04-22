@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase";
 import type {
   OrdenTrabajo, OrdenListItem, ActividadOT, ActividadTipo,
-  Estado, Prioridad, TipoTrabajo, Recurrencia,
+  Estado, Prioridad, TipoTrabajo, Recurrencia, OTLink,
 } from "@/types/ordenes";
 import {
   notifyOTCreada,
@@ -84,7 +84,7 @@ export const ORDEN_SELECT = `
   numero, categoria_id, ubicacion_id, activo_id, lugar_id, sociedad_id,
   iniciado_at, pausado_at, en_ejecucion, tiempo_total_segundos,
   recurrencia, proxima_ejecucion, parent_id,
-  imagen_url, fotos_urls,
+  imagen_url, fotos_urls, links,
   activos (id, nombre, codigo),
   ubicaciones (id, edificio, piso, sociedad_id, sociedades(nombre)),
   lugar:lugares!lugar_id(id, nombre, imagen_url),
@@ -169,6 +169,7 @@ export async function createOrden(payload: {
   asignados_ids?: string[] | null;
   fecha_inicio?: string | null;
   fecha_termino?: string | null;
+  links?: OTLink[];
 }): Promise<OrdenTrabajo> {
   const sb = createClient();
   const recurrencia = payload.recurrencia ?? "ninguna";
@@ -196,6 +197,7 @@ export async function createOrden(payload: {
       ...(payload.asignados_ids?.length ? { asignados_ids: payload.asignados_ids } : {}),
       ...(payload.fecha_inicio  ? { fecha_inicio:  payload.fecha_inicio  } : {}),
       ...(payload.fecha_termino ? { fecha_termino: payload.fecha_termino } : {}),
+      links: payload.links?.filter(l => l.url.trim()) ?? [],
     })
     .select(ORDEN_SELECT)
     .single();
@@ -282,6 +284,7 @@ export async function updateOrden(
     sociedad_id?: string | null;
     activo_id?: string | null;
     asignados_ids?: string[] | null;
+    links?: OTLink[];
   },
   prevAsignadosIds?: string[] | null,
 ): Promise<OrdenTrabajo> {

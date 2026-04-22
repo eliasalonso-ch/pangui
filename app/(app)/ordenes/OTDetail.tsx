@@ -12,6 +12,7 @@ import {
   Package, Search,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { LinksDisplay } from "@/components/LinksInput";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
@@ -1037,7 +1038,7 @@ export default function OTDetail({
               {t === "detalle" ? "Detalle"
                 : t === "actividad" ? "Actividad"
                 : t === "fotos" ? `Fotos${fotos.length > 0 ? ` (${fotos.length})` : ""}`
-                : `Partes${ordenPartes.length > 0 ? ` (${ordenPartes.length})` : ""}`}
+                : `Materiales${ordenPartes.length > 0 ? ` (${ordenPartes.length})` : ""}`}
             </button>
           ))}
         </div>
@@ -1074,6 +1075,16 @@ export default function OTDetail({
                     Hito: <span style={{ color: "#475569", fontWeight: 500 }}>{meta.hito}</span>
                   </p>
                 )}
+              </div>
+            )}
+
+            {/* Links */}
+            {Array.isArray(orden.links) && orden.links.length > 0 && (
+              <div style={{ marginTop: 12 }}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 6 }}>
+                  Links
+                </div>
+                <LinksDisplay links={orden.links} />
               </div>
             )}
 
@@ -1401,7 +1412,7 @@ export default function OTDetail({
                   <Search size={13} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "#94A3B8", pointerEvents: "none" }} />
                   <input
                     type="text"
-                    placeholder="Buscar parte en inventario…"
+                    placeholder="Buscar material en inventario…"
                     value={catalogSearch}
                     onChange={e => setCatalogSearch(e.target.value)}
                     style={{
@@ -1464,13 +1475,13 @@ export default function OTDetail({
             ) : ordenPartes.length === 0 ? (
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "40px 0", gap: 8, color: "#9CA3AF" }}>
                 <Package size={32} style={{ opacity: 0.2 }} />
-                <p style={{ fontSize: 13, margin: 0 }}>Sin partes registradas</p>
-                {isActive && <p style={{ fontSize: 12, margin: 0 }}>Busca una parte del inventario arriba</p>}
+                <p style={{ fontSize: 13, margin: 0 }}>Sin materiales registrados</p>
+                {isActive && <p style={{ fontSize: 12, margin: 0 }}>Busca un material del inventario arriba</p>}
               </div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 90px 110px 32px", gap: 8, padding: "6px 10px", borderBottom: "1px solid #E2E8F0" }}>
-                  {["Parte", "Cantidad", "Subtotal", ""].map(h => (
+                  {["Material", "Cantidad", "Subtotal", ""].map(h => (
                     <span key={h} style={{ fontSize: 10, fontWeight: 600, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.05em" }}>{h}</span>
                   ))}
                 </div>

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Plus, Search, X, ChevronDown, Loader2, FileText, ArrowUpDown, SlidersHorizontal } from "lucide-react";
+import { Plus, Search, X, ChevronDown, Loader2, FileText, ArrowUpDown, SlidersHorizontal, Download } from "lucide-react";
 import { createClient } from "@/lib/supabase";
 import { fetchOrden, deleteOrden, LIST_SELECT } from "@/lib/ordenes-api";
 import OTRow from "./OTRow";
@@ -85,6 +85,32 @@ export default function OrdenesBandeja({
   const [filtrosOpen, setFiltrosOpen] = useState(false);
   const [isDesktop, setIsDesktop] = useState(false);
   const [sortOpen, setSortOpen]  = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [exportConfigOpen, setExportConfigOpen] = useState(false);
+
+  type ExportCol =
+    | "numero" | "titulo" | "descripcion" | "estado" | "prioridad" | "tipo_trabajo"
+    | "categoria" | "ubicacion" | "activo" | "asignados" | "creado" | "fecha_limite" | "resumen";
+
+  const EXPORT_COLS: { key: ExportCol; label: string; group: string }[] = [
+    { key: "numero",       label: "N° OT",              group: "Información general" },
+    { key: "titulo",       label: "Título",              group: "Información general" },
+    { key: "descripcion",  label: "Descripción",         group: "Información general" },
+    { key: "estado",       label: "Estado",              group: "Información general" },
+    { key: "prioridad",    label: "Prioridad",           group: "Información general" },
+    { key: "tipo_trabajo", label: "Tipo de trabajo",     group: "Información general" },
+    { key: "categoria",    label: "Categoría",           group: "Información general" },
+    { key: "ubicacion",    label: "Ubicación",           group: "Personas y ubicación" },
+    { key: "activo",       label: "Activo / Equipo",     group: "Personas y ubicación" },
+    { key: "asignados",    label: "Asignados",           group: "Personas y ubicación" },
+    { key: "creado",       label: "Creado el",           group: "Fechas" },
+    { key: "fecha_limite", label: "Fecha límite",        group: "Fechas" },
+    { key: "resumen",      label: "Hoja de resumen KPIs",group: "Otros" },
+  ];
+
+  const ALL_COLS_ON  = Object.fromEntries(EXPORT_COLS.map(c => [c.key, true]))  as Record<ExportCol, boolean>;
+  const ALL_COLS_OFF = Object.fromEntries(EXPORT_COLS.map(c => [c.key, false])) as Record<ExportCol, boolean>;
+  const [exportCols, setExportCols] = useState<Record<ExportCol, boolean>>(ALL_COLS_ON);
 
   const [rightPanel, setRightPanel] = useState<"none" | "create" | "edit">(initialPanel === "create" ? "create" : "none");
 
@@ -241,6 +267,297 @@ export default function OrdenesBandeja({
   const closedCount = ordenes.filter(o => CLOSED_ESTADOS.has(o.estado)).length;
   const currentSortLabel = SORT_OPTIONS.find(o => o.value === sort)?.label ?? "";
 
+  // ── Excel export (current filtered view, column-driven) ──────────────────
+  async function handleExportExcel() {
+    if (exporting || filtered.length === 0) return;
+    setExportConfigOpen(false);
+    setExporting(true);
+    try {
+      const XLSX = await import("xlsx-js-style");
+      const f = exportCols;
+
+      // ── Helpers ──────────────────────────────────────────────────────────
+      const fmtDate = (s: string | null | undefined) =>
+        s ? new Date(s).toLocaleDateString("es-CL") : "—";
+      const fmtDateTime = (s: string | null | undefined) =>
+        s ? new Date(s).toLocaleString("es-CL", { day:"2-digit", month:"2-digit", year:"numeric", hour:"2-digit", minute:"2-digit" }) : "—";
+
+      const ESTADO_LABEL: Record<string, string> = {
+        pendiente: "Pendiente", en_espera: "En espera",
+        en_curso: "En curso", completado: "Completado",
+      };
+      const PRIORIDAD_LABEL: Record<string, string> = {
+        urgente: "Urgente", alta: "Alta", media: "Media", baja: "Baja", ninguna: "—",
+      };
+      const TIPO_LABEL: Record<string, string> = {
+        correctivo: "Correctivo", preventivo: "Preventivo",
+        predictivo: "Predictivo", mejora: "Mejora",
+      };
+
+      // ── Style tokens ─────────────────────────────────────────────────────
+      const S = {
+        headerDark: {
+          font:  { bold: true, color: { rgb: "FFFFFF" }, sz: 11 },
+          fill:  { fgColor: { rgb: "0F172A" } },
+          alignment: { horizontal: "center", vertical: "center", wrapText: false },
+          border: { bottom: { style: "thin", color: { rgb: "1E3A8A" } } },
+        },
+        headerBrand: {
+          font:  { bold: true, color: { rgb: "FFFFFF" }, sz: 11 },
+          fill:  { fgColor: { rgb: "1E3A8A" } },
+          alignment: { horizontal: "center", vertical: "center", wrapText: false },
+          border: { bottom: { style: "thin", color: { rgb: "2563EB" } } },
+        },
+        rowEven: {
+          fill: { fgColor: { rgb: "F8FAFC" } },
+          font: { sz: 10, color: { rgb: "0F172A" } },
+          border: { bottom: { style: "thin", color: { rgb: "E2E8F0" } } },
+          alignment: { vertical: "center" },
+        },
+        rowOdd: {
+          fill: { fgColor: { rgb: "FFFFFF" } },
+          font: { sz: 10, color: { rgb: "0F172A" } },
+          border: { bottom: { style: "thin", color: { rgb: "E2E8F0" } } },
+          alignment: { vertical: "center" },
+        },
+        rowMuted: (even: boolean) => ({
+          fill: { fgColor: { rgb: even ? "F8FAFC" : "FFFFFF" } },
+          font: { sz: 10, color: { rgb: "94A3B8" } },
+          border: { bottom: { style: "thin", color: { rgb: "E2E8F0" } } },
+          alignment: { vertical: "center" },
+        }),
+        badge: (color: string, bg: string) => ({
+          font:  { bold: true, sz: 10, color: { rgb: color } },
+          fill:  { fgColor: { rgb: bg } },
+          alignment: { horizontal: "center", vertical: "center" },
+          border: { bottom: { style: "thin", color: { rgb: "E2E8F0" } } },
+        }),
+        totalRow: {
+          font:  { bold: true, sz: 10, color: { rgb: "1D4ED8" } },
+          fill:  { fgColor: { rgb: "DBEAFE" } },
+          alignment: { horizontal: "left", vertical: "center" },
+          border: { top: { style: "medium", color: { rgb: "2563EB" } }, bottom: { style: "thin", color: { rgb: "BFDBFE" } } },
+        },
+        kpiHeader: {
+          font:  { bold: true, color: { rgb: "FFFFFF" }, sz: 12 },
+          fill:  { fgColor: { rgb: "1E3A8A" } },
+          alignment: { horizontal: "center", vertical: "center" },
+        },
+        kpiLabel: {
+          font:  { bold: true, sz: 10, color: { rgb: "64748B" } },
+          fill:  { fgColor: { rgb: "F1F5F9" } },
+          alignment: { horizontal: "left", vertical: "center" },
+          border: { bottom: { style: "thin", color: { rgb: "E2E8F0" } } },
+        },
+        kpiValue: {
+          font:  { sz: 10, color: { rgb: "0F172A" } },
+          fill:  { fgColor: { rgb: "FFFFFF" } },
+          alignment: { horizontal: "left", vertical: "center" },
+          border: { bottom: { style: "thin", color: { rgb: "E2E8F0" } } },
+        },
+        kpiValueBig: {
+          font:  { bold: true, sz: 14, color: { rgb: "1E3A8A" } },
+          fill:  { fgColor: { rgb: "EFF6FF" } },
+          alignment: { horizontal: "center", vertical: "center" },
+          border: { bottom: { style: "thin", color: { rgb: "BFDBFE" } } },
+        },
+      } as const;
+
+      function applyStyle(ws: Record<string, unknown>, addr: string, style: Record<string, unknown>) {
+        if (ws[addr] && typeof ws[addr] === "object") {
+          (ws[addr] as Record<string, unknown>).s = style;
+        }
+      }
+      function styleRow(ws: Record<string, unknown>, rowIdx: number, nCols: number, style: Record<string, unknown>) {
+        for (let c = 0; c < nCols; c++) {
+          applyStyle(ws, XLSX.utils.encode_cell({ r: rowIdx, c }), style);
+        }
+      }
+
+      // ── Column definitions ────────────────────────────────────────────────
+      // Each active column: { header, width, getValue, badgeKey? }
+      type ColDef = {
+        header: string;
+        width: number;
+        getValue: (o: OrdenListItem) => string | number;
+        estadoBadge?: boolean;
+        prioBadge?: boolean;
+        mutableIfEmpty?: (o: OrdenListItem) => boolean;
+      };
+
+      const estadoColors: Record<string, { font: string; fill: string }> = {
+        pendiente:  { font: "92400E", fill: "FFFBEB" },
+        en_espera:  { font: "7C3AED", fill: "F5F3FF" },
+        en_curso:   { font: "1D4ED8", fill: "EFF6FF" },
+        completado: { font: "065F46", fill: "ECFDF5" },
+      };
+      const prioColors: Record<string, { font: string; fill: string }> = {
+        urgente: { font: "B91C1C", fill: "FEE2E2" },
+        alta:    { font: "B45309", fill: "FEF3C7" },
+        media:   { font: "1D4ED8", fill: "DBEAFE" },
+        baja:    { font: "475569", fill: "F1F5F9" },
+        ninguna: { font: "94A3B8", fill: "F8FAFC" },
+      };
+
+      const COL_DEFS: { key: ExportCol; def: ColDef }[] = [
+        { key: "numero",       def: { header: "N°",            width: 8,  getValue: o => o.numero ?? "—" } },
+        { key: "titulo",       def: { header: "Título",        width: 44, getValue: o => o.titulo || o.descripcion?.slice(0, 80) || "—" } },
+        { key: "descripcion",  def: { header: "Descripción",   width: 50, getValue: o => o.descripcion || "—" } },
+        { key: "estado",       def: { header: "Estado",        width: 14, getValue: o => ESTADO_LABEL[o.estado] ?? o.estado, estadoBadge: true } },
+        { key: "prioridad",    def: { header: "Prioridad",     width: 12, getValue: o => PRIORIDAD_LABEL[o.prioridad] ?? o.prioridad, prioBadge: true } },
+        { key: "tipo_trabajo", def: { header: "Tipo",          width: 14, getValue: o => o.tipo_trabajo ? (TIPO_LABEL[o.tipo_trabajo] ?? o.tipo_trabajo) : "—" } },
+        { key: "categoria",    def: { header: "Categoría",     width: 20, getValue: o => (o as OrdenListItem & { categorias_ot?: { nombre: string } | null }).categorias_ot?.nombre ?? "—" } },
+        { key: "ubicacion",    def: { header: "Ubicación",     width: 32, getValue: o => o.ubicaciones?.edificio ?? "—" } },
+        { key: "activo",       def: { header: "Activo",        width: 22, getValue: o => o.activos?.nombre ?? "—" } },
+        { key: "asignados",    def: {
+          header: "Asignados", width: 30,
+          getValue: o => Array.isArray(o.asignados_ids) && o.asignados_ids.length > 0
+            ? o.asignados_ids.map(id => usuarios.find(u => u.id === id)?.nombre ?? id).join(", ")
+            : "Sin asignar",
+          mutableIfEmpty: o => !o.asignados_ids?.length,
+        } },
+        { key: "creado",       def: { header: "Creado",        width: 13, getValue: o => fmtDate(o.created_at) } },
+        { key: "fecha_limite", def: {
+          header: "Fecha límite", width: 13,
+          getValue: o => fmtDate(o.fecha_termino),
+          mutableIfEmpty: o => !o.fecha_termino,
+        } },
+      ];
+
+      const activeCols = COL_DEFS.filter(c => c.key !== "resumen" && f[c.key]);
+
+      // ── SHEET 1: Órdenes ─────────────────────────────────────────────────
+      const headers = activeCols.map(c => c.def.header);
+      const dataRows = filtered.map(o => activeCols.map(c => c.def.getValue(o)));
+
+      const wsOrd = XLSX.utils.aoa_to_sheet([headers, ...dataRows]);
+      wsOrd["!cols"]   = activeCols.map(c => ({ wch: c.def.width }));
+      wsOrd["!rows"]   = [{ hpt: 22 }, ...dataRows.map(() => ({ hpt: 18 }))];
+      wsOrd["!freeze"] = { xSplit: 0, ySplit: 1 };
+
+      styleRow(wsOrd, 0, activeCols.length, S.headerDark);
+
+      dataRows.forEach((_, i) => {
+        const rIdx = i + 1;
+        const even = i % 2 === 0;
+        styleRow(wsOrd, rIdx, activeCols.length, even ? S.rowEven : S.rowOdd);
+
+        activeCols.forEach((c, colIdx) => {
+          const addr = XLSX.utils.encode_cell({ r: rIdx, c: colIdx });
+          if (c.def.estadoBadge) {
+            const ec = estadoColors[filtered[i].estado] ?? { font: "475569", fill: "F8FAFC" };
+            applyStyle(wsOrd, addr, S.badge(ec.font, ec.fill));
+          } else if (c.def.prioBadge) {
+            const pc = prioColors[filtered[i].prioridad] ?? prioColors.ninguna;
+            applyStyle(wsOrd, addr, S.badge(pc.font, pc.fill));
+          } else if (c.def.mutableIfEmpty?.(filtered[i])) {
+            applyStyle(wsOrd, addr, S.rowMuted(even));
+          }
+        });
+      });
+
+      // Total row
+      const totalRowIdx = dataRows.length + 1;
+      const totAddr = XLSX.utils.encode_cell({ r: totalRowIdx, c: 0 });
+      wsOrd[totAddr] = { v: `Total: ${filtered.length} órdenes`, t: "s" };
+      applyStyle(wsOrd, totAddr, S.totalRow);
+      const sheetRange = XLSX.utils.decode_range(wsOrd["!ref"] ?? "A1");
+      sheetRange.e.r = totalRowIdx;
+      wsOrd["!ref"] = XLSX.utils.encode_range(sheetRange);
+      for (let c = 1; c < activeCols.length; c++) {
+        const addr = XLSX.utils.encode_cell({ r: totalRowIdx, c });
+        wsOrd[addr] = { v: "", t: "s" };
+        applyStyle(wsOrd, addr, S.totalRow);
+      }
+
+      // ── Workbook ─────────────────────────────────────────────────────────
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, wsOrd, "Órdenes de trabajo");
+
+      // ── SHEET 2: KPIs / Resumen (optional) ───────────────────────────────
+      if (f.resumen) {
+        const total      = filtered.length;
+        const completado = filtered.filter(o => o.estado === "completado").length;
+        const enCurso    = filtered.filter(o => o.estado === "en_curso").length;
+        const pendiente  = filtered.filter(o => o.estado === "pendiente").length;
+        const enEspera   = filtered.filter(o => o.estado === "en_espera").length;
+        const urgentes   = filtered.filter(o => o.prioridad === "urgente").length;
+        const vencidas   = filtered.filter(o =>
+          o.estado !== "completado" && o.fecha_termino && new Date(o.fecha_termino) < new Date()
+        ).length;
+        const sinAsignar = filtered.filter(o => !o.asignados_ids?.length).length;
+
+        const byTipo: Record<string, number> = {};
+        filtered.forEach(o => { if (o.tipo_trabajo) byTipo[o.tipo_trabajo] = (byTipo[o.tipo_trabajo] ?? 0) + 1; });
+        const byUbic: Record<string, number> = {};
+        filtered.forEach(o => {
+          const label = o.ubicaciones?.edificio ?? "Sin ubicación";
+          byUbic[label] = (byUbic[label] ?? 0) + 1;
+        });
+
+        const kpiData: (string | number)[][] = [
+          ["RESUMEN DEL REPORTE", ""],
+          ["", ""],
+          ["ESTADOS", ""],
+          ["Total de órdenes",         total],
+          ["Completadas",              completado],
+          ["En curso",                 enCurso],
+          ["Pendientes",               pendiente],
+          ["En espera",                enEspera],
+          ["", ""],
+          ["ALERTAS", ""],
+          ["Urgentes",                 urgentes],
+          ["Vencidas (sin completar)", vencidas],
+          ["Sin asignar",              sinAsignar],
+          ["", ""],
+          ["POR TIPO DE TRABAJO", ""],
+          ...Object.entries(byTipo).map(([k, v]) => [TIPO_LABEL[k] ?? k, v]),
+          ["", ""],
+          ["POR UBICACIÓN (Top 10)", ""],
+          ...Object.entries(byUbic)
+            .sort((a, b) => (b[1] as number) - (a[1] as number))
+            .slice(0, 10)
+            .map(([k, v]) => [k, v]),
+          ["", ""],
+          ["Exportado el", fmtDateTime(new Date().toISOString())],
+        ];
+
+        const wsKpi = XLSX.utils.aoa_to_sheet(kpiData);
+        wsKpi["!cols"]   = [{ wch: 34 }, { wch: 18 }];
+        wsKpi["!rows"]   = kpiData.map(() => ({ hpt: 18 }));
+        wsKpi["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 1 } }];
+
+        applyStyle(wsKpi, "A1", S.kpiHeader);
+        applyStyle(wsKpi, "B1", S.kpiHeader);
+
+        const sectionKeys = new Set(["ESTADOS", "ALERTAS", "POR TIPO DE TRABAJO", "POR UBICACIÓN (Top 10)"]);
+        kpiData.forEach((row, i) => {
+          if (i === 0) return;
+          const k = row[0];
+          if (typeof k !== "string" || k === "") return;
+          if (sectionKeys.has(k)) {
+            applyStyle(wsKpi, XLSX.utils.encode_cell({ r: i, c: 0 }), S.headerBrand);
+            applyStyle(wsKpi, XLSX.utils.encode_cell({ r: i, c: 1 }), S.headerBrand);
+          } else if (typeof row[1] === "number" && i >= 3 && i <= 8) {
+            applyStyle(wsKpi, XLSX.utils.encode_cell({ r: i, c: 0 }), S.kpiLabel);
+            applyStyle(wsKpi, XLSX.utils.encode_cell({ r: i, c: 1 }), S.kpiValueBig);
+          } else {
+            applyStyle(wsKpi, XLSX.utils.encode_cell({ r: i, c: 0 }), S.kpiLabel);
+            applyStyle(wsKpi, XLSX.utils.encode_cell({ r: i, c: 1 }), S.kpiValue);
+          }
+        });
+
+        XLSX.utils.book_append_sheet(wb, wsKpi, "Resumen");
+      }
+
+      const dateStr  = new Date().toISOString().slice(0, 10);
+      const tabLabel = tab === "activas" ? "activas" : "completadas";
+      XLSX.writeFile(wb, `pangui_ordenes_${tabLabel}_${dateStr}.xlsx`);
+    } finally {
+      setExporting(false);
+    }
+  }
+
   return (
     <div style={{ display:"flex", flexDirection:"column", height:"100dvh", overflow:"hidden", background:"var(--c-bg, #F8FAFC)" }}>
 
@@ -356,6 +673,35 @@ export default function OrdenesBandeja({
             </button>
           </div>
 
+          {/* Right side: export + sort */}
+          <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+
+          {/* Export Excel */}
+          <button
+            type="button"
+            onClick={() => { if (filtered.length > 0 && !exporting) setExportConfigOpen(true); }}
+            disabled={exporting || filtered.length === 0}
+            title={filtered.length === 0 ? "No hay órdenes para exportar" : `Exportar ${filtered.length} órdenes a Excel`}
+            style={{
+              display:"flex", alignItems:"center", gap:5,
+              height:28, padding:"0 10px",
+              border:"1px solid #E2E8F0", borderRadius:6,
+              background: exporting ? "#F8FAFC" : "#fff",
+              color: filtered.length === 0 ? "#CBD5E1" : "#475569",
+              fontSize:12, fontWeight:500, cursor: filtered.length === 0 ? "not-allowed" : "pointer",
+              fontFamily:"inherit", whiteSpace:"nowrap",
+              transition:"all 0.12s",
+            }}
+            onMouseEnter={e => { if (filtered.length > 0 && !exporting) { e.currentTarget.style.borderColor = "#10B981"; e.currentTarget.style.color = "#059669"; e.currentTarget.style.background = "#ECFDF5"; } }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = "#E2E8F0"; e.currentTarget.style.color = filtered.length === 0 ? "#CBD5E1" : "#475569"; e.currentTarget.style.background = "#fff"; }}
+          >
+            {exporting
+              ? <Loader2 size={12} className="animate-spin" style={{ color:"#10B981" }} />
+              : <Download size={12} />
+            }
+            {exporting ? "Exportando…" : "Excel"}
+          </button>
+
           {/* Sort dropdown */}
           <div ref={sortRef} style={{ position:"relative" }}>
             <button
@@ -406,6 +752,8 @@ export default function OrdenesBandeja({
               </div>
             )}
           </div>
+
+          </div>{/* end right side */}
         </div>
       </div>
 
@@ -591,6 +939,111 @@ export default function OrdenesBandeja({
           </div>
         )}
       </div>
+
+      {/* ── Export config modal ── */}
+      {exportConfigOpen && (
+        <div
+          style={{ position:"fixed", inset:0, zIndex:400, background:"rgba(15,23,42,0.45)", display:"flex", alignItems:"center", justifyContent:"center" }}
+          onClick={() => setExportConfigOpen(false)}
+        >
+          <div
+            style={{ background:"#fff", borderRadius:14, width:420, boxShadow:"0 20px 60px rgba(15,23,42,0.20)", overflow:"hidden" }}
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div style={{ padding:"18px 20px 14px", borderBottom:"1px solid #E2E8F0", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+              <div>
+                <div style={{ fontSize:15, fontWeight:700, color:"#0F172A" }}>Exportar Excel</div>
+                <div style={{ fontSize:12, color:"#94A3B8", marginTop:2 }}>
+                  {filtered.length} órdenes · selecciona las columnas a incluir
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setExportConfigOpen(false)}
+                style={{ width:28, height:28, display:"flex", alignItems:"center", justifyContent:"center", background:"none", border:"none", borderRadius:6, cursor:"pointer", color:"#94A3B8" }}
+                onMouseEnter={e => { e.currentTarget.style.background = "#F1F5F9"; }}
+                onMouseLeave={e => { e.currentTarget.style.background = "none"; }}
+              >
+                <X size={15} />
+              </button>
+            </div>
+
+            {/* Fields grouped */}
+            <div style={{ padding:"8px 20px 4px", maxHeight:380, overflowY:"auto" }}>
+              {Array.from(new Set(EXPORT_COLS.map(c => c.group))).map(group => (
+                <div key={group} style={{ marginBottom:12 }}>
+                  <div style={{ fontSize:10, fontWeight:700, color:"#94A3B8", textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:4, paddingLeft:10 }}>
+                    {group}
+                  </div>
+                  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:1 }}>
+                    {EXPORT_COLS.filter(c => c.group === group).map(col => (
+                      <label
+                        key={col.key}
+                        style={{ display:"flex", alignItems:"center", gap:8, padding:"7px 10px", borderRadius:7, cursor:"pointer" }}
+                        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#F8FAFC"; }}
+                        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={exportCols[col.key]}
+                          onChange={e => setExportCols(prev => ({ ...prev, [col.key]: e.target.checked }))}
+                          style={{ width:14, height:14, accentColor:"#2563EB", cursor:"pointer", flexShrink:0 }}
+                        />
+                        <span style={{ fontSize:12.5, color: exportCols[col.key] ? "#0F172A" : "#94A3B8" }}>{col.label}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Select all / none */}
+            <div style={{ padding:"8px 20px 10px", display:"flex", gap:8, borderTop:"1px solid #F1F5F9" }}>
+              <button type="button" onClick={() => setExportCols(ALL_COLS_ON)}
+                style={{ fontSize:12, color:"#2563EB", background:"none", border:"none", cursor:"pointer", padding:"2px 0", fontFamily:"inherit" }}>
+                Seleccionar todo
+              </button>
+              <span style={{ color:"#E2E8F0" }}>·</span>
+              <button type="button" onClick={() => setExportCols(ALL_COLS_OFF)}
+                style={{ fontSize:12, color:"#94A3B8", background:"none", border:"none", cursor:"pointer", padding:"2px 0", fontFamily:"inherit" }}>
+                Limpiar
+              </button>
+              <span style={{ marginLeft:"auto", fontSize:12, color:"#94A3B8" }}>
+                {Object.values(exportCols).filter(Boolean).length} seleccionados
+              </span>
+            </div>
+
+            {/* Footer */}
+            <div style={{ padding:"10px 20px 16px", borderTop:"1px solid #E2E8F0", display:"flex", justifyContent:"flex-end", gap:8 }}>
+              <button
+                type="button"
+                onClick={() => setExportConfigOpen(false)}
+                style={{ height:36, padding:"0 16px", borderRadius:8, border:"1px solid #E2E8F0", background:"#fff", fontSize:13, color:"#475569", cursor:"pointer", fontFamily:"inherit" }}
+                onMouseEnter={e => { e.currentTarget.style.background = "#F8FAFC"; }}
+                onMouseLeave={e => { e.currentTarget.style.background = "#fff"; }}
+              >Cancelar</button>
+              <button
+                type="button"
+                onClick={handleExportExcel}
+                disabled={!Object.values(exportCols).some(Boolean)}
+                style={{
+                  height:36, padding:"0 18px", borderRadius:8, border:"none",
+                  background: Object.values(exportCols).some(Boolean) ? "#2563EB" : "#CBD5E1",
+                  fontSize:13, fontWeight:600, color:"#fff",
+                  cursor: Object.values(exportCols).some(Boolean) ? "pointer" : "default",
+                  fontFamily:"inherit", display:"flex", alignItems:"center", gap:6,
+                }}
+              >
+                {exporting
+                  ? <><Loader2 size={13} className="animate-spin" />Exportando…</>
+                  : <><Download size={13} />Exportar Excel</>
+                }
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -225,7 +225,7 @@ export default function AppSidebar() {
               {puedeVer("inventario") && (
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild isActive={isActive("/partes")}>
-                    <Link href="/partes"><Boxes size={16} /><span>Partes</span></Link>
+                    <Link href="/partes"><Boxes size={16} /><span>Materiales</span></Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               )}

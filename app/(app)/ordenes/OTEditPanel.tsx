@@ -9,8 +9,9 @@ import { updateOrden, parseDescMeta, buildDescripcion } from "@/lib/ordenes-api"
 import { createClient } from "@/lib/supabase";
 import type {
   OrdenTrabajo, Usuario, Ubicacion, LugarEspecifico, Sociedad, Activo, CategoriaOT,
-  Prioridad, TipoTrabajo, Recurrencia,
+  Prioridad, TipoTrabajo, Recurrencia, OTLink,
 } from "@/types/ordenes";
+import LinksInput from "@/components/LinksInput";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -45,6 +46,7 @@ interface FormState {
   tipo_trabajo:  TipoTrabajo | "";
   prioridad:     Prioridad;
   categoria_id:  string;
+  links:         OTLink[];
 }
 
 // ── Config ────────────────────────────────────────────────────────────────────
@@ -462,6 +464,7 @@ export default function OTEditPanel({
     tipo_trabajo:  orden.tipo_trabajo  ?? "",
     prioridad:     orden.prioridad,
     categoria_id:  orden.categoria_id  ?? "",
+    links:         Array.isArray(orden.links) ? orden.links : [],
   });
   const [saving, setSaving] = useState(false);
   const [error, setError]   = useState<string | null>(null);
@@ -509,6 +512,7 @@ export default function OTEditPanel({
           sociedad_id:   form.sociedad_id   || null,
           activo_id:     form.activo_id     || null,
           asignados_ids: form.asignados_ids.length > 0 ? form.asignados_ids : null,
+          links:         form.links.filter(l => l.url.trim()),
         },
         orden.asignados_ids,
       );
@@ -571,6 +575,17 @@ export default function OTEditPanel({
                 padding: "8px 10px", outline: "none", resize: "vertical",
                 fontFamily: "inherit", background: "#fff", lineHeight: 1.5,
               }}
+            />
+          </div>
+
+          {/* Links */}
+          <div style={{ marginBottom: 4 }}>
+            <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "#64748B", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>
+              Links
+            </label>
+            <LinksInput
+              links={form.links}
+              onChange={links => setF("links", links)}
             />
           </div>
 

@@ -9,8 +9,9 @@ import { createClient } from "@/lib/supabase";
 import { createOrden, buildDescripcion } from "@/lib/ordenes-api";
 import type {
   Usuario, Ubicacion, LugarEspecifico, Sociedad, Activo, CategoriaOT,
-  Prioridad, TipoTrabajo, Recurrencia,
+  Prioridad, TipoTrabajo, Recurrencia, OTLink,
 } from "@/types/ordenes";
+import LinksInput from "@/components/LinksInput";
 
 // ── PDF Parser ────────────────────────────────────────────────────────────────
 
@@ -46,24 +47,36 @@ function fuzzyMatch<T extends { id: string }>(
   items: T[],
   getLabel: (item: T) => string,
 ): string {
-  if (!query) return "";
-  const normalize = (s: string) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9\s]/g, "").trim();
+  if (!query || items.length === 0) return "";
+  const normalize = (s: string) =>
+    s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9s]/g, "").trim();
   const q = normalize(query);
-  // Exact contains
-  let best = items.find(i => normalize(getLabel(i)).includes(q));
-  if (!best) {
-    // Word overlap — require words longer than 3 chars
-    const words = q.split(/\s+/).filter(w => w.length > 3);
-    let topScore = 0;
-    for (const item of items) {
-      const label = normalize(getLabel(item));
-      const score = words.filter(w => label.includes(w)).length;
-      if (score > topScore) { topScore = score; best = item; }
-    }
+
+  // 1. Exact substring: label contains query or query contains label
+  const exact = items.find(i => {
+    const label = normalize(getLabel(i));
+    return label.includes(q) || q.includes(label);
+  });
+  if (exact) return exact.id;
+
+  // 2. Word-overlap: only words >3 chars, require >=50% of query words to match
+  const queryWords = q.split(/s+/).filter(w => w.length > 3);
+  if (queryWords.length === 0) return "";
+
+  let topScore = 0;
+  let best: T | undefined;
+  for (const item of items) {
+    const label = normalize(getLabel(item));
+    const score = queryWords.filter(w => label.includes(w)).length;
+    if (score > topScore) { topScore = score; best = item; }
   }
+
+  // Require at least half the significant query words to match
+  const minRequired = Math.ceil(queryWords.length * 0.5);
+  if (topScore < minRequired) return "";
+
   return best?.id ?? "";
 }
-
 const PRIORIDAD_PDF_MAP: Record<string, Prioridad> = {
   emergencia: "urgente", urgente: "urgente",
   alta: "alta",
@@ -88,6 +101,7 @@ interface ParsedPDF {
   sociedad_id: string;
   ubicacionText: string;
   lugarText: string;
+  __rawText: string;
 }
 
 async function parseSolicitudPDF(file: File, sociedades: Sociedad[]): Promise<ParsedPDF> {
@@ -137,18 +151,24 @@ async function parseSolicitudPDF(file: File, sociedades: Sociedad[]): Promise<Pa
   const prioPDF = (fullText.match(/Prioridad\s+(\S+)/gi)?.[1] ?? "")
     .replace(/Prioridad\s+/i, "").trim().toLowerCase();
 
-  // Ubicación — match the label+value row (two+ spaces between label and value), then grab any continuation line
+  // Ubicación — match the label+value row (two+ spaces between label and value)
   const ubicRe = fullText.match(/Ubicaci[oó]n\s{2,}([^\n]+)\n([^\n]+)/i);
-  const ubicLine1 = ubicRe?.[1]?.trim() ?? "";
-  const ubicLine2b = ubicRe?.[2]?.trim() ?? "";
-  // Accept continuation only if it looks like an address fragment (no known label keywords)
+  const ubicLine1Raw = ubicRe?.[1]?.trim() ?? "";
+  const ubicLine2 = ubicRe?.[2]?.trim() ?? "";
+  // If line1 ends with " -" the value wrapped across lines; join and clean the dash
   const isLabel = /^(Lugar|Objeto|Centro|Persona|Nombre|Anexo|E-mail|Documentos)/i;
-  const ubicPDF = ubicLine1 && !isLabel.test(ubicLine2b)
-    ? (ubicLine1 + " " + ubicLine2b).replace(/\s*-\s*/, " ").trim()
-    : ubicLine1;
+  let ubicPDF = ubicLine1Raw;
+  if (ubicLine1Raw.endsWith("-") && ubicLine2 && !isLabel.test(ubicLine2)) {
+    // Wrapped hyphenated value (e.g. "FACULTAD DE INGENIERIA -\nADMINISTRACION")
+    ubicPDF = (ubicLine1Raw.replace(/-$/, "").trim() + " " + ubicLine2).trim();
+  } else if (!isLabel.test(ubicLine2) && ubicLine2 && !ubicLine1Raw.endsWith("-")) {
+    // Normal continuation line that isn't a new field label
+    ubicPDF = (ubicLine1Raw + " " + ubicLine2).trim();
+  }
 
-  // Lugar — match "Lugar  value" with two+ spaces (avoids matching "Lugar específico" header)
-  const lugarPDF = fullText.match(/^Lugar\s{2,}(.+)/im)?.[1]?.trim() ?? "";
+  // Lugar — match "Lugar <value>", avoid "Lugar específico" header and "Lugar" standalone labels
+  // Drop ^ anchor — pdfjs may emit this mid-line; use \b and require value to start with uppercase/word char
+  const lugarPDF = fullText.match(/\bLugar\s+(?!específico|especifico|Específico)([A-ZÁÉÍÓÚÑ][^\n]{3,})/m)?.[1]?.trim() ?? "";
 
   // Sociedad
   const sociedadPDF = fullText.match(/Sociedad\s+(.+)/i)?.[1]?.trim() ?? "";
@@ -170,6 +190,7 @@ async function parseSolicitudPDF(file: File, sociedades: Sociedad[]): Promise<Pa
     sociedad_id:   fuzzyMatch(sociedadPDF, sociedades, s => s.nombre),
     ubicacionText: ubicPDF,
     lugarText:     lugarPDF,
+    __rawText:     fullText,
   };
 }
 
@@ -205,6 +226,16 @@ interface FormState {
   tipo_trabajo:  TipoTrabajo | "";
   prioridad:     Prioridad;
   categoria_id:  string;
+  links:         OTLink[];
+}
+
+// Raw text from PDF that couldn't be resolved to an existing record
+interface PdfHints {
+  ubicacionText: string;   // unresolved → show "create?" prompt
+  lugarText:     string;
+  sociedadText:  string;
+  ubicacionMatched: boolean;  // true = fuzzy matched an existing record
+  lugarMatched:     boolean;
 }
 
 const BLANK: FormState = {
@@ -214,6 +245,7 @@ const BLANK: FormState = {
   fecha_termino: "", fecha_inicio: "",
   recurrencia: "ninguna", tipo_trabajo: "",
   prioridad: "ninguna", categoria_id: "",
+  links: [],
 };
 
 // ── Config ────────────────────────────────────────────────────────────────────
@@ -651,10 +683,199 @@ function HitoSelect({ value, onChange, wsId }: {
   );
 }
 
+// ── LocationSelect (search + create for ubicaciones) ──────────────────────────
+
+function LocationSelect({ value, options, onChange, wsId, onCreated: onUbicCreated }: {
+  value: string;
+  options: { id: string; label: string; sub?: string }[];
+  onChange: (id: string) => void;
+  wsId: string;
+  onCreated: (u: Ubicacion) => void;
+}) {
+  const [open, setOpen]         = useState(false);
+  const [query, setQuery]       = useState("");
+  const [creating, setCreating] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  const selected   = options.find(o => o.id === value);
+  const filtered   = options.filter(o => o.label.toLowerCase().includes(query.toLowerCase()));
+  const exactMatch = options.some(o => o.label.toLowerCase() === query.toLowerCase().trim());
+  const canCreate  = query.trim().length > 1 && !exactMatch;
+
+  useEffect(() => {
+    const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, []);
+
+  async function handleCreate() {
+    const nombre = query.trim();
+    if (!nombre) return;
+    setCreating(true);
+    try {
+      const sb = createClient();
+      const { data } = await sb
+        .from("ubicaciones")
+        .insert({ workspace_id: wsId, edificio: nombre, activa: true })
+        .select("id,edificio,piso,detalle,activa,sociedad_id")
+        .single();
+      if (data) {
+        onUbicCreated(data as Ubicacion);
+        onChange(data.id);
+        setQuery("");
+        setOpen(false);
+      }
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  return (
+    <div ref={ref} style={{ position: "relative" }}>
+      <button type="button" onClick={() => { setOpen(!open); setQuery(""); }}
+        style={{ width: "100%", height: 38, display: "flex", alignItems: "center", gap: 8, padding: "0 10px", border: "1px solid #E2E8F0", borderRadius: 8, background: "#fff", fontSize: 13, color: selected ? "#0F172A" : "#94A3B8", cursor: "pointer", textAlign: "left" }}>
+        <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {selected ? selected.label : "Buscar o crear ubicación…"}
+        </span>
+        <ChevronDown size={13} style={{ flexShrink: 0, color: "#94A3B8" }} />
+      </button>
+      {open && (
+        <div style={{ position: "absolute", top: "calc(100% + 3px)", left: 0, right: 0, zIndex: 200, background: "#fff", border: "1px solid #E2E8F0", borderRadius: 8, boxShadow: "0 8px 24px rgba(15,23,42,0.12)", overflow: "hidden" }}>
+          <div style={{ padding: "6px 6px 3px" }}>
+            <input autoFocus placeholder="Buscar o crear…" value={query} onChange={e => setQuery(e.target.value)}
+              style={{ width: "100%", height: 30, padding: "0 8px", border: "1px solid #E2E8F0", borderRadius: 6, fontSize: 13, outline: "none", color: "#0F172A", fontFamily: "inherit" }} />
+          </div>
+          <div style={{ maxHeight: 200, overflowY: "auto" }}>
+            <button type="button" onClick={() => { onChange(""); setOpen(false); }}
+              style={{ display: "block", width: "100%", textAlign: "left", padding: "7px 10px", fontSize: 13, color: "#94A3B8", background: !value ? "#EFF6FF" : "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}>
+              Sin asignar
+            </button>
+            {filtered.map(o => (
+              <button key={o.id} type="button" onClick={() => { onChange(o.id); setOpen(false); }}
+                style={{ display: "flex", alignItems: "center", gap: 6, width: "100%", textAlign: "left", padding: "7px 10px", fontSize: 13, background: value === o.id ? "#EFF6FF" : "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}>
+                {value === o.id && <Check size={11} style={{ color: "#1E3A8A", flexShrink: 0 }} />}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ color: "#0F172A" }}>{o.label}</div>
+                  {o.sub && <div style={{ fontSize: 11, color: "#94A3B8" }}>{o.sub}</div>}
+                </div>
+              </button>
+            ))}
+            {canCreate && (
+              <button type="button" onClick={handleCreate} disabled={creating}
+                style={{ display: "flex", alignItems: "center", gap: 6, width: "100%", padding: "8px 10px", fontSize: 13, fontWeight: 600, background: "#F0F3FF", color: "#1E3A8A", border: "none", borderTop: "1px solid #E2E8F0", cursor: creating ? "default" : "pointer", fontFamily: "inherit" }}>
+                {creating ? <Loader2 size={11} className="animate-spin" /> : <Plus size={11} />}
+                Crear "{query.trim()}"
+              </button>
+            )}
+            {filtered.length === 0 && !canCreate && (
+              <div style={{ padding: "8px 10px", fontSize: 12.5, color: "#94A3B8" }}>Sin resultados</div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── LugarSelect (search + create for lugares específicos) ──────────────────────
+
+function LugarSelect({ value, options, onChange, wsId, ubicacion_id, onCreated: onLugarCreated }: {
+  value: string;
+  options: { id: string; label: string; sub?: string }[];
+  onChange: (id: string) => void;
+  wsId: string;
+  ubicacion_id: string;
+  onCreated: (l: LugarEspecifico) => void;
+}) {
+  const [open, setOpen]         = useState(false);
+  const [query, setQuery]       = useState("");
+  const [creating, setCreating] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  const selected   = options.find(o => o.id === value);
+  const filtered   = options.filter(o => o.label.toLowerCase().includes(query.toLowerCase()));
+  const exactMatch = options.some(o => o.label.toLowerCase() === query.toLowerCase().trim());
+  const canCreate  = query.trim().length > 1 && !exactMatch;
+
+  useEffect(() => {
+    const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, []);
+
+  async function handleCreate() {
+    const nombre = query.trim();
+    if (!nombre) return;
+    setCreating(true);
+    try {
+      const sb = createClient();
+      const { data } = await sb
+        .from("lugares")
+        .insert({ workspace_id: wsId, nombre, ubicacion_id: ubicacion_id || null, activo: true })
+        .select("id,nombre,ubicacion_id,activo,imagen_url,descripcion,workspace_id,created_at")
+        .single();
+      if (data) {
+        onLugarCreated(data as LugarEspecifico);
+        onChange(data.id);
+        setQuery("");
+        setOpen(false);
+      }
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  return (
+    <div ref={ref} style={{ position: "relative" }}>
+      <button type="button" onClick={() => { setOpen(!open); setQuery(""); }}
+        style={{ width: "100%", height: 38, display: "flex", alignItems: "center", gap: 8, padding: "0 10px", border: "1px solid #E2E8F0", borderRadius: 8, background: "#fff", fontSize: 13, color: selected ? "#0F172A" : "#94A3B8", cursor: "pointer", textAlign: "left" }}>
+        <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {selected ? selected.label : "Buscar o crear lugar…"}
+        </span>
+        <ChevronDown size={13} style={{ flexShrink: 0, color: "#94A3B8" }} />
+      </button>
+      {open && (
+        <div style={{ position: "absolute", top: "calc(100% + 3px)", left: 0, right: 0, zIndex: 200, background: "#fff", border: "1px solid #E2E8F0", borderRadius: 8, boxShadow: "0 8px 24px rgba(15,23,42,0.12)", overflow: "hidden" }}>
+          <div style={{ padding: "6px 6px 3px" }}>
+            <input autoFocus placeholder="Buscar o crear…" value={query} onChange={e => setQuery(e.target.value)}
+              style={{ width: "100%", height: 30, padding: "0 8px", border: "1px solid #E2E8F0", borderRadius: 6, fontSize: 13, outline: "none", color: "#0F172A", fontFamily: "inherit" }} />
+          </div>
+          <div style={{ maxHeight: 200, overflowY: "auto" }}>
+            <button type="button" onClick={() => { onChange(""); setOpen(false); }}
+              style={{ display: "block", width: "100%", textAlign: "left", padding: "7px 10px", fontSize: 13, color: "#94A3B8", background: !value ? "#EFF6FF" : "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}>
+              Sin asignar
+            </button>
+            {filtered.map(o => (
+              <button key={o.id} type="button" onClick={() => { onChange(o.id); setOpen(false); }}
+                style={{ display: "flex", alignItems: "center", gap: 6, width: "100%", textAlign: "left", padding: "7px 10px", fontSize: 13, background: value === o.id ? "#EFF6FF" : "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}>
+                {value === o.id && <Check size={11} style={{ color: "#1E3A8A", flexShrink: 0 }} />}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ color: "#0F172A" }}>{o.label}</div>
+                  {o.sub && <div style={{ fontSize: 11, color: "#94A3B8" }}>{o.sub}</div>}
+                </div>
+              </button>
+            ))}
+            {canCreate && (
+              <button type="button" onClick={handleCreate} disabled={creating}
+                style={{ display: "flex", alignItems: "center", gap: 6, width: "100%", padding: "8px 10px", fontSize: 13, fontWeight: 600, background: "#F0F3FF", color: "#1E3A8A", border: "none", borderTop: "1px solid #E2E8F0", cursor: creating ? "default" : "pointer", fontFamily: "inherit" }}>
+                {creating ? <Loader2 size={11} className="animate-spin" /> : <Plus size={11} />}
+                Crear "{query.trim()}"
+              </button>
+            )}
+            {filtered.length === 0 && !canCreate && (
+              <div style={{ padding: "8px 10px", fontSize: 12.5, color: "#94A3B8" }}>Sin resultados</div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 export default function OTCrearPanel({
-  usuarios, ubicaciones, lugares, sociedades, activos, categorias,
+  usuarios, ubicaciones: initialUbicaciones, lugares: initialLugares, sociedades, activos, categorias,
   myId, wsId, onClose, onCreated,
 }: Props) {
   const [form, setForm] = useState<FormState>(BLANK);
@@ -664,54 +885,79 @@ export default function OTCrearPanel({
   const [parseMsg, setParseMsg] = useState<string | null>(null);
   const pdfInputRef = useRef<HTMLInputElement>(null);
 
+  // Local copies so newly created records appear immediately without a full reload
+  const [ubicaciones, setUbicaciones] = useState<Ubicacion[]>(initialUbicaciones);
+  const [lugares, setLugares]         = useState<LugarEspecifico[]>(initialLugares);
+
+  // PDF-suggested values that couldn't be auto-resolved
+  const [pdfHints, setPdfHints] = useState<PdfHints | null>(null);
+  const [creatingUbic, setCreatingUbic] = useState(false);
+  const [creatingLugar, setCreatingLugar] = useState(false);
+  const [debugInfo, setDebugInfo] = useState<null | {
+    rawText: string;
+    extracted: Record<string, string>;
+    resolved: Record<string, string>;
+  }>(null);
+  const [debugOpen, setDebugOpen] = useState(false);
+
   async function handlePDFImport(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
     setParsing(true);
     setParseMsg(null);
+    setPdfHints(null);
     try {
-      const { ubicacionText, lugarText, ...parsed } = await parseSolicitudPDF(file, sociedades);
+      const { ubicacionText, lugarText, __rawText, ...parsed } = await parseSolicitudPDF(file, sociedades);
 
-      // Resolve ubicacion — fuzzy match first, then upsert if not found
-      let ubicacion_id = fuzzyMatch(ubicacionText, ubicaciones, u => u.edificio + (u.piso ? ` ${u.piso}` : ""));
-      if (!ubicacion_id && ubicacionText) {
-        const { createClient } = await import("@/lib/supabase");
-        const sb = createClient();
-        const { data: newUbic } = await sb
-          .from("ubicaciones")
-          .insert({ workspace_id: wsId, edificio: ubicacionText, activa: true })
-          .select("id,edificio,piso,detalle,activa,sociedad_id")
-          .single();
-        if (newUbic) {
-          ubicaciones.push(newUbic as Ubicacion);
-          ubicacion_id = newUbic.id;
-        }
-      }
+      // Only fuzzy-match — never auto-create
+      const ubicacion_id      = fuzzyMatch(ubicacionText, ubicaciones, u => u.edificio + (u.piso ? ` ${u.piso}` : ""));
+      // Scope lugar search to the resolved ubicacion to avoid wrong-building matches
+      const lugaresForUbic    = ubicacion_id ? lugares.filter(l => l.ubicacion_id === ubicacion_id) : lugares;
+      const lugar_id          = fuzzyMatch(lugarText, lugaresForUbic, l => l.nombre);
 
-      // Resolve lugar — fuzzy match first, then upsert if not found
-      let lugar_id = fuzzyMatch(lugarText, lugares, l => l.nombre);
-      if (!lugar_id && lugarText) {
-        const { createClient } = await import("@/lib/supabase");
-        const sb = createClient();
-        const { data: newLugar } = await sb
-          .from("lugares")
-          .insert({ workspace_id: wsId, nombre: lugarText, ubicacion_id: ubicacion_id || null, activo: true })
-          .select("id,nombre,ubicacion_id,activo,imagen_url,descripcion")
-          .single();
-        if (newLugar) {
-          lugares.push(newLugar as LugarEspecifico);
-          lugar_id = newLugar.id;
-        }
-      }
+      setDebugInfo({
+        rawText: __rawText,
+        extracted: {
+          n_ot:          parsed.n_ot,
+          solicitante:   parsed.solicitante,
+          titulo:        parsed.titulo,
+          prioridad:     parsed.prioridad,
+          tipo_trabajo:  parsed.tipo_trabajo,
+          ubicacionText,
+          lugarText,
+          descripcion:   parsed.descripcion.slice(0, 120) + (parsed.descripcion.length > 120 ? "…" : ""),
+        },
+        resolved: {
+          ubicacion_id:  ubicacion_id || "(sin match)",
+          lugar_id:      lugar_id     || "(sin match)",
+          sociedad_id:   parsed.sociedad_id || "(sin match)",
+          ubicaciones_count: String(ubicaciones.length),
+          lugares_count:     String(lugares.length),
+        },
+      });
+      const ubicacionMatched  = !!ubicacion_id || !ubicacionText;
+      const lugarMatched      = !!lugar_id || !lugarText;
 
       const formPatch = { ...parsed, ubicacion_id, lugar_id };
       const filled = Object.values(formPatch).filter(v => v && v !== "ninguna" && v !== "").length;
+
       if (filled === 0) {
         setParseMsg("No se encontraron datos en el PDF. Verifica que sea una Solicitud de Mantención válida.");
       } else {
         setForm(prev => ({ ...prev, ...formPatch }));
         setParseMsg(`PDF importado — ${filled} campos completados. Revisa y ajusta lo necesario.`);
+      }
+
+      // Store hints for any unresolved location fields
+      if (ubicacionText || lugarText) {
+        setPdfHints({
+          ubicacionText:   ubicacionMatched ? "" : ubicacionText,
+          lugarText:       lugarMatched     ? "" : lugarText,
+          sociedadText:    "",   // sociedades already resolved via fuzzyMatch above
+          ubicacionMatched,
+          lugarMatched,
+        });
       }
     } catch (err) {
       setParseMsg(`Error al leer el PDF: ${err instanceof Error ? err.message : String(err)}`);
@@ -720,10 +966,49 @@ export default function OTCrearPanel({
     }
   }
 
+  async function createUbicFromHint() {
+    if (!pdfHints?.ubicacionText) return;
+    setCreatingUbic(true);
+    try {
+      const sb = createClient();
+      const { data } = await sb
+        .from("ubicaciones")
+        .insert({ workspace_id: wsId, edificio: pdfHints.ubicacionText, activa: true })
+        .select("id,edificio,piso,detalle,activa,sociedad_id")
+        .single();
+      if (data) {
+        setUbicaciones(prev => [...prev, data as Ubicacion]);
+        setForm(prev => ({ ...prev, ubicacion_id: data.id, lugar_id: "" }));
+        setPdfHints(prev => prev ? { ...prev, ubicacionText: "", ubicacionMatched: true } : prev);
+      }
+    } finally {
+      setCreatingUbic(false);
+    }
+  }
+
+  async function createLugarFromHint() {
+    if (!pdfHints?.lugarText) return;
+    setCreatingLugar(true);
+    try {
+      const sb = createClient();
+      const { data } = await sb
+        .from("lugares")
+        .insert({ workspace_id: wsId, nombre: pdfHints.lugarText, ubicacion_id: form.ubicacion_id || null, activo: true })
+        .select("id,nombre,ubicacion_id,activo,imagen_url,descripcion,workspace_id,created_at")
+        .single();
+      if (data) {
+        setLugares(prev => [...prev, data as LugarEspecifico]);
+        setForm(prev => ({ ...prev, lugar_id: data.id }));
+        setPdfHints(prev => prev ? { ...prev, lugarText: "", lugarMatched: true } : prev);
+      }
+    } finally {
+      setCreatingLugar(false);
+    }
+  }
+
   function setF<K extends keyof FormState>(key: K, val: FormState[K]) {
     setForm(prev => {
       const next = { ...prev, [key]: val };
-      // Reset lugar when ubicacion changes
       if (key === "ubicacion_id") next.lugar_id = "";
       return next;
     });
@@ -735,9 +1020,8 @@ export default function OTCrearPanel({
     sub: u.sociedades?.nombre,
   }));
 
-  // Filter lugares by selected ubicacion
   const lugarOptions = lugares
-    .filter(l => !form.ubicacion_id || l.ubicacion_id === form.ubicacion_id)
+    .filter(l => !form.ubicacion_id || l.ubicacion_id === form.ubicacion_id || l.id === form.lugar_id)
     .map(l => ({
       id: l.id,
       label: l.nombre,
@@ -779,6 +1063,7 @@ export default function OTCrearPanel({
         asignados_ids: form.asignados_ids.length > 0 ? form.asignados_ids : null,
         fecha_inicio:  form.fecha_inicio  || null,
         fecha_termino: form.fecha_termino || null,
+        links:         form.links,
       });
       onCreated(orden);
     } catch (e) {
@@ -852,6 +1137,52 @@ export default function OTCrearPanel({
         </div>
       )}
 
+      {/* PDF Debug panel */}
+      {debugInfo && (
+        <div style={{ flexShrink: 0, borderBottom: "1px solid #E2E8F0", background: "#0F172A" }}>
+          <button
+            type="button"
+            onClick={() => setDebugOpen(v => !v)}
+            style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "7px 16px", background: "none", border: "none", cursor: "pointer", fontFamily: "monospace" }}
+          >
+            <span style={{ fontSize: 11, fontWeight: 700, color: "#94A3B8", letterSpacing: "0.08em" }}>🔍 PDF DEBUG</span>
+            <span style={{ fontSize: 10, color: "#64748B" }}>{debugOpen ? "▲ ocultar" : "▼ expandir"}</span>
+          </button>
+          {debugOpen && (
+            <div style={{ padding: "0 16px 12px", display: "flex", flexDirection: "column", gap: 10 }}>
+              <div>
+                <div style={{ fontSize: 10, fontWeight: 700, color: "#64748B", letterSpacing: "0.08em", marginBottom: 4 }}>CAMPOS EXTRAÍDOS</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                  {Object.entries(debugInfo.extracted).map(([k, v]) => (
+                    <div key={k} style={{ display: "flex", gap: 8, fontFamily: "monospace", fontSize: 11 }}>
+                      <span style={{ color: "#64748B", minWidth: 120, flexShrink: 0 }}>{k}</span>
+                      <span style={{ color: v && v !== "(sin match)" ? "#86EFAC" : "#F87171", wordBreak: "break-all" }}>{v || "(vacío)"}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <div style={{ fontSize: 10, fontWeight: 700, color: "#64748B", letterSpacing: "0.08em", marginBottom: 4 }}>RESOLUCIÓN → IDs</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                  {Object.entries(debugInfo.resolved).map(([k, v]) => (
+                    <div key={k} style={{ display: "flex", gap: 8, fontFamily: "monospace", fontSize: 11 }}>
+                      <span style={{ color: "#64748B", minWidth: 120, flexShrink: 0 }}>{k}</span>
+                      <span style={{ color: v && !v.startsWith("(") ? "#86EFAC" : "#F87171" }}>{v}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <div style={{ fontSize: 10, fontWeight: 700, color: "#64748B", letterSpacing: "0.08em", marginBottom: 4 }}>TEXTO RAW (primeras 600 chars)</div>
+                <pre style={{ fontSize: 10, color: "#94A3B8", whiteSpace: "pre-wrap", wordBreak: "break-all", margin: 0, maxHeight: 160, overflowY: "auto", background: "#0F172A", lineHeight: 1.5 }}>
+                  {debugInfo.rawText.slice(0, 600)}
+                </pre>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Scrollable form body */}
       <div style={{ flex: 1, overflowY: "auto", minHeight: 0 }}>
         <div style={{ padding: "16px 20px 100px" }}>
@@ -886,6 +1217,17 @@ export default function OTCrearPanel({
                 padding: "8px 10px", outline: "none", resize: "vertical",
                 fontFamily: "inherit", background: "#fff", lineHeight: 1.5,
               }}
+            />
+          </div>
+
+          {/* Links */}
+          <div style={{ marginBottom: 4 }}>
+            <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "#64748B", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>
+              Links
+            </label>
+            <LinksInput
+              links={form.links}
+              onChange={links => setF("links", links)}
             />
           </div>
 
@@ -926,22 +1268,81 @@ export default function OTCrearPanel({
 
           {/* Ubicación */}
           <FieldRow icon={<MapPin size={14} />} label="Ubicación">
-            <SearchSelect
-              placeholder="Empiece a escribir…"
+            <LocationSelect
               value={form.ubicacion_id}
               options={ubicOptions}
               onChange={v => setF("ubicacion_id", v)}
+              wsId={wsId}
+              onCreated={u => {
+                setUbicaciones(prev => [...prev, u]);
+                setForm(prev => ({ ...prev, ubicacion_id: u.id, lugar_id: "" }));
+              }}
             />
+            {/* PDF hint: unresolved */}
+            {pdfHints?.ubicacionText && (
+              <div style={{ marginTop: 6, display: "flex", alignItems: "center", gap: 8, padding: "7px 10px", background: "#FFFBEB", border: "1px solid #FDE68A", borderRadius: 7 }}>
+                <MapPin size={12} style={{ color: "#D97706", flexShrink: 0 }} />
+                <span style={{ flex: 1, fontSize: 12, color: "#92400E" }}>
+                  PDF sugirió: <strong>"{pdfHints.ubicacionText}"</strong> — no encontrada
+                </span>
+                <button type="button" onClick={createUbicFromHint} disabled={creatingUbic}
+                  style={{ display: "flex", alignItems: "center", gap: 4, height: 26, padding: "0 10px", border: "none", borderRadius: 6, background: "#1E3A8A", color: "#fff", fontSize: 11, fontWeight: 600, cursor: creatingUbic ? "default" : "pointer", fontFamily: "inherit", flexShrink: 0 }}>
+                  {creatingUbic ? <Loader2 size={10} className="animate-spin" /> : <Plus size={10} />}
+                  Crear
+                </button>
+                <button type="button" onClick={() => setPdfHints(p => p ? { ...p, ubicacionText: "" } : p)}
+                  style={{ background: "none", border: "none", cursor: "pointer", color: "#94A3B8", display: "flex", padding: 2 }}>
+                  <X size={12} />
+                </button>
+              </div>
+            )}
+            {/* PDF hint: matched */}
+            {pdfHints && !pdfHints.ubicacionText && pdfHints.ubicacionMatched && form.ubicacion_id && (
+              <div style={{ marginTop: 6, display: "flex", alignItems: "center", gap: 6, padding: "5px 10px", background: "#F0FDF4", border: "1px solid #BBF7D0", borderRadius: 7 }}>
+                <Check size={11} style={{ color: "#16A34A", flexShrink: 0 }} />
+                <span style={{ fontSize: 11, color: "#15803D" }}>Ubicación encontrada en el sistema</span>
+              </div>
+            )}
           </FieldRow>
 
           {/* Lugar específico */}
           <FieldRow icon={<MapPin size={14} />} label="Lugar específico">
-            <SearchSelect
-              placeholder="Seleccionar lugar…"
+            <LugarSelect
               value={form.lugar_id}
               options={lugarOptions}
               onChange={v => setF("lugar_id", v)}
+              wsId={wsId}
+              ubicacion_id={form.ubicacion_id}
+              onCreated={l => {
+                setLugares(prev => [...prev, l]);
+                setForm(prev => ({ ...prev, lugar_id: l.id }));
+              }}
             />
+            {/* PDF hint: unresolved */}
+            {pdfHints?.lugarText && (
+              <div style={{ marginTop: 6, display: "flex", alignItems: "center", gap: 8, padding: "7px 10px", background: "#FFFBEB", border: "1px solid #FDE68A", borderRadius: 7 }}>
+                <MapPin size={12} style={{ color: "#D97706", flexShrink: 0 }} />
+                <span style={{ flex: 1, fontSize: 12, color: "#92400E" }}>
+                  PDF sugirió: <strong>"{pdfHints.lugarText}"</strong> — no encontrado
+                </span>
+                <button type="button" onClick={createLugarFromHint} disabled={creatingLugar}
+                  style={{ display: "flex", alignItems: "center", gap: 4, height: 26, padding: "0 10px", border: "none", borderRadius: 6, background: "#1E3A8A", color: "#fff", fontSize: 11, fontWeight: 600, cursor: creatingLugar ? "default" : "pointer", fontFamily: "inherit", flexShrink: 0 }}>
+                  {creatingLugar ? <Loader2 size={10} className="animate-spin" /> : <Plus size={10} />}
+                  Crear
+                </button>
+                <button type="button" onClick={() => setPdfHints(p => p ? { ...p, lugarText: "" } : p)}
+                  style={{ background: "none", border: "none", cursor: "pointer", color: "#94A3B8", display: "flex", padding: 2 }}>
+                  <X size={12} />
+                </button>
+              </div>
+            )}
+            {/* PDF hint: matched */}
+            {pdfHints && !pdfHints.lugarText && pdfHints.lugarMatched && form.lugar_id && (
+              <div style={{ marginTop: 6, display: "flex", alignItems: "center", gap: 6, padding: "5px 10px", background: "#F0FDF4", border: "1px solid #BBF7D0", borderRadius: 7 }}>
+                <Check size={11} style={{ color: "#16A34A", flexShrink: 0 }} />
+                <span style={{ fontSize: 11, color: "#15803D" }}>Lugar encontrado en el sistema</span>
+              </div>
+            )}
           </FieldRow>
 
           {/* Activo */}

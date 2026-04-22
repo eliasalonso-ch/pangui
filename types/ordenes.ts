@@ -1,5 +1,10 @@
 // ─── Core domain types ────────────────────────────────────────────────────────
 
+export interface OTLink {
+  url: string;
+  label?: string;
+}
+
 export type Estado =
   | "pendiente"
   | "en_espera"
@@ -166,6 +171,7 @@ export interface OrdenTrabajo {
   // Media
   imagen_url: string | null;
   fotos_urls: string[] | null;
+  links: OTLink[] | null;
   // Joined relations
   categorias_ot?: CategoriaOT | null;
   ubicaciones?: (Pick<Ubicacion, "id" | "edificio" | "piso" | "sociedad_id"> & { sociedades?: Pick<Sociedad, "nombre"> | null }) | null;
@@ -216,6 +222,7 @@ export interface OTFormState {
   guardarComoPreventivo: boolean;
   frecuencia_dias: string;
   asignados_ids: string[];
+  links: OTLink[];
 }
 
 // ─── Filter state ─────────────────────────────────────────────────────────────
