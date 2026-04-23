@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { createClient } from "@/lib/supabase";
 import {
-  X, Pencil, Trash2, Check, Copy, MapPin, Settings2, User,
+  X, Pencil, Trash2, Check, Copy, MapPin, Settings2, User, Flag,
   Calendar, Tag, Send, AlertTriangle, Loader2,
   CircleDot, PauseCircle, PlayCircle, CheckCircle2, XCircle,
   ChevronDown, Plus, Image, Building2, Hash,
@@ -176,7 +176,6 @@ interface OrdenParte {
   parte: {
     nombre: string;
     unidad: string;
-    precio_unitario: number;
     stock_actual: number;
   } | null;
 }
@@ -185,7 +184,6 @@ interface ParteCatalogo {
   id: string;
   nombre: string;
   unidad: string;
-  precio_unitario: number;
   stock_actual: number;
 }
 
@@ -242,7 +240,7 @@ export default function OTDetail({
   const exportMenuRef = useRef<HTMLDivElement>(null);
 
   type ExportField =
-    | "n_ot" | "id" | "titulo" | "estado" | "prioridad" | "tipo_trabajo" | "categoria" | "solicitante" | "hito"
+    | "n_ot" | "n_serie" | "id" | "titulo" | "estado" | "prioridad" | "tipo_trabajo" | "categoria" | "solicitante" | "hito"
     | "descripcion"
     | "asignados" | "empresa" | "ubicacion" | "lugar"
     | "creada_el" | "fecha_inicio" | "fecha_limite" | "tiempo_trabajado"
@@ -251,6 +249,7 @@ export default function OTDetail({
 
   const EXPORT_FIELDS: { key: ExportField; label: string; group: string }[] = [
     { key: "n_ot",            label: "N° OT",               group: "Información general" },
+    { key: "n_serie",         label: "N° de serie / folio", group: "Información general" },
     { key: "id",              label: "ID",                   group: "Información general" },
     { key: "titulo",          label: "Título",               group: "Información general" },
     { key: "estado",          label: "Estado",               group: "Información general" },
@@ -362,7 +361,7 @@ export default function OTDetail({
     setLoadingPartes(true);
     const sb = createClient();
     sb.from("orden_partes")
-      .select("id, parte_id, cantidad, cantidad_utilizada, parte:partes!parte_id(nombre, unidad, precio_unitario, stock_actual)")
+      .select("id, parte_id, cantidad, cantidad_utilizada, parte:partes!parte_id(nombre, unidad, stock_actual)")
       .eq("orden_id", orden.id)
       .order("created_at", { ascending: true })
       .then(({ data }) => {
@@ -381,7 +380,7 @@ export default function OTDetail({
     setLoadingCatalog(true);
     const sb = createClient();
     sb.from("partes")
-      .select("id, nombre, unidad, precio_unitario, stock_actual")
+      .select("id, nombre, unidad, stock_actual")
       .eq("activo", true)
       .order("nombre", { ascending: true })
       .limit(500)
@@ -456,7 +455,6 @@ export default function OTDetail({
         .slice(0, 8)
     : [];
 
-  const totalPartes = ordenPartes.reduce((s, op) => s + (op.parte?.precio_unitario ?? 0) * op.cantidad, 0);
 
   const estadoCfg = ESTADOS.find(e => e.value === orden.estado) ?? ESTADOS[0];
   const StatusIcon = estadoCfg.icon;
@@ -639,7 +637,8 @@ export default function OTDetail({
 
       // ── Sheet 1: Resumen (one row, selected fields as columns) ───────────────
       const resCols: { header: string; value: string | number; width: number }[] = [];
-      if (f.n_ot)            resCols.push({ header: "N° OT",            value: meta.nOT ?? "—",                   width: 14 });
+      if (f.n_ot)            resCols.push({ header: "N° OT",            value: (orden as any).numero ?? "—",      width: 10 });
+      if (f.n_serie)         resCols.push({ header: "N° de serie / folio", value: meta.nOT ?? "—",                width: 20 });
       if (f.id)              resCols.push({ header: "ID",               value: orden.id,                          width: 34 });
       if (f.titulo)          resCols.push({ header: "Título",           value: orden.titulo ?? "—",               width: 36 });
       if (f.estado)          resCols.push({ header: "Estado",           value: orden.estado,                      width: 14 });
@@ -669,30 +668,15 @@ export default function OTDetail({
 
       // ── Sheet 2: Materiales ──────────────────────────────────────────────────
       if (f.materiales) {
-        const matH = ["Parte / Material", "Unidad", "Cant. solicitada", "Cant. utilizada", "Precio unitario", "Subtotal"];
+        const matH = ["Parte / Material", "Unidad", "Cant. solicitada", "Cant. utilizada"];
         const matRows = ordenPartes.map(op => {
           const p = op.parte as any;
-          const qty = op.cantidad_utilizada ?? op.cantidad;
-          const price = p?.precio_unitario ?? 0;
-          return [p?.nombre ?? "—", p?.unidad ?? "—", op.cantidad, op.cantidad_utilizada ?? "—", price || "—", price ? qty * price : "—"];
+          return [p?.nombre ?? "—", p?.unidad ?? "—", op.cantidad, op.cantidad_utilizada ?? "—"];
         });
-        const totalCost = ordenPartes.reduce((s, op) => {
-          const p = op.parte as any;
-          const qty = op.cantidad_utilizada ?? op.cantidad;
-          return s + (p?.precio_unitario ? qty * p.precio_unitario : 0);
-        }, 0);
 
         const wsMat = XLS.utils.aoa_to_sheet([matH, ...matRows]);
-        applyStyles(wsMat, matH, matRows.length, [32, 12, 16, 16, 16, 14]);
+        applyStyles(wsMat, matH, matRows.length, [32, 12, 16, 16]);
 
-        if (totalCost > 0) {
-          const tr = matRows.length + 1;
-          wsMat[XLS.utils.encode_cell({ r: tr, c: 4 })] = { v: "TOTAL", t: "s", s: totalLabelStyle };
-          wsMat[XLS.utils.encode_cell({ r: tr, c: 5 })] = { v: totalCost, t: "n", s: totalValueStyle };
-          const rng = XLS.utils.decode_range(wsMat["!ref"] || "A1");
-          rng.e.r = Math.max(rng.e.r, tr);
-          wsMat["!ref"] = XLS.utils.encode_range(rng);
-        }
         XLS.utils.book_append_sheet(wb, wsMat, "Materiales");
       }
 
@@ -1059,22 +1043,10 @@ export default function OTDetail({
               {orden.titulo || "Sin título"}
             </h2>
 
-            {/* Description / meta text */}
-            {(meta.descripcion || meta.solicitante || meta.hito) && (
+            {/* Description */}
+            {meta.descripcion && (
               <div style={{ marginTop: 8, padding: "12px 14px", background: "#F8FAFC", borderRadius: 8, borderLeft: "3px solid #2563EB" }}>
-                {meta.descripcion && (
-                  <p style={{ fontSize: 13, color: "#475569", lineHeight: 1.65, whiteSpace: "pre-wrap", margin: 0 }}>{meta.descripcion}</p>
-                )}
-                {meta.solicitante && (
-                  <p style={{ fontSize: 12, color: "#94A3B8", marginTop: meta.descripcion ? 6 : 0, marginBottom: 0 }}>
-                    Solicitante: <span style={{ color: "#475569", fontWeight: 500 }}>{meta.solicitante}</span>
-                  </p>
-                )}
-                {meta.hito && (
-                  <p style={{ fontSize: 12, color: "#94A3B8", marginTop: 2, marginBottom: 0 }}>
-                    Hito: <span style={{ color: "#475569", fontWeight: 500 }}>{meta.hito}</span>
-                  </p>
-                )}
+                <p style={{ fontSize: 13, color: "#475569", lineHeight: 1.65, whiteSpace: "pre-wrap", margin: 0 }}>{meta.descripcion}</p>
               </div>
             )}
 
@@ -1152,6 +1124,8 @@ export default function OTDetail({
               {[
                 orden.tipo_trabajo && { label: "Tipo", value: TIPO_LABEL[orden.tipo_trabajo] ?? orden.tipo_trabajo, icon: <Settings2 size={13} /> },
                 orden.sociedad?.nombre && { label: "Sociedad", value: orden.sociedad.nombre, icon: <Building2 size={13} /> },
+                meta.solicitante && { label: "Solicitante", value: meta.solicitante, icon: <User size={13} /> },
+                meta.hito && { label: "Hito", value: meta.hito, icon: <Flag size={13} /> },
                 orden.ubicaciones?.edificio && { label: "Ubicación", value: orden.ubicaciones.edificio + (orden.ubicaciones.piso ? ` · ${orden.ubicaciones.piso}` : ""), icon: <MapPin size={13} /> },
                 orden.lugar?.nombre && { label: "Lugar específico", value: orden.lugar.nombre, icon: <MapPin size={13} /> },
                 orden.activos?.nombre && { label: "Activo", value: orden.activos.nombre, icon: <Settings2 size={13} /> },
@@ -1395,15 +1369,6 @@ export default function OTDetail({
         {tab === "materiales" && (
           <div style={{ padding: "16px 20px 100px" }}>
 
-            {/* Total cost summary */}
-            {ordenPartes.length > 0 && (
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", background: "#F8FAFC", borderRadius: 8, border: "1px solid #E2E8F0", marginBottom: 14 }}>
-                <span style={{ fontSize: 12, fontWeight: 600, color: "#64748B", textTransform: "uppercase", letterSpacing: "0.05em" }}>Costo total partes</span>
-                <span style={{ fontSize: 16, fontWeight: 800, color: "#0F172A" }}>
-                  {totalPartes > 0 ? `$${totalPartes.toLocaleString("es-CL")}` : "—"}
-                </span>
-              </div>
-            )}
 
             {/* Search catalogue */}
             {isActive && (
@@ -1450,9 +1415,6 @@ export default function OTDetail({
                             {p.unidad} · Stock: {p.stock_actual}
                           </div>
                         </div>
-                        <span style={{ fontSize: 12, fontWeight: 600, color: "#475569", flexShrink: 0 }}>
-                          ${p.precio_unitario.toLocaleString("es-CL")} / {p.unidad}
-                        </span>
                         <span style={{ fontSize: 11, color: "#2563EB", fontWeight: 600, flexShrink: 0 }}>+ Agregar</span>
                       </button>
                     ))}
@@ -1480,16 +1442,16 @@ export default function OTDetail({
               </div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 90px 110px 32px", gap: 8, padding: "6px 10px", borderBottom: "1px solid #E2E8F0" }}>
-                  {["Material", "Cantidad", "Subtotal", ""].map(h => (
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 90px 32px", gap: 8, padding: "6px 10px", borderBottom: "1px solid #E2E8F0" }}>
+                  {["Material", "Cantidad", ""].map(h => (
                     <span key={h} style={{ fontSize: 10, fontWeight: 600, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.05em" }}>{h}</span>
                   ))}
                 </div>
                 {ordenPartes.map(op => (
-                  <div key={op.id} style={{ display: "grid", gridTemplateColumns: "1fr 90px 110px 32px", gap: 8, alignItems: "center", padding: "8px 10px", borderBottom: "1px solid #F1F5F9" }}>
+                  <div key={op.id} style={{ display: "grid", gridTemplateColumns: "1fr 90px 32px", gap: 8, alignItems: "center", padding: "8px 10px", borderBottom: "1px solid #F1F5F9" }}>
                     <div>
                       <div style={{ fontSize: 13, fontWeight: 500, color: "#0F172A" }}>{op.parte?.nombre ?? "—"}</div>
-                      <div style={{ fontSize: 11, color: "#94A3B8" }}>{op.parte?.unidad} · ${op.parte?.precio_unitario.toLocaleString("es-CL") ?? "—"} c/u</div>
+                      <div style={{ fontSize: 11, color: "#94A3B8" }}>{op.parte?.unidad}</div>
                     </div>
                     {isActive ? (
                       <input
@@ -1503,11 +1465,6 @@ export default function OTDetail({
                     ) : (
                       <span style={{ fontSize: 13, color: "#475569" }}>{op.cantidad}</span>
                     )}
-                    <span style={{ fontSize: 12, fontWeight: 600, color: "#0F172A" }}>
-                      {op.parte?.precio_unitario
-                        ? `$${(op.parte.precio_unitario * op.cantidad).toLocaleString("es-CL")}`
-                        : "—"}
-                    </span>
                     {isActive ? (
                       <button
                         type="button"

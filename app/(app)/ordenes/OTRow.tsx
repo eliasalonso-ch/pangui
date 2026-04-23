@@ -46,18 +46,19 @@ function initials(n: string) {
 }
 
 interface Props {
-  orden:      OrdenListItem;
-  usuarios:   Usuario[];
-  isSelected: boolean;
-  onClick:    () => void;
+  orden:       OrdenListItem;
+  rowNumber?:  number;
+  usuarios:    Usuario[];
+  isSelected:  boolean;
+  onClick:     () => void;
 }
 
-export default function OTRow({ orden, usuarios, isSelected, onClick }: Props) {
+export default function OTRow({ orden, rowNumber, usuarios, isSelected, onClick }: Props) {
   const isPending = Boolean(orden._pending);
   const estado    = ESTADO[orden.estado];
   const prio      = PRIORIDAD[orden.prioridad];
-  const titulo    = orden.titulo || orden.descripcion?.slice(0, 80) || "Sin título";
   const meta      = parseDescMeta(orden.descripcion ?? null);
+  const titulo    = orden.titulo || meta.descripcion?.slice(0, 80) || "Sin título";
   const [copied, setCopied] = useState(false);
 
   const assigned = (orden.asignados_ids ?? [])
@@ -91,10 +92,13 @@ export default function OTRow({ orden, usuarios, isSelected, onClick }: Props) {
       onMouseEnter={e => { if (!isSelected) e.currentTarget.style.background = "#F8FAFC"; }}
       onMouseLeave={e => { if (!isSelected) e.currentTarget.style.background = "#fff"; }}
     >
-      {/* Top: N°OT + due date */}
-      {(meta.nOT || due) && (
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 5 }}>
-          {meta.nOT ? (
+      {/* Top: row number + N°OT + due date */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 5 }}>
+        <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <span style={{ fontSize: 10, fontWeight: 700, color: "#CBD5E1", minWidth: 16, textAlign: "right", flexShrink: 0 }}>
+            {rowNumber}
+          </span>
+          {meta.nOT && (
             <span style={{ display: "flex", alignItems: "center", gap: 3 }}>
               <span style={{ fontSize: 11, fontWeight: 600, color: "#1E3A8A", fontFamily: "monospace", letterSpacing: "0.02em" }}>
                 {meta.nOT}
@@ -110,26 +114,32 @@ export default function OTRow({ orden, usuarios, isSelected, onClick }: Props) {
                 {copied ? <CheckIcon size={10} /> : <Copy size={10} />}
               </button>
             </span>
-          ) : <span />}
-
-          {due && (
-            <span style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 11, fontWeight: 600, color: due.overdue ? "#DC2626" : "#D97706" }}>
-              {due.overdue && <AlertCircle size={11} />}
-              <Clock size={10} />
-              {due.text}
-            </span>
           )}
-        </div>
-      )}
+        </span>
+        {due && (
+          <span style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 11, fontWeight: 600, color: due.overdue ? "#DC2626" : "#D97706" }}>
+            {due.overdue && <AlertCircle size={11} />}
+            <Clock size={10} />
+            {due.text}
+          </span>
+        )}
+      </div>
 
       {/* Title */}
       <p style={{
         fontSize: 14, fontWeight: 600, color: "#0F172A",
-        lineHeight: 1.4, margin: "0 0 8px",
+        lineHeight: 1.4, margin: "0 0 6px",
         display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden",
       }}>
         {titulo}
       </p>
+
+      {/* Hito */}
+      {meta.hito && (
+        <p style={{ fontSize: 11, color: "#64748B", margin: "0 0 7px", display: "flex", alignItems: "center", gap: 4 }}>
+          <span style={{ color: "#94A3B8" }}>Hito:</span> {meta.hito}
+        </p>
+      )}
 
       {/* Bottom row */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6 }}>

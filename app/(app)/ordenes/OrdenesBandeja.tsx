@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Plus, Search, X, ChevronDown, Loader2, FileText, ArrowUpDown, SlidersHorizontal, Download } from "lucide-react";
 import { createClient } from "@/lib/supabase";
-import { fetchOrden, deleteOrden, LIST_SELECT } from "@/lib/ordenes-api";
+import { fetchOrden, deleteOrden, LIST_SELECT, parseDescMeta } from "@/lib/ordenes-api";
 import OTRow from "./OTRow";
 import OTDetail from "./OTDetail";
 import OTCrearPanel from "./OTCrearPanel";
@@ -89,13 +89,17 @@ export default function OrdenesBandeja({
   const [exportConfigOpen, setExportConfigOpen] = useState(false);
 
   type ExportCol =
-    | "numero" | "titulo" | "descripcion" | "estado" | "prioridad" | "tipo_trabajo"
+    | "numero" | "n_serie" | "titulo" | "descripcion" | "estado" | "prioridad" | "tipo_trabajo"
+    | "solicitante" | "hito"
     | "categoria" | "ubicacion" | "activo" | "asignados" | "creado" | "fecha_limite" | "resumen";
 
   const EXPORT_COLS: { key: ExportCol; label: string; group: string }[] = [
     { key: "numero",       label: "N° OT",              group: "Información general" },
+    { key: "n_serie",      label: "N° de serie / folio",group: "Información general" },
     { key: "titulo",       label: "Título",              group: "Información general" },
     { key: "descripcion",  label: "Descripción",         group: "Información general" },
+    { key: "solicitante",  label: "Solicitante",         group: "Información general" },
+    { key: "hito",         label: "Hito",                group: "Información general" },
     { key: "estado",       label: "Estado",              group: "Información general" },
     { key: "prioridad",    label: "Prioridad",           group: "Información general" },
     { key: "tipo_trabajo", label: "Tipo de trabajo",     group: "Información general" },
@@ -263,8 +267,37 @@ export default function OrdenesBandeja({
     return list;
   }, [ordenes, tab, search, sort, filtros, ubicaciones]);
 
-  const activeCount = ordenes.filter(o => ACTIVE_ESTADOS.has(o.estado)).length;
-  const closedCount = ordenes.filter(o => CLOSED_ESTADOS.has(o.estado)).length;
+  // Counts reflect the current filters (search + filtros) but not the active/closed tab split
+  const filteredCounts = useMemo(() => {
+    const applyFilters = (list: OrdenListItem[]) => {
+      if (filtros.estados.length)      list = list.filter(o => filtros.estados.includes(o.estado));
+      if (filtros.prioridades.length)  list = list.filter(o => filtros.prioridades.includes(o.prioridad));
+      if (filtros.tipos.length)        list = list.filter(o => o.tipo_trabajo != null && filtros.tipos.includes(o.tipo_trabajo));
+      if (filtros.asignadoIds.length)  list = list.filter(o => filtros.asignadoIds.some(id => o.asignados_ids?.includes(id)));
+      if (filtros.ubicacionIds.length) list = list.filter(o => o.ubicacion_id != null && filtros.ubicacionIds.includes(o.ubicacion_id));
+      if (filtros.sociedadIds.length) {
+        const ubicsBySociedad = new Set(
+          ubicaciones
+            .filter(u => u.sociedad_id != null && filtros.sociedadIds.includes(u.sociedad_id))
+            .map(u => u.id)
+        );
+        list = list.filter(o => o.ubicacion_id != null && ubicsBySociedad.has(o.ubicacion_id));
+      }
+      if (filtros.venceHoy) {
+        const today = new Date().toDateString();
+        list = list.filter(o => o.fecha_termino != null && new Date(o.fecha_termino).toDateString() === today);
+      }
+      if (search.trim()) {
+        const q = search.toLowerCase();
+        list = list.filter(o => (o.titulo ?? o.descripcion ?? "").toLowerCase().includes(q));
+      }
+      return list;
+    };
+    return {
+      activas:  applyFilters(ordenes.filter(o => ACTIVE_ESTADOS.has(o.estado))).length,
+      cerradas: applyFilters(ordenes.filter(o => CLOSED_ESTADOS.has(o.estado))).length,
+    };
+  }, [ordenes, filtros, search, ubicaciones]);
   const currentSortLabel = SORT_OPTIONS.find(o => o.value === sort)?.label ?? "";
 
   // ── Excel export (current filtered view, column-driven) ──────────────────
@@ -400,9 +433,12 @@ export default function OrdenesBandeja({
       };
 
       const COL_DEFS: { key: ExportCol; def: ColDef }[] = [
-        { key: "numero",       def: { header: "N°",            width: 8,  getValue: o => o.numero ?? "—" } },
-        { key: "titulo",       def: { header: "Título",        width: 44, getValue: o => o.titulo || o.descripcion?.slice(0, 80) || "—" } },
-        { key: "descripcion",  def: { header: "Descripción",   width: 50, getValue: o => o.descripcion || "—" } },
+        { key: "numero",       def: { header: "N° OT",         width: 8,  getValue: o => o.numero ?? "—" } },
+        { key: "n_serie",      def: { header: "N° de serie",   width: 20, getValue: o => parseDescMeta(o.descripcion ?? null).nOT || "—" } },
+        { key: "titulo",       def: { header: "Título",        width: 44, getValue: o => o.titulo || "—" } },
+        { key: "descripcion",  def: { header: "Descripción",   width: 50, getValue: o => parseDescMeta(o.descripcion ?? null).descripcion || "—" } },
+        { key: "solicitante",  def: { header: "Solicitante",   width: 24, getValue: o => parseDescMeta(o.descripcion ?? null).solicitante || "—" } },
+        { key: "hito",         def: { header: "Hito",          width: 18, getValue: o => parseDescMeta(o.descripcion ?? null).hito || "—" } },
         { key: "estado",       def: { header: "Estado",        width: 14, getValue: o => ESTADO_LABEL[o.estado] ?? o.estado, estadoBadge: true } },
         { key: "prioridad",    def: { header: "Prioridad",     width: 12, getValue: o => PRIORIDAD_LABEL[o.prioridad] ?? o.prioridad, prioBadge: true } },
         { key: "tipo_trabajo", def: { header: "Tipo",          width: 14, getValue: o => o.tipo_trabajo ? (TIPO_LABEL[o.tipo_trabajo] ?? o.tipo_trabajo) : "—" } },
@@ -426,9 +462,22 @@ export default function OrdenesBandeja({
 
       const activeCols = COL_DEFS.filter(c => c.key !== "resumen" && f[c.key]);
 
+      // Pre-parse metadata once per order to avoid redundant calls
+      const metaMap = new Map(filtered.map(o => [o.id, parseDescMeta(o.descripcion ?? null)]));
+
+      // Override getValue for metadata-dependent cols to use the pre-parsed map
+      const getValueWithMeta = (col: typeof COL_DEFS[number], o: OrdenListItem): string | number => {
+        const m = metaMap.get(o.id);
+        if (col.key === "n_serie")    return m?.nOT        || "—";
+        if (col.key === "descripcion") return m?.descripcion || "—";
+        if (col.key === "solicitante") return m?.solicitante || "—";
+        if (col.key === "hito")        return m?.hito        || "—";
+        return col.def.getValue(o);
+      };
+
       // ── SHEET 1: Órdenes ─────────────────────────────────────────────────
       const headers = activeCols.map(c => c.def.header);
-      const dataRows = filtered.map(o => activeCols.map(c => c.def.getValue(o)));
+      const dataRows = filtered.map(o => activeCols.map(c => getValueWithMeta(c, o)));
 
       const wsOrd = XLSX.utils.aoa_to_sheet([headers, ...dataRows]);
       wsOrd["!cols"]   = activeCols.map(c => ({ wch: c.def.width }));
@@ -790,8 +839,8 @@ export default function OrdenesBandeja({
           {/* Tabs */}
           <div style={{ display:"flex", borderBottom:"1px solid #E2E8F0", padding:"0 20px", flexShrink:0 }}>
             {[
-              { key:"activas",  label:"Pendientes", count:activeCount },
-              { key:"cerradas", label:"Completas",  count:closedCount },
+              { key:"activas",  label:"Pendientes", count:filteredCounts.activas },
+              { key:"cerradas", label:"Completas",  count:filteredCounts.cerradas },
             ].map(t => (
               <button
                 key={t.key}
@@ -848,10 +897,11 @@ export default function OrdenesBandeja({
                 )}
               </div>
             ) : (
-              filtered.map(o => (
+              filtered.map((o, idx) => (
                 <OTRow
                   key={o.id}
                   orden={o}
+                  rowNumber={idx + 1}
                   usuarios={usuarios}
                   isSelected={selected === o.id}
                   onClick={() => openOT(o.id, true)}

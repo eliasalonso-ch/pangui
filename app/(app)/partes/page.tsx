@@ -299,9 +299,9 @@ export default function PartesPage() {
       workspace_id: plantaId,
       nombre: form.nombre!.trim(),
       descripcion: form.descripcion || null,
-      codigo: form.codigo || null,
+      codigo: form.codigo?.trim() || "",
       unidad: form.unidad?.trim() || "un",
-      precio_unitario: form.precio_unitario ?? null,
+      precio_unitario: form.precio_unitario ?? 0,
       ubicacion_bodega: form.ubicacion_bodega || null,
       stock_actual: form.stock_actual ?? 0,
       stock_minimo: form.stock_minimo ?? 0,
@@ -311,10 +311,10 @@ export default function PartesPage() {
 
     if (panelMode === "create") {
       const { error } = await sb.from("partes").insert(payload);
-      if (error) { setSaveErr("Error al crear parte."); setSaving(false); return; }
+      if (error) { setSaveErr(`Error al crear parte: ${error.message}`); setSaving(false); console.error("partes insert error", error, payload); return; }
     } else {
       const { error } = await sb.from("partes").update(payload).eq("id", parteData!.id);
-      if (error) { setSaveErr("Error al guardar."); setSaving(false); return; }
+      if (error) { setSaveErr(`Error al guardar: ${error.message}`); setSaving(false); console.error("partes update error", error, payload); return; }
     }
 
     await reloadPartes();
@@ -577,14 +577,6 @@ export default function PartesPage() {
                     </div>
                   </div>
                 ))}
-                {parteData.precio_unitario !== undefined && parteData.precio_unitario !== null && (
-                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <span style={{ fontSize: 12, color: "#6B7280" }}>Precio unitario:</span>
-                    <span style={{ fontSize: 13, fontWeight: 600, color: "#111827" }}>
-                      ${parteData.precio_unitario.toLocaleString("es-CL")}
-                    </span>
-                  </div>
-                )}
                 {parteData.descripcion && (
                   <p style={{ fontSize: 12, color: "#6B7280", margin: 0, lineHeight: 1.6 }}>{parteData.descripcion}</p>
                 )}
@@ -648,10 +640,15 @@ export default function PartesPage() {
 
                 <div>
                   <label style={labelStyle}>Unidad *</label>
-                  <input style={inputStyle} value={form.unidad ?? "un"} placeholder="un, kg, m, lt…"
+                  <select
+                    value={form.unidad ?? "und"}
                     onChange={e => setF("unidad", e.target.value)}
-                    onFocus={e => { e.currentTarget.style.borderColor = "#1E3A8A"; }}
-                    onBlur={e => { e.currentTarget.style.borderColor = "#E2E8F0"; }} />
+                    style={{ ...inputStyle, cursor: "pointer" }}
+                  >
+                    {["und", "kg", "lt", "m", "m2", "m3", "caja", "rollo", "par", "juego", "otro"].map(u => (
+                      <option key={u} value={u}>{u}</option>
+                    ))}
+                  </select>
                 </div>
 
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
@@ -671,15 +668,6 @@ export default function PartesPage() {
                       onFocus={e => { e.currentTarget.style.borderColor = "#1E3A8A"; }}
                       onBlur={e => { e.currentTarget.style.borderColor = "#E2E8F0"; }} />
                   </div>
-                </div>
-
-                <div>
-                  <label style={labelStyle}>Precio unitario</label>
-                  <input type="number" min={0} style={inputStyle} placeholder="0"
-                    value={form.precio_unitario ?? ""}
-                    onChange={e => setF("precio_unitario", e.target.value ? Number(e.target.value) : undefined)}
-                    onFocus={e => { e.currentTarget.style.borderColor = "#1E3A8A"; }}
-                    onBlur={e => { e.currentTarget.style.borderColor = "#E2E8F0"; }} />
                 </div>
 
                 <div>
