@@ -81,6 +81,7 @@ export const ORDEN_SELECT = `
   id, titulo, descripcion, estado, prioridad, tipo, tipo_trabajo,
   fecha_inicio, fecha_termino, created_at, updated_at,
   creado_por, asignados_ids, workspace_id,
+  n_serie, solicitante, hito,
   numero, categoria_id, ubicacion_id, activo_id, lugar_id, sociedad_id,
   iniciado_at, pausado_at, en_ejecucion, tiempo_total_segundos,
   recurrencia, proxima_ejecucion, parent_id,
@@ -96,6 +97,7 @@ export const ORDEN_SELECT = `
 export const LIST_SELECT = `
   id, titulo, descripcion, estado, prioridad, tipo, tipo_trabajo,
   fecha_termino, recurrencia, created_at,
+  n_serie, solicitante, hito,
   categoria_id, ubicacion_id, activo_id, creado_por, asignados_ids,
   numero, parent_id,
   categorias_ot (nombre, icono, color),
@@ -158,6 +160,9 @@ export async function createOrden(payload: {
   creadoPor: string;
   titulo: string;
   descripcion?: string;
+  n_serie?: string | null;
+  solicitante?: string | null;
+  hito?: string | null;
   prioridad: Prioridad;
   tipo_trabajo: TipoTrabajo | "";
   categoria_id?: string | null;
@@ -182,6 +187,9 @@ export async function createOrden(payload: {
       creado_por:         payload.creadoPor,
       titulo:             payload.titulo,
       descripcion:        payload.descripcion ?? "",
+      ...(payload.n_serie?.trim()      ? { n_serie:      payload.n_serie.trim()      } : {}),
+      ...(payload.solicitante?.trim()  ? { solicitante:  payload.solicitante.trim()  } : {}),
+      ...(payload.hito?.trim()         ? { hito:         payload.hito.trim()         } : {}),
       tipo:               "solicitud",
       tipo_trabajo:       payload.tipo_trabajo || "reactiva",
       estado:             "pendiente",
@@ -272,6 +280,9 @@ export async function updateOrden(
   payload: {
     titulo?: string;
     descripcion?: string;
+    n_serie?: string | null;
+    solicitante?: string | null;
+    hito?: string | null;
     prioridad?: Prioridad;
     tipo_trabajo?: TipoTrabajo | null;
     categoria_id?: string | null;

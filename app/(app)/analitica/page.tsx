@@ -11,11 +11,11 @@ import {
 } from "recharts";
 import {
   AlertTriangle, TrendingUp, Clock,
-  Wrench, Users, DollarSign, Activity,
+  Wrench, Users, Activity,
   ArrowUpRight, ArrowDownRight, Minus, BarChart2,
   Zap, ShieldAlert, CheckCircle2, XCircle,
   Brain, Target, RotateCcw, Timer, GitBranch,
-  Lock, Package, PhoneOff, DoorClosed,
+  Package,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase";
 import type { Estado, Prioridad, TipoTrabajo } from "@/types/ordenes";
@@ -76,7 +76,6 @@ interface MaterialUsadoRow {
   orden_id: string;
   nombre: string;
   cantidad: number;
-  precio_unitario: number | null;
   created_at: string;
 }
 
@@ -88,9 +87,6 @@ function daysSince(d: string) {
   return Math.floor((Date.now() - new Date(d).getTime()) / 864e5);
 }
 function monthKey(d: string) { return d.slice(0, 7); }
-function unitPrice(m: MaterialUsadoRow): number {
-  return m.precio_unitario ?? 0;
-}
 
 // ── Analytics helpers (local, non-metric) ────────────────────────────────────
 
@@ -594,7 +590,7 @@ export default function AnaliticaPage() {
           .eq("workspace_id", wsId)
           .eq("activo", true),
         sb.from("orden_partes")
-          .select("id, orden_id, cantidad, cantidad_utilizada, created_at, parte:partes!parte_id(nombre, precio_unitario)")
+          .select("id, orden_id, cantidad, cantidad_utilizada, created_at, parte:partes!parte_id(nombre)")
           .gte("created_at", cutoffStr),
       ]);
 
@@ -618,7 +614,6 @@ export default function AnaliticaPage() {
           orden_id: m.orden_id,
           nombre: parte?.nombre ?? "—",
           cantidad: m.cantidad_utilizada ?? m.cantidad,
-          precio_unitario: parte?.precio_unitario ?? null,
           created_at: m.created_at,
         };
       }) as MaterialUsadoRow[]);
@@ -708,12 +703,11 @@ export default function AnaliticaPage() {
     return months.map(mk => {
       const mOTs = allOTs.filter(o => monthKey(o.created_at) === mk);
       const mMats = materialesUsados.filter(m => monthKey(m.created_at) === mk);
-      const partsCost = mMats.reduce((s, m) => s + unitPrice(m) * m.cantidad, 0);
       return {
         month: new Date(mk + "-01").toLocaleDateString("es-CL", { month: "short" }),
         abiertas: mOTs.filter(o => o.estado === "pendiente" || o.estado === "en_espera").length,
         completadas: mOTs.filter(o => o.estado === "completado").length,
-        costo: Math.round(partsCost),
+        piezas: mMats.reduce((s, m) => s + m.cantidad, 0),
       };
     });
   }, [allOTs, materialesUsados, rangeMonths]);
@@ -726,7 +720,7 @@ export default function AnaliticaPage() {
       const completed = aOTs.filter(o => o.estado === "completado" && o.iniciado_at && o.updated_at);
       const downtime = completed.reduce((s, o) => s + hoursFromDates(o.iniciado_at!, o.updated_at!), 0);
       const aMats = mats.filter(m => aOTs.some(o => o.id === m.orden_id));
-      const cost = aMats.reduce((s, m) => s + unitPrice(m) * m.cantidad, 0);
+      const partsCount = aMats.reduce((s, m) => s + m.cantidad, 0);
 
       const mid = new Date(); mid.setMonth(mid.getMonth() - rangeMonths / 2);
       const midStr = mid.toISOString().slice(0, 10);
@@ -734,12 +728,11 @@ export default function AnaliticaPage() {
       const prior  = aOTs.filter(o => o.created_at.slice(0, 10) < midStr).length;
       const trending = recent > prior && recent > 0;
 
-      const freqScore    = Math.min(freq / 5, 1) * 40;
-      const downtimeScore = Math.min(downtime / 40, 1) * 35;
-      const costScore    = Math.min(cost / 300000, 1) * 25;
-      const riskScore    = Math.round(freqScore + downtimeScore + costScore);
+      const freqScore     = Math.min(freq / 5, 1) * 50;
+      const downtimeScore = Math.min(downtime / 40, 1) * 50;
+      const riskScore     = Math.round(freqScore + downtimeScore);
 
-      return { ...a, freq, downtime: Math.round(downtime), cost: Math.round(cost), riskScore, trending };
+      return { ...a, freq, downtime: Math.round(downtime), partsCount, riskScore, trending };
     })
       .filter(a => a.freq > 0)
       .sort((a, b) => b.riskScore - a.riskScore)
@@ -776,19 +769,40 @@ export default function AnaliticaPage() {
     return { ...t, jobs: tOTs.length, avgTime, active, blocked, blockedPct, utilization };
   }).sort((a, b) => b.jobs - a.jobs);
 
-  // ── Cost Analytics ───────────────────────────────────────────────────────────
-  const costByAsset = activos.map(a => {
-    const aOTs = ots.filter(o => o.activo_id === a.id);
-    const aMats = mats.filter(m => aOTs.some(o => o.id === m.orden_id));
-    const parts = Math.round(aMats.reduce((s, m) => s + unitPrice(m) * m.cantidad, 0));
-    return {
-      name: a.nombre.length > 18 ? a.nombre.slice(0, 16) + "…" : a.nombre,
-      parts,
-      total: parts,
-    };
-  }).filter(x => x.total > 0).sort((a, b) => b.total - a.total).slice(0, 7);
+  // ── Materials Analytics ──────────────────────────────────────────────────────
+  const topMateriales = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const m of mats) map.set(m.nombre, (map.get(m.nombre) ?? 0) + m.cantidad);
+    return Array.from(map.entries())
+      .map(([nombre, cantidad]) => ({ name: nombre.length > 24 ? nombre.slice(0, 22) + "…" : nombre, cantidad }))
+      .sort((a, b) => b.cantidad - a.cantidad)
+      .slice(0, 10);
+  }, [mats]);
 
-  const totalPartsCost = Math.round(mats.reduce((s, m) => s + unitPrice(m) * m.cantidad, 0));
+  const matsByTipo = useMemo(() => {
+    const otMap = new Map(ots.map(o => [o.id, o.tipo_trabajo]));
+    const counts: Record<string, number> = { preventiva: 0, reactiva: 0, otro: 0 };
+    for (const m of mats) {
+      const tipo = otMap.get(m.orden_id);
+      if (tipo === "preventiva") counts.preventiva += m.cantidad;
+      else if (tipo === "reactiva") counts.reactiva += m.cantidad;
+      else counts.otro += m.cantidad;
+    }
+    return [
+      { name: "Preventiva", value: counts.preventiva, color: C.success },
+      { name: "Reactiva",   value: counts.reactiva,   color: C.danger },
+      { name: "Otro",       value: counts.otro,        color: C.text3 },
+    ].filter(d => d.value > 0);
+  }, [mats, ots]);
+
+  const matsByAsset = useMemo(() => activos.map(a => {
+    const aOTs = ots.filter(o => o.activo_id === a.id);
+    const qty = mats.filter(m => aOTs.some(o => o.id === m.orden_id)).reduce((s, m) => s + m.cantidad, 0);
+    return { name: a.nombre.length > 20 ? a.nombre.slice(0, 18) + "…" : a.nombre, cantidad: qty };
+  }).filter(x => x.cantidad > 0).sort((a, b) => b.cantidad - a.cantidad).slice(0, 8), [activos, ots, mats]);
+
+  const totalPiezas = mats.reduce((s, m) => s + m.cantidad, 0);
+  const otsConPartes = new Set(mats.map(m => m.orden_id)).size;
   const totalOTs = ots.length;
 
   // ── Asset drill-down ────────────────────────────────────────────────────────
@@ -1001,17 +1015,21 @@ export default function AnaliticaPage() {
           </div>
         </Card>
         <Card>
-          <CardHeader title="Costo de partes por mes" subtitle="Materiales usados en OTs completadas" />
+          <CardHeader title="Consumo de materiales por mes" subtitle="Unidades utilizadas en OTs del período" />
           <div style={{ padding: "16px 8px" }}>
-            <ResponsiveContainer width="100%" height={200}>
-              <BarChart data={monthlyTrend} margin={{ left: -10 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
-                <XAxis dataKey="month" tick={{ fontSize: 12, fill: C.text3 }} />
-                <YAxis tick={{ fontSize: 12, fill: C.text3 }} tickFormatter={v => v >= 1000 ? `$${(v / 1000).toFixed(0)}k` : `$${v}`} />
-                <Tooltip contentStyle={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12 }} formatter={v => [`$${Number(v).toLocaleString("es-CL")}`, "Costo"]} />
-                <Bar dataKey="costo" fill={C.mid} radius={[4, 4, 0, 0]} name="Partes" />
-              </BarChart>
-            </ResponsiveContainer>
+            {monthlyTrend.every(d => d.piezas === 0) ? (
+              <div style={{ padding: "20px", textAlign: "center", color: C.text3, fontSize: 13 }}>Sin consumo registrado en el período</div>
+            ) : (
+              <ResponsiveContainer width="100%" height={200}>
+                <BarChart data={monthlyTrend} margin={{ left: -10 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
+                  <XAxis dataKey="month" tick={{ fontSize: 12, fill: C.text3 }} />
+                  <YAxis tick={{ fontSize: 12, fill: C.text3 }} allowDecimals={false} />
+                  <Tooltip contentStyle={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12 }} formatter={v => [`${v} uds`, "Consumo"]} />
+                  <Bar dataKey="piezas" fill={C.purple} radius={[4, 4, 0, 0]} name="Materiales" />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
           </div>
         </Card>
       </div>
@@ -1027,7 +1045,7 @@ export default function AnaliticaPage() {
       <Card style={{ marginBottom: 24 }}>
         <CardHeader
           title="Top activos por riesgo"
-          subtitle="Calculado por frecuencia de fallas reactivas, tiempo de reparación y costo de partes"
+          subtitle="Calculado por frecuencia de fallas reactivas y tiempo de reparación"
           action={<span style={{ fontSize: 11, color: C.text3 }}>Click en una fila para ver historial</span>}
         />
         {assetRisk.length === 0 ? (
@@ -1040,7 +1058,7 @@ export default function AnaliticaPage() {
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead>
                 <tr style={{ borderBottom: `1px solid ${C.border}` }}>
-                  {["#", "Activo", "Fallas", "Downtime estimado", "Costo partes", "Risk Score", "Tendencia"].map(h => (
+                  {["#", "Activo", "Fallas", "Downtime estimado", "Materiales usados", "Risk Score", "Tendencia"].map(h => (
                     <th key={h} style={{ padding: "10px 16px", fontSize: 11, fontWeight: 600, color: C.text3, textAlign: "left", textTransform: "uppercase", letterSpacing: "0.05em", whiteSpace: "nowrap" }}>{h}</th>
                   ))}
                 </tr>
@@ -1064,7 +1082,7 @@ export default function AnaliticaPage() {
                       </td>
                       <td style={{ padding: "12px 16px", fontSize: 13, fontWeight: 700, color: a.freq >= 3 ? C.danger : C.text1 }}>{a.freq}</td>
                       <td style={{ padding: "12px 16px", fontSize: 12, color: C.text2 }}>{a.downtime > 0 ? `${a.downtime}h` : "—"}</td>
-                      <td style={{ padding: "12px 16px", fontSize: 12, fontWeight: 600, color: C.text1 }}>{a.cost > 0 ? `$${a.cost.toLocaleString("es-CL")}` : "—"}</td>
+                      <td style={{ padding: "12px 16px", fontSize: 12, color: C.text2 }}>{a.partsCount > 0 ? `${a.partsCount} uds` : "—"}</td>
                       <td style={{ padding: "12px 16px" }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                           <div style={{ flex: 1, height: 6, borderRadius: 4, background: C.bg, overflow: "hidden", minWidth: 60 }}>
@@ -1238,35 +1256,101 @@ export default function AnaliticaPage() {
         }
       </Card>
 
-      {/* Cost Analytics */}
-      <SectionLabel icon={DollarSign} label="Analítica de Costos (Partes)" />
-      <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 14, marginBottom: 24 }}>
+      {/* Materials Analytics */}
+      <SectionLabel icon={Package} label="Analítica de Materiales" />
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 24 }}>
+
+        {/* Top materials by quantity */}
         <Card>
-          <CardHeader title="Costo de partes por activo" subtitle="Materiales usados en el período" />
-          {costByAsset.length === 0
-            ? <div style={{ padding: 20 }}><p style={{ fontSize: 13, color: C.text3, margin: 0 }}>Sin consumo de materiales registrado</p></div>
-            : (
-              <div style={{ padding: "16px 8px" }}>
-                <ResponsiveContainer width="100%" height={Math.max(200, costByAsset.length * 36)}>
-                  <BarChart data={costByAsset} layout="vertical" margin={{ left: 10, right: 30 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
-                    <XAxis type="number" tick={{ fontSize: 12, fill: C.text3 }} tickFormatter={v => v >= 1000 ? `$${(v / 1000).toFixed(0)}k` : `$${v}`} />
-                    <YAxis type="category" dataKey="name" tick={{ fontSize: 11, fill: C.text2 }} width={120} />
-                    <Tooltip contentStyle={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12 }} formatter={v => [`$${Number(v).toLocaleString("es-CL")}`, "Partes"]} />
-                    <Bar dataKey="parts" fill={C.mid} radius={[0, 4, 4, 0]} name="Partes" />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            )
-          }
+          <CardHeader title="Top materiales más utilizados" subtitle="Por unidades consumidas en el período" />
+          {topMateriales.length === 0 ? (
+            <div style={{ padding: 20 }}><p style={{ fontSize: 13, color: C.text3, margin: 0 }}>Sin consumo registrado en el período</p></div>
+          ) : (
+            <div style={{ padding: "16px 8px" }}>
+              <ResponsiveContainer width="100%" height={Math.max(200, topMateriales.length * 32)}>
+                <BarChart data={topMateriales} layout="vertical" margin={{ left: 10, right: 36 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
+                  <XAxis type="number" tick={{ fontSize: 12, fill: C.text3 }} allowDecimals={false} />
+                  <YAxis type="category" dataKey="name" tick={{ fontSize: 11, fill: C.text2 }} width={130} />
+                  <Tooltip contentStyle={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12 }} formatter={v => [`${v} uds`, "Consumo"]} />
+                  <Bar dataKey="cantidad" radius={[0, 4, 4, 0]} name="Uds. usadas">
+                    {topMateriales.map((_, i) => <Cell key={i} fill={i === 0 ? C.mid : i < 3 ? C.info : C.text3 + "80"} />)}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
         </Card>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 10, alignContent: "start", minWidth: 180 }}>
-          <MiniStat label="Total partes" value={totalPartsCost > 0 ? `$${totalPartsCost.toLocaleString("es-CL")}` : "—"} color={C.mid} />
-          <MiniStat label="Costo / OT"   value={totalOTs && totalPartsCost > 0 ? `$${Math.round(totalPartsCost / totalOTs).toLocaleString("es-CL")}` : "—"} />
-          <MiniStat label="OTs con partes" value={new Set(mats.map(m => m.orden_id)).size} />
-          <MiniStat label="Ítems usados"  value={mats.length} />
+
+        {/* Right column: consumption by work type + mini stats */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <Card>
+            <CardHeader title="Consumo por tipo de trabajo" subtitle="Preventivo vs reactivo vs otro" />
+            <div style={{ padding: "16px 20px" }}>
+              {matsByTipo.length === 0 ? (
+                <p style={{ fontSize: 13, color: C.text3, margin: 0 }}>Sin datos</p>
+              ) : (
+                <>
+                  <ResponsiveContainer width="100%" height={140}>
+                    <PieChart>
+                      <Pie data={matsByTipo} cx="50%" cy="50%" innerRadius={35} outerRadius={60} paddingAngle={2} dataKey="value">
+                        {matsByTipo.map((entry, i) => <Cell key={i} fill={entry.color} />)}
+                      </Pie>
+                      <Tooltip contentStyle={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12 }} formatter={v => [`${v} uds`, ""]} />
+                      <Legend wrapperStyle={{ fontSize: 12 }} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <div style={{ marginTop: 8, padding: "8px 12px", borderRadius: 8, background: C.bg, border: `1px solid ${C.border}`, fontSize: 12, color: C.text2 }}>
+                    {(() => {
+                      const r = matsByTipo.find(d => d.name === "Reactiva")?.value ?? 0;
+                      const p = matsByTipo.find(d => d.name === "Preventiva")?.value ?? 0;
+                      const total = matsByTipo.reduce((s, d) => s + d.value, 0);
+                      const reactivePct = total > 0 ? Math.round((r / total) * 100) : 0;
+                      return reactivePct > 60
+                        ? <><strong style={{ color: C.danger }}>{reactivePct}%</strong> del consumo es de emergencias. Más PM reduciría el gasto no planificado.</>
+                        : p > 0
+                        ? <><strong style={{ color: C.success }}>{Math.round((p / total) * 100)}%</strong> del consumo corresponde a mantenimiento planificado.</>
+                        : "Registra tipos de trabajo para ver el desglose.";
+                    })()}
+                  </div>
+                </>
+              )}
+            </div>
+          </Card>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            <MiniStat label="Total uds. usadas"  value={totalPiezas > 0 ? totalPiezas : "—"}       color={C.mid} />
+            <MiniStat label="OTs con materiales" value={otsConPartes > 0 ? otsConPartes : "—"} />
+            <MiniStat label="Materiales únicos"  value={topMateriales.length > 0 ? new Set(mats.map(m => m.nombre)).size : "—"} />
+            <MiniStat label="Prom. por OT"       value={otsConPartes > 0 ? (totalPiezas / otsConPartes).toFixed(1) : "—"} />
+          </div>
         </div>
       </div>
+
+      {/* Materials by asset */}
+      {matsByAsset.length > 0 && (
+        <>
+          <div style={{ marginBottom: 12 }}>
+            <SectionLabel icon={Package} label="Materiales por Activo" />
+          </div>
+          <Card style={{ marginBottom: 24 }}>
+            <CardHeader title="Activos que más materiales consumen" subtitle="Total de unidades usadas en OTs del período" />
+            <div style={{ padding: "16px 8px" }}>
+              <ResponsiveContainer width="100%" height={Math.max(160, matsByAsset.length * 34)}>
+                <BarChart data={matsByAsset} layout="vertical" margin={{ left: 10, right: 36 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
+                  <XAxis type="number" tick={{ fontSize: 12, fill: C.text3 }} allowDecimals={false} />
+                  <YAxis type="category" dataKey="name" tick={{ fontSize: 11, fill: C.text2 }} width={130} />
+                  <Tooltip contentStyle={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12 }} formatter={v => [`${v} uds`, "Consumo"]} />
+                  <Bar dataKey="cantidad" fill={C.warning} radius={[0, 4, 4, 0]} name="Uds. usadas">
+                    {matsByAsset.map((_, i) => <Cell key={i} fill={i === 0 ? C.danger : i < 3 ? C.warning : C.mid + "99"} />)}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </Card>
+        </>
+      )}
 
     </div>
   );

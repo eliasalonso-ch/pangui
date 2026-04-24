@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import {
   X, Loader2, User, MapPin, Settings2,
-  CalendarDays, Tag, Check, ChevronDown, Building2, Hash, FileUp, Plus,
+  CalendarDays, Tag, Check, ChevronDown, Building2, Hash, FileUp, Plus, AlertTriangle,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase";
 import { createOrden, buildDescripcion } from "@/lib/ordenes-api";
@@ -101,7 +101,6 @@ interface ParsedPDF {
   sociedad_id: string;
   ubicacionText: string;
   lugarText: string;
-  __rawText: string;
 }
 
 async function parseSolicitudPDF(file: File, sociedades: Sociedad[]): Promise<ParsedPDF> {
@@ -190,7 +189,6 @@ async function parseSolicitudPDF(file: File, sociedades: Sociedad[]): Promise<Pa
     sociedad_id:   fuzzyMatch(sociedadPDF, sociedades, s => s.nombre),
     ubicacionText: ubicPDF,
     lugarText:     lugarPDF,
-    __rawText:     fullText,
   };
 }
 
@@ -881,6 +879,7 @@ export default function OTCrearPanel({
   const [form, setForm] = useState<FormState>(BLANK);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [dupWarning, setDupWarning] = useState<string | null>(null);
   const [parsing, setParsing] = useState(false);
   const [parseMsg, setParseMsg] = useState<string | null>(null);
   const pdfInputRef = useRef<HTMLInputElement>(null);
@@ -893,12 +892,27 @@ export default function OTCrearPanel({
   const [pdfHints, setPdfHints] = useState<PdfHints | null>(null);
   const [creatingUbic, setCreatingUbic] = useState(false);
   const [creatingLugar, setCreatingLugar] = useState(false);
-  const [debugInfo, setDebugInfo] = useState<null | {
-    rawText: string;
-    extracted: Record<string, string>;
-    resolved: Record<string, string>;
-  }>(null);
-  const [debugOpen, setDebugOpen] = useState(false);
+
+  // Debounced duplicate N° OT check
+  useEffect(() => {
+    const nOT = form.n_ot.trim();
+    if (!nOT) { setDupWarning(null); return; }
+    const timer = setTimeout(async () => {
+      const sb = createClient();
+      const { data } = await sb
+        .from("ordenes_trabajo")
+        .select("id, titulo")
+        .eq("workspace_id", wsId)
+        .eq("n_serie", nOT)
+        .limit(1);
+      if (data && data.length > 0) {
+        setDupWarning(data[0].titulo ?? "Sin título");
+      } else {
+        setDupWarning(null);
+      }
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [form.n_ot, wsId]);
 
   async function handlePDFImport(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -908,7 +922,7 @@ export default function OTCrearPanel({
     setParseMsg(null);
     setPdfHints(null);
     try {
-      const { ubicacionText, lugarText, __rawText, ...parsed } = await parseSolicitudPDF(file, sociedades);
+      const { ubicacionText, lugarText, ...parsed } = await parseSolicitudPDF(file, sociedades);
 
       // Only fuzzy-match — never auto-create
       const ubicacion_id      = fuzzyMatch(ubicacionText, ubicaciones, u => u.edificio + (u.piso ? ` ${u.piso}` : ""));
@@ -916,26 +930,6 @@ export default function OTCrearPanel({
       const lugaresForUbic    = ubicacion_id ? lugares.filter(l => l.ubicacion_id === ubicacion_id) : lugares;
       const lugar_id          = fuzzyMatch(lugarText, lugaresForUbic, l => l.nombre);
 
-      setDebugInfo({
-        rawText: __rawText,
-        extracted: {
-          n_ot:          parsed.n_ot,
-          solicitante:   parsed.solicitante,
-          titulo:        parsed.titulo,
-          prioridad:     parsed.prioridad,
-          tipo_trabajo:  parsed.tipo_trabajo,
-          ubicacionText,
-          lugarText,
-          descripcion:   parsed.descripcion.slice(0, 120) + (parsed.descripcion.length > 120 ? "…" : ""),
-        },
-        resolved: {
-          ubicacion_id:  ubicacion_id || "(sin match)",
-          lugar_id:      lugar_id     || "(sin match)",
-          sociedad_id:   parsed.sociedad_id || "(sin match)",
-          ubicaciones_count: String(ubicaciones.length),
-          lugares_count:     String(lugares.length),
-        },
-      });
       const ubicacionMatched  = !!ubicacion_id || !ubicacionText;
       const lugarMatched      = !!lugar_id || !lugarText;
 
@@ -1052,6 +1046,9 @@ export default function OTCrearPanel({
         creadoPor:     myId,
         titulo:        form.titulo.trim(),
         descripcion:   buildDescripcion({ nOT: form.n_ot, solicitante: form.solicitante, hito: form.hito, body: form.descripcion }),
+        n_serie:       form.n_ot.trim()        || null,
+        solicitante:   form.solicitante.trim() || null,
+        hito:          form.hito.trim()        || null,
         prioridad:     form.prioridad,
         tipo_trabajo:  form.tipo_trabajo,
         categoria_id:  form.categoria_id  || null,
@@ -1137,52 +1134,6 @@ export default function OTCrearPanel({
         </div>
       )}
 
-      {/* PDF Debug panel */}
-      {debugInfo && (
-        <div style={{ flexShrink: 0, borderBottom: "1px solid #E2E8F0", background: "#0F172A" }}>
-          <button
-            type="button"
-            onClick={() => setDebugOpen(v => !v)}
-            style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "7px 16px", background: "none", border: "none", cursor: "pointer", fontFamily: "monospace" }}
-          >
-            <span style={{ fontSize: 11, fontWeight: 700, color: "#94A3B8", letterSpacing: "0.08em" }}>🔍 PDF DEBUG</span>
-            <span style={{ fontSize: 10, color: "#64748B" }}>{debugOpen ? "▲ ocultar" : "▼ expandir"}</span>
-          </button>
-          {debugOpen && (
-            <div style={{ padding: "0 16px 12px", display: "flex", flexDirection: "column", gap: 10 }}>
-              <div>
-                <div style={{ fontSize: 10, fontWeight: 700, color: "#64748B", letterSpacing: "0.08em", marginBottom: 4 }}>CAMPOS EXTRAÍDOS</div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                  {Object.entries(debugInfo.extracted).map(([k, v]) => (
-                    <div key={k} style={{ display: "flex", gap: 8, fontFamily: "monospace", fontSize: 11 }}>
-                      <span style={{ color: "#64748B", minWidth: 120, flexShrink: 0 }}>{k}</span>
-                      <span style={{ color: v && v !== "(sin match)" ? "#86EFAC" : "#F87171", wordBreak: "break-all" }}>{v || "(vacío)"}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <div style={{ fontSize: 10, fontWeight: 700, color: "#64748B", letterSpacing: "0.08em", marginBottom: 4 }}>RESOLUCIÓN → IDs</div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                  {Object.entries(debugInfo.resolved).map(([k, v]) => (
-                    <div key={k} style={{ display: "flex", gap: 8, fontFamily: "monospace", fontSize: 11 }}>
-                      <span style={{ color: "#64748B", minWidth: 120, flexShrink: 0 }}>{k}</span>
-                      <span style={{ color: v && !v.startsWith("(") ? "#86EFAC" : "#F87171" }}>{v}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <div style={{ fontSize: 10, fontWeight: 700, color: "#64748B", letterSpacing: "0.08em", marginBottom: 4 }}>TEXTO RAW (primeras 600 chars)</div>
-                <pre style={{ fontSize: 10, color: "#94A3B8", whiteSpace: "pre-wrap", wordBreak: "break-all", margin: 0, maxHeight: 160, overflowY: "auto", background: "#0F172A", lineHeight: 1.5 }}>
-                  {debugInfo.rawText.slice(0, 600)}
-                </pre>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
       {/* Scrollable form body */}
       <div style={{ flex: 1, overflowY: "auto", minHeight: 0 }}>
         <div style={{ padding: "16px 20px 100px" }}>
@@ -1238,8 +1189,16 @@ export default function OTCrearPanel({
               placeholder="Ej: SF920260325921"
               value={form.n_ot}
               onChange={e => setF("n_ot", e.target.value)}
-              style={{ width:"100%", height:40, padding:"0 10px", border:"1px solid #E2E8F0", borderRadius:8, fontSize:13, color:"#0F172A", outline:"none", fontFamily:"monospace", background:"#fff" }}
+              style={{ width:"100%", height:40, padding:"0 10px", border:`1px solid ${dupWarning ? "#F59E0B" : "#E2E8F0"}`, borderRadius:8, fontSize:13, color:"#0F172A", outline:"none", fontFamily:"monospace", background:"#fff" }}
             />
+            {dupWarning && (
+              <div style={{ display:"flex", alignItems:"center", gap:6, marginTop:6, padding:"6px 10px", borderRadius:6, background:"#FFFBEB", border:"1px solid #F59E0B40" }}>
+                <AlertTriangle size={13} style={{ color:"#D97706", flexShrink:0 }} />
+                <span style={{ fontSize:12, color:"#92400E" }}>
+                  Ya existe una OT con este número: <strong>"{dupWarning}"</strong>. Verifica antes de continuar.
+                </span>
+              </div>
+            )}
           </FieldRow>
 
           <FieldRow icon={<User size={14} />} label="Solicitante">

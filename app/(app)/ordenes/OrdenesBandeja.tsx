@@ -241,10 +241,18 @@ export default function OrdenesBandeja({
       list = list.filter(o => o.fecha_termino != null && new Date(o.fecha_termino).toDateString() === today);
     }
 
-    // Search
+    // Search — checks title, N° OT, solicitante and description body
     if (search.trim()) {
-      const q = search.toLowerCase();
-      list = list.filter(o => (o.titulo ?? o.descripcion ?? "").toLowerCase().includes(q));
+      const q = search.trim().replace(/\s+/g, " ").toLowerCase();
+      list = list.filter(o => {
+        if ((o.titulo ?? "").toLowerCase().includes(q)) return true;
+        const meta = parseDescMeta(o.descripcion ?? null);
+        return (
+          (meta.nOT        ?? "").toLowerCase().includes(q) ||
+          (meta.solicitante ?? "").toLowerCase().includes(q) ||
+          (meta.descripcion ?? "").toLowerCase().includes(q)
+        );
+      });
     }
 
     // Sort
@@ -288,8 +296,16 @@ export default function OrdenesBandeja({
         list = list.filter(o => o.fecha_termino != null && new Date(o.fecha_termino).toDateString() === today);
       }
       if (search.trim()) {
-        const q = search.toLowerCase();
-        list = list.filter(o => (o.titulo ?? o.descripcion ?? "").toLowerCase().includes(q));
+        const q = search.trim().replace(/\s+/g, " ").toLowerCase();
+        list = list.filter(o => {
+          if ((o.titulo ?? "").toLowerCase().includes(q)) return true;
+          const meta = parseDescMeta(o.descripcion ?? null);
+          return (
+            (meta.nOT        ?? "").toLowerCase().includes(q) ||
+            (meta.solicitante ?? "").toLowerCase().includes(q) ||
+            (meta.descripcion ?? "").toLowerCase().includes(q)
+          );
+        });
       }
       return list;
     };

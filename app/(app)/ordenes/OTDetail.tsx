@@ -1213,6 +1213,12 @@ export default function OTDetail({
                   const colorClass = ACT_COLOR[act.tipo] ?? "text-zinc-400";
                   const isComment = act.tipo === "comentario";
                   const label = ACT_LABEL[act.tipo] ?? act.tipo;
+                  const resolvedComentario = act.tipo === "asignado" && act.comentario
+                    ? act.comentario.split(",").map(id => {
+                        const u = usuarios.find(u => u.id === id.trim());
+                        return u?.nombre ?? id.trim();
+                      }).join(", ")
+                    : act.comentario;
                   const isLast = idx === actividad.length - 1;
                   return (
                     <div key={act.id} style={{ display: "flex", gap: 12, position: "relative" }}>
@@ -1233,7 +1239,7 @@ export default function OTDetail({
                           )}
                           <span style={{ fontSize: 11, color: "#9CA3AF", marginLeft: "auto" }}>{fmtTs(act.created_at)}</span>
                         </div>
-                        {act.comentario && (
+                        {resolvedComentario && (
                           <div style={{
                             marginTop: 4, fontSize: 13, lineHeight: 1.6, color: isComment ? "#0F172A" : "#64748B",
                             background: isComment ? "#F8FAFC" : "transparent",
@@ -1241,7 +1247,7 @@ export default function OTDetail({
                             borderRadius: isComment ? 6 : 0,
                             borderLeft: isComment ? "2px solid #2563EB" : "none",
                           }}>
-                            {act.comentario}
+                            {resolvedComentario}
                           </div>
                         )}
                       </div>

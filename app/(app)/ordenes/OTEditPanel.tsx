@@ -501,6 +501,9 @@ export default function OTEditPanel({
         {
           titulo:        form.titulo.trim(),
           descripcion:   buildDescripcion({ nOT: form.n_ot, solicitante: form.solicitante, hito: form.hito, body: form.descripcion }),
+          n_serie:       form.n_ot.trim()        || null,
+          solicitante:   form.solicitante.trim() || null,
+          hito:          form.hito.trim()        || null,
           prioridad:     form.prioridad,
           tipo_trabajo:  form.tipo_trabajo || null,
           categoria_id:  form.categoria_id  || null,

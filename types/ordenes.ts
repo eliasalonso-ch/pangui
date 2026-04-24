@@ -166,6 +166,10 @@ export interface OrdenTrabajo {
   pausado_at: string | null;
   en_ejecucion: boolean;
   tiempo_total_segundos: number | null;
+  // Dedicated metadata columns (previously encoded inside descripcion)
+  n_serie: string | null;
+  solicitante: string | null;
+  hito: string | null;
   // Sequential number per workspace
   numero: number | null;
   // Media
@@ -192,6 +196,7 @@ export type OrdenListItem = Pick<
   | "tipo" | "tipo_trabajo" | "fecha_termino" | "recurrencia"
   | "created_at" | "categoria_id" | "ubicacion_id" | "activo_id"
   | "creado_por" | "asignados_ids" | "numero" | "parent_id"
+  | "n_serie" | "solicitante" | "hito"
   | "categorias_ot" | "ubicaciones" | "activos"
   | "_pending"
 >;
