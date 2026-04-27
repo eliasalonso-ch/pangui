@@ -15,6 +15,7 @@ import {
   LayoutDashboard,
   MapPin,
   BarChart2,
+  ClipboardCheck,
 } from "lucide-react";
 
 import { createClient } from "@/lib/supabase";
@@ -222,6 +223,13 @@ export default function AppSidebar() {
                   <Link href="/analitica"><BarChart2 size={16} /><span>Analítica</span></Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
+              {isAdmin && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={isActive("/procedimientos")}>
+                    <Link href="/procedimientos"><ClipboardCheck size={16} /><span>Procedimientos</span></Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )}
               {puedeVer("inventario") && (
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild isActive={isActive("/partes")}>

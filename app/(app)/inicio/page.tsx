@@ -65,6 +65,7 @@ interface Insight {
   type: "danger" | "warning" | "info" | "success";
   message: string;
   icon: React.ReactNode;
+  filtro?: string;
 }
 
 // ── Config ─────────────────────────────────────────────────────────────────────
@@ -228,6 +229,7 @@ function generateInsights(ots: OTDashboard[], partes: Parte[]): Insight[] {
       type: "danger",
       message: `${vencidas.length} orden${vencidas.length > 1 ? "es vencidas" : " vencida"} sin cerrar`,
       icon: <XCircle size={14} />,
+      filtro: "vencidas",
     });
   }
 
@@ -238,12 +240,14 @@ function generateInsights(ots: OTDashboard[], partes: Parte[]): Insight[] {
         type: "danger",
         message: `${over24} orden${over24 > 1 ? "es llevan" : " lleva"} más de 24h bloqueada${over24 > 1 ? "s" : ""}`,
         icon: <Lock size={14} />,
+        filtro: "bloqueadas",
       });
     } else {
       insights.push({
         type: "warning",
         message: `${bloqueadas.length} orden${bloqueadas.length > 1 ? "es bloqueadas" : " bloqueada"} — revisar`,
         icon: <Clock size={14} />,
+        filtro: "bloqueadas",
       });
     }
   }
@@ -253,6 +257,7 @@ function generateInsights(ots: OTDashboard[], partes: Parte[]): Insight[] {
       type: "warning",
       message: `${bajo_stock.length} ítem${bajo_stock.length > 1 ? "s" : ""} de inventario bajo stock mínimo`,
       icon: <Package size={14} />,
+      filtro: "inventario",
     });
   }
 
@@ -261,6 +266,7 @@ function generateInsights(ots: OTDashboard[], partes: Parte[]): Insight[] {
       type: "warning",
       message: `${sinAsignar.length} orden${sinAsignar.length > 1 ? "es" : ""} sin técnico asignado`,
       icon: <User size={14} />,
+      filtro: "sin_asignar",
     });
   }
 
@@ -269,6 +275,7 @@ function generateInsights(ots: OTDashboard[], partes: Parte[]): Insight[] {
       type: "danger",
       message: `${urgentes.length} orden${urgentes.length > 1 ? "es de prioridad alta/urgente" : " de alta prioridad"} activa${urgentes.length > 1 ? "s" : ""}`,
       icon: <Zap size={14} />,
+      filtro: "alta_prioridad",
     });
   }
 
@@ -461,11 +468,12 @@ export default function InicioDashboard() {
             bloqueadas={bloqueadas}
             onNavigate={id => router.push(`/ordenes/${id}`)}
             onViewAll={() => router.push("/ordenes")}
+            onViewGroup={filtro => router.push(`/ordenes?filtro=${filtro}`)}
           />
 
           {/* 3. Alertas de bloqueo */}
           {blockAlerts.length > 0 && (
-            <BlockAlertsPanel groups={blockAlerts} onViewAll={() => router.push("/ordenes")} />
+            <BlockAlertsPanel groups={blockAlerts} onViewAll={() => router.push("/ordenes?filtro=bloqueadas")} />
           )}
 
           {/* 4. Alertas de inventario */}
@@ -518,10 +526,14 @@ export default function InicioDashboard() {
             avgResDays={avgResDays}
             weekCreated={weekCreated}
             weekCompleted={weekCompleted}
+            onNavigate={filtro => router.push(`/ordenes?filtro=${filtro}`)}
           />
 
           {/* 6. Insights */}
-          <InsightsPanel insights={insights} />
+          <InsightsPanel
+            insights={insights}
+            onNavigate={filtro => filtro === "inventario" ? router.push("/partes") : router.push(`/ordenes?filtro=${filtro}`)}
+          />
 
           {/* Activity feed */}
           <Section
@@ -708,7 +720,7 @@ function PriorityItem({ ot, rank, onClick }: { ot: OTDashboard; rank: number; on
 // ── AccionInmediata ────────────────────────────────────────────────────────────
 
 function AccionInmediata({
-  vencidas, paraHoy, sinAsignar, bloqueadas, onNavigate, onViewAll,
+  vencidas, paraHoy, sinAsignar, bloqueadas, onNavigate, onViewAll, onViewGroup,
 }: {
   vencidas: OTDashboard[];
   paraHoy: OTDashboard[];
@@ -716,6 +728,7 @@ function AccionInmediata({
   bloqueadas: OTDashboard[];
   onNavigate: (id: string) => void;
   onViewAll: () => void;
+  onViewGroup: (filtro: string) => void;
 }) {
   const hasAny = vencidas.length > 0 || paraHoy.length > 0 || sinAsignar.length > 0 || bloqueadas.length > 0;
 
@@ -739,10 +752,10 @@ function AccionInmediata({
         </div>
       ) : (
         <div style={{ padding: "12px 16px", display: "flex", flexDirection: "column", gap: 14 }}>
-          <ActionGroup emoji="🔴" label="Órdenes vencidas"  color="#DC2626" bgColor="#FEF2F2" count={vencidas.length}   items={vencidas}   onNavigate={onNavigate} onViewAll={onViewAll} />
-          <ActionGroup emoji="🟡" label="Vencen hoy"        color="#D97706" bgColor="#FFFBEB" count={paraHoy.length}   items={paraHoy}    onNavigate={onNavigate} onViewAll={onViewAll} />
-          <ActionGroup emoji="⚫" label="Sin asignar"       color="#475569" bgColor="#F1F5F9" count={sinAsignar.length} items={sinAsignar} onNavigate={onNavigate} onViewAll={onViewAll} />
-          <ActionGroup emoji="🟠" label="Bloqueadas"        color="#C2410C" bgColor="#FFF7ED" count={bloqueadas.length} items={bloqueadas} onNavigate={onNavigate} onViewAll={onViewAll} />
+          <ActionGroup emoji="🔴" label="Órdenes vencidas"  color="#DC2626" bgColor="#FEF2F2" count={vencidas.length}   items={vencidas}   onNavigate={onNavigate} onViewAll={() => onViewGroup("vencidas")} />
+          <ActionGroup emoji="🟡" label="Vencen hoy"        color="#D97706" bgColor="#FFFBEB" count={paraHoy.length}   items={paraHoy}    onNavigate={onNavigate} onViewAll={() => onViewGroup("vence_hoy")} />
+          <ActionGroup emoji="⚫" label="Sin asignar"       color="#475569" bgColor="#F1F5F9" count={sinAsignar.length} items={sinAsignar} onNavigate={onNavigate} onViewAll={() => onViewGroup("sin_asignar")} />
+          <ActionGroup emoji="🟠" label="Bloqueadas"        color="#C2410C" bgColor="#FFF7ED" count={bloqueadas.length} items={bloqueadas} onNavigate={onNavigate} onViewAll={() => onViewGroup("bloqueadas")} />
         </div>
       )}
     </div>
@@ -943,12 +956,13 @@ function InventoryAlertsPanel({ bajoStock, onViewAll }: { bajoStock: Parte[]; on
 
 // ── KpiPanel ───────────────────────────────────────────────────────────────────
 
-function KpiPanel({ backlog, pctBloqueadas, avgResDays, weekCreated, weekCompleted }: {
+function KpiPanel({ backlog, pctBloqueadas, avgResDays, weekCreated, weekCompleted, onNavigate }: {
   backlog: number;
   pctBloqueadas: number;
   avgResDays: string;
   weekCreated: number;
   weekCompleted: number;
+  onNavigate: (filtro: string) => void;
 }) {
   const flowDelta = weekCompleted - weekCreated;
   const flowPositive = flowDelta >= 0;
@@ -961,6 +975,7 @@ function KpiPanel({ backlog, pctBloqueadas, avgResDays, weekCreated, weekComplet
       icon: <ClipboardList size={14} />,
       color: backlog > 20 ? "#DC2626" : backlog > 10 ? "#D97706" : "#10B981",
       bg: backlog > 20 ? "#FEF2F2" : backlog > 10 ? "#FFFBEB" : "#F0FDF4",
+      filtro: "abiertas",
     },
     {
       label: "Bloqueadas",
@@ -969,6 +984,7 @@ function KpiPanel({ backlog, pctBloqueadas, avgResDays, weekCreated, weekComplet
       icon: <Lock size={14} />,
       color: pctBloqueadas > 20 ? "#DC2626" : pctBloqueadas > 10 ? "#D97706" : "#10B981",
       bg: pctBloqueadas > 20 ? "#FEF2F2" : pctBloqueadas > 10 ? "#FFFBEB" : "#F0FDF4",
+      filtro: "bloqueadas",
     },
     {
       label: "Resolución",
@@ -977,6 +993,7 @@ function KpiPanel({ backlog, pctBloqueadas, avgResDays, weekCreated, weekComplet
       icon: <Timer size={14} />,
       color: "#475569",
       bg: "#F8FAFC",
+      filtro: null,
     },
     {
       label: "Flujo semana",
@@ -985,6 +1002,7 @@ function KpiPanel({ backlog, pctBloqueadas, avgResDays, weekCreated, weekComplet
       icon: flowPositive ? <TrendingUp size={14} /> : <TrendingDown size={14} />,
       color: flowPositive ? "#10B981" : "#D97706",
       bg: flowPositive ? "#F0FDF4" : "#FFFBEB",
+      filtro: "abiertas",
     },
   ];
 
@@ -996,11 +1014,18 @@ function KpiPanel({ backlog, pctBloqueadas, avgResDays, weekCreated, weekComplet
       </div>
       <div style={{ padding: "12px 16px", display: "flex", flexDirection: "column", gap: 8 }}>
         {kpis.map(k => (
-          <div key={k.label} style={{
-            display: "flex", alignItems: "center", gap: 10,
-            padding: "9px 12px", borderRadius: 8,
-            background: k.bg, border: `1px solid ${k.color}22`,
-          }}>
+          <div
+            key={k.label}
+            onClick={k.filtro ? () => onNavigate(k.filtro!) : undefined}
+            style={{
+              display: "flex", alignItems: "center", gap: 10,
+              padding: "9px 12px", borderRadius: 8,
+              background: k.bg, border: `1px solid ${k.color}22`,
+              cursor: k.filtro ? "pointer" : "default",
+            }}
+            onMouseEnter={e => { if (k.filtro) e.currentTarget.style.opacity = "0.8"; }}
+            onMouseLeave={e => { if (k.filtro) e.currentTarget.style.opacity = "1"; }}
+          >
             <div style={{ color: k.color, flexShrink: 0 }}>{k.icon}</div>
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 11, color: "#94A3B8", fontWeight: 500 }}>{k.label}</div>
@@ -1009,6 +1034,7 @@ function KpiPanel({ backlog, pctBloqueadas, avgResDays, weekCreated, weekComplet
             <div style={{ fontSize: 16, fontWeight: 800, color: k.color, fontFamily: '"Inter", system-ui, sans-serif', flexShrink: 0 }}>
               {k.value}
             </div>
+            {k.filtro && <ChevronRight size={12} style={{ color: k.color, flexShrink: 0, opacity: 0.5 }} />}
           </div>
         ))}
       </div>
@@ -1025,7 +1051,7 @@ const INSIGHT_STYLE: Record<Insight["type"], { bg: string; color: string; border
   success: { bg: "#F0FDF4", color: "#15803D", border: "#86EFAC" },
 };
 
-function InsightsPanel({ insights }: { insights: Insight[] }) {
+function InsightsPanel({ insights, onNavigate }: { insights: Insight[]; onNavigate: (filtro: string) => void }) {
   return (
     <div style={{ background: "#fff", border: "1px solid #E2E8F0", borderRadius: 12, overflow: "hidden", boxShadow: "0 1px 3px rgba(15,23,42,0.06)" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "14px 16px", borderBottom: "1px solid #E2E8F0" }}>
@@ -1035,14 +1061,24 @@ function InsightsPanel({ insights }: { insights: Insight[] }) {
       <div style={{ padding: "12px 16px", display: "flex", flexDirection: "column", gap: 7 }}>
         {insights.map((insight, i) => {
           const s = INSIGHT_STYLE[insight.type];
+          const clickable = !!insight.filtro;
           return (
-            <div key={i} style={{
-              display: "flex", alignItems: "flex-start", gap: 9,
-              padding: "8px 11px", borderRadius: 8,
-              background: s.bg, border: `1px solid ${s.border}`,
-            }}>
+            <div
+              key={i}
+              onClick={clickable ? () => onNavigate(insight.filtro!) : undefined}
+              style={{
+                display: "flex", alignItems: "flex-start", gap: 9,
+                padding: "8px 11px", borderRadius: 8,
+                background: s.bg, border: `1px solid ${s.border}`,
+                cursor: clickable ? "pointer" : "default",
+                transition: "opacity 0.1s",
+              }}
+              onMouseEnter={e => { if (clickable) e.currentTarget.style.opacity = "0.8"; }}
+              onMouseLeave={e => { if (clickable) e.currentTarget.style.opacity = "1"; }}
+            >
               <div style={{ color: s.color, marginTop: 1, flexShrink: 0 }}>{insight.icon}</div>
-              <div style={{ fontSize: 12, color: "#374151", lineHeight: 1.5, fontWeight: 500 }}>{insight.message}</div>
+              <div style={{ fontSize: 12, color: "#374151", lineHeight: 1.5, fontWeight: 500, flex: 1, minWidth: 0, wordBreak: "break-word" }}>{insight.message}</div>
+              {clickable && <ChevronRight size={13} style={{ color: s.color, flexShrink: 0, marginTop: 2 }} />}
             </div>
           );
         })}

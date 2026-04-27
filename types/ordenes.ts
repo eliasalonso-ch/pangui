@@ -240,6 +240,8 @@ export interface FiltrosState {
   ubicacionIds: string[];
   sociedadIds: string[];
   venceHoy: boolean;
+  sinAsignar: boolean;
+  vencidas: boolean;
 }
 
 export type SortOption =

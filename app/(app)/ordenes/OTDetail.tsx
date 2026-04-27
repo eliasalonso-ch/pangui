@@ -10,6 +10,8 @@ import {
   Play, Pause, Square, RotateCcw,
   Download, FileText, Sheet, FileDown,
   Package, Search,
+  ClipboardCheck, Info, Hash as HashIcon, Camera, PenLine, Shield, CheckSquare,
+  Type, DollarSign, List, ListChecks, AlertCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { LinksDisplay } from "@/components/LinksInput";
@@ -31,9 +33,19 @@ import {
   uploadOrdenFoto, addOrdenFoto, removeOrdenFoto,
   parseDescMeta,
 } from "@/lib/ordenes-api";
+import {
+  getOTProcedimientos, attachProcedimiento, detachProcedimiento,
+  listProcedimientos, startEjecucion, saveRespuesta, completeEjecucion,
+} from "@/lib/procedimientos-api";
 import type {
   OrdenTrabajo, ActividadOT, ActividadTipo, Usuario, Estado, Prioridad,
 } from "@/types/ordenes";
+import type {
+  OTProcedimiento, ProcedimientoListItem, ProcedimientoEjecucion,
+  PasoRespuesta, TipoPasoProc, ProcedimientoPaso,
+} from "@/types/procedimientos";
+
+type PendingResp = Omit<Partial<PasoRespuesta>, "firmado_nombre"> & { firmado_nombre?: string | null };
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
@@ -164,7 +176,7 @@ interface Props {
   onOrdenUpdated: (o: Partial<OrdenTrabajo>) => void;
 }
 
-type Tab = "detalle" | "actividad" | "fotos" | "materiales";
+type Tab = "detalle" | "actividad" | "fotos" | "materiales" | "procedimientos";
 
 // ── Parts types ───────────────────────────────────────────────────────────────
 
@@ -277,6 +289,19 @@ export default function OTDetail({
   const [exportConfigOpen, setExportConfigOpen] = useState(false);
   const [exportFields, setExportFields] = useState<Record<ExportField, boolean>>(ALL_FIELDS_ON);
 
+  // ── Procedimientos state ─────────────────────────────────────────────────────
+  const [otProcs, setOtProcs] = useState<OTProcedimiento[]>([]);
+  const [loadingProcs, setLoadingProcs] = useState(false);
+  const [procLibrary, setProcLibrary] = useState<ProcedimientoListItem[]>([]);
+  const [loadingProcLib, setLoadingProcLib] = useState(false);
+  const [attachingProc, setAttachingProc] = useState<string | null>(null);
+  const [detachingProc, setDetachingProc] = useState<string | null>(null);
+  const [startingEjec, setStartingEjec] = useState<string | null>(null);
+  const [activeEjec, setActiveEjec] = useState<{ ejecucion: ProcedimientoEjecucion; pasos: OTProcedimiento["procedimiento"] | null } | null>(null);
+  const [savingResp, setSavingResp] = useState<string | null>(null);
+  const [pendingResps, setPendingResps] = useState<Record<string, PendingResp>>({});
+  const [completingEjec, setCompletingEjec] = useState(false);
+
   // ── Partes state ─────────────────────────────────────────────────────────────
   const [ordenPartes, setOrdenPartes] = useState<OrdenParte[]>([]);
   const [loadingPartes, setLoadingPartes] = useState(false);
@@ -311,8 +336,10 @@ export default function OTDetail({
     ]);
   }, [orden.imagen_url, orden.fotos_urls]);
 
-  const actRtRef  = useRef<ReturnType<ReturnType<typeof createClient>["channel"]> | null>(null);
+  const actRtRef   = useRef<ReturnType<ReturnType<typeof createClient>["channel"]> | null>(null);
+  const procsRtRef = useRef<ReturnType<ReturnType<typeof createClient>["channel"]> | null>(null);
   const channelKey = useRef(`actividad-${orden.id}-${Math.random().toString(36).slice(2)}`);
+  const procsChannelKey = useRef(`ot-procs-web-${orden.id}-${Math.random().toString(36).slice(2)}`);
 
   // Load + subscribe activity whenever the tab is open
   useEffect(() => {
@@ -354,6 +381,163 @@ export default function OTDetail({
     };
   }, [tab, orden.id]);
 
+
+  // Load procedimientos when tab opens
+  useEffect(() => {
+    if (tab !== "procedimientos") return;
+    if (otProcs.length === 0) {
+      setLoadingProcs(true);
+      getOTProcedimientos(orden.id)
+        .then(data => { setOtProcs(data); setLoadingProcs(false); })
+        .catch(() => setLoadingProcs(false));
+    }
+  }, [tab, orden.id]);
+
+  // Load procedure library (lazy, for attach picker)
+  useEffect(() => {
+    if (tab !== "procedimientos" || procLibrary.length > 0 || !wsId) return;
+    setLoadingProcLib(true);
+    listProcedimientos(wsId)
+      .then(data => { setProcLibrary(data); setLoadingProcLib(false); })
+      .catch(() => setLoadingProcLib(false));
+  }, [tab, wsId]);
+
+  // Realtime: keep procedimientos tab in sync when native app or another browser attaches/detaches
+  useEffect(() => {
+    if (tab !== "procedimientos") {
+      if (procsRtRef.current) {
+        createClient().removeChannel(procsRtRef.current);
+        procsRtRef.current = null;
+      }
+      return;
+    }
+
+    const sb = createClient();
+    procsRtRef.current = sb
+      .channel(procsChannelKey.current)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "ot_procedimientos", filter: `orden_id=eq.${orden.id}` },
+        async () => {
+          const updated = await getOTProcedimientos(orden.id);
+          setOtProcs(updated);
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "procedimiento_ejecuciones", filter: `orden_id=eq.${orden.id}` },
+        async () => {
+          const updated = await getOTProcedimientos(orden.id);
+          setOtProcs(updated);
+        },
+      )
+      .subscribe();
+
+    return () => {
+      if (procsRtRef.current) {
+        sb.removeChannel(procsRtRef.current);
+        procsRtRef.current = null;
+      }
+    };
+  }, [tab, orden.id]);
+
+  async function handleAttachProc(procId: string) {
+    if (!myId) return;
+    setAttachingProc(procId);
+    try {
+      await attachProcedimiento(orden.id, procId, myId);
+      const updated = await getOTProcedimientos(orden.id);
+      setOtProcs(updated);
+    } catch (e: any) {
+      alert(e.message);
+    } finally {
+      setAttachingProc(null);
+    }
+  }
+
+  async function handleDetachProc(procId: string) {
+    setDetachingProc(procId);
+    try {
+      await detachProcedimiento(orden.id, procId);
+      setOtProcs(prev => prev.filter(p => p.procedimiento_id !== procId));
+    } catch (e: any) {
+      alert(e.message);
+    } finally {
+      setDetachingProc(null);
+    }
+  }
+
+  async function handleStartEjec(otProc: OTProcedimiento) {
+    if (!myId) return;
+    setStartingEjec(otProc.procedimiento_id);
+    try {
+      const ejec = await startEjecucion(otProc.procedimiento_id, orden.id, myId);
+      setActiveEjec({ ejecucion: ejec, pasos: otProc.procedimiento ?? null });
+      // Seed pending responses from existing answers
+      const respMap: Record<string, PendingResp> = {};
+      for (const r of ejec.respuestas ?? []) {
+        respMap[r.paso_id] = r;
+      }
+      setPendingResps(respMap);
+      // Refresh list
+      const updated = await getOTProcedimientos(orden.id);
+      setOtProcs(updated);
+    } catch (e: any) {
+      alert(e.message);
+    } finally {
+      setStartingEjec(null);
+    }
+  }
+
+  async function handleSaveResp(pasoId: string, extra?: PendingResp) {
+    if (!activeEjec || !myId) return;
+    const resp = { ...(pendingResps[pasoId] ?? {}), ...(extra ?? {}) };
+    setSavingResp(pasoId);
+    try {
+      const saved = await saveRespuesta(activeEjec.ejecucion.id, pasoId, myId, {
+        aprobado:         resp.aprobado ?? null,
+        valor_medido:     resp.valor_medido ?? null,
+        valor_texto:      resp.valor_texto ?? null,
+        valor_json:       resp.valor_json ?? null,
+        foto_url:         resp.foto_url ?? null,
+        firma_svg:        resp.firma_svg ?? null,
+        firmado_nombre:   resp.firmado_nombre ?? null,
+        firmado_por_id:   resp.firmado_por_id ?? undefined,
+        firmado_at:       resp.firmado_at ?? undefined,
+        notas:            resp.notas ?? null,
+      });
+      // Merge the saved response back into the ejecucion's respuestas
+      setActiveEjec(prev => {
+        if (!prev) return prev;
+        const existing = prev.ejecucion.respuestas ?? [];
+        const idx = existing.findIndex(r => r.paso_id === pasoId);
+        const next = idx >= 0
+          ? existing.map((r, i) => i === idx ? saved : r)
+          : [...existing, saved];
+        return { ...prev, ejecucion: { ...prev.ejecucion, respuestas: next } };
+      });
+    } catch (e: any) {
+      alert(e.message);
+    } finally {
+      setSavingResp(null);
+    }
+  }
+
+  async function handleCompleteEjec() {
+    if (!activeEjec || !myId) return;
+    setCompletingEjec(true);
+    try {
+      await completeEjecucion(activeEjec.ejecucion.id, myId);
+      const updated = await getOTProcedimientos(orden.id);
+      setOtProcs(updated);
+      setActiveEjec(null);
+      setPendingResps({});
+    } catch (e: any) {
+      alert(e.message);
+    } finally {
+      setCompletingEjec(false);
+    }
+  }
 
   // Load orden_partes when tab opens
   useEffect(() => {
@@ -544,7 +728,11 @@ export default function OTDetail({
     setExporting("pdf");
     setExportMenuOpen(false);
     try {
-      const [act, wsNombre] = await Promise.all([fetchActividadForExport(), fetchWorkspaceName()]);
+      const [act, wsNombre, freshProcs] = await Promise.all([
+        fetchActividadForExport(),
+        fetchWorkspaceName(),
+        getOTProcedimientos(orden.id),
+      ]);
       const res = await fetch("/api/export-pdf", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -554,6 +742,7 @@ export default function OTDetail({
           workspaceNombre: wsNombre,
           nOT: meta.nOT,
           partes: [], subOrdenes: [],
+          procedimientos: freshProcs,
         }),
       });
       if (!res.ok) throw new Error(`PDF service error ${res.status}`);
@@ -692,6 +881,66 @@ export default function OTDetail({
         const wsAct = XLS.utils.aoa_to_sheet([actH, ...actRows]);
         applyStyles(wsAct, actH, actRows.length, [20, 22, 18, 50]);
         XLS.utils.book_append_sheet(wb, wsAct, "Actividad");
+      }
+
+      // ── Sheet 4: Procedimientos ──────────────────────────────────────────────
+      if (otProcs.length > 0) {
+        const estadoLabel: Record<string, string> = {
+          pendiente: "Pendiente", en_curso: "En curso",
+          completado: "Completado", cancelado: "Cancelado",
+        };
+        const procH = ["Procedimiento", "Obligatorio", "Estado", "Pasos", "Iniciado el", "Completado el", "Paso", "Tipo", "Requerido", "Respuesta"];
+        const procRows: (string | number)[][] = [];
+        for (const otp of otProcs) {
+          const proc = otp.procedimiento;
+          if (!proc) continue;
+          const ejec = otp.ejecucion;
+          const ejecEstado = ejec ? (estadoLabel[ejec.estado] ?? ejec.estado) : "Sin ejecutar";
+          const pasos = proc.pasos ?? [];
+          const respMap: Record<string, any> = {};
+          for (const r of ejec?.respuestas ?? []) respMap[r.paso_id] = r;
+
+          if (pasos.length === 0) {
+            procRows.push([
+              proc.nombre, proc.bloquea_cierre_ot ? "Sí" : "No",
+              ejecEstado, 0,
+              ejec?.iniciado_at ? ejec.iniciado_at.slice(0, 19).replace("T", " ") : "—",
+              ejec?.completado_at ? ejec.completado_at.slice(0, 19).replace("T", " ") : "—",
+              "", "", "", "",
+            ]);
+          } else {
+            pasos.forEach((paso, idx) => {
+              const resp = respMap[paso.id];
+              let respValue = "—";
+              if (resp) {
+                if (resp.valor_texto != null) respValue = resp.valor_texto;
+                else if (resp.valor_medido != null) respValue = String(resp.valor_medido);
+                else if (resp.valor_json != null) {
+                  const j = resp.valor_json;
+                  if (Array.isArray(j)) respValue = j.filter((v: any) => v?.checked).map((v: any) => v.label).join(", ") || "—";
+                  else if (typeof j === "object" && j !== null) respValue = (j as any).value ?? JSON.stringify(j);
+                }
+                else if (resp.firma_svg) respValue = "Firmado";
+                else if (resp.foto_url) respValue = resp.foto_url;
+              }
+              procRows.push([
+                idx === 0 ? proc.nombre : "",
+                idx === 0 ? (proc.bloquea_cierre_ot ? "Sí" : "No") : "",
+                idx === 0 ? ejecEstado : "",
+                idx === 0 ? pasos.length : "",
+                idx === 0 ? (ejec?.iniciado_at ? ejec.iniciado_at.slice(0, 19).replace("T", " ") : "—") : "",
+                idx === 0 ? (ejec?.completado_at ? ejec.completado_at.slice(0, 19).replace("T", " ") : "—") : "",
+                paso.titulo,
+                paso.tipo,
+                paso.requerido ? "Sí" : "No",
+                respValue,
+              ]);
+            });
+          }
+        }
+        const wsProc = XLS.utils.aoa_to_sheet([procH, ...procRows]);
+        applyStyles(wsProc, procH, procRows.length, [36, 12, 14, 8, 20, 20, 32, 18, 10, 40]);
+        XLS.utils.book_append_sheet(wb, wsProc, "Procedimientos");
       }
 
       XLS.writeFile(wb, `OT-${nOT}.xlsx`);
@@ -1004,7 +1253,7 @@ export default function OTDetail({
 
         {/* Tabs */}
         <div style={{ display: "flex", padding: "0 16px", gap: 0 }}>
-          {(["detalle", "actividad", "fotos", "materiales"] as Tab[]).map(t => (
+          {(["detalle", "actividad", "fotos", "materiales", "procedimientos"] as Tab[]).map(t => (
             <button
               key={t}
               type="button"
@@ -1016,13 +1265,14 @@ export default function OTDetail({
                 color: tab === t ? "#1D4ED8" : "#94A3B8",
                 fontSize: 13, fontWeight: tab === t ? 600 : 500,
                 cursor: "pointer", fontFamily: "inherit",
-                marginBottom: -1, transition: "color 0.1s",
+                marginBottom: -1, transition: "color 0.1s", whiteSpace: "nowrap",
               }}
             >
               {t === "detalle" ? "Detalle"
                 : t === "actividad" ? "Actividad"
                 : t === "fotos" ? `Fotos${fotos.length > 0 ? ` (${fotos.length})` : ""}`
-                : `Materiales${ordenPartes.length > 0 ? ` (${ordenPartes.length})` : ""}`}
+                : t === "materiales" ? `Materiales${ordenPartes.length > 0 ? ` (${ordenPartes.length})` : ""}`
+                : `Procedimientos${otProcs.length > 0 ? ` (${otProcs.length})` : ""}`}
             </button>
           ))}
         </div>
@@ -1490,7 +1740,155 @@ export default function OTDetail({
           </div>
         )}
 
+        {/* ── Procedimientos ── */}
+        {tab === "procedimientos" && (
+          <div style={{ padding: "16px 20px 100px" }}>
+            {loadingProcs ? (
+              <div style={{ display: "flex", justifyContent: "center", padding: "40px 0" }}>
+                <Loader2 size={18} className="animate-spin" style={{ color: "#94A3B8" }} />
+              </div>
+            ) : (
+              <>
+                {/* Attached procedures */}
+                {otProcs.length === 0 ? (
+                  <div style={{ textAlign: "center", padding: "32px 0", color: "#94A3B8", fontSize: 13 }}>
+                    <ClipboardCheck size={28} style={{ color: "#CBD5E1", margin: "0 auto 8px" }} />
+                    <div>No hay procedimientos adjuntos</div>
+                  </div>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 20 }}>
+                    {otProcs.map(otp => {
+                      const proc = otp.procedimiento;
+                      const ejec = otp.ejecucion;
+                      const isCompleted = ejec?.estado === "completado";
+                      const inProgress = ejec?.estado === "en_curso";
+                      return (
+                        <div key={otp.id} style={{ border: "1px solid #E2E8F0", borderRadius: 10, overflow: "hidden", background: "#fff" }}>
+                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 14px" }}>
+                            <div style={{ flex: 1 }}>
+                              <div style={{ fontSize: 13.5, fontWeight: 600, color: "#0F172A" }}>{proc?.nombre ?? "—"}</div>
+                              {proc?.descripcion && (
+                                <div style={{ fontSize: 12, color: "#64748B", marginTop: 2 }}>{proc.descripcion}</div>
+                              )}
+                              <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6 }}>
+                                <span style={{ fontSize: 11, color: "#94A3B8" }}>{proc?.pasos_count ?? 0} pasos</span>
+                                {proc?.bloquea_cierre_ot && (
+                                  <span style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 11, color: "#F59E0B", fontWeight: 500 }}>
+                                    <Shield size={10} />Bloquea cierre
+                                  </span>
+                                )}
+                                {isCompleted && (
+                                  <span style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 11, color: "#10B981", fontWeight: 600, background: "#ECFDF5", borderRadius: 4, padding: "1px 6px" }}>
+                                    <CheckCircle2 size={10} />Completado
+                                  </span>
+                                )}
+                                {inProgress && (
+                                  <span style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 11, color: "#8B5CF6", fontWeight: 600, background: "#F5F3FF", borderRadius: 4, padding: "1px 6px" }}>
+                                    <PlayCircle size={10} />En curso
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                              {!isCompleted && (
+                                <button
+                                  onClick={() => handleStartEjec(otp)}
+                                  disabled={startingEjec === otp.procedimiento_id}
+                                  style={{
+                                    height: 30, padding: "0 12px",
+                                    background: inProgress ? "#F5F3FF" : "#EFF6FF",
+                                    border: `1px solid ${inProgress ? "#8B5CF6" : "#2563EB"}`,
+                                    borderRadius: 6, cursor: "pointer", fontSize: 12, fontWeight: 600,
+                                    color: inProgress ? "#8B5CF6" : "#2563EB", fontFamily: "inherit",
+                                    display: "flex", alignItems: "center", gap: 5,
+                                  }}
+                                >
+                                  {startingEjec === otp.procedimiento_id ? <Loader2 size={11} className="animate-spin" /> : <Play size={11} />}
+                                  {inProgress ? "Continuar" : "Ejecutar"}
+                                </button>
+                              )}
+                              {isCompleted && (
+                                <button
+                                  onClick={() => handleStartEjec(otp)}
+                                  style={{ height: 30, padding: "0 12px", background: "none", border: "1px solid #E2E8F0", borderRadius: 6, cursor: "pointer", fontSize: 12, color: "#64748B", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 5 }}
+                                >
+                                  <CheckCircle2 size={11} />Ver
+                                </button>
+                              )}
+                              <button
+                                onClick={() => handleDetachProc(otp.procedimiento_id)}
+                                disabled={detachingProc === otp.procedimiento_id}
+                                style={{ width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", borderRadius: 6, cursor: "pointer", color: "#94A3B8" }}
+                                onMouseEnter={e => { e.currentTarget.style.color = "#EF4444"; e.currentTarget.style.background = "#FEF2F2"; }}
+                                onMouseLeave={e => { e.currentTarget.style.color = "#94A3B8"; e.currentTarget.style.background = "none"; }}
+                              >
+                                {detachingProc === otp.procedimiento_id ? <Loader2 size={12} className="animate-spin" /> : <X size={13} />}
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Attach picker */}
+                {isActive && (
+                  <div style={{ borderTop: otProcs.length > 0 ? "1px solid #F1F5F9" : "none", paddingTop: otProcs.length > 0 ? 16 : 0 }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 10 }}>
+                      Agregar procedimiento
+                    </div>
+                    {loadingProcLib ? (
+                      <div style={{ display: "flex", justifyContent: "center", padding: "20px 0" }}>
+                        <Loader2 size={14} className="animate-spin" style={{ color: "#CBD5E1" }} />
+                      </div>
+                    ) : procLibrary.filter(p => !otProcs.some(op => op.procedimiento_id === p.id)).length === 0 ? (
+                      <div style={{ fontSize: 12.5, color: "#94A3B8", padding: "8px 0" }}>
+                        {procLibrary.length === 0 ? "No hay procedimientos en la biblioteca." : "Todos los procedimientos ya están adjuntos."}
+                      </div>
+                    ) : (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                        {procLibrary.filter(p => !otProcs.some(op => op.procedimiento_id === p.id)).map(p => (
+                          <div key={p.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", border: "1px solid #E2E8F0", borderRadius: 8, background: "#F8FAFC" }}>
+                            <div>
+                              <div style={{ fontSize: 13, fontWeight: 500, color: "#0F172A" }}>{p.nombre}</div>
+                              <div style={{ fontSize: 11, color: "#94A3B8" }}>{p.pasos_count} pasos{p.categoria ? ` · ${p.categoria}` : ""}</div>
+                            </div>
+                            <button
+                              onClick={() => handleAttachProc(p.id)}
+                              disabled={attachingProc === p.id}
+                              style={{ height: 28, padding: "0 10px", background: "#EFF6FF", border: "1px solid #2563EB", borderRadius: 6, cursor: "pointer", fontSize: 12, fontWeight: 600, color: "#2563EB", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 4 }}
+                            >
+                              {attachingProc === p.id ? <Loader2 size={11} className="animate-spin" /> : <Plus size={11} />}
+                              Adjuntar
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        )}
+
       </div>
+
+      {/* ── Execution modal ── */}
+      {activeEjec && (
+        <ProcEjecucionModal
+          ejec={activeEjec.ejecucion}
+          proc={activeEjec.pasos}
+          pendingResps={pendingResps}
+          savingResp={savingResp}
+          completingEjec={completingEjec}
+          onClose={() => { setActiveEjec(null); setPendingResps({}); }}
+          onUpdateResp={(pasoId, patch) => setPendingResps(prev => ({ ...prev, [pasoId]: { ...(prev[pasoId] ?? {}), ...patch } }))}
+          onSaveResp={handleSaveResp}
+          onComplete={handleCompleteEjec}
+        />
+      )}
 
       {/* ── Comment input ── */}
       <div style={{ flexShrink: 0, borderTop: "1px solid #E2E8F0", padding: "12px 16px", background: "#fff" }}>
@@ -1629,6 +2027,631 @@ export default function OTDetail({
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ── Procedure execution modal ─────────────────────────────────────────────────
+
+const EXEC_TIPO_META: Record<TipoPasoProc, { icon: React.ReactNode; color: string }> = {
+  instruccion:        { icon: <Info size={13} />,          color: "#3B82F6" },
+  advertencia:        { icon: <AlertTriangle size={13} />, color: "#F59E0B" },
+  texto:              { icon: <Type size={13} />,          color: "#8B5CF6" },
+  numero:             { icon: <HashIcon size={13} />,      color: "#6366F1" },
+  monto:              { icon: <DollarSign size={13} />,    color: "#10B981" },
+  si_no_na:           { icon: <CheckSquare size={13} />,   color: "#14B8A6" },
+  opcion_multiple:    { icon: <List size={13} />,          color: "#F97316" },
+  lista_verificacion: { icon: <ListChecks size={13} />,    color: "#EF4444" },
+  inspeccion:         { icon: <ClipboardCheck size={13} />,color: "#EC4899" },
+  imagen:             { icon: <Camera size={13} />,        color: "#64748B" },
+  firma:              { icon: <PenLine size={13} />,       color: "#0EA5E9" },
+};
+
+function isAnsweredForType(paso: ProcedimientoPaso, resp: PendingResp | undefined): boolean {
+  if (!resp) return false;
+  switch (paso.tipo) {
+    case "instruccion":
+    case "advertencia":
+      return true; // presence of any saved resp = acknowledged
+    case "texto":          return !!resp.valor_texto;
+    case "numero":         return resp.valor_medido != null;
+    case "monto":          return resp.valor_medido != null;
+    case "si_no_na":       return !!resp.valor_texto;
+    case "opcion_multiple":return !!resp.valor_texto;
+    case "lista_verificacion": return resp.valor_json != null;
+    case "inspeccion":     return resp.valor_json != null;
+    case "imagen":         return !!resp.foto_url;
+    case "firma":          return !!resp.firma_svg;
+    default:               return false;
+  }
+}
+
+function ReadonlyAnswer({ paso, resp }: { paso: ProcedimientoPaso; resp: PendingResp }) {
+  const currency = paso.moneda ?? "CLP";
+  switch (paso.tipo) {
+    case "texto":
+      return <div style={{ fontSize: 12.5, color: "#475569", marginTop: 4, whiteSpace: "pre-wrap" }}>{resp.valor_texto}</div>;
+    case "numero":
+      return <div style={{ fontSize: 12.5, color: "#475569", marginTop: 4 }}>{resp.valor_medido} {paso.unidad}</div>;
+    case "monto":
+      return <div style={{ fontSize: 12.5, color: "#475569", marginTop: 4 }}>{currency} {resp.valor_medido?.toLocaleString("es-CL")}</div>;
+    case "si_no_na":
+    case "opcion_multiple":
+      return <div style={{ fontSize: 12.5, color: "#475569", marginTop: 4 }}>{resp.valor_texto}</div>;
+    case "lista_verificacion": {
+      const checked: string[] = (resp.valor_json as any)?.checked ?? [];
+      return <div style={{ fontSize: 12, color: "#475569", marginTop: 4 }}>{checked.length} de {paso.opciones?.length ?? 0} marcados</div>;
+    }
+    case "inspeccion": {
+      const items: { item: string; result: string }[] = (resp.valor_json as any)?.items ?? [];
+      const pass = items.filter(i => i.result === "pass").length;
+      return <div style={{ fontSize: 12, color: "#475569", marginTop: 4 }}>{pass}/{items.length} pasaron</div>;
+    }
+    case "imagen":
+      return resp.foto_url
+        ? <img src={resp.foto_url} alt="foto" style={{ marginTop: 6, maxWidth: 180, borderRadius: 6, border: "1px solid #E2E8F0" }} />
+        : null;
+    case "firma":
+      return resp.firma_svg
+        ? <img src={resp.firma_svg} alt="firma" style={{ marginTop: 6, maxWidth: "100%", height: 80, objectFit: "contain", border: "1px solid #E2E8F0", borderRadius: 6, background: "#F8FAFC" }} />
+        : <div style={{ fontSize: 12.5, color: "#10B981", marginTop: 4 }}>✓ Firmado</div>;
+    default:
+      return null;
+  }
+}
+
+function SignatureCanvas({
+  existingDataUrl, isSaving, onSave,
+}: {
+  existingDataUrl?: string | null;
+  isSaving: boolean;
+  onSave: (dataUrl: string) => void;
+}) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const drawing = useRef(false);
+  const lastPos = useRef<{ x: number; y: number } | null>(null);
+  const [hasStrokes, setHasStrokes] = useState(false);
+  const [saved, setSaved] = useState(!!existingDataUrl);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d")!;
+    ctx.strokeStyle = "#0F172A";
+    ctx.lineWidth = 2;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.fillStyle = "#0F172A";
+    if (existingDataUrl) {
+      const img = new window.Image();
+      img.onload = () => ctx.drawImage(img, 0, 0);
+      img.src = existingDataUrl;
+      setHasStrokes(true);
+      setSaved(true);
+    }
+  }, []);
+
+  function getPos(e: React.MouseEvent | React.TouchEvent) {
+    const canvas = canvasRef.current;
+    if (!canvas) return null;
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    if ("touches" in e) {
+      if (e.touches.length === 0) return null;
+      return { x: (e.touches[0].clientX - rect.left) * scaleX, y: (e.touches[0].clientY - rect.top) * scaleY };
+    }
+    return { x: ((e as React.MouseEvent).clientX - rect.left) * scaleX, y: ((e as React.MouseEvent).clientY - rect.top) * scaleY };
+  }
+
+  function startDraw(e: React.MouseEvent | React.TouchEvent) {
+    e.preventDefault();
+    drawing.current = true;
+    const pos = getPos(e);
+    if (!pos) return;
+    lastPos.current = pos;
+    const ctx = canvasRef.current?.getContext("2d");
+    if (!ctx) return;
+    ctx.beginPath();
+    ctx.arc(pos.x, pos.y, 1.2, 0, Math.PI * 2);
+    ctx.fill();
+    setSaved(false);
+  }
+
+  function draw(e: React.MouseEvent | React.TouchEvent) {
+    e.preventDefault();
+    if (!drawing.current || !lastPos.current) return;
+    const pos = getPos(e);
+    if (!pos) return;
+    const ctx = canvasRef.current?.getContext("2d");
+    if (!ctx) return;
+    ctx.beginPath();
+    ctx.moveTo(lastPos.current.x, lastPos.current.y);
+    ctx.lineTo(pos.x, pos.y);
+    ctx.stroke();
+    lastPos.current = pos;
+    setHasStrokes(true);
+  }
+
+  function stopDraw() {
+    drawing.current = false;
+    lastPos.current = null;
+  }
+
+  function clear() {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    canvas.getContext("2d")!.clearRect(0, 0, canvas.width, canvas.height);
+    setHasStrokes(false);
+    setSaved(false);
+  }
+
+  function save() {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    onSave(canvas.toDataURL("image/png"));
+    setSaved(true);
+  }
+
+  return (
+    <div>
+      <canvas
+        ref={canvasRef}
+        width={520}
+        height={160}
+        style={{
+          width: "100%", height: 160, display: "block",
+          border: "1px solid #E2E8F0", borderRadius: 8,
+          background: "#F8FAFC", cursor: "crosshair", touchAction: "none",
+        }}
+        onMouseDown={startDraw}
+        onMouseMove={draw}
+        onMouseUp={stopDraw}
+        onMouseLeave={stopDraw}
+        onTouchStart={startDraw}
+        onTouchMove={draw}
+        onTouchEnd={stopDraw}
+      />
+      {!hasStrokes && (
+        <div style={{ fontSize: 12, color: "#94A3B8", textAlign: "center", marginTop: 4 }}>
+          Dibuja tu firma con el mouse o dedo
+        </div>
+      )}
+      <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+        <button
+          onClick={clear}
+          style={{ height: 30, padding: "0 12px", background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 6, cursor: "pointer", fontSize: 12, color: "#64748B", fontFamily: "inherit" }}
+        >
+          Limpiar
+        </button>
+        <button
+          onClick={save}
+          disabled={!hasStrokes || isSaving}
+          style={{
+            height: 30, padding: "0 14px",
+            background: hasStrokes ? "#F0F9FF" : "#F8FAFC",
+            border: `1px solid ${hasStrokes ? "#0EA5E9" : "#E2E8F0"}`,
+            borderRadius: 6, cursor: hasStrokes && !isSaving ? "pointer" : "default",
+            fontSize: 12, fontWeight: 600, color: hasStrokes ? "#0369A1" : "#94A3B8",
+            fontFamily: "inherit", display: "flex", alignItems: "center", gap: 4,
+            opacity: !hasStrokes ? 0.5 : 1,
+          }}
+        >
+          {isSaving ? <Loader2 size={11} className="animate-spin" /> : <PenLine size={11} />}
+          Guardar firma
+        </button>
+        {saved && !isSaving && (
+          <span style={{ fontSize: 12, color: "#10B981", display: "flex", alignItems: "center", gap: 4 }}>
+            <Check size={11} /> Guardado
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function PasoInput({
+  paso, resp, existingResp, isSaving, onUpdate, onSave,
+}: {
+  paso: ProcedimientoPaso;
+  resp: PendingResp;
+  existingResp: PendingResp | undefined;
+  isSaving: boolean;
+  onUpdate: (patch: PendingResp) => void;
+  onSave: (extra?: PendingResp) => void;
+}) {
+  const val = (k: keyof PendingResp) => (resp as any)[k] ?? (existingResp as any)?.[k];
+  const inputStyle: React.CSSProperties = {
+    width: "100%", height: 32, padding: "0 10px",
+    border: "1px solid #E2E8F0", borderRadius: 6,
+    fontSize: 13, fontFamily: "inherit", color: "#0F172A",
+    background: "#fff", outline: "none", boxSizing: "border-box",
+  };
+  const saveBtn = (label: string, disabled = false) => (
+    <button
+      onClick={() => onSave()}
+      disabled={isSaving || disabled}
+      style={{
+        height: 30, padding: "0 14px", background: "#EFF6FF",
+        border: "1px solid #2563EB", borderRadius: 6, cursor: disabled || isSaving ? "default" : "pointer",
+        fontSize: 12, fontWeight: 600, color: "#2563EB", fontFamily: "inherit",
+        display: "flex", alignItems: "center", gap: 4, opacity: disabled ? 0.5 : 1,
+      }}
+    >
+      {isSaving ? <Loader2 size={11} className="animate-spin" /> : <Check size={11} />}
+      {label}
+    </button>
+  );
+
+  if (paso.tipo === "instruccion" || paso.tipo === "advertencia") {
+    const isAck = !!existingResp;
+    const bg = paso.tipo === "instruccion" ? "#EFF6FF" : "#FFFBEB";
+    const bc = paso.tipo === "instruccion" ? "#2563EB" : "#F59E0B";
+    const tc = paso.tipo === "instruccion" ? "#2563EB" : "#B45309";
+    return (
+      <button
+        onClick={() => onSave({})}
+        disabled={isAck || isSaving}
+        style={{ height: 28, padding: "0 12px", background: isAck ? "#D1FAE5" : bg, border: `1px solid ${isAck ? "#10B981" : bc}`, borderRadius: 6, cursor: isAck ? "default" : "pointer", fontSize: 12, fontWeight: 600, color: isAck ? "#10B981" : tc, fontFamily: "inherit", display: "flex", alignItems: "center", gap: 5 }}
+      >
+        {isSaving ? <Loader2 size={11} className="animate-spin" /> : <Check size={11} />}
+        {isAck ? (paso.tipo === "instruccion" ? "Confirmado" : "Leído y entendido") : (paso.tipo === "instruccion" ? "Confirmar lectura" : "Leído y entendido")}
+      </button>
+    );
+  }
+
+  if (paso.tipo === "si_no_na") {
+    const cur = val("valor_texto");
+    return (
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+        {["Sí", "No", "N/A"].map(opt => (
+          <button
+            key={opt}
+            onClick={() => onSave({ valor_texto: opt })}
+            disabled={isSaving}
+            style={{
+              height: 30, padding: "0 16px", borderRadius: 6, cursor: "pointer",
+              fontSize: 12.5, fontWeight: 600, fontFamily: "inherit",
+              border: cur === opt ? "1px solid #2563EB" : "1px solid #E2E8F0",
+              background: cur === opt ? "#EFF6FF" : "#F8FAFC",
+              color: cur === opt ? "#2563EB" : "#64748B",
+            }}
+          >
+            {isSaving && cur === opt ? <Loader2 size={11} className="animate-spin" /> : opt}
+          </button>
+        ))}
+      </div>
+    );
+  }
+
+  if (paso.tipo === "opcion_multiple") {
+    const cur = val("valor_texto");
+    const opts = paso.opciones ?? [];
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+        {opts.map(opt => (
+          <button
+            key={opt}
+            onClick={() => onSave({ valor_texto: opt })}
+            disabled={isSaving}
+            style={{
+              height: 32, padding: "0 12px", borderRadius: 6, cursor: "pointer",
+              fontSize: 12.5, fontWeight: 500, fontFamily: "inherit", textAlign: "left",
+              border: cur === opt ? "1px solid #2563EB" : "1px solid #E2E8F0",
+              background: cur === opt ? "#EFF6FF" : "#F8FAFC",
+              color: cur === opt ? "#2563EB" : "#0F172A",
+              display: "flex", alignItems: "center", gap: 8,
+            }}
+          >
+            <span style={{ width: 14, height: 14, borderRadius: "50%", border: `2px solid ${cur === opt ? "#2563EB" : "#CBD5E1"}`, background: cur === opt ? "#2563EB" : "transparent", flexShrink: 0 }} />
+            {opt}
+          </button>
+        ))}
+      </div>
+    );
+  }
+
+  if (paso.tipo === "lista_verificacion") {
+    const checked: string[] = (val("valor_json") as any)?.checked ?? [];
+    const opts = paso.opciones ?? [];
+    function toggle(opt: string) {
+      const next = checked.includes(opt) ? checked.filter(c => c !== opt) : [...checked, opt];
+      onSave({ valor_json: { checked: next } });
+    }
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+        {opts.map(opt => {
+          const isChecked = checked.includes(opt);
+          return (
+            <button
+              key={opt}
+              onClick={() => toggle(opt)}
+              disabled={isSaving}
+              style={{
+                height: 32, padding: "0 12px", borderRadius: 6, cursor: "pointer",
+                fontSize: 12.5, fontWeight: 500, fontFamily: "inherit", textAlign: "left",
+                border: isChecked ? "1px solid #10B981" : "1px solid #E2E8F0",
+                background: isChecked ? "#F0FDF4" : "#F8FAFC",
+                color: isChecked ? "#059669" : "#0F172A",
+                display: "flex", alignItems: "center", gap: 8,
+              }}
+            >
+              <span style={{ width: 14, height: 14, borderRadius: 3, border: `2px solid ${isChecked ? "#10B981" : "#CBD5E1"}`, background: isChecked ? "#10B981" : "transparent", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                {isChecked && <Check size={9} style={{ color: "#fff" }} />}
+              </span>
+              {opt}
+            </button>
+          );
+        })}
+      </div>
+    );
+  }
+
+  if (paso.tipo === "inspeccion") {
+    const items: { item: string; result: "pass" | "fail" | "na" | "" }[] =
+      (val("valor_json") as any)?.items ?? (paso.opciones ?? []).map(item => ({ item, result: "" as const }));
+    function setResult(item: string, result: "pass" | "fail" | "na") {
+      const next = items.map(i => i.item === item ? { ...i, result } : i);
+      const allAnswered = next.every(i => i.result !== "");
+      onSave({ valor_json: { items: next } });
+      if (!allAnswered) return; // don't auto-complete
+    }
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        {items.map(({ item, result }) => (
+          <div key={item} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <span style={{ flex: 1, fontSize: 12.5, color: "#0F172A" }}>{item}</span>
+            {(["pass", "fail", "na"] as const).map(r => {
+              const labels = { pass: "OK", fail: "Falla", na: "N/A" };
+              const colors = { pass: "#10B981", fail: "#EF4444", na: "#94A3B8" };
+              return (
+                <button
+                  key={r}
+                  onClick={() => setResult(item, r)}
+                  disabled={isSaving}
+                  style={{
+                    height: 26, padding: "0 10px", borderRadius: 5, cursor: "pointer",
+                    fontSize: 11.5, fontWeight: 600, fontFamily: "inherit",
+                    border: result === r ? `1px solid ${colors[r]}` : "1px solid #E2E8F0",
+                    background: result === r ? colors[r] + "15" : "#F8FAFC",
+                    color: result === r ? colors[r] : "#94A3B8",
+                  }}
+                >
+                  {labels[r]}
+                </button>
+              );
+            })}
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (paso.tipo === "texto") {
+    const cur: string = val("valor_texto") ?? "";
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        {paso.multilinea ? (
+          <textarea
+            value={cur}
+            onChange={e => onUpdate({ valor_texto: e.target.value })}
+            placeholder="Escribe tu respuesta…"
+            style={{ ...inputStyle, height: "auto", minHeight: 72, padding: "7px 10px", resize: "vertical", lineHeight: 1.5 }}
+            onFocus={e => { e.currentTarget.style.borderColor = "#2563EB"; }}
+            onBlur={e => { e.currentTarget.style.borderColor = "#E2E8F0"; }}
+          />
+        ) : (
+          <input
+            type="text"
+            value={cur}
+            onChange={e => onUpdate({ valor_texto: e.target.value })}
+            placeholder="Escribe tu respuesta…"
+            style={inputStyle}
+            onFocus={e => { e.currentTarget.style.borderColor = "#2563EB"; }}
+            onBlur={e => { e.currentTarget.style.borderColor = "#E2E8F0"; }}
+          />
+        )}
+        {saveBtn("Guardar", !cur.trim())}
+      </div>
+    );
+  }
+
+  if (paso.tipo === "numero" || paso.tipo === "monto") {
+    const cur: string = val("valor_medido") != null ? String(val("valor_medido")) : "";
+    const currency = paso.moneda ?? "CLP";
+    return (
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+        {paso.tipo === "monto" && <span style={{ fontSize: 12.5, fontWeight: 600, color: "#64748B" }}>{currency}</span>}
+        <input
+          type="number"
+          value={cur}
+          onChange={e => onUpdate({ valor_medido: parseFloat(e.target.value) ?? undefined })}
+          placeholder="0"
+          style={{ ...inputStyle, width: 120 }}
+          onFocus={e => { e.currentTarget.style.borderColor = "#2563EB"; }}
+          onBlur={e => { e.currentTarget.style.borderColor = "#E2E8F0"; }}
+        />
+        {paso.tipo === "numero" && paso.unidad && <span style={{ fontSize: 12, color: "#64748B" }}>{paso.unidad}</span>}
+        {paso.tipo === "numero" && paso.valor_min != null && (
+          <span style={{ fontSize: 11, color: "#94A3B8" }}>({paso.valor_min} – {paso.valor_max})</span>
+        )}
+        {saveBtn("OK", !cur)}
+      </div>
+    );
+  }
+
+  if (paso.tipo === "imagen") {
+    return (
+      <div style={{ fontSize: 12, color: "#94A3B8", fontStyle: "italic" }}>
+        (Subida de imágenes disponible en la app móvil)
+      </div>
+    );
+  }
+
+  if (paso.tipo === "firma") {
+    return (
+      <div>
+        {paso.rol_firmante && (
+          <div style={{ fontSize: 12, color: "#64748B", marginBottom: 6 }}>
+            Firma de: <strong>{paso.rol_firmante}</strong>
+          </div>
+        )}
+        <SignatureCanvas
+          existingDataUrl={existingResp?.firma_svg ?? null}
+          isSaving={isSaving}
+          onSave={dataUrl => onSave({ firma_svg: dataUrl, firmado_at: new Date().toISOString() })}
+        />
+      </div>
+    );
+  }
+
+  return null;
+}
+
+function ProcEjecucionModal({
+  ejec, proc, pendingResps, savingResp, completingEjec,
+  onClose, onUpdateResp, onSaveResp, onComplete,
+}: {
+  ejec: ProcedimientoEjecucion;
+  proc: OTProcedimiento["procedimiento"] | null;
+  pendingResps: Record<string, PendingResp>;
+  savingResp: string | null;
+  completingEjec: boolean;
+  onClose: () => void;
+  onUpdateResp: (pasoId: string, patch: PendingResp) => void;
+  onSaveResp: (pasoId: string, extra?: PendingResp) => void;
+  onComplete: () => void;
+}) {
+  const pasos: ProcedimientoPaso[] = (proc?.pasos ?? []);
+  const isCompleted = ejec.estado === "completado";
+
+  const savedResps: Record<string, PendingResp> = {};
+  for (const r of ejec.respuestas ?? []) savedResps[r.paso_id] = r as PendingResp;
+
+  const allRequired = pasos.filter(p => p.requerido && p.tipo !== "instruccion" && p.tipo !== "advertencia");
+  const answeredRequired = allRequired.filter(p => isAnsweredForType(p, savedResps[p.id]));
+  const canComplete = answeredRequired.length === allRequired.length;
+
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 70, background: "rgba(15,23,42,0.50)", display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
+      <div style={{ background: "#fff", width: "100%", maxWidth: 580, maxHeight: "92vh", borderRadius: "16px 16px 0 0", display: "flex", flexDirection: "column", boxShadow: "0 -8px 40px rgba(0,0,0,0.20)" }}>
+
+        {/* Header */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px", borderBottom: "1px solid #E2E8F0", flexShrink: 0 }}>
+          <div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: "#0F172A" }}>{proc?.nombre ?? "Procedimiento"}</div>
+            <div style={{ fontSize: 12, color: "#94A3B8" }}>{pasos.length} campo{pasos.length !== 1 ? "s" : ""}</div>
+          </div>
+          {isCompleted && (
+            <span style={{ fontSize: 11.5, fontWeight: 600, color: "#10B981", background: "#ECFDF5", border: "1px solid #6EE7B7", borderRadius: 6, padding: "3px 10px" }}>
+              Completado
+            </span>
+          )}
+          <button
+            onClick={onClose}
+            style={{ width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", borderRadius: 6, cursor: "pointer", color: "#94A3B8" }}
+            onMouseEnter={e => { e.currentTarget.style.background = "#F1F5F9"; }}
+            onMouseLeave={e => { e.currentTarget.style.background = "none"; }}
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "14px 20px 20px" }}>
+          {pasos.length === 0 ? (
+            <div style={{ textAlign: "center", padding: "32px 0", color: "#94A3B8", fontSize: 13 }}>Sin campos definidos</div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {pasos.map((paso, idx) => {
+                const meta = EXEC_TIPO_META[paso.tipo];
+                const saved = savedResps[paso.id];
+                const pending = pendingResps[paso.id] ?? {};
+                const isSaving = savingResp === paso.id;
+                const answered = isAnsweredForType(paso, saved);
+                const isInfoOnly = paso.tipo === "instruccion" || paso.tipo === "advertencia";
+
+                return (
+                  <div
+                    key={paso.id}
+                    style={{
+                      border: `1px solid ${answered ? "#D1FAE5" : "#E2E8F0"}`,
+                      borderRadius: 10, background: answered ? "#F0FDF4" : "#fff",
+                      overflow: "hidden",
+                    }}
+                  >
+                    <div style={{ padding: "12px 14px" }}>
+                      {/* Step header */}
+                      <div style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: (paso.descripcion || !isInfoOnly) ? 8 : 0 }}>
+                        <span style={{
+                          width: 26, height: 26, borderRadius: 6, flexShrink: 0,
+                          background: answered ? "#D1FAE5" : meta.color + "15",
+                          color: answered ? "#10B981" : meta.color,
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                        }}>
+                          {answered ? <Check size={13} /> : meta.icon}
+                        </span>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: 13.5, fontWeight: 600, color: "#0F172A", lineHeight: 1.3 }}>
+                            {idx + 1}. {paso.titulo}
+                            {!paso.requerido && !isInfoOnly && (
+                              <span style={{ fontSize: 11, color: "#94A3B8", fontWeight: 400, marginLeft: 6 }}>(opcional)</span>
+                            )}
+                          </div>
+                          {paso.descripcion && (
+                            <div style={{ fontSize: 12.5, color: "#64748B", lineHeight: 1.5, marginTop: 3 }}>{paso.descripcion}</div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Input or read-only answer */}
+                      {isCompleted && saved ? (
+                        <div style={{ paddingLeft: 36 }}>
+                          <ReadonlyAnswer paso={paso} resp={saved} />
+                        </div>
+                      ) : !isCompleted ? (
+                        <div style={{ paddingLeft: 36 }}>
+                          <PasoInput
+                            paso={paso}
+                            resp={pending}
+                            existingResp={saved}
+                            isSaving={isSaving}
+                            onUpdate={patch => onUpdateResp(paso.id, patch)}
+                            onSave={extra => onSaveResp(paso.id, extra)}
+                          />
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        {!isCompleted && (
+          <div style={{ padding: "12px 20px", borderTop: "1px solid #E2E8F0", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "space-between", background: "#F8FAFC" }}>
+            <div style={{ fontSize: 12, color: "#94A3B8" }}>
+              {answeredRequired.length}/{allRequired.length} campos requeridos completados
+            </div>
+            <button
+              onClick={onComplete}
+              disabled={!canComplete || completingEjec}
+              style={{
+                height: 36, padding: "0 18px",
+                background: canComplete ? "linear-gradient(135deg, #10B981, #059669)" : "#E2E8F0",
+                border: "none", borderRadius: 8, cursor: canComplete ? "pointer" : "default",
+                fontSize: 13, fontWeight: 600, color: canComplete ? "#fff" : "#94A3B8",
+                fontFamily: "inherit", display: "flex", alignItems: "center", gap: 6,
+              }}
+            >
+              {completingEjec ? <Loader2 size={13} className="animate-spin" /> : <CheckCircle2 size={13} />}
+              Completar
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

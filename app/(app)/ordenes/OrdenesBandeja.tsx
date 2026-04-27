@@ -34,6 +34,8 @@ const EMPTY_FILTROS: FiltrosState = {
   estados: [], prioridades: [], tipos: [],
   asignadoIds: [], ubicacionIds: [], sociedadIds: [],
   venceHoy: false,
+  sinAsignar: false,
+  vencidas: false,
 };
 
 // ── Props ─────────────────────────────────────────────────────────────────────
@@ -77,8 +79,13 @@ export default function OrdenesBandeja({
   const [filtros, setFiltros]   = useState<FiltrosState>(() => {
     const f = searchParams?.get("filtro");
     if (f === "urgentes")         return { ...EMPTY_FILTROS, prioridades: ["urgente"] };
+    if (f === "alta_prioridad")   return { ...EMPTY_FILTROS, prioridades: ["urgente", "alta"] };
     if (f === "en_curso")         return { ...EMPTY_FILTROS, estados: ["en_curso"] };
     if (f === "abiertas")         return { ...EMPTY_FILTROS, estados: ["pendiente", "en_espera"] };
+    if (f === "bloqueadas")       return { ...EMPTY_FILTROS, estados: ["en_espera"] };
+    if (f === "sin_asignar")      return { ...EMPTY_FILTROS, sinAsignar: true };
+    if (f === "vencidas")         return { ...EMPTY_FILTROS, vencidas: true };
+    if (f === "vence_hoy")        return { ...EMPTY_FILTROS, venceHoy: true };
     if (f === "completadas_hoy")  return { ...EMPTY_FILTROS, estados: ["completado"] };
     return EMPTY_FILTROS;
   });
@@ -240,6 +247,13 @@ export default function OrdenesBandeja({
       const today = new Date().toDateString();
       list = list.filter(o => o.fecha_termino != null && new Date(o.fecha_termino).toDateString() === today);
     }
+    if (filtros.sinAsignar) {
+      list = list.filter(o => !o.asignados_ids || o.asignados_ids.length === 0);
+    }
+    if (filtros.vencidas) {
+      const today = new Date().toISOString().slice(0, 10);
+      list = list.filter(o => o.fecha_termino != null && o.fecha_termino.slice(0, 10) < today && o.estado !== "completado");
+    }
 
     // Search — checks title, N° OT, solicitante and description body
     if (search.trim()) {
@@ -294,6 +308,13 @@ export default function OrdenesBandeja({
       if (filtros.venceHoy) {
         const today = new Date().toDateString();
         list = list.filter(o => o.fecha_termino != null && new Date(o.fecha_termino).toDateString() === today);
+      }
+      if (filtros.sinAsignar) {
+        list = list.filter(o => !o.asignados_ids || o.asignados_ids.length === 0);
+      }
+      if (filtros.vencidas) {
+        const today = new Date().toISOString().slice(0, 10);
+        list = list.filter(o => o.fecha_termino != null && o.fecha_termino.slice(0, 10) < today && o.estado !== "completado");
       }
       if (search.trim()) {
         const q = search.trim().replace(/\s+/g, " ").toLowerCase();
@@ -715,6 +736,18 @@ export default function OrdenesBandeja({
                 <button type="button" onClick={() => setFiltros(f => ({ ...f, venceHoy: false }))} style={{ background:"none", border:"none", cursor:"pointer", color:"#C2410C", display:"flex", padding:0, lineHeight:1 }}><X size={9} /></button>
               </span>
             )}
+            {filtros.sinAsignar && (
+              <span style={{ display:"flex", alignItems:"center", gap:4, height:24, padding:"0 8px", background:"#F1F5F9", borderRadius:6, fontSize:11, fontWeight:600, color:"#475569" }}>
+                Sin asignar
+                <button type="button" onClick={() => setFiltros(f => ({ ...f, sinAsignar: false }))} style={{ background:"none", border:"none", cursor:"pointer", color:"#475569", display:"flex", padding:0, lineHeight:1 }}><X size={9} /></button>
+              </span>
+            )}
+            {filtros.vencidas && (
+              <span style={{ display:"flex", alignItems:"center", gap:4, height:24, padding:"0 8px", background:"#FEF2F2", borderRadius:6, fontSize:11, fontWeight:600, color:"#DC2626" }}>
+                Vencidas
+                <button type="button" onClick={() => setFiltros(f => ({ ...f, vencidas: false }))} style={{ background:"none", border:"none", cursor:"pointer", color:"#DC2626", display:"flex", padding:0, lineHeight:1 }}><X size={9} /></button>
+              </span>
+            )}
             <button
               type="button"
               onClick={() => setFiltrosOpen(v => !v)}
@@ -730,9 +763,9 @@ export default function OrdenesBandeja({
             >
               <SlidersHorizontal size={13} />
               Filtros
-              {(filtros.estados.length + filtros.prioridades.length + filtros.tipos.length + filtros.asignadoIds.length + filtros.ubicacionIds.length + filtros.sociedadIds.length + (filtros.venceHoy ? 1 : 0)) > 0 && (
+              {(filtros.estados.length + filtros.prioridades.length + filtros.tipos.length + filtros.asignadoIds.length + filtros.ubicacionIds.length + filtros.sociedadIds.length + (filtros.venceHoy ? 1 : 0) + (filtros.sinAsignar ? 1 : 0) + (filtros.vencidas ? 1 : 0)) > 0 && (
                 <span style={{ fontSize:10, fontWeight:700, background:"#2563EB", color:"#fff", borderRadius:"50%", width:16, height:16, display:"flex", alignItems:"center", justifyContent:"center" }}>
-                  {filtros.estados.length + filtros.prioridades.length + filtros.tipos.length + filtros.asignadoIds.length + filtros.ubicacionIds.length + filtros.sociedadIds.length + (filtros.venceHoy ? 1 : 0)}
+                  {filtros.estados.length + filtros.prioridades.length + filtros.tipos.length + filtros.asignadoIds.length + filtros.ubicacionIds.length + filtros.sociedadIds.length + (filtros.venceHoy ? 1 : 0) + (filtros.sinAsignar ? 1 : 0) + (filtros.vencidas ? 1 : 0)}
                 </span>
               )}
             </button>

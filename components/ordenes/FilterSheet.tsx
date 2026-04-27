@@ -70,6 +70,8 @@ export default function FilterSheet({ filtros, setFiltros }: Props) {
       ubicacionIds: [],
       sociedadIds: [],
       venceHoy: false,
+      sinAsignar: false,
+      vencidas: false,
     })
   }
 

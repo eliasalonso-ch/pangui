@@ -103,7 +103,7 @@ interface Props {
 const EMPTY: FiltrosState = {
   estados: [], prioridades: [], tipos: [],
   asignadoIds: [], ubicacionIds: [], sociedadIds: [],
-  venceHoy: false,
+  venceHoy: false, sinAsignar: false, vencidas: false,
 };
 
 function hasFilters(f: FiltrosState) {
