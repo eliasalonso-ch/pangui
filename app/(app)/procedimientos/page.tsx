@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase";
 import {
   ClipboardCheck, Plus, Search, Loader2, X, Pencil, Trash2,
-  CheckCircle2, AlertTriangle, ChevronRight, Shield,
+  CheckCircle2, AlertTriangle, ChevronRight, Shield, Zap,
 } from "lucide-react";
 import {
   listProcedimientos, archiveProcedimiento,
@@ -276,6 +276,12 @@ function ProcCard({
             <span style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 11, color: "#F59E0B", fontWeight: 500 }}>
               <Shield size={11} />
               Bloquea cierre
+            </span>
+          )}
+          {proc.auto_adjuntar && (
+            <span style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 11, color: "#8B5CF6", fontWeight: 500 }}>
+              <Zap size={11} />
+              Auto-adjuntar
             </span>
           )}
         </div>

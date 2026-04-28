@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase";
 import { CheckCircle2, Eye, EyeOff, Loader2 } from "lucide-react";
@@ -33,6 +33,22 @@ export default function LoginPage() {
   const [showPw, setShowPw] = useState(false);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const hash = window.location.hash.slice(1);
+    if (hash) {
+      const params = Object.fromEntries(new URLSearchParams(hash));
+      if (params.type === "recovery" && params.access_token) {
+        window.location.replace(`/reset-contrasena#${hash}`);
+        return;
+      }
+    }
+    // Redirect already-authenticated users to app
+    const supabase = createClient();
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) router.replace("/ordenes");
+    });
+  }, []);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -203,7 +219,7 @@ export default function LoginPage() {
                   <label style={{ fontSize: 12, fontWeight: 600, color: "#64748B" }}>
                     Contraseña
                   </label>
-                  <a href="mailto:hola@pangui.cl" style={{ fontSize: 12, color: "#2563EB", fontWeight: 500, textDecoration: "none" }}>
+                  <a href="/recuperar-contrasena" style={{ fontSize: 12, color: "#2563EB", fontWeight: 500, textDecoration: "none" }}>
                     ¿Olvidaste?
                   </a>
                 </div>

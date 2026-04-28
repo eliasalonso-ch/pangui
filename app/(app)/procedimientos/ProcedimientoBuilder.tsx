@@ -17,17 +17,17 @@ import type { ProcedimientoForm, PasoFormItem, TipoPasoProc } from "@/types/proc
 // ─── Tipo metadata ────────────────────────────────────────────────────────────
 
 const TIPO_META: Record<TipoPasoProc, { label: string; icon: React.ReactNode; color: string; desc: string }> = {
-  instruccion:       { label: "Instrucción",          icon: <Info size={14} />,          color: "#3B82F6", desc: "Texto informativo para el ejecutor" },
-  advertencia:       { label: "Advertencia",           icon: <AlertTriangle size={14} />, color: "#F59E0B", desc: "Alerta de seguridad o riesgo" },
-  texto:             { label: "Campo de texto",        icon: <Type size={14} />,          color: "#8B5CF6", desc: "El ejecutor escribe una respuesta de texto" },
-  numero:            { label: "Campo numérico",        icon: <Hash size={14} />,          color: "#6366F1", desc: "El ejecutor ingresa un valor numérico" },
-  monto:             { label: "Monto ($)",             icon: <DollarSign size={14} />,    color: "#10B981", desc: "El ejecutor ingresa un monto monetario" },
-  si_no_na:          { label: "Sí / No / N/A",         icon: <CheckSquare size={14} />,   color: "#14B8A6", desc: "Selección entre Sí, No o No aplica" },
-  opcion_multiple:   { label: "Opción múltiple",       icon: <List size={14} />,          color: "#F97316", desc: "El ejecutor elige una opción de una lista" },
-  lista_verificacion:{ label: "Lista de verificación", icon: <ListChecks size={14} />,    color: "#EF4444", desc: "El ejecutor marca ítems de una checklist" },
-  inspeccion:        { label: "Inspección",            icon: <ClipboardCheck size={14} />,color: "#EC4899", desc: "Resultado pass/fail/N/A por ítem" },
-  imagen:            { label: "Imagen / foto",         icon: <Camera size={14} />,        color: "#64748B", desc: "El ejecutor adjunta una fotografía" },
-  firma:             { label: "Firma",                 icon: <PenLine size={14} />,       color: "#0EA5E9", desc: "El ejecutor firma con el dedo o mouse" },
+  instruccion:       { label: "Instrucción",          icon: <Info size={14} />,          color: "#3B82F6", desc: "Texto informativo" },
+  advertencia:       { label: "Advertencia",           icon: <AlertTriangle size={14} />, color: "#F59E0B", desc: "Alerta de seguridad" },
+  texto:             { label: "Campo de texto",        icon: <Type size={14} />,          color: "#8B5CF6", desc: "Respuesta libre de texto" },
+  numero:            { label: "Campo numérico",        icon: <Hash size={14} />,          color: "#6366F1", desc: "Valor numérico con unidad" },
+  monto:             { label: "Monto ($)",             icon: <DollarSign size={14} />,    color: "#10B981", desc: "Monto monetario" },
+  si_no_na:          { label: "Sí / No / N/A",         icon: <CheckSquare size={14} />,   color: "#14B8A6", desc: "Selección Sí, No o N/A" },
+  opcion_multiple:   { label: "Opción múltiple",       icon: <List size={14} />,          color: "#F97316", desc: "Elige una de varias opciones" },
+  lista_verificacion:{ label: "Lista de verificación", icon: <ListChecks size={14} />,    color: "#EF4444", desc: "Checklist de ítems" },
+  inspeccion:        { label: "Inspección",            icon: <ClipboardCheck size={14} />,color: "#EC4899", desc: "Pass / Fail / N/A por ítem" },
+  imagen:            { label: "Imagen / foto",         icon: <Camera size={14} />,        color: "#64748B", desc: "Adjunta una fotografía" },
+  firma:             { label: "Firma",                 icon: <PenLine size={14} />,       color: "#0EA5E9", desc: "Firma digital" },
 };
 
 const TIPO_GROUPS: { label: string; tipos: TipoPasoProc[] }[] = [
@@ -62,7 +62,7 @@ function emptyPaso(tipo: TipoPasoProc = "instruccion"): PasoFormItem {
 }
 
 function emptyForm(): ProcedimientoForm {
-  return { nombre: "", descripcion: "", categoria: "", bloquea_cierre_ot: false, pasos: [] };
+  return { nombre: "", descripcion: "", categoria: "", bloquea_cierre_ot: false, auto_adjuntar: false, pasos: [] };
 }
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
@@ -141,6 +141,7 @@ export default function ProcedimientoBuilder({ editId }: Props) {
           descripcion: proc.descripcion ?? "",
           categoria: proc.categoria ?? "",
           bloquea_cierre_ot: proc.bloquea_cierre_ot,
+          auto_adjuntar: proc.auto_adjuntar,
           pasos: (proc.pasos ?? []).map(p => ({
             tempId: p.id,
             tipo: p.tipo,
@@ -281,25 +282,41 @@ export default function ProcedimientoBuilder({ editId }: Props) {
                   placeholder="Ej: Eléctrico, Mecánico…"
                 />
               </div>
-              <div style={{ display: "flex", flexDirection: "column", justifyContent: "flex-end" }}>
-                <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
-                  <input
-                    type="checkbox"
-                    checked={form.bloquea_cierre_ot}
-                    onChange={e => setForm(f => ({ ...f, bloquea_cierre_ot: e.target.checked }))}
-                    style={{ width: 14, height: 14, accentColor: "#2563EB", cursor: "pointer" }}
-                  />
-                  <span style={{ fontSize: 13, color: "#0F172A", fontWeight: 500 }}>Bloquea cierre de OT</span>
-                </label>
-                <div style={{ fontSize: 11.5, color: "#94A3B8", marginTop: 3, paddingLeft: 22 }}>
-                  La OT no puede completarse hasta ejecutar este procedimiento.
+              <div style={{ display: "flex", flexDirection: "column", gap: 10, justifyContent: "flex-end", minWidth: 0 }}>
+                <div>
+                  <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+                    <input
+                      type="checkbox"
+                      checked={form.bloquea_cierre_ot}
+                      onChange={e => setForm(f => ({ ...f, bloquea_cierre_ot: e.target.checked }))}
+                      style={{ width: 14, height: 14, accentColor: "#2563EB", cursor: "pointer" }}
+                    />
+                    <span style={{ fontSize: 13, color: "#0F172A", fontWeight: 500 }}>Bloquea cierre de OT</span>
+                  </label>
+                  <div style={{ fontSize: 11.5, color: "#94A3B8", marginTop: 3, paddingLeft: 22 }}>
+                    La OT no puede completarse hasta ejecutar este procedimiento.
+                  </div>
+                </div>
+                <div>
+                  <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+                    <input
+                      type="checkbox"
+                      checked={form.auto_adjuntar}
+                      onChange={e => setForm(f => ({ ...f, auto_adjuntar: e.target.checked }))}
+                      style={{ width: 14, height: 14, accentColor: "#8B5CF6", cursor: "pointer" }}
+                    />
+                    <span style={{ fontSize: 13, color: "#0F172A", fontWeight: 500 }}>Auto-adjuntar a nuevas OTs</span>
+                  </label>
+                  <div style={{ fontSize: 11.5, color: "#94A3B8", marginTop: 3, paddingLeft: 22 }}>
+                    Se adjunta automáticamente a cada OT nueva del workspace.
+                  </div>
                 </div>
               </div>
             </div>
           </div>
 
           {/* Steps card */}
-          <div style={{ background: "#fff", borderRadius: 12, border: "1px solid #E2E8F0", padding: "20px 24px" }}>
+          <div style={{ background: "#fff", borderRadius: 12, border: "1px solid #E2E8F0", padding: "20px 24px", minWidth: 0, overflow: "hidden" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: form.pasos.length > 0 ? 14 : 0 }}>
               <div style={{ fontSize: 13, fontWeight: 600, color: "#0F172A" }}>
                 Campos{" "}
@@ -377,7 +394,7 @@ function TipoPicker({ onSelect, onClose }: { onSelect: (t: TipoPasoProc) => void
             <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#94A3B8", marginBottom: 6 }}>
               {group.label}
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(170px, 1fr))", gap: 5 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 5 }}>
               {group.tipos.map(tipo => {
                 const m = TIPO_META[tipo];
                 return (
@@ -390,12 +407,13 @@ function TipoPicker({ onSelect, onClose }: { onSelect: (t: TipoPasoProc) => void
                       background: `${m.color}08`, cursor: "pointer",
                       textAlign: "left", fontFamily: "inherit",
                       transition: "background 0.12s",
+                      minWidth: 0, overflow: "hidden",
                     }}
                     onMouseEnter={e => { e.currentTarget.style.background = `${m.color}18`; }}
                     onMouseLeave={e => { e.currentTarget.style.background = `${m.color}08`; }}
                   >
                     <span style={{ color: m.color, marginTop: 1, flexShrink: 0 }}>{m.icon}</span>
-                    <div>
+                    <div style={{ minWidth: 0 }}>
                       <div style={{ fontSize: 12.5, fontWeight: 600, color: "#0F172A", lineHeight: 1.2 }}>{m.label}</div>
                       <div style={{ fontSize: 11, color: "#94A3B8", marginTop: 2, lineHeight: 1.3 }}>{m.desc}</div>
                     </div>
@@ -450,10 +468,10 @@ function PasoEditor({
           {meta.icon}
         </span>
         <span style={{ fontSize: 12, color: "#94A3B8", fontWeight: 500, flexShrink: 0 }}>{index + 1}.</span>
-        <span style={{ flex: 1, fontSize: 13, color: paso.titulo ? "#0F172A" : "#94A3B8", fontWeight: paso.titulo ? 500 : 400, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        <span style={{ flex: 1, minWidth: 0, fontSize: 13, color: paso.titulo ? "#0F172A" : "#94A3B8", fontWeight: paso.titulo ? 500 : 400, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
           {paso.titulo || "Sin título"}
         </span>
-        <span style={{ fontSize: 11, color: meta.color, background: meta.color + "15", borderRadius: 4, padding: "2px 6px", flexShrink: 0, whiteSpace: "nowrap" }}>
+        <span style={{ fontSize: 11, color: meta.color, background: meta.color + "15", borderRadius: 4, padding: "2px 6px", flexShrink: 0, whiteSpace: "nowrap", maxWidth: 120, overflow: "hidden", textOverflow: "ellipsis" }}>
           {meta.label}
         </span>
         {expanded ? <ChevronUp size={14} style={{ color: "#94A3B8", flexShrink: 0 }} /> : <ChevronDown size={14} style={{ color: "#94A3B8", flexShrink: 0 }} />}
@@ -461,8 +479,8 @@ function PasoEditor({
 
       {/* Expanded editor */}
       {expanded && (
-        <div style={{ padding: "14px 14px 16px", borderTop: "1px solid #E2E8F0", background: "#fff" }}>
-          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        <div style={{ padding: "14px 14px 16px", borderTop: "1px solid #E2E8F0", background: "#fff", minWidth: 0 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12, minWidth: 0 }}>
 
             {/* Title */}
             <div>

@@ -21,6 +21,7 @@ export interface Procedimiento {
   categoria: string | null;
   activo: boolean;
   bloquea_cierre_ot: boolean;
+  auto_adjuntar: boolean;
   created_by: string | null;
   created_at: string;
   updated_at: string;
@@ -34,6 +35,7 @@ export interface ProcedimientoListItem {
   categoria: string | null;
   activo: boolean;
   bloquea_cierre_ot: boolean;
+  auto_adjuntar: boolean;
   created_at: string;
   pasos_count?: number;
 }
@@ -140,6 +142,7 @@ export interface ProcedimientoForm {
   descripcion: string;
   categoria: string;
   bloquea_cierre_ot: boolean;
+  auto_adjuntar: boolean;
   pasos: PasoFormItem[];
 }
 

@@ -19,10 +19,6 @@ export async function proxy(request) {
     },
   );
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
   const pathname = request.nextUrl.pathname;
 
   const isLogin = pathname === "/login";
@@ -32,9 +28,31 @@ export async function proxy(request) {
     pathname.startsWith("/privacidad") ||
     pathname.startsWith("/terminos") ||
     pathname.startsWith("/registro") ||
+    pathname.startsWith("/recuperar-contrasena") ||
+    pathname.startsWith("/reset-contrasena") ||
+    pathname.startsWith("/confirmar-reset") ||
     pathname === "/api/registro" ||
     pathname === "/api/suscripcion/webhook" ||
     pathname === "/api/suscripcion/seed-planes";
+
+  // Skip auth check entirely for public routes and login
+  if (isPublic || isRoot || isLogin) return response;
+
+  let user = null;
+  try {
+    const { data, error } = await supabase.auth.getUser();
+    if (error?.message?.includes("refresh_token") || error?.status === 400) {
+      // Stale refresh token — clear the session and send to login
+      const redirect = NextResponse.redirect(new URL("/login", request.url));
+      request.cookies.getAll().forEach(({ name }) => {
+        if (name.startsWith("sb-")) redirect.cookies.delete(name);
+      });
+      return redirect;
+    }
+    user = data.user;
+  } catch {
+    // Network error — let the request through, don't block
+  }
 
   // No session → allow /, /login and public routes only
   if (!user && !isLogin && !isRoot && !isPublic) {

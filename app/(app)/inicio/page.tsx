@@ -4,12 +4,12 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   ClipboardList, Clock, CheckCircle2, AlertTriangle,
-  Plus, ArrowRight, MapPin, Wrench, MessageSquare,
-  UserCheck, Play, Pause, RefreshCw, Edit3, Trash2,
+  Plus, ArrowRight, MapPin,
+  MessageSquare, UserCheck, Play, Pause, RefreshCw, Edit3, Trash2,
   CheckCheck, TriangleAlert, User, Calendar, TrendingUp,
   Info, XCircle, PackageX, Lock,
-  Flame, Zap, Brain, ChevronRight, TrendingDown,
-  Package, ShieldAlert, Timer, Activity,
+  Zap, Brain, ChevronRight, TrendingDown,
+  Package, Timer, Activity,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase";
 import type { Estado, Prioridad } from "@/types/ordenes";
@@ -77,44 +77,37 @@ const ESTADO_LABEL: Record<Estado, string> = {
   completado: "Completada",
 };
 
-const ESTADO_STYLE: Record<Estado, { bg: string; color: string; dot: string }> = {
-  pendiente:  { bg: "#EFF6FF", color: "#1D4ED8", dot: "#3B82F6" },
-  en_espera:  { bg: "#FFF7ED", color: "#C2410C", dot: "#F97316" },
-  en_curso:   { bg: "#F0FDF4", color: "#15803D", dot: "#22C55E" },
-  completado: { bg: "#F0FDF4", color: "#166534", dot: "#16A34A" },
+const ESTADO_DOT: Record<Estado, string> = {
+  pendiente:  "#3B82F6",
+  en_espera:  "#F97316",
+  en_curso:   "#8B5CF6",
+  completado: "#10B981",
 };
 
 const PRIORIDAD_LABEL: Record<Prioridad, string> = {
-  ninguna: "Sin prioridad", baja: "Baja", media: "Media", alta: "Alta", urgente: "Urgente",
+  ninguna: "—", baja: "Baja", media: "Media", alta: "Alta", urgente: "Urgente",
 };
 
-const PRIORIDAD_STYLE: Record<Prioridad, { bg: string; color: string }> = {
-  ninguna: { bg: "#F1F5F9", color: "#94A3B8" },
-  baja:    { bg: "#F1F5F9", color: "#64748B" },
-  media:   { bg: "#EFF6FF", color: "#2563EB" },
-  alta:    { bg: "#FFF7ED", color: "#EA580C" },
-  urgente: { bg: "#FEF2F2", color: "#DC2626" },
+const PRIORIDAD_COLOR: Record<Prioridad, string> = {
+  ninguna: "#CBD5E1",
+  baja:    "#94A3B8",
+  media:   "#3B82F6",
+  alta:    "#F97316",
+  urgente: "#EF4444",
 };
 
-const BLOCKER_LABEL: Record<string, string> = {
-  materiales: "Esperando materiales",
-  cliente:    "Esperando cliente",
-  acceso:     "Sin acceso",
-  otro:       "Otro motivo",
-};
-
-const ACTIVIDAD_CONFIG: Record<string, { icon: React.ReactNode; label: string; color: string }> = {
-  creado:             { icon: <Plus size={11} />,           label: "Creó",             color: "#1E3A8A" },
-  editado:            { icon: <Edit3 size={11} />,          label: "Editó",            color: "#6B7280" },
-  comentario:         { icon: <MessageSquare size={11} />,  label: "Comentó",          color: "#0369A1" },
-  estado_cambiado:    { icon: <RefreshCw size={11} />,      label: "Cambió estado",    color: "#7C3AED" },
-  asignado:           { icon: <UserCheck size={11} />,      label: "Asignó",           color: "#059669" },
-  completado:         { icon: <CheckCheck size={11} />,     label: "Completó",         color: "#166534" },
-  iniciado:           { icon: <Play size={11} />,           label: "Inició",           color: "#15803D" },
-  pausado:            { icon: <Pause size={11} />,          label: "Pausó",            color: "#C2410C" },
-  reanudado:          { icon: <Play size={11} />,           label: "Reanudó",          color: "#15803D" },
-  prioridad_cambiada: { icon: <TriangleAlert size={11} />,  label: "Cambió prioridad", color: "#D97706" },
-  eliminado:          { icon: <Trash2 size={11} />,         label: "Eliminó",          color: "#DC2626" },
+const ACTIVIDAD_CONFIG: Record<string, { icon: React.ReactNode; label: string }> = {
+  creado:             { icon: <Plus size={11} />,           label: "Creó" },
+  editado:            { icon: <Edit3 size={11} />,          label: "Editó" },
+  comentario:         { icon: <MessageSquare size={11} />,  label: "Comentó" },
+  estado_cambiado:    { icon: <RefreshCw size={11} />,      label: "Cambió estado" },
+  asignado:           { icon: <UserCheck size={11} />,      label: "Asignó" },
+  completado:         { icon: <CheckCheck size={11} />,     label: "Completó" },
+  iniciado:           { icon: <Play size={11} />,           label: "Inició" },
+  pausado:            { icon: <Pause size={11} />,          label: "Pausó" },
+  reanudado:          { icon: <Play size={11} />,           label: "Reanudó" },
+  prioridad_cambiada: { icon: <TriangleAlert size={11} />,  label: "Cambió prioridad" },
+  eliminado:          { icon: <Trash2 size={11} />,         label: "Eliminó" },
 };
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -162,7 +155,6 @@ function getPriorityScore(ot: OTDashboard): number {
 
 function getBlockedHours(ot: OTDashboard): number {
   if (ot.estado !== "en_espera") return 0;
-  // Use pausado_at if available, else updated_at, else created_at
   const since = ot.pausado_at ?? ot.updated_at ?? ot.created_at;
   return (Date.now() - new Date(since).getTime()) / 3600000;
 }
@@ -170,30 +162,11 @@ function getBlockedHours(ot: OTDashboard): number {
 function groupImmediateActions(ots: OTDashboard[]) {
   const open  = ots.filter(o => o.estado !== "completado");
   const today = new Date().toISOString().slice(0, 10);
-
   const vencidas   = open.filter(o => o.fecha_termino && o.fecha_termino.slice(0, 10) < today);
   const paraHoy    = open.filter(o => o.fecha_termino && o.fecha_termino.slice(0, 10) === today);
   const sinAsignar = open.filter(o => !o.asignados_ids || o.asignados_ids.length === 0);
   const bloqueadas = open.filter(o => o.estado === "en_espera");
-
   return { vencidas, paraHoy, sinAsignar, bloqueadas };
-}
-
-function groupBlockAlerts(ots: OTDashboard[]): { reason: string; count: number; over24h: number }[] {
-  const blocked = ots.filter(o => o.estado === "en_espera");
-  const byReason: Record<string, { count: number; over24h: number }> = {};
-
-  for (const ot of blocked) {
-    const reason = ot.blockedReason ?? "otro";
-    if (!byReason[reason]) byReason[reason] = { count: 0, over24h: 0 };
-    byReason[reason].count++;
-    if (getBlockedHours(ot) > 24) byReason[reason].over24h++;
-  }
-
-  return Object.entries(byReason)
-    .map(([reason, data]) => ({ reason, ...data }))
-    .filter(g => g.count > 0)
-    .sort((a, b) => b.over24h - a.over24h || b.count - a.count);
 }
 
 function generateInsights(ots: OTDashboard[], partes: Parte[]): Insight[] {
@@ -206,7 +179,6 @@ function generateInsights(ots: OTDashboard[], partes: Parte[]): Insight[] {
   const completadas = ots.filter(o => o.estado === "completado");
   const bajo_stock  = partes.filter(p => p.stock_actual < p.stock_minimo);
 
-  // Workload imbalance: any technician assigned to 4+ open OTs
   const assigneeCounts: Record<string, number> = {};
   for (const ot of open) {
     for (const uid of ot.asignados_ids ?? []) {
@@ -214,109 +186,31 @@ function generateInsights(ots: OTDashboard[], partes: Parte[]): Insight[] {
     }
   }
   const overloaded = Object.values(assigneeCounts).filter(c => c >= 4).length;
-
-  // Time distribution
-  const timeDist = aggregateTimeDistribution(open as any);
+  const timeDist   = aggregateTimeDistribution(open as any);
   const waitingPct = timeDist.waitingPct;
-
-  // Avg resolution time (hours)
-  const avgRes = avgResolutionTime(completadas as any);
-
+  const avgRes     = avgResolutionTime(completadas as any);
   const insights: Insight[] = [];
 
-  if (vencidas.length > 0) {
-    insights.push({
-      type: "danger",
-      message: `${vencidas.length} orden${vencidas.length > 1 ? "es vencidas" : " vencida"} sin cerrar`,
-      icon: <XCircle size={14} />,
-      filtro: "vencidas",
-    });
-  }
-
+  if (vencidas.length > 0) insights.push({ type: "danger",  message: `${vencidas.length} orden${vencidas.length > 1 ? "es vencidas" : " vencida"} sin cerrar`, icon: <XCircle size={13} />, filtro: "vencidas" });
   if (bloqueadas.length > 0) {
     const over24 = bloqueadas.filter(o => getBlockedHours(o) > 24).length;
-    if (over24 > 0) {
-      insights.push({
-        type: "danger",
-        message: `${over24} orden${over24 > 1 ? "es llevan" : " lleva"} más de 24h bloqueada${over24 > 1 ? "s" : ""}`,
-        icon: <Lock size={14} />,
-        filtro: "bloqueadas",
-      });
-    } else {
-      insights.push({
-        type: "warning",
-        message: `${bloqueadas.length} orden${bloqueadas.length > 1 ? "es bloqueadas" : " bloqueada"} — revisar`,
-        icon: <Clock size={14} />,
-        filtro: "bloqueadas",
-      });
-    }
+    insights.push(over24 > 0
+      ? { type: "danger",  message: `${over24} orden${over24 > 1 ? "es llevan" : " lleva"} más de 24h bloqueada${over24 > 1 ? "s" : ""}`, icon: <Lock size={13} />, filtro: "bloqueadas" }
+      : { type: "warning", message: `${bloqueadas.length} orden${bloqueadas.length > 1 ? "es bloqueadas" : " bloqueada"} en espera`, icon: <Clock size={13} />, filtro: "bloqueadas" }
+    );
   }
+  if (bajo_stock.length > 0)  insights.push({ type: "warning", message: `${bajo_stock.length} ítem${bajo_stock.length > 1 ? "s" : ""} de inventario bajo stock mínimo`, icon: <Package size={13} />, filtro: "inventario" });
+  if (sinAsignar.length > 0)  insights.push({ type: "warning", message: `${sinAsignar.length} orden${sinAsignar.length > 1 ? "es" : ""} sin técnico asignado`, icon: <User size={13} />, filtro: "sin_asignar" });
+  if (urgentes.length > 0)    insights.push({ type: "danger",  message: `${urgentes.length} orden${urgentes.length > 1 ? "es de alta prioridad" : " de alta prioridad"} activa${urgentes.length > 1 ? "s" : ""}`, icon: <Zap size={13} />, filtro: "alta_prioridad" });
+  if (open.length > completadas.length * 1.5 && completadas.length > 0) insights.push({ type: "warning", message: "El backlog está creciendo — se abren más órdenes de las que se cierran", icon: <TrendingUp size={13} /> });
+  if (waitingPct > 40 && timeDist.totalHours > 0) insights.push({ type: "warning", message: `El ${waitingPct}% del tiempo activo se pierde en esperas`, icon: <Timer size={13} /> });
+  if (overloaded > 0) insights.push({ type: "warning", message: `${overloaded} técnico${overloaded > 1 ? "s" : ""} con 4 o más órdenes asignadas`, icon: <AlertTriangle size={13} /> });
+  if (avgRes > 48)    insights.push({ type: "info",    message: `Tiempo promedio de resolución: ${Math.round(avgRes / 24)} días`, icon: <Clock size={13} /> });
 
-  if (bajo_stock.length > 0) {
-    insights.push({
-      type: "warning",
-      message: `${bajo_stock.length} ítem${bajo_stock.length > 1 ? "s" : ""} de inventario bajo stock mínimo`,
-      icon: <Package size={14} />,
-      filtro: "inventario",
-    });
-  }
-
-  if (sinAsignar.length > 0) {
-    insights.push({
-      type: "warning",
-      message: `${sinAsignar.length} orden${sinAsignar.length > 1 ? "es" : ""} sin técnico asignado`,
-      icon: <User size={14} />,
-      filtro: "sin_asignar",
-    });
-  }
-
-  if (urgentes.length > 0) {
-    insights.push({
-      type: "danger",
-      message: `${urgentes.length} orden${urgentes.length > 1 ? "es de prioridad alta/urgente" : " de alta prioridad"} activa${urgentes.length > 1 ? "s" : ""}`,
-      icon: <Zap size={14} />,
-      filtro: "alta_prioridad",
-    });
-  }
-
-  if (open.length > completadas.length * 1.5 && completadas.length > 0) {
-    insights.push({
-      type: "warning",
-      message: "El backlog está creciendo: se abren más órdenes de las que se cierran",
-      icon: <TrendingUp size={14} />,
-    });
-  }
-
-  if (waitingPct > 40 && timeDist.totalHours > 0) {
-    insights.push({
-      type: "warning",
-      message: `El ${waitingPct}% del tiempo activo se pierde en esperas y bloqueos`,
-      icon: <Timer size={14} />,
-    });
-  }
-
-  if (overloaded > 0) {
-    insights.push({
-      type: "warning",
-      message: `${overloaded} técnico${overloaded > 1 ? "s" : ""} con 4 o más órdenes asignadas simultáneamente`,
-      icon: <AlertTriangle size={14} />,
-    });
-  }
-
-  if (avgRes > 0 && avgRes > 48) {
-    const days = Math.round(avgRes / 24);
-    insights.push({
-      type: "info",
-      message: `Tiempo promedio de resolución: ${days} día${days > 1 ? "s" : ""}`,
-      icon: <Clock size={14} />,
-    });
-  }
-
-  if (insights.length === 0 && open.length === 0) {
-    insights.push({ type: "success", message: "Todo al día — no hay órdenes pendientes", icon: <CheckCircle2 size={14} /> });
-  } else if (insights.length === 0) {
-    insights.push({ type: "info", message: `${open.length} orden${open.length !== 1 ? "es" : ""} activa${open.length !== 1 ? "s" : ""} sin alertas críticas`, icon: <Info size={14} /> });
-  }
+  if (insights.length === 0 && open.length === 0)
+    insights.push({ type: "success", message: "Todo al día — no hay órdenes pendientes", icon: <CheckCircle2 size={13} /> });
+  else if (insights.length === 0)
+    insights.push({ type: "info", message: `${open.length} orden${open.length !== 1 ? "es" : ""} activa${open.length !== 1 ? "s" : ""} sin alertas críticas`, icon: <Info size={13} /> });
 
   return insights;
 }
@@ -325,11 +219,11 @@ function generateInsights(ots: OTDashboard[], partes: Parte[]): Insight[] {
 
 export default function InicioDashboard() {
   const router = useRouter();
-  const [userName, setUserName]     = useState<string>("");
-  const [loading, setLoading]       = useState(true);
-  const [allOTs, setAllOTs]         = useState<OTDashboard[]>([]);
-  const [partes, setPartes]         = useState<Parte[]>([]);
-  const [actividad, setActividad]   = useState<ActividadItem[]>([]);
+  const [userName, setUserName]         = useState<string>("");
+  const [loading, setLoading]           = useState(true);
+  const [allOTs, setAllOTs]             = useState<OTDashboard[]>([]);
+  const [partes, setPartes]             = useState<Parte[]>([]);
+  const [actividad, setActividad]       = useState<ActividadItem[]>([]);
   const [weekCreated, setWeekCreated]   = useState(0);
   const [weekCompleted, setWeekCompleted] = useState(0);
 
@@ -354,23 +248,16 @@ export default function InicioDashboard() {
 
       const [ordenesRes, actividadRes, partesRes] = await Promise.all([
         sb.from("ordenes_trabajo")
-          .select(`
-            id, titulo, descripcion, estado, prioridad,
-            created_at, updated_at, fecha_termino, asignados_ids, numero,
-            iniciado_at, pausado_at, tiempo_total_segundos,
-            ubicaciones(edificio)
-          `)
+          .select(`id, titulo, descripcion, estado, prioridad, created_at, updated_at, fecha_termino, asignados_ids, numero, iniciado_at, pausado_at, tiempo_total_segundos, ubicaciones(edificio)`)
           .eq("workspace_id", workspaceId)
           .neq("estado", "cancelado")
           .order("created_at", { ascending: false })
           .limit(400),
-
         sb.from("actividad_ot")
           .select("id, tipo, comentario, created_at, orden_id, orden:ordenes_trabajo!orden_id(titulo), usuario:usuarios!usuario_id(nombre)")
           .eq("ordenes_trabajo.workspace_id", workspaceId)
           .order("created_at", { ascending: false })
           .limit(20),
-
         sb.from("partes")
           .select("id, nombre, stock_actual, stock_minimo")
           .eq("workspace_id", workspaceId)
@@ -379,8 +266,6 @@ export default function InicioDashboard() {
       ]);
 
       const ordenes = ordenesRes.data ?? [];
-
-      // Week flow
       setWeekCreated(ordenes.filter(o => new Date(o.created_at) >= weekAgo).length);
       setWeekCompleted(ordenes.filter(o => o.estado === "completado" && o.updated_at && new Date(o.updated_at) >= weekAgo).length);
 
@@ -394,18 +279,10 @@ export default function InicioDashboard() {
 
       setAllOTs(mapped);
       setPartes((partesRes.data ?? []) as Parte[]);
-
-      const rawActividad = actividadRes.data ?? [];
-      setActividad(rawActividad.map((a: any) => ({
-        id:             a.id,
-        tipo:           a.tipo,
-        comentario:     a.comentario,
-        created_at:     a.created_at,
-        orden_id:       a.orden_id,
-        orden_titulo:   a.orden?.titulo ?? null,
-        usuario_nombre: a.usuario?.nombre ?? null,
+      setActividad((actividadRes.data ?? []).map((a: any) => ({
+        id: a.id, tipo: a.tipo, comentario: a.comentario, created_at: a.created_at,
+        orden_id: a.orden_id, orden_titulo: a.orden?.titulo ?? null, usuario_nombre: a.usuario?.nombre ?? null,
       })));
-
       setLoading(false);
     }
     load();
@@ -416,783 +293,434 @@ export default function InicioDashboard() {
     [...openOTs].sort((a, b) => getPriorityScore(b) - getPriorityScore(a)).slice(0, 5),
     [openOTs]
   );
-  const { vencidas, paraHoy, sinAsignar, bloqueadas } = useMemo(
-    () => groupImmediateActions(allOTs), [allOTs]
-  );
-  const blockAlerts  = useMemo(() => groupBlockAlerts(allOTs), [allOTs]);
-  const insights     = useMemo(() => generateInsights(allOTs, partes), [allOTs, partes]);
-  const bajoStock    = useMemo(() => partes.filter(p => p.stock_actual < p.stock_minimo), [partes]);
-  const recent       = allOTs.slice(0, 15);
-
-  // KPI computations
-  const completadas       = useMemo(() => allOTs.filter(o => o.estado === "completado"), [allOTs]);
-  const pctBloqueadas     = openOTs.length > 0 ? Math.round((bloqueadas.length / openOTs.length) * 100) : 0;
-  const avgResHours       = useMemo(() => avgResolutionTime(completadas as any), [completadas]);
-  const avgResDays        = avgResHours > 0 ? (avgResHours / 24).toFixed(1) : "—";
+  const { vencidas, paraHoy, sinAsignar, bloqueadas } = useMemo(() => groupImmediateActions(allOTs), [allOTs]);
+  const insights   = useMemo(() => generateInsights(allOTs, partes), [allOTs, partes]);
+  const bajoStock  = useMemo(() => partes.filter(p => p.stock_actual < p.stock_minimo), [partes]);
+  const completadas = useMemo(() => allOTs.filter(o => o.estado === "completado"), [allOTs]);
+  const pctBloqueadas = openOTs.length > 0 ? Math.round((bloqueadas.length / openOTs.length) * 100) : 0;
+  const avgResHours   = useMemo(() => avgResolutionTime(completadas as any), [completadas]);
+  const avgResDays    = avgResHours > 0 ? (avgResHours / 24).toFixed(1) : "—";
+  const flowDelta     = weekCompleted - weekCreated;
 
   if (loading) {
     return (
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", color: "#8594A3", fontSize: 13 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", color: "#94A3B8", fontSize: 13 }}>
         Cargando…
       </div>
     );
   }
 
   return (
-    <div style={{ maxWidth: 1100, margin: "0 auto", padding: "32px 32px 64px" }}>
+    <div style={{ padding: "32px 40px 64px", minHeight: "100vh", background: "#F8FAFC" }}>
 
-      {/* Header */}
-      <div style={{ marginBottom: 28 }}>
-        <h1 style={{ fontSize: 24, fontWeight: 800, color: "#0F172A", letterSpacing: "-0.025em", margin: "0 0 4px", fontFamily: '"Inter", system-ui, sans-serif' }}>
-          {greeting()}{userName ? `, ${userName}` : ""} 👋
-        </h1>
-        <p style={{ fontSize: 13, color: "#94A3B8", margin: 0 }}>
-          {new Date().toLocaleDateString("es-CL", { weekday: "long", day: "numeric", month: "long" })}
-        </p>
+      {/* ── Header ── */}
+      <div style={{ marginBottom: 32, display: "flex", alignItems: "flex-end", justifyContent: "space-between" }}>
+        <div>
+          <p style={{ fontSize: 12, fontWeight: 600, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 6px" }}>
+            {new Date().toLocaleDateString("es-CL", { weekday: "long", day: "numeric", month: "long" })}
+          </p>
+          <h1 style={{ fontSize: 26, fontWeight: 700, color: "#0F172A", letterSpacing: "-0.02em", margin: 0 }}>
+            {greeting()}{userName ? `, ${userName}` : ""}
+          </h1>
+        </div>
+        <button
+          onClick={() => router.push("/ordenes/crear")}
+          style={{
+            display: "flex", alignItems: "center", gap: 6,
+            padding: "9px 16px", borderRadius: 8,
+            background: "#1E3A8A", color: "#fff",
+            fontSize: 13, fontWeight: 600, border: "none", cursor: "pointer", fontFamily: "inherit",
+          }}
+          onMouseEnter={e => { e.currentTarget.style.background = "#1D4ED8"; }}
+          onMouseLeave={e => { e.currentTarget.style.background = "#1E3A8A"; }}
+        >
+          <Plus size={14} /> Nueva OT
+        </button>
       </div>
 
-      {/* Main 2-col layout */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 300px", gap: 20, alignItems: "start" }}>
+      {/* ── KPI strip ── */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 28 }}>
+        <KpiCard
+          label="Backlog"
+          value={String(openOTs.length)}
+          sub="órdenes abiertas"
+          trend={openOTs.length > 20 ? "bad" : openOTs.length > 10 ? "warn" : "good"}
+          onClick={() => router.push("/ordenes")}
+        />
+        <KpiCard
+          label="Bloqueadas"
+          value={`${pctBloqueadas}%`}
+          sub="del total activo"
+          trend={pctBloqueadas > 20 ? "bad" : pctBloqueadas > 10 ? "warn" : "good"}
+          onClick={() => router.push("/ordenes?filtro=bloqueadas")}
+        />
+        <KpiCard
+          label="Resolución"
+          value={avgResDays === "—" ? "—" : `${avgResDays}d`}
+          sub="promedio"
+          trend="neutral"
+        />
+        <KpiCard
+          label="Esta semana"
+          value={`+${weekCreated} / +${weekCompleted}`}
+          sub={flowDelta >= 0 ? "cerradas al día" : `${Math.abs(flowDelta)} neto pendiente`}
+          trend={flowDelta >= 0 ? "good" : "warn"}
+        />
+      </div>
 
-        {/* ── Left column ── */}
+      {/* ── Main 2-col grid ── */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 20, alignItems: "start" }}>
+
+        {/* Left */}
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
 
-          {/* 1. Prioridades de hoy */}
-          <PrioridadesHoy ots={topPriority} onNavigate={id => router.push(`/ordenes/${id}`)} />
-
-          {/* 2. Acción inmediata */}
-          <AccionInmediata
-            vencidas={vencidas}
-            paraHoy={paraHoy}
-            sinAsignar={sinAsignar}
-            bloqueadas={bloqueadas}
-            onNavigate={id => router.push(`/ordenes/${id}`)}
-            onViewAll={() => router.push("/ordenes")}
-            onViewGroup={filtro => router.push(`/ordenes?filtro=${filtro}`)}
-          />
-
-          {/* 3. Alertas de bloqueo */}
-          {blockAlerts.length > 0 && (
-            <BlockAlertsPanel groups={blockAlerts} onViewAll={() => router.push("/ordenes?filtro=bloqueadas")} />
-          )}
-
-          {/* 4. Alertas de inventario */}
-          {bajoStock.length > 0 && (
-            <InventoryAlertsPanel
-              bajoStock={bajoStock}
-              onViewAll={() => router.push("/partes")}
-            />
-          )}
-
-          {/* 7. Órdenes recientes */}
-          <Section
-            title="Órdenes recientes"
-            action="Ver todas"
-            onAction={() => router.push("/ordenes")}
-          >
-            {recent.length === 0 ? (
-              <Empty label="Sin órdenes aún" />
+          {/* Priority list */}
+          <Card title="Prioridades" action="Ver órdenes" onAction={() => router.push("/ordenes")}>
+            {topPriority.length === 0 ? (
+              <EmptyState label="Sin prioridades críticas" />
             ) : (
-              recent.map(o => (
-                <EnhancedOTItem
-                  key={o.id}
-                  ot={o}
-                  onClick={() => router.push(`/ordenes/${o.id}`)}
-                />
+              topPriority.map((ot, i) => (
+                <PriorityRow key={ot.id} ot={ot} rank={i + 1} onClick={() => router.push(`/ordenes/${ot.id}`)} />
               ))
             )}
-            <button
-              onClick={() => router.push("/ordenes/crear")}
-              style={{
-                width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-                padding: "10px 16px", background: "none", border: "none", borderTop: "1px solid #E2E8F0",
-                cursor: "pointer", fontSize: 12, fontWeight: 600, color: "#2563EB", fontFamily: "inherit",
-              }}
-              onMouseEnter={e => { e.currentTarget.style.background = "#EFF6FF"; }}
-              onMouseLeave={e => { e.currentTarget.style.background = "none"; }}
-            >
-              <Plus size={13} /> Nueva orden de trabajo
-            </button>
-          </Section>
+          </Card>
+
+          {/* Action groups */}
+          {(vencidas.length > 0 || paraHoy.length > 0 || sinAsignar.length > 0 || bloqueadas.length > 0) && (
+            <Card title="Requieren atención" action="Ver todas" onAction={() => router.push("/ordenes")}>
+              <div style={{ padding: "4px 0" }}>
+                <ActionGroup label="Vencidas"    count={vencidas.length}    items={vencidas}    dotColor="#EF4444" onNavigate={id => router.push(`/ordenes/${id}`)} onViewAll={() => router.push("/ordenes?filtro=vencidas")} />
+                <ActionGroup label="Vencen hoy"  count={paraHoy.length}     items={paraHoy}     dotColor="#F97316" onNavigate={id => router.push(`/ordenes/${id}`)} onViewAll={() => router.push("/ordenes?filtro=vence_hoy")} />
+                <ActionGroup label="Sin asignar" count={sinAsignar.length}   items={sinAsignar}  dotColor="#94A3B8" onNavigate={id => router.push(`/ordenes/${id}`)} onViewAll={() => router.push("/ordenes?filtro=sin_asignar")} />
+                <ActionGroup label="Bloqueadas"  count={bloqueadas.length}   items={bloqueadas}  dotColor="#F97316" onNavigate={id => router.push(`/ordenes/${id}`)} onViewAll={() => router.push("/ordenes?filtro=bloqueadas")} />
+              </div>
+            </Card>
+          )}
+
+          {/* Low stock */}
+          {bajoStock.length > 0 && (
+            <Card title="Inventario bajo mínimo" action="Ver inventario" onAction={() => router.push("/partes")}>
+              <div style={{ padding: "4px 0" }}>
+                {bajoStock.slice(0, 5).map((p, i) => {
+                  const pct = p.stock_minimo > 0 ? Math.round((p.stock_actual / p.stock_minimo) * 100) : 100;
+                  const isOut = p.stock_actual === 0;
+                  return (
+                    <div key={p.id} style={{
+                      display: "flex", alignItems: "center", gap: 12,
+                      padding: "10px 16px",
+                      borderBottom: i < Math.min(bajoStock.length, 5) - 1 ? "1px solid #F1F5F9" : "none",
+                    }}>
+                      <div style={{ width: 6, height: 6, borderRadius: "50%", background: isOut ? "#EF4444" : "#F97316", flexShrink: 0 }} />
+                      <span style={{ flex: 1, fontSize: 13, color: "#334155", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.nombre}</span>
+                      <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
+                        <div style={{ width: 48, height: 3, borderRadius: 2, background: "#E2E8F0", overflow: "hidden" }}>
+                          <div style={{ width: `${Math.min(100, pct)}%`, height: "100%", background: isOut ? "#EF4444" : "#F97316", borderRadius: 2 }} />
+                        </div>
+                        <span style={{ fontSize: 12, color: isOut ? "#EF4444" : "#F97316", fontWeight: 600, minWidth: 32, textAlign: "right" }}>
+                          {p.stock_actual}/{p.stock_minimo}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+                {bajoStock.length > 5 && (
+                  <div style={{ padding: "8px 16px" }}>
+                    <button
+                      onClick={() => router.push("/partes")}
+                      style={{ fontSize: 12, color: "#2563EB", fontWeight: 600, background: "none", border: "none", cursor: "pointer", fontFamily: "inherit" }}
+                    >
+                      +{bajoStock.length - 5} más →
+                    </button>
+                  </div>
+                )}
+              </div>
+            </Card>
+          )}
+
+          {/* Recent OTs */}
+          <Card title="Órdenes recientes" action="Ver todas" onAction={() => router.push("/ordenes")}>
+            {allOTs.slice(0, 12).length === 0 ? (
+              <EmptyState label="Sin órdenes aún" />
+            ) : (
+              allOTs.slice(0, 12).map(o => (
+                <OTRow key={o.id} ot={o} onClick={() => router.push(`/ordenes/${o.id}`)} />
+              ))
+            )}
+          </Card>
         </div>
 
-        {/* ── Right column ── */}
+        {/* Right */}
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
 
-          {/* 5. Salud operacional (mini KPIs) */}
-          <KpiPanel
-            backlog={openOTs.length}
-            pctBloqueadas={pctBloqueadas}
-            avgResDays={avgResDays}
-            weekCreated={weekCreated}
-            weekCompleted={weekCompleted}
-            onNavigate={filtro => router.push(`/ordenes?filtro=${filtro}`)}
-          />
-
-          {/* 6. Insights */}
-          <InsightsPanel
-            insights={insights}
-            onNavigate={filtro => filtro === "inventario" ? router.push("/partes") : router.push(`/ordenes?filtro=${filtro}`)}
-          />
+          {/* Insights */}
+          <Card title="Alertas del sistema" action="" onAction={() => {}}>
+            <div style={{ padding: "8px 0" }}>
+              {insights.map((insight, i) => {
+                const clickable = !!insight.filtro;
+                const isLast = i === insights.length - 1;
+                const dotColor = insight.type === "danger" ? "#EF4444" : insight.type === "warning" ? "#F97316" : insight.type === "success" ? "#10B981" : "#3B82F6";
+                return (
+                  <div
+                    key={i}
+                    onClick={clickable ? () => insight.filtro === "inventario" ? router.push("/partes") : router.push(`/ordenes?filtro=${insight.filtro}`) : undefined}
+                    style={{
+                      display: "flex", alignItems: "flex-start", gap: 10,
+                      padding: "10px 16px",
+                      borderBottom: isLast ? "none" : "1px solid #F1F5F9",
+                      cursor: clickable ? "pointer" : "default",
+                    }}
+                    onMouseEnter={e => { if (clickable) e.currentTarget.style.background = "#F8FAFC"; }}
+                    onMouseLeave={e => { if (clickable) e.currentTarget.style.background = ""; }}
+                  >
+                    <div style={{ width: 6, height: 6, borderRadius: "50%", background: dotColor, flexShrink: 0, marginTop: 5 }} />
+                    <span style={{ flex: 1, fontSize: 13, color: "#334155", lineHeight: 1.5, minWidth: 0 }}>{insight.message}</span>
+                    {clickable && <ChevronRight size={13} style={{ color: "#CBD5E1", flexShrink: 0, marginTop: 2 }} />}
+                  </div>
+                );
+              })}
+            </div>
+          </Card>
 
           {/* Activity feed */}
-          <Section
-            title="Actividad reciente"
-            action="Ver órdenes"
-            onAction={() => router.push("/ordenes")}
-          >
+          <Card title="Actividad reciente" action="Ver órdenes" onAction={() => router.push("/ordenes")}>
             {actividad.length === 0 ? (
-              <Empty label="Sin actividad reciente" />
+              <EmptyState label="Sin actividad reciente" />
             ) : (
               <div style={{ padding: "4px 0" }}>
                 {actividad.slice(0, 8).map((a, i) => {
-                  const cfg = ACTIVIDAD_CONFIG[a.tipo] ?? { icon: <RefreshCw size={11} />, label: a.tipo, color: "#6B7280" };
+                  const cfg = ACTIVIDAD_CONFIG[a.tipo] ?? { icon: <RefreshCw size={11} />, label: a.tipo };
                   return (
                     <div
                       key={a.id}
                       onClick={() => router.push(`/ordenes/${a.orden_id}`)}
                       style={{
-                        display: "flex", gap: 10, padding: "8px 14px",
+                        display: "flex", gap: 10, padding: "9px 16px",
                         borderBottom: i < Math.min(actividad.length, 8) - 1 ? "1px solid #F1F5F9" : "none",
                         cursor: "pointer",
                       }}
                       onMouseEnter={e => { e.currentTarget.style.background = "#F8FAFC"; }}
                       onMouseLeave={e => { e.currentTarget.style.background = ""; }}
                     >
-                      <div style={{
-                        width: 24, height: 24, borderRadius: "50%", flexShrink: 0, marginTop: 1,
-                        background: cfg.color + "15",
-                        display: "flex", alignItems: "center", justifyContent: "center",
-                        color: cfg.color,
-                      }}>
+                      <div style={{ width: 28, height: 28, borderRadius: "50%", flexShrink: 0, marginTop: 1, background: "#F1F5F9", display: "flex", alignItems: "center", justifyContent: "center", color: "#64748B" }}>
                         {cfg.icon}
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 12, color: "#475569", lineHeight: 1.4 }}>
-                          {a.usuario_nombre && (
-                            <span style={{ fontWeight: 600 }}>{a.usuario_nombre.split(" ")[0]} </span>
-                          )}
-                          <span style={{ color: cfg.color, fontWeight: 500 }}>{cfg.label}</span>
+                        <div style={{ fontSize: 12.5, color: "#475569", lineHeight: 1.45 }}>
+                          {a.usuario_nombre && <span style={{ fontWeight: 600, color: "#0F172A" }}>{a.usuario_nombre.split(" ")[0]} </span>}
+                          <span>{cfg.label}</span>
                           {a.orden_titulo && (
-                            <> <span style={{ color: "#6B7280" }}>en</span>{" "}
-                            <span style={{ fontWeight: 500 }}>
-                              {a.orden_titulo.length > 28 ? a.orden_titulo.slice(0, 28) + "…" : a.orden_titulo}
-                            </span></>
+                            <span style={{ color: "#64748B" }}>{" "}en <span style={{ fontWeight: 500, color: "#334155" }}>{a.orden_titulo.length > 30 ? a.orden_titulo.slice(0, 30) + "…" : a.orden_titulo}</span></span>
                           )}
                         </div>
-                        <div style={{ fontSize: 10, color: "#C4CDD6", marginTop: 2 }}>{timeAgo(a.created_at)}</div>
+                        <div style={{ fontSize: 11, color: "#94A3B8", marginTop: 2 }}>{timeAgo(a.created_at)}</div>
                       </div>
                     </div>
                   );
                 })}
               </div>
             )}
-          </Section>
+          </Card>
         </div>
       </div>
     </div>
   );
 }
 
-// ── PrioridadesHoy ─────────────────────────────────────────────────────────────
+// ── KpiCard ────────────────────────────────────────────────────────────────────
 
-function PrioridadesHoy({ ots, onNavigate }: { ots: OTDashboard[]; onNavigate: (id: string) => void }) {
-  const criticalCount = ots.filter(o => getOverdueDays(o) > 0 || o.prioridad === "urgente").length;
-  return (
-    <div style={{ background: "#fff", border: "1px solid #E2E8F0", borderRadius: 12, overflow: "hidden", boxShadow: "0 1px 3px rgba(15,23,42,0.06)" }}>
-      <div style={{
-        display: "flex", alignItems: "center", gap: 8,
-        padding: "14px 16px", borderBottom: "1px solid #E2E8F0",
-        background: "linear-gradient(135deg, #fff 0%, #FFF7ED 100%)",
-      }}>
-        <Flame size={16} color="#EA580C" />
-        <span style={{ fontSize: 13, fontWeight: 700, color: "#0F172A" }}>Prioridades de hoy</span>
-        {criticalCount > 0 && (
-          <span style={{ marginLeft: "auto", fontSize: 11, fontWeight: 700, background: "#FEF2F2", color: "#DC2626", padding: "2px 8px", borderRadius: 20 }}>
-            {criticalCount} crítica{criticalCount > 1 ? "s" : ""}
-          </span>
-        )}
-      </div>
-      <div>
-        {ots.length === 0 ? (
-          <div style={{ padding: "24px 16px", textAlign: "center", color: "#94A3B8", fontSize: 13 }}>
-            <CheckCircle2 size={20} style={{ margin: "0 auto 6px", display: "block", color: "#22C55E" }} />
-            Sin prioridades críticas hoy
-          </div>
-        ) : (
-          ots.map((ot, i) => <PriorityItem key={ot.id} ot={ot} rank={i + 1} onClick={() => onNavigate(ot.id)} />)
-        )}
-      </div>
-    </div>
-  );
-}
-
-function PriorityItem({ ot, rank, onClick }: { ot: OTDashboard; rank: number; onClick: () => void }) {
-  const overdueDays = getOverdueDays(ot);
-  const isUrgent    = ot.prioridad === "urgente" || ot.prioridad === "alta";
-  const isCritical  = overdueDays > 0 || isUrgent;
-  const prStyle     = PRIORIDAD_STYLE[ot.prioridad];
-  const titulo      = ot.titulo || ot.descripcion?.slice(0, 60) || "Sin título";
-  const score       = getPriorityScore(ot);
-
+function KpiCard({ label, value, sub, trend, onClick }: {
+  label: string; value: string; sub: string;
+  trend: "good" | "warn" | "bad" | "neutral";
+  onClick?: () => void;
+}) {
+  const trendColor = trend === "bad" ? "#EF4444" : trend === "warn" ? "#F97316" : trend === "good" ? "#10B981" : "#64748B";
   return (
     <div
       onClick={onClick}
       style={{
-        display: "flex", alignItems: "flex-start", gap: 12,
-        padding: "12px 16px",
-        borderBottom: "1px solid #F1F5F9",
-        borderLeft: overdueDays > 2 ? "3px solid #DC2626" : isCritical ? "3px solid #F97316" : "3px solid #E2E8F0",
-        background: overdueDays > 0 ? "#FFFBFB" : "#fff",
-        cursor: "pointer",
+        background: "#fff", border: "1px solid #E2E8F0", borderRadius: 10,
+        padding: "18px 20px",
+        cursor: onClick ? "pointer" : "default",
+        transition: "box-shadow 0.15s",
       }}
-      onMouseEnter={e => { e.currentTarget.style.background = overdueDays > 0 ? "#FEF2F2" : "#F8FAFC"; }}
-      onMouseLeave={e => { e.currentTarget.style.background = overdueDays > 0 ? "#FFFBFB" : "#fff"; }}
+      onMouseEnter={e => { if (onClick) e.currentTarget.style.boxShadow = "0 4px 12px rgba(15,23,42,0.08)"; }}
+      onMouseLeave={e => { e.currentTarget.style.boxShadow = "none"; }}
     >
-      {/* Rank */}
-      <div style={{
-        width: 22, height: 22, borderRadius: "50%", flexShrink: 0, marginTop: 1,
-        background: rank === 1 ? "#FEF2F2" : rank === 2 ? "#FFF7ED" : "#F1F5F9",
-        display: "flex", alignItems: "center", justifyContent: "center",
-        fontSize: 10, fontWeight: 800, color: rank === 1 ? "#DC2626" : rank === 2 ? "#EA580C" : "#64748B",
-      }}>
-        {rank}
-      </div>
-
-      {/* Content */}
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 13, fontWeight: 600, color: "#0F172A", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginBottom: 5 }}>
-          {titulo}
-        </div>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 5, alignItems: "center" }}>
-          <span style={{ fontSize: 10, fontWeight: 700, padding: "1px 7px", borderRadius: 4, background: prStyle.bg, color: prStyle.color }}>
-            {PRIORIDAD_LABEL[ot.prioridad]}
-          </span>
-
-          {ot.isBlocked ? (
-            <span style={{ fontSize: 10, fontWeight: 600, padding: "1px 7px", borderRadius: 4, background: "#FFF7ED", color: "#C2410C", display: "flex", alignItems: "center", gap: 3 }}>
-              <Lock size={9} /> En espera
-            </span>
-          ) : (
-            <span style={{ fontSize: 10, fontWeight: 600, padding: "1px 7px", borderRadius: 4, background: ESTADO_STYLE[ot.estado].bg, color: ESTADO_STYLE[ot.estado].color }}>
-              {ESTADO_LABEL[ot.estado]}
-            </span>
-          )}
-
-          {ot.fecha_termino && (
-            overdueDays > 0 ? (
-              <span style={{ fontSize: 10, fontWeight: 700, color: "#DC2626", display: "flex", alignItems: "center", gap: 3 }}>
-                <Clock size={9} /> Vencida hace {overdueDays}d
-              </span>
-            ) : isDueToday(ot) ? (
-              <span style={{ fontSize: 10, fontWeight: 700, color: "#D97706", display: "flex", alignItems: "center", gap: 3 }}>
-                <Clock size={9} /> Vence hoy
-              </span>
-            ) : (
-              <span style={{ fontSize: 10, color: "#94A3B8", display: "flex", alignItems: "center", gap: 3 }}>
-                <Calendar size={9} /> {new Date(ot.fecha_termino).toLocaleDateString("es-CL", { day: "numeric", month: "short" })}
-              </span>
-            )
-          )}
-
-          {(!ot.asignados_ids || ot.asignados_ids.length === 0) ? (
-            <span style={{ fontSize: 10, fontWeight: 700, color: "#EF4444", display: "flex", alignItems: "center", gap: 3 }}>
-              <User size={9} /> Sin asignar
-            </span>
-          ) : (
-            <span style={{ fontSize: 10, color: "#64748B", display: "flex", alignItems: "center", gap: 3 }}>
-              <User size={9} /> {ot.asignados_ids.length} asignado{ot.asignados_ids.length > 1 ? "s" : ""}
-            </span>
-          )}
-        </div>
-      </div>
-
-      <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4, flexShrink: 0 }}>
-        <span style={{ fontSize: 10, fontWeight: 700, color: score >= 20 ? "#DC2626" : score >= 10 ? "#D97706" : "#94A3B8" }}>
-          ↑{score}
-        </span>
-        <ChevronRight size={14} color="#CBD5E1" />
-      </div>
+      <div style={{ fontSize: 11, fontWeight: 600, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 8 }}>{label}</div>
+      <div style={{ fontSize: 28, fontWeight: 700, color: trendColor, lineHeight: 1, fontFamily: '"Inter", system-ui, sans-serif', letterSpacing: "-0.02em", marginBottom: 4 }}>{value}</div>
+      <div style={{ fontSize: 12, color: "#94A3B8" }}>{sub}</div>
     </div>
   );
 }
 
-// ── AccionInmediata ────────────────────────────────────────────────────────────
+// ── Card ───────────────────────────────────────────────────────────────────────
 
-function AccionInmediata({
-  vencidas, paraHoy, sinAsignar, bloqueadas, onNavigate, onViewAll, onViewGroup,
-}: {
-  vencidas: OTDashboard[];
-  paraHoy: OTDashboard[];
-  sinAsignar: OTDashboard[];
-  bloqueadas: OTDashboard[];
-  onNavigate: (id: string) => void;
-  onViewAll: () => void;
-  onViewGroup: (filtro: string) => void;
-}) {
-  const hasAny = vencidas.length > 0 || paraHoy.length > 0 || sinAsignar.length > 0 || bloqueadas.length > 0;
-
+function Card({ title, action, onAction, children }: { title: string; action: string; onAction: () => void; children: React.ReactNode }) {
   return (
-    <div style={{ background: "#fff", border: "1px solid #E2E8F0", borderRadius: 12, overflow: "hidden", boxShadow: "0 1px 3px rgba(15,23,42,0.06)" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "14px 16px", borderBottom: "1px solid #E2E8F0" }}>
-        <Zap size={16} color="#2563EB" />
-        <span style={{ fontSize: 13, fontWeight: 700, color: "#0F172A" }}>Acción inmediata</span>
-        <button
-          onClick={onViewAll}
-          style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: "#2563EB", fontWeight: 600, background: "none", border: "none", cursor: "pointer", fontFamily: "inherit" }}
-        >
-          Ver todas <ArrowRight size={12} />
-        </button>
-      </div>
-
-      {!hasAny ? (
-        <div style={{ padding: "24px 16px", textAlign: "center", color: "#94A3B8", fontSize: 13 }}>
-          <CheckCircle2 size={20} style={{ margin: "0 auto 6px", display: "block", color: "#22C55E" }} />
-          No hay acciones urgentes pendientes
-        </div>
-      ) : (
-        <div style={{ padding: "12px 16px", display: "flex", flexDirection: "column", gap: 14 }}>
-          <ActionGroup emoji="🔴" label="Órdenes vencidas"  color="#DC2626" bgColor="#FEF2F2" count={vencidas.length}   items={vencidas}   onNavigate={onNavigate} onViewAll={() => onViewGroup("vencidas")} />
-          <ActionGroup emoji="🟡" label="Vencen hoy"        color="#D97706" bgColor="#FFFBEB" count={paraHoy.length}   items={paraHoy}    onNavigate={onNavigate} onViewAll={() => onViewGroup("vence_hoy")} />
-          <ActionGroup emoji="⚫" label="Sin asignar"       color="#475569" bgColor="#F1F5F9" count={sinAsignar.length} items={sinAsignar} onNavigate={onNavigate} onViewAll={() => onViewGroup("sin_asignar")} />
-          <ActionGroup emoji="🟠" label="Bloqueadas"        color="#C2410C" bgColor="#FFF7ED" count={bloqueadas.length} items={bloqueadas} onNavigate={onNavigate} onViewAll={() => onViewGroup("bloqueadas")} />
-        </div>
-      )}
-    </div>
-  );
-}
-
-function ActionGroup({
-  emoji, label, color, bgColor, count, items, onNavigate, onViewAll,
-}: {
-  emoji: string; label: string; color: string; bgColor: string;
-  count: number; items: OTDashboard[];
-  onNavigate: (id: string) => void; onViewAll: () => void;
-}) {
-  if (count === 0) return null;
-
-  return (
-    <div>
-      <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 7 }}>
-        <span style={{ fontSize: 12 }}>{emoji}</span>
-        <span style={{ fontSize: 12, fontWeight: 700, color }}>{label}</span>
-        <span style={{ fontSize: 10, fontWeight: 700, padding: "1px 7px", borderRadius: 20, background: bgColor, color }}>
-          {count}
-        </span>
-        {count > 3 && (
-          <button onClick={onViewAll} style={{ marginLeft: "auto", fontSize: 11, color: "#2563EB", fontWeight: 600, background: "none", border: "none", cursor: "pointer", fontFamily: "inherit" }}>
-            +{count - 3} más
+    <div style={{ background: "#fff", border: "1px solid #E2E8F0", borderRadius: 10, overflow: "hidden" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px", borderBottom: "1px solid #F1F5F9" }}>
+        <span style={{ fontSize: 13, fontWeight: 600, color: "#0F172A" }}>{title}</span>
+        {action && (
+          <button onClick={onAction} style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: "#2563EB", fontWeight: 500, background: "none", border: "none", cursor: "pointer", fontFamily: "inherit" }}>
+            {action} <ArrowRight size={11} />
           </button>
         )}
-      </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        {items.slice(0, 3).map(ot => {
-          const titulo = ot.titulo || ot.descripcion?.slice(0, 50) || "Sin título";
-          const overdueDays = getOverdueDays(ot);
-          const blockedHrs = getBlockedHours(ot);
-          return (
-            <div
-              key={ot.id}
-              onClick={() => onNavigate(ot.id)}
-              style={{
-                display: "flex", alignItems: "center", gap: 10,
-                padding: "8px 10px", borderRadius: 8,
-                background: "#F8FAFC", border: "1px solid #E2E8F0",
-                cursor: "pointer",
-              }}
-              onMouseEnter={e => { e.currentTarget.style.borderColor = color; e.currentTarget.style.background = bgColor; }}
-              onMouseLeave={e => { e.currentTarget.style.borderColor = "#E2E8F0"; e.currentTarget.style.background = "#F8FAFC"; }}
-            >
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 12, fontWeight: 600, color: "#0F172A", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                  {titulo}
-                </div>
-                {overdueDays > 0 && (
-                  <div style={{ fontSize: 10, color: "#DC2626", fontWeight: 600, marginTop: 1 }}>
-                    Vencida hace {overdueDays} día{overdueDays > 1 ? "s" : ""}
-                  </div>
-                )}
-                {ot.estado === "en_espera" && blockedHrs > 0 && (
-                  <div style={{ fontSize: 10, color: "#C2410C", fontWeight: 600, marginTop: 1 }}>
-                    Bloqueada hace {blockedHrs > 48 ? `${Math.round(blockedHrs / 24)}d` : `${Math.round(blockedHrs)}h`}
-                  </div>
-                )}
-              </div>
-              <span style={{ fontSize: 10, fontWeight: 600, padding: "1px 6px", borderRadius: 4, background: PRIORIDAD_STYLE[ot.prioridad].bg, color: PRIORIDAD_STYLE[ot.prioridad].color, flexShrink: 0 }}>
-                {PRIORIDAD_LABEL[ot.prioridad]}
-              </span>
-              <ChevronRight size={12} color="#CBD5E1" style={{ flexShrink: 0 }} />
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-// ── BlockAlertsPanel ───────────────────────────────────────────────────────────
-
-function BlockAlertsPanel({
-  groups, onViewAll,
-}: {
-  groups: { reason: string; count: number; over24h: number }[];
-  onViewAll: () => void;
-}) {
-  const totalOver24 = groups.reduce((s, g) => s + g.over24h, 0);
-
-  return (
-    <div style={{ background: "#fff", border: "1px solid #FED7AA", borderRadius: 12, overflow: "hidden", boxShadow: "0 1px 3px rgba(15,23,42,0.06)" }}>
-      <div style={{
-        display: "flex", alignItems: "center", gap: 8,
-        padding: "14px 16px", borderBottom: "1px solid #FED7AA",
-        background: "linear-gradient(135deg, #fff 0%, #FFF7ED 100%)",
-      }}>
-        <ShieldAlert size={16} color="#EA580C" />
-        <span style={{ fontSize: 13, fontWeight: 700, color: "#0F172A" }}>Alertas de bloqueo</span>
-        {totalOver24 > 0 && (
-          <span style={{ marginLeft: "auto", fontSize: 11, fontWeight: 700, background: "#FEF2F2", color: "#DC2626", padding: "2px 8px", borderRadius: 20 }}>
-            {totalOver24} +24h
-          </span>
-        )}
-        <button onClick={onViewAll} style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: "#2563EB", fontWeight: 600, background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", marginLeft: totalOver24 > 0 ? 0 : "auto" }}>
-          Ver <ArrowRight size={11} />
-        </button>
-      </div>
-
-      <div style={{ padding: "12px 16px", display: "flex", flexDirection: "column", gap: 8 }}>
-        {groups.map(g => {
-          const label = BLOCKER_LABEL[g.reason] ?? g.reason;
-          const hasLong = g.over24h > 0;
-          return (
-            <div key={g.reason} style={{
-              display: "flex", alignItems: "center", gap: 10,
-              padding: "10px 12px", borderRadius: 8,
-              background: hasLong ? "#FFF7ED" : "#F8FAFC",
-              border: `1px solid ${hasLong ? "#FED7AA" : "#E2E8F0"}`,
-            }}>
-              <Lock size={14} style={{ color: hasLong ? "#EA580C" : "#94A3B8", flexShrink: 0 }} />
-              <div style={{ flex: 1 }}>
-                <span style={{ fontSize: 13, fontWeight: 600, color: "#0F172A" }}>
-                  {g.count} orden{g.count > 1 ? "es" : ""} bloqueada{g.count > 1 ? "s" : ""} — {label}
-                </span>
-                {g.over24h > 0 && (
-                  <div style={{ fontSize: 11, color: "#DC2626", fontWeight: 600, marginTop: 2 }}>
-                    {g.over24h} lleva{g.over24h > 1 ? "n" : ""} más de 24 horas
-                  </div>
-                )}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-// ── InventoryAlertsPanel ───────────────────────────────────────────────────────
-
-function InventoryAlertsPanel({ bajoStock, onViewAll }: { bajoStock: Parte[]; onViewAll: () => void }) {
-  const critical = bajoStock.filter(p => p.stock_actual === 0);
-  const low      = bajoStock.filter(p => p.stock_actual > 0);
-
-  return (
-    <div style={{ background: "#fff", border: "1px solid #BFDBFE", borderRadius: 12, overflow: "hidden", boxShadow: "0 1px 3px rgba(15,23,42,0.06)" }}>
-      <div style={{
-        display: "flex", alignItems: "center", gap: 8,
-        padding: "14px 16px", borderBottom: "1px solid #BFDBFE",
-        background: "linear-gradient(135deg, #fff 0%, #EFF6FF 100%)",
-      }}>
-        <PackageX size={16} color="#2563EB" />
-        <span style={{ fontSize: 13, fontWeight: 700, color: "#0F172A" }}>Alertas de inventario</span>
-        {critical.length > 0 && (
-          <span style={{ marginLeft: "auto", fontSize: 11, fontWeight: 700, background: "#FEF2F2", color: "#DC2626", padding: "2px 8px", borderRadius: 20 }}>
-            {critical.length} sin stock
-          </span>
-        )}
-        <button onClick={onViewAll} style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: "#2563EB", fontWeight: 600, background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", marginLeft: critical.length > 0 ? 0 : "auto" }}>
-          Ver inventario <ArrowRight size={11} />
-        </button>
-      </div>
-
-      <div style={{ padding: "12px 16px", display: "flex", flexDirection: "column", gap: 6 }}>
-        {critical.length > 0 && (
-          <div style={{ padding: "10px 12px", borderRadius: 8, background: "#FEF2F2", border: "1px solid #FECACA", marginBottom: 4 }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: "#DC2626", marginBottom: 4 }}>Sin stock — {critical.length} ítem{critical.length > 1 ? "s" : ""}</div>
-            {critical.slice(0, 3).map(p => (
-              <div key={p.id} style={{ fontSize: 12, color: "#7F1D1D", display: "flex", justifyContent: "space-between", padding: "2px 0" }}>
-                <span>{p.nombre}</span>
-                <span style={{ fontWeight: 700 }}>0 / mín {p.stock_minimo}</span>
-              </div>
-            ))}
-            {critical.length > 3 && <div style={{ fontSize: 11, color: "#DC2626", marginTop: 4 }}>+{critical.length - 3} más</div>}
-          </div>
-        )}
-
-        {low.slice(0, 4).map(p => {
-          const pct = p.stock_minimo > 0 ? Math.round((p.stock_actual / p.stock_minimo) * 100) : 100;
-          return (
-            <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 10px", borderRadius: 7, background: "#FFFBEB", border: "1px solid #FDE68A" }}>
-              <Package size={13} style={{ color: "#D97706", flexShrink: 0 }} />
-              <span style={{ flex: 1, fontSize: 12, fontWeight: 500, color: "#0F172A", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.nombre}</span>
-              <span style={{ fontSize: 11, fontWeight: 700, color: "#D97706", flexShrink: 0 }}>
-                {p.stock_actual} / mín {p.stock_minimo}
-              </span>
-              <div style={{ width: 40, height: 4, borderRadius: 2, background: "#FDE68A", flexShrink: 0, overflow: "hidden" }}>
-                <div style={{ width: `${Math.min(100, pct)}%`, height: "100%", background: pct < 50 ? "#EF4444" : "#F59E0B", borderRadius: 2 }} />
-              </div>
-            </div>
-          );
-        })}
-
-        {bajoStock.length > 4 + critical.length && (
-          <button onClick={onViewAll} style={{ fontSize: 11, color: "#2563EB", fontWeight: 600, background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", textAlign: "left", padding: "4px 0" }}>
-            +{bajoStock.length - 4 - critical.length} ítems más bajo stock mínimo →
-          </button>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ── KpiPanel ───────────────────────────────────────────────────────────────────
-
-function KpiPanel({ backlog, pctBloqueadas, avgResDays, weekCreated, weekCompleted, onNavigate }: {
-  backlog: number;
-  pctBloqueadas: number;
-  avgResDays: string;
-  weekCreated: number;
-  weekCompleted: number;
-  onNavigate: (filtro: string) => void;
-}) {
-  const flowDelta = weekCompleted - weekCreated;
-  const flowPositive = flowDelta >= 0;
-
-  const kpis = [
-    {
-      label: "Backlog",
-      value: String(backlog),
-      sub: "órdenes abiertas",
-      icon: <ClipboardList size={14} />,
-      color: backlog > 20 ? "#DC2626" : backlog > 10 ? "#D97706" : "#10B981",
-      bg: backlog > 20 ? "#FEF2F2" : backlog > 10 ? "#FFFBEB" : "#F0FDF4",
-      filtro: "abiertas",
-    },
-    {
-      label: "Bloqueadas",
-      value: `${pctBloqueadas}%`,
-      sub: "del total activo",
-      icon: <Lock size={14} />,
-      color: pctBloqueadas > 20 ? "#DC2626" : pctBloqueadas > 10 ? "#D97706" : "#10B981",
-      bg: pctBloqueadas > 20 ? "#FEF2F2" : pctBloqueadas > 10 ? "#FFFBEB" : "#F0FDF4",
-      filtro: "bloqueadas",
-    },
-    {
-      label: "Resolución",
-      value: avgResDays === "—" ? "—" : `${avgResDays}d`,
-      sub: "promedio",
-      icon: <Timer size={14} />,
-      color: "#475569",
-      bg: "#F8FAFC",
-      filtro: null,
-    },
-    {
-      label: "Flujo semana",
-      value: `${weekCreated}↑ ${weekCompleted}↓`,
-      sub: flowPositive ? "al día" : `${Math.abs(flowDelta)} neto sin cerrar`,
-      icon: flowPositive ? <TrendingUp size={14} /> : <TrendingDown size={14} />,
-      color: flowPositive ? "#10B981" : "#D97706",
-      bg: flowPositive ? "#F0FDF4" : "#FFFBEB",
-      filtro: "abiertas",
-    },
-  ];
-
-  return (
-    <div style={{ background: "#fff", border: "1px solid #E2E8F0", borderRadius: 12, overflow: "hidden", boxShadow: "0 1px 3px rgba(15,23,42,0.06)" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "14px 16px", borderBottom: "1px solid #E2E8F0" }}>
-        <Activity size={15} color="#475569" />
-        <span style={{ fontSize: 13, fontWeight: 700, color: "#0F172A" }}>Salud operacional</span>
-      </div>
-      <div style={{ padding: "12px 16px", display: "flex", flexDirection: "column", gap: 8 }}>
-        {kpis.map(k => (
-          <div
-            key={k.label}
-            onClick={k.filtro ? () => onNavigate(k.filtro!) : undefined}
-            style={{
-              display: "flex", alignItems: "center", gap: 10,
-              padding: "9px 12px", borderRadius: 8,
-              background: k.bg, border: `1px solid ${k.color}22`,
-              cursor: k.filtro ? "pointer" : "default",
-            }}
-            onMouseEnter={e => { if (k.filtro) e.currentTarget.style.opacity = "0.8"; }}
-            onMouseLeave={e => { if (k.filtro) e.currentTarget.style.opacity = "1"; }}
-          >
-            <div style={{ color: k.color, flexShrink: 0 }}>{k.icon}</div>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 11, color: "#94A3B8", fontWeight: 500 }}>{k.label}</div>
-              <div style={{ fontSize: 11, color: "#64748B" }}>{k.sub}</div>
-            </div>
-            <div style={{ fontSize: 16, fontWeight: 800, color: k.color, fontFamily: '"Inter", system-ui, sans-serif', flexShrink: 0 }}>
-              {k.value}
-            </div>
-            {k.filtro && <ChevronRight size={12} style={{ color: k.color, flexShrink: 0, opacity: 0.5 }} />}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// ── InsightsPanel ──────────────────────────────────────────────────────────────
-
-const INSIGHT_STYLE: Record<Insight["type"], { bg: string; color: string; border: string }> = {
-  danger:  { bg: "#FEF2F2", color: "#DC2626", border: "#FCA5A5" },
-  warning: { bg: "#FFFBEB", color: "#D97706", border: "#FCD34D" },
-  info:    { bg: "#EFF6FF", color: "#2563EB", border: "#BFDBFE" },
-  success: { bg: "#F0FDF4", color: "#15803D", border: "#86EFAC" },
-};
-
-function InsightsPanel({ insights, onNavigate }: { insights: Insight[]; onNavigate: (filtro: string) => void }) {
-  return (
-    <div style={{ background: "#fff", border: "1px solid #E2E8F0", borderRadius: 12, overflow: "hidden", boxShadow: "0 1px 3px rgba(15,23,42,0.06)" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "14px 16px", borderBottom: "1px solid #E2E8F0" }}>
-        <Brain size={16} color="#7C3AED" />
-        <span style={{ fontSize: 13, fontWeight: 700, color: "#0F172A" }}>Insights automáticos</span>
-      </div>
-      <div style={{ padding: "12px 16px", display: "flex", flexDirection: "column", gap: 7 }}>
-        {insights.map((insight, i) => {
-          const s = INSIGHT_STYLE[insight.type];
-          const clickable = !!insight.filtro;
-          return (
-            <div
-              key={i}
-              onClick={clickable ? () => onNavigate(insight.filtro!) : undefined}
-              style={{
-                display: "flex", alignItems: "flex-start", gap: 9,
-                padding: "8px 11px", borderRadius: 8,
-                background: s.bg, border: `1px solid ${s.border}`,
-                cursor: clickable ? "pointer" : "default",
-                transition: "opacity 0.1s",
-              }}
-              onMouseEnter={e => { if (clickable) e.currentTarget.style.opacity = "0.8"; }}
-              onMouseLeave={e => { if (clickable) e.currentTarget.style.opacity = "1"; }}
-            >
-              <div style={{ color: s.color, marginTop: 1, flexShrink: 0 }}>{insight.icon}</div>
-              <div style={{ fontSize: 12, color: "#374151", lineHeight: 1.5, fontWeight: 500, flex: 1, minWidth: 0, wordBreak: "break-word" }}>{insight.message}</div>
-              {clickable && <ChevronRight size={13} style={{ color: s.color, flexShrink: 0, marginTop: 2 }} />}
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-// ── EnhancedOTItem ─────────────────────────────────────────────────────────────
-
-function EnhancedOTItem({ ot, onClick }: { ot: OTDashboard; onClick: () => void }) {
-  const estado      = ESTADO_STYLE[ot.estado];
-  const titulo      = ot.titulo || ot.descripcion?.slice(0, 60) || "Sin título";
-  const overdueDays = getOverdueDays(ot);
-  const dueToday    = isDueToday(ot);
-  const slaLate     = overdueDays > 0;
-
-  return (
-    <div
-      onClick={onClick}
-      style={{
-        padding: "10px 16px", borderBottom: "1px solid #F1F5F9",
-        cursor: "pointer",
-        borderLeft: ot.isBlocked ? "3px solid #F97316" : slaLate ? "3px solid #EF4444" : "3px solid transparent",
-      }}
-      onMouseEnter={e => { e.currentTarget.style.background = "#F8FAFC"; }}
-      onMouseLeave={e => { e.currentTarget.style.background = ""; }}
-    >
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10 }}>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          {ot.nOT && (
-            <div style={{ fontSize: 10, fontWeight: 600, color: "#1E3A8A", fontFamily: "monospace", marginBottom: 1 }}>{ot.nOT}</div>
-          )}
-          <div style={{ fontSize: 13, fontWeight: 500, color: "#0F172A", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-            {titulo}
-          </div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 4, alignItems: "center" }}>
-            {ot.ubicaciones?.edificio && (
-              <span style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 11, color: "#94A3B8" }}>
-                <MapPin size={9} />{ot.ubicaciones.edificio}
-              </span>
-            )}
-            {ot.isBlocked ? (
-              <span style={{ fontSize: 10, fontWeight: 600, color: "#C2410C", display: "flex", alignItems: "center", gap: 3 }}>
-                <Lock size={9} /> En espera
-              </span>
-            ) : null}
-            {(!ot.asignados_ids || ot.asignados_ids.length === 0) ? (
-              <span style={{ fontSize: 10, color: "#EF4444", fontWeight: 600, display: "flex", alignItems: "center", gap: 3 }}>
-                <User size={9} /> Sin asignar
-              </span>
-            ) : (
-              <span style={{ fontSize: 10, color: "#64748B", display: "flex", alignItems: "center", gap: 3 }}>
-                <User size={9} /> {ot.asignados_ids.length} técnico{ot.asignados_ids.length > 1 ? "s" : ""}
-              </span>
-            )}
-          </div>
-        </div>
-
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4, flexShrink: 0 }}>
-          <span style={{
-            display: "inline-flex", alignItems: "center", gap: 3,
-            fontSize: 11, fontWeight: 600, padding: "2px 7px",
-            background: estado.bg, color: estado.color, borderRadius: 6,
-          }}>
-            <span style={{ width: 5, height: 5, borderRadius: "50%", background: estado.dot }} />
-            {ESTADO_LABEL[ot.estado]}
-          </span>
-
-          {ot.fecha_termino && (
-            slaLate ? (
-              <span style={{ fontSize: 10, fontWeight: 700, color: "#DC2626", display: "flex", alignItems: "center", gap: 3 }}>
-                <Clock size={9} /> -{overdueDays}d
-              </span>
-            ) : dueToday ? (
-              <span style={{ fontSize: 10, fontWeight: 700, color: "#D97706", display: "flex", alignItems: "center", gap: 3 }}>
-                <Clock size={9} /> Hoy
-              </span>
-            ) : (
-              <span style={{ fontSize: 10, color: "#94A3B8", display: "flex", alignItems: "center", gap: 3 }}>
-                <Calendar size={9} /> {new Date(ot.fecha_termino).toLocaleDateString("es-CL", { day: "numeric", month: "short" })}
-              </span>
-            )
-          )}
-
-          <span style={{ fontSize: 10, color: "#94A3B8" }}>{timeAgo(ot.created_at)}</span>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── Shared sub-components ──────────────────────────────────────────────────────
-
-function Section({ title, action, onAction, children }: {
-  title: string; action: string; onAction: () => void; children: React.ReactNode;
-}) {
-  return (
-    <div style={{ background: "#fff", border: "1px solid #E2E8F0", borderRadius: 12, overflow: "hidden", boxShadow: "0 1px 3px rgba(15,23,42,0.06)" }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px", borderBottom: "1px solid #E2E8F0" }}>
-        <span style={{ fontSize: 13, fontWeight: 700, color: "#0F172A" }}>{title}</span>
-        <button onClick={onAction} style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: "#2563EB", fontWeight: 600, background: "none", border: "none", cursor: "pointer", fontFamily: "inherit" }}>
-          {action} <ArrowRight size={12} />
-        </button>
       </div>
       <div>{children}</div>
     </div>
   );
 }
 
-function Empty({ label }: { label: string }) {
+// ── PriorityRow ────────────────────────────────────────────────────────────────
+
+function PriorityRow({ ot, rank, onClick }: { ot: OTDashboard; rank: number; onClick: () => void }) {
+  const overdueDays = getOverdueDays(ot);
+  const titulo      = ot.titulo || ot.descripcion?.slice(0, 60) || "Sin título";
+
   return (
-    <div style={{ padding: "28px 16px", textAlign: "center", color: "#C4CDD6", fontSize: 13 }}>
-      {label}
+    <div
+      onClick={onClick}
+      style={{
+        display: "flex", alignItems: "center", gap: 12,
+        padding: "11px 16px",
+        borderBottom: "1px solid #F1F5F9",
+        cursor: "pointer",
+        borderLeft: overdueDays > 0 ? "2px solid #EF4444" : ot.prioridad === "urgente" ? "2px solid #F97316" : "2px solid transparent",
+      }}
+      onMouseEnter={e => { e.currentTarget.style.background = "#F8FAFC"; }}
+      onMouseLeave={e => { e.currentTarget.style.background = ""; }}
+    >
+      <span style={{ fontSize: 11, fontWeight: 700, color: "#CBD5E1", width: 16, flexShrink: 0, textAlign: "right" }}>{rank}</span>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 13, fontWeight: 500, color: "#0F172A", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {titulo}
+        </div>
+        <div style={{ display: "flex", gap: 10, marginTop: 3, alignItems: "center" }}>
+          <span style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 11, color: "#64748B" }}>
+            <span style={{ width: 5, height: 5, borderRadius: "50%", background: ESTADO_DOT[ot.estado], display: "inline-block" }} />
+            {ESTADO_LABEL[ot.estado]}
+          </span>
+          {overdueDays > 0 && (
+            <span style={{ fontSize: 11, color: "#EF4444", fontWeight: 600 }}>Vencida hace {overdueDays}d</span>
+          )}
+          {!overdueDays && isDueToday(ot) && (
+            <span style={{ fontSize: 11, color: "#F97316", fontWeight: 600 }}>Vence hoy</span>
+          )}
+          {(!ot.asignados_ids || ot.asignados_ids.length === 0) && (
+            <span style={{ fontSize: 11, color: "#EF4444" }}>Sin asignar</span>
+          )}
+        </div>
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+        <span style={{ fontSize: 11, fontWeight: 600, color: PRIORIDAD_COLOR[ot.prioridad] }}>
+          {PRIORIDAD_LABEL[ot.prioridad]}
+        </span>
+        <ChevronRight size={13} color="#CBD5E1" />
+      </div>
     </div>
+  );
+}
+
+// ── ActionGroup ────────────────────────────────────────────────────────────────
+
+function ActionGroup({ label, count, dotColor, items, onNavigate, onViewAll }: {
+  label: string; count: number; dotColor: string;
+  items: OTDashboard[]; onNavigate: (id: string) => void; onViewAll: () => void;
+}) {
+  if (count === 0) return null;
+  return (
+    <div style={{ borderBottom: "1px solid #F1F5F9" }}>
+      <div
+        onClick={onViewAll}
+        style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 16px", cursor: "pointer" }}
+        onMouseEnter={e => { e.currentTarget.style.background = "#F8FAFC"; }}
+        onMouseLeave={e => { e.currentTarget.style.background = ""; }}
+      >
+        <span style={{ width: 7, height: 7, borderRadius: "50%", background: dotColor, flexShrink: 0 }} />
+        <span style={{ flex: 1, fontSize: 13, fontWeight: 500, color: "#334155" }}>{label}</span>
+        <span style={{ fontSize: 12, fontWeight: 600, color: "#64748B" }}>{count}</span>
+        <ChevronRight size={12} color="#CBD5E1" />
+      </div>
+      {items.slice(0, 2).map(ot => {
+        const titulo = ot.titulo || ot.descripcion?.slice(0, 50) || "Sin título";
+        const overdueDays = getOverdueDays(ot);
+        return (
+          <div
+            key={ot.id}
+            onClick={() => onNavigate(ot.id)}
+            style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 16px 7px 30px", cursor: "pointer" }}
+            onMouseEnter={e => { e.currentTarget.style.background = "#F8FAFC"; }}
+            onMouseLeave={e => { e.currentTarget.style.background = ""; }}
+          >
+            <span style={{ flex: 1, fontSize: 12, color: "#475569", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{titulo}</span>
+            {overdueDays > 0 && <span style={{ fontSize: 11, color: "#EF4444", fontWeight: 600, flexShrink: 0 }}>-{overdueDays}d</span>}
+            <ChevronRight size={11} color="#E2E8F0" style={{ flexShrink: 0 }} />
+          </div>
+        );
+      })}
+      {count > 2 && (
+        <div style={{ padding: "6px 16px 10px 30px" }}>
+          <button onClick={onViewAll} style={{ fontSize: 11, color: "#2563EB", fontWeight: 500, background: "none", border: "none", cursor: "pointer", fontFamily: "inherit" }}>
+            +{count - 2} más →
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── OTRow ──────────────────────────────────────────────────────────────────────
+
+function OTRow({ ot, onClick }: { ot: OTDashboard; onClick: () => void }) {
+  const titulo      = ot.titulo || ot.descripcion?.slice(0, 60) || "Sin título";
+  const overdueDays = getOverdueDays(ot);
+  const dueToday    = isDueToday(ot);
+
+  return (
+    <div
+      onClick={onClick}
+      style={{
+        display: "flex", alignItems: "center", gap: 12,
+        padding: "10px 16px", borderBottom: "1px solid #F1F5F9",
+        cursor: "pointer",
+      }}
+      onMouseEnter={e => { e.currentTarget.style.background = "#F8FAFC"; }}
+      onMouseLeave={e => { e.currentTarget.style.background = ""; }}
+    >
+      <span style={{ width: 7, height: 7, borderRadius: "50%", background: ESTADO_DOT[ot.estado], flexShrink: 0 }} />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 13, fontWeight: 500, color: "#0F172A", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{titulo}</div>
+        <div style={{ display: "flex", gap: 8, marginTop: 2, alignItems: "center" }}>
+          {ot.ubicaciones?.edificio && (
+            <span style={{ fontSize: 11, color: "#94A3B8", display: "flex", alignItems: "center", gap: 2 }}>
+              <MapPin size={9} />{ot.ubicaciones.edificio}
+            </span>
+          )}
+          <span style={{ fontSize: 11, color: "#94A3B8" }}>{ESTADO_LABEL[ot.estado]}</span>
+        </div>
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2, flexShrink: 0 }}>
+        <span style={{ fontSize: 11, fontWeight: 600, color: PRIORIDAD_COLOR[ot.prioridad] }}>
+          {ot.prioridad !== "ninguna" ? PRIORIDAD_LABEL[ot.prioridad] : ""}
+        </span>
+        {overdueDays > 0 ? (
+          <span style={{ fontSize: 11, color: "#EF4444", fontWeight: 600 }}>-{overdueDays}d</span>
+        ) : dueToday ? (
+          <span style={{ fontSize: 11, color: "#F97316", fontWeight: 600 }}>Hoy</span>
+        ) : ot.fecha_termino ? (
+          <span style={{ fontSize: 11, color: "#94A3B8" }}>{new Date(ot.fecha_termino).toLocaleDateString("es-CL", { day: "numeric", month: "short" })}</span>
+        ) : (
+          <span style={{ fontSize: 11, color: "#CBD5E1" }}>{timeAgo(ot.created_at)}</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── EmptyState ─────────────────────────────────────────────────────────────────
+
+function EmptyState({ label }: { label: string }) {
+  return (
+    <div style={{ padding: "28px 16px", textAlign: "center", color: "#CBD5E1", fontSize: 13 }}>{label}</div>
   );
 }

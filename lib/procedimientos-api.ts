@@ -20,12 +20,12 @@ const PASO_SELECT = `
 
 const PROCEDIMIENTO_SELECT = `
   id, workspace_id, nombre, descripcion, categoria, activo,
-  bloquea_cierre_ot, created_by, created_at, updated_at,
+  bloquea_cierre_ot, auto_adjuntar, created_by, created_at, updated_at,
   pasos:procedimiento_pasos(${PASO_SELECT})
 `;
 
 const LIST_SELECT = `
-  id, nombre, descripcion, categoria, activo, bloquea_cierre_ot, created_at,
+  id, nombre, descripcion, categoria, activo, bloquea_cierre_ot, auto_adjuntar, created_at,
   pasos_count:procedimiento_pasos(count)
 `;
 
@@ -75,6 +75,7 @@ export async function createProcedimiento(
       descripcion: form.descripcion.trim() || null,
       categoria: form.categoria.trim() || null,
       bloquea_cierre_ot: form.bloquea_cierre_ot,
+      auto_adjuntar: form.auto_adjuntar,
       created_by: userId,
     })
     .select("id")
@@ -97,6 +98,7 @@ export async function updateProcedimiento(
       descripcion: form.descripcion.trim() || null,
       categoria: form.categoria.trim() || null,
       bloquea_cierre_ot: form.bloquea_cierre_ot,
+      auto_adjuntar: form.auto_adjuntar,
       updated_at: new Date().toISOString(),
     })
     .eq("id", id);
