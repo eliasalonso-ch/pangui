@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import HojaSpreadsheet from "@/components/HojaSpreadsheet";
 import {
   ResponsiveContainer,
   BarChart, Bar,
@@ -541,6 +542,8 @@ function OperationalInsights({ ots, activos, rangeMonths }: { ots: OTRow[]; acti
 export default function AnaliticaPage() {
   const [loading, setLoading] = useState(true);
   const [workspaceId, setWorkspaceId] = useState<string | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [myRol, setMyRol] = useState<string | null>(null);
 
   const [allOTs, setAllOTs] = useState<OTRow[]>([]);
   const [usuarios, setUsuarios] = useState<UsuarioRow[]>([]);
@@ -561,13 +564,15 @@ export default function AnaliticaPage() {
 
       const { data: perfil } = await sb
         .from("usuarios")
-        .select("workspace_id")
+        .select("workspace_id, rol")
         .eq("id", user.id)
         .maybeSingle();
 
       const wsId = perfil?.workspace_id;
       if (!wsId) { setLoading(false); return; }
       setWorkspaceId(wsId);
+      setUserId(user.id);
+      setMyRol(perfil?.rol ?? null);
 
       const cutoff = new Date();
       cutoff.setMonth(cutoff.getMonth() - 12);
@@ -1349,6 +1354,23 @@ export default function AnaliticaPage() {
               </ResponsiveContainer>
             </div>
           </Card>
+        </>
+      )}
+
+      {/* ── Hojas de cálculo ── */}
+      {workspaceId && userId && (
+        <>
+          <div style={{ marginBottom: 12, marginTop: 8 }}>
+            <SectionLabel icon={Package} label="Hojas de cálculo" />
+          </div>
+          <div style={{ marginBottom: 24 }}>
+            <HojaSpreadsheet
+              workspaceId={workspaceId}
+              userId={userId}
+              canEdit={myRol === "admin" || myRol === "owner" || myRol === "supervisor" || myRol === "jefe"}
+              canExport={myRol === "admin" || myRol === "owner"}
+            />
+          </div>
         </>
       )}
 

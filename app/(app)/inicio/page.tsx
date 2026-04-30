@@ -224,8 +224,7 @@ export default function InicioDashboard() {
   const [allOTs, setAllOTs]             = useState<OTDashboard[]>([]);
   const [partes, setPartes]             = useState<Parte[]>([]);
   const [actividad, setActividad]       = useState<ActividadItem[]>([]);
-  const [weekCreated, setWeekCreated]   = useState(0);
-  const [weekCompleted, setWeekCompleted] = useState(0);
+  const [totalOTs, setTotalOTs] = useState(0);
 
   useEffect(() => {
     async function load() {
@@ -243,10 +242,7 @@ export default function InicioDashboard() {
       const workspaceId = perfil?.workspace_id;
       if (!workspaceId) { setLoading(false); return; }
 
-      const weekAgo = new Date();
-      weekAgo.setDate(weekAgo.getDate() - 7);
-
-      const [ordenesRes, actividadRes, partesRes] = await Promise.all([
+      const [ordenesRes, actividadRes, partesRes, totalRes] = await Promise.all([
         sb.from("ordenes_trabajo")
           .select(`id, titulo, descripcion, estado, prioridad, created_at, updated_at, fecha_termino, asignados_ids, numero, iniciado_at, pausado_at, tiempo_total_segundos, ubicaciones(edificio)`)
           .eq("workspace_id", workspaceId)
@@ -263,11 +259,13 @@ export default function InicioDashboard() {
           .eq("workspace_id", workspaceId)
           .not("stock_minimo", "is", null)
           .gt("stock_minimo", 0),
+        sb.from("ordenes_trabajo")
+          .select("id", { count: "exact", head: true })
+          .eq("workspace_id", workspaceId),
       ]);
 
       const ordenes = ordenesRes.data ?? [];
-      setWeekCreated(ordenes.filter(o => new Date(o.created_at) >= weekAgo).length);
-      setWeekCompleted(ordenes.filter(o => o.estado === "completado" && o.updated_at && new Date(o.updated_at) >= weekAgo).length);
+      setTotalOTs(totalRes.count ?? ordenes.length);
 
       const mapped: OTDashboard[] = ordenes.map((o: any) => ({
         ...o,
@@ -300,7 +298,6 @@ export default function InicioDashboard() {
   const pctBloqueadas = openOTs.length > 0 ? Math.round((bloqueadas.length / openOTs.length) * 100) : 0;
   const avgResHours   = useMemo(() => avgResolutionTime(completadas as any), [completadas]);
   const avgResDays    = avgResHours > 0 ? (avgResHours / 24).toFixed(1) : "—";
-  const flowDelta     = weekCompleted - weekCreated;
 
   if (loading) {
     return (
@@ -361,10 +358,11 @@ export default function InicioDashboard() {
           trend="neutral"
         />
         <KpiCard
-          label="Esta semana"
-          value={`+${weekCreated} / +${weekCompleted}`}
-          sub={flowDelta >= 0 ? "cerradas al día" : `${Math.abs(flowDelta)} neto pendiente`}
-          trend={flowDelta >= 0 ? "good" : "warn"}
+          label="Total histórico"
+          value={String(totalOTs)}
+          sub="OTs creadas"
+          trend="neutral"
+          onClick={() => router.push("/ordenes")}
         />
       </div>
 

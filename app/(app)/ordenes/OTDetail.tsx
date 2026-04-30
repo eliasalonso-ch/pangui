@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { createClient } from "@/lib/supabase";
+import HojaSpreadsheet from "@/components/HojaSpreadsheet";
 import {
   X, Pencil, Trash2, Check, Copy, MapPin, Settings2, User, Flag,
   Calendar, Tag, Send, AlertTriangle, Loader2,
@@ -176,7 +177,7 @@ interface Props {
   onOrdenUpdated: (o: Partial<OrdenTrabajo>) => void;
 }
 
-type Tab = "detalle" | "actividad" | "fotos" | "materiales" | "procedimientos";
+type Tab = "detalle" | "actividad" | "fotos" | "materiales" | "procedimientos" | "hoja";
 
 // ── Parts types ───────────────────────────────────────────────────────────────
 
@@ -325,7 +326,7 @@ export default function OTDetail({
   }, []);
 
   const elapsed = useTimer(orden);
-  const canManage = myRol === "admin" || myRol === "jefe";
+  const canManage = myRol === "admin" || myRol === "jefe" || myRol === "owner" || myRol === "supervisor";
   const isActive = orden.estado !== "completado";
 
   // Sync fotos when orden prop updates (realtime)
@@ -1253,7 +1254,7 @@ export default function OTDetail({
 
         {/* Tabs */}
         <div style={{ display: "flex", padding: "0 16px", gap: 0 }}>
-          {(["detalle", "actividad", "fotos", "materiales", "procedimientos"] as Tab[]).map(t => (
+          {(["detalle", "actividad", "fotos", "materiales", "procedimientos", "hoja"] as Tab[]).map(t => (
             <button
               key={t}
               type="button"
@@ -1272,6 +1273,7 @@ export default function OTDetail({
                 : t === "actividad" ? "Actividad"
                 : t === "fotos" ? `Fotos${fotos.length > 0 ? ` (${fotos.length})` : ""}`
                 : t === "materiales" ? `Materiales${ordenPartes.length > 0 ? ` (${ordenPartes.length})` : ""}`
+                : t === "hoja" ? "Hoja de cálculo"
                 : `Procedimientos${otProcs.length > 0 ? ` (${otProcs.length})` : ""}`}
             </button>
           ))}
@@ -1625,9 +1627,22 @@ export default function OTDetail({
         {tab === "materiales" && (
           <div style={{ padding: "16px 20px 100px" }}>
 
+            {/* Completed notice */}
+            {!isActive && (
+              <div style={{
+                display: "flex", alignItems: "center", gap: 8,
+                padding: "10px 14px", marginBottom: 14,
+                background: "#F0FDF4", border: "1px solid #BBF7D0", borderRadius: 8,
+              }}>
+                <CheckCircle2 size={14} style={{ color: "#16A34A", flexShrink: 0 }} />
+                <span style={{ fontSize: 12, color: "#15803D" }}>
+                  Esta orden está completada. Puedes seguir consultando los materiales registrados.
+                </span>
+              </div>
+            )}
 
             {/* Search catalogue */}
-            {isActive && (
+            {(isActive || canManage) && (
               <div style={{ marginBottom: 14 }}>
                 <div style={{ position: "relative" }}>
                   <Search size={13} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "#94A3B8", pointerEvents: "none" }} />
@@ -1694,7 +1709,7 @@ export default function OTDetail({
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "40px 0", gap: 8, color: "#9CA3AF" }}>
                 <Package size={32} style={{ opacity: 0.2 }} />
                 <p style={{ fontSize: 13, margin: 0 }}>Sin materiales registrados</p>
-                {isActive && <p style={{ fontSize: 12, margin: 0 }}>Busca un material del inventario arriba</p>}
+                {(isActive || canManage) && <p style={{ fontSize: 12, margin: 0 }}>Busca un material del inventario arriba</p>}
               </div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
@@ -1709,7 +1724,7 @@ export default function OTDetail({
                       <div style={{ fontSize: 13, fontWeight: 500, color: "#0F172A" }}>{op.parte?.nombre ?? "—"}</div>
                       <div style={{ fontSize: 11, color: "#94A3B8" }}>{op.parte?.unidad}</div>
                     </div>
-                    {isActive ? (
+                    {(isActive || canManage) ? (
                       <input
                         type="number"
                         min="0.01"
@@ -1721,7 +1736,7 @@ export default function OTDetail({
                     ) : (
                       <span style={{ fontSize: 13, color: "#475569" }}>{op.cantidad}</span>
                     )}
-                    {isActive ? (
+                    {(isActive || canManage) ? (
                       <button
                         type="button"
                         onClick={() => handleDeleteParte(op.id)}
@@ -1873,6 +1888,18 @@ export default function OTDetail({
           </div>
         )}
 
+        {/* ── Hoja de cálculo ── */}
+        {tab === "hoja" && wsId && (
+          <div style={{ padding: "16px 20px 100px" }}>
+            <HojaSpreadsheet
+              workspaceId={wsId}
+              userId={myId}
+              canEdit={canManage}
+              canExport={canManage}
+            />
+          </div>
+        )}
+
       </div>
 
       {/* ── Execution modal ── */}
@@ -1891,7 +1918,7 @@ export default function OTDetail({
       )}
 
       {/* ── Comment input ── */}
-      <div style={{ flexShrink: 0, borderTop: "1px solid #E2E8F0", padding: "12px 16px", background: "#fff" }}>
+      {tab === "actividad" && <div style={{ flexShrink: 0, borderTop: "1px solid #E2E8F0", padding: "12px 16px", background: "#fff" }}>
         <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
           <textarea
             style={{
@@ -1924,7 +1951,7 @@ export default function OTDetail({
           </button>
         </div>
         <p style={{ fontSize: 11, color: "#94A3B8", marginTop: 5, marginBottom: 0 }}>Ctrl+Enter para enviar</p>
-      </div>
+      </div>}
 
       <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
 
@@ -2533,8 +2560,8 @@ function ProcEjecucionModal({
   const canComplete = answeredRequired.length === allRequired.length;
 
   return (
-    <div style={{ position: "fixed", inset: 0, zIndex: 70, background: "rgba(15,23,42,0.50)", display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
-      <div style={{ background: "#fff", width: "100%", maxWidth: 580, maxHeight: "92vh", borderRadius: "16px 16px 0 0", display: "flex", flexDirection: "column", boxShadow: "0 -8px 40px rgba(0,0,0,0.20)" }}>
+    <div style={{ position: "fixed", inset: 0, zIndex: 70, background: "rgba(15,23,42,0.50)", display: "flex", alignItems: "center", justifyContent: "center", padding: "24px" }}>
+      <div style={{ background: "#fff", width: "100%", maxWidth: 680, maxHeight: "85vh", borderRadius: 16, display: "flex", flexDirection: "column", boxShadow: "0 24px 64px rgba(0,0,0,0.25)" }}>
 
         {/* Header */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px", borderBottom: "1px solid #E2E8F0", flexShrink: 0 }}>
