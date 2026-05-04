@@ -16,6 +16,7 @@ import {
   MapPin,
   BarChart2,
   ClipboardCheck,
+  Search,
 } from "lucide-react";
 
 import { createClient } from "@/lib/supabase";
@@ -216,6 +217,11 @@ export default function AppSidebar() {
               <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={isActive("/ordenes")}>
                   <Link href="/ordenes"><ClipboardList size={16} /><span>Órdenes</span></Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={isActive("/levantamientos")}>
+                  <Link href="/levantamientos"><Search size={16} /><span>Levantamientos</span></Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>

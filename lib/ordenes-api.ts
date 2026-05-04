@@ -85,6 +85,7 @@ export const ORDEN_SELECT = `
   numero, categoria_id, ubicacion_id, activo_id, lugar_id, sociedad_id,
   iniciado_at, pausado_at, en_ejecucion, tiempo_total_segundos,
   recurrencia, proxima_ejecucion, parent_id,
+  requiere_materiales, requiere_hoja,
   imagen_url, fotos_urls, links,
   activos (id, nombre, codigo),
   ubicaciones (id, edificio, piso, sociedad_id, sociedades(nombre)),

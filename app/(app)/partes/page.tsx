@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase";
 import {
   Boxes, Plus, Search, X, ChevronRight, Loader2,
   Package, Minus, Pencil, Trash2, Upload,
-  MapPin, Tag,
+  MapPin, Tag, AlertTriangle,
 } from "lucide-react";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -179,6 +179,9 @@ export default function PartesPage() {
   const [plantaId, setPlantaId] = useState<string | null>(null);
   const [partes, setPartes] = useState<Parte[]>([]);
   const [loading, setLoading] = useState(true);
+  const [myRol, setMyRol] = useState<string>("tecnico");
+  const [requiereMaterialesGlobal, setRequiereMaterialesGlobal] = useState(false);
+  const [togglingGlobal, setTogglingGlobal] = useState(false);
 
   const [busqueda, setBusqueda] = useState("");
   const [filtroStock, setFiltroStock] = useState<StockFilter>("todos");
@@ -204,10 +207,15 @@ export default function PartesPage() {
       if (!user) { router.replace("/login"); return; }
 
       const { data: perfil } = await sb.from("usuarios")
-        .select("workspace_id").eq("id", user.id).maybeSingle();
+        .select("workspace_id, rol").eq("id", user.id).maybeSingle();
       if (!perfil?.workspace_id) { setLoading(false); return; }
       const pId = perfil.workspace_id;
       setPlantaId(pId);
+      setMyRol(perfil.rol ?? "tecnico");
+
+      const { data: ws } = await sb.from("workspaces")
+        .select("requiere_materiales_global").eq("id", pId).maybeSingle();
+      setRequiereMaterialesGlobal(ws?.requiere_materiales_global ?? false);
 
       const { data: p } = await sb.from("partes")
         .select("id, nombre, descripcion, codigo, unidad, stock_actual, stock_minimo, precio_unitario, ubicacion_bodega, imagen_url, workspace_id")
@@ -342,6 +350,18 @@ export default function PartesPage() {
     return matchSearch && matchStock;
   });
 
+  async function handleToggleGlobal() {
+    if (!plantaId) return;
+    const next = !requiereMaterialesGlobal;
+    setRequiereMaterialesGlobal(next);
+    setTogglingGlobal(true);
+    const sb = createClient();
+    await sb.from("workspaces").update({ requiere_materiales_global: next }).eq("id", plantaId);
+    setTogglingGlobal(false);
+  }
+
+  const canManage = myRol === "admin" || myRol === "owner";
+
   if (loading) {
     return (
       <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100dvh", gap: 8, color: "#9CA3AF" }}>
@@ -359,22 +379,57 @@ export default function PartesPage() {
         flexShrink: 0, borderBottom: "1px solid #E2E8F0",
         padding: "0 24px", height: 56,
         display: "flex", alignItems: "center", justifyContent: "space-between",
+        gap: 12,
       }}>
         <h1 style={{ fontSize: 20, fontWeight: 700, color: "#0F172A", margin: 0, letterSpacing: "-0.3px" }}>Partes</h1>
-        <button
-          type="button"
-          onClick={openCreate}
-          style={{
-            height: 32, padding: "0 14px",
-            display: "flex", alignItems: "center", gap: 6,
-            background: "#1E3A8A", border: "none", borderRadius: 6,
-            fontSize: 13, fontWeight: 600, color: "#fff",
-            cursor: "pointer", fontFamily: "inherit",
-          }}
-        >
-          <Plus size={14} />
-          Nueva parte
-        </button>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          {/* Global mandatory materials toggle — admin/owner only */}
+          {canManage && (
+            <div style={{
+              display: "flex", alignItems: "center", gap: 8,
+              padding: "6px 12px", borderRadius: 8,
+              background: requiereMaterialesGlobal ? "#FFF7ED" : "#F8FAFC",
+              border: `1px solid ${requiereMaterialesGlobal ? "#FED7AA" : "#E2E8F0"}`,
+            }}>
+              {requiereMaterialesGlobal && <AlertTriangle size={13} style={{ color: "#D97706", flexShrink: 0 }} />}
+              <span style={{ fontSize: 12, fontWeight: 600, color: requiereMaterialesGlobal ? "#92400E" : "#64748B", whiteSpace: "nowrap" }}>
+                Materiales obligatorios en OTs
+              </span>
+              <button
+                type="button"
+                onClick={handleToggleGlobal}
+                disabled={togglingGlobal}
+                style={{
+                  width: 36, height: 20, borderRadius: 10, border: "none",
+                  background: requiereMaterialesGlobal ? "#D97706" : "#CBD5E1",
+                  position: "relative", cursor: "pointer", flexShrink: 0,
+                  opacity: togglingGlobal ? 0.5 : 1, transition: "background 0.2s",
+                }}
+              >
+                <span style={{
+                  position: "absolute", top: 2,
+                  left: requiereMaterialesGlobal ? 18 : 2,
+                  width: 16, height: 16, borderRadius: "50%", background: "#fff",
+                  transition: "left 0.2s", boxShadow: "0 1px 2px rgba(0,0,0,0.2)",
+                }} />
+              </button>
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={openCreate}
+            style={{
+              height: 32, padding: "0 14px",
+              display: "flex", alignItems: "center", gap: 6,
+              background: "#1E3A8A", border: "none", borderRadius: 6,
+              fontSize: 13, fontWeight: 600, color: "#fff",
+              cursor: "pointer", fontFamily: "inherit",
+            }}
+          >
+            <Plus size={14} />
+            Nueva parte
+          </button>
+        </div>
       </div>
 
       {/* Filters */}

@@ -5,11 +5,25 @@ import { useRouter } from "next/navigation";
 import {
   ChevronLeft, Loader2, Upload, User, MapPin, Settings2,
   Clock, CalendarDays, Tag, X, Check, ChevronDown,
+  Camera, Plus, Trash2, ImagePlus, GripVertical,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase";
+import { uploadFotoGrupo, createFotoGrupo, addFotoToGrupo } from "@/lib/foto-grupos-api";
 import type { Usuario, Ubicacion, Activo, CategoriaOT, Prioridad, TipoTrabajo, Recurrencia } from "@/types/ordenes";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
+
+interface DraftFoto {
+  file: File;
+  preview: string;
+}
+
+interface DraftGrupo {
+  id: string;
+  titulo: string;
+  descripcion: string;
+  fotos: DraftFoto[];
+}
 
 interface Props {
   usuarios:   Usuario[];
@@ -334,11 +348,15 @@ function AssigneeSelect({ usuarios, value, onChange }: {
 
 // ── Main component ────────────────────────────────────────────────────────────
 
+function genDraftId() { return Math.random().toString(36).slice(2); }
+
 export default function OTCrearForm({ usuarios, ubicaciones, activos, categorias, myId, wsId }: Props) {
   const router = useRouter();
   const [form, setForm] = useState<FormState>(BLANK);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [grupos, setGrupos] = useState<DraftGrupo[]>([]);
+  const grupoFileRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
   function setF<K extends keyof FormState>(key: K, val: FormState[K]) {
     setForm(prev => ({ ...prev, [key]: val }));
@@ -396,9 +414,24 @@ export default function OTCrearForm({ usuarios, ubicaciones, activos, categorias
       return;
     }
 
+    const ordenId = (data as { id: string }).id;
+
+    // Upload photo groups
+    for (let gi = 0; gi < grupos.length; gi++) {
+      const g = grupos[gi];
+      if (!g.titulo.trim() && g.fotos.length === 0) continue;
+      try {
+        const grupo = await createFotoGrupo(ordenId, wsId, myId, g.titulo.trim() || `Grupo ${gi + 1}`, g.descripcion.trim(), gi);
+        for (let fi = 0; fi < g.fotos.length; fi++) {
+          const url = await uploadFotoGrupo(ordenId, g.fotos[fi].file);
+          await addFotoToGrupo(grupo.id, url, fi);
+        }
+      } catch { /* don't block OT creation */ }
+    }
+
     try {
       await sb.from("actividad_ot").insert({
-        orden_id:   (data as { id: string }).id,
+        orden_id:   ordenId,
         usuario_id: myId,
         tipo:       "creado",
         comentario: form.titulo.trim(),
@@ -408,6 +441,36 @@ export default function OTCrearForm({ usuarios, ubicaciones, activos, categorias
     router.push(`/ordenes`);
     router.refresh();
   };
+
+  function addGrupo() {
+    setGrupos(prev => [...prev, { id: genDraftId(), titulo: "", descripcion: "", fotos: [] }]);
+  }
+
+  function removeGrupo(id: string) {
+    setGrupos(prev => prev.filter(g => g.id !== id));
+  }
+
+  function updateGrupo(id: string, patch: Partial<Pick<DraftGrupo, "titulo" | "descripcion">>) {
+    setGrupos(prev => prev.map(g => g.id === id ? { ...g, ...patch } : g));
+  }
+
+  function addFotosToGrupo(id: string, files: FileList) {
+    const newFotos: DraftFoto[] = Array.from(files).map(file => ({
+      file,
+      preview: URL.createObjectURL(file),
+    }));
+    setGrupos(prev => prev.map(g => g.id === id ? { ...g, fotos: [...g.fotos, ...newFotos] } : g));
+  }
+
+  function removeFotoFromDraftGrupo(grupoId: string, idx: number) {
+    setGrupos(prev => prev.map(g => {
+      if (g.id !== grupoId) return g;
+      const next = [...g.fotos];
+      URL.revokeObjectURL(next[idx].preview);
+      next.splice(idx, 1);
+      return { ...g, fotos: next };
+    }));
+  }
 
   return (
     <div style={{ display: "flex", flexDirection: "column", minHeight: "100dvh", background: "#F9FAFB" }}>
@@ -458,16 +521,165 @@ export default function OTCrearForm({ usuarios, ubicaciones, activos, categorias
             />
           </div>
 
-          {/* Image upload area */}
-          <div style={{
-            margin: "16px 0", border: "1.5px dashed #D1D5DB", borderRadius: 8,
-            padding: "24px", display: "flex", flexDirection: "column",
-            alignItems: "center", gap: 8, color: "#8594A3", cursor: "pointer",
-            background: "#FAFAFA",
-          }}>
-            <Upload size={22} strokeWidth={1.5} />
-            <span style={{ fontSize: 13 }}>Arrastra imágenes o <span style={{ color: "#273D88", fontWeight: 500 }}>busca archivos</span></span>
-            <span style={{ fontSize: 11 }}>PNG, JPG, PDF · máx. 10 MB</span>
+          {/* ── Photo groups ── */}
+          <div style={{ margin: "20px 0 8px" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+                <Camera size={15} style={{ color: "#8594A3" }} />
+                <span style={{ fontSize: 12, fontWeight: 700, color: "#8594A3", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                  Grupos de fotos
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={addGrupo}
+                style={{
+                  display: "flex", alignItems: "center", gap: 5,
+                  height: 28, padding: "0 10px",
+                  border: "1px solid #273D88", borderRadius: 6,
+                  background: "#EEF1FB", color: "#273D88",
+                  fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
+                }}
+              >
+                <Plus size={12} />
+                Agregar grupo
+              </button>
+            </div>
+
+            {grupos.length === 0 ? (
+              <button
+                type="button"
+                onClick={addGrupo}
+                style={{
+                  width: "100%", border: "1.5px dashed #D1D5DB", borderRadius: 8,
+                  padding: "20px", display: "flex", flexDirection: "column",
+                  alignItems: "center", gap: 6, color: "#8594A3", cursor: "pointer",
+                  background: "#FAFAFA", fontFamily: "inherit",
+                }}
+              >
+                <ImagePlus size={22} strokeWidth={1.5} />
+                <span style={{ fontSize: 13 }}>Agrega un grupo de fotos con título y descripción</span>
+                <span style={{ fontSize: 11 }}>Ej: "Antes del trabajo", "Instrucciones", "Durante"</span>
+              </button>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                {grupos.map((g, gi) => (
+                  <div key={g.id} style={{ border: "1px solid #E5E7EB", borderRadius: 8, overflow: "hidden", background: "#fff" }}>
+                    {/* Group header */}
+                    <div style={{ padding: "12px 14px", borderBottom: "1px solid #F3F4F6", background: "#FAFAFA", display: "flex", alignItems: "flex-start", gap: 10 }}>
+                      <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 6 }}>
+                        <input
+                          type="text"
+                          placeholder={`Título del grupo (ej. Fotos del trabajo)`}
+                          value={g.titulo}
+                          onChange={e => updateGrupo(g.id, { titulo: e.target.value })}
+                          style={{
+                            width: "100%", height: 32, padding: "0 10px",
+                            border: "1px solid #E5E7EB", borderRadius: 5,
+                            fontSize: 13, fontWeight: 600, color: "#1E2429",
+                            outline: "none", fontFamily: "inherit", background: "#fff",
+                          }}
+                          onFocus={e => { e.currentTarget.style.borderColor = "#273D88"; }}
+                          onBlur={e => { e.currentTarget.style.borderColor = "#E5E7EB"; }}
+                        />
+                        <input
+                          type="text"
+                          placeholder="Descripción o instrucciones (opcional)"
+                          value={g.descripcion}
+                          onChange={e => updateGrupo(g.id, { descripcion: e.target.value })}
+                          style={{
+                            width: "100%", height: 30, padding: "0 10px",
+                            border: "1px solid #E5E7EB", borderRadius: 5,
+                            fontSize: 12, color: "#4D5A66",
+                            outline: "none", fontFamily: "inherit", background: "#fff",
+                          }}
+                          onFocus={e => { e.currentTarget.style.borderColor = "#273D88"; }}
+                          onBlur={e => { e.currentTarget.style.borderColor = "#E5E7EB"; }}
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => removeGrupo(g.id)}
+                        style={{ width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", borderRadius: 5, cursor: "pointer", color: "#EF4444", flexShrink: 0, marginTop: 2 }}
+                        onMouseEnter={e => { e.currentTarget.style.background = "#FEF2F2"; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = "none"; }}
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+
+                    {/* Photo grid */}
+                    <div style={{ padding: 12 }}>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(90px, 1fr))", gap: 8 }}>
+                        {g.fotos.map((f, fi) => (
+                          <div key={fi} style={{ position: "relative", aspectRatio: "1", borderRadius: 6, overflow: "hidden", background: "#F3F4F6" }}>
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={f.preview} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                            <button
+                              type="button"
+                              onClick={() => removeFotoFromDraftGrupo(g.id, fi)}
+                              style={{
+                                position: "absolute", top: 4, right: 4,
+                                width: 20, height: 20, borderRadius: "50%",
+                                background: "rgba(0,0,0,0.6)", border: "none",
+                                display: "flex", alignItems: "center", justifyContent: "center",
+                                cursor: "pointer", color: "#fff",
+                              }}
+                            >
+                              <X size={11} />
+                            </button>
+                          </div>
+                        ))}
+                        {/* Add photos button */}
+                        <button
+                          type="button"
+                          onClick={() => grupoFileRefs.current[g.id]?.click()}
+                          style={{
+                            aspectRatio: "1", border: "1.5px dashed #D1D5DB", borderRadius: 6,
+                            background: "#FAFAFA", display: "flex", flexDirection: "column",
+                            alignItems: "center", justifyContent: "center", gap: 4,
+                            cursor: "pointer", color: "#8594A3",
+                          }}
+                          onMouseEnter={e => { e.currentTarget.style.borderColor = "#273D88"; e.currentTarget.style.color = "#273D88"; }}
+                          onMouseLeave={e => { e.currentTarget.style.borderColor = "#D1D5DB"; e.currentTarget.style.color = "#8594A3"; }}
+                        >
+                          <Upload size={16} />
+                          <span style={{ fontSize: 10, fontWeight: 500 }}>Fotos</span>
+                        </button>
+                        <input
+                          ref={el => { grupoFileRefs.current[g.id] = el; }}
+                          type="file"
+                          accept="image/*"
+                          multiple
+                          style={{ display: "none" }}
+                          onChange={e => { if (e.target.files?.length) { addFotosToGrupo(g.id, e.target.files); e.target.value = ""; } }}
+                        />
+                      </div>
+                      {g.fotos.length > 0 && (
+                        <div style={{ marginTop: 6, fontSize: 11, color: "#8594A3" }}>
+                          {g.fotos.length} foto{g.fotos.length !== 1 ? "s" : ""} · Se subirán al crear la OT
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={addGrupo}
+                  style={{
+                    width: "100%", padding: "10px", border: "1.5px dashed #D1D5DB", borderRadius: 8,
+                    background: "none", color: "#8594A3", fontSize: 13, cursor: "pointer",
+                    display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                    fontFamily: "inherit",
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.borderColor = "#273D88"; e.currentTarget.style.color = "#273D88"; }}
+                  onMouseLeave={e => { e.currentTarget.style.borderColor = "#D1D5DB"; e.currentTarget.style.color = "#8594A3"; }}
+                >
+                  <Plus size={14} />
+                  Agregar otro grupo
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Description */}

@@ -190,7 +190,7 @@ export default function OTRow({ orden, rowNumber, usuarios, isSelected, onClick 
 
         {/* Right: time + avatars */}
         <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
-          <span style={{ fontSize: 11, color: "#94A3B8" }}>{timeAgo(orden.created_at)}</span>
+          <span suppressHydrationWarning style={{ fontSize: 11, color: "#94A3B8" }}>{timeAgo(orden.created_at)}</span>
           {assigned.length > 0 && (
             <span style={{ display: "flex" }}>
               {assigned.slice(0, 3).map((u, i) => (

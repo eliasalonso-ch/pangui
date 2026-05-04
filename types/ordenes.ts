@@ -172,6 +172,9 @@ export interface OrdenTrabajo {
   hito: string | null;
   // Sequential number per workspace
   numero: number | null;
+  // Constraints
+  requiere_materiales: boolean;
+  requiere_hoja: boolean;
   // Media
   imagen_url: string | null;
   fotos_urls: string[] | null;
