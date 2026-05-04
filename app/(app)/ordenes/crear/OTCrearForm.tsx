@@ -6,10 +6,12 @@ import {
   ChevronLeft, Loader2, Upload, User, MapPin, Settings2,
   Clock, CalendarDays, Tag, X, Check, ChevronDown,
   Camera, Plus, Trash2, ImagePlus, GripVertical,
+  Paperclip, FileText, File,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase";
 import { uploadFotoGrupo, createFotoGrupo, addFotoToGrupo } from "@/lib/foto-grupos-api";
-import type { Usuario, Ubicacion, Activo, CategoriaOT, Prioridad, TipoTrabajo, Recurrencia } from "@/types/ordenes";
+import { uploadToR2 } from "@/lib/r2";
+import type { Usuario, Ubicacion, Activo, CategoriaOT, Prioridad, TipoTrabajo, Recurrencia, OTLink } from "@/types/ordenes";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -358,6 +360,11 @@ export default function OTCrearForm({ usuarios, ubicaciones, activos, categorias
   const [grupos, setGrupos] = useState<DraftGrupo[]>([]);
   const grupoFileRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
+  // Adjuntos (files to attach)
+  interface DraftAdjunto { file: File; nombre: string }
+  const [adjuntos, setAdjuntos] = useState<DraftAdjunto[]>([]);
+  const adjuntoInputRef = useRef<HTMLInputElement | null>(null);
+
   function setF<K extends keyof FormState>(key: K, val: FormState[K]) {
     setForm(prev => ({ ...prev, [key]: val }));
   }
@@ -415,6 +422,20 @@ export default function OTCrearForm({ usuarios, ubicaciones, activos, categorias
     }
 
     const ordenId = (data as { id: string }).id;
+
+    // Upload file attachments
+    if (adjuntos.length > 0) {
+      const adjuntoLinks: OTLink[] = [];
+      for (const a of adjuntos) {
+        try {
+          const url = await uploadToR2(a.file, `ordenes/${ordenId}/adjuntos`);
+          adjuntoLinks.push({ url, nombre: a.nombre, tipo: "archivo" });
+        } catch { /* non-fatal */ }
+      }
+      if (adjuntoLinks.length > 0) {
+        await sb.from("ordenes_trabajo").update({ links: adjuntoLinks }).eq("id", ordenId);
+      }
+    }
 
     // Upload photo groups
     for (let gi = 0; gi < grupos.length; gi++) {
@@ -859,6 +880,107 @@ export default function OTCrearForm({ usuarios, ubicaciones, activos, categorias
                 );
               })}
             </div>
+          </div>
+
+          {/* ── Adjuntos ── */}
+          <div style={{ padding: "14px 0", borderBottom: "1px solid #F3F4F6" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <Paperclip size={14} style={{ color: "#8594A3" }} />
+                <span style={{ fontSize: 11, fontWeight: 600, color: "#8594A3", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                  Adjuntos
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => adjuntoInputRef.current?.click()}
+                style={{
+                  display: "flex", alignItems: "center", gap: 5,
+                  height: 28, padding: "0 10px",
+                  border: "1px solid #273D88", borderRadius: 6,
+                  background: "#EEF1FB", color: "#273D88",
+                  fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
+                }}
+              >
+                <Plus size={12} />
+                Adjuntar archivo
+              </button>
+              <input
+                ref={adjuntoInputRef}
+                type="file"
+                multiple
+                accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.dwg,.dxf,.zip,image/*"
+                style={{ display: "none" }}
+                onChange={e => {
+                  const files = Array.from(e.target.files ?? []);
+                  setAdjuntos(prev => [...prev, ...files.map(f => ({ file: f, nombre: f.name }))]);
+                  e.target.value = "";
+                }}
+              />
+            </div>
+            {adjuntos.length === 0 ? (
+              <button
+                type="button"
+                onClick={() => adjuntoInputRef.current?.click()}
+                style={{
+                  width: "100%", border: "1.5px dashed #D1D5DB", borderRadius: 8,
+                  padding: "16px", display: "flex", flexDirection: "column",
+                  alignItems: "center", gap: 5, color: "#8594A3", cursor: "pointer",
+                  background: "#FAFAFA", fontFamily: "inherit",
+                }}
+              >
+                <Paperclip size={20} strokeWidth={1.5} />
+                <span style={{ fontSize: 13 }}>PDF, Word, Excel, TXT, CSV, DWG…</span>
+              </button>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {adjuntos.map((a, i) => {
+                  const ext = a.file.name.split(".").pop()?.toLowerCase() ?? "";
+                  const isDoc = ["pdf","doc","docx","xls","xlsx","ppt","pptx","txt","csv","dwg","dxf"].includes(ext);
+                  return (
+                    <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", border: "1px solid #E5E7EB", borderRadius: 6, background: "#FAFAFA" }}>
+                      {isDoc ? <FileText size={15} style={{ color: "#273D88", flexShrink: 0 }} /> : <File size={15} style={{ color: "#8594A3", flexShrink: 0 }} />}
+                      <input
+                        type="text"
+                        value={a.nombre}
+                        onChange={e => setAdjuntos(prev => prev.map((x, idx) => idx === i ? { ...x, nombre: e.target.value } : x))}
+                        style={{
+                          flex: 1, fontSize: 13, color: "#1E2429", border: "none",
+                          outline: "none", background: "transparent", fontFamily: "inherit",
+                          minWidth: 0,
+                        }}
+                      />
+                      <span style={{ fontSize: 11, color: "#8594A3", flexShrink: 0 }}>
+                        {(a.file.size / 1024).toFixed(0)} KB
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setAdjuntos(prev => prev.filter((_, idx) => idx !== i))}
+                        style={{ width: 24, height: 24, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", cursor: "pointer", color: "#94A3B8", flexShrink: 0 }}
+                        onMouseEnter={e => { e.currentTarget.style.color = "#EF4444"; }}
+                        onMouseLeave={e => { e.currentTarget.style.color = "#94A3B8"; }}
+                      >
+                        <X size={13} />
+                      </button>
+                    </div>
+                  );
+                })}
+                <button
+                  type="button"
+                  onClick={() => adjuntoInputRef.current?.click()}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 5,
+                    padding: "6px 0", background: "none", border: "none",
+                    cursor: "pointer", fontSize: 12, color: "#8594A3", fontFamily: "inherit",
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.color = "#273D88"; }}
+                  onMouseLeave={e => { e.currentTarget.style.color = "#8594A3"; }}
+                >
+                  <Plus size={12} />
+                  Agregar más archivos
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Categories */}

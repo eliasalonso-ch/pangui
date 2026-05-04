@@ -483,8 +483,24 @@ export default function OTDetail({
   // ── Requiere toggles ─────────────────────────────────────────────────────────
   const [requiereMateriales, setRequiereMateriales] = useState(orden.requiere_materiales ?? false);
   const [requiereHoja, setRequiereHoja] = useState(orden.requiere_hoja ?? false);
+  const [requiereFotos, setRequiereFotos] = useState(orden.requiere_fotos ?? false);
   const [togglingMat, setTogglingMat] = useState(false);
   const [togglingHoja, setTogglingHoja] = useState(false);
+  const [togglingFotos, setTogglingFotos] = useState(false);
+  const [fotosObligatoriasTodas, setFotosObligatoriasTodas] = useState(false);
+
+  // Fetch workspace-level fotos_obligatorias_todas flag once on mount
+  useEffect(() => {
+    if (!wsId) return;
+    const sb = createClient();
+    sb.from("workspaces")
+      .select("fotos_obligatorias_todas")
+      .eq("id", wsId)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data?.fotos_obligatorias_todas) setFotosObligatoriasTodas(true);
+      });
+  }, [wsId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleToggleRequiereMateriales() {
     const next = !requiereMateriales;
@@ -504,6 +520,16 @@ export default function OTDetail({
     await sb.from("ordenes_trabajo").update({ requiere_hoja: next }).eq("id", orden.id);
     setTogglingHoja(false);
     onOrdenUpdated({ requiere_hoja: next });
+  }
+
+  async function handleToggleRequiereFotos() {
+    const next = !requiereFotos;
+    setRequiereFotos(next);
+    setTogglingFotos(true);
+    const sb = createClient();
+    await sb.from("ordenes_trabajo").update({ requiere_fotos: next }).eq("id", orden.id);
+    setTogglingFotos(false);
+    onOrdenUpdated({ requiere_fotos: next });
   }
 
   useEffect(() => {
@@ -751,14 +777,15 @@ export default function OTDetail({
       });
   }, [requiereMateriales]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Load foto grupos when fotos tab opens
+  // Load foto grupos when fotos tab opens — or eagerly when foto requirement is active
   useEffect(() => {
-    if (tab !== "fotos" || gruposLoaded) return;
+    if (gruposLoaded) return;
+    if (tab !== "fotos" && !requiereFotos && !fotosObligatoriasTodas) return;
     setLoadingGrupos(true);
     fetchFotoGrupos(orden.id)
       .then(data => { setFotoGrupos(data); setGruposLoaded(true); })
       .finally(() => setLoadingGrupos(false));
-  }, [tab, orden.id, gruposLoaded]);
+  }, [tab, orden.id, gruposLoaded, requiereFotos, fotosObligatoriasTodas]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleCreateGrupo() {
     if (!newGrupoTitulo.trim() || !wsId) return;
@@ -923,19 +950,36 @@ export default function OTDetail({
 
   // ── Actions ────────────────────────────────────────────────────────────────
 
-  const checkCompletionRequirements = (): string | null => {
+  const checkCompletionRequirements = async (): Promise<string | null> => {
     if (requiereMateriales && ordenPartes.length === 0) {
       return "Esta OT requiere al menos un material registrado antes de cerrarse. Ve a la pestaña Materiales y agrega los materiales utilizados.";
     }
     if (requiereHoja) {
       return "Esta OT requiere que completes la hoja de cálculo antes de cerrarse. Ve a la pestaña Hoja de cálculo.";
     }
+    if (requiereFotos || fotosObligatoriasTodas) {
+      // Always fetch fresh foto groups so we don't block on stale/unloaded state
+      let currentGrupos = fotoGrupos;
+      if (!gruposLoaded) {
+        try {
+          currentGrupos = await fetchFotoGrupos(orden.id);
+          setFotoGrupos(currentGrupos);
+          setGruposLoaded(true);
+        } catch {
+          currentGrupos = [];
+        }
+      }
+      const hasAnyFoto = fotos.length > 0 || currentGrupos.some(g => (g.items?.length ?? 0) > 0);
+      if (!hasAnyFoto) {
+        return "Esta OT requiere al menos una foto antes de cerrarse. Ve a la pestaña Fotos y sube las fotos del trabajo.";
+      }
+    }
     return null;
   };
 
   const changeStatus = async (newEstado: Estado) => {
     if (newEstado === "completado") {
-      const err = checkCompletionRequirements();
+      const err = await checkCompletionRequirements();
       if (err) { alert(err); return; }
     }
     await updateOrdenEstado(orden.id, newEstado, myId, wsId && orden.titulo ? {
@@ -1298,7 +1342,7 @@ export default function OTDetail({
   const confirmTimerAction = async () => {
     if (!timerAction) return;
     if (timerAction === "completar") {
-      const err = checkCompletionRequirements();
+      const err = await checkCompletionRequirements();
       if (err) { alert(err); return; }
     }
     setTimerBusy(true);
@@ -1498,7 +1542,7 @@ export default function OTDetail({
               )}
             </div>
 
-            {canManage && (
+            {(canManage || orden.creado_por === myId) && (
               <>
                 <button
                   type="button" onClick={onEdit}
@@ -1593,15 +1637,31 @@ export default function OTDetail({
               </div>
             )}
 
-            {/* Links */}
-            {Array.isArray(orden.links) && orden.links.length > 0 && (
-              <div style={{ marginTop: 12 }}>
-                <div style={{ fontSize: 11, fontWeight: 600, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 6 }}>
-                  Links
-                </div>
-                <LinksDisplay links={orden.links} />
-              </div>
-            )}
+            {/* Links & Adjuntos */}
+            {Array.isArray(orden.links) && orden.links.length > 0 && (() => {
+              const urlLinks = orden.links.filter((l) => l.tipo !== "archivo");
+              const fileLinks = orden.links.filter((l) => l.tipo === "archivo");
+              return (
+                <>
+                  {fileLinks.length > 0 && (
+                    <div style={{ marginTop: 12 }}>
+                      <div style={{ fontSize: 11, fontWeight: 600, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 6 }}>
+                        Adjuntos
+                      </div>
+                      <LinksDisplay links={fileLinks} />
+                    </div>
+                  )}
+                  {urlLinks.length > 0 && (
+                    <div style={{ marginTop: 12 }}>
+                      <div style={{ fontSize: 11, fontWeight: 600, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 6 }}>
+                        Links
+                      </div>
+                      <LinksDisplay links={urlLinks} />
+                    </div>
+                  )}
+                </>
+              );
+            })()}
 
             {/* Timer card */}
             {isActive && (
@@ -1732,6 +1792,74 @@ export default function OTDetail({
                 <User size={13} style={{ color: "#94A3B8" }} />
                 <span style={{ fontSize: 12, color: "#94A3B8" }}>Creado por</span>
                 <span style={{ fontSize: 12, fontWeight: 600, color: "#475569" }}>{orden.creador.nombre}</span>
+              </div>
+            )}
+
+            {/* ── Requisitos section — visible to all, editable by admins ── */}
+            {(canManage || requiereMateriales || requiereHoja || requiereFotos || fotosObligatoriasTodas) && (
+              <div style={{ marginTop: 20, paddingTop: 16, borderTop: "1px solid #E2E8F0" }}>
+                <p style={{ fontSize: 11, fontWeight: 600, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 10, marginTop: 0 }}>
+                  Requisitos para cerrar
+                </p>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {/* Materiales — hidden for Electrilam */}
+                  {(canManage || requiereMateriales) && wsId !== "f1b64714-6de2-4d49-b6e4-5959553e94d7" && (
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 8 }}>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                        <span style={{ fontSize: 13, fontWeight: 600, color: "#0F172A" }}>Requiere materiales</span>
+                        <span style={{ fontSize: 12, color: "#64748B" }}>Bloquea el cierre si no hay materiales registrados</span>
+                      </div>
+                      {canManage ? (
+                        <button type="button" onClick={handleToggleRequiereMateriales} disabled={togglingMat}
+                          style={{ width: 42, height: 24, borderRadius: 12, border: "none", cursor: "pointer", background: requiereMateriales ? "#2563EB" : "#CBD5E1", position: "relative", transition: "background 0.2s", flexShrink: 0, opacity: togglingMat ? 0.6 : 1 }}>
+                          <span style={{ position: "absolute", top: 2, left: requiereMateriales ? 20 : 2, width: 20, height: 20, borderRadius: "50%", background: "#fff", transition: "left 0.2s", boxShadow: "0 1px 3px rgba(0,0,0,0.2)" }} />
+                        </button>
+                      ) : (
+                        <span style={{ fontSize: 12, fontWeight: 600, color: requiereMateriales ? "#2563EB" : "#94A3B8" }}>{requiereMateriales ? "Sí" : "No"}</span>
+                      )}
+                    </div>
+                  )}
+                  {/* Hoja de cálculo */}
+                  {(canManage || requiereHoja) && (
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 8 }}>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                        <span style={{ fontSize: 13, fontWeight: 600, color: "#0F172A" }}>Requiere hoja de cálculo</span>
+                        <span style={{ fontSize: 12, color: "#64748B" }}>Bloquea el cierre si la hoja no tiene filas registradas</span>
+                      </div>
+                      {canManage ? (
+                        <button type="button" onClick={handleToggleRequiereHoja} disabled={togglingHoja}
+                          style={{ width: 42, height: 24, borderRadius: 12, border: "none", cursor: "pointer", background: requiereHoja ? "#2563EB" : "#CBD5E1", position: "relative", transition: "background 0.2s", flexShrink: 0, opacity: togglingHoja ? 0.6 : 1 }}>
+                          <span style={{ position: "absolute", top: 2, left: requiereHoja ? 20 : 2, width: 20, height: 20, borderRadius: "50%", background: "#fff", transition: "left 0.2s", boxShadow: "0 1px 3px rgba(0,0,0,0.2)" }} />
+                        </button>
+                      ) : (
+                        <span style={{ fontSize: 12, fontWeight: 600, color: requiereHoja ? "#2563EB" : "#94A3B8" }}>{requiereHoja ? "Sí" : "No"}</span>
+                      )}
+                    </div>
+                  )}
+                  {/* Fotos */}
+                  {(canManage || requiereFotos || fotosObligatoriasTodas) && (
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 8 }}>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                        <span style={{ fontSize: 13, fontWeight: 600, color: "#0F172A" }}>Requiere fotos</span>
+                        <span style={{ fontSize: 12, color: "#64748B" }}>
+                          {fotosObligatoriasTodas
+                            ? "Obligatorio en todas las OTs del workspace"
+                            : "Bloquea el cierre si no hay fotos registradas"}
+                        </span>
+                      </div>
+                      {canManage && !fotosObligatoriasTodas ? (
+                        <button type="button" onClick={handleToggleRequiereFotos} disabled={togglingFotos}
+                          style={{ width: 42, height: 24, borderRadius: 12, border: "none", cursor: "pointer", background: requiereFotos ? "#2563EB" : "#CBD5E1", position: "relative", transition: "background 0.2s", flexShrink: 0, opacity: togglingFotos ? 0.6 : 1 }}>
+                          <span style={{ position: "absolute", top: 2, left: requiereFotos ? 20 : 2, width: 20, height: 20, borderRadius: "50%", background: "#fff", transition: "left 0.2s", boxShadow: "0 1px 3px rgba(0,0,0,0.2)" }} />
+                        </button>
+                      ) : (
+                        <span style={{ fontSize: 12, fontWeight: 600, color: (requiereFotos || fotosObligatoriasTodas) ? "#2563EB" : "#94A3B8" }}>
+                          {(requiereFotos || fotosObligatoriasTodas) ? "Sí" : "No"}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </div>
@@ -1959,66 +2087,19 @@ export default function OTDetail({
                 </span>
               </div>
             )}
-
-            {/* Requiere toggles — admin/owner only */}
-            {canManage && (
-              <div style={{ marginBottom: 16, display: "flex", flexDirection: "column", gap: 8 }}>
-                {/* Requiere materiales */}
-                <div style={{
-                  display: "flex", alignItems: "center", justifyContent: "space-between",
-                  padding: "10px 14px", background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 8,
-                }}>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                    <span style={{ fontSize: 13, fontWeight: 600, color: "#0F172A" }}>Requiere materiales</span>
-                    <span style={{ fontSize: 12, color: "#64748B" }}>Bloquea el cierre si no hay materiales registrados</span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={handleToggleRequiereMateriales}
-                    disabled={togglingMat}
-                    style={{
-                      width: 42, height: 24, borderRadius: 12, border: "none", cursor: "pointer",
-                      background: requiereMateriales ? "#2563EB" : "#CBD5E1",
-                      position: "relative", transition: "background 0.2s", flexShrink: 0,
-                      opacity: togglingMat ? 0.6 : 1,
-                    }}
-                  >
-                    <span style={{
-                      position: "absolute", top: 2, left: requiereMateriales ? 20 : 2,
-                      width: 20, height: 20, borderRadius: "50%", background: "#fff",
-                      transition: "left 0.2s", boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
-                    }} />
-                  </button>
-                </div>
-                {/* Requiere hoja */}
-                <div style={{
-                  display: "flex", alignItems: "center", justifyContent: "space-between",
-                  padding: "10px 14px", background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 8,
-                }}>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                    <span style={{ fontSize: 13, fontWeight: 600, color: "#0F172A" }}>Requiere hoja de cálculo</span>
-                    <span style={{ fontSize: 12, color: "#64748B" }}>Bloquea el cierre si la hoja no tiene filas registradas</span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={handleToggleRequiereHoja}
-                    disabled={togglingHoja}
-                    style={{
-                      width: 42, height: 24, borderRadius: 12, border: "none", cursor: "pointer",
-                      background: requiereHoja ? "#2563EB" : "#CBD5E1",
-                      position: "relative", transition: "background 0.2s", flexShrink: 0,
-                      opacity: togglingHoja ? 0.6 : 1,
-                    }}
-                  >
-                    <span style={{
-                      position: "absolute", top: 2, left: requiereHoja ? 20 : 2,
-                      width: 20, height: 20, borderRadius: "50%", background: "#fff",
-                      transition: "left 0.2s", boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
-                    }} />
-                  </button>
-                </div>
+            {(requiereFotos || fotosObligatoriasTodas) && isActive && (
+              <div style={{
+                display: "flex", alignItems: "center", gap: 8,
+                padding: "10px 14px", marginBottom: 10,
+                background: "#FFF7ED", border: "1px solid #FED7AA", borderRadius: 8,
+              }}>
+                <AlertTriangle size={14} style={{ color: "#D97706", flexShrink: 0 }} />
+                <span style={{ fontSize: 12, color: "#92400E" }}>
+                  Esta OT requiere al menos una foto antes de poder cerrarse.
+                </span>
               </div>
             )}
+
 
             {/* Search catalogue */}
             {(isActive || canManage) && (

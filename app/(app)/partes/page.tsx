@@ -181,6 +181,7 @@ export default function PartesPage() {
   const [loading, setLoading] = useState(true);
   const [myRol, setMyRol] = useState<string>("tecnico");
   const [requiereMaterialesGlobal, setRequiereMaterialesGlobal] = useState(false);
+  const [requiereHojaGlobal, setRequiereHojaGlobal] = useState(false);
   const [togglingGlobal, setTogglingGlobal] = useState(false);
 
   const [busqueda, setBusqueda] = useState("");
@@ -214,8 +215,9 @@ export default function PartesPage() {
       setMyRol(perfil.rol ?? "tecnico");
 
       const { data: ws } = await sb.from("workspaces")
-        .select("requiere_materiales_global").eq("id", pId).maybeSingle();
+        .select("requiere_materiales_global, requiere_hoja_global").eq("id", pId).maybeSingle();
       setRequiereMaterialesGlobal(ws?.requiere_materiales_global ?? false);
+      setRequiereHojaGlobal(ws?.requiere_hoja_global ?? false);
 
       const { data: p } = await sb.from("partes")
         .select("id, nombre, descripcion, codigo, unidad, stock_actual, stock_minimo, precio_unitario, ubicacion_bodega, imagen_url, workspace_id")
@@ -350,13 +352,23 @@ export default function PartesPage() {
     return matchSearch && matchStock;
   });
 
-  async function handleToggleGlobal() {
+  async function handleToggleMateriales() {
     if (!plantaId) return;
     const next = !requiereMaterialesGlobal;
     setRequiereMaterialesGlobal(next);
     setTogglingGlobal(true);
     const sb = createClient();
     await sb.from("workspaces").update({ requiere_materiales_global: next }).eq("id", plantaId);
+    setTogglingGlobal(false);
+  }
+
+  async function handleToggleHoja() {
+    if (!plantaId) return;
+    const next = !requiereHojaGlobal;
+    setRequiereHojaGlobal(next);
+    setTogglingGlobal(true);
+    const sb = createClient();
+    await sb.from("workspaces").update({ requiere_hoja_global: next }).eq("id", plantaId);
     setTogglingGlobal(false);
   }
 
@@ -383,36 +395,69 @@ export default function PartesPage() {
       }}>
         <h1 style={{ fontSize: 20, fontWeight: 700, color: "#0F172A", margin: 0, letterSpacing: "-0.3px" }}>Partes</h1>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          {/* Global mandatory materials toggle — admin/owner only */}
+          {/* Global toggles — admin/owner only */}
           {canManage && (
-            <div style={{
-              display: "flex", alignItems: "center", gap: 8,
-              padding: "6px 12px", borderRadius: 8,
-              background: requiereMaterialesGlobal ? "#FFF7ED" : "#F8FAFC",
-              border: `1px solid ${requiereMaterialesGlobal ? "#FED7AA" : "#E2E8F0"}`,
-            }}>
-              {requiereMaterialesGlobal && <AlertTriangle size={13} style={{ color: "#D97706", flexShrink: 0 }} />}
-              <span style={{ fontSize: 12, fontWeight: 600, color: requiereMaterialesGlobal ? "#92400E" : "#64748B", whiteSpace: "nowrap" }}>
-                Materiales obligatorios en OTs
-              </span>
-              <button
-                type="button"
-                onClick={handleToggleGlobal}
-                disabled={togglingGlobal}
-                style={{
-                  width: 36, height: 20, borderRadius: 10, border: "none",
-                  background: requiereMaterialesGlobal ? "#D97706" : "#CBD5E1",
-                  position: "relative", cursor: "pointer", flexShrink: 0,
-                  opacity: togglingGlobal ? 0.5 : 1, transition: "background 0.2s",
-                }}
-              >
-                <span style={{
-                  position: "absolute", top: 2,
-                  left: requiereMaterialesGlobal ? 18 : 2,
-                  width: 16, height: 16, borderRadius: "50%", background: "#fff",
-                  transition: "left 0.2s", boxShadow: "0 1px 2px rgba(0,0,0,0.2)",
-                }} />
-              </button>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              {/* Materiales toggle */}
+              <div style={{
+                display: "flex", alignItems: "center", gap: 8,
+                padding: "6px 12px", borderRadius: 8,
+                background: requiereMaterialesGlobal ? "#FFF7ED" : "#F8FAFC",
+                border: `1px solid ${requiereMaterialesGlobal ? "#FED7AA" : "#E2E8F0"}`,
+              }}>
+                {requiereMaterialesGlobal && <AlertTriangle size={13} style={{ color: "#D97706", flexShrink: 0 }} />}
+                <span style={{ fontSize: 12, fontWeight: 600, color: requiereMaterialesGlobal ? "#92400E" : "#64748B", whiteSpace: "nowrap" }}>
+                  Materiales en OTs
+                </span>
+                <button
+                  type="button"
+                  onClick={handleToggleMateriales}
+                  disabled={togglingGlobal}
+                  style={{
+                    width: 36, height: 20, borderRadius: 10, border: "none",
+                    background: requiereMaterialesGlobal ? "#D97706" : "#CBD5E1",
+                    position: "relative", cursor: "pointer", flexShrink: 0,
+                    opacity: togglingGlobal ? 0.5 : 1, transition: "background 0.2s",
+                  }}
+                >
+                  <span style={{
+                    position: "absolute", top: 2,
+                    left: requiereMaterialesGlobal ? 18 : 2,
+                    width: 16, height: 16, borderRadius: "50%", background: "#fff",
+                    transition: "left 0.2s", boxShadow: "0 1px 2px rgba(0,0,0,0.2)",
+                  }} />
+                </button>
+              </div>
+              {/* Hoja de cálculo toggle */}
+              <div style={{
+                display: "flex", alignItems: "center", gap: 8,
+                padding: "6px 12px", borderRadius: 8,
+                background: requiereHojaGlobal ? "#EFF6FF" : "#F8FAFC",
+                border: `1px solid ${requiereHojaGlobal ? "#BFDBFE" : "#E2E8F0"}`,
+              }}>
+                {requiereHojaGlobal && <AlertTriangle size={13} style={{ color: "#2563EB", flexShrink: 0 }} />}
+                <span style={{ fontSize: 12, fontWeight: 600, color: requiereHojaGlobal ? "#1E40AF" : "#64748B", whiteSpace: "nowrap" }}>
+                  Hoja de cálculo en OTs
+                </span>
+                <button
+                  type="button"
+                  onClick={handleToggleHoja}
+                  disabled={togglingGlobal}
+                  style={{
+                    width: 36, height: 20, borderRadius: 10, border: "none",
+                    background: requiereHojaGlobal ? "#2563EB" : "#CBD5E1",
+                    position: "relative", cursor: "pointer", flexShrink: 0,
+                    opacity: togglingGlobal ? 0.5 : 1, transition: "background 0.2s",
+                  }}
+                >
+                  <span style={{
+                    position: "absolute", top: 2,
+                    left: requiereHojaGlobal ? 18 : 2,
+                    width: 16, height: 16, borderRadius: "50%", background: "#fff",
+                    transition: "left 0.2s", boxShadow: "0 1px 2px rgba(0,0,0,0.2)",
+                  }} />
+                </button>
+              </div>
             </div>
           )}
           <button

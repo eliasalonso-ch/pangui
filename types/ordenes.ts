@@ -3,6 +3,8 @@
 export interface OTLink {
   url: string;
   label?: string;
+  nombre?: string;
+  tipo?: "link" | "archivo";
 }
 
 export type Estado =
@@ -175,6 +177,7 @@ export interface OrdenTrabajo {
   // Constraints
   requiere_materiales: boolean;
   requiere_hoja: boolean;
+  requiere_fotos: boolean;
   // Media
   imagen_url: string | null;
   fotos_urls: string[] | null;

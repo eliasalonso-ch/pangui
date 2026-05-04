@@ -85,7 +85,7 @@ export const ORDEN_SELECT = `
   numero, categoria_id, ubicacion_id, activo_id, lugar_id, sociedad_id,
   iniciado_at, pausado_at, en_ejecucion, tiempo_total_segundos,
   recurrencia, proxima_ejecucion, parent_id,
-  requiere_materiales, requiere_hoja,
+  requiere_materiales, requiere_hoja, requiere_fotos,
   imagen_url, fotos_urls, links,
   activos (id, nombre, codigo),
   ubicaciones (id, edificio, piso, sociedad_id, sociedades(nombre)),
@@ -181,6 +181,12 @@ export async function createOrden(payload: {
   const recurrencia = payload.recurrencia ?? "ninguna";
   const proxima_ejecucion = calcProximaEjecucion(recurrencia);
 
+  const { data: ws } = await sb
+    .from("workspaces")
+    .select("requiere_materiales_global, requiere_hoja_global")
+    .eq("id", payload.workspaceId)
+    .maybeSingle();
+
   const { data, error } = await sb
     .from("ordenes_trabajo")
     .insert({
@@ -198,6 +204,8 @@ export async function createOrden(payload: {
       recurrencia,
       proxima_ejecucion,
       estado_cobro:       "no_cobrable",
+      requiere_materiales: ws?.requiere_materiales_global ?? false,
+      requiere_hoja:       ws?.requiere_hoja_global ?? false,
       ...(payload.categoria_id  ? { categoria_id:  payload.categoria_id  } : {}),
       ...(payload.ubicacion_id  ? { ubicacion_id:  payload.ubicacion_id  } : {}),
       ...(payload.lugar_id      ? { lugar_id:      payload.lugar_id      } : {}),

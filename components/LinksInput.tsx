@@ -1,6 +1,6 @@
 "use client";
 
-import { Plus, X, Link2, ExternalLink } from "lucide-react";
+import { Plus, X, Link2, ExternalLink, FileText, Download, File } from "lucide-react";
 import type { OTLink } from "@/types/ordenes";
 
 interface Props {
@@ -136,37 +136,81 @@ export default function LinksInput({ links, onChange, disabled }: Props) {
 
 // ── Read-only display used in OTDetail ────────────────────────────────────────
 
+function fileIconForUrl(url: string) {
+  const ext = url.split("?")[0].split(".").pop()?.toLowerCase() ?? "";
+  const docExts = ["pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "txt", "csv", "dwg", "dxf", "zip"];
+  return docExts.includes(ext) ? <FileText size={11} style={{ flexShrink: 0 }} /> : <File size={11} style={{ flexShrink: 0 }} />;
+}
+
 export function LinksDisplay({ links }: { links: OTLink[] }) {
   if (!links || links.length === 0) return null;
 
+  const urlLinks = links.filter(l => l.tipo !== "archivo");
+  const fileLinks = links.filter(l => l.tipo === "archivo");
+
   return (
-    <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-      {links.map((link, i) => {
-        const href = normalizeUrl(link.url);
-        const label = link.label?.trim() || link.url;
-        return (
-          <a
-            key={i}
-            href={href}
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{
-              display: "inline-flex", alignItems: "center", gap: 5,
-              padding: "4px 10px", borderRadius: 6,
-              background: "#EFF6FF", border: "1px solid #BFDBFE",
-              fontSize: 12, fontWeight: 500, color: "#1D4ED8",
-              textDecoration: "none", transition: "all 0.12s",
-              maxWidth: 260, overflow: "hidden",
-            }}
-            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#DBEAFE"; (e.currentTarget as HTMLElement).style.borderColor = "#93C5FD"; }}
-            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "#EFF6FF"; (e.currentTarget as HTMLElement).style.borderColor = "#BFDBFE"; }}
-          >
-            <Link2 size={11} style={{ flexShrink: 0 }} />
-            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label}</span>
-            <ExternalLink size={10} style={{ flexShrink: 0, opacity: 0.6 }} />
-          </a>
-        );
-      })}
+    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      {urlLinks.length > 0 && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+          {urlLinks.map((link, i) => {
+            const href = normalizeUrl(link.url);
+            const label = link.label?.trim() || link.url;
+            return (
+              <a
+                key={i}
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  display: "inline-flex", alignItems: "center", gap: 5,
+                  padding: "4px 10px", borderRadius: 6,
+                  background: "#EFF6FF", border: "1px solid #BFDBFE",
+                  fontSize: 12, fontWeight: 500, color: "#1D4ED8",
+                  textDecoration: "none", transition: "all 0.12s",
+                  maxWidth: 260, overflow: "hidden",
+                }}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#DBEAFE"; (e.currentTarget as HTMLElement).style.borderColor = "#93C5FD"; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "#EFF6FF"; (e.currentTarget as HTMLElement).style.borderColor = "#BFDBFE"; }}
+              >
+                <Link2 size={11} style={{ flexShrink: 0 }} />
+                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label}</span>
+                <ExternalLink size={10} style={{ flexShrink: 0, opacity: 0.6 }} />
+              </a>
+            );
+          })}
+        </div>
+      )}
+      {fileLinks.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          {fileLinks.map((link, i) => {
+            const href = normalizeUrl(link.url);
+            const label = link.nombre?.trim() || link.label?.trim() || link.url.split("/").pop() || "archivo";
+            return (
+              <a
+                key={i}
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                download={label}
+                style={{
+                  display: "inline-flex", alignItems: "center", gap: 7,
+                  padding: "6px 10px", borderRadius: 6,
+                  background: "#F8FAFC", border: "1px solid #E2E8F0",
+                  fontSize: 12.5, fontWeight: 500, color: "#334155",
+                  textDecoration: "none", transition: "all 0.12s",
+                  maxWidth: "100%",
+                }}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#F1F5F9"; (e.currentTarget as HTMLElement).style.borderColor = "#CBD5E1"; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "#F8FAFC"; (e.currentTarget as HTMLElement).style.borderColor = "#E2E8F0"; }}
+              >
+                {fileIconForUrl(link.url)}
+                <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label}</span>
+                <Download size={11} style={{ flexShrink: 0, opacity: 0.5 }} />
+              </a>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

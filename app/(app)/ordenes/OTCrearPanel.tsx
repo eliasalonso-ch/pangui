@@ -4,11 +4,12 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import {
   X, Loader2, User, MapPin, Settings2,
   CalendarDays, Tag, Check, ChevronDown, Building2, Hash, FileUp, Plus, AlertTriangle,
-  Camera, ImagePlus, Trash2, Upload,
+  Camera, ImagePlus, Trash2, Upload, Paperclip, FileText, File,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase";
 import { createOrden, buildDescripcion } from "@/lib/ordenes-api";
 import { uploadFotoGrupo, createFotoGrupo, addFotoToGrupo } from "@/lib/foto-grupos-api";
+import { uploadToR2 } from "@/lib/r2";
 import type {
   Usuario, Ubicacion, LugarEspecifico, Sociedad, Activo, CategoriaOT,
   Prioridad, TipoTrabajo, Recurrencia, OTLink,
@@ -891,6 +892,8 @@ export default function OTCrearPanel({
   const [grupos, setGrupos] = useState<DraftGrupo[]>([]);
   const grupoFileRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const pdfInputRef = useRef<HTMLInputElement>(null);
+  const adjuntoInputRef = useRef<HTMLInputElement | null>(null);
+  const [adjuntos, setAdjuntos] = useState<{ file: File; nombre: string }[]>([]);
 
   // Local copies so newly created records appear immediately without a full reload
   const [ubicaciones, setUbicaciones] = useState<Ubicacion[]>(initialUbicaciones);
@@ -1094,6 +1097,21 @@ export default function OTCrearPanel({
         links:         form.links,
       });
 
+      // Upload file attachments (best-effort)
+      if (adjuntos.length > 0) {
+        const adjuntoLinks: OTLink[] = [];
+        for (const a of adjuntos) {
+          try {
+            const url = await uploadToR2(a.file, `ordenes/${orden.id}/adjuntos`);
+            adjuntoLinks.push({ url, nombre: a.nombre, tipo: "archivo" });
+          } catch { /* non-fatal */ }
+        }
+        if (adjuntoLinks.length > 0) {
+          const sb = createClient();
+          await sb.from("ordenes_trabajo").update({ links: adjuntoLinks }).eq("id", orden.id);
+        }
+      }
+
       // Upload photo groups (best-effort, don't block on errors)
       for (let gi = 0; gi < grupos.length; gi++) {
         const g = grupos[gi];
@@ -1246,13 +1264,13 @@ export default function OTCrearPanel({
                 type="button"
                 onClick={addGrupo}
                 style={{
-                  width: "100%", border: "1.5px dashed #CBD5E1", borderRadius: 6,
+                  width: "100%", border: "1.5px dashed #93C5FD", borderRadius: 6,
                   padding: "14px", display: "flex", flexDirection: "column",
-                  alignItems: "center", gap: 5, color: "#94A3B8", cursor: "pointer",
-                  background: "#F8FAFC", fontFamily: "inherit",
+                  alignItems: "center", gap: 5, color: "#2563EB", cursor: "pointer",
+                  background: "#EFF6FF", fontFamily: "inherit",
                 }}
-                onMouseEnter={e => { e.currentTarget.style.borderColor = "#1E3A8A"; e.currentTarget.style.color = "#1E3A8A"; }}
-                onMouseLeave={e => { e.currentTarget.style.borderColor = "#CBD5E1"; e.currentTarget.style.color = "#94A3B8"; }}
+                onMouseEnter={e => { e.currentTarget.style.background = "#DBEAFE"; e.currentTarget.style.borderColor = "#60A5FA"; }}
+                onMouseLeave={e => { e.currentTarget.style.background = "#EFF6FF"; e.currentTarget.style.borderColor = "#93C5FD"; }}
               >
                 <ImagePlus size={20} strokeWidth={1.5} />
                 <span style={{ fontSize: 12 }}>Agregar fotos con título y descripción</span>
@@ -1363,16 +1381,120 @@ export default function OTCrearPanel({
                   type="button"
                   onClick={addGrupo}
                   style={{
-                    width: "100%", padding: "8px", border: "1.5px dashed #CBD5E1", borderRadius: 6,
-                    background: "none", color: "#94A3B8", fontSize: 12, cursor: "pointer",
+                    width: "100%", padding: "8px", border: "1.5px dashed #93C5FD", borderRadius: 6,
+                    background: "#EFF6FF", color: "#2563EB", fontSize: 12, cursor: "pointer",
                     display: "flex", alignItems: "center", justifyContent: "center", gap: 5,
                     fontFamily: "inherit",
                   }}
-                  onMouseEnter={e => { e.currentTarget.style.borderColor = "#1E3A8A"; e.currentTarget.style.color = "#1E3A8A"; }}
-                  onMouseLeave={e => { e.currentTarget.style.borderColor = "#CBD5E1"; e.currentTarget.style.color = "#94A3B8"; }}
+                  onMouseEnter={e => { e.currentTarget.style.background = "#DBEAFE"; e.currentTarget.style.borderColor = "#60A5FA"; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = "#EFF6FF"; e.currentTarget.style.borderColor = "#93C5FD"; }}
                 >
                   <Plus size={12} />
                   Agregar otro grupo
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Adjuntos */}
+          <div style={{ marginBottom: 12 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <Paperclip size={13} style={{ color: "#64748B" }} />
+                <span style={{ fontSize: 11, fontWeight: 600, color: "#64748B", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                  Adjuntos
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => adjuntoInputRef.current?.click()}
+                style={{
+                  display: "flex", alignItems: "center", gap: 4,
+                  height: 24, padding: "0 8px",
+                  border: "1px solid #1E3A8A", borderRadius: 5,
+                  background: "#EFF6FF", color: "#1E3A8A",
+                  fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
+                }}
+              >
+                <Plus size={11} />
+                Adjuntar archivo
+              </button>
+              <input
+                ref={adjuntoInputRef}
+                type="file"
+                multiple
+                accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.dwg,.dxf,.zip,image/*"
+                style={{ display: "none" }}
+                onChange={e => {
+                  const files = Array.from(e.target.files ?? []);
+                  setAdjuntos(prev => [...prev, ...files.map(f => ({ file: f, nombre: f.name }))]);
+                  e.target.value = "";
+                }}
+              />
+            </div>
+            {adjuntos.length === 0 ? (
+              <button
+                type="button"
+                onClick={() => adjuntoInputRef.current?.click()}
+                style={{
+                  width: "100%", border: "1.5px dashed #93C5FD", borderRadius: 6,
+                  padding: "12px", display: "flex", flexDirection: "column",
+                  alignItems: "center", gap: 4, color: "#2563EB", cursor: "pointer",
+                  background: "#EFF6FF", fontFamily: "inherit",
+                }}
+                onMouseEnter={e => { e.currentTarget.style.background = "#DBEAFE"; e.currentTarget.style.borderColor = "#60A5FA"; }}
+                onMouseLeave={e => { e.currentTarget.style.background = "#EFF6FF"; e.currentTarget.style.borderColor = "#93C5FD"; }}
+              >
+                <Paperclip size={18} strokeWidth={1.5} />
+                <span style={{ fontSize: 12 }}>PDF, Word, Excel, TXT, CSV, DWG…</span>
+              </button>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+                {adjuntos.map((a, i) => {
+                  const ext = a.file.name.split(".").pop()?.toLowerCase() ?? "";
+                  const isDoc = ["pdf","doc","docx","xls","xlsx","ppt","pptx","txt","csv","dwg","dxf"].includes(ext);
+                  return (
+                    <div key={i} style={{ display: "flex", alignItems: "center", gap: 7, padding: "7px 9px", border: "1px solid #E2E8F0", borderRadius: 6, background: "#F8FAFC" }}>
+                      {isDoc
+                        ? <FileText size={14} style={{ color: "#1E3A8A", flexShrink: 0 }} />
+                        : <File size={14} style={{ color: "#94A3B8", flexShrink: 0 }} />}
+                      <input
+                        type="text"
+                        value={a.nombre}
+                        onChange={e => setAdjuntos(prev => prev.map((x, idx) => idx === i ? { ...x, nombre: e.target.value } : x))}
+                        style={{
+                          flex: 1, fontSize: 12.5, color: "#0F172A", border: "none",
+                          outline: "none", background: "transparent", fontFamily: "inherit", minWidth: 0,
+                        }}
+                      />
+                      <span style={{ fontSize: 10.5, color: "#94A3B8", flexShrink: 0 }}>
+                        {(a.file.size / 1024).toFixed(0)} KB
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setAdjuntos(prev => prev.filter((_, idx) => idx !== i))}
+                        style={{ background: "none", border: "none", cursor: "pointer", color: "#94A3B8", display: "flex", padding: 2, flexShrink: 0 }}
+                        onMouseEnter={e => { e.currentTarget.style.color = "#EF4444"; }}
+                        onMouseLeave={e => { e.currentTarget.style.color = "#94A3B8"; }}
+                      >
+                        <X size={12} />
+                      </button>
+                    </div>
+                  );
+                })}
+                <button
+                  type="button"
+                  onClick={() => adjuntoInputRef.current?.click()}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 4,
+                    padding: "4px 0", background: "none", border: "none",
+                    cursor: "pointer", fontSize: 11.5, color: "#94A3B8", fontFamily: "inherit",
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.color = "#1E3A8A"; }}
+                  onMouseLeave={e => { e.currentTarget.style.color = "#94A3B8"; }}
+                >
+                  <Plus size={11} />
+                  Agregar más archivos
                 </button>
               </div>
             )}

@@ -35,11 +35,30 @@ function toHex(buf: ArrayBuffer): string {
   return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, "0")).join("");
 }
 
+const MIME_MAP: Record<string, string> = {
+  jpg:  "image/jpeg",
+  jpeg: "image/jpeg",
+  png:  "image/png",
+  webp: "image/webp",
+  gif:  "image/gif",
+  pdf:  "application/pdf",
+  doc:  "application/msword",
+  docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  xls:  "application/vnd.ms-excel",
+  xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  ppt:  "application/vnd.ms-powerpoint",
+  pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  txt:  "text/plain",
+  csv:  "text/csv",
+  dwg:  "application/acad",
+  dxf:  "application/dxf",
+  zip:  "application/zip",
+};
+
+const ALLOWED_EXTS = new Set(Object.keys(MIME_MAP));
+
 function contentTypeForExt(ext: string): string {
-  if (ext === "png")  return "image/png";
-  if (ext === "webp") return "image/webp";
-  if (ext === "gif")  return "image/gif";
-  return "image/jpeg";
+  return MIME_MAP[ext] ?? "application/octet-stream";
 }
 
 // ── Upload ────────────────────────────────────────────────────────────────────
@@ -49,7 +68,7 @@ export async function uploadToR2(
   folder: string = "fotos",
 ): Promise<string> {
   const ext = (file.name.split(".").pop() ?? "jpg").toLowerCase();
-  const safeExt = ["jpg", "jpeg", "png", "webp", "gif"].includes(ext) ? ext : "jpg";
+  const safeExt = ALLOWED_EXTS.has(ext) ? ext : "jpg";
   const contentType = contentTypeForExt(safeExt);
   const key = `${folder}/${Date.now()}_${Math.random().toString(36).slice(2)}.${safeExt}`;
 
