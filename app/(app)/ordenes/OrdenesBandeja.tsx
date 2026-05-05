@@ -69,9 +69,12 @@ export default function OrdenesBandeja({
   const [detail, setDetail]     = useState<OrdenTrabajo | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
 
-  const [tab, setTab]           = useState<"activas" | "cerradas" | "sin_asignar">(() =>
-    searchParams?.get("filtro") === "completadas_hoy" ? "cerradas" : "activas"
-  );
+  const [tab, setTab]           = useState<"activas" | "cerradas" | "sin_asignar">(() => {
+    const f = searchParams?.get("filtro");
+    if (f === "completadas_hoy") return "cerradas";
+    if (f === "sin_asignar")     return "sin_asignar";
+    return "activas";
+  });
   const [search, setSearch]     = useState("");
   const [sort, setSort]         = useState<SortOption>("prioridad_desc");
 

@@ -295,7 +295,6 @@ export default function InicioDashboard() {
   const insights   = useMemo(() => generateInsights(allOTs, partes), [allOTs, partes]);
   const bajoStock  = useMemo(() => partes.filter(p => p.stock_actual < p.stock_minimo), [partes]);
   const completadas = useMemo(() => allOTs.filter(o => o.estado === "completado"), [allOTs]);
-  const pctBloqueadas = openOTs.length > 0 ? Math.round((bloqueadas.length / openOTs.length) * 100) : 0;
   const avgResHours   = useMemo(() => avgResolutionTime(completadas as any), [completadas]);
   const avgResDays    = avgResHours > 0 ? (avgResHours / 24).toFixed(1) : "—";
 
@@ -338,17 +337,17 @@ export default function InicioDashboard() {
       {/* ── KPI strip ── */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 28 }}>
         <KpiCard
-          label="Backlog"
-          value={String(openOTs.length)}
-          sub="órdenes abiertas"
-          trend={openOTs.length > 20 ? "bad" : openOTs.length > 10 ? "warn" : "good"}
-          onClick={() => router.push("/ordenes")}
+          label="Sin asignar"
+          value={String(sinAsignar.length)}
+          sub="órdenes sin técnico"
+          trend={sinAsignar.length > 10 ? "bad" : sinAsignar.length > 5 ? "warn" : "good"}
+          onClick={() => router.push("/ordenes?filtro=sin_asignar")}
         />
         <KpiCard
-          label="Bloqueadas"
-          value={`${pctBloqueadas}%`}
-          sub="del total activo"
-          trend={pctBloqueadas > 20 ? "bad" : pctBloqueadas > 10 ? "warn" : "good"}
+          label="En espera"
+          value={String(bloqueadas.length)}
+          sub="órdenes pausadas"
+          trend={bloqueadas.length > 10 ? "bad" : bloqueadas.length > 5 ? "warn" : "good"}
           onClick={() => router.push("/ordenes?filtro=bloqueadas")}
         />
         <KpiCard
