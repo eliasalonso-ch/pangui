@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { createServerSupabase } from "@/lib/supabase-server";
+import { createServerSupabase, getServerUser } from "@/lib/supabase-server";
 import LevantamientosBandeja from "./LevantamientosBandeja";
 import { LEV_SELECT } from "@/lib/levantamientos-api";
 import type { Levantamiento } from "@/types/levantamientos";
@@ -11,8 +11,7 @@ interface PageProps {
 
 export default async function LevantamientosPage({ searchParams }: PageProps) {
   const { id: selectedId } = await searchParams;
-  const sb = await createServerSupabase();
-  const { data: { user } } = await sb.auth.getUser();
+  const [sb, user] = await Promise.all([createServerSupabase(), getServerUser()]);
   if (!user) redirect("/login");
 
   const { data: perfil } = await sb

@@ -1,12 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
-import { createClient } from "@/lib/supabase";
 import OTDetail from "../OTDetail";
 import OTEditPanel from "../OTEditPanel";
-import { deleteOrden } from "@/lib/ordenes-api";
+import { deleteOrden, fetchOrden } from "@/lib/ordenes-api";
 import type {
   OrdenTrabajo, Usuario, Ubicacion, LugarEspecifico, Sociedad, Activo, CategoriaOT,
 } from "@/types/ordenes";
@@ -31,20 +30,18 @@ export default function OTDetailPage({
   const router = useRouter();
   const [orden, setOrden] = useState<OrdenTrabajo>(initialOrden);
   const [editOpen, setEditOpen] = useState(false);
-  const rtRef = useRef<ReturnType<ReturnType<typeof createClient>["channel"]> | null>(null);
 
-  // Realtime: keep order fresh
+  // Poll every 30s — no realtime channel for ordenes_trabajo detail
   useEffect(() => {
-    const sb = createClient();
-    rtRef.current = sb
-      .channel(`orden-detail-${orden.id}`)
-      .on(
-        "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "ordenes_trabajo", filter: `id=eq.${orden.id}` },
-        p => setOrden(prev => ({ ...prev, ...p.new as OrdenTrabajo })),
-      )
-      .subscribe();
-    return () => { if (rtRef.current) sb.removeChannel(rtRef.current); };
+    const id = setInterval(async () => {
+      try {
+        const fresh = await fetchOrden(orden.id);
+        setOrden(fresh);
+      } catch {
+        // ignore transient errors
+      }
+    }, 30_000);
+    return () => clearInterval(id);
   }, [orden.id]);
 
   const handleDelete = useCallback(async () => {

@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { createServerSupabase } from "@/lib/supabase-server";
+import { createServerSupabase, getServerUser } from "@/lib/supabase-server";
 import OrdenesBandeja from "./OrdenesBandeja";
 import type { OrdenListItem, Usuario, Ubicacion, Activo, CategoriaOT, LugarEspecifico, Sociedad } from "@/types/ordenes";
 import { LIST_SELECT } from "@/lib/ordenes-api";
@@ -10,8 +10,8 @@ interface PageProps {
 
 export default async function OrdenesPage({ searchParams }: PageProps) {
   const { id: selectedId, panel } = await searchParams;
-  const sb = await createServerSupabase();
-  const { data: { user } } = await sb.auth.getUser();
+  const [sb, user] = await Promise.all([createServerSupabase(), getServerUser()]);
+
   if (!user) redirect("/login");
 
   const { data: perfil } = await sb

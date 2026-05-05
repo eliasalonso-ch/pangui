@@ -129,7 +129,6 @@ export default function OrdenesBandeja({
   const [rightPanel, setRightPanel] = useState<"none" | "create" | "edit">(initialPanel === "create" ? "create" : "none");
 
   // Keep left-panel visible when right panel is open (desktop only hides list on mobile)
-  const rtRef   = useRef<ReturnType<ReturnType<typeof createClient>["channel"]> | null>(null);
   const sortRef = useRef<HTMLDivElement>(null);
 
   // Load initial order (when navigating directly to /ordenes/[id])
@@ -159,25 +158,11 @@ export default function OrdenesBandeja({
     return () => document.removeEventListener("mousedown", handler);
   }, [sortOpen]);
 
-  // Realtime subscription
+  // Poll list every 60s — no realtime channel for ordenes_trabajo
   useEffect(() => {
-    const sb = createClient();
-    rtRef.current = sb.channel(`ordenes-bandeja-${wsId}`)
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "ordenes_trabajo", filter: `workspace_id=eq.${wsId}` },
-        p => setOrdenes(prev => prev.find(o => o.id === (p.new as OrdenListItem).id) ? prev : [p.new as unknown as OrdenListItem, ...prev]))
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "ordenes_trabajo", filter: `workspace_id=eq.${wsId}` },
-        p => {
-          setOrdenes(prev => prev.map(o => o.id === (p.new as OrdenListItem).id ? { ...o, ...p.new } : o));
-          setDetail(prev => prev?.id === (p.new as OrdenTrabajo).id ? { ...prev, ...p.new as OrdenTrabajo } : prev);
-        })
-      .on("postgres_changes", { event: "DELETE", schema: "public", table: "ordenes_trabajo", filter: `workspace_id=eq.${wsId}` },
-        p => {
-          setOrdenes(prev => prev.filter(o => o.id !== (p.old as { id: string }).id));
-          setDetail(prev => prev?.id === (p.old as { id: string }).id ? null : prev);
-        })
-      .subscribe();
-    return () => { if (rtRef.current) sb.removeChannel(rtRef.current); };
-  }, [wsId]);
+    const id = setInterval(refreshList, 60_000);
+    return () => clearInterval(id);
+  }, [refreshList]);
 
   // Open order detail
   const openOT = useCallback(async (id: string, pushUrl = true) => {

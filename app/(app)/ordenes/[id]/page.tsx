@@ -1,5 +1,5 @@
 import { notFound, redirect } from "next/navigation";
-import { createServerSupabase } from "@/lib/supabase-server";
+import { createServerSupabase, getServerUser } from "@/lib/supabase-server";
 import { ORDEN_SELECT } from "@/lib/ordenes-api";
 import OTDetailPage from "./OTDetailPage";
 import type {
@@ -12,8 +12,7 @@ interface Props {
 
 export default async function OrdenDetallePage({ params }: Props) {
   const { id } = await params;
-  const sb = await createServerSupabase();
-  const { data: { user } } = await sb.auth.getUser();
+  const [sb, user] = await Promise.all([createServerSupabase(), getServerUser()]);
   if (!user) redirect("/login");
 
   const { data: perfil } = await sb

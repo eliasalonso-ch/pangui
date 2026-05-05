@@ -556,21 +556,9 @@ export default function OTDetail({
     ]);
   }, [orden.imagen_url, orden.fotos_urls]);
 
-  const actRtRef   = useRef<ReturnType<ReturnType<typeof createClient>["channel"]> | null>(null);
-  const procsRtRef = useRef<ReturnType<ReturnType<typeof createClient>["channel"]> | null>(null);
-  const channelKey = useRef(`actividad-web-${orden.id}`);
-  const procsChannelKey = useRef(`ot-procs-web-${orden.id}`);
-
-  // Load + subscribe activity whenever the tab is open
+  // Load + poll activity every 30s while the tab is open
   useEffect(() => {
-    if (tab !== "actividad") {
-      // Unsubscribe when leaving the tab
-      if (actRtRef.current) {
-        createClient().removeChannel(actRtRef.current);
-        actRtRef.current = null;
-      }
-      return;
-    }
+    if (tab !== "actividad") return;
 
     setLoadingAct(true);
     fetchActividad(orden.id)
@@ -578,27 +566,16 @@ export default function OTDetail({
       .catch(() => {})
       .finally(() => setLoadingAct(false));
 
-    // Realtime: prepend new actividad rows as they arrive
-    const sb = createClient();
-    actRtRef.current = sb
-      .channel(channelKey.current)
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "actividad_ot", filter: `orden_id=eq.${orden.id}` },
-        async () => {
-          // Re-fetch to get joined usuario name
-          const fresh = await fetchActividad(orden.id);
-          setActividad(fresh);
-        },
-      )
-      .subscribe();
-
-    return () => {
-      if (actRtRef.current) {
-        sb.removeChannel(actRtRef.current);
-        actRtRef.current = null;
+    const pollId = setInterval(async () => {
+      try {
+        const fresh = await fetchActividad(orden.id);
+        setActividad(fresh);
+      } catch {
+        // ignore transient errors
       }
-    };
+    }, 30_000);
+
+    return () => clearInterval(pollId);
   }, [tab, orden.id]);
 
 
@@ -622,38 +599,20 @@ export default function OTDetail({
       .catch(() => setLoadingProcLib(false));
   }, [tab, wsId]);
 
-  // Realtime: keep procedimientos tab in sync when native app or another browser attaches/detaches
+  // Poll procedimientos every 60s while the tab is open
   useEffect(() => {
-    if (tab !== "procedimientos") {
-      if (procsRtRef.current) {
-        createClient().removeChannel(procsRtRef.current);
-        procsRtRef.current = null;
-      }
-      return;
-    }
+    if (tab !== "procedimientos") return;
 
-    const sb = createClient();
-    // Only subscribe to structural changes (attach/detach).
-    // procedimiento_ejecuciones changes (every paso_respuesta save via trigger)
-    // are handled via local state updates in handleSaveResp — no full refetch needed.
-    procsRtRef.current = sb
-      .channel(procsChannelKey.current)
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "ot_procedimientos", filter: `orden_id=eq.${orden.id}` },
-        async () => {
-          const updated = await getOTProcedimientos(orden.id);
-          setOtProcs(updated);
-        },
-      )
-      .subscribe();
-
-    return () => {
-      if (procsRtRef.current) {
-        sb.removeChannel(procsRtRef.current);
-        procsRtRef.current = null;
+    const pollId = setInterval(async () => {
+      try {
+        const updated = await getOTProcedimientos(orden.id);
+        setOtProcs(updated);
+      } catch {
+        // ignore transient errors
       }
-    };
+    }, 60_000);
+
+    return () => clearInterval(pollId);
   }, [tab, orden.id]);
 
   async function handleAttachProc(procId: string) {

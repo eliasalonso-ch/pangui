@@ -1,9 +1,8 @@
 import { redirect } from "next/navigation";
-import { createServerSupabase } from "@/lib/supabase-server";
+import { createServerSupabase, getServerUser } from "@/lib/supabase-server";
 
 export default async function OrdenesCrearPage() {
-  const sb = await createServerSupabase();
-  const { data: { user } } = await sb.auth.getUser();
+  const [sb, user] = await Promise.all([createServerSupabase(), getServerUser()]);
   if (!user) redirect("/login");
 
   const { data: perfil } = await sb
