@@ -558,8 +558,8 @@ export default function OTDetail({
 
   const actRtRef   = useRef<ReturnType<ReturnType<typeof createClient>["channel"]> | null>(null);
   const procsRtRef = useRef<ReturnType<ReturnType<typeof createClient>["channel"]> | null>(null);
-  const channelKey = useRef(`actividad-${orden.id}-${Math.random().toString(36).slice(2)}`);
-  const procsChannelKey = useRef(`ot-procs-web-${orden.id}-${Math.random().toString(36).slice(2)}`);
+  const channelKey = useRef(`actividad-web-${orden.id}`);
+  const procsChannelKey = useRef(`ot-procs-web-${orden.id}`);
 
   // Load + subscribe activity whenever the tab is open
   useEffect(() => {
@@ -633,19 +633,14 @@ export default function OTDetail({
     }
 
     const sb = createClient();
+    // Only subscribe to structural changes (attach/detach).
+    // procedimiento_ejecuciones changes (every paso_respuesta save via trigger)
+    // are handled via local state updates in handleSaveResp — no full refetch needed.
     procsRtRef.current = sb
       .channel(procsChannelKey.current)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "ot_procedimientos", filter: `orden_id=eq.${orden.id}` },
-        async () => {
-          const updated = await getOTProcedimientos(orden.id);
-          setOtProcs(updated);
-        },
-      )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "procedimiento_ejecuciones", filter: `orden_id=eq.${orden.id}` },
         async () => {
           const updated = await getOTProcedimientos(orden.id);
           setOtProcs(updated);
@@ -693,15 +688,14 @@ export default function OTDetail({
     try {
       const ejec = await startEjecucion(otProc.procedimiento_id, orden.id, myId);
       setActiveEjec({ ejecucion: ejec, pasos: otProc.procedimiento ?? null });
-      // Seed pending responses from existing answers
       const respMap: Record<string, PendingResp> = {};
       for (const r of ejec.respuestas ?? []) {
         respMap[r.paso_id] = r;
       }
       setPendingResps(respMap);
-      // Refresh list
-      const updated = await getOTProcedimientos(orden.id);
-      setOtProcs(updated);
+      setOtProcs(prev => prev.map(otp =>
+        otp.procedimiento_id === otProc.procedimiento_id ? { ...otp, ejecucion: ejec } : otp,
+      ));
     } catch (e: any) {
       alert(e.message);
     } finally {

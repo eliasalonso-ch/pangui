@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase";
 import {
@@ -46,7 +46,6 @@ function formatTime(iso: string) {
 
 export default function NotificacionesPage() {
   const router = useRouter();
-  const channelRef = useRef<ReturnType<ReturnType<typeof createClient>["channel"]> | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [notifs, setNotifs] = useState<Notif[]>([]);
   const [loading, setLoading] = useState(true);
@@ -70,21 +69,8 @@ export default function NotificacionesPage() {
       await sb.from("notifications").update({ leida: true })
         .eq("usuario_id", user.id).eq("leida", false);
       setNotifs(prev => prev.map(n => ({ ...n, leida: true })));
-
-      channelRef.current = sb
-        .channel(`notifs-page-${user.id}`)
-        .on("postgres_changes", {
-          event: "INSERT", schema: "public",
-          table: "notifications", filter: `usuario_id=eq.${user.id}`,
-        }, (payload) => {
-          setNotifs(prev => [{ ...payload.new as Notif, leida: true }, ...prev].slice(0, 50));
-        })
-        .subscribe();
     }
     load();
-    return () => {
-      if (channelRef.current) createClient().removeChannel(channelRef.current);
-    };
   }, [router]);
 
   async function eliminar(id: string) {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -146,7 +146,6 @@ function SidebarUserFooter({ user }: { user: UserData | null }) {
 
 export default function AppSidebar() {
   const pathname = usePathname();
-  const channelRef = useRef<any>(null);
 
   const [onboardingDone, setOnboardingDone] = useState(true);
   const [userRol, setUserRol] = useState<string | null>(null);
@@ -171,8 +170,6 @@ export default function AppSidebar() {
       if (data?.rol) setUserRol(data.rol);
       setOnboardingDone(data?.onboarding_done ?? false);
       if (data?.nombre && data?.rol) setUserData({ nombre: data.nombre, rol: data.rol });
-
-      channelRef.current = sb.channel("sidebar").subscribe();
     }
     load();
   }, []);

@@ -167,7 +167,7 @@ export default function OrdenesBandeja({
           setOrdenes(prev => prev.map(o => o.id === (p.new as OrdenListItem).id ? { ...o, ...p.new } : o));
           setDetail(prev => prev?.id === (p.new as OrdenTrabajo).id ? { ...prev, ...p.new as OrdenTrabajo } : prev);
         })
-      .on("postgres_changes", { event: "DELETE", schema: "public", table: "ordenes_trabajo" },
+      .on("postgres_changes", { event: "DELETE", schema: "public", table: "ordenes_trabajo", filter: `workspace_id=eq.${wsId}` },
         p => {
           setOrdenes(prev => prev.filter(o => o.id !== (p.old as { id: string }).id));
           setDetail(prev => prev?.id === (p.old as { id: string }).id ? null : prev);
