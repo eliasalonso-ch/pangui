@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import HojaSpreadsheet from "@/components/HojaSpreadsheet";
 import {
   ResponsiveContainer,
   BarChart, Bar,
@@ -1357,22 +1356,6 @@ export default function AnaliticaPage() {
         </>
       )}
 
-      {/* ── Hojas de cálculo ── */}
-      {workspaceId && userId && (
-        <>
-          <div style={{ marginBottom: 12, marginTop: 8 }}>
-            <SectionLabel icon={Package} label="Hojas de cálculo" />
-          </div>
-          <div style={{ marginBottom: 24 }}>
-            <HojaSpreadsheet
-              workspaceId={workspaceId}
-              userId={userId}
-              canEdit={myRol === "admin" || myRol === "owner" || myRol === "supervisor" || myRol === "jefe"}
-              canExport={myRol === "admin" || myRol === "owner"}
-            />
-          </div>
-        </>
-      )}
 
     </div>
   );

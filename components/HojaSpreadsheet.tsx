@@ -309,11 +309,13 @@ function SheetGrid({
 export default function HojaSpreadsheet({
   workspaceId,
   userId,
+  ordenId,
   canEdit,
   canExport,
 }: {
   workspaceId: string;
   userId: string;
+  ordenId: string;
   canEdit: boolean;
   canExport: boolean;
 }) {
@@ -323,17 +325,17 @@ export default function HojaSpreadsheet({
   const exportFnRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
-    fetchHojas(workspaceId).then(data => {
+    fetchHojas(workspaceId, ordenId).then(data => {
       setHojas(data);
       if (data.length > 0) setActiveId(data[0].id);
       setLoading(false);
     });
-  }, [workspaceId]);
+  }, [workspaceId, ordenId]);
 
   async function handleCreateSheet() {
     const nombre = prompt("Nombre de la hoja:", `Hoja ${hojas.length + 1}`);
     if (!nombre?.trim()) return;
-    const hoja = await createHoja(workspaceId, nombre.trim(), userId);
+    const hoja = await createHoja(workspaceId, nombre.trim(), userId, ordenId);
     setHojas(prev => [...prev, hoja]);
     setActiveId(hoja.id);
   }

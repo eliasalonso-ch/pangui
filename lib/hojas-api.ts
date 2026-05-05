@@ -26,22 +26,23 @@ export interface HojaFila {
   updated_at: string;
 }
 
-export async function fetchHojas(workspaceId: string): Promise<Hoja[]> {
+export async function fetchHojas(workspaceId: string, ordenId: string): Promise<Hoja[]> {
   const sb = createClient();
   const { data, error } = await sb
     .from("hojas_inventario")
     .select("*")
     .eq("workspace_id", workspaceId)
+    .eq("orden_id", ordenId)
     .order("created_at");
   if (error) throw error;
   return (data ?? []) as Hoja[];
 }
 
-export async function createHoja(workspaceId: string, nombre: string, userId: string): Promise<Hoja> {
+export async function createHoja(workspaceId: string, nombre: string, userId: string, ordenId: string): Promise<Hoja> {
   const sb = createClient();
   const { data, error } = await sb
     .from("hojas_inventario")
-    .insert({ workspace_id: workspaceId, nombre, created_by: userId, columnas: [
+    .insert({ workspace_id: workspaceId, nombre, created_by: userId, orden_id: ordenId, columnas: [
       { id: crypto.randomUUID(), label: "Ítem",     tipo: "texto"  },
       { id: crypto.randomUUID(), label: "Cantidad", tipo: "numero" },
       { id: crypto.randomUUID(), label: "Unidad",   tipo: "texto"  },

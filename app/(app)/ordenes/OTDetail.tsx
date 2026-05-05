@@ -2360,6 +2360,7 @@ export default function OTDetail({
             <HojaSpreadsheet
               workspaceId={wsId}
               userId={myId}
+              ordenId={orden.id}
               canEdit={canManage}
               canExport={canManage}
             />
