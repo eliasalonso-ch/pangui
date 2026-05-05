@@ -81,7 +81,7 @@ export const ORDEN_SELECT = `
   id, titulo, descripcion, estado, prioridad, tipo, tipo_trabajo,
   fecha_inicio, fecha_termino, created_at, updated_at,
   creado_por, asignados_ids, workspace_id,
-  n_serie, solicitante, hito,
+  n_serie, solicitante, hito, presupuesto,
   numero, categoria_id, ubicacion_id, activo_id, lugar_id, sociedad_id,
   iniciado_at, pausado_at, en_ejecucion, tiempo_total_segundos,
   recurrencia, proxima_ejecucion, parent_id,
@@ -164,6 +164,7 @@ export async function createOrden(payload: {
   n_serie?: string | null;
   solicitante?: string | null;
   hito?: string | null;
+  presupuesto?: string | null;
   prioridad: Prioridad;
   tipo_trabajo: TipoTrabajo | "";
   categoria_id?: string | null;
@@ -197,6 +198,7 @@ export async function createOrden(payload: {
       ...(payload.n_serie?.trim()      ? { n_serie:      payload.n_serie.trim()      } : {}),
       ...(payload.solicitante?.trim()  ? { solicitante:  payload.solicitante.trim()  } : {}),
       ...(payload.hito?.trim()         ? { hito:         payload.hito.trim()         } : {}),
+      ...(payload.presupuesto?.trim()  ? { presupuesto:  payload.presupuesto.trim()  } : {}),
       tipo:               "solicitud",
       tipo_trabajo:       payload.tipo_trabajo || "reactiva",
       estado:             "pendiente",
@@ -292,6 +294,7 @@ export async function updateOrden(
     n_serie?: string | null;
     solicitante?: string | null;
     hito?: string | null;
+    presupuesto?: string | null;
     prioridad?: Prioridad;
     tipo_trabajo?: TipoTrabajo | null;
     categoria_id?: string | null;

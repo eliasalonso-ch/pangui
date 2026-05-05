@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import {
   X, Loader2, User, MapPin, Settings2,
   CalendarDays, Tag, Check, ChevronDown, Building2, Hash, FileUp, Plus, AlertTriangle,
-  Camera, ImagePlus, Trash2, Upload, Paperclip, FileText, File,
+  Camera, ImagePlus, Trash2, Upload, Paperclip, FileText, File, DollarSign,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase";
 import { createOrden, buildDescripcion } from "@/lib/ordenes-api";
@@ -219,6 +219,7 @@ interface FormState {
   n_ot:          string;
   solicitante:   string;
   hito:          string;
+  presupuesto:   string;
   descripcion:   string;
   ubicacion_id:  string;
   lugar_id:      string;
@@ -244,7 +245,7 @@ interface PdfHints {
 }
 
 const BLANK: FormState = {
-  titulo: "", n_ot: "", solicitante: "", hito: "", descripcion: "",
+  titulo: "", n_ot: "", solicitante: "", hito: "", presupuesto: "", descripcion: "",
   ubicacion_id: "", lugar_id: "", sociedad_id: "",
   activo_id: "", asignados_ids: [],
   fecha_termino: "", fecha_inicio: "",
@@ -1081,9 +1082,10 @@ export default function OTCrearPanel({
         creadoPor:     myId,
         titulo:        form.titulo.trim(),
         descripcion:   buildDescripcion({ nOT: form.n_ot, solicitante: form.solicitante, hito: form.hito, body: form.descripcion }),
-        n_serie:       form.n_ot.trim()        || null,
-        solicitante:   form.solicitante.trim() || null,
-        hito:          form.hito.trim()        || null,
+        n_serie:       form.n_ot.trim()          || null,
+        solicitante:   form.solicitante.trim()  || null,
+        hito:          form.hito.trim()         || null,
+        presupuesto:   form.presupuesto.trim()  || null,
         prioridad:     form.prioridad,
         tipo_trabajo:  form.tipo_trabajo,
         categoria_id:  form.categoria_id  || null,
@@ -1543,6 +1545,16 @@ export default function OTCrearPanel({
 
           <FieldRow icon={<Tag size={14} />} label="Hito">
             <HitoSelect value={form.hito} onChange={v => setF("hito", v)} wsId={wsId} />
+          </FieldRow>
+
+          <FieldRow icon={<DollarSign size={14} />} label="N° de presupuesto">
+            <input
+              type="text"
+              placeholder="Ej: PRE-2025-001"
+              value={form.presupuesto}
+              onChange={e => setF("presupuesto", e.target.value)}
+              style={{ width:"100%", height:40, padding:"0 10px", border:"1px solid #E2E8F0", borderRadius:8, fontSize:13, color:"#0F172A", outline:"none", fontFamily:"inherit", background:"#fff" }}
+            />
           </FieldRow>
 
           {/* Sociedad */}

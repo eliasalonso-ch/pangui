@@ -172,6 +172,7 @@ export interface OrdenTrabajo {
   n_serie: string | null;
   solicitante: string | null;
   hito: string | null;
+  presupuesto: string | null;
   // Sequential number per workspace
   numero: number | null;
   // Constraints

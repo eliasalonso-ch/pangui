@@ -1682,6 +1682,7 @@ export default function OTDetail({
                 orden.sociedad?.nombre && { label: "Sociedad", value: orden.sociedad.nombre, icon: <Building2 size={13} /> },
                 meta.solicitante && { label: "Solicitante", value: meta.solicitante, icon: <User size={13} /> },
                 meta.hito && { label: "Hito", value: meta.hito, icon: <Flag size={13} /> },
+                orden.presupuesto && { label: "N° de presupuesto", value: orden.presupuesto, icon: <DollarSign size={13} /> },
                 orden.ubicaciones?.edificio && { label: "Ubicación", value: orden.ubicaciones.edificio + (orden.ubicaciones.piso ? ` · ${orden.ubicaciones.piso}` : ""), icon: <MapPin size={13} /> },
                 orden.lugar?.nombre && { label: "Lugar específico", value: orden.lugar.nombre, icon: <MapPin size={13} /> },
                 orden.activos?.nombre && { label: "Activo", value: orden.activos.nombre, icon: <Settings2 size={13} /> },
