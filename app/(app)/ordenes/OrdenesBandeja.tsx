@@ -69,7 +69,7 @@ export default function OrdenesBandeja({
   const [detail, setDetail]     = useState<OrdenTrabajo | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
 
-  const [tab, setTab]           = useState<"activas" | "cerradas">(() =>
+  const [tab, setTab]           = useState<"activas" | "cerradas" | "sin_asignar">(() =>
     searchParams?.get("filtro") === "completadas_hoy" ? "cerradas" : "activas"
   );
   const [search, setSearch]     = useState("");
@@ -225,7 +225,9 @@ export default function OrdenesBandeja({
   // Apply filters + search + sort
   const filtered = useMemo(() => {
     let list = ordenes.filter(o =>
-      tab === "activas" ? ACTIVE_ESTADOS.has(o.estado) : CLOSED_ESTADOS.has(o.estado)
+      tab === "sin_asignar"
+        ? ACTIVE_ESTADOS.has(o.estado) && (!o.asignados_ids || o.asignados_ids.length === 0)
+        : tab === "activas" ? ACTIVE_ESTADOS.has(o.estado) : CLOSED_ESTADOS.has(o.estado)
     );
 
     // Filtros
@@ -331,8 +333,9 @@ export default function OrdenesBandeja({
       return list;
     };
     return {
-      activas:  applyFilters(ordenes.filter(o => ACTIVE_ESTADOS.has(o.estado))).length,
-      cerradas: applyFilters(ordenes.filter(o => CLOSED_ESTADOS.has(o.estado))).length,
+      activas:     applyFilters(ordenes.filter(o => ACTIVE_ESTADOS.has(o.estado))).length,
+      cerradas:    applyFilters(ordenes.filter(o => CLOSED_ESTADOS.has(o.estado))).length,
+      sin_asignar: applyFilters(ordenes.filter(o => ACTIVE_ESTADOS.has(o.estado) && (!o.asignados_ids || o.asignados_ids.length === 0))).length,
     };
   }, [ordenes, filtros, search, ubicaciones]);
   const currentSortLabel = SORT_OPTIONS.find(o => o.value === sort)?.label ?? "";
@@ -637,7 +640,7 @@ export default function OrdenesBandeja({
       }
 
       const dateStr  = new Date().toISOString().slice(0, 10);
-      const tabLabel = tab === "activas" ? "activas" : "completadas";
+      const tabLabel = tab === "activas" ? "activas" : tab === "cerradas" ? "completadas" : "sin_asignar";
       XLSX.writeFile(wb, `pangui_ordenes_${tabLabel}_${dateStr}.xlsx`);
     } finally {
       setExporting(false);
@@ -888,13 +891,14 @@ export default function OrdenesBandeja({
           {/* Tabs */}
           <div style={{ display:"flex", borderBottom:"1px solid #E2E8F0", padding:"0 20px", flexShrink:0 }}>
             {[
-              { key:"activas",  label:"Pendientes", count:filteredCounts.activas },
-              { key:"cerradas", label:"Completas",  count:filteredCounts.cerradas },
+              { key:"activas",     label:"Pendientes",   count:filteredCounts.activas },
+              { key:"cerradas",    label:"Completas",    count:filteredCounts.cerradas },
+              { key:"sin_asignar", label:"Sin asignar",  count:filteredCounts.sin_asignar },
             ].map(t => (
               <button
                 key={t.key}
                 type="button"
-                onClick={() => setTab(t.key as "activas" | "cerradas")}
+                onClick={() => setTab(t.key as "activas" | "cerradas" | "sin_asignar")}
                 style={{
                   display:"flex", alignItems:"center", gap:6,
                   padding:"12px 4px", marginRight:16,
@@ -910,8 +914,8 @@ export default function OrdenesBandeja({
                 {t.count > 0 && (
                   <span style={{
                     fontSize:11, fontWeight:600, padding:"1px 6px",
-                    background: tab === t.key ? "#EFF6FF" : "#F1F5F9",
-                    color: tab === t.key ? "#1D4ED8" : "#64748B",
+                    background: tab === t.key ? (t.key === "sin_asignar" ? "#FFF7ED" : "#EFF6FF") : "#F1F5F9",
+                    color: tab === t.key ? (t.key === "sin_asignar" ? "#C2410C" : "#1D4ED8") : "#64748B",
                     borderRadius:4,
                   }}>
                     {t.count}
@@ -933,7 +937,7 @@ export default function OrdenesBandeja({
                   <path d="M17 30a1 1 0 0 1-.707-.293l-4-4a1 1 0 1 1 1.414-1.414L17 27.586l7.293-7.293a1 1 0 1 1 1.414 1.414l-8 8A1 1 0 0 1 17 30z" fill="#72C472"/>
                 </svg>
                 <p style={{ fontSize:13, color:"#475569", fontWeight:500 }}>
-                  {search ? "Sin resultados para tu búsqueda" : tab === "activas" ? "No tienes ninguna Orden de Trabajo" : "No hay órdenes cerradas"}
+                  {search ? "Sin resultados para tu búsqueda" : tab === "activas" ? "No tienes ninguna Orden de Trabajo" : tab === "cerradas" ? "No hay órdenes cerradas" : "No hay órdenes sin asignar"}
                 </p>
                 {!search && tab === "activas" && (
                   <a
@@ -954,6 +958,10 @@ export default function OrdenesBandeja({
                   usuarios={usuarios}
                   isSelected={selected === o.id}
                   onClick={() => openOT(o.id, true)}
+                  myId={myId}
+                  onAssigned={(id, newIds) => setOrdenes(prev =>
+                    prev.map(x => x.id === id ? { ...x, asignados_ids: newIds.length > 0 ? newIds : null } : x)
+                  )}
                 />
               ))
             )}

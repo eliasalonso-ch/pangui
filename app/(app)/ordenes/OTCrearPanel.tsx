@@ -929,6 +929,7 @@ export default function OTCrearPanel({
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
+    setAdjuntos(prev => prev.some(a => a.file === file) ? prev : [...prev, { file, nombre: file.name }]);
     setParsing(true);
     setParseMsg(null);
     setPdfHints(null);
