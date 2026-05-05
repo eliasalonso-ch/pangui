@@ -158,12 +158,6 @@ export default function OrdenesBandeja({
     return () => document.removeEventListener("mousedown", handler);
   }, [sortOpen]);
 
-  // Poll list every 60s — no realtime channel for ordenes_trabajo
-  useEffect(() => {
-    const id = setInterval(refreshList, 60_000);
-    return () => clearInterval(id);
-  }, [refreshList]);
-
   // Open order detail
   const openOT = useCallback(async (id: string, pushUrl = true) => {
     if (pushUrl) router.push(`/ordenes?id=${id}`, { scroll: false });
@@ -199,6 +193,12 @@ export default function OrdenesBandeja({
       .limit(300);
     if (data) setOrdenes(data as unknown as OrdenListItem[]);
   }, [wsId]);
+
+  // Poll list every 60s — no realtime channel for ordenes_trabajo
+  useEffect(() => {
+    const id = setInterval(refreshList, 60_000);
+    return () => clearInterval(id);
+  }, [refreshList]);
 
   const deleteOT = async (id: string) => {
     await deleteOrden(id);
