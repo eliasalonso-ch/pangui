@@ -13,8 +13,8 @@ export const Sidebar = ({ children, className, ...props }: React.HTMLAttributes<
     className={cn("flex flex-col flex-shrink-0", className)}
     style={{
       width: "var(--sidebar-width, 240px)",
-      background: "#0F172A",
-      borderRight: "none",
+      background: "#FFFFFF",
+      borderRight: "1px solid #E2E8F0",
       height: "100vh",
       position: "sticky",
       top: 0,
@@ -92,20 +92,20 @@ export const SidebarMenuButton = ({
         className
       )}
       style={{
-        color: isActive ? "#FFFFFF" : "#94A3B8",
-        background: isActive ? "rgba(37,99,235,0.18)" : "transparent",
+        color: isActive ? "#1D4ED8" : "#475569",
+        background: isActive ? "#EFF6FF" : "transparent",
         boxShadow: isActive ? "inset 3px 0 0 #2563EB" : "none",
       }}
       onMouseEnter={e => {
         if (!isActive) {
-          (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.06)"
-          ;(e.currentTarget as HTMLElement).style.color = "#E2E8F0"
+          (e.currentTarget as HTMLElement).style.background = "#F1F5F9"
+          ;(e.currentTarget as HTMLElement).style.color = "#0F172A"
         }
       }}
       onMouseLeave={e => {
         if (!isActive) {
           (e.currentTarget as HTMLElement).style.background = "transparent"
-          ;(e.currentTarget as HTMLElement).style.color = "#94A3B8"
+          ;(e.currentTarget as HTMLElement).style.color = "#475569"
         }
       }}
       {...props}
@@ -116,14 +116,14 @@ export const SidebarMenuButton = ({
 export const SidebarSeparator = ({ className, ...props }: React.HTMLAttributes<HTMLHRElement>) => (
   <hr
     className={cn("my-2 mx-3", className)}
-    style={{ border: "none", borderTop: "1px solid rgba(255,255,255,0.06)" }}
+    style={{ border: "none", borderTop: "1px solid #E2E8F0" }}
     {...props}
   />
 )
 
 export const SidebarFooter = (props: React.HTMLAttributes<HTMLDivElement>) => (
   <div
-    style={{ borderTop: "1px solid rgba(255,255,255,0.06)", padding: "8px" }}
+    style={{ borderTop: "1px solid #E2E8F0", padding: "8px" }}
     {...props}
   />
 )

@@ -18,6 +18,7 @@ import {
   ClipboardCheck,
   Search,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 import { createClient } from "@/lib/supabase";
 import { usePermisos } from "@/lib/permisos";
@@ -44,6 +45,7 @@ interface UserData {
 
 function SidebarUserFooter({ user }: { user: UserData | null }) {
   const [open, setOpen] = useState(false);
+  const router = useRouter();
 
   async function handleLogout() {
     const sb = createClient();
@@ -71,12 +73,35 @@ function SidebarUserFooter({ user }: { user: UserData | null }) {
             left: 0,
             right: 0,
             zIndex: 50,
-            background: "#1E293B",
-            border: "1px solid rgba(255,255,255,0.08)",
+            background: "#fff",
+            border: "1px solid #E2E8F0",
             borderRadius: 8,
-            boxShadow: "0 8px 24px rgba(0,0,0,0.40)",
+            boxShadow: "0 8px 24px rgba(0,0,0,0.10)",
             overflow: "hidden",
           }}>
+            <button
+              onClick={() => { setOpen(false); router.push("/configuracion"); }}
+              style={{
+                width: "100%",
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                padding: "10px 12px",
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                fontSize: 13,
+                fontWeight: 500,
+                color: "#0F172A",
+                fontFamily: "inherit",
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = "#F1F5F9"; }}
+              onMouseLeave={e => { e.currentTarget.style.background = "none"; }}
+            >
+              <Settings size={14} />
+              Configuración
+            </button>
+            <div style={{ height: 1, background: "#E2E8F0", margin: "0 12px" }} />
             <button
               onClick={handleLogout}
               style={{
@@ -90,10 +115,10 @@ function SidebarUserFooter({ user }: { user: UserData | null }) {
                 cursor: "pointer",
                 fontSize: 13,
                 fontWeight: 500,
-                color: "#F87171",
+                color: "#EF4444",
                 fontFamily: "inherit",
               }}
-              onMouseEnter={e => { e.currentTarget.style.background = "rgba(239,68,68,0.12)"; }}
+              onMouseEnter={e => { e.currentTarget.style.background = "#FEF2F2"; }}
               onMouseLeave={e => { e.currentTarget.style.background = "none"; }}
             >
               <LogOut size={14} />
@@ -118,7 +143,7 @@ function SidebarUserFooter({ user }: { user: UserData | null }) {
           fontFamily: "inherit",
           transition: "background 0.15s",
         }}
-        onMouseEnter={e => { e.currentTarget.style.background = "rgba(255,255,255,0.06)"; }}
+        onMouseEnter={e => { e.currentTarget.style.background = "#F1F5F9"; }}
         onMouseLeave={e => { e.currentTarget.style.background = "none"; }}
       >
         <span style={{
@@ -131,14 +156,14 @@ function SidebarUserFooter({ user }: { user: UserData | null }) {
           {initials(user.nombre)}
         </span>
         <div style={{ flex: 1, minWidth: 0, textAlign: "left" }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: "#E2E8F0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: "#0F172A", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
             {user.nombre}
           </div>
           <div style={{ fontSize: 11, color: "#64748B", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
             {rolLabel}
           </div>
         </div>
-        <ChevronUp size={14} style={{ color: "#64748B", flexShrink: 0, transform: open ? "rotate(0deg)" : "rotate(180deg)", transition: "transform 0.15s" }} />
+        <ChevronUp size={14} style={{ color: "#94A3B8", flexShrink: 0, transform: open ? "rotate(0deg)" : "rotate(180deg)", transition: "transform 0.15s" }} />
       </button>
     </div>
   );
@@ -182,14 +207,14 @@ export default function AppSidebar() {
     <Sidebar>
       <SidebarHeader>
         <div style={{
-          height: 56,
+          height: 100,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
           padding: "0 16px",
-          borderBottom: "1px solid rgba(255,255,255,0.06)",
+          borderBottom: "1px solid #E2E8F0",
         }}>
-          <img src="/logo6.svg" alt="Pangui" style={{ height: 26, width: "auto", maxWidth: 130, }} />
+          <img src="/logo2.svg" alt="Pangui" style={{ width: "auto", maxWidth: 200, }} />
         </div>
       </SidebarHeader>
 
@@ -269,11 +294,6 @@ export default function AppSidebar() {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               )}
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={pathname === "/configuracion"}>
-                  <Link href="/configuracion"><Settings size={16} /><span>Configuración</span></Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
