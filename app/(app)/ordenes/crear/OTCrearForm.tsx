@@ -429,7 +429,7 @@ export default function OTCrearForm({ usuarios, ubicaciones, activos, categorias
     const ordenId = (data as { id: string }).id;
 
     // Upload file attachments + URL links
-    const urlLinks: OTLink[] = links.filter(l => l.url.trim()).map(l => ({ ...l, tipo: "url" as const }));
+    const urlLinks: OTLink[] = links.filter(l => l.url.trim()).map(l => ({ ...l, tipo: "link" as const }));
     const adjuntoLinks: OTLink[] = [];
     for (const a of adjuntos) {
       try {
