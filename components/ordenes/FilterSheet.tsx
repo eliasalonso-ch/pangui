@@ -69,9 +69,8 @@ export default function FilterSheet({ filtros, setFiltros }: Props) {
       asignadoIds: [],
       ubicacionIds: [],
       sociedadIds: [],
-      venceHoy: false,
+      fechaVencimiento: null,
       sinAsignar: false,
-      vencidas: false,
     })
   }
 
@@ -136,21 +135,6 @@ export default function FilterSheet({ filtros, setFiltros }: Props) {
           ))}
         </div>
       </div>
-
-      {/* ─── VENCE HOY ─────────────────────────────────────── */}
-      <div className="flex items-center gap-2">
-        <input
-          type="checkbox"
-          checked={filtros.venceHoy}
-          onChange={(e) => updateFiltro("venceHoy", e.target.checked)}
-        />
-        <label>Vence hoy</label>
-      </div>
-
-      {/* ─── DEBUG (optional, remove later) ────────────────── */}
-      <pre className="text-xs bg-gray-100 p-2 rounded">
-        {JSON.stringify(filtros, null, 2)}
-      </pre>
 
       {/* ─── ACTIONS ───────────────────────────────────────── */}
       <div className="flex gap-2 pt-4">
