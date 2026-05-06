@@ -307,7 +307,7 @@ export default function InicioDashboard() {
   }
 
   return (
-    <div style={{ padding: "32px 40px 64px", minHeight: "100vh", background: "#F8FAFC" }}>
+    <div style={{ padding: "32px 40px 64px", minHeight: "100vh", background: "#fff" }}>
 
       {/* ── Header ── */}
       <div style={{ marginBottom: 32, display: "flex", alignItems: "flex-end", justifyContent: "space-between" }}>
