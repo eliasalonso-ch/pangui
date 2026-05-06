@@ -6,11 +6,12 @@ import {
   ChevronLeft, Loader2, Upload, User, MapPin, Settings2,
   Clock, CalendarDays, Tag, X, Check, ChevronDown,
   Camera, Plus, Trash2, ImagePlus, GripVertical,
-  Paperclip, FileText, File,
+  Paperclip, FileText, File, Link2,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase";
 import { uploadFotoGrupo, createFotoGrupo, addFotoToGrupo } from "@/lib/foto-grupos-api";
 import { uploadToR2 } from "@/lib/r2";
+import LinksInput from "@/components/LinksInput";
 import type { Usuario, Ubicacion, Activo, CategoriaOT, Prioridad, TipoTrabajo, Recurrencia, OTLink } from "@/types/ordenes";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -365,6 +366,9 @@ export default function OTCrearForm({ usuarios, ubicaciones, activos, categorias
   const [adjuntos, setAdjuntos] = useState<DraftAdjunto[]>([]);
   const adjuntoInputRef = useRef<HTMLInputElement | null>(null);
 
+  // URL links
+  const [links, setLinks] = useState<OTLink[]>([]);
+
   function setF<K extends keyof FormState>(key: K, val: FormState[K]) {
     setForm(prev => ({ ...prev, [key]: val }));
   }
@@ -423,18 +427,18 @@ export default function OTCrearForm({ usuarios, ubicaciones, activos, categorias
 
     const ordenId = (data as { id: string }).id;
 
-    // Upload file attachments
-    if (adjuntos.length > 0) {
-      const adjuntoLinks: OTLink[] = [];
-      for (const a of adjuntos) {
-        try {
-          const url = await uploadToR2(a.file, `ordenes/${ordenId}/adjuntos`);
-          adjuntoLinks.push({ url, nombre: a.nombre, tipo: "archivo" });
-        } catch { /* non-fatal */ }
-      }
-      if (adjuntoLinks.length > 0) {
-        await sb.from("ordenes_trabajo").update({ links: adjuntoLinks }).eq("id", ordenId);
-      }
+    // Upload file attachments + URL links
+    const urlLinks: OTLink[] = links.filter(l => l.url.trim()).map(l => ({ ...l, tipo: "url" as const }));
+    const adjuntoLinks: OTLink[] = [];
+    for (const a of adjuntos) {
+      try {
+        const url = await uploadToR2(a.file, `ordenes/${ordenId}/adjuntos`);
+        adjuntoLinks.push({ url, nombre: a.nombre, tipo: "archivo" });
+      } catch { /* non-fatal */ }
+    }
+    const allLinks = [...urlLinks, ...adjuntoLinks];
+    if (allLinks.length > 0) {
+      await sb.from("ordenes_trabajo").update({ links: allLinks }).eq("id", ordenId);
     }
 
     // Upload photo groups
@@ -981,6 +985,17 @@ export default function OTCrearForm({ usuarios, ubicaciones, activos, categorias
                 </button>
               </div>
             )}
+          </div>
+
+          {/* ── Links ── */}
+          <div style={{ padding: "14px 0", borderBottom: "1px solid #F3F4F6" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
+              <Link2 size={14} style={{ color: "#8594A3" }} />
+              <span style={{ fontSize: 11, fontWeight: 600, color: "#8594A3", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                Links
+              </span>
+            </div>
+            <LinksInput links={links} onChange={setLinks} />
           </div>
 
           {/* Categories */}

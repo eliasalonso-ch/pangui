@@ -4,8 +4,15 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import {
   X, Loader2, User, MapPin, Settings2,
   CalendarDays, Tag, Check, ChevronDown, Building2, Hash, Plus, DollarSign,
+  Paperclip, FileText, File, Camera, ImagePlus, Trash2, Upload,
 } from "lucide-react";
 import { updateOrden, parseDescMeta, buildDescripcion } from "@/lib/ordenes-api";
+import { uploadToR2 } from "@/lib/r2";
+import {
+  fetchFotoGrupos, createFotoGrupo, deleteFotoGrupo,
+  uploadFotoGrupo, addFotoToGrupo, removeFotoFromGrupo,
+} from "@/lib/foto-grupos-api";
+import type { FotoGrupo } from "@/lib/foto-grupos-api";
 import { createClient } from "@/lib/supabase";
 import type {
   OrdenTrabajo, Usuario, Ubicacion, LugarEspecifico, Sociedad, Activo, CategoriaOT,
@@ -471,6 +478,54 @@ export default function OTEditPanel({
   const [saving, setSaving] = useState(false);
   const [error, setError]   = useState<string | null>(null);
 
+  interface DraftAdjunto { file: File; nombre: string }
+  const [adjuntos, setAdjuntos] = useState<DraftAdjunto[]>([]);
+  const adjuntoInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Foto grupos — live (DB calls on interaction)
+  const [grupos, setGrupos] = useState<FotoGrupo[]>([]);
+  const [gruposLoaded, setGruposLoaded] = useState(false);
+  const [uploadingGrupo, setUploadingGrupo] = useState<string | null>(null);
+  const grupoFileRefs = useRef<Record<string, HTMLInputElement | null>>({});
+
+  useEffect(() => {
+    fetchFotoGrupos(orden.id).then(g => { setGrupos(g); setGruposLoaded(true); }).catch(() => setGruposLoaded(true));
+  }, [orden.id]);
+
+  async function handleAddGrupo() {
+    try {
+      const g = await createFotoGrupo(orden.id, wsId, myId, `Grupo ${grupos.length + 1}`, "", grupos.length);
+      setGrupos(prev => [...prev, { ...g, items: [] }]);
+    } catch { /* ignore */ }
+  }
+
+  async function handleDeleteGrupo(id: string) {
+    try {
+      await deleteFotoGrupo(id);
+      setGrupos(prev => prev.filter(g => g.id !== id));
+    } catch { /* ignore */ }
+  }
+
+  async function handleAddFotos(grupoId: string, files: FileList) {
+    setUploadingGrupo(grupoId);
+    try {
+      for (const file of Array.from(files)) {
+        const url = await uploadFotoGrupo(orden.id, file);
+        const grupo = grupos.find(g => g.id === grupoId);
+        const item = await addFotoToGrupo(grupoId, url, grupo?.items?.length ?? 0);
+        setGrupos(prev => prev.map(g => g.id === grupoId ? { ...g, items: [...(g.items ?? []), item] } : g));
+      }
+    } catch { /* ignore */ }
+    setUploadingGrupo(null);
+  }
+
+  async function handleRemoveFoto(grupoId: string, itemId: string, url: string) {
+    try {
+      await removeFotoFromGrupo(itemId, url);
+      setGrupos(prev => prev.map(g => g.id === grupoId ? { ...g, items: (g.items ?? []).filter(i => i.id !== itemId) } : g));
+    } catch { /* ignore */ }
+  }
+
   function setF<K extends keyof FormState>(key: K, val: FormState[K]) {
     setForm(prev => {
       const next = { ...prev, [key]: val };
@@ -497,6 +552,17 @@ export default function OTEditPanel({
     setSaving(true);
     setError(null);
     try {
+      const uploadedLinks: OTLink[] = [];
+      for (const a of adjuntos) {
+        try {
+          const url = await uploadToR2(a.file, `ordenes/${orden.id}/adjuntos`);
+          uploadedLinks.push({ url, nombre: a.nombre, tipo: "archivo" });
+        } catch { /* non-fatal */ }
+      }
+      const allLinks = [
+        ...form.links.filter(l => l.url.trim()),
+        ...uploadedLinks,
+      ];
       const updated = await updateOrden(
         orden.id,
         myId,
@@ -518,7 +584,7 @@ export default function OTEditPanel({
           sociedad_id:   form.sociedad_id   || null,
           activo_id:     form.activo_id     || null,
           asignados_ids: form.asignados_ids.length > 0 ? form.asignados_ids : null,
-          links:         form.links.filter(l => l.url.trim()),
+          links:         allLinks,
         },
         orden.asignados_ids,
       );
@@ -584,14 +650,210 @@ export default function OTEditPanel({
             />
           </div>
 
+          {/* Grupos de fotos */}
+          <div style={{ padding: "12px 0", borderBottom: "1px solid #E2E8F0" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <Camera size={13} style={{ color: "#94A3B8" }} />
+                <span style={{ fontSize: 11, fontWeight: 600, color: "#64748B", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                  Grupos de fotos
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={handleAddGrupo}
+                style={{ display: "flex", alignItems: "center", gap: 5, height: 26, padding: "0 10px", border: "1px solid #1E3A8A", borderRadius: 6, background: "#EFF6FF", color: "#1E3A8A", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
+              >
+                <Plus size={11} />
+                Agregar grupo
+              </button>
+            </div>
+
+            {!gruposLoaded ? (
+              <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "10px 0", color: "#94A3B8", fontSize: 13 }}>
+                <Loader2 size={13} style={{ animation: "spin 1s linear infinite" }} />
+                Cargando…
+              </div>
+            ) : grupos.length === 0 ? (
+              <button
+                type="button"
+                onClick={handleAddGrupo}
+                style={{ width: "100%", border: "1.5px dashed #93C5FD", borderRadius: 8, padding: "14px", display: "flex", flexDirection: "column", alignItems: "center", gap: 5, color: "#1E3A8A", cursor: "pointer", background: "#EFF6FF", fontFamily: "inherit" }}
+              >
+                <ImagePlus size={20} strokeWidth={1.5} />
+                <span style={{ fontSize: 12 }}>Agregar fotos con título y descripción</span>
+              </button>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {grupos.map(g => (
+                  <div key={g.id} style={{ border: "1px solid #E2E8F0", borderRadius: 8, overflow: "hidden", background: "#fff" }}>
+                    {/* Group header */}
+                    <div style={{ padding: "10px 12px", background: "#F8FAFC", borderBottom: "1px solid #E2E8F0", display: "flex", alignItems: "center", gap: 8 }}>
+                      <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: "#0F172A" }}>{g.titulo}</span>
+                      {g.descripcion && <span style={{ fontSize: 12, color: "#64748B", flex: 1 }}>{g.descripcion}</span>}
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteGrupo(g.id)}
+                        style={{ width: 26, height: 26, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", cursor: "pointer", color: "#94A3B8", borderRadius: 5, flexShrink: 0 }}
+                        onMouseEnter={e => { e.currentTarget.style.color = "#EF4444"; e.currentTarget.style.background = "#FEF2F2"; }}
+                        onMouseLeave={e => { e.currentTarget.style.color = "#94A3B8"; e.currentTarget.style.background = "none"; }}
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                    {/* Photos grid */}
+                    <div style={{ padding: 10 }}>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(80px, 1fr))", gap: 6 }}>
+                        {(g.items ?? []).map(item => (
+                          <div key={item.id} style={{ position: "relative", aspectRatio: "1", borderRadius: 6, overflow: "hidden", background: "#F3F4F6" }}>
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={item.url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveFoto(g.id, item.id, item.url)}
+                              style={{ position: "absolute", top: 3, right: 3, width: 18, height: 18, borderRadius: "50%", background: "rgba(0,0,0,0.6)", border: "none", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#fff" }}
+                            >
+                              <X size={10} />
+                            </button>
+                          </div>
+                        ))}
+                        {/* Add photos button */}
+                        <button
+                          type="button"
+                          onClick={() => grupoFileRefs.current[g.id]?.click()}
+                          style={{ aspectRatio: "1", border: "1.5px dashed #CBD5E1", borderRadius: 6, background: "#F8FAFC", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 3, cursor: "pointer", color: "#94A3B8" }}
+                          onMouseEnter={e => { e.currentTarget.style.borderColor = "#1E3A8A"; e.currentTarget.style.color = "#1E3A8A"; }}
+                          onMouseLeave={e => { e.currentTarget.style.borderColor = "#CBD5E1"; e.currentTarget.style.color = "#94A3B8"; }}
+                        >
+                          {uploadingGrupo === g.id
+                            ? <Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} />
+                            : <Upload size={14} />
+                          }
+                          <span style={{ fontSize: 10, fontWeight: 500 }}>Fotos</span>
+                        </button>
+                        <input
+                          ref={el => { grupoFileRefs.current[g.id] = el; }}
+                          type="file"
+                          accept="image/*"
+                          multiple
+                          style={{ display: "none" }}
+                          onChange={e => { if (e.target.files?.length) { handleAddFotos(g.id, e.target.files); e.target.value = ""; } }}
+                        />
+                      </div>
+                      {(g.items?.length ?? 0) > 0 && (
+                        <div style={{ marginTop: 5, fontSize: 11, color: "#94A3B8" }}>
+                          {g.items!.length} foto{g.items!.length !== 1 ? "s" : ""}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Adjuntos */}
+          <div style={{ padding: "12px 0", borderBottom: "1px solid #E2E8F0" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <Paperclip size={13} style={{ color: "#94A3B8" }} />
+                <span style={{ fontSize: 11, fontWeight: 600, color: "#64748B", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                  Adjuntos
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => adjuntoInputRef.current?.click()}
+                style={{ display: "flex", alignItems: "center", gap: 4, height: 24, padding: "0 8px", border: "1px solid #1E3A8A", borderRadius: 5, background: "#EFF6FF", color: "#1E3A8A", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
+              >
+                <Plus size={11} />
+                Adjuntar archivo
+              </button>
+              <input
+                ref={adjuntoInputRef}
+                type="file"
+                multiple
+                accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.dwg,.dxf,.zip,image/*"
+                style={{ display: "none" }}
+                onChange={e => {
+                  const files = Array.from(e.target.files ?? []);
+                  setAdjuntos(prev => [...prev, ...files.map(f => ({ file: f, nombre: f.name }))]);
+                  e.target.value = "";
+                }}
+              />
+            </div>
+            {/* Existing file links */}
+            {form.links.filter(l => l.tipo === "archivo").length > 0 && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: adjuntos.length ? 8 : 0 }}>
+                {form.links.filter(l => l.tipo === "archivo").map((l, i) => (
+                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 8px", border: "1px solid #E2E8F0", borderRadius: 6, background: "#F8FAFC" }}>
+                    <FileText size={13} style={{ color: "#1E3A8A", flexShrink: 0 }} />
+                    <span style={{ flex: 1, fontSize: 12.5, color: "#0F172A", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {l.nombre || l.url.split("/").pop()}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setF("links", form.links.filter(x => x !== l))}
+                      style={{ width: 22, height: 22, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", cursor: "pointer", color: "#94A3B8", flexShrink: 0 }}
+                      onMouseEnter={e => { e.currentTarget.style.color = "#EF4444"; }}
+                      onMouseLeave={e => { e.currentTarget.style.color = "#94A3B8"; }}
+                    >
+                      <X size={12} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            {/* New draft files */}
+            {adjuntos.length > 0 && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                {adjuntos.map((a, i) => {
+                  const ext = a.file.name.split(".").pop()?.toLowerCase() ?? "";
+                  const isDoc = ["pdf","doc","docx","xls","xlsx","ppt","pptx","txt","csv","dwg","dxf"].includes(ext);
+                  return (
+                    <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 8px", border: "1px solid #BFDBFE", borderRadius: 6, background: "#EFF6FF" }}>
+                      {isDoc ? <FileText size={13} style={{ color: "#1E3A8A", flexShrink: 0 }} /> : <File size={13} style={{ color: "#94A3B8", flexShrink: 0 }} />}
+                      <input
+                        type="text"
+                        value={a.nombre}
+                        onChange={e => setAdjuntos(prev => prev.map((x, idx) => idx === i ? { ...x, nombre: e.target.value } : x))}
+                        style={{ flex: 1, fontSize: 12.5, color: "#0F172A", border: "none", outline: "none", background: "transparent", fontFamily: "inherit", minWidth: 0 }}
+                      />
+                      <span style={{ fontSize: 11, color: "#64748B", flexShrink: 0 }}>{(a.file.size / 1024).toFixed(0)} KB</span>
+                      <button
+                        type="button"
+                        onClick={() => setAdjuntos(prev => prev.filter((_, idx) => idx !== i))}
+                        style={{ width: 22, height: 22, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", cursor: "pointer", color: "#94A3B8", flexShrink: 0 }}
+                        onMouseEnter={e => { e.currentTarget.style.color = "#EF4444"; }}
+                        onMouseLeave={e => { e.currentTarget.style.color = "#94A3B8"; }}
+                      >
+                        <X size={12} />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            {form.links.filter(l => l.tipo === "archivo").length === 0 && adjuntos.length === 0 && (
+              <button
+                type="button"
+                onClick={() => adjuntoInputRef.current?.click()}
+                style={{ width: "100%", border: "1.5px dashed #93C5FD", borderRadius: 8, padding: "12px", display: "flex", flexDirection: "column", alignItems: "center", gap: 4, color: "#1E3A8A", cursor: "pointer", background: "#EFF6FF", fontFamily: "inherit" }}
+              >
+                <Paperclip size={18} strokeWidth={1.5} />
+                <span style={{ fontSize: 12 }}>PDF, Word, Excel, TXT, CSV, DWG…</span>
+              </button>
+            )}
+          </div>
+
           {/* Links */}
-          <div style={{ marginBottom: 4 }}>
+          <div style={{ padding: "12px 0", borderBottom: "1px solid #E2E8F0" }}>
             <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "#64748B", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>
               Links
             </label>
             <LinksInput
-              links={form.links}
-              onChange={links => setF("links", links)}
+              links={form.links.filter(l => l.tipo !== "archivo")}
+              onChange={newLinks => setF("links", [...form.links.filter(l => l.tipo === "archivo"), ...newLinks])}
             />
           </div>
 
