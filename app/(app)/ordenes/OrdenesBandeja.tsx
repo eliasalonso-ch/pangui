@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Plus, Search, X, ChevronDown, Loader2, FileText, ArrowUpDown, SlidersHorizontal, Download } from "lucide-react";
+import { Plus, Search, X, ChevronDown, Loader2, FileText, ArrowUpDown, Download } from "lucide-react";
 import { createClient } from "@/lib/supabase";
 import { fetchOrden, deleteOrden, LIST_SELECT, parseDescMeta } from "@/lib/ordenes-api";
 import OTRow from "./OTRow";
@@ -10,6 +10,7 @@ import OTDetail from "./OTDetail";
 import OTCrearPanel from "./OTCrearPanel";
 import OTEditPanel from "./OTEditPanel";
 import OTFiltrosPanel from "./OTFiltrosPanel";
+import { FilterBar } from "./OTFiltrosPanel";
 import type {
   OrdenListItem, OrdenTrabajo,
   Usuario, Ubicacion, LugarEspecifico, Sociedad, Activo, CategoriaOT,
@@ -33,9 +34,8 @@ const SORT_OPTIONS: { value: SortOption; label: string }[] = [
 const EMPTY_FILTROS: FiltrosState = {
   estados: [], prioridades: [], tipos: [],
   asignadoIds: [], ubicacionIds: [], sociedadIds: [],
-  venceHoy: false,
+  fechaVencimiento: null,
   sinAsignar: false,
-  vencidas: false,
 };
 
 // ── Props ─────────────────────────────────────────────────────────────────────
@@ -76,7 +76,7 @@ export default function OrdenesBandeja({
     return "activas";
   });
   const [search, setSearch]     = useState("");
-  const [sort, setSort]         = useState<SortOption>("prioridad_desc");
+  const [sort, setSort]         = useState<SortOption>("created_at_desc");
 
   // Pre-apply filter from URL param (e.g. ?filtro=urgentes from inicio dashboard)
   const [filtros, setFiltros]   = useState<FiltrosState>(() => {
@@ -87,12 +87,11 @@ export default function OrdenesBandeja({
     if (f === "abiertas")         return { ...EMPTY_FILTROS, estados: ["pendiente", "en_espera"] };
     if (f === "bloqueadas")       return { ...EMPTY_FILTROS, estados: ["en_espera"] };
     if (f === "sin_asignar")      return { ...EMPTY_FILTROS, sinAsignar: true };
-    if (f === "vencidas")         return { ...EMPTY_FILTROS, vencidas: true };
-    if (f === "vence_hoy")        return { ...EMPTY_FILTROS, venceHoy: true };
+    if (f === "vencidas")         return { ...EMPTY_FILTROS, fechaVencimiento: "vencidas" as const };
+    if (f === "vence_hoy")        return { ...EMPTY_FILTROS, fechaVencimiento: "hoy" as const };
     if (f === "completadas_hoy")  return { ...EMPTY_FILTROS, estados: ["completado"] };
     return EMPTY_FILTROS;
   });
-  const [filtrosOpen, setFiltrosOpen] = useState(false);
   const [isDesktop, setIsDesktop] = useState(false);
   const [sortOpen, setSortOpen]  = useState(false);
   const [exporting, setExporting] = useState(false);
@@ -233,16 +232,33 @@ export default function OrdenesBandeja({
       );
       list = list.filter(o => o.ubicacion_id != null && ubicsBySociedad.has(o.ubicacion_id));
     }
-    if (filtros.venceHoy) {
-      const today = new Date().toDateString();
-      list = list.filter(o => o.fecha_termino != null && new Date(o.fecha_termino).toDateString() === today);
+    if (filtros.fechaVencimiento) {
+      const now = new Date();
+      const todayStr = now.toISOString().slice(0, 10);
+      const tomorrow = new Date(now); tomorrow.setDate(now.getDate() + 1);
+      const tomorrowStr = tomorrow.toISOString().slice(0, 10);
+      const in7 = new Date(now); in7.setDate(now.getDate() + 7);
+      const in7Str = in7.toISOString().slice(0, 10);
+      const in30 = new Date(now); in30.setDate(now.getDate() + 30);
+      const in30Str = in30.toISOString().slice(0, 10);
+      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
+      const monthEnd   = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().slice(0, 10);
+      list = list.filter(o => {
+        const d = o.fecha_termino?.slice(0, 10);
+        if (!d) return false;
+        switch (filtros.fechaVencimiento) {
+          case "hoy":       return d === todayStr;
+          case "manana":    return d === tomorrowStr;
+          case "7dias":     return d >= todayStr && d <= in7Str;
+          case "30dias":    return d >= todayStr && d <= in30Str;
+          case "este_mes":  return d >= monthStart && d <= monthEnd;
+          case "vencidas":  return d < todayStr && o.estado !== "completado";
+          default:          return true;
+        }
+      });
     }
     if (filtros.sinAsignar) {
       list = list.filter(o => !o.asignados_ids || o.asignados_ids.length === 0);
-    }
-    if (filtros.vencidas) {
-      const today = new Date().toISOString().slice(0, 10);
-      list = list.filter(o => o.fecha_termino != null && o.fecha_termino.slice(0, 10) < today && o.estado !== "completado");
     }
 
     // Search — checks title, N° OT, solicitante and description body
@@ -295,16 +311,33 @@ export default function OrdenesBandeja({
         );
         list = list.filter(o => o.ubicacion_id != null && ubicsBySociedad.has(o.ubicacion_id));
       }
-      if (filtros.venceHoy) {
-        const today = new Date().toDateString();
-        list = list.filter(o => o.fecha_termino != null && new Date(o.fecha_termino).toDateString() === today);
+      if (filtros.fechaVencimiento) {
+        const now = new Date();
+        const todayStr = now.toISOString().slice(0, 10);
+        const tomorrow = new Date(now); tomorrow.setDate(now.getDate() + 1);
+        const tomorrowStr = tomorrow.toISOString().slice(0, 10);
+        const in7 = new Date(now); in7.setDate(now.getDate() + 7);
+        const in7Str = in7.toISOString().slice(0, 10);
+        const in30 = new Date(now); in30.setDate(now.getDate() + 30);
+        const in30Str = in30.toISOString().slice(0, 10);
+        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
+        const monthEnd   = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().slice(0, 10);
+        list = list.filter(o => {
+          const d = o.fecha_termino?.slice(0, 10);
+          if (!d) return false;
+          switch (filtros.fechaVencimiento) {
+            case "hoy":       return d === todayStr;
+            case "manana":    return d === tomorrowStr;
+            case "7dias":     return d >= todayStr && d <= in7Str;
+            case "30dias":    return d >= todayStr && d <= in30Str;
+            case "este_mes":  return d >= monthStart && d <= monthEnd;
+            case "vencidas":  return d < todayStr && o.estado !== "completado";
+            default:          return true;
+          }
+        });
       }
       if (filtros.sinAsignar) {
         list = list.filter(o => !o.asignados_ids || o.asignados_ids.length === 0);
-      }
-      if (filtros.vencidas) {
-        const today = new Date().toISOString().slice(0, 10);
-        list = list.filter(o => o.fecha_termino != null && o.fecha_termino.slice(0, 10) < today && o.estado !== "completado");
       }
       if (search.trim()) {
         const q = search.trim().replace(/\s+/g, " ").toLowerCase();
@@ -702,65 +735,19 @@ export default function OrdenesBandeja({
           </div>
         </div>
 
-        {/* Sub-nav: filter chips + sort */}
+        {/* Sub-nav: inline filter buttons + sort */}
         <div style={{
           display:"flex", alignItems:"center", justifyContent:"space-between",
           padding:"0 20px", height:40, gap:8,
         }}>
-          <div style={{ display:"flex", alignItems:"center", gap:6 }}>
-            {/* Active filter chips */}
-            {filtros.estados.map(e => (
-              <span key={e} style={{ display:"flex", alignItems:"center", gap:4, height:24, padding:"0 8px", background:"#EFF6FF", borderRadius:6, fontSize:11, fontWeight:600, color:"#1D4ED8" }}>
-                {e}
-                <button type="button" onClick={() => setFiltros(f => ({ ...f, estados: f.estados.filter(x => x !== e) }))} style={{ background:"none", border:"none", cursor:"pointer", color:"#1D4ED8", display:"flex", padding:0, lineHeight:1 }}><X size={9} /></button>
-              </span>
-            ))}
-            {filtros.prioridades.map(p => (
-              <span key={p} style={{ display:"flex", alignItems:"center", gap:4, height:24, padding:"0 8px", background:"#EFF6FF", borderRadius:6, fontSize:11, fontWeight:600, color:"#1D4ED8" }}>
-                {p}
-                <button type="button" onClick={() => setFiltros(f => ({ ...f, prioridades: f.prioridades.filter(x => x !== p) }))} style={{ background:"none", border:"none", cursor:"pointer", color:"#1D4ED8", display:"flex", padding:0, lineHeight:1 }}><X size={9} /></button>
-              </span>
-            ))}
-            {filtros.venceHoy && (
-              <span style={{ display:"flex", alignItems:"center", gap:4, height:24, padding:"0 8px", background:"#FFF7ED", borderRadius:6, fontSize:11, fontWeight:600, color:"#C2410C" }}>
-                Vence hoy
-                <button type="button" onClick={() => setFiltros(f => ({ ...f, venceHoy: false }))} style={{ background:"none", border:"none", cursor:"pointer", color:"#C2410C", display:"flex", padding:0, lineHeight:1 }}><X size={9} /></button>
-              </span>
-            )}
-            {filtros.sinAsignar && (
-              <span style={{ display:"flex", alignItems:"center", gap:4, height:24, padding:"0 8px", background:"#F1F5F9", borderRadius:6, fontSize:11, fontWeight:600, color:"#475569" }}>
-                Sin asignar
-                <button type="button" onClick={() => setFiltros(f => ({ ...f, sinAsignar: false }))} style={{ background:"none", border:"none", cursor:"pointer", color:"#475569", display:"flex", padding:0, lineHeight:1 }}><X size={9} /></button>
-              </span>
-            )}
-            {filtros.vencidas && (
-              <span style={{ display:"flex", alignItems:"center", gap:4, height:24, padding:"0 8px", background:"#FEF2F2", borderRadius:6, fontSize:11, fontWeight:600, color:"#DC2626" }}>
-                Vencidas
-                <button type="button" onClick={() => setFiltros(f => ({ ...f, vencidas: false }))} style={{ background:"none", border:"none", cursor:"pointer", color:"#DC2626", display:"flex", padding:0, lineHeight:1 }}><X size={9} /></button>
-              </span>
-            )}
-            <button
-              type="button"
-              onClick={() => setFiltrosOpen(v => !v)}
-              style={{
-                display:"flex", alignItems:"center", gap:5,
-                height:28, padding:"0 10px",
-                border: filtrosOpen ? "1.5px solid #2563EB" : "1px solid #E2E8F0",
-                borderRadius:6,
-                background: filtrosOpen ? "#EFF6FF" : "#fff",
-                color: filtrosOpen ? "#1D4ED8" : "#475569",
-                fontSize:12, fontWeight:500, cursor:"pointer", fontFamily:"inherit",
-              }}
-            >
-              <SlidersHorizontal size={13} />
-              Filtros
-              {(filtros.estados.length + filtros.prioridades.length + filtros.tipos.length + filtros.asignadoIds.length + filtros.ubicacionIds.length + filtros.sociedadIds.length + (filtros.venceHoy ? 1 : 0) + (filtros.sinAsignar ? 1 : 0) + (filtros.vencidas ? 1 : 0)) > 0 && (
-                <span style={{ fontSize:10, fontWeight:700, background:"#2563EB", color:"#fff", borderRadius:"50%", width:16, height:16, display:"flex", alignItems:"center", justifyContent:"center" }}>
-                  {filtros.estados.length + filtros.prioridades.length + filtros.tipos.length + filtros.asignadoIds.length + filtros.ubicacionIds.length + filtros.sociedadIds.length + (filtros.venceHoy ? 1 : 0) + (filtros.sinAsignar ? 1 : 0) + (filtros.vencidas ? 1 : 0)}
-                </span>
-              )}
-            </button>
-          </div>
+          <FilterBar
+            filtros={filtros}
+            onChange={setFiltros}
+            usuarios={usuarios}
+            ubicaciones={ubicaciones}
+            sociedades={sociedades}
+          />
+
 
           {/* Right side: export + sort */}
           <div style={{ display:"flex", alignItems:"center", gap:6 }}>
@@ -861,20 +848,6 @@ export default function OrdenesBandeja({
           flexShrink:0,
           position:"relative",
         }}>
-
-          {/* Filter panel overlay — slides over the list */}
-          {filtrosOpen && (
-            <div style={{ position:"absolute", inset:0, zIndex:30, background:"#fff" }}>
-              <OTFiltrosPanel
-                filtros={filtros}
-                onChange={setFiltros}
-                onClose={() => setFiltrosOpen(false)}
-                usuarios={usuarios}
-                ubicaciones={ubicaciones}
-                sociedades={sociedades}
-              />
-            </div>
-          )}
 
           {/* Tabs */}
           <div style={{ display:"flex", borderBottom:"1px solid #E2E8F0", padding:"0 20px", flexShrink:0 }}>

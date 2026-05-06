@@ -225,6 +225,7 @@ function AssigneeSelect({ usuarios, value, onChange }: {
   }
   function toggle(id: string) {
     onChange(value.includes(id) ? value.filter(x => x !== id) : [...value, id]);
+    setOpen(false);
   }
   const selected = value.map(id => usuarios.find(u => u.id === id)).filter(Boolean) as Usuario[];
 

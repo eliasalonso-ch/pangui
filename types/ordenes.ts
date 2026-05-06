@@ -246,9 +246,8 @@ export interface FiltrosState {
   asignadoIds: string[];
   ubicacionIds: string[];
   sociedadIds: string[];
-  venceHoy: boolean;
+  fechaVencimiento: "hoy" | "manana" | "7dias" | "30dias" | "este_mes" | "vencidas" | null;
   sinAsignar: boolean;
-  vencidas: boolean;
 }
 
 export type SortOption =
