@@ -577,6 +577,7 @@ export default function OTEditPanel({
           presupuesto:   form.presupuesto.trim()  || null,
           prioridad:     form.prioridad,
           tipo_trabajo:  form.tipo_trabajo || null,
+          clasificacion: form.tipo_trabajo === "levantamiento" ? "levantamiento" : form.tipo_trabajo ? "ejecucion" : undefined,
           categoria_id:  form.categoria_id  || null,
           recurrencia:   form.recurrencia,
           fecha_inicio:  form.fecha_inicio  || null,

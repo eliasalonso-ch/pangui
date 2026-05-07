@@ -403,6 +403,7 @@ export default function OTCrearForm({ usuarios, ubicaciones, activos, categorias
       titulo:          form.titulo.trim(),
       descripcion:     form.descripcion.trim() || "",
       tipo_trabajo:    form.tipo_trabajo || null,
+      clasificacion:   form.tipo_trabajo === "levantamiento" ? "levantamiento" : form.tipo_trabajo ? "ejecucion" : null,
       estado:          "pendiente" as const,
       prioridad:       form.prioridad,
       ubicacion_id:    form.ubicacion_id  || null,

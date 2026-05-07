@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase";
 import type {
   OrdenTrabajo, OrdenListItem, ActividadOT, ActividadTipo,
-  Estado, Prioridad, TipoTrabajo, Recurrencia, OTLink,
+  Estado, Prioridad, TipoTrabajo, ClasificacionOT, Recurrencia, OTLink,
 } from "@/types/ordenes";
 import {
   notifyOTCreada,
@@ -167,6 +167,7 @@ export async function createOrden(payload: {
   presupuesto?: string | null;
   prioridad: Prioridad;
   tipo_trabajo: TipoTrabajo | "";
+  clasificacion?: ClasificacionOT | null;
   categoria_id?: string | null;
   recurrencia?: Recurrencia;
   ubicacion_id?: string | null;
@@ -201,6 +202,7 @@ export async function createOrden(payload: {
       ...(payload.presupuesto?.trim()  ? { presupuesto:  payload.presupuesto.trim()  } : {}),
       tipo:               "solicitud",
       tipo_trabajo:       payload.tipo_trabajo || "reactiva",
+      clasificacion:      payload.clasificacion ?? (payload.tipo_trabajo === "levantamiento" ? "levantamiento" : "ejecucion"),
       estado:             "pendiente",
       prioridad:          payload.prioridad,
       recurrencia,
@@ -297,6 +299,7 @@ export async function updateOrden(
     presupuesto?: string | null;
     prioridad?: Prioridad;
     tipo_trabajo?: TipoTrabajo | null;
+    clasificacion?: ClasificacionOT | null;
     categoria_id?: string | null;
     recurrencia?: Recurrencia;
     proxima_ejecucion?: string | null;

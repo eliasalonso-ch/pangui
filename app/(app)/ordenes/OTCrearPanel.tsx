@@ -1090,6 +1090,7 @@ export default function OTCrearPanel({
         presupuesto:   form.presupuesto.trim()  || null,
         prioridad:     form.prioridad,
         tipo_trabajo:  form.tipo_trabajo,
+        clasificacion: form.tipo_trabajo === "levantamiento" ? "levantamiento" : form.tipo_trabajo ? "ejecucion" : undefined,
         categoria_id:  form.categoria_id  || null,
         recurrencia:   form.recurrencia,
         ubicacion_id:  form.ubicacion_id  || null,
