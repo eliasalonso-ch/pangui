@@ -1039,12 +1039,12 @@ export default function OTDetail({
     try { return await fetchActividad(orden.id); } catch { return []; }
   }
 
-  async function fetchWorkspaceName(): Promise<string> {
+  async function fetchWorkspaceInfo(): Promise<{ nombre: string; logoUrl: string | null }> {
     try {
       const sb = createClient();
-      const { data } = await sb.from("workspaces").select("nombre").eq("id", wsId).maybeSingle();
-      return (data as any)?.nombre ?? "Pangui";
-    } catch { return "Pangui"; }
+      const { data } = await sb.from("workspaces").select("nombre, logo_url").eq("id", wsId).maybeSingle();
+      return { nombre: (data as any)?.nombre ?? "Pangui", logoUrl: (data as any)?.logo_url ?? null };
+    } catch { return { nombre: "Pangui", logoUrl: null }; }
   }
 
   const exporterName = () => {
@@ -1064,9 +1064,9 @@ export default function OTDetail({
     setExporting("pdf");
     setPdfConfigOpen(false);
     try {
-      const [act, wsNombre, freshProcs] = await Promise.all([
+      const [act, wsInfo, freshProcs] = await Promise.all([
         fetchActividadForExport(),
-        fetchWorkspaceName(),
+        fetchWorkspaceInfo(),
         getOTProcedimientos(orden.id),
       ]);
       const res = await fetch("/api/export-pdf", {
@@ -1075,11 +1075,12 @@ export default function OTDetail({
         body: JSON.stringify({
           orden, actividad: act, usuarios,
           exportadoPor: exporterName(),
-          workspaceNombre: wsNombre,
+          workspaceNombre: wsInfo.nombre,
           nOT: meta.nOT,
           partes: [], subOrdenes: [],
           procedimientos: freshProcs,
           fields: pdfFields,
+          logoUrl: wsInfo.logoUrl,
         }),
       });
       if (!res.ok) throw new Error(`PDF service error ${res.status}`);

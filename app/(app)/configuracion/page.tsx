@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase";
 import { ROL_LABEL, esAdmin } from "@/lib/roles";
 import {
   LogOut, KeyRound, Bell, User, Loader2, Check, Eye, EyeOff, ChevronRight,
-  Pencil, Building2, Shield, MonitorSmartphone, X,
+  Pencil, Building2, Shield, MonitorSmartphone, X, ImagePlus, Trash2,
 } from "lucide-react";
 
 type Tab = "perfil" | "workspace" | "notificaciones";
@@ -74,6 +74,13 @@ export default function ConfiguracionPage() {
   const [signingOutAll, setSigningOutAll]   = useState(false);
   const [confirmSignOutAll, setConfirmSignOutAll] = useState(false);
 
+  // Workspace logo
+  const [logoUrl, setLogoUrl]       = useState<string | null>(null);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [logoSaved, setLogoSaved]   = useState(false);
+  const [logoError, setLogoError]   = useState<string | null>(null);
+  const logoInputRef = useRef<HTMLInputElement>(null);
+
   // Workspace edit (admin/owner only)
   const [ws, setWs]               = useState({ nombre: "", sector: "", region: "" });
   const [wsDraft, setWsDraft]     = useState({ nombre: "", sector: "", region: "" });
@@ -116,12 +123,13 @@ export default function ConfiguracionPage() {
     if (tab !== "workspace" || !workspaceId) return;
     setLoadingWs(true);
     const sb = createClient();
-    sb.from("workspaces").select("nombre, sector, region, modo_registro").eq("id", workspaceId).maybeSingle()
+    sb.from("workspaces").select("nombre, sector, region, modo_registro, logo_url").eq("id", workspaceId).maybeSingle()
       .then(({ data }) => {
         const d = { nombre: data?.nombre ?? "", sector: data?.sector ?? "", region: data?.region ?? "" };
         setWs(d);
         setWsDraft(d);
         setModoRegistro((data?.modo_registro as "ambos" | "materiales" | "hoja") ?? "ambos");
+        setLogoUrl((data as any)?.logo_url ?? null);
         setLoadingWs(false);
       });
   }, [tab, workspaceId]);
@@ -179,6 +187,44 @@ export default function ConfiguracionPage() {
     const sb = createClient();
     await sb.auth.signOut({ scope: "global" });
     router.replace("/login");
+  }
+
+  async function handleLogoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file || !workspaceId) return;
+    if (file.size > 2 * 1024 * 1024) { setLogoError("El archivo no puede superar 2 MB."); return; }
+    setLogoError(null);
+    setUploadingLogo(true);
+    try {
+      const sb = createClient();
+      const ext = file.name.split(".").pop() ?? "png";
+      const path = `${workspaceId}/logo.${ext}`;
+      const { error: upErr } = await sb.storage.from("workspace-logos").upload(path, file, { upsert: true, contentType: file.type });
+      if (upErr) throw upErr;
+      const { data: { publicUrl } } = sb.storage.from("workspace-logos").getPublicUrl(path);
+      const urlWithBust = `${publicUrl}?t=${Date.now()}`;
+      await sb.from("workspaces").update({ logo_url: urlWithBust }).eq("id", workspaceId);
+      setLogoUrl(urlWithBust);
+      setLogoSaved(true);
+      setTimeout(() => setLogoSaved(false), 2500);
+    } catch (err: unknown) {
+      setLogoError(err instanceof Error ? err.message : "Error al subir el logo.");
+    } finally {
+      setUploadingLogo(false);
+      if (logoInputRef.current) logoInputRef.current.value = "";
+    }
+  }
+
+  async function handleLogoDelete() {
+    if (!workspaceId) return;
+    setUploadingLogo(true);
+    try {
+      const sb = createClient();
+      await sb.from("workspaces").update({ logo_url: null }).eq("id", workspaceId);
+      setLogoUrl(null);
+    } finally {
+      setUploadingLogo(false);
+    }
   }
 
   async function saveWorkspace() {
@@ -572,6 +618,65 @@ export default function ConfiguracionPage() {
                       <InfoRow label="Región" value={ws.region || "—"} />
                     </div>
                   )}
+                </div>
+
+                {/* Logo card */}
+                <div style={{ background: "#fff", border: "1px solid #E2E8F0", borderRadius: 12, padding: 20, boxShadow: "0 1px 3px rgba(15,23,42,0.06)" }}>
+                  <p style={{ fontSize: 12, fontWeight: 700, color: "#64748B", margin: "0 0 6px", textTransform: "uppercase", letterSpacing: "0.06em" }}>Logo del workspace</p>
+                  <p style={{ fontSize: 12, color: "#94A3B8", margin: "0 0 16px" }}>Aparecerá en los PDFs generados. Recomendado: PNG o SVG cuadrado, máx. 2 MB.</p>
+                  <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+                    <div style={{
+                      width: 72, height: 72, border: "1px solid #E2E8F0", borderRadius: 8,
+                      background: "#F8FAFC", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, overflow: "hidden",
+                    }}>
+                      {logoUrl
+                        ? <img src={logoUrl} alt="Logo" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+                        : <ImagePlus size={24} style={{ color: "#CBD5E1" }} />
+                      }
+                    </div>
+                    <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8 }}>
+                      <input
+                        ref={logoInputRef}
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                        style={{ display: "none" }}
+                        onChange={handleLogoUpload}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => logoInputRef.current?.click()}
+                        disabled={uploadingLogo}
+                        style={{
+                          height: 36, padding: "0 14px", border: "1px solid #E2E8F0", borderRadius: 8,
+                          background: "#fff", fontSize: 12, fontWeight: 600, color: "#374151",
+                          cursor: uploadingLogo ? "default" : "pointer", fontFamily: "inherit",
+                          display: "flex", alignItems: "center", gap: 6,
+                        }}
+                      >
+                        {uploadingLogo
+                          ? <><Loader2 size={13} className="animate-spin" /> Subiendo…</>
+                          : logoSaved
+                          ? <><Check size={13} style={{ color: "#10B981" }} /> Logo guardado</>
+                          : <><ImagePlus size={13} /> {logoUrl ? "Reemplazar logo" : "Subir logo"}</>
+                        }
+                      </button>
+                      {logoUrl && !uploadingLogo && (
+                        <button
+                          type="button"
+                          onClick={handleLogoDelete}
+                          style={{
+                            height: 32, padding: "0 12px", border: "1px solid #FECACA", borderRadius: 8,
+                            background: "#FEF2F2", fontSize: 12, fontWeight: 600, color: "#DC2626",
+                            cursor: "pointer", fontFamily: "inherit",
+                            display: "flex", alignItems: "center", gap: 5,
+                          }}
+                        >
+                          <Trash2 size={12} /> Eliminar logo
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  {logoError && <p style={{ fontSize: 12, color: "#DC2626", margin: "10px 0 0" }}>{logoError}</p>}
                 </div>
 
                 {/* Modo de registro card */}
