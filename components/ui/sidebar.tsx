@@ -39,7 +39,7 @@ export const Sidebar = ({ children, className, ...props }: React.HTMLAttributes<
     <aside
       className={cn("flex flex-col flex-shrink-0 transition-all duration-200", className)}
       style={{
-        width: collapsed ? 56 : 240,
+        width: collapsed ? 56 : 200,
         background: "#FFFFFF",
         borderRight: "1px solid #E2E8F0",
         height: "100vh",
@@ -119,7 +119,7 @@ export const SidebarMenuButton = ({
   const Comp = asChild ? Slot : "button";
 
   return (
-    <div style={{ position: "relative" }} title={collapsed ? tooltip : undefined}>
+    <div style={{ position: "relative", padding: "0 8px" }} title={collapsed ? tooltip : undefined}>
       <Comp
         data-active={isActive ? "true" : undefined}
         className={cn(
@@ -133,8 +133,9 @@ export const SidebarMenuButton = ({
           width: collapsed ? 40 : "100%",
           color: isActive ? "#1D4ED8" : "#475569",
           background: isActive ? "#EFF6FF" : "transparent",
-          boxShadow: collapsed ? "none" : isActive ? "inset 3px 0 0 #2563EB" : "none",
-          borderRadius: collapsed && isActive ? 6 : undefined,
+          boxShadow: isActive ? (collapsed ? "none" : "inset 3px 0 0 #2563EB") : "none",
+          borderRadius: 6,
+          transition: "background 0.15s, color 0.15s, box-shadow 0.15s",
         }}
         onMouseEnter={e => {
           if (!isActive) {

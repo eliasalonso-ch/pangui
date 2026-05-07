@@ -73,7 +73,7 @@ function SidebarUserFooter({ user }: { user: UserData | null }) {
             <div style={{ position: "fixed", inset: 0, zIndex: 40 }} onClick={() => setOpen(false)} />
             <div style={{
               position: "fixed",
-              bottom: 30,
+              bottom: 56,
               left: 64,
               zIndex: 50,
               width: 180,
@@ -191,7 +191,7 @@ export default function AppSidebar() {
   const [userData, setUserData] = useState<UserData | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
   const [modoRegistro, setModoRegistro] = useState<"ambos" | "materiales" | "hoja">("ambos");
-  const [workspaceLogo, setWorkspaceLogo] = useState<string | null>(null);
+  const [workspaceLogo, setWorkspaceLogo] = useState<string | null | undefined>(undefined);
 
   const { puedeVer, userRol: permisosRol } = usePermisos();
   const effectiveRol = userRol ?? permisosRol;
@@ -298,18 +298,20 @@ export default function AppSidebar() {
           padding: "12px 16px",
           borderBottom: "1px solid #E2E8F0",
         }}>
-          {collapsed ? (
-            <img
-              src={workspaceLogo ?? "/logo2.svg"}
-              alt="Logo"
-              style={{ width: 36, height: 36, objectFit: "contain", borderRadius: 6 }}
-            />
-          ) : (
-            <img
-              src={workspaceLogo ?? "/logo2.svg"}
-              alt="Logo"
-              style={{ maxHeight: 100, width: "auto", maxWidth: 190, objectFit: "contain" }}
-            />
+          {workspaceLogo !== undefined && (
+            collapsed ? (
+              <img
+                src={workspaceLogo ?? "/logo2.svg"}
+                alt="Logo"
+                style={{ width: 36, height: 36, objectFit: "contain", borderRadius: 6 }}
+              />
+            ) : (
+              <img
+                src={workspaceLogo ?? "/logo2.svg"}
+                alt="Logo"
+                style={{ maxHeight: 100, width: "auto", maxWidth: 190, objectFit: "contain" }}
+              />
+            )
           )}
         </div>
       </SidebarHeader>
