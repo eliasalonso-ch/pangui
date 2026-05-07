@@ -71,6 +71,7 @@ export default function FilterSheet({ filtros, setFiltros }: Props) {
       sociedadIds: [],
       fechaVencimiento: null,
       sinAsignar: false,
+      soloAsignados: false,
     })
   }
 

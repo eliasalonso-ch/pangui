@@ -47,6 +47,7 @@ import {
 import type {
   OrdenTrabajo, ActividadOT, ActividadTipo, Usuario, Estado, Prioridad,
 } from "@/types/ordenes";
+import { notifyClasificacionCambiada } from "@/lib/notificar";
 import type {
   OTProcedimiento, ProcedimientoListItem, ProcedimientoEjecucion,
   PasoRespuesta, TipoPasoProc, ProcedimientoPaso,
@@ -480,6 +481,10 @@ export default function OTDetail({
   const [manualCantidad, setManualCantidad] = useState("1");
   const [manualParteId, setManualParteId] = useState("");
 
+  // ── Clasificacion ────────────────────────────────────────────────────────────
+  const [clasificacion, setClasificacion] = useState(orden.clasificacion ?? null);
+  const [changingClasif, setChangingClasif] = useState(false);
+
   // ── Requiere toggles ─────────────────────────────────────────────────────────
   const [requiereMateriales, setRequiereMateriales] = useState(orden.requiere_materiales ?? false);
   const [requiereHoja, setRequiereHoja] = useState(orden.requiere_hoja ?? false);
@@ -489,16 +494,18 @@ export default function OTDetail({
   const [togglingFotos, setTogglingFotos] = useState(false);
   const [fotosObligatoriasTodas, setFotosObligatoriasTodas] = useState(false);
 
-  // Fetch workspace-level fotos_obligatorias_todas flag once on mount
+  // Fetch workspace-level flags once on mount
+  const [modoRegistro, setModoRegistro] = useState<"ambos" | "materiales" | "hoja">("ambos");
   useEffect(() => {
     if (!wsId) return;
     const sb = createClient();
     sb.from("workspaces")
-      .select("fotos_obligatorias_todas")
+      .select("fotos_obligatorias_todas, modo_registro")
       .eq("id", wsId)
       .maybeSingle()
       .then(({ data }) => {
         if (data?.fotos_obligatorias_todas) setFotosObligatoriasTodas(true);
+        if (data?.modo_registro) setModoRegistro(data.modo_registro as "ambos" | "materiales" | "hoja");
       });
   }, [wsId]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -532,6 +539,16 @@ export default function OTDetail({
     onOrdenUpdated({ requiere_fotos: next });
   }
 
+  async function handleApproveClasificacion() {
+    setChangingClasif(true);
+    const sb = createClient();
+    await sb.from("ordenes_trabajo").update({ clasificacion: "ejecucion" }).eq("id", orden.id);
+    setClasificacion("ejecucion");
+    onOrdenUpdated({ clasificacion: "ejecucion" });
+    notifyClasificacionCambiada({ workspaceId: wsId, ordenId: orden.id, titulo: orden.titulo ?? "", clasificacion: "ejecucion" });
+    setChangingClasif(false);
+  }
+
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (exportMenuRef.current && !exportMenuRef.current.contains(e.target as Node)) {
@@ -555,6 +572,8 @@ export default function OTDetail({
       ...(orden.fotos_urls ?? []),
     ]);
   }, [orden.imagen_url, orden.fotos_urls]);
+
+  useEffect(() => { setClasificacion(orden.clasificacion ?? null); }, [orden.clasificacion]);
 
   // Load + poll activity every 30s while the tab is open
   useEffect(() => {
@@ -1542,7 +1561,11 @@ export default function OTDetail({
 
         {/* Tabs */}
         <div style={{ display: "flex", padding: "0 16px", gap: 0 }}>
-          {(["detalle", "actividad", "fotos", "materiales", "procedimientos", "hoja"] as Tab[]).map(t => (
+          {(["detalle", "actividad", "fotos", "materiales", "procedimientos", "hoja"] as Tab[]).filter(t => {
+            if (t === "materiales" && modoRegistro === "hoja") return false;
+            if (t === "hoja" && modoRegistro === "materiales") return false;
+            return true;
+          }).map(t => (
             <button
               key={t}
               type="button"
@@ -1587,6 +1610,47 @@ export default function OTDetail({
             {meta.descripcion && (
               <div style={{ marginTop: 8, padding: "12px 14px", background: "#F8FAFC", borderRadius: 8, borderLeft: "3px solid #2563EB" }}>
                 <p style={{ fontSize: 13, color: "#475569", lineHeight: 1.65, whiteSpace: "pre-wrap", margin: 0 }}>{meta.descripcion}</p>
+              </div>
+            )}
+
+            {/* Clasificacion banner (levantamiento) */}
+            {clasificacion === "levantamiento" && (
+              <div style={{
+                marginTop: 12,
+                padding: "12px 14px",
+                borderRadius: 10,
+                background: "#EFF6FF",
+                border: "1px solid #BFDBFE",
+                display: "flex", alignItems: "flex-start", gap: 10,
+              }}>
+                <Search size={16} style={{ color: "#1D4ED8", flexShrink: 0, marginTop: 1 }} />
+                <div style={{ flex: 1 }}>
+                  <p style={{ fontSize: 13, fontWeight: 700, color: "#1D4ED8", margin: 0 }}>Levantamiento</p>
+                  <p style={{ fontSize: 12, color: "#3B82F6", margin: "2px 0 0", lineHeight: 1.5 }}>
+                    Esta orden está marcada como levantamiento. El temporizador no corre hasta cambiarla a ejecución.
+                  </p>
+                  {canManage && (
+                    <button
+                      type="button"
+                      onClick={handleApproveClasificacion}
+                      disabled={changingClasif}
+                      style={{
+                        marginTop: 8,
+                        height: 30, padding: "0 12px",
+                        background: "#1D4ED8", color: "#fff",
+                        border: "none", borderRadius: 6,
+                        fontSize: 12, fontWeight: 600,
+                        cursor: changingClasif ? "default" : "pointer",
+                        display: "flex", alignItems: "center", gap: 6,
+                        opacity: changingClasif ? 0.7 : 1,
+                        fontFamily: "inherit",
+                      }}
+                    >
+                      {changingClasif && <Loader2 size={12} className="animate-spin" />}
+                      Convertir a orden de trabajo
+                    </button>
+                  )}
+                </div>
               </div>
             )}
 
@@ -1756,8 +1820,8 @@ export default function OTDetail({
                   Requisitos para cerrar
                 </p>
                 <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                  {/* Materiales — hidden for Electrilam */}
-                  {(canManage || requiereMateriales) && wsId !== "f1b64714-6de2-4d49-b6e4-5959553e94d7" && (
+                  {/* Materiales — hidden for Electrilam and when modo_registro is hoja-only */}
+                  {(canManage || requiereMateriales) && wsId !== "f1b64714-6de2-4d49-b6e4-5959553e94d7" && modoRegistro !== "hoja" && (
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 8 }}>
                       <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
                         <span style={{ fontSize: 13, fontWeight: 600, color: "#0F172A" }}>Requiere materiales</span>
@@ -1774,7 +1838,7 @@ export default function OTDetail({
                     </div>
                   )}
                   {/* Hoja de cálculo */}
-                  {(canManage || requiereHoja) && (
+                  {(canManage || requiereHoja) && modoRegistro !== "materiales" && (
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 8 }}>
                       <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
                         <span style={{ fontSize: 13, fontWeight: 600, color: "#0F172A" }}>Requiere hoja de cálculo</span>

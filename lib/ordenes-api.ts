@@ -78,7 +78,7 @@ function calcProximaEjecucion(recurrencia: Recurrencia): string | null {
 // ── Select fragments ──────────────────────────────────────────────────────────
 
 export const ORDEN_SELECT = `
-  id, titulo, descripcion, estado, prioridad, tipo, tipo_trabajo,
+  id, titulo, descripcion, estado, prioridad, tipo, tipo_trabajo, clasificacion,
   fecha_inicio, fecha_termino, created_at, updated_at,
   creado_por, asignados_ids, workspace_id,
   n_serie, solicitante, hito, presupuesto,
@@ -96,7 +96,7 @@ export const ORDEN_SELECT = `
 `;
 
 export const LIST_SELECT = `
-  id, titulo, descripcion, estado, prioridad, tipo, tipo_trabajo,
+  id, titulo, descripcion, estado, prioridad, tipo, tipo_trabajo, clasificacion,
   fecha_termino, recurrencia, created_at,
   n_serie, solicitante, hito,
   categoria_id, ubicacion_id, activo_id, creado_por, asignados_ids,

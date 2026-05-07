@@ -42,7 +42,7 @@ function initials(n: string) {
 const EMPTY: FiltrosState = {
   estados: [], prioridades: [], tipos: [],
   asignadoIds: [], ubicacionIds: [], sociedadIds: [],
-  fechaVencimiento: null, sinAsignar: false,
+  fechaVencimiento: null, sinAsignar: false, soloAsignados: false,
 };
 
 // ── Dropdown wrapper ──────────────────────────────────────────────────────────

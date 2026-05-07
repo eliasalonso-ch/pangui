@@ -17,6 +17,7 @@ import {
   BarChart2,
   ClipboardCheck,
   Search,
+  PackageSearch,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
@@ -175,6 +176,8 @@ export default function AppSidebar() {
   const [onboardingDone, setOnboardingDone] = useState(true);
   const [userRol, setUserRol] = useState<string | null>(null);
   const [userData, setUserData] = useState<UserData | null>(null);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [modoRegistro, setModoRegistro] = useState<"ambos" | "materiales" | "hoja">("ambos");
 
   const { puedeVer, userRol: permisosRol } = usePermisos();
   const effectiveRol = userRol ?? permisosRol;
@@ -195,6 +198,38 @@ export default function AppSidebar() {
       if (data?.rol) setUserRol(data.rol);
       setOnboardingDone(data?.onboarding_done ?? false);
       if (data?.nombre && data?.rol) setUserData({ nombre: data.nombre, rol: data.rol });
+
+      if (data?.workspace_id) {
+        const { data: wsData } = await sb
+          .from("workspaces")
+          .select("modo_registro")
+          .eq("id", data.workspace_id)
+          .maybeSingle();
+        if (wsData?.modo_registro) setModoRegistro(wsData.modo_registro as "ambos" | "materiales" | "hoja");
+      }
+
+      const { count } = await sb
+        .from("notifications")
+        .select("id", { count: "exact", head: true })
+        .eq("usuario_id", user.id)
+        .eq("leida", false);
+      setUnreadCount(count ?? 0);
+
+      // Realtime: update badge when a new notification arrives or is read
+      const channel = sb.channel(`sidebar-notif:${user.id}`)
+        .on("postgres_changes", { event: "*", schema: "public", table: "notifications", filter: `usuario_id=eq.${user.id}` },
+          async () => {
+            const { count: fresh } = await sb
+              .from("notifications")
+              .select("id", { count: "exact", head: true })
+              .eq("usuario_id", user.id)
+              .eq("leida", false);
+            setUnreadCount(fresh ?? 0);
+          }
+        )
+        .subscribe();
+
+      return () => { sb.removeChannel(channel); };
     }
     load();
   }, []);
@@ -247,10 +282,17 @@ export default function AppSidebar() {
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={isActive("/analitica")}>
+                <SidebarMenuButton asChild isActive={isActive("/analitica") && !isActive("/analitica-materiales")}>
                   <Link href="/analitica"><BarChart2 size={16} /><span>Analítica</span></Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
+              {modoRegistro !== "materiales" && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={isActive("/analitica-materiales")}>
+                    <Link href="/analitica-materiales"><PackageSearch size={16} /><span>Analítica de Materiales</span></Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )}
               {isAdmin && (
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild isActive={isActive("/procedimientos")}>
@@ -258,7 +300,7 @@ export default function AppSidebar() {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               )}
-              {puedeVer("inventario") && (
+              {puedeVer("inventario") && modoRegistro !== "hoja" && (
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild isActive={isActive("/partes")}>
                     <Link href="/partes"><Boxes size={16} /><span>Materiales</span></Link>
@@ -284,7 +326,24 @@ export default function AppSidebar() {
             <SidebarMenu>
               <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={isActive("/notificaciones")}>
-                  <Link href="/notificaciones"><Bell size={16} /><span>Notificaciones</span></Link>
+                  <Link href="/notificaciones">
+                    <span style={{ position: "relative", display: "inline-flex", flexShrink: 0 }}>
+                      <Bell size={16} />
+                      {unreadCount > 0 && (
+                        <span style={{
+                          position: "absolute",
+                          top: -4,
+                          right: -4,
+                          width: 8,
+                          height: 8,
+                          borderRadius: "50%",
+                          background: "#EF4444",
+                          border: "1.5px solid #fff",
+                        }} />
+                      )}
+                    </span>
+                    <span>Notificaciones</span>
+                  </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
               {isAdmin && (

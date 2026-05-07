@@ -40,6 +40,7 @@ interface OTDashboard {
   iniciado_at: string | null;
   pausado_at: string | null;
   tiempo_total_segundos: number | null;
+  clasificacion?: "levantamiento" | "ejecucion" | null;
   isBlocked?: boolean;
   blockedReason?: "materiales" | "cliente" | "acceso" | null;
 }
@@ -244,7 +245,7 @@ export default function InicioDashboard() {
 
       const [ordenesRes, actividadRes, partesRes, totalRes] = await Promise.all([
         sb.from("ordenes_trabajo")
-          .select(`id, titulo, descripcion, estado, prioridad, created_at, updated_at, fecha_termino, asignados_ids, numero, iniciado_at, pausado_at, tiempo_total_segundos, ubicaciones(edificio)`)
+          .select(`id, titulo, descripcion, estado, prioridad, created_at, updated_at, fecha_termino, asignados_ids, numero, iniciado_at, pausado_at, tiempo_total_segundos, clasificacion, ubicaciones(edificio)`)
           .eq("workspace_id", workspaceId)
           .neq("estado", "cancelado")
           .order("created_at", { ascending: false })
@@ -294,7 +295,10 @@ export default function InicioDashboard() {
   const { vencidas, paraHoy, sinAsignar, bloqueadas } = useMemo(() => groupImmediateActions(allOTs), [allOTs]);
   const insights   = useMemo(() => generateInsights(allOTs, partes), [allOTs, partes]);
   const bajoStock  = useMemo(() => partes.filter(p => p.stock_actual < p.stock_minimo), [partes]);
-  const completadas = useMemo(() => allOTs.filter(o => o.estado === "completado"), [allOTs]);
+  const completadas    = useMemo(() => allOTs.filter(o => o.estado === "completado"), [allOTs]);
+  const enCurso        = useMemo(() => allOTs.filter(o => o.estado === "en_curso"), [allOTs]);
+  const asignados      = useMemo(() => openOTs.filter(o => o.asignados_ids && o.asignados_ids.length > 0), [openOTs]);
+  const levantamientos = useMemo(() => allOTs.filter(o => o.clasificacion === "levantamiento"), [allOTs]);
   const avgResHours   = useMemo(() => avgResolutionTime(completadas as any), [completadas]);
   const avgResDays    = avgResHours > 0 ? (avgResHours / 24).toFixed(1) : "—";
 
@@ -335,13 +339,13 @@ export default function InicioDashboard() {
       </div>
 
       {/* ── KPI strip ── */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 28 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 12 }}>
         <KpiCard
-          label="Sin asignar"
-          value={String(sinAsignar.length)}
-          sub="órdenes sin técnico"
-          trend={sinAsignar.length > 10 ? "bad" : sinAsignar.length > 5 ? "warn" : "good"}
-          onClick={() => router.push("/ordenes?filtro=sin_asignar")}
+          label="En curso"
+          value={String(enCurso.length)}
+          sub="en ejecución ahora"
+          trend="neutral"
+          onClick={() => router.push("/ordenes?filtro=en_curso")}
         />
         <KpiCard
           label="En espera"
@@ -363,6 +367,42 @@ export default function InicioDashboard() {
           trend="neutral"
           onClick={() => router.push("/ordenes")}
         />
+      </div>
+
+      {/* ── Status grid 2×2 ── */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 28 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+          <KpiCard
+            label="Pendientes"
+            value={String(openOTs.length)}
+            sub="órdenes activas"
+            trend={openOTs.length > 20 ? "warn" : "neutral"}
+            onClick={() => router.push("/ordenes?filtro=abiertas")}
+          />
+          <KpiCard
+            label="Completadas"
+            value={String(completadas.length)}
+            sub="cerradas en total"
+            trend="neutral"
+            onClick={() => router.push("/ordenes?filtro=completadas_hoy")}
+          />
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+          <KpiCard
+            label="Sin asignar"
+            value={String(sinAsignar.length)}
+            sub="sin técnico asignado"
+            trend={sinAsignar.length > 5 ? "warn" : "neutral"}
+            onClick={() => router.push("/ordenes?filtro=sin_asignar")}
+          />
+          <KpiCard
+            label="Levantamientos"
+            value={String(levantamientos.length)}
+            sub="en revisión"
+            trend="neutral"
+            onClick={() => router.push("/ordenes?filtro=levantamientos")}
+          />
+        </div>
       </div>
 
       {/* ── Main 2-col grid ── */}

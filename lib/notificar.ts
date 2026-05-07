@@ -8,6 +8,7 @@ interface NotificarPayload {
   mensaje: string;
   url?: string;
   urgente?: boolean;
+  tipo?: string;
   // Target: exactly one of the following
   usuario_id?: string;
   usuario_ids?: string[];
@@ -109,4 +110,49 @@ export function notifyOTCompletada(opts: {
   changedByUserId: string;
 }) {
   notifyOTEstadoCambiado({ ...opts, asignadosIds: [], estado: "completado" });
+}
+
+export function notifySolicitudMateriales(opts: {
+  workspaceId: string;
+  ordenId: string;
+  titulo: string;
+}) {
+  notificar({
+    tipo: "solicitud_materiales",
+    titulo: "Solicitud de materiales",
+    mensaje: opts.titulo,
+    url: `/ordenes/${opts.ordenId}`,
+    workspace_id_jefe: opts.workspaceId,
+  });
+}
+
+export function notifyClasificacionCambiada(opts: {
+  workspaceId: string;
+  ordenId: string;
+  titulo: string;
+  clasificacion: "levantamiento" | "ejecucion";
+}) {
+  const label = opts.clasificacion === "levantamiento" ? "levantamiento" : "ejecución";
+  notificar({
+    tipo: "tipo_trabajo_actualizado",
+    titulo: `OT marcada como ${label}`,
+    mensaje: opts.titulo,
+    url: `/ordenes/${opts.ordenId}`,
+    workspace_id_jefe: opts.workspaceId,
+  });
+}
+
+export function notifyClasificacionSolicitada(opts: {
+  workspaceId: string;
+  ordenId: string;
+  titulo: string;
+  solicitanteNombre: string;
+}) {
+  notificar({
+    tipo: "tipo_trabajo_actualizado",
+    titulo: "Solicitud: cambiar a orden de trabajo",
+    mensaje: `${opts.solicitanteNombre} solicitó cambiar "${opts.titulo}" de levantamiento a ejecución`,
+    url: `/ordenes/${opts.ordenId}`,
+    workspace_id_jefe: opts.workspaceId,
+  });
 }

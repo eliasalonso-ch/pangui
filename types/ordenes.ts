@@ -17,6 +17,8 @@ export type Prioridad = "ninguna" | "baja" | "media" | "alta" | "urgente";
 
 export type TipoTrabajo = "reactiva" | "preventiva" | "inspeccion" | "mejora";
 
+export type ClasificacionOT = "levantamiento" | "ejecucion";
+
 export type Recurrencia = "ninguna" | "diaria" | "semanal" | "quincenal" | "mensual";
 
 export type TipoPaso = "instruccion" | "verificacion" | "advertencia";
@@ -149,6 +151,7 @@ export interface OrdenTrabajo {
   prioridad: Prioridad;
   tipo: string;
   tipo_trabajo: TipoTrabajo | null;
+  clasificacion: ClasificacionOT | null;
   recurrencia: Recurrencia;
   proxima_ejecucion: string | null;
   parent_id: string | null;
@@ -200,7 +203,7 @@ export interface OrdenTrabajo {
 export type OrdenListItem = Pick<
   OrdenTrabajo,
   | "id" | "titulo" | "descripcion" | "estado" | "prioridad"
-  | "tipo" | "tipo_trabajo" | "fecha_termino" | "recurrencia"
+  | "tipo" | "tipo_trabajo" | "clasificacion" | "fecha_termino" | "recurrencia"
   | "created_at" | "categoria_id" | "ubicacion_id" | "activo_id"
   | "creado_por" | "asignados_ids" | "numero" | "parent_id"
   | "n_serie" | "solicitante" | "hito"
@@ -248,6 +251,7 @@ export interface FiltrosState {
   sociedadIds: string[];
   fechaVencimiento: "hoy" | "manana" | "7dias" | "30dias" | "este_mes" | "vencidas" | null;
   sinAsignar: boolean;
+  soloAsignados: boolean;
 }
 
 export type SortOption =

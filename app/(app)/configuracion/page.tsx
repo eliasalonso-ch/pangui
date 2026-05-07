@@ -81,6 +81,9 @@ export default function ConfiguracionPage() {
   const [savingWs, setSavingWs]   = useState(false);
   const [wsSaved, setWsSaved]     = useState(false);
   const [loadingWs, setLoadingWs] = useState(false);
+  const [modoRegistro, setModoRegistro] = useState<"ambos" | "materiales" | "hoja">("ambos");
+  const [savingModo, setSavingModo]     = useState(false);
+  const [modoSaved, setModoSaved]       = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -113,11 +116,12 @@ export default function ConfiguracionPage() {
     if (tab !== "workspace" || !workspaceId) return;
     setLoadingWs(true);
     const sb = createClient();
-    sb.from("workspaces").select("nombre, sector, region").eq("id", workspaceId).maybeSingle()
+    sb.from("workspaces").select("nombre, sector, region, modo_registro").eq("id", workspaceId).maybeSingle()
       .then(({ data }) => {
         const d = { nombre: data?.nombre ?? "", sector: data?.sector ?? "", region: data?.region ?? "" };
         setWs(d);
         setWsDraft(d);
+        setModoRegistro((data?.modo_registro as "ambos" | "materiales" | "hoja") ?? "ambos");
         setLoadingWs(false);
       });
   }, [tab, workspaceId]);
@@ -187,6 +191,17 @@ export default function ConfiguracionPage() {
     setWsSaved(true);
     setEditingWs(false);
     setTimeout(() => setWsSaved(false), 2500);
+  }
+
+  async function saveModoRegistro(next: "ambos" | "materiales" | "hoja") {
+    if (!workspaceId) return;
+    setModoRegistro(next);
+    setSavingModo(true);
+    const sb = createClient();
+    await sb.from("workspaces").update({ modo_registro: next }).eq("id", workspaceId);
+    setSavingModo(false);
+    setModoSaved(true);
+    setTimeout(() => setModoSaved(false), 2000);
   }
 
   const planInfo = PLAN_COLOR[plan] ?? PLAN_COLOR.basic;
@@ -555,6 +570,52 @@ export default function ConfiguracionPage() {
                       <InfoRow icon={<Building2 size={14} />} label="Nombre" value={ws.nombre || "—"} />
                       <InfoRow icon={<Shield size={14} />} label="Sector" value={ws.sector || "—"} />
                       <InfoRow label="Región" value={ws.region || "—"} />
+                    </div>
+                  )}
+                </div>
+
+                {/* Modo de registro card */}
+                <div style={{ background: "#fff", border: "1px solid #E2E8F0", borderRadius: 12, padding: 20, boxShadow: "0 1px 3px rgba(15,23,42,0.06)" }}>
+                  <p style={{ fontSize: 12, fontWeight: 700, color: "#64748B", margin: "0 0 6px", textTransform: "uppercase", letterSpacing: "0.06em" }}>Modo de registro de materiales</p>
+                  <p style={{ fontSize: 12, color: "#94A3B8", margin: "0 0 16px" }}>Define qué módulos de registro están activos en las órdenes de trabajo.</p>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {([
+                      { value: "ambos",      label: "Ambos",              desc: "Materiales y hoja de cálculo" },
+                      { value: "materiales", label: "Solo materiales",    desc: "Desactiva la hoja de cálculo" },
+                      { value: "hoja",       label: "Solo hoja de cálculo", desc: "Desactiva el módulo de materiales" },
+                    ] as const).map(opt => (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => saveModoRegistro(opt.value)}
+                        disabled={savingModo}
+                        style={{
+                          display: "flex", alignItems: "center", gap: 12,
+                          padding: "12px 14px",
+                          border: `1.5px solid ${modoRegistro === opt.value ? "#2563EB" : "#E2E8F0"}`,
+                          borderRadius: 8, background: modoRegistro === opt.value ? "#EFF6FF" : "#fff",
+                          cursor: savingModo ? "default" : "pointer", fontFamily: "inherit",
+                          textAlign: "left", transition: "border-color 0.15s, background 0.15s",
+                        }}
+                      >
+                        <span style={{
+                          width: 16, height: 16, borderRadius: "50%", flexShrink: 0,
+                          border: `2px solid ${modoRegistro === opt.value ? "#2563EB" : "#CBD5E1"}`,
+                          background: modoRegistro === opt.value ? "#2563EB" : "#fff",
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                        }}>
+                          {modoRegistro === opt.value && <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#fff" }} />}
+                        </span>
+                        <div>
+                          <p style={{ fontSize: 13, fontWeight: 600, color: modoRegistro === opt.value ? "#1D4ED8" : "#111827", margin: 0 }}>{opt.label}</p>
+                          <p style={{ fontSize: 11, color: "#94A3B8", margin: 0 }}>{opt.desc}</p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                  {modoSaved && (
+                    <div style={{ marginTop: 10, padding: "8px 12px", background: "#ECFDF5", border: "1px solid #A7F3D0", borderRadius: 8, fontSize: 12, color: "#065F46", fontWeight: 600, display: "flex", alignItems: "center", gap: 6 }}>
+                      <Check size={13} /> Guardado
                     </div>
                   )}
                 </div>

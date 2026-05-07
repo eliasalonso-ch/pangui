@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase";
 import {
   Bell, Trash2, CheckCheck, AlertTriangle, Info,
   Wrench, CalendarClock, Package, Loader2,
+  PackageSearch, Search,
 } from "lucide-react";
 
 interface Notif {
@@ -23,6 +24,8 @@ const TIPO_ICON: Record<string, React.ElementType> = {
   ot: Wrench,
   preventivo: CalendarClock,
   inventario: Package,
+  solicitud_materiales: PackageSearch,
+  tipo_trabajo_actualizado: Search,
 };
 
 const TIPO_COLOR: Record<string, string> = {
@@ -30,6 +33,8 @@ const TIPO_COLOR: Record<string, string> = {
   ot: "#6366F1",
   preventivo: "#3B82F6",
   inventario: "#F59E0B",
+  solicitud_materiales: "#F97316",
+  tipo_trabajo_actualizado: "#1D4ED8",
 };
 
 function formatTime(iso: string) {

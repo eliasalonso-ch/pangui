@@ -36,6 +36,7 @@ const EMPTY_FILTROS: FiltrosState = {
   asignadoIds: [], ubicacionIds: [], sociedadIds: [],
   fechaVencimiento: null,
   sinAsignar: false,
+  soloAsignados: false,
 };
 
 // ── Props ─────────────────────────────────────────────────────────────────────
@@ -69,10 +70,12 @@ export default function OrdenesBandeja({
   const [detail, setDetail]     = useState<OrdenTrabajo | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
 
-  const [tab, setTab]           = useState<"activas" | "cerradas" | "sin_asignar">(() => {
+  const [tab, setTab]           = useState<"activas" | "cerradas" | "sin_asignar" | "levantamientos">(() => {
     const f = searchParams?.get("filtro");
-    if (f === "completadas_hoy") return "cerradas";
-    if (f === "sin_asignar")     return "sin_asignar";
+    if (f === "completadas_hoy")  return "cerradas";
+    if (f === "sin_asignar")      return "sin_asignar";
+    if (f === "levantamientos")   return "levantamientos";
+    // abiertas, en_curso, bloqueadas, urgentes, etc. all show activas tab
     return "activas";
   });
   const [search, setSearch]     = useState("");
@@ -87,6 +90,8 @@ export default function OrdenesBandeja({
     if (f === "abiertas")         return { ...EMPTY_FILTROS, estados: ["pendiente", "en_espera"] };
     if (f === "bloqueadas")       return { ...EMPTY_FILTROS, estados: ["en_espera"] };
     if (f === "sin_asignar")      return { ...EMPTY_FILTROS, sinAsignar: true };
+    if (f === "asignado")         return { ...EMPTY_FILTROS, soloAsignados: true };
+    if (f === "levantamientos")   return EMPTY_FILTROS;
     if (f === "vencidas")         return { ...EMPTY_FILTROS, fechaVencimiento: "vencidas" as const };
     if (f === "vence_hoy")        return { ...EMPTY_FILTROS, fechaVencimiento: "hoy" as const };
     if (f === "completadas_hoy")  return { ...EMPTY_FILTROS, estados: ["completado"] };
@@ -212,9 +217,10 @@ export default function OrdenesBandeja({
   // Apply filters + search + sort
   const filtered = useMemo(() => {
     let list = ordenes.filter(o =>
-      tab === "sin_asignar"
-        ? ACTIVE_ESTADOS.has(o.estado) && (!o.asignados_ids || o.asignados_ids.length === 0)
-        : tab === "activas" ? ACTIVE_ESTADOS.has(o.estado) : CLOSED_ESTADOS.has(o.estado)
+      tab === "sin_asignar"    ? ACTIVE_ESTADOS.has(o.estado) && (!o.asignados_ids || o.asignados_ids.length === 0)
+      : tab === "levantamientos" ? o.clasificacion === "levantamiento"
+      : tab === "activas"      ? ACTIVE_ESTADOS.has(o.estado)
+      : CLOSED_ESTADOS.has(o.estado)
     );
 
     // Filtros
@@ -259,6 +265,9 @@ export default function OrdenesBandeja({
     }
     if (filtros.sinAsignar) {
       list = list.filter(o => !o.asignados_ids || o.asignados_ids.length === 0);
+    }
+    if (filtros.soloAsignados) {
+      list = list.filter(o => o.asignados_ids && o.asignados_ids.length > 0);
     }
 
     // Search — checks title, N° OT, solicitante and description body
@@ -339,6 +348,9 @@ export default function OrdenesBandeja({
       if (filtros.sinAsignar) {
         list = list.filter(o => !o.asignados_ids || o.asignados_ids.length === 0);
       }
+      if (filtros.soloAsignados) {
+        list = list.filter(o => o.asignados_ids && o.asignados_ids.length > 0);
+      }
       if (search.trim()) {
         const q = search.trim().replace(/\s+/g, " ").toLowerCase();
         list = list.filter(o => {
@@ -354,9 +366,10 @@ export default function OrdenesBandeja({
       return list;
     };
     return {
-      activas:     applyFilters(ordenes.filter(o => ACTIVE_ESTADOS.has(o.estado))).length,
-      cerradas:    applyFilters(ordenes.filter(o => CLOSED_ESTADOS.has(o.estado))).length,
-      sin_asignar: applyFilters(ordenes.filter(o => ACTIVE_ESTADOS.has(o.estado) && (!o.asignados_ids || o.asignados_ids.length === 0))).length,
+      activas:        applyFilters(ordenes.filter(o => ACTIVE_ESTADOS.has(o.estado))).length,
+      cerradas:       applyFilters(ordenes.filter(o => CLOSED_ESTADOS.has(o.estado))).length,
+      sin_asignar:    applyFilters(ordenes.filter(o => ACTIVE_ESTADOS.has(o.estado) && (!o.asignados_ids || o.asignados_ids.length === 0))).length,
+      levantamientos: applyFilters(ordenes.filter(o => o.clasificacion === "levantamiento")).length,
     };
   }, [ordenes, filtros, search, ubicaciones]);
   const currentSortLabel = SORT_OPTIONS.find(o => o.value === sort)?.label ?? "";
@@ -661,7 +674,7 @@ export default function OrdenesBandeja({
       }
 
       const dateStr  = new Date().toISOString().slice(0, 10);
-      const tabLabel = tab === "activas" ? "activas" : tab === "cerradas" ? "completadas" : "sin_asignar";
+      const tabLabel = tab === "activas" ? "activas" : tab === "cerradas" ? "completadas" : tab === "levantamientos" ? "levantamientos" : "sin_asignar";
       XLSX.writeFile(wb, `pangui_ordenes_${tabLabel}_${dateStr}.xlsx`);
     } finally {
       setExporting(false);
@@ -849,41 +862,48 @@ export default function OrdenesBandeja({
           position:"relative",
         }}>
 
-          {/* Tabs */}
-          <div style={{ display:"flex", borderBottom:"1px solid #E2E8F0", padding:"0 20px", flexShrink:0 }}>
+          {/* Tabs — 2×2 grid */}
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", borderBottom:"1px solid #E2E8F0", flexShrink:0 }}>
             {[
-              { key:"activas",     label:"Pendientes",   count:filteredCounts.activas },
-              { key:"cerradas",    label:"Completas",    count:filteredCounts.cerradas },
-              { key:"sin_asignar", label:"Sin asignar",  count:filteredCounts.sin_asignar },
-            ].map(t => (
-              <button
-                key={t.key}
-                type="button"
-                onClick={() => setTab(t.key as "activas" | "cerradas" | "sin_asignar")}
-                style={{
-                  display:"flex", alignItems:"center", gap:6,
-                  padding:"12px 4px", marginRight:16,
-                  background:"none", border:"none",
-                  borderBottom: tab === t.key ? "2px solid #2563EB" : "2px solid transparent",
-                  color: tab === t.key ? "#1D4ED8" : "#475569",
-                  fontSize:13, fontWeight: tab === t.key ? 600 : 500,
-                  cursor:"pointer", fontFamily:"inherit",
-                  marginBottom:-1, transition:"color 0.1s",
-                }}
-              >
-                {t.label}
-                {t.count > 0 && (
+              { key:"activas",        label:"Pendientes",     count:filteredCounts.activas },
+              { key:"cerradas",       label:"Completas",      count:filteredCounts.cerradas },
+              { key:"sin_asignar",    label:"Sin asignar",    count:filteredCounts.sin_asignar },
+              { key:"levantamientos", label:"Levantamientos", count:filteredCounts.levantamientos },
+            ].map((t, i) => {
+              const isActive = tab === t.key;
+              const isLeft = i % 2 === 0;
+              const isTop = i < 2;
+              return (
+                <button
+                  key={t.key}
+                  type="button"
+                  onClick={() => setTab(t.key as "activas" | "cerradas" | "sin_asignar" | "levantamientos")}
+                  style={{
+                    display:"flex", alignItems:"center", justifyContent:"space-between",
+                    padding:"10px 14px",
+                    background: isActive ? "#F8FAFC" : "#fff",
+                    border:"none",
+                    borderBottom: isTop ? "1px solid #E2E8F0" : "none",
+                    borderRight: isLeft ? "1px solid #E2E8F0" : "none",
+                    cursor:"pointer", fontFamily:"inherit",
+                    transition:"background 0.1s",
+                  }}
+                  onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = "#F8FAFC"; }}
+                  onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = "#fff"; }}
+                >
+                  <span style={{ fontSize:12, fontWeight: isActive ? 600 : 500, color: isActive ? "#1D4ED8" : "#475569" }}>
+                    {t.label}
+                  </span>
                   <span style={{
-                    fontSize:11, fontWeight:600, padding:"1px 6px",
-                    background: tab === t.key ? (t.key === "sin_asignar" ? "#FFF7ED" : "#EFF6FF") : "#F1F5F9",
-                    color: tab === t.key ? (t.key === "sin_asignar" ? "#C2410C" : "#1D4ED8") : "#64748B",
-                    borderRadius:4,
+                    fontSize:11, fontWeight:700, padding:"1px 7px", borderRadius:4,
+                    background: isActive ? "#EFF6FF" : "#F1F5F9",
+                    color: isActive ? "#1D4ED8" : "#94A3B8",
                   }}>
                     {t.count}
                   </span>
-                )}
-              </button>
-            ))}
+                </button>
+              );
+            })}
           </div>
 
           {/* List */}
@@ -898,7 +918,7 @@ export default function OrdenesBandeja({
                   <path d="M17 30a1 1 0 0 1-.707-.293l-4-4a1 1 0 1 1 1.414-1.414L17 27.586l7.293-7.293a1 1 0 1 1 1.414 1.414l-8 8A1 1 0 0 1 17 30z" fill="#72C472"/>
                 </svg>
                 <p style={{ fontSize:13, color:"#475569", fontWeight:500 }}>
-                  {search ? "Sin resultados para tu búsqueda" : tab === "activas" ? "No tienes ninguna Orden de Trabajo" : tab === "cerradas" ? "No hay órdenes cerradas" : "No hay órdenes sin asignar"}
+                  {search ? "Sin resultados para tu búsqueda" : tab === "activas" ? "No tienes ninguna Orden de Trabajo" : tab === "cerradas" ? "No hay órdenes cerradas" : tab === "levantamientos" ? "No hay levantamientos" : "No hay órdenes sin asignar"}
                 </p>
                 {!search && tab === "activas" && (
                   <a

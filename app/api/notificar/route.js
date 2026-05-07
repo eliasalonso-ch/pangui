@@ -14,7 +14,7 @@ const adminClient = createClient(
 );
 
 export async function POST(req) {
-  const { usuario_id, workspace_id_todos_tecnicos, workspace_id_jefe, titulo, mensaje, url, urgente } =
+  const { usuario_id, usuario_ids, workspace_id_todos_tecnicos, workspace_id_jefe, titulo, mensaje, url, urgente, tipo: tipoPayload } =
     await req.json();
 
   // Collect target user IDs
@@ -22,6 +22,8 @@ export async function POST(req) {
 
   if (usuario_id) {
     userIds = [usuario_id];
+  } else if (usuario_ids?.length) {
+    userIds = usuario_ids;
   } else if (workspace_id_todos_tecnicos) {
     const { data } = await adminClient
       .from("usuarios")
@@ -50,7 +52,7 @@ export async function POST(req) {
       titulo,
       mensaje,
       url: url || "/",
-      tipo: urgente ? "emergencia" : "orden",
+      tipo: tipoPayload ?? (urgente ? "emergencia" : "ot"),
     }))
   );
 
