@@ -15,7 +15,7 @@ export type Estado =
 
 export type Prioridad = "ninguna" | "baja" | "media" | "alta" | "urgente";
 
-export type TipoTrabajo = "reactiva" | "preventiva" | "inspeccion" | "mejora";
+export type TipoTrabajo = "reactiva" | "preventiva" | "inspeccion" | "mejora" | "levantamiento";
 
 export type ClasificacionOT = "levantamiento" | "ejecucion";
 

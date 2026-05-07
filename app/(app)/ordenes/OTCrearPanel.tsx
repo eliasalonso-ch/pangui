@@ -265,10 +265,11 @@ const PRIORIDADES: { value: Prioridad; label: string; activeColor: string }[] = 
 ];
 
 const TIPOS: { value: TipoTrabajo; label: string }[] = [
-  { value: "reactiva",   label: "Reactiva" },
-  { value: "preventiva", label: "Preventiva" },
-  { value: "inspeccion", label: "Inspección" },
-  { value: "mejora",     label: "Mejora" },
+  { value: "reactiva",      label: "Reactiva" },
+  { value: "preventiva",    label: "Preventiva" },
+  { value: "inspeccion",    label: "Inspección" },
+  { value: "mejora",        label: "Mejora" },
+  { value: "levantamiento", label: "Levantamiento" },
 ];
 
 const RECURRENCIAS: { value: Recurrencia; label: string }[] = [
