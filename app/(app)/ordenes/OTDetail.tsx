@@ -456,6 +456,33 @@ export default function OTDetail({
   const [exportConfigOpen, setExportConfigOpen] = useState(false);
   const [exportFields, setExportFields] = useState<Record<ExportField, boolean>>(ALL_FIELDS_ON);
 
+  // ── PDF export field config ────────────────────────────────────────────────
+  type PdfField =
+    | "solicitante" | "hito" | "fechas"
+    | "descripcion" | "asignados" | "imagenes" | "ubicacion"
+    | "materiales" | "tiempo" | "procedimientos" | "historial" | "firma";
+
+  const PDF_FIELDS: { key: PdfField; label: string; group: string }[] = [
+    { key: "solicitante",   label: "Solicitante",       group: "Información general" },
+    { key: "hito",          label: "Hito",              group: "Información general" },
+    { key: "fechas",        label: "Fechas (inicio/límite)", group: "Información general" },
+    { key: "descripcion",   label: "Descripción",       group: "Contenido" },
+    { key: "asignados",     label: "Asignados",         group: "Contenido" },
+    { key: "imagenes",      label: "Imágenes",          group: "Contenido" },
+    { key: "ubicacion",     label: "Ubicación",         group: "Contenido" },
+    { key: "materiales",    label: "Materiales",        group: "Seguimiento" },
+    { key: "tiempo",        label: "Tiempo trabajado",  group: "Seguimiento" },
+    { key: "procedimientos",label: "Procedimientos",    group: "Seguimiento" },
+    { key: "historial",     label: "Historial",         group: "Seguimiento" },
+    { key: "firma",         label: "Bloque de firma",   group: "Seguimiento" },
+  ];
+
+  const ALL_PDF_ON  = Object.fromEntries(PDF_FIELDS.map(f => [f.key, true]))  as Record<PdfField, boolean>;
+  const ALL_PDF_OFF = Object.fromEntries(PDF_FIELDS.map(f => [f.key, false])) as Record<PdfField, boolean>;
+
+  const [pdfConfigOpen, setPdfConfigOpen] = useState(false);
+  const [pdfFields, setPdfFields] = useState<Record<PdfField, boolean>>(ALL_PDF_ON);
+
   // ── Procedimientos state ─────────────────────────────────────────────────────
   const [otProcs, setOtProcs] = useState<OTProcedimiento[]>([]);
   const [loadingProcs, setLoadingProcs] = useState(false);
@@ -1028,9 +1055,14 @@ export default function OTDetail({
   const meta = parseDescMeta(orden.descripcion ?? null);
   const nOT  = meta.nOT ?? `OT-${orden.id.slice(-8).toUpperCase()}`;
 
-  async function handleExportPDF() {
-    setExporting("pdf");
+  function handleExportPDF() {
     setExportMenuOpen(false);
+    setPdfConfigOpen(true);
+  }
+
+  async function doExportPDF() {
+    setExporting("pdf");
+    setPdfConfigOpen(false);
     try {
       const [act, wsNombre, freshProcs] = await Promise.all([
         fetchActividadForExport(),
@@ -1047,6 +1079,7 @@ export default function OTDetail({
           nOT: meta.nOT,
           partes: [], subOrdenes: [],
           procedimientos: freshProcs,
+          fields: pdfFields,
         }),
       });
       if (!res.ok) throw new Error(`PDF service error ${res.status}`);
@@ -1486,7 +1519,7 @@ export default function OTDetail({
                   boxShadow: "0 8px 24px rgba(15,23,42,0.12)", width: 180, overflow: "hidden",
                 }}>
                   {[
-                    { key: "pdf",  icon: <FileDown size={13} />,  label: "Exportar PDF",        action: handleExportPDF },
+                    { key: "pdf",  icon: <FileDown size={13} />,  label: "Exportar PDF…",       action: handleExportPDF },
                     { key: "csv",  icon: <Sheet size={13} />,     label: "Exportar Excel…",     action: () => { setExportMenuOpen(false); setExportConfigOpen(true); } },
                     { key: "txt",  icon: <FileText size={13} />,  label: "Exportar TXT",        action: handleExportTXT },
                   ].map(item => (
@@ -2540,6 +2573,106 @@ export default function OTDetail({
                 }}
               >
                 {exporting === "csv" ? <><Loader2 size={13} className="animate-spin" />Exportando…</> : <><Sheet size={13} />Exportar Excel</>}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── PDF export config modal ── */}
+      {pdfConfigOpen && (
+        <div
+          style={{ position: "fixed", inset: 0, zIndex: 400, background: "rgba(15,23,42,0.45)", display: "flex", alignItems: "center", justifyContent: "center" }}
+          onClick={() => setPdfConfigOpen(false)}
+        >
+          <div
+            style={{ background: "#fff", borderRadius: 14, width: 420, boxShadow: "0 20px 60px rgba(15,23,42,0.20)", overflow: "hidden" }}
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div style={{ padding: "18px 20px 14px", borderBottom: "1px solid #E2E8F0", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div>
+                <div style={{ fontSize: 15, fontWeight: 700, color: "#0F172A" }}>Exportar PDF</div>
+                <div style={{ fontSize: 12, color: "#94A3B8", marginTop: 2 }}>Selecciona las secciones a incluir</div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPdfConfigOpen(false)}
+                style={{ width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", borderRadius: 6, cursor: "pointer", color: "#94A3B8" }}
+                onMouseEnter={e => { e.currentTarget.style.background = "#F1F5F9"; }}
+                onMouseLeave={e => { e.currentTarget.style.background = "none"; }}
+              >
+                <X size={15} />
+              </button>
+            </div>
+
+            {/* Fields grouped */}
+            <div style={{ padding: "8px 20px 4px", maxHeight: 380, overflowY: "auto" }}>
+              {Array.from(new Set(PDF_FIELDS.map(f => f.group))).map(group => (
+                <div key={group} style={{ marginBottom: 12 }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 4, paddingLeft: 10 }}>
+                    {group}
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1 }}>
+                    {PDF_FIELDS.filter(f => f.group === group).map(field => (
+                      <label
+                        key={field.key}
+                        style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 10px", borderRadius: 7, cursor: "pointer" }}
+                        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#F8FAFC"; }}
+                        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={pdfFields[field.key]}
+                          onChange={e => setPdfFields(prev => ({ ...prev, [field.key]: e.target.checked }))}
+                          style={{ width: 14, height: 14, accentColor: "#2563EB", cursor: "pointer", flexShrink: 0 }}
+                        />
+                        <span style={{ fontSize: 12.5, color: pdfFields[field.key] ? "#0F172A" : "#94A3B8" }}>{field.label}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Select all / none */}
+            <div style={{ padding: "0 20px 10px", display: "flex", gap: 8, borderTop: "1px solid #F1F5F9", paddingTop: 8 }}>
+              <button type="button" onClick={() => setPdfFields(ALL_PDF_ON)}
+                style={{ fontSize: 12, color: "#2563EB", background: "none", border: "none", cursor: "pointer", padding: "2px 0", fontFamily: "inherit" }}>
+                Seleccionar todo
+              </button>
+              <span style={{ color: "#E2E8F0" }}>·</span>
+              <button type="button" onClick={() => setPdfFields(ALL_PDF_OFF)}
+                style={{ fontSize: 12, color: "#94A3B8", background: "none", border: "none", cursor: "pointer", padding: "2px 0", fontFamily: "inherit" }}>
+                Limpiar
+              </button>
+              <span style={{ marginLeft: "auto", fontSize: 12, color: "#94A3B8" }}>
+                {Object.values(pdfFields).filter(Boolean).length} seleccionados
+              </span>
+            </div>
+
+            {/* Footer */}
+            <div style={{ padding: "10px 20px 16px", borderTop: "1px solid #E2E8F0", display: "flex", justifyContent: "flex-end", gap: 8 }}>
+              <button
+                type="button"
+                onClick={() => setPdfConfigOpen(false)}
+                style={{ height: 36, padding: "0 16px", borderRadius: 8, border: "1px solid #E2E8F0", background: "#fff", fontSize: 13, color: "#475569", cursor: "pointer", fontFamily: "inherit" }}
+                onMouseEnter={e => { e.currentTarget.style.background = "#F8FAFC"; }}
+                onMouseLeave={e => { e.currentTarget.style.background = "#fff"; }}
+              >Cancelar</button>
+              <button
+                type="button"
+                onClick={doExportPDF}
+                disabled={!Object.values(pdfFields).some(Boolean)}
+                style={{
+                  height: 36, padding: "0 18px", borderRadius: 8, border: "none",
+                  background: Object.values(pdfFields).some(Boolean) ? "#2563EB" : "#CBD5E1",
+                  fontSize: 13, fontWeight: 600, color: "#fff",
+                  cursor: Object.values(pdfFields).some(Boolean) ? "pointer" : "default",
+                  fontFamily: "inherit", display: "flex", alignItems: "center", gap: 6,
+                }}
+              >
+                {exporting === "pdf" ? <><Loader2 size={13} className="animate-spin" />Generando…</> : <><FileDown size={13} />Exportar PDF</>}
               </button>
             </div>
           </div>
