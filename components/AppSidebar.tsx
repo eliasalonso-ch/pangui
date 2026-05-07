@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -47,8 +47,18 @@ interface UserData {
 
 function SidebarUserFooter({ user }: { user: UserData | null }) {
   const [open, setOpen] = useState(false);
+  const [popupPos, setPopupPos] = useState({ bottom: 56, left: 64 });
+  const avatarRef = useRef<HTMLButtonElement>(null);
   const { collapsed } = useSidebar();
   const router = useRouter();
+
+  function handleOpen() {
+    if (avatarRef.current) {
+      const rect = avatarRef.current.getBoundingClientRect();
+      setPopupPos({ bottom: window.innerHeight - rect.top + 6, left: rect.right + 8 });
+    }
+    setOpen(true);
+  }
 
   async function handleLogout() {
     const sb = createClient();
@@ -70,12 +80,12 @@ function SidebarUserFooter({ user }: { user: UserData | null }) {
       <div style={{ position: "relative", display: "flex", justifyContent: "center" }}>
         {open && (
           <>
-            <div style={{ position: "fixed", inset: 0, zIndex: 40 }} onClick={() => setOpen(false)} />
+            <div style={{ position: "fixed", inset: 0, zIndex: 9998 }} onMouseDown={() => setOpen(false)} />
             <div style={{
               position: "fixed",
-              bottom: 56,
-              left: 64,
-              zIndex: 50,
+              bottom: popupPos.bottom,
+              left: popupPos.left,
+              zIndex: 9999,
               width: 180,
               background: "#fff",
               border: "1px solid #E2E8F0",
@@ -104,7 +114,8 @@ function SidebarUserFooter({ user }: { user: UserData | null }) {
           </>
         )}
         <button
-          onClick={() => setOpen(v => !v)}
+          ref={avatarRef}
+          onClick={handleOpen}
           title={user.nombre}
           style={{ width: 36, height: 36, borderRadius: "50%", background: "linear-gradient(135deg, #1E3A8A, #2563EB)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, border: "none", cursor: "pointer" }}
         >
