@@ -7,7 +7,7 @@ import type { FiltrosState, Estado, Prioridad, TipoTrabajo, Usuario, Ubicacion, 
 // ── Config ────────────────────────────────────────────────────────────────────
 
 const ESTADOS: { value: Estado; label: string; color: string }[] = [
-  { value: "pendiente",   label: "Abierta",     color: "#3B82F6" },
+  { value: "pendiente",   label: "Sin asignar", color: "#3B82F6" },
   { value: "en_espera",   label: "En espera",   color: "#F59E0B" },
   { value: "en_curso",    label: "En curso",    color: "#8B5CF6" },
   { value: "completado",  label: "Completada",  color: "#10B981" },

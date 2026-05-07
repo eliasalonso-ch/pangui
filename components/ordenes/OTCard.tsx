@@ -48,7 +48,7 @@ const ESTADO_CONFIG: Record<
   Estado,
   { label: string; bg: string; color: string }
 > = {
-  pendiente:   { label: "Abierta",      bg: "#EEF1FB", color: "#273D88" },
+  pendiente:   { label: "Sin asignar",  bg: "#EEF1FB", color: "#273D88" },
   en_espera:   { label: "En espera",    bg: "#fffbeb", color: "#b45309" },
   en_curso:    { label: "En curso",     bg: "#f0f3ff", color: "#3D52A0" },
   completado:  { label: "Completada",   bg: "#ECFDF5", color: "#059669" },
@@ -97,7 +97,10 @@ export function OTCard({
 }: OTCardProps) {
   const isPending = Boolean(orden._pending);
 
-  const estadoCfg = ESTADO_CONFIG[orden.estado];
+  const hasAssignees = (orden.asignados_ids ?? []).length > 0;
+  const estadoCfg = orden.estado === "pendiente" && hasAssignees
+    ? { label: "Asignada", bg: "#F0FDF4", color: "#15803D" }
+    : ESTADO_CONFIG[orden.estado];
   const titulo =
     orden.titulo ||
     (orden.descripcion ? orden.descripcion.slice(0, 80) : null) ||

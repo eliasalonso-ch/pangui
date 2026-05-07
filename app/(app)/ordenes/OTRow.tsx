@@ -7,11 +7,13 @@ import { parseDescMeta, updateOrden } from "@/lib/ordenes-api";
 import type { OrdenListItem, Usuario, Estado, Prioridad } from "@/types/ordenes";
 
 const ESTADO: Record<Estado, { label: string; bg: string; color: string; dot: string }> = {
-  pendiente:   { label: "Abierta",    bg: "#EFF6FF", color: "#1D4ED8", dot: "#3B82F6" },
-  en_espera:   { label: "En espera",  bg: "#FFF7ED", color: "#C2410C", dot: "#F97316" },
-  en_curso:    { label: "En curso",   bg: "#F0FDF4", color: "#15803D", dot: "#22C55E" },
-  completado:  { label: "Completada", bg: "#F0FDF4", color: "#166534", dot: "#16A34A" },
+  pendiente:   { label: "Sin asignar", bg: "#EFF6FF", color: "#1D4ED8", dot: "#3B82F6" },
+  en_espera:   { label: "En espera",   bg: "#FFF7ED", color: "#C2410C", dot: "#F97316" },
+  en_curso:    { label: "En curso",    bg: "#F0FDF4", color: "#15803D", dot: "#22C55E" },
+  completado:  { label: "Completada",  bg: "#F0FDF4", color: "#166534", dot: "#16A34A" },
 };
+
+const ESTADO_ASIGNADA = { label: "Asignada", bg: "#F0FDF4", color: "#15803D", dot: "#22C55E" };
 
 const PRIORIDAD: Record<Prioridad, { label: string; bg: string; color: string }> = {
   ninguna: { label: "",        bg: "transparent", color: "transparent" },
@@ -250,7 +252,10 @@ interface Props {
 
 export default function OTRow({ orden, rowNumber, usuarios, isSelected, onClick, myId, onAssigned }: Props) {
   const isPending = Boolean(orden._pending);
-  const estado    = ESTADO[orden.estado];
+  const hasAssignees = (orden.asignados_ids ?? []).length > 0;
+  const estado = orden.estado === "pendiente"
+    ? (hasAssignees ? ESTADO_ASIGNADA : ESTADO["pendiente"])
+    : ESTADO[orden.estado];
   const prio      = PRIORIDAD[orden.prioridad];
   const meta      = parseDescMeta(orden.descripcion ?? null);
   const titulo    = orden.titulo || meta.descripcion?.slice(0, 80) || "Sin título";

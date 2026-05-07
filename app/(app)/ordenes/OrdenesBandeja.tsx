@@ -105,7 +105,8 @@ export default function OrdenesBandeja({
   type ExportCol =
     | "numero" | "n_serie" | "titulo" | "descripcion" | "estado" | "prioridad" | "tipo_trabajo"
     | "solicitante" | "hito"
-    | "categoria" | "ubicacion" | "activo" | "asignados" | "creado" | "fecha_limite" | "resumen";
+    | "categoria" | "ubicacion" | "activo" | "asignados" | "creado" | "fecha_limite" | "resumen"
+    | "hoja_calculo" | "materiales_inventario";
 
   const EXPORT_COLS: { key: ExportCol; label: string; group: string }[] = [
     { key: "numero",       label: "N° OT",              group: "Información general" },
@@ -123,7 +124,9 @@ export default function OrdenesBandeja({
     { key: "asignados",    label: "Asignados",           group: "Personas y ubicación" },
     { key: "creado",       label: "Creado el",           group: "Fechas" },
     { key: "fecha_limite", label: "Fecha límite",        group: "Fechas" },
-    { key: "resumen",      label: "Hoja de resumen KPIs",group: "Otros" },
+    { key: "resumen",               label: "Hoja de resumen KPIs",    group: "Otros" },
+    { key: "hoja_calculo",          label: "Hoja de cálculo",         group: "Materiales" },
+    { key: "materiales_inventario", label: "Materiales de inventario", group: "Materiales" },
   ];
 
   const ALL_COLS_ON  = Object.fromEntries(EXPORT_COLS.map(c => [c.key, true]))  as Record<ExportCol, boolean>;
@@ -390,7 +393,7 @@ export default function OrdenesBandeja({
         s ? new Date(s).toLocaleString("es-CL", { day:"2-digit", month:"2-digit", year:"numeric", hour:"2-digit", minute:"2-digit" }) : "—";
 
       const ESTADO_LABEL: Record<string, string> = {
-        pendiente: "Pendiente", en_espera: "En espera",
+        pendiente: "Sin asignar", en_espera: "En espera",
         en_curso: "En curso", completado: "Completado",
       };
       const PRIORIDAD_LABEL: Record<string, string> = {
@@ -625,7 +628,7 @@ export default function OrdenesBandeja({
           ["Total de órdenes",         total],
           ["Completadas",              completado],
           ["En curso",                 enCurso],
-          ["Pendientes",               pendiente],
+          ["Sin asignar (pendiente)",   pendiente],
           ["En espera",                enEspera],
           ["", ""],
           ["ALERTAS", ""],
@@ -671,6 +674,107 @@ export default function OrdenesBandeja({
         });
 
         XLSX.utils.book_append_sheet(wb, wsKpi, "Resumen");
+      }
+
+      // ── SHEET: Hoja de cálculo ───────────────────────────────────────────
+      if (f.hoja_calculo) {
+        const sb = createClient();
+        const ordenIds = filtered.map(o => o.id);
+
+        const { data: hojas } = await sb
+          .from("hojas_inventario")
+          .select("id, nombre, columnas, orden_id")
+          .in("orden_id", ordenIds)
+          .order("created_at");
+
+        const hojaIds = (hojas ?? []).map((h: { id: string }) => h.id);
+        const { data: filas } = hojaIds.length > 0
+          ? await sb.from("hojas_inventario_filas").select("hoja_id, celdas, orden").in("hoja_id", hojaIds).order("orden")
+          : { data: [] };
+
+        // Build rows: OT N°, Título, Hoja, then dynamic columns
+        // Collect all unique column labels across all hojas
+        const allColLabels = new Set<string>();
+        (hojas ?? []).forEach((h: { columnas: { label: string }[] }) =>
+          h.columnas.forEach((c: { label: string }) => allColLabels.add(c.label))
+        );
+        const colLabels = ["N° OT", "Título OT", "Hoja", ...Array.from(allColLabels)];
+
+        const hojaRows: (string | number)[][] = [colLabels];
+        for (const hoja of (hojas ?? []) as { id: string; nombre: string; columnas: { id: string; label: string }[]; orden_id: string }[]) {
+          const ot = filtered.find(o => o.id === hoja.orden_id);
+          const otNumero = ot?.numero ?? "—";
+          const otTitulo = ot?.titulo ?? "—";
+          const hojaFilas = ((filas ?? []) as { hoja_id: string; celdas: Record<string, string>; orden: number }[])
+            .filter(row => row.hoja_id === hoja.id);
+          if (hojaFilas.length === 0) {
+            hojaRows.push([otNumero, otTitulo, hoja.nombre, ...Array.from(allColLabels).map(() => "")]);
+          } else {
+            for (const fila of hojaFilas) {
+              const row: (string | number)[] = [otNumero, otTitulo, hoja.nombre];
+              for (const label of allColLabels) {
+                const col = hoja.columnas.find((c: { label: string }) => c.label === label);
+                row.push(col ? (fila.celdas[col.id] ?? "") : "");
+              }
+              hojaRows.push(row);
+            }
+          }
+        }
+
+        const wsHoja = XLSX.utils.aoa_to_sheet(hojaRows);
+        wsHoja["!cols"] = colLabels.map((_, i) => ({ wch: i < 3 ? 16 : 20 }));
+        wsHoja["!rows"] = hojaRows.map(() => ({ hpt: 18 }));
+        wsHoja["!freeze"] = { xSplit: 0, ySplit: 1 };
+        styleRow(wsHoja, 0, colLabels.length, S.headerDark);
+        for (let r = 1; r < hojaRows.length; r++) {
+          styleRow(wsHoja, r, colLabels.length, r % 2 === 0 ? S.rowEven : S.rowOdd);
+        }
+        XLSX.utils.book_append_sheet(wb, wsHoja, "Hoja de cálculo");
+      }
+
+      // ── SHEET: Materiales de inventario ──────────────────────────────────
+      if (f.materiales_inventario) {
+        const sb = createClient();
+        const ordenIds = filtered.map(o => o.id);
+
+        const { data: matRows } = await sb
+          .from("materiales_usados")
+          .select("orden_id, nombre, cantidad, unidad, precio_unitario")
+          .in("orden_id", ordenIds)
+          .order("orden_id");
+
+        const matHeaders = ["N° OT", "Título OT", "Material", "Cantidad", "Unidad", "Precio unitario", "Total"];
+        const matData: (string | number)[][] = [matHeaders];
+
+        for (const mat of (matRows ?? []) as { orden_id: string; nombre: string; cantidad: number; unidad: string | null; precio_unitario: number | null }[]) {
+          const ot = filtered.find(o => o.id === mat.orden_id);
+          const total = mat.precio_unitario != null ? mat.cantidad * mat.precio_unitario : "";
+          matData.push([
+            ot?.numero ?? "—",
+            ot?.titulo ?? "—",
+            mat.nombre,
+            mat.cantidad,
+            mat.unidad ?? "—",
+            mat.precio_unitario ?? "—",
+            total,
+          ]);
+        }
+
+        const wsMat = XLSX.utils.aoa_to_sheet(matData);
+        wsMat["!cols"] = [8, 36, 28, 12, 12, 16, 14].map(wch => ({ wch }));
+        wsMat["!rows"] = matData.map(() => ({ hpt: 18 }));
+        wsMat["!freeze"] = { xSplit: 0, ySplit: 1 };
+        styleRow(wsMat, 0, matHeaders.length, S.headerDark);
+        for (let r = 1; r < matData.length; r++) {
+          styleRow(wsMat, r, matHeaders.length, r % 2 === 0 ? S.rowEven : S.rowOdd);
+        }
+        if (matData.length > 1) {
+          const totalRow = ["", "", "TOTAL", "", "", "", matData.slice(1).reduce((sum, r) => sum + (typeof r[6] === "number" ? r[6] : 0), 0)];
+          const totalIdx = matData.length;
+          XLSX.utils.sheet_add_aoa(wsMat, [totalRow], { origin: totalIdx });
+          styleRow(wsMat, totalIdx, matHeaders.length, S.totalRow);
+        }
+        XLSX.utils.book_append_sheet(wb, wsMat, "Materiales");
       }
 
       const dateStr  = new Date().toISOString().slice(0, 10);

@@ -205,7 +205,7 @@ function GrupoFotosCard({ grupo, canManage, canUpload, uploading, fileInputRef, 
 // ── Config ────────────────────────────────────────────────────────────────────
 
 const ESTADOS: { value: Estado; label: string; icon: React.ComponentType<{ className?: string }>; className: string }[] = [
-  { value: "pendiente",   label: "Abierta",     icon: CircleDot,    className: "text-blue-600" },
+  { value: "pendiente",   label: "Sin asignar", icon: CircleDot,    className: "text-blue-600" },
   { value: "en_espera",   label: "En espera",   icon: PauseCircle,  className: "text-amber-600" },
   { value: "en_curso",    label: "En curso",    icon: PlayCircle,   className: "text-purple-600" },
   { value: "completado",  label: "Completada",  icon: CheckCircle2, className: "text-green-600" },
@@ -424,6 +424,7 @@ export default function OTDetail({
     | "asignados" | "empresa" | "ubicacion" | "lugar"
     | "creada_el" | "fecha_inicio" | "fecha_limite" | "tiempo_trabajado"
     | "materiales"
+    | "hoja_calculo"
     | "actividad";
 
   const EXPORT_FIELDS: { key: ExportField; label: string; group: string }[] = [
@@ -446,8 +447,9 @@ export default function OTDetail({
     { key: "fecha_inicio",    label: "Fecha inicio",         group: "Fechas y tiempos" },
     { key: "fecha_limite",    label: "Fecha límite",         group: "Fechas y tiempos" },
     { key: "tiempo_trabajado",label: "Tiempo trabajado",     group: "Fechas y tiempos" },
-    { key: "materiales",      label: "Materiales / partes",  group: "Otros" },
-    { key: "actividad",       label: "Historial de actividad", group: "Otros" },
+    { key: "materiales",      label: "Materiales / partes",      group: "Otros" },
+    { key: "hoja_calculo",    label: "Hoja de cálculo",          group: "Otros" },
+    { key: "actividad",       label: "Historial de actividad",   group: "Otros" },
   ];
 
   const ALL_FIELDS_ON = Object.fromEntries(EXPORT_FIELDS.map(f => [f.key, true])) as Record<ExportField, boolean>;
@@ -1207,7 +1209,34 @@ export default function OTDetail({
         XLS.utils.book_append_sheet(wb, wsMat, "Materiales");
       }
 
-      // ── Sheet 3: Actividad ───────────────────────────────────────────────────
+      // ── Sheet 3: Hoja de cálculo ────────────────────────────────────────────
+      if (f.hoja_calculo) {
+        const sb = createClient();
+        const { data: hojas } = await sb
+          .from("hojas_inventario")
+          .select("id, nombre, columnas")
+          .eq("orden_id", orden.id)
+          .order("created_at");
+
+        const hojaIds = (hojas ?? []).map((h: any) => h.id);
+        const { data: filas } = hojaIds.length > 0
+          ? await sb.from("hojas_inventario_filas").select("hoja_id, celdas, orden").in("hoja_id", hojaIds).order("orden")
+          : { data: [] };
+
+        for (const hoja of (hojas ?? []) as any[]) {
+          const cols: { id: string; label: string }[] = hoja.columnas ?? [];
+          const hojaFilas = ((filas ?? []) as any[]).filter(row => row.hoja_id === hoja.id);
+          const headers = cols.map((c: any) => c.label);
+          const rows = hojaFilas.map((fila: any) =>
+            cols.map((c: any) => fila.celdas?.[c.id] ?? "")
+          );
+          const wsH = XLS.utils.aoa_to_sheet([headers, ...rows]);
+          applyStyles(wsH, headers, rows.length, cols.map(() => 22));
+          XLS.utils.book_append_sheet(wb, wsH, hoja.nombre.slice(0, 31));
+        }
+      }
+
+      // ── Sheet 4: Actividad ───────────────────────────────────────────────────
       if (f.actividad && actividad.length > 0) {
         const actH = ["Fecha y hora", "Usuario", "Tipo", "Comentario / Detalle"];
         const actRows = [...actividad].reverse().map(act => [

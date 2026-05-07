@@ -72,7 +72,7 @@ interface Insight {
 // ── Config ─────────────────────────────────────────────────────────────────────
 
 const ESTADO_LABEL: Record<Estado, string> = {
-  pendiente:  "Abierta",
+  pendiente:  "Sin asignar",
   en_espera:  "En espera",
   en_curso:   "En curso",
   completado: "Completada",
@@ -373,11 +373,11 @@ export default function InicioDashboard() {
       <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 28 }}>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
           <KpiCard
-            label="Pendientes"
-            value={String(openOTs.length)}
-            sub="órdenes activas"
-            trend={openOTs.length > 20 ? "warn" : "neutral"}
-            onClick={() => router.push("/ordenes?filtro=abiertas")}
+            label="Asignadas"
+            value={String(asignados.length)}
+            sub="con técnico asignado"
+            trend="neutral"
+            onClick={() => router.push("/ordenes")}
           />
           <KpiCard
             label="Completadas"
@@ -421,6 +421,15 @@ export default function InicioDashboard() {
               ))
             )}
           </Card>
+
+          {/* Asignadas list */}
+          {asignados.length > 0 && (
+            <Card title="Asignadas" action="Ver todas" onAction={() => router.push("/ordenes")}>
+              <div style={{ padding: "4px 0" }}>
+                <ActionGroup label="Asignadas" count={asignados.length} items={asignados} dotColor="#22C55E" onNavigate={id => router.push(`/ordenes/${id}`)} onViewAll={() => router.push("/ordenes")} />
+              </div>
+            </Card>
+          )}
 
           {/* Action groups */}
           {(vencidas.length > 0 || paraHoy.length > 0 || sinAsignar.length > 0 || bloqueadas.length > 0) && (
