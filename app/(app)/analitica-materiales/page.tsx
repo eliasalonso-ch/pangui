@@ -447,8 +447,8 @@ export default function AnaliticaMaterialesPage() {
                         </div>
                       </td>
                       <td style={{ padding: "10px 14px" }}>
-                        <span style={{ fontSize: 11, fontWeight: 500, padding: "2px 7px", borderRadius: 5, background: item.source === "ambos" ? C.purpleBg : item.source === "hoja" ? C.infoBg : C.bg, color: item.source === "ambos" ? C.purple : item.source === "hoja" ? C.info : C.text3 }}>
-                          {item.source === "ambos" ? "Ambos" : item.source === "hoja" ? "Planilla" : "OT"}
+                        <span style={{ fontSize: 11, fontWeight: 500, padding: "2px 7px", borderRadius: 5, background: C.infoBg, color: C.info }}>
+                          Planilla
                         </span>
                       </td>
                     </tr>
