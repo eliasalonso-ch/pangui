@@ -80,6 +80,7 @@ export default function OrdenesBandeja({
   });
   const [search, setSearch]     = useState("");
   const [sort, setSort]         = useState<SortOption>("created_at_desc");
+  const [levAccordion, setLevAccordion] = useState<{ activos: boolean; cerrados: boolean }>({ activos: true, cerrados: false });
 
   // Pre-apply filter from URL param (e.g. ?filtro=urgentes from inicio dashboard)
   const [filtros, setFiltros]   = useState<FiltrosState>(() => {
@@ -1034,6 +1035,73 @@ export default function OrdenesBandeja({
                   </a>
                 )}
               </div>
+            ) : tab === "levantamientos" ? (
+              (() => {
+                const levActivos  = filtered.filter(o => ACTIVE_ESTADOS.has(o.estado));
+                const levCerrados = filtered.filter(o => CLOSED_ESTADOS.has(o.estado));
+                return (
+                  <>
+                    {/* Active accordion */}
+                    <button
+                      onClick={() => setLevAccordion(prev => ({ ...prev, activos: !prev.activos }))}
+                      style={{
+                        width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between",
+                        padding: "8px 16px", background: "#F8FAFC", border: "none", borderBottom: "1px solid #E2E8F0",
+                        cursor: "pointer", textAlign: "left",
+                      }}
+                    >
+                      <span style={{ fontSize: 12, fontWeight: 700, color: "#64748B", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                        En curso · {levActivos.length}
+                      </span>
+                      <ChevronDown size={14} color="#94A3B8" style={{ transform: levAccordion.activos ? "rotate(180deg)" : "none", transition: "transform 0.15s" }} />
+                    </button>
+                    {levAccordion.activos && levActivos.map((o, idx) => (
+                      <OTRow
+                        key={o.id}
+                        orden={o}
+                        rowNumber={idx + 1}
+                        usuarios={usuarios}
+                        isSelected={selected === o.id}
+                        onClick={() => openOT(o.id, true)}
+                        myId={myId}
+                        onAssigned={(id, newIds) => setOrdenes(prev =>
+                          prev.map(x => x.id === id ? { ...x, asignados_ids: newIds.length > 0 ? newIds : null } : x)
+                        )}
+                      />
+                    ))}
+
+                    {/* Closed accordion */}
+                    <button
+                      onClick={() => setLevAccordion(prev => ({ ...prev, cerrados: !prev.cerrados }))}
+                      style={{
+                        width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between",
+                        padding: "8px 16px", background: "#F8FAFC", border: "none",
+                        borderTop: "1px solid #E2E8F0", borderBottom: "1px solid #E2E8F0",
+                        cursor: "pointer", textAlign: "left",
+                      }}
+                    >
+                      <span style={{ fontSize: 12, fontWeight: 700, color: "#64748B", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                        Completados · {levCerrados.length}
+                      </span>
+                      <ChevronDown size={14} color="#94A3B8" style={{ transform: levAccordion.cerrados ? "rotate(180deg)" : "none", transition: "transform 0.15s" }} />
+                    </button>
+                    {levAccordion.cerrados && levCerrados.map((o, idx) => (
+                      <OTRow
+                        key={o.id}
+                        orden={o}
+                        rowNumber={idx + 1}
+                        usuarios={usuarios}
+                        isSelected={selected === o.id}
+                        onClick={() => openOT(o.id, true)}
+                        myId={myId}
+                        onAssigned={(id, newIds) => setOrdenes(prev =>
+                          prev.map(x => x.id === id ? { ...x, asignados_ids: newIds.length > 0 ? newIds : null } : x)
+                        )}
+                      />
+                    ))}
+                  </>
+                );
+              })()
             ) : (
               filtered.map((o, idx) => (
                 <OTRow

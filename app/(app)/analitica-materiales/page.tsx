@@ -149,7 +149,7 @@ export default function AnaliticaMaterialesPage() {
       const cutoffStr = cutoff.toISOString().slice(0, 10);
 
       const [partesRes, hojasRes, otsRes] = await Promise.all([
-        sb.from("partes").select("id, nombre, codigo, unidad, stock_actual, stock_minimo, precio_unitario, categoria, ubicacion_bodega").eq("planta_id", wsId),
+        sb.from("partes").select("id, nombre, codigo, unidad, stock_actual, stock_minimo, precio_unitario, categoria, ubicacion_bodega").eq("workspace_id", wsId),
         sb.from("hojas_inventario").select("id, nombre, orden_id, columnas").eq("workspace_id", wsId).gte("created_at", cutoffStr),
         sb.from("ordenes_trabajo")
           .select("id, titulo, created_at, activo_id, activos(nombre)")

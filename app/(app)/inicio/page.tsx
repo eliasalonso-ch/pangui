@@ -298,7 +298,9 @@ export default function InicioDashboard() {
   const completadas    = useMemo(() => allOTs.filter(o => o.estado === "completado"), [allOTs]);
   const enCurso        = useMemo(() => allOTs.filter(o => o.estado === "en_curso"), [allOTs]);
   const asignados      = useMemo(() => openOTs.filter(o => o.asignados_ids && o.asignados_ids.length > 0), [openOTs]);
-  const levantamientos = useMemo(() => allOTs.filter(o => o.clasificacion === "levantamiento"), [allOTs]);
+  const levantamientos          = useMemo(() => allOTs.filter(o => o.clasificacion === "levantamiento"), [allOTs]);
+  const levantamientosPendientes = useMemo(() => levantamientos.filter(o => o.estado !== "completado"), [levantamientos]);
+  const levantamientosCompletados = useMemo(() => levantamientos.filter(o => o.estado === "completado"), [levantamientos]);
   const avgResHours   = useMemo(() => avgResolutionTime(completadas as any), [completadas]);
   const avgResDays    = avgResHours > 0 ? (avgResHours / 24).toFixed(1) : "—";
 
@@ -395,13 +397,34 @@ export default function InicioDashboard() {
             trend={sinAsignar.length > 5 ? "warn" : "neutral"}
             onClick={() => router.push("/ordenes?filtro=sin_asignar")}
           />
-          <KpiCard
-            label="Levantamientos"
-            value={String(levantamientos.length)}
-            sub="en revisión"
-            trend="neutral"
+          <div
             onClick={() => router.push("/ordenes?filtro=levantamientos")}
-          />
+            style={{
+              background: "#fff", border: "1px solid #E2E8F0", borderRadius: 10,
+              padding: "18px 20px", cursor: "pointer", transition: "box-shadow 0.15s",
+            }}
+            onMouseEnter={e => { e.currentTarget.style.boxShadow = "0 4px 12px rgba(15,23,42,0.08)"; }}
+            onMouseLeave={e => { e.currentTarget.style.boxShadow = "none"; }}
+          >
+            <div style={{ fontSize: 11, fontWeight: 600, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 12 }}>
+              Levantamientos
+            </div>
+            <div style={{ display: "flex", gap: 20 }}>
+              <div>
+                <div style={{ fontSize: 28, fontWeight: 700, color: "#64748B", lineHeight: 1, letterSpacing: "-0.02em", marginBottom: 2 }}>
+                  {levantamientosPendientes.length}
+                </div>
+                <div style={{ fontSize: 12, color: "#94A3B8" }}>pendientes</div>
+              </div>
+              <div style={{ width: 1, background: "#E2E8F0", alignSelf: "stretch" }} />
+              <div>
+                <div style={{ fontSize: 28, fontWeight: 700, color: "#10B981", lineHeight: 1, letterSpacing: "-0.02em", marginBottom: 2 }}>
+                  {levantamientosCompletados.length}
+                </div>
+                <div style={{ fontSize: 12, color: "#94A3B8" }}>completados</div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 

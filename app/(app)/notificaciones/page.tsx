@@ -168,7 +168,12 @@ export default function NotificacionesPage() {
                 >
                   <button
                     type="button"
-                    onClick={() => n.url && router.push(n.url)}
+                    onClick={() => {
+                      if (!n.url) return;
+                      const match = n.url.match(/\/orden\/([^/]+)/);
+                      if (match) router.push(`/ordenes?id=${match[1]}`);
+                      else router.push(n.url);
+                    }}
                     style={{
                       flex: 1, display: "flex", alignItems: "flex-start", gap: 12,
                       padding: "14px 20px",
