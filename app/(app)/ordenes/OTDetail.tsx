@@ -461,7 +461,7 @@ export default function OTDetail({
   // ── PDF export field config ────────────────────────────────────────────────
   type PdfField =
     | "solicitante" | "hito" | "fechas"
-    | "descripcion" | "asignados" | "imagenes" | "ubicacion"
+    | "descripcion" | "asignados" | "imagenes" | "fotos_grupos" | "ubicacion"
     | "materiales" | "tiempo" | "procedimientos" | "historial" | "firma";
 
   const PDF_FIELDS: { key: PdfField; label: string; group: string }[] = [
@@ -471,6 +471,7 @@ export default function OTDetail({
     { key: "descripcion",   label: "Descripción",       group: "Contenido" },
     { key: "asignados",     label: "Asignados",         group: "Contenido" },
     { key: "imagenes",      label: "Imágenes",          group: "Contenido" },
+    { key: "fotos_grupos",  label: "Grupos de fotos",   group: "Contenido" },
     { key: "ubicacion",     label: "Ubicación",         group: "Contenido" },
     { key: "materiales",    label: "Materiales",        group: "Seguimiento" },
     { key: "tiempo",        label: "Tiempo trabajado",  group: "Seguimiento" },
@@ -1066,10 +1067,21 @@ export default function OTDetail({
     setExporting("pdf");
     setPdfConfigOpen(false);
     try {
-      const [act, wsInfo, freshProcs] = await Promise.all([
+      const sb = createClient();
+      const [act, wsInfo, freshProcs, hojaGrupos] = await Promise.all([
         fetchActividadForExport(),
         fetchWorkspaceInfo(),
         getOTProcedimientos(orden.id),
+        pdfFields.fotos_grupos
+          ? sb.from("foto_grupos")
+              .select("id, titulo, descripcion, orden_display, foto_grupo_items(id, url, orden_display)")
+              .eq("orden_id", orden.id)
+              .order("orden_display")
+              .then(r => (r.data ?? []).map((g: any) => ({
+                ...g,
+                foto_grupo_items: (g.foto_grupo_items ?? []).sort((a: any, b: any) => a.orden_display - b.orden_display),
+              })))
+          : Promise.resolve([]),
       ]);
       const res = await fetch("/api/export-pdf", {
         method: "POST",
@@ -1081,6 +1093,7 @@ export default function OTDetail({
           nOT: meta.nOT,
           partes: [], subOrdenes: [],
           procedimientos: freshProcs,
+          fotoGrupos: hojaGrupos,
           fields: pdfFields,
           logoUrl: wsInfo.logoUrl,
         }),
