@@ -40,12 +40,12 @@ export function LegalSection({ icon: Icon, title, children }) {
     <motion.section
       variants={fadeUp}
       style={{
-        marginBottom: "2.5rem",
-        paddingBottom: "2.5rem",
+        marginBottom: "clamp(1.75rem, 4vw, 2.5rem)",
+        paddingBottom: "clamp(1.75rem, 4vw, 2.5rem)",
         borderBottom: "1px solid var(--divider-1)",
       }}
     >
-      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
         {Icon && (
           <div
             style={{
@@ -64,12 +64,15 @@ export function LegalSection({ icon: Icon, title, children }) {
         )}
         <h2
           style={{
-            fontSize: "clamp(1.1rem, 3vw, 1.35rem)",
+            fontSize: "clamp(1.05rem, 3vw, 1.35rem)",
             fontWeight: 900,
             color: "var(--black)",
             letterSpacing: "-0.02em",
             lineHeight: 1.2,
             margin: 0,
+            // Permitir que un título largo se rompa en lugar de desbordar el contenedor
+            wordBreak: "break-word",
+            hyphens: "auto",
           }}
         >
           {title}
@@ -80,7 +83,7 @@ export function LegalSection({ icon: Icon, title, children }) {
         style={{
           color: "var(--accent-5)",
           lineHeight: 1.7,
-          fontSize: 15,
+          fontSize: "clamp(14px, 2vw, 15px)",
         }}
       >
         {children}
@@ -140,24 +143,27 @@ export default function LegalLayout({ children, title, description }) {
           display: "flex",
           alignItems: "center",
           borderBottom: "1px solid rgba(255,255,255,0.08)",
-          paddingLeft: "clamp(1rem, 4vw, 2.5rem)",
-          paddingRight: "clamp(1rem, 4vw, 2.5rem)",
+          paddingLeft: "clamp(12px, 4vw, 24px)",
+          paddingRight: "clamp(12px, 4vw, 24px)",
         }}
       >
         <div
           style={{
             width: "100%",
+            maxWidth: "48rem",
+            margin: "0 auto",
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
+            gap: 8,
           }}
         >
           {/* Logo */}
-          <Link href="/" style={{ display: "flex", alignItems: "center" }}>
+          <Link href="/" style={{ display: "flex", alignItems: "center", flexShrink: 0 }}>
             <img
               src="/pangui-logo.svg"
               alt="Pangui"
-              style={{ width: 90, height: "auto" }}
+              style={{ width: "clamp(72px, 18vw, 90px)", height: "auto" }}
             />
           </Link>
 
@@ -222,62 +228,67 @@ export default function LegalLayout({ children, title, description }) {
         </div>
       </header>
 
-      {/* ── Hero del encabezado legal ────────────────────────────── */}
+      {/* ── Hero del encabezado legal ──────────────────────────────
+       *  Usamos un wrapper centrado de 48rem en lugar de padding-calc
+       *  para que ancho y alineación coincidan exactamente con el <main>.
+       */}
       <div
         style={{
           background: "linear-gradient(135deg, #0a0f1e 0%, #0d1530 100%)",
-          paddingTop: "3.5rem",
-          paddingBottom: "3rem",
-          paddingLeft: "max(16px, calc((100% - 48rem) / 2))",
-          paddingRight: "max(16px, calc((100% - 48rem) / 2))",
+          paddingTop: "clamp(2rem, 6vw, 3.5rem)",
+          paddingBottom: "clamp(1.75rem, 5vw, 3rem)",
+          paddingLeft: "clamp(16px, 4vw, 24px)",
+          paddingRight: "clamp(16px, 4vw, 24px)",
         }}
       >
-        <motion.div initial="hidden" animate="visible" variants={stagger}>
-          <motion.span
-            variants={fadeUp}
-            style={{
-              display: "inline-block",
-              fontSize: 11,
-              fontWeight: 700,
-              color: "#EEF1FB",
-              textTransform: "uppercase",
-              letterSpacing: "0.12em",
-              borderLeft: "4px solid #EEF1FB",
-              paddingLeft: 10,
-              marginBottom: 20,
-            }}
-          >
-            Pangui · Legal
-          </motion.span>
-
-          <motion.h1
-            variants={fadeUp}
-            style={{
-              fontSize: "clamp(1.9rem, 5vw, 3rem)",
-              fontWeight: 900,
-              color: "#fff",
-              lineHeight: 1.12,
-              letterSpacing: "-0.025em",
-              marginBottom: 12,
-            }}
-          >
-            {title}
-          </motion.h1>
-
-          {description && (
-            <motion.p
+        <div style={{ maxWidth: "48rem", margin: "0 auto" }}>
+          <motion.div initial="hidden" animate="visible" variants={stagger}>
+            <motion.span
               variants={fadeUp}
               style={{
-                color: "#94a3b8",
-                fontSize: 15,
-                maxWidth: 520,
-                lineHeight: 1.65,
+                display: "inline-block",
+                fontSize: 11,
+                fontWeight: 700,
+                color: "#EEF1FB",
+                textTransform: "uppercase",
+                letterSpacing: "0.12em",
+                borderLeft: "4px solid #EEF1FB",
+                paddingLeft: 10,
+                marginBottom: 20,
               }}
             >
-              {description}
-            </motion.p>
-          )}
-        </motion.div>
+              Pangui · Legal
+            </motion.span>
+
+            <motion.h1
+              variants={fadeUp}
+              style={{
+                fontSize: "clamp(1.6rem, 5vw, 3rem)",
+                fontWeight: 900,
+                color: "#fff",
+                lineHeight: 1.12,
+                letterSpacing: "-0.025em",
+                marginBottom: 12,
+              }}
+            >
+              {title}
+            </motion.h1>
+
+            {description && (
+              <motion.p
+                variants={fadeUp}
+                style={{
+                  color: "#94a3b8",
+                  fontSize: "clamp(13.5px, 2.5vw, 15px)",
+                  maxWidth: 520,
+                  lineHeight: 1.65,
+                }}
+              >
+                {description}
+              </motion.p>
+            )}
+          </motion.div>
+        </div>
       </div>
 
       {/* ── Contenido principal ─────────────────────────────────── */}
@@ -287,7 +298,7 @@ export default function LegalLayout({ children, title, description }) {
           maxWidth: "48rem",
           width: "100%",
           margin: "0 auto",
-          padding: "3rem max(16px, 2rem)",
+          padding: "clamp(1.75rem, 5vw, 3rem) clamp(16px, 4vw, 24px)",
         }}
       >
         <motion.div
@@ -304,12 +315,14 @@ export default function LegalLayout({ children, title, description }) {
       <footer
         style={{
           background: "#0A1628",
-          padding: "1.75rem max(16px, calc((100% - 72rem) / 2 + 32px))",
+          padding: "1.5rem clamp(16px, 4vw, 24px)",
           marginTop: "auto",
         }}
       >
         <div
           style={{
+            maxWidth: "48rem",
+            margin: "0 auto",
             display: "flex",
             flexDirection: "row",
             flexWrap: "wrap",
@@ -320,10 +333,10 @@ export default function LegalLayout({ children, title, description }) {
             color: "#475569",
           }}
         >
-          <p style={{ margin: 0 }}>
+          <p style={{ margin: 0, flex: "1 1 auto", minWidth: 0 }}>
             © 2026 Pangui. Hecho en Chile con ♥ para pymes de mantención.
           </p>
-          <div style={{ display: "flex", gap: 20 }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "8px 20px" }}>
             {[
               { label: "Privacidad", href: "/privacidad" },
               { label: "Términos", href: "/terminos" },

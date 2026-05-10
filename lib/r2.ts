@@ -1,64 +1,38 @@
 /**
- * Cloudflare R2 upload/delete via S3-compatible API.
- * Uses AWS Signature Version 4 with the Web Crypto API (available in all modern browsers + Node 18+).
+ * Cloudflare R2 client (web). Uploads and deletes go through Supabase Edge
+ * Functions (`r2-presign` and `r2-delete`) so the R2 access keys never ship
+ * in the browser bundle.
+ *
+ * Flow for uploadToR2:
+ *   1. Call /functions/v1/r2-presign with the user's JWT. Edge Function
+ *      authenticates, signs a SigV4 PUT URL, returns it.
+ *   2. PUT the file bytes directly to R2 with that presigned URL.
+ *   3. On success the file is publicly readable at `publicUrl`.
+ *
+ * R2 must have a CORS policy allowing PUT/GET/HEAD/DELETE from the web app's
+ * origin (configured at the bucket level in the Cloudflare dashboard).
  */
 
-const R2_ACCOUNT_ID     = "20b08b7b6b21457b0631fd4c0cc7f9a5";
-const R2_ACCESS_KEY_ID  = "7ea7770f51e9651c0fda04cf294da924";
-const R2_SECRET_ACCESS_KEY = "614e112d8c8e39db4a9bb4f73fd9aaf17618b238ff421ec11b1d4bf766eb836c";
-const R2_BUCKET         = "pangui-bucket";
-const R2_PUBLIC_URL     = "https://cdn.getpangui.com";
-const R2_ENDPOINT       = `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`;
+import { createClient } from "@/lib/supabase";
 
-// ── Crypto helpers ────────────────────────────────────────────────────────────
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+const PRESIGN_ENDPOINT = `${SUPABASE_URL}/functions/v1/r2-presign`;
+const DELETE_ENDPOINT = `${SUPABASE_URL}/functions/v1/r2-delete`;
 
-const enc = (s: string) => new TextEncoder().encode(s);
-
-async function sha256Hex(data: BufferSource): Promise<string> {
-  const buf = await crypto.subtle.digest("SHA-256", data);
-  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, "0")).join("");
+interface PresignResponse {
+  uploadUrl: string;
+  publicUrl: string;
+  contentType: string;
+  expiresAt: string;
 }
 
-async function hmacSha256(key: BufferSource, data: BufferSource): Promise<ArrayBuffer> {
-  const k = await crypto.subtle.importKey("raw", key, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
-  return crypto.subtle.sign("HMAC", k, data);
-}
-
-async function signingKey(secretKey: string, date: string, region: string, service: string): Promise<ArrayBuffer> {
-  const k1 = await hmacSha256(enc(`AWS4${secretKey}`), enc(date));
-  const k2 = await hmacSha256(k1, enc(region));
-  const k3 = await hmacSha256(k2, enc(service));
-  return hmacSha256(k3, enc("aws4_request"));
-}
-
-function toHex(buf: ArrayBuffer): string {
-  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, "0")).join("");
-}
-
-const MIME_MAP: Record<string, string> = {
-  jpg:  "image/jpeg",
-  jpeg: "image/jpeg",
-  png:  "image/png",
-  webp: "image/webp",
-  gif:  "image/gif",
-  pdf:  "application/pdf",
-  doc:  "application/msword",
-  docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  xls:  "application/vnd.ms-excel",
-  xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-  ppt:  "application/vnd.ms-powerpoint",
-  pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-  txt:  "text/plain",
-  csv:  "text/csv",
-  dwg:  "application/acad",
-  dxf:  "application/dxf",
-  zip:  "application/zip",
-};
-
-const ALLOWED_EXTS = new Set(Object.keys(MIME_MAP));
-
-function contentTypeForExt(ext: string): string {
-  return MIME_MAP[ext] ?? "application/octet-stream";
+async function getAuthHeader(): Promise<string> {
+  const sb = createClient();
+  const { data } = await sb.auth.getSession();
+  const token = data.session?.access_token;
+  if (!token) throw new Error("R2 upload requires an authenticated session");
+  return `Bearer ${token}`;
 }
 
 // ── Upload ────────────────────────────────────────────────────────────────────
@@ -68,103 +42,62 @@ export async function uploadToR2(
   folder: string = "fotos",
 ): Promise<string> {
   const ext = (file.name.split(".").pop() ?? "jpg").toLowerCase();
-  const safeExt = ALLOWED_EXTS.has(ext) ? ext : "jpg";
-  const contentType = contentTypeForExt(safeExt);
-  const key = `${folder}/${Date.now()}_${Math.random().toString(36).slice(2)}.${safeExt}`;
+  const authHeader = await getAuthHeader();
 
-  const bytes = new Uint8Array(await file.arrayBuffer());
-
-  const now = new Date();
-  const date     = now.toISOString().slice(0, 10).replace(/-/g, "");
-  const datetime = now.toISOString().replace(/[:-]/g, "").replace(/\.\d{3}/, "");
-  const region   = "auto";
-  const service  = "s3";
-  const host     = `${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`;
-  const url      = `${R2_ENDPOINT}/${R2_BUCKET}/${key}`;
-
-  const payloadHash = await sha256Hex(bytes);
-  const credScope   = `${date}/${region}/${service}/aws4_request`;
-
-  const canonicalReq = [
-    "PUT",
-    `/${R2_BUCKET}/${key}`,
-    "",
-    `content-type:${contentType}\nhost:${host}\nx-amz-content-sha256:${payloadHash}\nx-amz-date:${datetime}\n`,
-    "content-type;host;x-amz-content-sha256;x-amz-date",
-    payloadHash,
-  ].join("\n");
-
-  const stringToSign = [
-    "AWS4-HMAC-SHA256",
-    datetime,
-    credScope,
-    await sha256Hex(enc(canonicalReq)),
-  ].join("\n");
-
-  const sk  = await signingKey(R2_SECRET_ACCESS_KEY, date, region, service);
-  const sig = toHex(await hmacSha256(sk, enc(stringToSign)));
-
-  const res = await fetch(url, {
-    method: "PUT",
+  // Step 1: ask the Edge Function for a presigned PUT URL.
+  const presignRes = await fetch(PRESIGN_ENDPOINT, {
+    method: "POST",
     headers: {
-      "Content-Type":           contentType,
-      "x-amz-date":             datetime,
-      "x-amz-content-sha256":   payloadHash,
-      Authorization: `AWS4-HMAC-SHA256 Credential=${R2_ACCESS_KEY_ID}/${credScope}, SignedHeaders=content-type;host;x-amz-content-sha256;x-amz-date, Signature=${sig}`,
+      "Content-Type": "application/json",
+      Authorization: authHeader,
+      apikey: SUPABASE_ANON_KEY,
     },
-    body: bytes,
+    body: JSON.stringify({ ext, folder }),
   });
 
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`R2 upload failed (${res.status}): ${text}`);
+  if (!presignRes.ok) {
+    const text = await presignRes.text();
+    throw new Error(`R2 presign failed (${presignRes.status}): ${text}`);
   }
 
-  return `${R2_PUBLIC_URL}/${key}`;
+  const presign = (await presignRes.json()) as PresignResponse;
+
+  // Step 2: PUT the file directly to R2 using the presigned URL. The browser
+  // attaches CORS preflight; R2's bucket-level CORS policy must allow the
+  // origin and headers used here.
+  const putRes = await fetch(presign.uploadUrl, {
+    method: "PUT",
+    headers: {
+      "Content-Type": presign.contentType,
+    },
+    body: file,
+  });
+
+  if (!putRes.ok) {
+    const text = await putRes.text();
+    throw new Error(`R2 upload failed (${putRes.status}): ${text}`);
+  }
+
+  return presign.publicUrl;
 }
 
 // ── Delete ────────────────────────────────────────────────────────────────────
 
 export async function deleteFromR2(publicUrl: string): Promise<void> {
-  const key = publicUrl.replace(`${R2_PUBLIC_URL}/`, "");
-  if (!key || key === publicUrl) return;
+  const authHeader = await getAuthHeader();
 
-  const now = new Date();
-  const date     = now.toISOString().slice(0, 10).replace(/-/g, "");
-  const datetime = now.toISOString().replace(/[:-]/g, "").replace(/\.\d{3}/, "");
-  const region   = "auto";
-  const service  = "s3";
-  const host     = `${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`;
-  const url      = `${R2_ENDPOINT}/${R2_BUCKET}/${key}`;
-
-  const payloadHash = await sha256Hex(new Uint8Array(0));
-  const credScope   = `${date}/${region}/${service}/aws4_request`;
-
-  const canonicalReq = [
-    "DELETE",
-    `/${R2_BUCKET}/${key}`,
-    "",
-    `host:${host}\nx-amz-content-sha256:${payloadHash}\nx-amz-date:${datetime}\n`,
-    "host;x-amz-content-sha256;x-amz-date",
-    payloadHash,
-  ].join("\n");
-
-  const stringToSign = [
-    "AWS4-HMAC-SHA256",
-    datetime,
-    credScope,
-    await sha256Hex(enc(canonicalReq)),
-  ].join("\n");
-
-  const sk  = await signingKey(R2_SECRET_ACCESS_KEY, date, region, service);
-  const sig = toHex(await hmacSha256(sk, enc(stringToSign)));
-
-  await fetch(url, {
-    method: "DELETE",
+  const res = await fetch(DELETE_ENDPOINT, {
+    method: "POST",
     headers: {
-      "x-amz-date":           datetime,
-      "x-amz-content-sha256": payloadHash,
-      Authorization: `AWS4-HMAC-SHA256 Credential=${R2_ACCESS_KEY_ID}/${credScope}, SignedHeaders=host;x-amz-content-sha256;x-amz-date, Signature=${sig}`,
+      "Content-Type": "application/json",
+      Authorization: authHeader,
+      apikey: SUPABASE_ANON_KEY,
     },
+    body: JSON.stringify({ url: publicUrl }),
   });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`R2 delete failed (${res.status}): ${text}`);
+  }
 }

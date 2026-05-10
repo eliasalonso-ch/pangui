@@ -3,6 +3,7 @@
 import LegalLayout, { LegalSection, fadeUp } from "@/components/LegalLayout";
 import { motion } from "framer-motion";
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import {
   Database,
   Target,
@@ -16,6 +17,23 @@ import {
   RefreshCw,
   Mail,
 } from "lucide-react";
+
+// Tracks whether the viewport is narrower than `breakpoint` so components
+// can render a stacked card layout instead of an overflow-scrolling table.
+// Listens to changes so rotating the device or resizing the browser updates
+// the layout in real time.
+function useIsNarrow(breakpoint = 640) {
+  const [narrow, setNarrow] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const mq = window.matchMedia(`(max-width: ${breakpoint}px)`);
+    const update = () => setNarrow(mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, [breakpoint]);
+  return narrow;
+}
 
 // ── Helpers de estilos ─────────────────────────────────────────
 
@@ -73,8 +91,65 @@ function InfoBox({ children }) {
   );
 }
 
-/** Tabla de datos */
+/** Pill badge para "Obligatorio" sí/no */
+function ObligPill({ value }) {
+  const isYes = value === "Sí";
+  return (
+    <span
+      style={{
+        display: "inline-block",
+        padding: "2px 8px",
+        borderRadius: 4,
+        fontSize: 12,
+        fontWeight: 700,
+        background: isYes ? "#dcfce7" : "var(--accent-2)",
+        color: isYes ? "#166534" : "var(--accent-5)",
+      }}
+    >
+      {value}
+    </span>
+  );
+}
+
+/** Tabla de datos. En pantallas estrechas (≤640px) cambia a tarjetas
+ *  apiladas para evitar el scroll horizontal y el truncado. */
 function DataTable({ rows }) {
+  const narrow = useIsNarrow(640);
+
+  if (narrow) {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: 10, margin: "12px 0" }}>
+        {rows.map(([cat, datos, oblig], i) => (
+          <div
+            key={i}
+            style={{
+              border: "1px solid var(--divider-1)",
+              borderRadius: 8,
+              padding: 12,
+              background: "var(--background)",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "flex-start",
+                gap: 8,
+                marginBottom: 6,
+              }}
+            >
+              <span style={{ fontSize: 14, fontWeight: 700, color: "var(--black)" }}>{cat}</span>
+              <ObligPill value={oblig} />
+            </div>
+            <p style={{ margin: 0, fontSize: 14, color: "var(--accent-5)", lineHeight: 1.55 }}>
+              {datos}
+            </p>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
   return (
     <div style={{ overflowX: "auto", margin: "12px 0" }}>
       <table
@@ -104,22 +179,10 @@ function DataTable({ rows }) {
               key={i}
               style={{ borderBottom: "1px solid var(--divider-1)", background: i % 2 === 0 ? "var(--background)" : "var(--accent-2)" }}
             >
-              <td style={{ padding: "8px 12px", fontWeight: 600, color: "var(--black)" }}>{cat}</td>
-              <td style={{ padding: "8px 12px", color: "var(--accent-5)" }}>{datos}</td>
-              <td style={{ padding: "8px 12px" }}>
-                <span
-                  style={{
-                    display: "inline-block",
-                    padding: "2px 8px",
-                    borderRadius: 4,
-                    fontSize: 12,
-                    fontWeight: 700,
-                    background: oblig === "Sí" ? "#dcfce7" : "var(--accent-2)",
-                    color: oblig === "Sí" ? "#166534" : "var(--accent-5)",
-                  }}
-                >
-                  {oblig}
-                </span>
+              <td style={{ padding: "8px 12px", fontWeight: 600, color: "var(--black)", verticalAlign: "top" }}>{cat}</td>
+              <td style={{ padding: "8px 12px", color: "var(--accent-5)", verticalAlign: "top" }}>{datos}</td>
+              <td style={{ padding: "8px 12px", verticalAlign: "top" }}>
+                <ObligPill value={oblig} />
               </td>
             </tr>
           ))}
@@ -167,18 +230,33 @@ export default function PrivacidadPage() {
         <DataTable
           rows={[
             ["Identidad", "Nombre, apellido, correo electrónico", "Sí"],
-            ["Empresarial", "RUT empresa o persona (para DTE), nombre de la empresa/planta", "Sí"],
-            ["Órdenes de trabajo", "Descripción del trabajo, ubicación GPS de la faena, fotos antes/después, observaciones", "Sí"],
-            ["Firma digital", "Imagen de firma del cliente receptor del trabajo", "Sí"],
-            ["Materiales", "Nombre, cantidad y costo de materiales usados en cada OT", "Sí"],
+            ["Empresarial", "Nombre de la empresa/planta, cargo y oficio del usuario", "Sí"],
+            ["Órdenes de trabajo", "Título, descripción, comentarios, fotos del trabajo, materiales utilizados, hojas de inventario, archivos adjuntos (PDF, planos, Excel, etc.)", "Sí"],
+            ["Firma digital", "Imagen de firma del cliente receptor del trabajo", "No (según el procedimiento)"],
+            ["Procedimientos", "Respuestas a pasos del procedimiento (texto, números, opciones, fotos, firmas)", "No (según el procedimiento)"],
             ["Uso del servicio", "Logs de acceso, dispositivo, sistema operativo, dirección IP", "No (técnico)"],
-            ["Notificaciones", "Token push del navegador o dispositivo para envío de alertas", "No (opcional)"],
+            ["Notificaciones", "Token push del dispositivo (Expo Push) para envío de alertas", "No (opcional)"],
           ]}
         />
         <p style={{ marginTop: 12 }}>
           <strong>No recolectamos</strong> datos sensibles como datos de salud,
           origen étnico, opiniones políticas ni biométricos (la firma digital es
           una imagen, no dato biométrico conforme Art. 2 Ley 21.719).
+        </p>
+        <p style={{ marginTop: 12 }}>
+          <strong>No recolectamos ubicación GPS del dispositivo.</strong> La aplicación móvil
+          no solicita permiso de geolocalización. Las fotos tomadas con la cámara dentro de la
+          app son procesadas y comprimidas antes de subirse, removiendo metadatos EXIF de
+          ubicación. Las fotos elegidas desde tu galería para imágenes de portada (ubicaciones,
+          sociedades, lugares, partes) pueden conservar metadatos EXIF del archivo original;
+          si tu galería tiene activado el guardado de ubicación, esos datos podrían viajar con
+          la imagen. Puedes desactivar esto en la configuración de tu sistema operativo.
+        </p>
+        <p style={{ marginTop: 12 }}>
+          <strong>Función de escaneo de OT (OCR con IA):</strong> Si usas la función "Escanear OT"
+          para crear una orden a partir de un documento físico, la imagen capturada se envía a
+          Google Gemini (Google LLC) en EE.UU. para extraer el texto. Se procesa de forma efímera
+          y no se usa para entrenar modelos de IA conforme a las condiciones del servicio Gemini API.
         </p>
       </LegalSection>
 
@@ -225,9 +303,13 @@ export default function PrivacidadPage() {
         </p>
         <Ul
           items={[
-            "Supabase Inc. (EE.UU.) — Base de datos PostgreSQL, autenticación y almacenamiento de archivos. Infraestructura en AWS us-east-1. Cumple SOC 2 Type II.",
-            "Vercel Inc. (EE.UU.) — Hosting del frontend. No almacena datos de usuarios más allá de logs de acceso temporales.",
-            "Resend Inc. (EE.UU.) — Envío de correos transaccionales (confirmación de cuenta, avisos). Solo recibe email y contenido del mensaje.",
+            "Supabase Inc. (EE.UU.) — Base de datos PostgreSQL, autenticación, Edge Functions y logs. Infraestructura en AWS us-east-1. Cumple SOC 2 Type II.",
+            "Cloudflare, Inc. (EE.UU.) — Almacenamiento de fotos, firmas y archivos adjuntos en Cloudflare R2 (servidos vía cdn.getpangui.com). Cumple SOC 2 e ISO 27001.",
+            "Google LLC (EE.UU.) — Google Gemini API, usado únicamente cuando el usuario escanea una OT física para extraer texto del documento. Las imágenes se procesan de forma efímera. También Firebase Cloud Messaging para entrega de notificaciones push en Android.",
+            "Expo (650 Industries, Inc., EE.UU.) — Servicio de notificaciones push (Expo Push) y entrega de actualizaciones de la app móvil (Expo Updates). El token push se asocia a tu cuenta.",
+            "Vercel Inc. (EE.UU.) — Hosting del sitio web y backend de generación de PDF (pdf.getpangui.com). El servicio de PDF recibe el contenido completo de la OT que solicitas exportar.",
+            "Resend Inc. (EE.UU.) — Envío de correos transaccionales (confirmación de cuenta, invitaciones, avisos). Solo recibe email y contenido del mensaje.",
+            "Apple Inc. y Google LLC (EE.UU.) — Tiendas de aplicaciones (App Store, Google Play) para distribución de la app móvil; reciben datos de instalación y uso conforme a sus propias políticas.",
           ]}
         />
         <p>
@@ -268,11 +350,19 @@ export default function PrivacidadPage() {
       </LegalSection>
 
       {/* 6. Retención */}
-      <LegalSection icon={Clock} title="7. Retención de datos">
+      <LegalSection icon={Clock} title="7. Retención y eliminación de datos">
         <p>
-          Conservamos tus datos mientras dure la relación contractual. Al
-          cancelar tu cuenta:
+          Conservamos tus datos mientras dure la relación contractual. Para
+          solicitar la eliminación de tu cuenta puedes:
         </p>
+        <Ul
+          items={[
+            "Usar el botón \"Eliminar cuenta\" desde Configuración → Cuenta dentro de la aplicación móvil o web.",
+            "Enviar un correo a privacidad@pangui.cl desde la dirección registrada.",
+            "Ejercer el derecho de cancelación en nuestro Portal ARCO.",
+          ]}
+        />
+        <p style={{ marginTop: 12 }}>Una vez recibida la solicitud:</p>
         <Ul
           items={[
             "Datos de perfil: eliminados en 30 días hábiles desde la solicitud.",
@@ -280,6 +370,7 @@ export default function PrivacidadPage() {
             "Documentos DTE: retenidos según plazos del SII (mínimo 6 años).",
             "Logs de seguridad: eliminados a los 12 meses.",
             "Fotos y firmas digitales de OT: eliminadas al cumplir el plazo de retención de la OT correspondiente.",
+            "Caché local en tu dispositivo (SQLite, AsyncStorage, archivos): se elimina al desinstalar la aplicación o desde Configuración → Cuenta → \"Borrar datos locales\".",
           ]}
         />
       </LegalSection>
@@ -307,19 +398,30 @@ export default function PrivacidadPage() {
         </p>
       </LegalSection>
 
-      {/* 8. Cookies */}
-      <LegalSection icon={Cookie} title="9. Cookies y tecnologías similares">
-        <p>Pangui usa únicamente cookies estrictamente necesarias:</p>
+      {/* 8. Cookies y almacenamiento local */}
+      <LegalSection icon={Cookie} title="9. Cookies y almacenamiento local">
+        <p><strong>Sitio web (pangui.cl):</strong></p>
         <Ul
           items={[
             "Cookie de sesión de Supabase Auth: identifica tu sesión autenticada. Se elimina al cerrar sesión.",
             "Cookie de preferencia de tema (localStorage): recuerda si elegiste modo claro, oscuro o sistema.",
           ]}
         />
+        <p style={{ marginTop: 12 }}>
+          <strong>Aplicación móvil (Android / iOS):</strong>
+        </p>
+        <Ul
+          items={[
+            "Almacenamiento seguro (AsyncStorage): tokens de sesión de Supabase Auth.",
+            "Base de datos local (SQLite): copia local de tus órdenes de trabajo, hojas de inventario, fotos y procedimientos para soporte de modo sin conexión. Solo contiene los datos a los que tu cuenta tiene acceso.",
+            "Caché de archivos: fotos pendientes de subida y exportaciones temporales (PDF/CSV) en el directorio de la app.",
+            "Token push de Expo (si autorizas notificaciones): se asocia a tu cuenta para enviarte alertas.",
+          ]}
+        />
         <p>
-          <strong>No usamos cookies de seguimiento publicitario</strong> ni de
+          <strong>No usamos cookies de seguimiento publicitario</strong> ni
           terceros con fines de marketing. No hay píxeles de Facebook, Google
-          Ads u otros trackers en la plataforma de gestión.
+          Ads u otros trackers en la plataforma de gestión ni en la app móvil.
         </p>
       </LegalSection>
 

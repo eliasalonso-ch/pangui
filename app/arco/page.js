@@ -12,6 +12,7 @@ const TIPOS = [
   { value: "rectificacion", label: "Rectificación", desc: "Quiero corregir datos personales incorrectos o desactualizados." },
   { value: "cancelacion",   label: "Cancelación / Supresión", desc: "Quiero que eliminen mis datos personales del sistema." },
   { value: "oposicion",     label: "Oposición", desc: "Me opongo al tratamiento de mis datos personales." },
+  { value: "portabilidad",  label: "Portabilidad", desc: "Quiero recibir mis datos en formato estructurado y legible por máquina (CSV/JSON)." },
 ];
 
 export default function ARCOPage() {

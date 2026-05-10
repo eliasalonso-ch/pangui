@@ -79,12 +79,21 @@
   margin-bottom: 8px;
 }
 
-/* ── Selector de tipo ── */
+/* ── Selector de tipo ──
+ * Mobile-first: 2 columnas en pantallas pequeñas, 5 columnas en escritorio.
+ * Evita el caso "4 + 1 huérfano" que produce auto-fit con 5 elementos.
+ */
 .tipoGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  grid-template-columns: repeat(2, 1fr);
   gap: 10px;
   margin-bottom: 12px;
+}
+
+@media (min-width: 720px) {
+  .tipoGrid {
+    grid-template-columns: repeat(5, 1fr);
+  }
 }
 
 .tipoBtn {
@@ -285,11 +294,15 @@
 @media (max-width: 480px) {
   .page { padding: 12px 10px 40px; }
   .card { padding: 20px 14px 28px; }
-  .tipoGrid { grid-template-columns: 1fr; gap: 8px; }
-  .tipoBtn { font-size: 13px; padding: 12px 8px; }
+  .tipoGrid { gap: 8px; }
+  .tipoBtn { font-size: 13px; padding: 10px 6px; min-height: 44px; }
   .title { font-size: 20px; }
   .subtitle { font-size: 13px; }
   .btnSend { font-size: 15px; padding: 13px; }
+}
+
+@media (max-width: 360px) {
+  .tipoGrid { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 360px) {
