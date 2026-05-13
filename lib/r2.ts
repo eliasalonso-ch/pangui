@@ -3,14 +3,9 @@
  * Functions (`r2-presign` and `r2-delete`) so the R2 access keys never ship
  * in the browser bundle.
  *
- * Flow for uploadToR2:
- *   1. Call /functions/v1/r2-presign with the user's JWT. Edge Function
- *      authenticates, signs a SigV4 PUT URL, returns it.
- *   2. PUT the file bytes directly to R2 with that presigned URL.
- *   3. On success the file is publicly readable at `publicUrl`.
- *
- * R2 must have a CORS policy allowing PUT/GET/HEAD/DELETE from the web app's
- * origin (configured at the bucket level in the Cloudflare dashboard).
+ * Browser uploads try the direct presigned R2 PUT first. If a browser CORS
+ * preflight blocks that request in production, we fall back to a same-origin
+ * API route that performs the exact same R2 PUT server-side.
  */
 
 import { createClient } from "@/lib/supabase";
@@ -19,6 +14,7 @@ const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 const PRESIGN_ENDPOINT = `${SUPABASE_URL}/functions/v1/r2-presign`;
 const DELETE_ENDPOINT = `${SUPABASE_URL}/functions/v1/r2-delete`;
+const UPLOAD_ENDPOINT = "/api/r2-upload";
 
 interface PresignResponse {
   uploadUrl: string;
@@ -35,7 +31,29 @@ async function getAuthHeader(): Promise<string> {
   return `Bearer ${token}`;
 }
 
-// ── Upload ────────────────────────────────────────────────────────────────────
+async function uploadViaApiRoute(file: File, folder: string, authHeader: string): Promise<string> {
+  const form = new FormData();
+  form.append("file", file);
+  form.append("folder", folder);
+
+  const uploadRes = await fetch(UPLOAD_ENDPOINT, {
+    method: "POST",
+    headers: {
+      Authorization: authHeader,
+    },
+    body: form,
+  });
+
+  if (!uploadRes.ok) {
+    const text = await uploadRes.text();
+    throw new Error(`R2 upload failed (${uploadRes.status}): ${text}`);
+  }
+
+  const uploaded = (await uploadRes.json()) as { publicUrl: string };
+  return uploaded.publicUrl;
+}
+
+// Upload
 
 export async function uploadToR2(
   file: File,
@@ -44,7 +62,6 @@ export async function uploadToR2(
   const ext = (file.name.split(".").pop() ?? "jpg").toLowerCase();
   const authHeader = await getAuthHeader();
 
-  // Step 1: ask the Edge Function for a presigned PUT URL.
   const presignRes = await fetch(PRESIGN_ENDPOINT, {
     method: "POST",
     headers: {
@@ -62,26 +79,27 @@ export async function uploadToR2(
 
   const presign = (await presignRes.json()) as PresignResponse;
 
-  // Step 2: PUT the file directly to R2 using the presigned URL. The browser
-  // attaches CORS preflight; R2's bucket-level CORS policy must allow the
-  // origin and headers used here.
-  const putRes = await fetch(presign.uploadUrl, {
-    method: "PUT",
-    headers: {
-      "Content-Type": presign.contentType,
-    },
-    body: file,
-  });
+  try {
+    const putRes = await fetch(presign.uploadUrl, {
+      method: "PUT",
+      headers: {
+        "Content-Type": presign.contentType,
+      },
+      body: file,
+    });
 
-  if (!putRes.ok) {
-    const text = await putRes.text();
-    throw new Error(`R2 upload failed (${putRes.status}): ${text}`);
+    if (putRes.ok) {
+      return presign.publicUrl;
+    }
+  } catch {
+    // Browser CORS failures surface as TypeError: Failed to fetch. Fall back to
+    // the same-origin route below, which performs the R2 PUT server-side.
   }
 
-  return presign.publicUrl;
+  return uploadViaApiRoute(file, folder, authHeader);
 }
 
-// ── Delete ────────────────────────────────────────────────────────────────────
+// Delete
 
 export async function deleteFromR2(publicUrl: string): Promise<void> {
   const authHeader = await getAuthHeader();
