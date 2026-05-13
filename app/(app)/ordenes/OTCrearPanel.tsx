@@ -45,31 +45,86 @@ function field(text: string, ...labels: string[]): string {
   return "";
 }
 
+function cleanPdfValue(value: string): string {
+  return value.split("\n").map(line => line.trim()).filter(Boolean).join(" ").replace(/\s+/g, " ").trim();
+}
+
+function lineField(text: string, label: string): string {
+  const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const matches = [...text.matchAll(new RegExp(`^${escaped}\\s{2,}([^\\n]+)`, "gim"))];
+  return matches.at(-1)?.[1]?.trim() ?? "";
+}
+
+function blockField(text: string, startLabel: string, ...stopLabels: string[]): string {
+  return cleanPdfValue(between(text, startLabel, ...stopLabels));
+}
+
+function normalizePdfMatch(value: string): string {
+  return value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function extractLugarPDF(text: string): string {
+  const stopLabels = SECTION_STOPS
+    .split("|")
+    .filter(label => !/^Lugar$/i.test(label))
+    .join("|");
+  const lugarRe = /\bLugar\s+(?!específico|especifico)([^\n]+)/gi;
+  let match: RegExpExecArray | null;
+
+  while ((match = lugarRe.exec(text))) {
+    const raw = match[1] ?? "";
+    const value = raw
+      .replace(new RegExp(`\\b(?:${stopLabels})\\b.*$`, "i"), "")
+      .replace(/\s+/g, " ")
+      .trim();
+
+    if (value && !new RegExp(`^(?:${stopLabels})\\b`, "i").test(value)) {
+      return value;
+    }
+  }
+
+  return "";
+}
+
+function exactMatch<T extends { id: string }>(
+  query: string,
+  items: T[],
+  getLabel: (item: T) => string,
+): string {
+  if (!query || items.length === 0) return "";
+  const q = normalizePdfMatch(query);
+  return items.find(item => normalizePdfMatch(getLabel(item)) === q)?.id ?? "";
+}
+
 function fuzzyMatch<T extends { id: string }>(
   query: string,
   items: T[],
   getLabel: (item: T) => string,
 ): string {
   if (!query || items.length === 0) return "";
-  const normalize = (s: string) =>
-    s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9s]/g, "").trim();
-  const q = normalize(query);
+  const q = normalizePdfMatch(query);
 
   // 1. Exact substring: label contains query or query contains label
   const exact = items.find(i => {
-    const label = normalize(getLabel(i));
+    const label = normalizePdfMatch(getLabel(i));
     return label.includes(q) || q.includes(label);
   });
   if (exact) return exact.id;
 
   // 2. Word-overlap: only words >3 chars, require >=50% of query words to match
-  const queryWords = q.split(/s+/).filter(w => w.length > 3);
+  const queryWords = q.split(/\s+/).filter(w => w.length > 3);
   if (queryWords.length === 0) return "";
 
   let topScore = 0;
   let best: T | undefined;
   for (const item of items) {
-    const label = normalize(getLabel(item));
+    const label = normalizePdfMatch(getLabel(item));
     const score = queryWords.filter(w => label.includes(w)).length;
     if (score > topScore) { topScore = score; best = item; }
   }
@@ -144,14 +199,13 @@ async function parseSolicitudPDF(file: File, sociedades: Sociedad[]): Promise<Pa
   const nOT = fullText.match(/N°\s+(SF\d+)/i)?.[1] ?? "";
 
   // Solicitante — line after "Nombres y Apellidos"
-  const solicitante = fullText.match(/Nombres y Apellidos\s+(.+)/i)?.[1]?.trim() ?? "";
+  const solicitante = lineField(fullText, "Nombres y Apellidos");
 
   // Título Solicitud
-  const titulo = fullText.match(/Título Solicitud\s+(.+)/i)?.[1]?.trim() ?? "";
+  const titulo = blockField(fullText, "Título Solicitud", "Prioridad", "Ubicación", "Ubicacion");
 
-  // Prioridad — second occurrence (after the "Prioridad" section header line)
-  const prioPDF = (fullText.match(/Prioridad\s+(\S+)/gi)?.[1] ?? "")
-    .replace(/Prioridad\s+/i, "").trim().toLowerCase();
+  // Prioridad — line-anchored so the section header "Prioridad" is ignored.
+  const prioPDF = lineField(fullText, "Prioridad").toLowerCase();
 
   // Ubicación — match the label+value row (two+ spaces between label and value)
   const ubicRe = fullText.match(/Ubicaci[oó]n\s{2,}([^\n]+)\n([^\n]+)/i);
@@ -169,18 +223,17 @@ async function parseSolicitudPDF(file: File, sociedades: Sociedad[]): Promise<Pa
   }
 
   // Lugar — match "Lugar <value>", avoid "Lugar específico" header and "Lugar" standalone labels
-  // Drop ^ anchor — pdfjs may emit this mid-line; use \b and require value to start with uppercase/word char
-  const lugarPDF = fullText.match(/\bLugar\s+(?!específico|especifico|Específico)([A-ZÁÉÍÓÚÑ][^\n]{3,})/m)?.[1]?.trim() ?? "";
+  // pdfjs may emit this mid-line; allow values that start with a number (e.g. "2DO PISO").
+  const lugarPDF = extractLugarPDF(fullText);
 
   // Sociedad
-  const sociedadPDF = fullText.match(/Sociedad\s+(.+)/i)?.[1]?.trim() ?? "";
+  const sociedadPDF = lineField(fullText, "Sociedad");
 
   // Detalle — multi-line, stop at "Informacion Anexa"
-  const detalle = between(fullText, "Detalle Solicitud  ", "Informacion Anexa", "BITÁCORA")
-    .split("\n").map(l => l.trim()).filter(Boolean).join(" ").trim();
+  const detalle = blockField(fullText, "Detalle Solicitud\\s{2,}", "Informacion Anexa", "BITÁCORA");
 
   // Tipo de trabajo
-  const tipoPDF = fullText.match(/Tipo de Mant[eé]nci[oó]n\s+(\S+)/i)?.[1]?.trim().toLowerCase() ?? "";
+  const tipoPDF = lineField(fullText, "Tipo de Mantención").toLowerCase();
 
   return {
     n_ot:          nOT,
@@ -940,10 +993,10 @@ export default function OTCrearPanel({
       const { ubicacionText, lugarText, ...parsed } = await parseSolicitudPDF(file, sociedades);
 
       // Only fuzzy-match — never auto-create
-      const ubicacion_id      = fuzzyMatch(ubicacionText, ubicaciones, u => u.edificio + (u.piso ? ` ${u.piso}` : ""));
+      const ubicacion_id      = exactMatch(ubicacionText, ubicaciones, u => u.edificio + (u.piso ? ` ${u.piso}` : ""));
       // Scope lugar search to the resolved ubicacion to avoid wrong-building matches
       const lugaresForUbic    = ubicacion_id ? lugares.filter(l => l.ubicacion_id === ubicacion_id) : lugares;
-      const lugar_id          = fuzzyMatch(lugarText, lugaresForUbic, l => l.nombre);
+      const lugar_id          = exactMatch(lugarText, lugaresForUbic, l => l.nombre);
 
       const ubicacionMatched  = !!ubicacion_id || !ubicacionText;
       const lugarMatched      = !!lugar_id || !lugarText;
