@@ -46,8 +46,8 @@
 .legalBadge {
   font-size: 11px;
   font-weight: 600;
-  background: #eff6ff;
-  color: #1d4ed8;
+  background: #eef1fb;
+  color: #273d88;
   border-radius: 6px;
   padding: 2px 8px;
 }
@@ -79,10 +79,7 @@
   margin-bottom: 8px;
 }
 
-/* ── Selector de tipo ──
- * Mobile-first: 2 columnas en pantallas pequeñas, 5 columnas en escritorio.
- * Evita el caso "4 + 1 huérfano" que produce auto-fit con 5 elementos.
- */
+/* ── Selector de tipo ── */
 .tipoGrid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
@@ -98,15 +95,15 @@
 
 .tipoBtn {
   padding: 12px 10px;
-  border: 1.5px solid #e5e7eb;
-  border-radius: 12px;
-  background: none;
+  border: 1.5px solid #e2e6f0;
+  border-radius: 10px;
+  background: #fff;
   font-size: 14px;
   font-weight: 600;
   color: #374151;
   cursor: pointer;
   transition: all 0.15s ease;
-  min-height: 48px; /* mejor touch target */
+  min-height: 48px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -114,13 +111,14 @@
 }
 
 .tipoBtn:hover {
-  border-color: #9ca3af;
-  background: #f8fafc;
+  border-color: #273d88;
+  background: #eef1fb;
+  color: #273d88;
 }
 
 .tipoBtnActive {
   border-color: #273d88;
-  background: #eff6ff;
+  background: #eef1fb;
   color: #273d88;
 }
 
@@ -141,12 +139,12 @@
   display: block;
   width: 100%;
   box-sizing: border-box;
-  border: 1.5px solid #e5e7eb;
+  border: 1.5px solid #e2e6f0;
   border-radius: 10px;
   padding: 12px 14px;
   font-size: 15px;
   color: #1a1a1a;
-  background: #f8fafc;
+  background: #fff;
   outline: none;
   transition: border-color 0.2s, box-shadow 0.2s;
   font-family: inherit;
@@ -176,7 +174,7 @@
   background: #273d88;
   color: #fff;
   border: none;
-  border-radius: 12px;
+  border-radius: 10px;
   padding: 14px 16px;
   font-size: 16px;
   font-weight: 700;
@@ -185,10 +183,15 @@
   margin: 20px 0 16px;
   transition: background 0.15s, transform 0.1s;
   min-height: 52px;
+  letter-spacing: -0.01em;
 }
 
 .btnSend:hover:not(:disabled) {
   background: #1f316e;
+}
+
+.btnSend:active:not(:disabled) {
+  transform: scale(0.98);
 }
 
 .btnSend:disabled {
@@ -235,62 +238,7 @@
   margin: 0;
 }
 
-/* ── Dark mode ── */
-@media (prefers-color-scheme: dark) {
-  .page { background: #0f172a; }
-  .card { background: #1e293b; box-shadow: none; }
-  .title, .label { color: #f1f5f9; }
-  .subtitle, .tipoDesc, .legal, .error { color: #94a3b8; }
-  .input, .textarea {
-    background: #0f172a;
-    border-color: #334155;
-    color: #f1f5f9;
-  }
-  .tipoBtn {
-    border-color: #334155;
-    color: #cbd5e1;
-    background: #1e293b;
-  }
-  .tipoBtn:hover { background: #334155; }
-  .tipoBtnActive {
-    border-color: #4b6cb7;
-    background: #1e40af1a;
-    color: #c7d2fe;
-  }
-  .successIcon { background: #14532d; color: #86efac; }
-  .successTitle { color: #f1f5f9; }
-  .successText { color: #cbd5e1; }
-}
-
-/* Soporte explícito para data-theme="dark" (como usas en el sitio) */
-:global(html[data-theme="dark"]) .page { background: #0f172a; }
-:global(html[data-theme="dark"]) .card { background: #1e293b; box-shadow: none; }
-:global(html[data-theme="dark"]) .title,
-:global(html[data-theme="dark"]) .label { color: #f1f5f9; }
-:global(html[data-theme="dark"]) .subtitle,
-:global(html[data-theme="dark"]) .tipoDesc,
-:global(html[data-theme="dark"]) .legal,
-:global(html[data-theme="dark"]) .error { color: #94a3b8; }
-:global(html[data-theme="dark"]) .input,
-:global(html[data-theme="dark"]) .textarea {
-  background: #0f172a;
-  border-color: #334155;
-  color: #f1f5f9;
-}
-:global(html[data-theme="dark"]) .tipoBtn {
-  border-color: #334155;
-  color: #cbd5e1;
-  background: #1e293b;
-}
-:global(html[data-theme="dark"]) .tipoBtn:hover { background: #334155; }
-:global(html[data-theme="dark"]) .tipoBtnActive {
-  border-color: #4b6cb7;
-  background: #1e40af1a;
-  color: #c7d2fe;
-}
-
 /* ── Breakpoints ── */
-
 @media (max-width: 480px) {
   .page { padding: 12px 10px 40px; }
   .card { padding: 20px 14px 28px; }
@@ -303,9 +251,6 @@
 
 @media (max-width: 360px) {
   .tipoGrid { grid-template-columns: 1fr; }
-}
-
-@media (max-width: 360px) {
   .header { flex-direction: column; align-items: flex-start; gap: 16px; }
   .logoRow { margin-bottom: 12px; }
 }

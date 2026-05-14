@@ -449,7 +449,7 @@ export default function OTCrearForm({ usuarios, ubicaciones, activos, categorias
       const g = grupos[gi];
       if (!g.titulo.trim() && g.fotos.length === 0) continue;
       try {
-        const grupo = await createFotoGrupo(ordenId, wsId, myId, g.titulo.trim() || `Grupo ${gi + 1}`, g.descripcion.trim(), gi);
+        const grupo = await createFotoGrupo(ordenId, wsId, myId, g.titulo.trim() || `Grupo ${gi + 1}`, g.descripcion.trim(), gi, "referencia");
         for (let fi = 0; fi < g.fotos.length; fi++) {
           const url = await uploadFotoGrupo(ordenId, g.fotos[fi].file);
           await addFotoToGrupo(grupo.id, url, fi);

@@ -3,25 +3,8 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Sun, Moon, Monitor } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { motion } from "framer-motion";
-
-// ── Tema: misma lógica que el Topbar del dashboard ─────────────
-const THEME_KEY = "pangui_theme";
-const THEME_CYCLE = ["system", "light", "dark"];
-const THEME_ICON = { system: Monitor, light: Sun, dark: Moon };
-const THEME_LABEL = { system: "Sistema", light: "Claro", dark: "Oscuro" };
-
-function applyTheme(theme) {
-  const html = document.documentElement;
-  if (theme === "system") {
-    html.removeAttribute("data-theme");
-    localStorage.removeItem(THEME_KEY);
-  } else {
-    html.setAttribute("data-theme", theme);
-    localStorage.setItem(THEME_KEY, theme);
-  }
-}
 
 // ── Variantes de animación ──────────────────────────────────────
 export const fadeUp = {
@@ -70,7 +53,6 @@ export function LegalSection({ icon: Icon, title, children }) {
             letterSpacing: "-0.02em",
             lineHeight: 1.2,
             margin: 0,
-            // Permitir que un título largo se rompa en lugar de desbordar el contenedor
             wordBreak: "break-word",
             hyphens: "auto",
           }}
@@ -95,21 +77,11 @@ export function LegalSection({ icon: Icon, title, children }) {
 // ── Layout principal ───────────────────────────────────────────
 export default function LegalLayout({ children, title, description }) {
   const router = useRouter();
-  const [theme, setTheme] = useState("system");
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem(THEME_KEY);
-      if (saved === "dark" || saved === "light") setTheme(saved);
-    } catch {}
+    setMounted(true);
   }, []);
-
-  function toggleTheme() {
-    const idx = THEME_CYCLE.indexOf(theme);
-    const next = THEME_CYCLE[(idx + 1) % THEME_CYCLE.length];
-    setTheme(next);
-    applyTheme(next);
-  }
 
   function handleBack() {
     if (typeof window !== "undefined" && window.history.length > 1) {
@@ -118,8 +90,6 @@ export default function LegalLayout({ children, title, description }) {
       router.push("/");
     }
   }
-
-  const ThemeIcon = THEME_ICON[theme];
 
   return (
     <div
@@ -138,7 +108,7 @@ export default function LegalLayout({ children, title, description }) {
           position: "sticky",
           top: 0,
           zIndex: 50,
-          background: "var(--accent-1)",
+          backgroundColor: "#273D88",
           height: 60,
           display: "flex",
           alignItems: "center",
@@ -161,39 +131,14 @@ export default function LegalLayout({ children, title, description }) {
           {/* Logo */}
           <Link href="/" style={{ display: "flex", alignItems: "center", flexShrink: 0 }}>
             <img
-              src="/pangui-logo.svg"
+              src="/logo6.svg"
               alt="Pangui"
-              style={{ width: "clamp(72px, 18vw, 90px)", height: "auto" }}
+              style={{ width: "clamp(100px, 22vw, 130px)", height: "auto" }}
             />
           </Link>
 
-          {/* Controles derecha */}
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            {/* Toggle de tema */}
-            <button
-              onClick={toggleTheme}
-              aria-label={`Tema: ${THEME_LABEL[theme]}`}
-              title={`Tema: ${THEME_LABEL[theme]}`}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                width: 34,
-                height: 34,
-                background: "rgba(255,255,255,0.1)",
-                border: "1px solid rgba(255,255,255,0.15)",
-                borderRadius: 0,
-                color: "rgba(255,255,255,0.85)",
-                cursor: "pointer",
-                transition: "background 0.15s",
-              }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.18)")}
-              onMouseLeave={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.1)")}
-            >
-              <ThemeIcon size={15} />
-            </button>
-
-            {/* Volver */}
+          {/* Volver */}
+          {mounted && (
             <button
               onClick={handleBack}
               style={{
@@ -202,11 +147,11 @@ export default function LegalLayout({ children, title, description }) {
                 gap: 6,
                 fontSize: 13,
                 fontWeight: 600,
-                color: "rgba(255,255,255,0.8)",
+                color: "rgba(255,255,255,0.85)",
                 background: "transparent",
                 padding: "6px clamp(8px, 2vw, 14px)",
-                border: "1px solid rgba(255,255,255,0.2)",
-                borderRadius: 0,
+                border: "1px solid rgba(255,255,255,0.25)",
+                borderRadius: 4,
                 cursor: "pointer",
                 transition: "color 0.15s, background 0.15s",
                 whiteSpace: "nowrap",
@@ -214,24 +159,21 @@ export default function LegalLayout({ children, title, description }) {
               }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.color = "#fff";
-                e.currentTarget.style.background = "rgba(255,255,255,0.08)";
+                e.currentTarget.style.background = "rgba(255,255,255,0.12)";
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.color = "rgba(255,255,255,0.8)";
+                e.currentTarget.style.color = "rgba(255,255,255,0.85)";
                 e.currentTarget.style.background = "transparent";
               }}
             >
               <ArrowLeft size={13} />
               Volver
             </button>
-          </div>
+          )}
         </div>
       </header>
 
-      {/* ── Hero del encabezado legal ──────────────────────────────
-       *  Usamos un wrapper centrado de 48rem en lugar de padding-calc
-       *  para que ancho y alineación coincidan exactamente con el <main>.
-       */}
+      {/* ── Hero del encabezado legal ──────────────────────────── */}
       <div
         style={{
           background: "linear-gradient(135deg, #0a0f1e 0%, #0d1530 100%)",
@@ -282,6 +224,7 @@ export default function LegalLayout({ children, title, description }) {
                   fontSize: "clamp(13.5px, 2.5vw, 15px)",
                   maxWidth: 520,
                   lineHeight: 1.65,
+                  margin: 0,
                 }}
               >
                 {description}
@@ -311,7 +254,7 @@ export default function LegalLayout({ children, title, description }) {
         </motion.div>
       </main>
 
-      {/* ── Footer siempre al fondo ──────────────────────────────── */}
+      {/* ── Footer ──────────────────────────────────────────────── */}
       <footer
         style={{
           background: "#0A1628",

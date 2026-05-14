@@ -206,8 +206,8 @@ export default function PrivacidadPage() {
           <strong>Pangui</strong>, plataforma SaaS de gestión de órdenes de
           trabajo para equipos de mantención en Chile. Para consultas sobre
           privacidad escríbenos a{" "}
-          <a href="mailto:privacidad@pangui.cl" style={{ color: "var(--accent-1)" }}>
-            privacidad@pangui.cl
+          <a href="mailto:contacto@getpangui.com" style={{ color: "var(--accent-1)" }}>
+            contacto@getpangui.com
           </a>
           .
         </p>
@@ -340,7 +340,8 @@ export default function PrivacidadPage() {
             Portal ARCO →
           </Link>{" "}
           Respondemos en un plazo máximo de <strong>30 días corridos</strong>{" "}
-          conforme al Art. 22 Ley 21.719.
+          conforme al Art. 22 Ley 21.719. También puedes escribirnos directamente a{" "}
+          <a href="mailto:contacto@getpangui.com" style={{ color: "#273D88" }}>contacto@getpangui.com</a>.
         </InfoBox>
         <p>
           Si consideras que tu solicitud no fue atendida, puedes reclamar ante
@@ -358,7 +359,7 @@ export default function PrivacidadPage() {
         <Ul
           items={[
             "Usar el botón \"Eliminar cuenta\" desde Configuración → Cuenta dentro de la aplicación móvil o web.",
-            "Enviar un correo a privacidad@pangui.cl desde la dirección registrada.",
+            "Enviar un correo a contacto@getpangui.com desde la dirección registrada.",
             "Ejercer el derecho de cancelación en nuestro Portal ARCO.",
           ]}
         />
@@ -466,7 +467,7 @@ export default function PrivacidadPage() {
           lineHeight: 1.65,
         }}
       >
-        <strong>Última actualización: marzo de 2026.</strong> Este documento
+        <strong>Última actualización: mayo de 2026.</strong> Este documento
         tiene carácter informativo y no reemplaza asesoría legal profesional.
         Recomendamos consultar con un abogado especialista en protección de
         datos para situaciones específicas de tu empresa.

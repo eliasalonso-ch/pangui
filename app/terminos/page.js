@@ -407,8 +407,8 @@ export default function TerminosPage() {
         </p>
         <InfoBox>
           Para ejercer el retracto: envía un correo a{" "}
-          <a href="mailto:hola@pangui.cl" style={{ color: "var(--accent-1)" }}>
-            hola@pangui.cl
+          <a href="mailto:contacto@getpangui.com" style={{ color: "var(--accent-1)" }}>
+            contacto@getpangui.com
           </a>{" "}
           con el asunto "Retracto de compra" dentro del plazo legal. El
           reembolso se procesa en un máximo de 10 días hábiles.
@@ -608,7 +608,7 @@ export default function TerminosPage() {
           lineHeight: 1.65,
         }}
       >
-        <strong>Última actualización: marzo de 2026.</strong> Este documento
+        <strong>Última actualización: mayo de 2026.</strong> Este documento
         tiene carácter informativo y no reemplaza asesoría legal profesional.
         Recomendamos consultar con un abogado especialista en derecho
         tecnológico y protección al consumidor para situaciones específicas de

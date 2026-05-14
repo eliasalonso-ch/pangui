@@ -7,6 +7,7 @@ export interface FotoGrupo {
   workspace_id: string;
   titulo: string;
   descripcion: string;
+  tipo?: "referencia" | "evidencia";
   orden_display: number;
   locked: boolean;
   created_by: string | null;
@@ -41,11 +42,12 @@ export async function createFotoGrupo(
   titulo: string,
   descripcion: string,
   ordenDisplay: number,
+  tipo: "referencia" | "evidencia" = "evidencia",
 ): Promise<FotoGrupo> {
   const sb = createClient();
   const { data, error } = await sb
     .from("foto_grupos")
-    .insert({ orden_id: ordenId, workspace_id: workspaceId, created_by: userId, titulo, descripcion, orden_display: ordenDisplay })
+    .insert({ orden_id: ordenId, workspace_id: workspaceId, created_by: userId, titulo, descripcion, tipo, orden_display: ordenDisplay })
     .select()
     .single();
   if (error) throw error;

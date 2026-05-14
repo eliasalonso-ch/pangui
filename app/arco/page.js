@@ -56,7 +56,7 @@ export default function ARCOPage() {
     return (
       <LegalLayout
         title="Solicitud ARCO enviada"
-        description="Tu solicitud fue registrada exitosamente. Te contactaremos en un plazo máximo de 10 días hábiles."
+        description="Tu solicitud fue registrada exitosamente. Te contactaremos en un plazo máximo de 30 días corridos conforme a la Ley 21.719."
       >
         <motion.div
           variants={fadeUp}
@@ -72,7 +72,7 @@ export default function ARCOPage() {
             Tu solicitud de <strong>{TIPOS.find((t) => t.value === form.tipo)?.label}</strong> fue
             registrada correctamente.<br /><br />
             Nos contactaremos al email <strong>{form.email}</strong> en un plazo máximo de{" "}
-            <strong>10 días hábiles</strong>, conforme a la Ley 21.719.
+            <strong>30 días corridos</strong>, conforme al Art. 22 Ley 21.719.
           </p>
         </motion.div>
       </LegalLayout>
@@ -154,7 +154,9 @@ export default function ARCOPage() {
 
         <p className={styles.legal}>
           Tus datos serán tratados exclusivamente para gestionar esta solicitud conforme a la Ley 21.719
-          y serán eliminados una vez resuelta. El plazo de respuesta es de máximo 10 días hábiles.
+          y serán eliminados una vez resuelta. El plazo de respuesta legal es de máximo 30 días corridos (Art. 22, Ley 21.719).
+          También puedes contactarnos directamente en{" "}
+          <a href="mailto:contacto@getpangui.com" style={{ color: "var(--accent-1)" }}>contacto@getpangui.com</a>.
         </p>
       </LegalSection>
     </LegalLayout>
