@@ -54,7 +54,7 @@ export async function createFotoGrupo(
   return data as FotoGrupo;
 }
 
-export async function updateFotoGrupo(id: string, patch: { titulo?: string; descripcion?: string }): Promise<void> {
+export async function updateFotoGrupo(id: string, patch: { titulo?: string; descripcion?: string; tipo?: "referencia" | "evidencia" }): Promise<void> {
   const sb = createClient();
   const { error } = await sb.from("foto_grupos").update(patch).eq("id", id);
   if (error) throw error;

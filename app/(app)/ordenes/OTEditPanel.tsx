@@ -496,7 +496,7 @@ export default function OTEditPanel({
 
   async function handleAddGrupo() {
     try {
-      const g = await createFotoGrupo(orden.id, wsId, myId, `Grupo ${grupos.length + 1}`, "", grupos.length);
+      const g = await createFotoGrupo(orden.id, wsId, myId, `Grupo ${grupos.length + 1}`, "", grupos.length, "referencia");
       setGrupos(prev => [...prev, { ...g, items: [] }]);
     } catch { /* ignore */ }
   }

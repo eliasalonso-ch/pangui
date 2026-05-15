@@ -57,7 +57,7 @@ type PendingResp = Omit<Partial<PasoRespuesta>, "firmado_nombre"> & { firmado_no
 
 // ── GrupoFotosCard ────────────────────────────────────────────────────────────
 
-function GrupoFotosCard({ grupo, canManage, canUpload, uploading, fileInputRef, onUpload, onRemoveItem, onDelete, onLightbox, onSaveEdit, onToggleLocked }: {
+function GrupoFotosCard({ grupo, canManage, canUpload, uploading, fileInputRef, onUpload, onRemoveItem, onDelete, onLightbox, onSaveEdit, onToggleLocked, onChangeTipo }: {
   grupo: import("@/lib/foto-grupos-api").FotoGrupo;
   canManage: boolean;
   canUpload: boolean;
@@ -69,6 +69,7 @@ function GrupoFotosCard({ grupo, canManage, canUpload, uploading, fileInputRef, 
   onLightbox: (urls: string[], idx: number) => void;
   onSaveEdit: (titulo: string, desc: string) => void;
   onToggleLocked: (locked: boolean) => void;
+  onChangeTipo: (tipo: "referencia" | "evidencia") => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [titulo, setTitulo] = useState(grupo.titulo);
@@ -117,7 +118,36 @@ function GrupoFotosCard({ grupo, canManage, canUpload, uploading, fileInputRef, 
               {grupo.descripcion && (
                 <div style={{ fontSize: 12, color: "#64748B", marginTop: 3, lineHeight: 1.4 }}>{grupo.descripcion}</div>
               )}
-              <div style={{ fontSize: 11, color: "#94A3B8", marginTop: 4 }}>{items.length} foto{items.length !== 1 ? "s" : ""}</div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
+                <span style={{ fontSize: 11, color: "#94A3B8" }}>{items.length} foto{items.length !== 1 ? "s" : ""}</span>
+                {canManage ? (
+                  <button
+                    type="button"
+                    title="Cambiar tipo: Referencia = guía para el técnico, Evidencia = el técnico debe subir fotos"
+                    onClick={() => onChangeTipo(grupo.tipo === "referencia" ? "evidencia" : "referencia")}
+                    style={{
+                      display: "inline-flex", alignItems: "center", gap: 4,
+                      height: 20, padding: "0 8px", borderRadius: 4, fontSize: 11, fontWeight: 600,
+                      border: `1px solid ${grupo.tipo === "referencia" ? "#BFDBFE" : "#BBF7D0"}`,
+                      background: grupo.tipo === "referencia" ? "#EFF6FF" : "#F0FDF4",
+                      color: grupo.tipo === "referencia" ? "#1D4ED8" : "#15803D",
+                      cursor: "pointer", fontFamily: "inherit",
+                    }}
+                  >
+                    {grupo.tipo === "referencia" ? "📎 Referencia" : "📷 Evidencia"}
+                  </button>
+                ) : (
+                  <span style={{
+                    display: "inline-flex", alignItems: "center", gap: 4,
+                    height: 20, padding: "0 8px", borderRadius: 4, fontSize: 11, fontWeight: 600,
+                    border: `1px solid ${grupo.tipo === "referencia" ? "#BFDBFE" : "#BBF7D0"}`,
+                    background: grupo.tipo === "referencia" ? "#EFF6FF" : "#F0FDF4",
+                    color: grupo.tipo === "referencia" ? "#1D4ED8" : "#15803D",
+                  }}>
+                    {grupo.tipo === "referencia" ? "📎 Referencia" : "📷 Evidencia"}
+                  </span>
+                )}
+              </div>
             </div>
             <div style={{ display: "flex", gap: 2, flexShrink: 0, alignItems: "center" }}>
               {canManage && (
@@ -410,6 +440,7 @@ export default function OTDetail({
   const [editingGrupoId, setEditingGrupoId] = useState<string | null>(null);
   const [newGrupoTitulo, setNewGrupoTitulo] = useState("");
   const [newGrupoDesc, setNewGrupoDesc] = useState("");
+  const [newGrupoTipo, setNewGrupoTipo] = useState<"referencia" | "evidencia">("referencia");
   const [creatingGrupo, setCreatingGrupo] = useState(false);
   const [lightboxGrupo, setLightboxGrupo] = useState<{ urls: string[]; idx: number } | null>(null);
   const grupoFileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
@@ -793,10 +824,11 @@ export default function OTDetail({
     if (!newGrupoTitulo.trim() || !wsId) return;
     setCreatingGrupo(true);
     try {
-      const grupo = await createFotoGrupo(orden.id, wsId, myId, newGrupoTitulo.trim(), newGrupoDesc.trim(), fotoGrupos.length);
+      const grupo = await createFotoGrupo(orden.id, wsId, myId, newGrupoTitulo.trim(), newGrupoDesc.trim(), fotoGrupos.length, newGrupoTipo);
       setFotoGrupos(prev => [...prev, { ...grupo, items: [] }]);
       setNewGrupoTitulo("");
       setNewGrupoDesc("");
+      setNewGrupoTipo("referencia");
     } finally {
       setCreatingGrupo(false);
     }
@@ -820,6 +852,15 @@ export default function OTDetail({
     await updateFotoGrupo(grupoId, { titulo, descripcion });
     setFotoGrupos(prev => prev.map(g => g.id === grupoId ? { ...g, titulo, descripcion } : g));
     setEditingGrupoId(null);
+  }
+
+  async function handleChangeGrupoTipo(grupoId: string, tipo: "referencia" | "evidencia") {
+    setFotoGrupos(prev => prev.map(g => g.id === grupoId ? { ...g, tipo } : g));
+    try {
+      await updateFotoGrupo(grupoId, { tipo });
+    } catch {
+      setFotoGrupos(prev => prev.map(g => g.id === grupoId ? { ...g, tipo: tipo === "referencia" ? "evidencia" : "referencia" } : g));
+    }
   }
 
   async function handleUploadToGrupo(grupoId: string, file: File) {
@@ -2056,6 +2097,7 @@ export default function OTDetail({
                         onLightbox={(urls, idx) => setLightboxGrupo({ urls, idx })}
                         onSaveEdit={(titulo, desc) => handleSaveGrupoEdit(grupo.id, titulo, desc)}
                         onToggleLocked={locked => handleToggleGrupoLocked(grupo.id, locked)}
+                        onChangeTipo={tipo => handleChangeGrupoTipo(grupo.id, tipo)}
                       />
                     ))}
                   </div>
@@ -2088,6 +2130,27 @@ export default function OTDetail({
                         onFocus={e => { e.currentTarget.style.borderColor = "#2563EB"; }}
                         onBlur={e => { e.currentTarget.style.borderColor = "#E5E7EB"; }}
                       />
+                      <div style={{ display: "flex", gap: 6 }}>
+                        {(["referencia", "evidencia"] as const).map(t => (
+                          <button
+                            key={t}
+                            type="button"
+                            onClick={() => setNewGrupoTipo(t)}
+                            style={{
+                              height: 28, padding: "0 12px", borderRadius: 6, fontSize: 12, fontWeight: 600,
+                              border: `1.5px solid ${newGrupoTipo === t ? "#1E3A8A" : "#E5E7EB"}`,
+                              background: newGrupoTipo === t ? "#EEF2FF" : "#fff",
+                              color: newGrupoTipo === t ? "#1E3A8A" : "#6B7280",
+                              cursor: "pointer", fontFamily: "inherit",
+                            }}
+                          >
+                            {t === "referencia" ? "📎 Referencia" : "📷 Evidencia"}
+                          </button>
+                        ))}
+                        <span style={{ fontSize: 11, color: "#9CA3AF", alignSelf: "center", marginLeft: 4 }}>
+                          {newGrupoTipo === "referencia" ? "Fotos del supervisor para guiar al técnico" : "Fotos que el técnico debe subir en campo"}
+                        </span>
+                      </div>
                       <button
                         type="button"
                         onClick={handleCreateGrupo}
