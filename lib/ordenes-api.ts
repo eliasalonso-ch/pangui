@@ -121,15 +121,15 @@ export async function fetchOrdenes(wsId: string): Promise<OrdenListItem[]> {
   return (data ?? []) as unknown as OrdenListItem[];
 }
 
-export async function fetchOrden(id: string): Promise<OrdenTrabajo> {
+export async function fetchOrden(id: string): Promise<OrdenTrabajo | null> {
   const sb = createClient();
   const { data, error } = await sb
     .from("ordenes_trabajo")
     .select(ORDEN_SELECT)
     .eq("id", id)
-    .single();
+    .maybeSingle();
   if (error) throw error;
-  return data as unknown as OrdenTrabajo;
+  return data as unknown as OrdenTrabajo | null;
 }
 
 export async function fetchSubOrdenes(parentId: string): Promise<OrdenTrabajo[]> {

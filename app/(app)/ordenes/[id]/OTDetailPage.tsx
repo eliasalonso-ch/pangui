@@ -36,7 +36,7 @@ export default function OTDetailPage({
     const id = setInterval(async () => {
       try {
         const fresh = await fetchOrden(orden.id);
-        setOrden(fresh);
+        if (fresh) setOrden(fresh);
       } catch {
         // ignore transient errors
       }

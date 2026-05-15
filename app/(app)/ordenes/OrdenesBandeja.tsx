@@ -174,7 +174,7 @@ export default function OrdenesBandeja({
     setLoadingDetail(true);
     try {
       const orden = await fetchOrden(id);
-      setDetail(orden);
+      setDetail(orden ?? null);
     } catch {
       setDetail(null);
     } finally {
