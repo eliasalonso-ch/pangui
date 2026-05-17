@@ -646,7 +646,7 @@ export default function AnaliticaPage() {
 
   // ── Operations Overview ─────────────────────────────────────────────────────
   const today = new Date().toISOString().slice(0, 10);
-  const openOTs = ots.filter(o => o.estado === "pendiente" || o.estado === "en_espera" || o.estado === "en_curso" || o.estado === "en_revision");
+  const openOTs = ots.filter(o => o.estado === "pendiente" || o.estado === "en_espera" || o.estado === "en_curso");
   const overdueOTs = openOTs.filter(o => o.fecha_termino && o.fecha_termino.slice(0, 10) < today);
   const inCurso = ots.filter(o => o.estado === "en_curso");
 
