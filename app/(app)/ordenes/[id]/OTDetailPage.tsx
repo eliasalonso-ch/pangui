@@ -56,7 +56,7 @@ export default function OTDetailPage({
         style={{
           display: "flex", alignItems: "center", gap: 8,
           padding: "0 16px", height: 52,
-          borderBottom: "1px solid #E5E7EB", background: "#fff", flexShrink: 0,
+          borderBottom: "1px solid var(--border)", background: "var(--surface-1)", flexShrink: 0,
         }}
       >
         <button
@@ -64,7 +64,7 @@ export default function OTDetailPage({
           style={{
             display: "flex", alignItems: "center", gap: 6,
             background: "none", border: "none", cursor: "pointer",
-            fontSize: 14, fontWeight: 500, color: "#273D88",
+            fontSize: 14, fontWeight: 500, color: "var(--brand)",
             fontFamily: "inherit", padding: "4px 0",
           }}
         >

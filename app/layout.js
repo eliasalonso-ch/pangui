@@ -45,10 +45,10 @@ export default function RootLayout({ children }) {
         <link rel="dns-prefetch" href="https://yqwsryjbmlvcghnwnzik.supabase.co" />
       </head>
       <body>
-        {/* Apply saved theme before first paint to avoid flash */}
+        {/* Pre-paint theme: reads preference, resolves auto via OS, sets data-theme to avoid flash */}
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var t=localStorage.getItem('pangui_theme');if(t==='dark'||t==='light')document.documentElement.setAttribute('data-theme',t);}catch(e){}})();`,
+            __html: `(function(){try{var t=localStorage.getItem("pangui_theme")||"auto";var resolved=t==="auto"?(window.matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light"):t;document.documentElement.setAttribute("data-theme",resolved);document.documentElement.setAttribute("data-theme-pref",t);}catch(e){}})();`,
           }}
         />
         {children}

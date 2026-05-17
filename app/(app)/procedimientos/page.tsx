@@ -24,7 +24,7 @@ const TIPO_LABEL: Record<string, string> = {
 
 const labelStyle: React.CSSProperties = {
   fontSize: 11, fontWeight: 700, textTransform: "uppercase",
-  letterSpacing: "0.06em", color: "#9CA3AF", marginBottom: 5, display: "block",
+  letterSpacing: "0.06em", color: "var(--fg-4)", marginBottom: 5, display: "block",
 };
 
 export default function ProcedimientosPage() {
@@ -79,14 +79,14 @@ export default function ProcedimientosPage() {
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "#F8FAFC" }}>
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "var(--surface-0)" }}>
 
       {/* Header */}
       <div style={{ padding: "24px 32px 0", flexShrink: 0 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
           <div>
-            <h1 style={{ fontSize: 22, fontWeight: 700, color: "#0F172A", margin: 0 }}>Procedimientos</h1>
-            <p style={{ fontSize: 13, color: "#64748B", margin: "4px 0 0" }}>
+            <h1 style={{ fontSize: 22, fontWeight: 700, color: "var(--fg-1)", margin: 0 }}>Procedimientos</h1>
+            <p style={{ fontSize: 13, color: "var(--fg-3)", margin: "4px 0 0" }}>
               Plantillas de pasos reutilizables que puedes adjuntar a órdenes de trabajo.
             </p>
           </div>
@@ -96,9 +96,9 @@ export default function ProcedimientosPage() {
               style={{
                 display: "flex", alignItems: "center", gap: 6,
                 height: 38, padding: "0 16px",
-                background: "linear-gradient(135deg, #1E3A8A, #2563EB)",
+                background: "linear-gradient(135deg, var(--brand-active), var(--brand))",
                 border: "none", borderRadius: 8, cursor: "pointer",
-                fontSize: 13, fontWeight: 600, color: "#fff", fontFamily: "inherit",
+                fontSize: 13, fontWeight: 600, color: "var(--fg-on-brand)", fontFamily: "inherit",
               }}
             >
               <Plus size={14} />
@@ -109,7 +109,7 @@ export default function ProcedimientosPage() {
 
         {/* Search */}
         <div style={{ marginTop: 16, marginBottom: 16, position: "relative", maxWidth: 400 }}>
-          <Search size={14} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "#94A3B8", pointerEvents: "none" }} />
+          <Search size={14} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "var(--fg-4)", pointerEvents: "none" }} />
           <input
             type="text"
             placeholder="Buscar procedimientos…"
@@ -117,17 +117,17 @@ export default function ProcedimientosPage() {
             onChange={e => setSearch(e.target.value)}
             style={{
               width: "100%", height: 36, paddingLeft: 32, paddingRight: search ? 32 : 12,
-              border: "1px solid #E2E8F0", borderRadius: 8, fontSize: 13,
-              background: "#fff", outline: "none", fontFamily: "inherit", color: "#0F172A",
+              border: "1px solid var(--border)", borderRadius: 8, fontSize: 13,
+              background: "var(--surface-1)", outline: "none", fontFamily: "inherit", color: "var(--fg-1)",
               boxSizing: "border-box",
             }}
-            onFocus={e => { e.currentTarget.style.borderColor = "#2563EB"; e.currentTarget.style.boxShadow = "0 0 0 3px rgba(37,99,235,0.10)"; }}
-            onBlur={e => { e.currentTarget.style.borderColor = "#E2E8F0"; e.currentTarget.style.boxShadow = "none"; }}
+            onFocus={e => { e.currentTarget.style.borderColor = "var(--brand)"; e.currentTarget.style.boxShadow = "var(--shadow-focus)"; }}
+            onBlur={e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.boxShadow = "none"; }}
           />
           {search && (
             <button
               onClick={() => setSearch("")}
-              style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "#94A3B8", padding: 2 }}
+              style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "var(--fg-4)", padding: 2 }}
             >
               <X size={13} />
             </button>
@@ -139,20 +139,20 @@ export default function ProcedimientosPage() {
       <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "0 32px 32px" }}>
         {loading ? (
           <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: 200 }}>
-            <Loader2 size={20} className="animate-spin" style={{ color: "#94A3B8" }} />
+            <Loader2 size={20} className="animate-spin" style={{ color: "var(--fg-4)" }} />
           </div>
         ) : filtered.length === 0 ? (
           <div style={{
             display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-            height: 240, background: "#fff", borderRadius: 12, border: "1px solid #E2E8F0",
-            color: "#94A3B8", gap: 8,
+            height: 240, background: "var(--surface-1)", borderRadius: 12, border: "1px solid var(--border)",
+            color: "var(--fg-4)", gap: 8,
           }}>
-            <ClipboardCheck size={36} style={{ color: "#CBD5E1" }} />
-            <div style={{ fontSize: 14, fontWeight: 500, color: "#64748B" }}>
+            <ClipboardCheck size={36} style={{ color: "var(--fg-4)" }} />
+            <div style={{ fontSize: 14, fontWeight: 500, color: "var(--fg-3)" }}>
               {search ? "Sin resultados" : "No hay procedimientos aún"}
             </div>
             {!search && isAdmin && (
-              <div style={{ fontSize: 13, color: "#94A3B8" }}>Crea el primero usando el botón de arriba</div>
+              <div style={{ fontSize: 13, color: "var(--fg-4)" }}>Crea el primero usando el botón de arriba</div>
             )}
           </div>
         ) : (
@@ -175,22 +175,22 @@ export default function ProcedimientosPage() {
       {/* Confirm archive */}
       {confirmArchive && (
         <div style={{ position: "fixed", inset: 0, zIndex: 60, background: "rgba(15,23,42,0.45)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <div style={{ background: "#fff", borderRadius: 12, padding: 24, maxWidth: 400, width: "90%", boxShadow: "0 20px 40px rgba(0,0,0,0.2)" }}>
-            <div style={{ fontSize: 15, fontWeight: 600, color: "#0F172A", marginBottom: 8 }}>Archivar procedimiento</div>
-            <div style={{ fontSize: 13, color: "#475569", marginBottom: 20 }}>
+          <div style={{ background: "var(--surface-1)", borderRadius: 12, padding: 24, maxWidth: 400, width: "90%", boxShadow: "var(--shadow-lg)" }}>
+            <div style={{ fontSize: 15, fontWeight: 600, color: "var(--fg-1)", marginBottom: 8 }}>Archivar procedimiento</div>
+            <div style={{ fontSize: 13, color: "var(--fg-2)", marginBottom: 20 }}>
               Se ocultará <strong>{confirmArchive.nombre}</strong> de la biblioteca. Las ejecuciones existentes no se borrarán.
             </div>
             <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
               <button
                 onClick={() => setConfirmArchive(null)}
-                style={{ height: 36, padding: "0 14px", border: "1px solid #E2E8F0", borderRadius: 8, background: "#fff", fontSize: 13, fontWeight: 500, cursor: "pointer", fontFamily: "inherit", color: "#475569" }}
+                style={{ height: 36, padding: "0 14px", border: "1px solid var(--border)", borderRadius: 8, background: "var(--surface-1)", fontSize: 13, fontWeight: 500, cursor: "pointer", fontFamily: "inherit", color: "var(--fg-2)" }}
               >
                 Cancelar
               </button>
               <button
                 onClick={() => handleArchive(confirmArchive)}
                 disabled={archiving === confirmArchive.id}
-                style={{ height: 36, padding: "0 14px", border: "none", borderRadius: 8, background: "#EF4444", color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 6 }}
+                style={{ height: 36, padding: "0 14px", border: "none", borderRadius: 8, background: "var(--danger)", color: "var(--fg-on-brand)", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 6 }}
               >
                 {archiving === confirmArchive.id ? <Loader2 size={12} className="animate-spin" /> : null}
                 Archivar
@@ -221,9 +221,9 @@ function ProcCard({
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
       style={{
-        background: "#fff", borderRadius: 12,
-        border: `1px solid ${hover ? "#CBD5E1" : "#E2E8F0"}`,
-        boxShadow: hover ? "0 4px 12px rgba(15,23,42,0.08)" : "0 1px 3px rgba(15,23,42,0.05)",
+        background: "var(--surface-1)", borderRadius: 12,
+        border: `1px solid ${hover ? "var(--border-strong)" : "var(--border)"}`,
+        boxShadow: hover ? "var(--shadow-sm)" : "var(--shadow-xs)",
         padding: "16px 18px",
         cursor: "pointer",
         transition: "border-color 0.15s, box-shadow 0.15s",
@@ -232,9 +232,9 @@ function ProcCard({
     >
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }}>
         <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 14, fontWeight: 600, color: "#0F172A", marginBottom: 2 }}>{proc.nombre}</div>
+          <div style={{ fontSize: 14, fontWeight: 600, color: "var(--fg-1)", marginBottom: 2 }}>{proc.nombre}</div>
           {proc.descripcion && (
-            <div style={{ fontSize: 12.5, color: "#64748B", lineHeight: 1.4, WebkitLineClamp: 2, WebkitBoxOrient: "vertical", display: "-webkit-box", overflow: "hidden" }}>
+            <div style={{ fontSize: 12.5, color: "var(--fg-3)", lineHeight: 1.4, WebkitLineClamp: 2, WebkitBoxOrient: "vertical", display: "-webkit-box", overflow: "hidden" }}>
               {proc.descripcion}
             </div>
           )}
@@ -243,18 +243,18 @@ function ProcCard({
           <div style={{ display: "flex", gap: 4, flexShrink: 0 }} onClick={e => e.stopPropagation()}>
             <button
               onClick={onEdit}
-              style={{ width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", borderRadius: 6, cursor: "pointer", color: "#64748B" }}
-              onMouseEnter={e => { e.currentTarget.style.background = "#F1F5F9"; e.currentTarget.style.color = "#0F172A"; }}
-              onMouseLeave={e => { e.currentTarget.style.background = "none"; e.currentTarget.style.color = "#64748B"; }}
+              style={{ width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", borderRadius: 6, cursor: "pointer", color: "var(--fg-3)" }}
+              onMouseEnter={e => { e.currentTarget.style.background = "var(--surface-hover)"; e.currentTarget.style.color = "var(--fg-1)"; }}
+              onMouseLeave={e => { e.currentTarget.style.background = "none"; e.currentTarget.style.color = "var(--fg-3)"; }}
             >
               <Pencil size={13} />
             </button>
             <button
               onClick={onArchive}
               disabled={archiving}
-              style={{ width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", borderRadius: 6, cursor: "pointer", color: "#64748B" }}
-              onMouseEnter={e => { e.currentTarget.style.background = "#FEF2F2"; e.currentTarget.style.color = "#EF4444"; }}
-              onMouseLeave={e => { e.currentTarget.style.background = "none"; e.currentTarget.style.color = "#64748B"; }}
+              style={{ width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", borderRadius: 6, cursor: "pointer", color: "var(--fg-3)" }}
+              onMouseEnter={e => { e.currentTarget.style.background = "var(--danger-bg)"; e.currentTarget.style.color = "var(--danger)"; }}
+              onMouseLeave={e => { e.currentTarget.style.background = "none"; e.currentTarget.style.color = "var(--fg-3)"; }}
             >
               {archiving ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
             </button>
@@ -265,27 +265,27 @@ function ProcCard({
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           {proc.categoria && (
-            <span style={{ fontSize: 11, fontWeight: 600, color: "#2563EB", background: "#EFF6FF", borderRadius: 4, padding: "2px 7px" }}>
+            <span style={{ fontSize: 11, fontWeight: 600, color: "var(--brand)", background: "var(--brand-tint)", borderRadius: 4, padding: "2px 7px" }}>
               {proc.categoria}
             </span>
           )}
-          <span style={{ fontSize: 11, color: "#94A3B8" }}>
+          <span style={{ fontSize: 11, color: "var(--fg-4)" }}>
             {proc.pasos_count ?? 0} paso{(proc.pasos_count ?? 0) !== 1 ? "s" : ""}
           </span>
           {proc.bloquea_cierre_ot && (
-            <span style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 11, color: "#F59E0B", fontWeight: 500 }}>
+            <span style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 11, color: "var(--warning)", fontWeight: 500 }}>
               <Shield size={11} />
               Bloquea cierre
             </span>
           )}
           {proc.auto_adjuntar && (
-            <span style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 11, color: "#8B5CF6", fontWeight: 500 }}>
+            <span style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 11, color: "var(--brand)", fontWeight: 500 }}>
               <Zap size={11} />
               Auto-adjuntar
             </span>
           )}
         </div>
-        <ChevronRight size={14} style={{ color: "#CBD5E1" }} />
+        <ChevronRight size={14} style={{ color: "var(--fg-4)" }} />
       </div>
     </div>
   );

@@ -40,8 +40,8 @@ export const Sidebar = ({ children, className, ...props }: React.HTMLAttributes<
       className={cn("flex flex-col flex-shrink-0 transition-all duration-200", className)}
       style={{
         width: collapsed ? 56 : 200,
-        background: "#FFFFFF",
-        borderRight: "1px solid #E2E8F0",
+        background: "var(--sidebar-bg)",
+        borderRight: "1px solid var(--border)",
         height: "100vh",
         position: "sticky",
         top: 0,
@@ -56,7 +56,7 @@ export const Sidebar = ({ children, className, ...props }: React.HTMLAttributes<
 };
 
 export const SidebarInset = ({ children }: { children: React.ReactNode }) => (
-  <main className="flex-1 min-w-0" style={{ background: "var(--c-bg, #F8FAFC)" }}>{children}</main>
+  <main className="flex-1 min-w-0" style={{ background: "var(--surface-0)" }}>{children}</main>
 )
 
 export const SidebarHeader = (props: React.HTMLAttributes<HTMLDivElement>) => (
@@ -82,7 +82,7 @@ export const SidebarGroupLabel = ({ children, className, ...props }: React.HTMLA
         fontWeight: 600,
         letterSpacing: "0.08em",
         textTransform: "uppercase",
-        color: "#475569",
+        color: "var(--fg-4)",
         marginTop: "16px",
       }}
       {...props}
@@ -131,22 +131,22 @@ export const SidebarMenuButton = ({
         )}
         style={{
           width: collapsed ? 40 : "100%",
-          color: isActive ? "#1D4ED8" : "#475569",
-          background: isActive ? "#EFF6FF" : "transparent",
-          boxShadow: isActive ? (collapsed ? "none" : "inset 3px 0 0 #2563EB") : "none",
+          color: isActive ? "var(--brand)" : "var(--fg-3)",
+          background: isActive ? "var(--brand-tint)" : "transparent",
+          boxShadow: isActive ? (collapsed ? "none" : "inset 3px 0 0 var(--brand)") : "none",
           borderRadius: 6,
           transition: "background 0.15s, color 0.15s, box-shadow 0.15s",
         }}
         onMouseEnter={e => {
           if (!isActive) {
-            (e.currentTarget as HTMLElement).style.background = "#F1F5F9";
-            (e.currentTarget as HTMLElement).style.color = "#0F172A";
+            (e.currentTarget as HTMLElement).style.background = "var(--sidebar-hover)";
+            (e.currentTarget as HTMLElement).style.color = "var(--fg-1)";
           }
         }}
         onMouseLeave={e => {
           if (!isActive) {
             (e.currentTarget as HTMLElement).style.background = "transparent";
-            (e.currentTarget as HTMLElement).style.color = "#475569";
+            (e.currentTarget as HTMLElement).style.color = "var(--fg-3)";
           }
         }}
         {...props}
@@ -160,7 +160,7 @@ export const SidebarSeparator = ({ className, ...props }: React.HTMLAttributes<H
   return (
     <hr
       className={cn(collapsed ? "my-2 mx-2" : "my-2 mx-3", className)}
-      style={{ border: "none", borderTop: "1px solid #E2E8F0" }}
+      style={{ border: "none", borderTop: "1px solid var(--border)" }}
       {...props}
     />
   );
@@ -168,7 +168,7 @@ export const SidebarSeparator = ({ className, ...props }: React.HTMLAttributes<H
 
 export const SidebarFooter = (props: React.HTMLAttributes<HTMLDivElement>) => (
   <div
-    style={{ borderTop: "1px solid #E2E8F0", padding: "8px" }}
+    style={{ borderTop: "1px solid var(--border)", padding: "8px" }}
     {...props}
   />
 )

@@ -15,14 +15,14 @@ import {
 import { createClient } from "@/lib/supabase";
 
 const C = {
-  brand: "#1E3A8A", mid: "#2563EB", light: "#EFF6FF",
-  success: "#10B981", successBg: "#ECFDF5",
-  warning: "#F59E0B", warningBg: "#FFFBEB",
-  danger: "#EF4444",  dangerBg: "#FEF2F2",
-  info: "#3B82F6",    infoBg: "#EFF6FF",
-  purple: "#7C3AED",  purpleBg: "#F5F3FF",
-  text1: "#0F172A", text2: "#475569", text3: "#94A3B8",
-  border: "#E2E8F0", bg: "#F8FAFC", surface: "#FFFFFF",
+  brand: "var(--brand)",        mid: "var(--brand)",          light: "var(--brand-tint)",
+  success: "var(--success)",    successBg: "var(--success-bg)",
+  warning: "var(--warning)",    warningBg: "var(--st-wait-bg)",
+  danger: "var(--danger)",      dangerBg: "var(--danger-bg)",
+  info: "var(--brand)",         infoBg: "var(--brand-tint)",
+  purple: "var(--brand)",       purpleBg: "var(--brand-tint)",
+  text1: "var(--fg-1)", text2: "var(--fg-2)", text3: "var(--fg-4)",
+  border: "var(--border)", bg: "var(--surface-0)", surface: "var(--surface-1)",
 };
 
 // ── DB row shapes ─────────────────────────────────────────────────────────────
@@ -98,7 +98,7 @@ function StatCard({ label, value, sub, icon: Icon, color = C.mid }: {
           <div style={{ fontSize: 28, fontWeight: 800, color: C.text1, lineHeight: 1 }}>{value}</div>
           {sub && <div style={{ fontSize: 12, color: C.text2, marginTop: 6 }}>{sub}</div>}
         </div>
-        <div style={{ width: 44, height: 44, borderRadius: 10, background: color + "18", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ width: 44, height: 44, borderRadius: 10, background: "var(--surface-hover)", display: "flex", alignItems: "center", justifyContent: "center" }}>
           <Icon size={20} color={color} />
         </div>
       </div>
@@ -192,7 +192,8 @@ export default function AnaliticaMaterialesPage() {
     const map = new Map<string, { cantidad: number; frecuencia: number; otIds: Set<string>; unidad: string }>();
     for (const hoja of hojas) {
       const hojaOt = ots.find(o => o.id === hoja.orden_id);
-      if (hojaOt && hojaOt.created_at.slice(0, 10) < cutoffDate) continue;
+      if (!hojaOt) continue;
+      if (hojaOt.created_at.slice(0, 10) < cutoffDate) continue;
       const itemCol = hoja.columnas.find(c =>
         c.label.toLowerCase().includes("ítem") || c.label.toLowerCase().includes("item") ||
         c.label.toLowerCase().includes("material") || c.label.toLowerCase().includes("nombre")
@@ -395,7 +396,7 @@ export default function AnaliticaMaterialesPage() {
                 </thead>
                 <tbody>
                   {stockAlerts.map(p => (
-                    <tr key={p.id} style={{ borderBottom: `1px solid ${C.border}`, background: p.stock_actual <= 0 ? C.dangerBg + "60" : C.warningBg + "60" }}>
+                    <tr key={p.id} style={{ borderBottom: `1px solid ${C.border}`, background: p.stock_actual <= 0 ? C.dangerBg : C.warningBg }}>
                       <td style={{ padding: "11px 16px", fontSize: 13, fontWeight: 600, color: C.text1 }}>{p.nombre}</td>
                       <td style={{ padding: "11px 16px", fontSize: 12, color: C.text3, fontFamily: "monospace" }}>{p.codigo ?? "—"}</td>
                       <td style={{ padding: "11px 16px", fontSize: 12, color: C.text2 }}>{p.categoria ?? "—"}</td>
@@ -441,7 +442,7 @@ export default function AnaliticaMaterialesPage() {
                       <td style={{ padding: "10px 14px" }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                           <div style={{ flex: 1, height: 6, borderRadius: 3, background: C.bg, overflow: "hidden", minWidth: 60 }}>
-                            <div style={{ height: "100%", width: `${Math.min(item.pct * 2, 100)}%`, background: item.abc === "A" ? C.danger : item.abc === "B" ? C.warning : C.text3 + "60", borderRadius: 3 }} />
+                            <div style={{ height: "100%", width: `${Math.min(item.pct * 2, 100)}%`, background: item.abc === "A" ? C.danger : item.abc === "B" ? C.warning : C.text3, borderRadius: 3 }} />
                           </div>
                           <span style={{ fontSize: 11, color: C.text2, minWidth: 36 }}>{item.pct.toFixed(1)}%</span>
                         </div>
@@ -611,7 +612,7 @@ export default function AnaliticaMaterialesPage() {
                   <YAxis type="category" dataKey="name" tick={{ fontSize: 11, fill: C.text2 }} width={140} />
                   <Tooltip contentStyle={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12 }} formatter={v => [`${v}`, "Cantidad"]} />
                   <Bar dataKey="cantidad" radius={[0, 4, 4, 0]} name="Cantidad" fill={C.info}>
-                    {Array.from(hojaConsumoMap.keys()).slice(0, 12).map((_, i) => <Cell key={i} fill={i === 0 ? C.mid : i < 3 ? C.info : C.text3 + "80"} />)}
+                    {Array.from(hojaConsumoMap.keys()).slice(0, 12).map((_, i) => <Cell key={i} fill={i === 0 ? C.mid : i < 3 ? C.info : C.text3} />)}
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>

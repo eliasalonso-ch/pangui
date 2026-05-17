@@ -79,10 +79,10 @@ const ESTADO_LABEL: Record<Estado, string> = {
 };
 
 const ESTADO_DOT: Record<Estado, string> = {
-  pendiente:  "#3B82F6",
-  en_espera:  "#F97316",
-  en_curso:   "#8B5CF6",
-  completado: "#10B981",
+  pendiente:  "var(--st-open-dot)",
+  en_espera:  "var(--st-wait-dot)",
+  en_curso:   "var(--st-progress-dot)",
+  completado: "var(--st-done-dot)",
 };
 
 const PRIORIDAD_LABEL: Record<Prioridad, string> = {
@@ -90,11 +90,11 @@ const PRIORIDAD_LABEL: Record<Prioridad, string> = {
 };
 
 const PRIORIDAD_COLOR: Record<Prioridad, string> = {
-  ninguna: "#CBD5E1",
-  baja:    "#94A3B8",
-  media:   "#3B82F6",
-  alta:    "#F97316",
-  urgente: "#EF4444",
+  ninguna: "var(--fg-4)",
+  baja:    "var(--fg-4)",
+  media:   "var(--brand)",
+  alta:    "var(--warning)",
+  urgente: "var(--danger)",
 };
 
 const ACTIVIDAD_CONFIG: Record<string, { icon: React.ReactNode; label: string }> = {
@@ -306,22 +306,22 @@ export default function InicioDashboard() {
 
   if (loading) {
     return (
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", color: "#94A3B8", fontSize: 13 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", color: "var(--fg-4)", fontSize: 13 }}>
         Cargando…
       </div>
     );
   }
 
   return (
-    <div style={{ padding: "32px 40px 64px", minHeight: "100vh", background: "#fff" }}>
+    <div style={{ padding: "32px 40px 64px", minHeight: "100vh", background: "var(--surface-0)" }}>
 
       {/* ── Header ── */}
       <div style={{ marginBottom: 32, display: "flex", alignItems: "flex-end", justifyContent: "space-between" }}>
         <div>
-          <p style={{ fontSize: 12, fontWeight: 600, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 6px" }}>
+          <p style={{ fontSize: 12, fontWeight: 600, color: "var(--fg-4)", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 6px" }}>
             {new Date().toLocaleDateString("es-CL", { weekday: "long", day: "numeric", month: "long" })}
           </p>
-          <h1 style={{ fontSize: 26, fontWeight: 700, color: "#0F172A", letterSpacing: "-0.02em", margin: 0 }}>
+          <h1 style={{ fontSize: 26, fontWeight: 700, color: "var(--fg-1)", letterSpacing: "-0.02em", margin: 0 }}>
             {greeting()}{userName ? `, ${userName}` : ""}
           </h1>
         </div>
@@ -330,11 +330,11 @@ export default function InicioDashboard() {
           style={{
             display: "flex", alignItems: "center", gap: 6,
             padding: "9px 16px", borderRadius: 8,
-            background: "#1E3A8A", color: "#fff",
+            background: "var(--brand)", color: "var(--fg-on-brand)",
             fontSize: 13, fontWeight: 600, border: "none", cursor: "pointer", fontFamily: "inherit",
           }}
-          onMouseEnter={e => { e.currentTarget.style.background = "#1D4ED8"; }}
-          onMouseLeave={e => { e.currentTarget.style.background = "#1E3A8A"; }}
+          onMouseEnter={e => { e.currentTarget.style.background = "var(--brand-hover)"; }}
+          onMouseLeave={e => { e.currentTarget.style.background = "var(--brand)"; }}
         >
           <Plus size={14} /> Nueva OT
         </button>
@@ -400,28 +400,28 @@ export default function InicioDashboard() {
           <div
             onClick={() => router.push("/ordenes?filtro=levantamientos")}
             style={{
-              background: "#fff", border: "1px solid #E2E8F0", borderRadius: 10,
+              background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: 10,
               padding: "18px 20px", cursor: "pointer", transition: "box-shadow 0.15s",
             }}
-            onMouseEnter={e => { e.currentTarget.style.boxShadow = "0 4px 12px rgba(15,23,42,0.08)"; }}
+            onMouseEnter={e => { e.currentTarget.style.boxShadow = "var(--shadow-sm)"; }}
             onMouseLeave={e => { e.currentTarget.style.boxShadow = "none"; }}
           >
-            <div style={{ fontSize: 11, fontWeight: 600, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 12 }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: "var(--fg-4)", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 12 }}>
               Levantamientos
             </div>
             <div style={{ display: "flex", gap: 20 }}>
               <div>
-                <div style={{ fontSize: 28, fontWeight: 700, color: "#64748B", lineHeight: 1, letterSpacing: "-0.02em", marginBottom: 2 }}>
+                <div style={{ fontSize: 28, fontWeight: 700, color: "var(--fg-2)", lineHeight: 1, letterSpacing: "-0.02em", marginBottom: 2 }}>
                   {levantamientosPendientes.length}
                 </div>
-                <div style={{ fontSize: 12, color: "#94A3B8" }}>pendientes</div>
+                <div style={{ fontSize: 12, color: "var(--fg-4)" }}>pendientes</div>
               </div>
-              <div style={{ width: 1, background: "#E2E8F0", alignSelf: "stretch" }} />
+              <div style={{ width: 1, background: "var(--border)", alignSelf: "stretch" }} />
               <div>
-                <div style={{ fontSize: 28, fontWeight: 700, color: "#10B981", lineHeight: 1, letterSpacing: "-0.02em", marginBottom: 2 }}>
+                <div style={{ fontSize: 28, fontWeight: 700, color: "var(--success)", lineHeight: 1, letterSpacing: "-0.02em", marginBottom: 2 }}>
                   {levantamientosCompletados.length}
                 </div>
-                <div style={{ fontSize: 12, color: "#94A3B8" }}>completados</div>
+                <div style={{ fontSize: 12, color: "var(--fg-4)" }}>completados</div>
               </div>
             </div>
           </div>
@@ -449,7 +449,7 @@ export default function InicioDashboard() {
           {asignados.length > 0 && (
             <Card title="Asignadas" action="Ver todas" onAction={() => router.push("/ordenes")}>
               <div style={{ padding: "4px 0" }}>
-                <ActionGroup label="Asignadas" count={asignados.length} items={asignados} dotColor="#22C55E" onNavigate={id => router.push(`/ordenes/${id}`)} onViewAll={() => router.push("/ordenes")} />
+                <ActionGroup label="Asignadas" count={asignados.length} items={asignados} dotColor="var(--success)" onNavigate={id => router.push(`/ordenes/${id}`)} onViewAll={() => router.push("/ordenes")} />
               </div>
             </Card>
           )}
@@ -458,10 +458,10 @@ export default function InicioDashboard() {
           {(vencidas.length > 0 || paraHoy.length > 0 || sinAsignar.length > 0 || bloqueadas.length > 0) && (
             <Card title="Requieren atención" action="Ver todas" onAction={() => router.push("/ordenes")}>
               <div style={{ padding: "4px 0" }}>
-                <ActionGroup label="Vencidas"    count={vencidas.length}    items={vencidas}    dotColor="#EF4444" onNavigate={id => router.push(`/ordenes/${id}`)} onViewAll={() => router.push("/ordenes?filtro=vencidas")} />
-                <ActionGroup label="Vencen hoy"  count={paraHoy.length}     items={paraHoy}     dotColor="#F97316" onNavigate={id => router.push(`/ordenes/${id}`)} onViewAll={() => router.push("/ordenes?filtro=vence_hoy")} />
-                <ActionGroup label="Sin asignar" count={sinAsignar.length}   items={sinAsignar}  dotColor="#94A3B8" onNavigate={id => router.push(`/ordenes/${id}`)} onViewAll={() => router.push("/ordenes?filtro=sin_asignar")} />
-                <ActionGroup label="Bloqueadas"  count={bloqueadas.length}   items={bloqueadas}  dotColor="#F97316" onNavigate={id => router.push(`/ordenes/${id}`)} onViewAll={() => router.push("/ordenes?filtro=bloqueadas")} />
+                <ActionGroup label="Vencidas"    count={vencidas.length}    items={vencidas}    dotColor="var(--danger)"  onNavigate={id => router.push(`/ordenes/${id}`)} onViewAll={() => router.push("/ordenes?filtro=vencidas")} />
+                <ActionGroup label="Vencen hoy"  count={paraHoy.length}     items={paraHoy}     dotColor="var(--warning)" onNavigate={id => router.push(`/ordenes/${id}`)} onViewAll={() => router.push("/ordenes?filtro=vence_hoy")} />
+                <ActionGroup label="Sin asignar" count={sinAsignar.length}   items={sinAsignar}  dotColor="var(--fg-4)"   onNavigate={id => router.push(`/ordenes/${id}`)} onViewAll={() => router.push("/ordenes?filtro=sin_asignar")} />
+                <ActionGroup label="Bloqueadas"  count={bloqueadas.length}   items={bloqueadas}  dotColor="var(--warning)" onNavigate={id => router.push(`/ordenes/${id}`)} onViewAll={() => router.push("/ordenes?filtro=bloqueadas")} />
               </div>
             </Card>
           )}
@@ -477,15 +477,15 @@ export default function InicioDashboard() {
                     <div key={p.id} style={{
                       display: "flex", alignItems: "center", gap: 12,
                       padding: "10px 16px",
-                      borderBottom: i < Math.min(bajoStock.length, 5) - 1 ? "1px solid #F1F5F9" : "none",
+                      borderBottom: i < Math.min(bajoStock.length, 5) - 1 ? "1px solid var(--border)" : "none",
                     }}>
-                      <div style={{ width: 6, height: 6, borderRadius: "50%", background: isOut ? "#EF4444" : "#F97316", flexShrink: 0 }} />
-                      <span style={{ flex: 1, fontSize: 13, color: "#334155", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.nombre}</span>
+                      <div style={{ width: 6, height: 6, borderRadius: "50%", background: isOut ? "var(--danger)" : "var(--warning)", flexShrink: 0 }} />
+                      <span style={{ flex: 1, fontSize: 13, color: "var(--fg-2)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.nombre}</span>
                       <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
-                        <div style={{ width: 48, height: 3, borderRadius: 2, background: "#E2E8F0", overflow: "hidden" }}>
-                          <div style={{ width: `${Math.min(100, pct)}%`, height: "100%", background: isOut ? "#EF4444" : "#F97316", borderRadius: 2 }} />
+                        <div style={{ width: 48, height: 3, borderRadius: 2, background: "var(--border)", overflow: "hidden" }}>
+                          <div style={{ width: `${Math.min(100, pct)}%`, height: "100%", background: isOut ? "var(--danger)" : "var(--warning)", borderRadius: 2 }} />
                         </div>
-                        <span style={{ fontSize: 12, color: isOut ? "#EF4444" : "#F97316", fontWeight: 600, minWidth: 32, textAlign: "right" }}>
+                        <span style={{ fontSize: 12, color: isOut ? "var(--danger)" : "var(--warning)", fontWeight: 600, minWidth: 32, textAlign: "right" }}>
                           {p.stock_actual}/{p.stock_minimo}
                         </span>
                       </div>
@@ -496,7 +496,7 @@ export default function InicioDashboard() {
                   <div style={{ padding: "8px 16px" }}>
                     <button
                       onClick={() => router.push("/partes")}
-                      style={{ fontSize: 12, color: "#2563EB", fontWeight: 600, background: "none", border: "none", cursor: "pointer", fontFamily: "inherit" }}
+                      style={{ fontSize: 12, color: "var(--brand)", fontWeight: 600, background: "none", border: "none", cursor: "pointer", fontFamily: "inherit" }}
                     >
                       +{bajoStock.length - 5} más →
                     </button>
@@ -527,7 +527,7 @@ export default function InicioDashboard() {
               {insights.map((insight, i) => {
                 const clickable = !!insight.filtro;
                 const isLast = i === insights.length - 1;
-                const dotColor = insight.type === "danger" ? "#EF4444" : insight.type === "warning" ? "#F97316" : insight.type === "success" ? "#10B981" : "#3B82F6";
+                const dotColor = insight.type === "danger" ? "var(--danger)" : insight.type === "warning" ? "var(--warning)" : insight.type === "success" ? "var(--success)" : "var(--brand)";
                 return (
                   <div
                     key={i}
@@ -535,15 +535,15 @@ export default function InicioDashboard() {
                     style={{
                       display: "flex", alignItems: "flex-start", gap: 10,
                       padding: "10px 16px",
-                      borderBottom: isLast ? "none" : "1px solid #F1F5F9",
+                      borderBottom: isLast ? "none" : "1px solid var(--border)",
                       cursor: clickable ? "pointer" : "default",
                     }}
-                    onMouseEnter={e => { if (clickable) e.currentTarget.style.background = "#F8FAFC"; }}
+                    onMouseEnter={e => { if (clickable) e.currentTarget.style.background = "var(--surface-hover)"; }}
                     onMouseLeave={e => { if (clickable) e.currentTarget.style.background = ""; }}
                   >
                     <div style={{ width: 6, height: 6, borderRadius: "50%", background: dotColor, flexShrink: 0, marginTop: 5 }} />
-                    <span style={{ flex: 1, fontSize: 13, color: "#334155", lineHeight: 1.5, minWidth: 0 }}>{insight.message}</span>
-                    {clickable && <ChevronRight size={13} style={{ color: "#CBD5E1", flexShrink: 0, marginTop: 2 }} />}
+                    <span style={{ flex: 1, fontSize: 13, color: "var(--fg-2)", lineHeight: 1.5, minWidth: 0 }}>{insight.message}</span>
+                    {clickable && <ChevronRight size={13} style={{ color: "var(--fg-4)", flexShrink: 0, marginTop: 2 }} />}
                   </div>
                 );
               })}
@@ -564,24 +564,24 @@ export default function InicioDashboard() {
                       onClick={() => router.push(`/ordenes/${a.orden_id}`)}
                       style={{
                         display: "flex", gap: 10, padding: "9px 16px",
-                        borderBottom: i < Math.min(actividad.length, 8) - 1 ? "1px solid #F1F5F9" : "none",
+                        borderBottom: i < Math.min(actividad.length, 8) - 1 ? "1px solid var(--border)" : "none",
                         cursor: "pointer",
                       }}
-                      onMouseEnter={e => { e.currentTarget.style.background = "#F8FAFC"; }}
+                      onMouseEnter={e => { e.currentTarget.style.background = "var(--surface-hover)"; }}
                       onMouseLeave={e => { e.currentTarget.style.background = ""; }}
                     >
-                      <div style={{ width: 28, height: 28, borderRadius: "50%", flexShrink: 0, marginTop: 1, background: "#F1F5F9", display: "flex", alignItems: "center", justifyContent: "center", color: "#64748B" }}>
+                      <div style={{ width: 28, height: 28, borderRadius: "50%", flexShrink: 0, marginTop: 1, background: "var(--surface-0)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--fg-2)" }}>
                         {cfg.icon}
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 12.5, color: "#475569", lineHeight: 1.45 }}>
-                          {a.usuario_nombre && <span style={{ fontWeight: 600, color: "#0F172A" }}>{a.usuario_nombre.split(" ")[0]} </span>}
+                        <div style={{ fontSize: 12.5, color: "var(--fg-2)", lineHeight: 1.45 }}>
+                          {a.usuario_nombre && <span style={{ fontWeight: 600, color: "var(--fg-1)" }}>{a.usuario_nombre.split(" ")[0]} </span>}
                           <span>{cfg.label}</span>
                           {a.orden_titulo && (
-                            <span style={{ color: "#64748B" }}>{" "}en <span style={{ fontWeight: 500, color: "#334155" }}>{a.orden_titulo.length > 30 ? a.orden_titulo.slice(0, 30) + "…" : a.orden_titulo}</span></span>
+                            <span style={{ color: "var(--fg-3)" }}>{" "}en <span style={{ fontWeight: 500, color: "var(--fg-2)" }}>{a.orden_titulo.length > 30 ? a.orden_titulo.slice(0, 30) + "…" : a.orden_titulo}</span></span>
                           )}
                         </div>
-                        <div style={{ fontSize: 11, color: "#94A3B8", marginTop: 2 }}>{timeAgo(a.created_at)}</div>
+                        <div style={{ fontSize: 11, color: "var(--fg-4)", marginTop: 2 }}>{timeAgo(a.created_at)}</div>
                       </div>
                     </div>
                   );
@@ -602,22 +602,22 @@ function KpiCard({ label, value, sub, trend, onClick }: {
   trend: "good" | "warn" | "bad" | "neutral";
   onClick?: () => void;
 }) {
-  const trendColor = trend === "bad" ? "#EF4444" : trend === "warn" ? "#F97316" : trend === "good" ? "#10B981" : "#64748B";
+  const trendColor = trend === "bad" ? "var(--danger)" : trend === "warn" ? "var(--warning)" : trend === "good" ? "var(--success)" : "var(--fg-2)";
   return (
     <div
       onClick={onClick}
       style={{
-        background: "#fff", border: "1px solid #E2E8F0", borderRadius: 10,
+        background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: 10,
         padding: "18px 20px",
         cursor: onClick ? "pointer" : "default",
         transition: "box-shadow 0.15s",
       }}
-      onMouseEnter={e => { if (onClick) e.currentTarget.style.boxShadow = "0 4px 12px rgba(15,23,42,0.08)"; }}
+      onMouseEnter={e => { if (onClick) e.currentTarget.style.boxShadow = "var(--shadow-sm)"; }}
       onMouseLeave={e => { e.currentTarget.style.boxShadow = "none"; }}
     >
-      <div style={{ fontSize: 11, fontWeight: 600, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 8 }}>{label}</div>
+      <div style={{ fontSize: 11, fontWeight: 600, color: "var(--fg-4)", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 8 }}>{label}</div>
       <div style={{ fontSize: 28, fontWeight: 700, color: trendColor, lineHeight: 1, fontFamily: '"Inter", system-ui, sans-serif', letterSpacing: "-0.02em", marginBottom: 4 }}>{value}</div>
-      <div style={{ fontSize: 12, color: "#94A3B8" }}>{sub}</div>
+      <div style={{ fontSize: 12, color: "var(--fg-4)" }}>{sub}</div>
     </div>
   );
 }
@@ -626,11 +626,11 @@ function KpiCard({ label, value, sub, trend, onClick }: {
 
 function Card({ title, action, onAction, children }: { title: string; action: string; onAction: () => void; children: React.ReactNode }) {
   return (
-    <div style={{ background: "#fff", border: "1px solid #E2E8F0", borderRadius: 10, overflow: "hidden" }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px", borderBottom: "1px solid #F1F5F9" }}>
-        <span style={{ fontSize: 13, fontWeight: 600, color: "#0F172A" }}>{title}</span>
+    <div style={{ background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: 10, overflow: "hidden" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px", borderBottom: "1px solid var(--border)" }}>
+        <span style={{ fontSize: 13, fontWeight: 600, color: "var(--fg-1)" }}>{title}</span>
         {action && (
-          <button onClick={onAction} style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: "#2563EB", fontWeight: 500, background: "none", border: "none", cursor: "pointer", fontFamily: "inherit" }}>
+          <button onClick={onAction} style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: "var(--brand)", fontWeight: 500, background: "none", border: "none", cursor: "pointer", fontFamily: "inherit" }}>
             {action} <ArrowRight size={11} />
           </button>
         )}
@@ -652,31 +652,31 @@ function PriorityRow({ ot, rank, onClick }: { ot: OTDashboard; rank: number; onC
       style={{
         display: "flex", alignItems: "center", gap: 12,
         padding: "11px 16px",
-        borderBottom: "1px solid #F1F5F9",
+        borderBottom: "1px solid var(--border)",
         cursor: "pointer",
-        borderLeft: overdueDays > 0 ? "2px solid #EF4444" : ot.prioridad === "urgente" ? "2px solid #F97316" : "2px solid transparent",
+        borderLeft: overdueDays > 0 ? "2px solid var(--danger)" : ot.prioridad === "urgente" ? "2px solid var(--warning)" : "2px solid transparent",
       }}
-      onMouseEnter={e => { e.currentTarget.style.background = "#F8FAFC"; }}
+      onMouseEnter={e => { e.currentTarget.style.background = "var(--surface-hover)"; }}
       onMouseLeave={e => { e.currentTarget.style.background = ""; }}
     >
-      <span style={{ fontSize: 11, fontWeight: 700, color: "#CBD5E1", width: 16, flexShrink: 0, textAlign: "right" }}>{rank}</span>
+      <span style={{ fontSize: 11, fontWeight: 700, color: "var(--fg-4)", width: 16, flexShrink: 0, textAlign: "right" }}>{rank}</span>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 13, fontWeight: 500, color: "#0F172A", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        <div style={{ fontSize: 13, fontWeight: 500, color: "var(--fg-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
           {titulo}
         </div>
         <div style={{ display: "flex", gap: 10, marginTop: 3, alignItems: "center" }}>
-          <span style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 11, color: "#64748B" }}>
+          <span style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 11, color: "var(--fg-3)" }}>
             <span style={{ width: 5, height: 5, borderRadius: "50%", background: ESTADO_DOT[ot.estado], display: "inline-block" }} />
             {ESTADO_LABEL[ot.estado]}
           </span>
           {overdueDays > 0 && (
-            <span style={{ fontSize: 11, color: "#EF4444", fontWeight: 600 }}>Vencida hace {overdueDays}d</span>
+            <span style={{ fontSize: 11, color: "var(--danger)", fontWeight: 600 }}>Vencida hace {overdueDays}d</span>
           )}
           {!overdueDays && isDueToday(ot) && (
-            <span style={{ fontSize: 11, color: "#F97316", fontWeight: 600 }}>Vence hoy</span>
+            <span style={{ fontSize: 11, color: "var(--warning)", fontWeight: 600 }}>Vence hoy</span>
           )}
           {(!ot.asignados_ids || ot.asignados_ids.length === 0) && (
-            <span style={{ fontSize: 11, color: "#EF4444" }}>Sin asignar</span>
+            <span style={{ fontSize: 11, color: "var(--danger)" }}>Sin asignar</span>
           )}
         </div>
       </div>
@@ -684,7 +684,7 @@ function PriorityRow({ ot, rank, onClick }: { ot: OTDashboard; rank: number; onC
         <span style={{ fontSize: 11, fontWeight: 600, color: PRIORIDAD_COLOR[ot.prioridad] }}>
           {PRIORIDAD_LABEL[ot.prioridad]}
         </span>
-        <ChevronRight size={13} color="#CBD5E1" />
+        <ChevronRight size={13} color="var(--fg-4)" />
       </div>
     </div>
   );
@@ -698,17 +698,17 @@ function ActionGroup({ label, count, dotColor, items, onNavigate, onViewAll }: {
 }) {
   if (count === 0) return null;
   return (
-    <div style={{ borderBottom: "1px solid #F1F5F9" }}>
+    <div style={{ borderBottom: "1px solid var(--border)" }}>
       <div
         onClick={onViewAll}
         style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 16px", cursor: "pointer" }}
-        onMouseEnter={e => { e.currentTarget.style.background = "#F8FAFC"; }}
+        onMouseEnter={e => { e.currentTarget.style.background = "var(--surface-hover)"; }}
         onMouseLeave={e => { e.currentTarget.style.background = ""; }}
       >
         <span style={{ width: 7, height: 7, borderRadius: "50%", background: dotColor, flexShrink: 0 }} />
-        <span style={{ flex: 1, fontSize: 13, fontWeight: 500, color: "#334155" }}>{label}</span>
-        <span style={{ fontSize: 12, fontWeight: 600, color: "#64748B" }}>{count}</span>
-        <ChevronRight size={12} color="#CBD5E1" />
+        <span style={{ flex: 1, fontSize: 13, fontWeight: 500, color: "var(--fg-2)" }}>{label}</span>
+        <span style={{ fontSize: 12, fontWeight: 600, color: "var(--fg-3)" }}>{count}</span>
+        <ChevronRight size={12} color="var(--fg-4)" />
       </div>
       {items.slice(0, 2).map(ot => {
         const titulo = ot.titulo || ot.descripcion?.slice(0, 50) || "Sin título";
@@ -718,18 +718,18 @@ function ActionGroup({ label, count, dotColor, items, onNavigate, onViewAll }: {
             key={ot.id}
             onClick={() => onNavigate(ot.id)}
             style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 16px 7px 30px", cursor: "pointer" }}
-            onMouseEnter={e => { e.currentTarget.style.background = "#F8FAFC"; }}
+            onMouseEnter={e => { e.currentTarget.style.background = "var(--surface-hover)"; }}
             onMouseLeave={e => { e.currentTarget.style.background = ""; }}
           >
-            <span style={{ flex: 1, fontSize: 12, color: "#475569", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{titulo}</span>
-            {overdueDays > 0 && <span style={{ fontSize: 11, color: "#EF4444", fontWeight: 600, flexShrink: 0 }}>-{overdueDays}d</span>}
-            <ChevronRight size={11} color="#E2E8F0" style={{ flexShrink: 0 }} />
+            <span style={{ flex: 1, fontSize: 12, color: "var(--fg-2)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{titulo}</span>
+            {overdueDays > 0 && <span style={{ fontSize: 11, color: "var(--danger)", fontWeight: 600, flexShrink: 0 }}>-{overdueDays}d</span>}
+            <ChevronRight size={11} color="var(--border)" style={{ flexShrink: 0 }} />
           </div>
         );
       })}
       {count > 2 && (
         <div style={{ padding: "6px 16px 10px 30px" }}>
-          <button onClick={onViewAll} style={{ fontSize: 11, color: "#2563EB", fontWeight: 500, background: "none", border: "none", cursor: "pointer", fontFamily: "inherit" }}>
+          <button onClick={onViewAll} style={{ fontSize: 11, color: "var(--brand)", fontWeight: 500, background: "none", border: "none", cursor: "pointer", fontFamily: "inherit" }}>
             +{count - 2} más →
           </button>
         </div>
@@ -750,22 +750,22 @@ function OTRow({ ot, onClick }: { ot: OTDashboard; onClick: () => void }) {
       onClick={onClick}
       style={{
         display: "flex", alignItems: "center", gap: 12,
-        padding: "10px 16px", borderBottom: "1px solid #F1F5F9",
+        padding: "10px 16px", borderBottom: "1px solid var(--border)",
         cursor: "pointer",
       }}
-      onMouseEnter={e => { e.currentTarget.style.background = "#F8FAFC"; }}
+      onMouseEnter={e => { e.currentTarget.style.background = "var(--surface-hover)"; }}
       onMouseLeave={e => { e.currentTarget.style.background = ""; }}
     >
       <span style={{ width: 7, height: 7, borderRadius: "50%", background: ESTADO_DOT[ot.estado], flexShrink: 0 }} />
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 13, fontWeight: 500, color: "#0F172A", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{titulo}</div>
+        <div style={{ fontSize: 13, fontWeight: 500, color: "var(--fg-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{titulo}</div>
         <div style={{ display: "flex", gap: 8, marginTop: 2, alignItems: "center" }}>
           {ot.ubicaciones?.edificio && (
-            <span style={{ fontSize: 11, color: "#94A3B8", display: "flex", alignItems: "center", gap: 2 }}>
+            <span style={{ fontSize: 11, color: "var(--fg-4)", display: "flex", alignItems: "center", gap: 2 }}>
               <MapPin size={9} />{ot.ubicaciones.edificio}
             </span>
           )}
-          <span style={{ fontSize: 11, color: "#94A3B8" }}>{ESTADO_LABEL[ot.estado]}</span>
+          <span style={{ fontSize: 11, color: "var(--fg-4)" }}>{ESTADO_LABEL[ot.estado]}</span>
         </div>
       </div>
       <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2, flexShrink: 0 }}>
@@ -773,13 +773,13 @@ function OTRow({ ot, onClick }: { ot: OTDashboard; onClick: () => void }) {
           {ot.prioridad !== "ninguna" ? PRIORIDAD_LABEL[ot.prioridad] : ""}
         </span>
         {overdueDays > 0 ? (
-          <span style={{ fontSize: 11, color: "#EF4444", fontWeight: 600 }}>-{overdueDays}d</span>
+          <span style={{ fontSize: 11, color: "var(--danger)", fontWeight: 600 }}>-{overdueDays}d</span>
         ) : dueToday ? (
-          <span style={{ fontSize: 11, color: "#F97316", fontWeight: 600 }}>Hoy</span>
+          <span style={{ fontSize: 11, color: "var(--warning)", fontWeight: 600 }}>Hoy</span>
         ) : ot.fecha_termino ? (
-          <span style={{ fontSize: 11, color: "#94A3B8" }}>{new Date(ot.fecha_termino).toLocaleDateString("es-CL", { day: "numeric", month: "short" })}</span>
+          <span style={{ fontSize: 11, color: "var(--fg-4)" }}>{new Date(ot.fecha_termino).toLocaleDateString("es-CL", { day: "numeric", month: "short" })}</span>
         ) : (
-          <span style={{ fontSize: 11, color: "#CBD5E1" }}>{timeAgo(ot.created_at)}</span>
+          <span style={{ fontSize: 11, color: "var(--fg-4)" }}>{timeAgo(ot.created_at)}</span>
         )}
       </div>
     </div>
@@ -790,6 +790,6 @@ function OTRow({ ot, onClick }: { ot: OTDashboard; onClick: () => void }) {
 
 function EmptyState({ label }: { label: string }) {
   return (
-    <div style={{ padding: "28px 16px", textAlign: "center", color: "#CBD5E1", fontSize: 13 }}>{label}</div>
+    <div style={{ padding: "28px 16px", textAlign: "center", color: "var(--fg-4)", fontSize: 13 }}>{label}</div>
   );
 }

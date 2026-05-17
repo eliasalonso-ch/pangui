@@ -790,21 +790,21 @@ export default function OrdenesBandeja({
     <div style={{ display:"flex", flexDirection:"column", height:"100dvh", overflow:"hidden", background:"var(--c-bg, #F8FAFC)" }}>
 
       {/* ── Navigation header ── */}
-      <div style={{ flexShrink:0, borderBottom:"1px solid #E2E8F0", background:"#fff" }}>
+      <div style={{ flexShrink:0, borderBottom:"1px solid var(--border)", background:"var(--surface-1)" }}>
 
         {/* Top row */}
         <div style={{
           display:"flex", alignItems:"center", justifyContent:"space-between",
           padding:"0 20px", height:56, gap:12,
         }}>
-          <h1 style={{ fontSize:20, fontWeight:700, color:"#0F172A", letterSpacing:"-0.3px", lineHeight:1.25, flexShrink:0 }}>
+          <h1 style={{ fontSize:20, fontWeight:700, color:"var(--fg-1)", letterSpacing:"-0.3px", lineHeight:1.25, flexShrink:0 }}>
             Órdenes de Trabajo
           </h1>
 
           <div style={{ display:"flex", alignItems:"center", gap:8, flex:1, justifyContent:"flex-end" }}>
             {/* Search */}
             <div style={{ position:"relative", maxWidth:280, flex:1 }}>
-              <Search size={14} style={{ position:"absolute", left:10, top:"50%", transform:"translateY(-50%)", color:"#94A3B8", pointerEvents:"none" }} />
+              <Search size={14} style={{ position:"absolute", left:10, top:"50%", transform:"translateY(-50%)", color:"var(--fg-4)", pointerEvents:"none" }} />
               <input
                 type="search"
                 placeholder="Buscar Órdenes de Trabajo"
@@ -813,17 +813,17 @@ export default function OrdenesBandeja({
                 style={{
                   paddingLeft:34, paddingRight:search ? 28 : 10,
                   height:36, width:"100%",
-                  border:"1px solid #E2E8F0", borderRadius:8,
-                  fontSize:13, color:"#0F172A", background:"#F8FAFC",
+                  border:"1px solid var(--border)", borderRadius:8,
+                  fontSize:13, color:"var(--fg-1)", background:"var(--surface-0)",
                   outline:"none", fontFamily:"inherit",
                 }}
-                onFocus={e => { e.currentTarget.style.borderColor = "#2563EB"; e.currentTarget.style.background = "#fff"; e.currentTarget.style.boxShadow = "0 0 0 3px rgba(37,99,235,0.10)"; }}
-                onBlur={e => { e.currentTarget.style.borderColor = "#E2E8F0"; e.currentTarget.style.background = "#F8FAFC"; e.currentTarget.style.boxShadow = "none"; }}
+                onFocus={e => { e.currentTarget.style.borderColor = "var(--brand)"; e.currentTarget.style.background = "var(--surface-1)"; e.currentTarget.style.boxShadow = "0 0 0 3px rgba(37,99,235,0.10)"; }}
+                onBlur={e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.background = "var(--surface-hover)"; e.currentTarget.style.boxShadow = "none"; }}
               />
               {search && (
                 <button
                   onClick={() => setSearch("")}
-                  style={{ position:"absolute", right:8, top:"50%", transform:"translateY(-50%)", background:"none", border:"none", cursor:"pointer", color:"#94A3B8", display:"flex" }}
+                  style={{ position:"absolute", right:8, top:"50%", transform:"translateY(-50%)", background:"transparent", border:"none", cursor:"pointer", color:"var(--fg-4)", display:"flex" }}
                 >
                   <X size={12} />
                 </button>
@@ -837,7 +837,7 @@ export default function OrdenesBandeja({
               style={{
                 display:"flex", alignItems:"center", gap:6,
                 padding:"0 16px", height:38,
-                background:"linear-gradient(135deg, #1E3A8A, #2563EB)", color:"#fff",
+                background:"linear-gradient(135deg, #1E3A8A, #2563EB)", color:"var(--surface-1)",
                 border:"none", borderRadius:8,
                 fontSize:13, fontWeight:600,
                 cursor:"pointer", fontFamily:"inherit",
@@ -879,18 +879,18 @@ export default function OrdenesBandeja({
             style={{
               display:"flex", alignItems:"center", gap:5,
               height:28, padding:"0 10px",
-              border:"1px solid #E2E8F0", borderRadius:6,
-              background: exporting ? "#F8FAFC" : "#fff",
-              color: filtered.length === 0 ? "#CBD5E1" : "#475569",
+              border:"1px solid var(--border)", borderRadius:6,
+              background: exporting ? "var(--surface-0)" : "var(--surface-1)",
+              color: filtered.length === 0 ? "var(--border-strong)" : "var(--fg-2)",
               fontSize:12, fontWeight:500, cursor: filtered.length === 0 ? "not-allowed" : "pointer",
               fontFamily:"inherit", whiteSpace:"nowrap",
               transition:"all 0.12s",
             }}
-            onMouseEnter={e => { if (filtered.length > 0 && !exporting) { e.currentTarget.style.borderColor = "#10B981"; e.currentTarget.style.color = "#059669"; e.currentTarget.style.background = "#ECFDF5"; } }}
-            onMouseLeave={e => { e.currentTarget.style.borderColor = "#E2E8F0"; e.currentTarget.style.color = filtered.length === 0 ? "#CBD5E1" : "#475569"; e.currentTarget.style.background = "#fff"; }}
+            onMouseEnter={e => { if (filtered.length > 0 && !exporting) { e.currentTarget.style.borderColor = "var(--success)"; e.currentTarget.style.color = "var(--success)"; e.currentTarget.style.background = "var(--success-bg)"; } }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.color = filtered.length === 0 ? "var(--border-strong)" : "var(--fg-2)"; e.currentTarget.style.background = "var(--surface-1)"; }}
           >
             {exporting
-              ? <Loader2 size={12} className="animate-spin" style={{ color:"#10B981" }} />
+              ? <Loader2 size={12} className="animate-spin" style={{ color:"var(--success)" }} />
               : <Download size={12} />
             }
             {exporting ? "Exportando…" : "Excel"}
@@ -904,23 +904,23 @@ export default function OrdenesBandeja({
               style={{
                 display:"flex", alignItems:"center", gap:4,
                 height:28, padding:"0 10px",
-                border:"1px solid #E2E8F0", borderRadius:6,
-                background:"#fff", color:"#475569",
+                border:"1px solid var(--border)", borderRadius:6,
+                background:"var(--surface-1)", color:"var(--fg-2)",
                 fontSize:12, fontWeight:500, cursor:"pointer",
                 fontFamily:"inherit", whiteSpace:"nowrap",
               }}
-              onMouseEnter={e => { e.currentTarget.style.borderColor = "#CBD5E1"; e.currentTarget.style.background = "#F8FAFC"; }}
-              onMouseLeave={e => { e.currentTarget.style.borderColor = "#E2E8F0"; e.currentTarget.style.background = "#fff"; }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = "var(--border-strong)"; e.currentTarget.style.background = "var(--surface-hover)"; }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.background = "var(--surface-1)"; }}
             >
-              <ArrowUpDown size={11} style={{ color:"#94A3B8" }} />
+              <ArrowUpDown size={11} style={{ color:"var(--fg-4)" }} />
               <span>Ordenar:</span>
-              <span style={{ fontWeight:600, color:"#0F172A" }}>{currentSortLabel.split(":")[0]}</span>
-              <ChevronDown size={11} style={{ color:"#94A3B8", transform: sortOpen ? "rotate(180deg)" : "none", transition:"transform 0.15s" }} />
+              <span style={{ fontWeight:600, color:"var(--fg-1)" }}>{currentSortLabel.split(":")[0]}</span>
+              <ChevronDown size={11} style={{ color:"var(--fg-4)", transform: sortOpen ? "rotate(180deg)" : "none", transition:"transform 0.15s" }} />
             </button>
             {sortOpen && (
               <div style={{
                 position:"absolute", right:0, top:"calc(100% + 4px)", zIndex:50,
-                background:"#fff", border:"1px solid #E2E8F0",
+                background:"var(--surface-1)", border:"1px solid var(--border)",
                 borderRadius:8, boxShadow:"0 8px 24px rgba(15,23,42,0.12)",
                 minWidth:220, overflow:"hidden",
               }}>
@@ -931,14 +931,14 @@ export default function OrdenesBandeja({
                     onClick={() => { setSort(o.value); setSortOpen(false); }}
                     style={{
                       display:"block", width:"100%", textAlign:"left",
-                      padding:"9px 14px", background: sort === o.value ? "#EFF6FF" : "none",
+                      padding:"9px 14px", background: sort === o.value ? "var(--brand-tint)" : "transparent",
                       border:"none", fontSize:13,
-                      color: sort === o.value ? "#1D4ED8" : "#0F172A",
+                      color: sort === o.value ? "var(--brand-fg)" : "var(--fg-1)",
                       fontWeight: sort === o.value ? 600 : 400,
                       cursor:"pointer", fontFamily:"inherit",
                     }}
-                    onMouseEnter={e => { if (sort !== o.value) e.currentTarget.style.background = "#F8FAFC"; }}
-                    onMouseLeave={e => { if (sort !== o.value) e.currentTarget.style.background = "none"; }}
+                    onMouseEnter={e => { if (sort !== o.value) e.currentTarget.style.background = "var(--surface-hover)"; }}
+                    onMouseLeave={e => { if (sort !== o.value) e.currentTarget.style.background = "transparent"; }}
                   >
                     {o.label}
                   </button>
@@ -961,14 +961,14 @@ export default function OrdenesBandeja({
           width: isDesktop ? 400 : "100%",
           minWidth: isDesktop ? 400 : undefined,
           maxWidth: isDesktop ? 400 : undefined,
-          borderRight: isDesktop ? "1px solid #E2E8F0" : "none",
-          background:"#fff",
+          borderRight: isDesktop ? "1px solid var(--border)" : "none",
+          background:"var(--surface-1)",
           flexShrink:0,
           position:"relative",
         }}>
 
           {/* Tabs — 2×2 grid */}
-          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", borderBottom:"1px solid #E2E8F0", flexShrink:0 }}>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", borderBottom:"1px solid var(--border)", flexShrink:0 }}>
             {[
               { key:"activas",        label:"Pendientes",     count:filteredCounts.activas },
               { key:"cerradas",       label:"Completas",      count:filteredCounts.cerradas },
@@ -986,23 +986,23 @@ export default function OrdenesBandeja({
                   style={{
                     display:"flex", alignItems:"center", justifyContent:"space-between",
                     padding:"10px 14px",
-                    background: isActive ? "#F8FAFC" : "#fff",
+                    background: isActive ? "var(--surface-hover)" : "var(--surface-1)",
                     border:"none",
-                    borderBottom: isTop ? "1px solid #E2E8F0" : "none",
-                    borderRight: isLeft ? "1px solid #E2E8F0" : "none",
+                    borderBottom: isTop ? "1px solid var(--border)" : "none",
+                    borderRight: isLeft ? "1px solid var(--border)" : "none",
                     cursor:"pointer", fontFamily:"inherit",
                     transition:"background 0.1s",
                   }}
-                  onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = "#F8FAFC"; }}
-                  onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = "#fff"; }}
+                  onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = "var(--surface-hover)"; }}
+                  onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = "var(--surface-1)"; }}
                 >
-                  <span style={{ fontSize:12, fontWeight: isActive ? 600 : 500, color: isActive ? "#1D4ED8" : "#475569" }}>
+                  <span style={{ fontSize:12, fontWeight: isActive ? 600 : 500, color: isActive ? "var(--brand-fg)" : "var(--fg-2)" }}>
                     {t.label}
                   </span>
                   <span style={{
                     fontSize:11, fontWeight:700, padding:"1px 7px", borderRadius:4,
-                    background: isActive ? "#EFF6FF" : "#F1F5F9",
-                    color: isActive ? "#1D4ED8" : "#94A3B8",
+                    background: isActive ? "var(--brand-tint)" : "var(--surface-hover)",
+                    color: isActive ? "var(--brand-fg)" : "var(--fg-4)",
                   }}>
                     {t.count}
                   </span>
@@ -1014,22 +1014,22 @@ export default function OrdenesBandeja({
           {/* List */}
           <div style={{ flex:1, minHeight:0, overflowY:"auto" }}>
             {filtered.length === 0 ? (
-              <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", height:280, gap:12, color:"#94A3B8" }}>
+              <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", height:280, gap:12, color:"var(--fg-4)" }}>
                 <svg width="38" height="46" viewBox="0 0 38 46" fill="none">
                   <rect x="2" y="2" width="34" height="42" rx="2" fill="#A67C52"/>
-                  <rect x="6" y="7" width="26" height="32" rx="1" fill="#fff"/>
+                  <rect x="6" y="7" width="26" height="32" rx="1" fill="var(--surface-1)"/>
                   <path d="M23 4a4 4 0 0 0-8 0h-3a1 1 0 0 0-1 1v4a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1V5a1 1 0 0 0-1-1h-3z" fill="#EFD358"/>
                   <circle cx="19" cy="4" r="1" fill="#B29930"/>
                   <path d="M17 30a1 1 0 0 1-.707-.293l-4-4a1 1 0 1 1 1.414-1.414L17 27.586l7.293-7.293a1 1 0 1 1 1.414 1.414l-8 8A1 1 0 0 1 17 30z" fill="#72C472"/>
                 </svg>
-                <p style={{ fontSize:13, color:"#475569", fontWeight:500 }}>
+                <p style={{ fontSize:13, color:"var(--fg-2)", fontWeight:500 }}>
                   {search ? "Sin resultados para tu búsqueda" : tab === "activas" ? "No tienes ninguna Orden de Trabajo" : tab === "cerradas" ? "No hay órdenes cerradas" : tab === "levantamientos" ? "No hay levantamientos" : "No hay órdenes sin asignar"}
                 </p>
                 {!search && tab === "activas" && (
                   <a
                     href="#"
                     onClick={e => { e.preventDefault(); openCreate(); }}
-                    style={{ fontSize:13, color:"#2563EB", fontWeight:500, textDecoration:"underline" }}
+                    style={{ fontSize:13, color:"var(--brand-fg)", fontWeight:500, textDecoration:"underline" }}
                   >
                     Crea la primera Orden de Trabajo
                   </a>
@@ -1046,14 +1046,14 @@ export default function OrdenesBandeja({
                       onClick={() => setLevAccordion(prev => ({ ...prev, activos: !prev.activos }))}
                       style={{
                         width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between",
-                        padding: "8px 16px", background: "#F8FAFC", border: "none", borderBottom: "1px solid #E2E8F0",
+                        padding: "8px 16px", background: "var(--surface-0)", border: "none", borderBottom: "1px solid var(--border)",
                         cursor: "pointer", textAlign: "left",
                       }}
                     >
-                      <span style={{ fontSize: 12, fontWeight: 700, color: "#64748B", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: "var(--fg-2)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
                         En curso · {levActivos.length}
                       </span>
-                      <ChevronDown size={14} color="#94A3B8" style={{ transform: levAccordion.activos ? "rotate(180deg)" : "none", transition: "transform 0.15s" }} />
+                      <ChevronDown size={14} color="var(--fg-4)" style={{ transform: levAccordion.activos ? "rotate(180deg)" : "none", transition: "transform 0.15s" }} />
                     </button>
                     {levAccordion.activos && levActivos.map((o, idx) => (
                       <OTRow
@@ -1075,15 +1075,15 @@ export default function OrdenesBandeja({
                       onClick={() => setLevAccordion(prev => ({ ...prev, cerrados: !prev.cerrados }))}
                       style={{
                         width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between",
-                        padding: "8px 16px", background: "#F8FAFC", border: "none",
-                        borderTop: "1px solid #E2E8F0", borderBottom: "1px solid #E2E8F0",
+                        padding: "8px 16px", background: "var(--surface-0)", border: "none",
+                        borderTop: "1px solid var(--border)", borderBottom: "1px solid var(--border)",
                         cursor: "pointer", textAlign: "left",
                       }}
                     >
-                      <span style={{ fontSize: 12, fontWeight: 700, color: "#64748B", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: "var(--fg-2)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
                         Completados · {levCerrados.length}
                       </span>
-                      <ChevronDown size={14} color="#94A3B8" style={{ transform: levAccordion.cerrados ? "rotate(180deg)" : "none", transition: "transform 0.15s" }} />
+                      <ChevronDown size={14} color="var(--fg-4)" style={{ transform: levAccordion.cerrados ? "rotate(180deg)" : "none", transition: "transform 0.15s" }} />
                     </button>
                     {levAccordion.cerrados && levCerrados.map((o, idx) => (
                       <OTRow
@@ -1163,7 +1163,7 @@ export default function OrdenesBandeja({
               />
             ) : selected ? (
               loadingDetail ? (
-                <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100%", gap:8, color:"#94A3B8", fontSize:13 }}>
+                <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100%", gap:8, color:"var(--fg-4)", fontSize:13 }}>
                   <Loader2 size={16} className="animate-spin" />
                   Cargando…
                 </div>
@@ -1186,13 +1186,13 @@ export default function OrdenesBandeja({
                 />
               ) : null
             ) : (
-              <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", height:"100%", gap:12, color:"#94A3B8" }}>
-                <div style={{ width:64, height:64, borderRadius:12, background:"#F1F5F9", display:"flex", alignItems:"center", justifyContent:"center" }}>
-                  <FileText size={28} style={{ color:"#CBD5E1" }} />
+              <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", height:"100%", gap:12, color:"var(--fg-4)" }}>
+                <div style={{ width:64, height:64, borderRadius:12, background:"var(--surface-hover)", display:"flex", alignItems:"center", justifyContent:"center" }}>
+                  <FileText size={28} style={{ color:"var(--border-strong)" }} />
                 </div>
                 <div style={{ textAlign:"center" }}>
-                  <p style={{ fontSize:14, fontWeight:600, color:"#475569" }}>Selecciona una orden</p>
-                  <p style={{ fontSize:12, color:"#94A3B8", marginTop:4 }}>El detalle aparecerá aquí</p>
+                  <p style={{ fontSize:14, fontWeight:600, color:"var(--fg-2)" }}>Selecciona una orden</p>
+                  <p style={{ fontSize:12, color:"var(--fg-4)", marginTop:4 }}>El detalle aparecerá aquí</p>
                 </div>
               </div>
             )}
@@ -1207,23 +1207,23 @@ export default function OrdenesBandeja({
           onClick={() => setExportConfigOpen(false)}
         >
           <div
-            style={{ background:"#fff", borderRadius:14, width:420, boxShadow:"0 20px 60px rgba(15,23,42,0.20)", overflow:"hidden" }}
+            style={{ background:"var(--surface-1)", borderRadius:14, width:420, boxShadow:"0 20px 60px rgba(15,23,42,0.20)", overflow:"hidden" }}
             onClick={e => e.stopPropagation()}
           >
             {/* Header */}
-            <div style={{ padding:"18px 20px 14px", borderBottom:"1px solid #E2E8F0", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+            <div style={{ padding:"18px 20px 14px", borderBottom:"1px solid var(--border)", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
               <div>
-                <div style={{ fontSize:15, fontWeight:700, color:"#0F172A" }}>Exportar Excel</div>
-                <div style={{ fontSize:12, color:"#94A3B8", marginTop:2 }}>
+                <div style={{ fontSize:15, fontWeight:700, color:"var(--fg-1)" }}>Exportar Excel</div>
+                <div style={{ fontSize:12, color:"var(--fg-4)", marginTop:2 }}>
                   {filtered.length} órdenes · selecciona las columnas a incluir
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => setExportConfigOpen(false)}
-                style={{ width:28, height:28, display:"flex", alignItems:"center", justifyContent:"center", background:"none", border:"none", borderRadius:6, cursor:"pointer", color:"#94A3B8" }}
-                onMouseEnter={e => { e.currentTarget.style.background = "#F1F5F9"; }}
-                onMouseLeave={e => { e.currentTarget.style.background = "none"; }}
+                style={{ width:28, height:28, display:"flex", alignItems:"center", justifyContent:"center", background:"transparent", border:"none", borderRadius:6, cursor:"pointer", color:"var(--fg-4)" }}
+                onMouseEnter={e => { e.currentTarget.style.background = "var(--surface-hover)"; }}
+                onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}
               >
                 <X size={15} />
               </button>
@@ -1233,7 +1233,7 @@ export default function OrdenesBandeja({
             <div style={{ padding:"8px 20px 4px", maxHeight:380, overflowY:"auto" }}>
               {Array.from(new Set(EXPORT_COLS.map(c => c.group))).map(group => (
                 <div key={group} style={{ marginBottom:12 }}>
-                  <div style={{ fontSize:10, fontWeight:700, color:"#94A3B8", textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:4, paddingLeft:10 }}>
+                  <div style={{ fontSize:10, fontWeight:700, color:"var(--fg-4)", textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:4, paddingLeft:10 }}>
                     {group}
                   </div>
                   <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:1 }}>
@@ -1241,16 +1241,16 @@ export default function OrdenesBandeja({
                       <label
                         key={col.key}
                         style={{ display:"flex", alignItems:"center", gap:8, padding:"7px 10px", borderRadius:7, cursor:"pointer" }}
-                        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#F8FAFC"; }}
+                        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "var(--surface-hover)"; }}
                         onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
                       >
                         <input
                           type="checkbox"
                           checked={exportCols[col.key]}
                           onChange={e => setExportCols(prev => ({ ...prev, [col.key]: e.target.checked }))}
-                          style={{ width:14, height:14, accentColor:"#2563EB", cursor:"pointer", flexShrink:0 }}
+                          style={{ width:14, height:14, accentColor:"var(--brand)", cursor:"pointer", flexShrink:0 }}
                         />
-                        <span style={{ fontSize:12.5, color: exportCols[col.key] ? "#0F172A" : "#94A3B8" }}>{col.label}</span>
+                        <span style={{ fontSize:12.5, color: exportCols[col.key] ? "var(--fg-1)" : "var(--fg-4)" }}>{col.label}</span>
                       </label>
                     ))}
                   </div>
@@ -1261,27 +1261,27 @@ export default function OrdenesBandeja({
             {/* Select all / none */}
             <div style={{ padding:"8px 20px 10px", display:"flex", gap:8, borderTop:"1px solid #F1F5F9" }}>
               <button type="button" onClick={() => setExportCols(ALL_COLS_ON)}
-                style={{ fontSize:12, color:"#2563EB", background:"none", border:"none", cursor:"pointer", padding:"2px 0", fontFamily:"inherit" }}>
+                style={{ fontSize:12, color:"var(--brand-fg)", background:"transparent", border:"none", cursor:"pointer", padding:"2px 0", fontFamily:"inherit" }}>
                 Seleccionar todo
               </button>
-              <span style={{ color:"#E2E8F0" }}>·</span>
+              <span style={{ color:"var(--border)" }}>·</span>
               <button type="button" onClick={() => setExportCols(ALL_COLS_OFF)}
-                style={{ fontSize:12, color:"#94A3B8", background:"none", border:"none", cursor:"pointer", padding:"2px 0", fontFamily:"inherit" }}>
+                style={{ fontSize:12, color:"var(--fg-4)", background:"transparent", border:"none", cursor:"pointer", padding:"2px 0", fontFamily:"inherit" }}>
                 Limpiar
               </button>
-              <span style={{ marginLeft:"auto", fontSize:12, color:"#94A3B8" }}>
+              <span style={{ marginLeft:"auto", fontSize:12, color:"var(--fg-4)" }}>
                 {Object.values(exportCols).filter(Boolean).length} seleccionados
               </span>
             </div>
 
             {/* Footer */}
-            <div style={{ padding:"10px 20px 16px", borderTop:"1px solid #E2E8F0", display:"flex", justifyContent:"flex-end", gap:8 }}>
+            <div style={{ padding:"10px 20px 16px", borderTop:"1px solid var(--border)", display:"flex", justifyContent:"flex-end", gap:8 }}>
               <button
                 type="button"
                 onClick={() => setExportConfigOpen(false)}
-                style={{ height:36, padding:"0 16px", borderRadius:8, border:"1px solid #E2E8F0", background:"#fff", fontSize:13, color:"#475569", cursor:"pointer", fontFamily:"inherit" }}
-                onMouseEnter={e => { e.currentTarget.style.background = "#F8FAFC"; }}
-                onMouseLeave={e => { e.currentTarget.style.background = "#fff"; }}
+                style={{ height:36, padding:"0 16px", borderRadius:8, border:"1px solid var(--border)", background:"var(--surface-1)", fontSize:13, color:"var(--fg-2)", cursor:"pointer", fontFamily:"inherit" }}
+                onMouseEnter={e => { e.currentTarget.style.background = "var(--surface-hover)"; }}
+                onMouseLeave={e => { e.currentTarget.style.background = "var(--surface-1)"; }}
               >Cancelar</button>
               <button
                 type="button"
@@ -1289,8 +1289,8 @@ export default function OrdenesBandeja({
                 disabled={!Object.values(exportCols).some(Boolean)}
                 style={{
                   height:36, padding:"0 18px", borderRadius:8, border:"none",
-                  background: Object.values(exportCols).some(Boolean) ? "#2563EB" : "#CBD5E1",
-                  fontSize:13, fontWeight:600, color:"#fff",
+                  background: Object.values(exportCols).some(Boolean) ? "var(--brand)" : "var(--border-strong)",
+                  fontSize:13, fontWeight:600, color:"var(--surface-1)",
                   cursor: Object.values(exportCols).some(Boolean) ? "pointer" : "default",
                   fontFamily:"inherit", display:"flex", alignItems:"center", gap:6,
                 }}

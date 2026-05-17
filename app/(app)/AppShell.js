@@ -77,6 +77,17 @@ function MobileWall() {
 export default function AppShell({ children }) {
   const tooNarrow = useTooNarrow(1024);
 
+  // Live-update data-theme when OS theme changes and user preference is "auto"
+  useEffect(() => {
+    const mql = window.matchMedia("(prefers-color-scheme: dark)");
+    const handler = (e) => {
+      if (localStorage.getItem("pangui_theme") !== "auto") return;
+      document.documentElement.setAttribute("data-theme", e.matches ? "dark" : "light");
+    };
+    mql.addEventListener("change", handler);
+    return () => mql.removeEventListener("change", handler);
+  }, []);
+
   useEffect(() => {
     const KEY = "pangui_last_active_ts";
     const now = Date.now();

@@ -27,14 +27,14 @@ import {
 
 // ── Palette ──────────────────────────────────────────────────────────────────
 const C = {
-  brand: "#1E3A8A", mid: "#2563EB", light: "#EFF6FF",
-  success: "#10B981", successBg: "#ECFDF5",
-  warning: "#F59E0B", warningBg: "#FFFBEB",
-  danger: "#EF4444",  dangerBg: "#FEF2F2",
-  info: "#3B82F6",    infoBg: "#EFF6FF",
-  purple: "#7C3AED",  purpleBg: "#F5F3FF",
-  text1: "#0F172A", text2: "#475569", text3: "#94A3B8",
-  border: "#E2E8F0", bg: "#F8FAFC", surface: "#FFFFFF",
+  brand: "var(--brand)",        mid: "var(--brand)",          light: "var(--brand-tint)",
+  success: "var(--success)",    successBg: "var(--success-bg)",
+  warning: "var(--warning)",    warningBg: "var(--st-wait-bg)",
+  danger: "var(--danger)",      dangerBg: "var(--danger-bg)",
+  info: "var(--brand)",         infoBg: "var(--brand-tint)",
+  purple: "var(--brand)",       purpleBg: "var(--brand-tint)",
+  text1: "var(--fg-1)", text2: "var(--fg-2)", text3: "var(--fg-4)",
+  border: "var(--border)", bg: "var(--surface-0)", surface: "var(--surface-1)",
 };
 
 // ── DB row shapes ─────────────────────────────────────────────────────────────
@@ -48,6 +48,7 @@ interface OTRow {
   fecha_termino: string | null;
   iniciado_at: string | null;
   updated_at: string | null;
+  tiempo_total_segundos: number | null;
   asignados_ids: string[] | null;
   activo_id: string | null;
   ubicacion_id: string | null;
@@ -107,7 +108,7 @@ function calculateFlow(ots: OTRow[], rangeMonths: number): Array<{ label: string
     days.push({
       label:     start.toLocaleDateString("es-CL", { day: "numeric", month: "short" }),
       created:   ots.filter(o => o.created_at.slice(0, 10) >= startStr && o.created_at.slice(0, 10) < endStr).length,
-      completed: ots.filter(o => o.estado === "completado" && o.updated_at && o.updated_at.slice(0, 10) >= startStr && o.updated_at.slice(0, 10) < endStr).length,
+      completed: ots.filter(o => { const d = (o.fecha_termino ?? o.updated_at)?.slice(0, 10); return o.estado === "completado" && !!d && d >= startStr && d < endStr; }).length,
     });
   }
   if (days.length > 20) {
@@ -153,7 +154,7 @@ function StatCard({ label, value, sub, icon: Icon, color = C.mid, trend }: {
           {sub && <div style={{ fontSize: 12, color: C.text2, marginTop: 6 }}>{sub}</div>}
         </div>
         <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8 }}>
-          <div style={{ width: 44, height: 44, borderRadius: 10, background: color + "18", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div style={{ width: 44, height: 44, borderRadius: 10, background: "var(--surface-hover)", display: "flex", alignItems: "center", justifyContent: "center" }}>
             <Icon size={20} color={color} />
           </div>
           {trend && <TrendIcon size={16} color={trendColor} />}
@@ -168,8 +169,8 @@ function PriorityBadge({ p }: { p: string }) {
     urgente: { bg: C.dangerBg,  color: C.danger,  label: "Urgente" },
     alta:    { bg: C.warningBg, color: C.warning, label: "Alta" },
     media:   { bg: C.infoBg,    color: C.info,    label: "Media" },
-    baja:    { bg: "#F8FAFC",   color: C.text3,   label: "Baja" },
-    ninguna: { bg: "#F8FAFC",   color: C.text3,   label: "—" },
+    baja:    { bg: C.bg,   color: C.text3,   label: "Baja" },
+    ninguna: { bg: C.bg,  color: C.text3,   label: "—" },
   };
   const s = map[p] ?? map.ninguna;
   return <span style={{ fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 6, background: s.bg, color: s.color }}>{s.label}</span>;
@@ -193,19 +194,6 @@ function MiniStat({ label, value, color }: { label: string; value: string | numb
   );
 }
 
-function InsightBadge({ level }: { level: "critical" | "warning" | "info" }) {
-  const map = {
-    critical: { Icon: ShieldAlert,  color: C.danger,  bg: C.dangerBg },
-    warning:  { Icon: AlertTriangle, color: C.warning, bg: C.warningBg },
-    info:     { Icon: Activity,      color: C.info,    bg: C.infoBg },
-  };
-  const { Icon, color, bg } = map[level];
-  return (
-    <div style={{ width: 32, height: 32, borderRadius: 8, background: bg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-      <Icon size={16} color={color} />
-    </div>
-  );
-}
 
 function ClipboardIcon({ size, color }: { size: number; color?: string }) {
   return (
@@ -402,7 +390,7 @@ function ReworkSection({ ots, activos }: { ots: OTRow[]; activos: ActiveRow[] })
       {/* FTFR KPI card */}
       <Card style={{ padding: "20px", display: "flex", flexDirection: "column", gap: 12 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <div style={{ width: 36, height: 36, borderRadius: 10, background: ftfrColor + "18", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div style={{ width: 36, height: 36, borderRadius: 10, background: "var(--surface-hover)", display: "flex", alignItems: "center", justifyContent: "center" }}>
             <Target size={20} color={ftfrColor} />
           </div>
           <div style={{ fontSize: 11, fontWeight: 600, color: C.text3, textTransform: "uppercase", letterSpacing: "0.06em" }}>Primera visita</div>
@@ -448,7 +436,7 @@ function ReworkSection({ ots, activos }: { ots: OTRow[]; activos: ActiveRow[] })
 }
 
 // ── NEW: Operational Insights ─────────────────────────────────────────────────
-function OperationalInsights({ ots, activos, rangeMonths }: { ots: OTRow[]; activos: ActiveRow[]; rangeMonths: number }) {
+function OperationalInsights({ ots, activos, rangeMonths, pmCompliance }: { ots: OTRow[]; activos: ActiveRow[]; rangeMonths: number; pmCompliance: number }) {
   const insights = useMemo(() => {
     const result: { level: "critical" | "warning" | "info" | "success"; text: string }[] = [];
     const today = new Date().toISOString().slice(0, 10);
@@ -497,16 +485,19 @@ function OperationalInsights({ ots, activos, rangeMonths }: { ots: OTRow[]; acti
     const overdue = open.filter(o => o.fecha_termino && o.fecha_termino.slice(0, 10) < today);
     if (overdue.length > 0) result.push({ level: "critical", text: `${overdue.length} orden${overdue.length > 1 ? "es" : ""} vencida${overdue.length > 1 ? "s" : ""}. SLA comprometido.` });
 
+    // PM compliance
+    if (pmCompliance > 0 && pmCompliance < 70) result.push({ level: "warning", text: `Cumplimiento PM bajo (${pmCompliance}%). Revisar programa de mantenimiento preventivo.` });
+
     if (result.length === 0) result.push({ level: "success" as any, text: "Sin alertas activas. Las operaciones de mantenimiento están en buen estado." });
 
     return result;
   }, [ots, activos, rangeMonths]);
 
   const levelStyle: Record<string, { bg: string; border: string; iconColor: string; Icon: React.ElementType }> = {
-    critical: { bg: C.dangerBg,   border: C.danger + "40",  iconColor: C.danger,  Icon: XCircle },
-    warning:  { bg: C.warningBg,  border: C.warning + "40", iconColor: C.warning, Icon: AlertTriangle },
-    info:     { bg: C.infoBg,     border: C.info + "40",    iconColor: C.info,    Icon: Activity },
-    success:  { bg: C.successBg,  border: C.success + "40", iconColor: C.success, Icon: CheckCircle2 },
+    critical: { bg: C.dangerBg,   border: "var(--danger)",   iconColor: C.danger,  Icon: XCircle },
+    warning:  { bg: C.warningBg,  border: "var(--warning)",  iconColor: C.warning, Icon: AlertTriangle },
+    info:     { bg: C.infoBg,     border: "var(--brand)",    iconColor: C.info,    Icon: Activity },
+    success:  { bg: C.successBg,  border: "var(--success)",  iconColor: C.success, Icon: CheckCircle2 },
   };
 
   return (
@@ -579,7 +570,7 @@ export default function AnaliticaPage() {
 
       const [otsRes, usersRes, activosRes, matsRes] = await Promise.all([
         sb.from("ordenes_trabajo")
-          .select("id, titulo, estado, prioridad, tipo_trabajo, created_at, fecha_termino, iniciado_at, updated_at, asignados_ids, activo_id, ubicacion_id, activos(id,nombre), ubicaciones(id,edificio)")
+          .select("id, titulo, estado, prioridad, tipo_trabajo, created_at, fecha_termino, iniciado_at, updated_at, tiempo_total_segundos, asignados_ids, activo_id, ubicacion_id, activos(id,nombre), ubicaciones(id,edificio)")
           .eq("workspace_id", wsId)
           .neq("estado", "cancelado")
           .gte("created_at", cutoffStr)
@@ -593,8 +584,9 @@ export default function AnaliticaPage() {
           .select("id, nombre, descripcion, ubicacion_id, ubicaciones(edificio)")
           .eq("workspace_id", wsId)
           .eq("activo", true),
-        sb.from("orden_partes")
-          .select("id, orden_id, cantidad, cantidad_utilizada, created_at, parte:partes!parte_id(nombre)")
+        sb.from("materiales_usados")
+          .select("id, orden_id, nombre, cantidad, created_at")
+          .eq("workspace_id", wsId)
           .gte("created_at", cutoffStr),
       ]);
 
@@ -611,16 +603,13 @@ export default function AnaliticaPage() {
         ...a,
         ubicaciones: normalizeJoin(a.ubicaciones),
       })) as ActiveRow[]);
-      setMaterialesUsados(((matsRes.data ?? []) as unknown[]).map((m: any) => {
-        const parte = normalizeJoin(m.parte) as any;
-        return {
-          id: m.id,
-          orden_id: m.orden_id,
-          nombre: parte?.nombre ?? "—",
-          cantidad: m.cantidad_utilizada ?? m.cantidad,
-          created_at: m.created_at,
-        };
-      }) as MaterialUsadoRow[]);
+      setMaterialesUsados(((matsRes.data ?? []) as unknown[]).map((m: any) => ({
+        id: m.id,
+        orden_id: m.orden_id,
+        nombre: m.nombre ?? "—",
+        cantidad: m.cantidad,
+        created_at: m.created_at,
+      })) as MaterialUsadoRow[]);
       setLoading(false);
     }
     load();
@@ -657,7 +646,7 @@ export default function AnaliticaPage() {
 
   // ── Operations Overview ─────────────────────────────────────────────────────
   const today = new Date().toISOString().slice(0, 10);
-  const openOTs = ots.filter(o => o.estado === "pendiente" || o.estado === "en_espera" || o.estado === "en_curso");
+  const openOTs = ots.filter(o => o.estado === "pendiente" || o.estado === "en_espera" || o.estado === "en_curso" || o.estado === "en_revision");
   const overdueOTs = openOTs.filter(o => o.fecha_termino && o.fecha_termino.slice(0, 10) < today);
   const inCurso = ots.filter(o => o.estado === "en_curso");
 
@@ -671,16 +660,20 @@ export default function AnaliticaPage() {
   const activeTechIds = new Set(openOTs.flatMap(o => o.asignados_ids ?? []));
 
   // ── KPIs ────────────────────────────────────────────────────────────────────
-  const completedOTs = ots.filter(o => o.estado === "completado" && o.iniciado_at && o.updated_at);
+  const completedOTs = ots.filter(o => o.estado === "completado" && o.iniciado_at);
   const avgMTTR = completedOTs.length
-    ? completedOTs.reduce((s, o) => s + hoursFromDates(o.iniciado_at!, o.updated_at!), 0) / completedOTs.length
+    ? completedOTs.reduce((s, o) => {
+        if (o.tiempo_total_segundos != null && o.tiempo_total_segundos > 0) return s + o.tiempo_total_segundos / 3600;
+        return s + hoursFromDates(o.iniciado_at!, o.fecha_termino ?? o.updated_at!);
+      }, 0) / completedOTs.length
     : 0;
 
   const assetCompletions: Record<string, number[]> = {};
   completedOTs.forEach(o => {
     if (!o.activo_id) return;
     if (!assetCompletions[o.activo_id]) assetCompletions[o.activo_id] = [];
-    assetCompletions[o.activo_id].push(new Date(o.updated_at!).getTime());
+    const completedAt = o.fecha_termino ?? o.updated_at;
+    if (completedAt) assetCompletions[o.activo_id].push(new Date(completedAt).getTime());
   });
   const mtbfVals: number[] = [];
   Object.values(assetCompletions).forEach(times => {
@@ -709,7 +702,7 @@ export default function AnaliticaPage() {
       const mMats = materialesUsados.filter(m => monthKey(m.created_at) === mk);
       return {
         month: new Date(mk + "-01").toLocaleDateString("es-CL", { month: "short" }),
-        abiertas: mOTs.filter(o => o.estado === "pendiente" || o.estado === "en_espera").length,
+        creadas: mOTs.length,
         completadas: mOTs.filter(o => o.estado === "completado").length,
         piezas: mMats.reduce((s, m) => s + m.cantidad, 0),
       };
@@ -721,8 +714,8 @@ export default function AnaliticaPage() {
     return activos.map(a => {
       const aOTs = ots.filter(o => o.activo_id === a.id && o.tipo_trabajo === "reactiva");
       const freq = aOTs.length;
-      const completed = aOTs.filter(o => o.estado === "completado" && o.iniciado_at && o.updated_at);
-      const downtime = completed.reduce((s, o) => s + hoursFromDates(o.iniciado_at!, o.updated_at!), 0);
+      const completed = aOTs.filter(o => o.estado === "completado" && o.iniciado_at);
+      const downtime = completed.reduce((s, o) => s + hoursFromDates(o.iniciado_at!, o.fecha_termino ?? o.updated_at!), 0);
       const aMats = mats.filter(m => aOTs.some(o => o.id === m.orden_id));
       const partsCount = aMats.reduce((s, m) => s + m.cantidad, 0);
 
@@ -745,7 +738,7 @@ export default function AnaliticaPage() {
 
   // ── WO Analytics ────────────────────────────────────────────────────────────
   const avgCompletionHours = completedOTs.length
-    ? completedOTs.reduce((s, o) => s + hoursFromDates(o.created_at, o.updated_at!), 0) / completedOTs.length
+    ? completedOTs.reduce((s, o) => s + hoursFromDates(o.created_at, o.fecha_termino ?? o.updated_at!), 0) / completedOTs.length
     : 0;
 
   const backlogByAge = [
@@ -763,8 +756,11 @@ export default function AnaliticaPage() {
   // ── Team Performance (enhanced) ──────────────────────────────────────────────
   const techPerf = techs.map(t => {
     const tOTs = ots.filter(o => o.asignados_ids?.includes(t.id));
-    const done = tOTs.filter(o => o.estado === "completado" && o.iniciado_at && o.updated_at);
-    const avgTime = done.length ? done.reduce((s, o) => s + hoursFromDates(o.iniciado_at!, o.updated_at!), 0) / done.length : 0;
+    const done = tOTs.filter(o => o.estado === "completado" && o.iniciado_at);
+    const avgTime = done.length ? done.reduce((s, o) => {
+      if (o.tiempo_total_segundos != null && o.tiempo_total_segundos > 0) return s + o.tiempo_total_segundos / 3600;
+      return s + hoursFromDates(o.iniciado_at!, o.fecha_termino ?? o.updated_at!);
+    }, 0) / done.length : 0;
     const active = tOTs.filter(o => o.estado === "en_curso").length;
     const blocked = tOTs.filter(o => o.estado === "en_espera").length;
     const avgPerTech = ots.length / Math.max(techs.length, 1);
@@ -813,23 +809,6 @@ export default function AnaliticaPage() {
   const assetDetail = selectedAsset ? activos.find(a => a.id === selectedAsset) : null;
   const assetOTs = selectedAsset ? ots.filter(o => o.activo_id === selectedAsset).sort((a, b) => b.created_at.localeCompare(a.created_at)) : [];
 
-  // ── Legacy Insights (top of page) ───────────────────────────────────────────
-  const legacyInsights: { level: "critical" | "warning" | "info"; text: string }[] = [];
-  if (overdueOTs.length > 0)
-    legacyInsights.push({ level: "critical", text: `${overdueOTs.length} orden${overdueOTs.length > 1 ? "es" : ""} vencida${overdueOTs.length > 1 ? "s" : ""}. Requieren atención inmediata.` });
-  const trendingAssets = assetRisk.filter(a => a.trending);
-  if (trendingAssets.length > 0)
-    legacyInsights.push({ level: "warning", text: `Tendencia creciente de fallas en: ${trendingAssets.map(a => a.nombre).join(", ")}.` });
-  if (pmCompliance > 0 && pmCompliance < 70)
-    legacyInsights.push({ level: "warning", text: `Cumplimiento PM bajo (${pmCompliance}%). Revisar programa de mantenimiento preventivo.` });
-  const overloaded = techPerf.filter(t => t.active >= 3);
-  if (overloaded.length > 0)
-    legacyInsights.push({ level: "warning", text: `Técnico${overloaded.length > 1 ? "s" : ""} con carga alta: ${overloaded.map(t => t.nombre.split(" ")[0]).join(", ")} (3+ órdenes activas).` });
-  const backlogOld = openOTs.filter(o => daysSince(o.created_at) >= 7).length;
-  if (backlogOld > 3)
-    legacyInsights.push({ level: "warning", text: `Backlog envejeciendo: ${backlogOld} órdenes llevan más de 7 días abiertas.` });
-  if (legacyInsights.length === 0)
-    legacyInsights.push({ level: "info", text: "Sin alertas activas en el período seleccionado." });
 
   // ── Loading ─────────────────────────────────────────────────────────────────
   if (loading) {
@@ -897,27 +876,10 @@ export default function AnaliticaPage() {
       </div>
 
       {/* ── Operational Insights (NEW, top) ── */}
-      <OperationalInsights ots={ots} activos={activos} rangeMonths={rangeMonths} />
+      <OperationalInsights ots={ots} activos={activos} rangeMonths={rangeMonths} pmCompliance={pmCompliance} />
 
-      {/* Legacy quick alerts */}
-      <Card style={{ marginBottom: 24 }}>
-        <CardHeader
-          title="Alertas del sistema"
-          subtitle="Anomalías detectadas automáticamente"
-          action={<span style={{ fontSize: 11, fontWeight: 600, padding: "4px 10px", borderRadius: 6, background: C.infoBg, color: C.info }}>{legacyInsights.length} alertas</span>}
-        />
-        <div style={{ padding: "12px 20px", display: "flex", flexDirection: "column", gap: 10 }}>
-          {legacyInsights.map((ins, i) => (
-            <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: "10px 12px", borderRadius: 8, background: ins.level === "critical" ? C.dangerBg : ins.level === "warning" ? C.warningBg : C.infoBg }}>
-              <InsightBadge level={ins.level} />
-              <p style={{ margin: 0, fontSize: 13, color: C.text1, flex: 1, lineHeight: 1.5 }}>{ins.text}</p>
-            </div>
-          ))}
-        </div>
-      </Card>
-
-      {/* Operations Overview */}
-      <SectionLabel icon={Activity} label="Operations Overview" />
+      {/* Resumen Operacional */}
+      <SectionLabel icon={Activity} label="Resumen Operacional" />
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14, marginBottom: 24 }}>
         <StatCard label="Órdenes abiertas"     value={openOTs.length}     sub={`${totalOTs} total en período`}             icon={ClipboardIcon}  color={C.mid}     trend="neutral" />
         <StatCard label="Órdenes vencidas"      value={overdueOTs.length}  sub="Requieren acción hoy"                       icon={AlertTriangle}  color={C.danger}  trend={overdueOTs.length > 0 ? "up" : "neutral"} />
@@ -1013,7 +975,7 @@ export default function AnaliticaPage() {
                 <Tooltip contentStyle={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12 }} />
                 <Legend wrapperStyle={{ fontSize: 12 }} />
                 <Line type="monotone" dataKey="completadas" stroke={C.success} strokeWidth={2} dot={{ r: 4 }} name="Completadas" />
-                <Line type="monotone" dataKey="abiertas" stroke={C.warning} strokeWidth={2} dot={{ r: 4 }} name="Abiertas" strokeDasharray="4 2" />
+                <Line type="monotone" dataKey="creadas" stroke={C.warning} strokeWidth={2} dot={{ r: 4 }} name="Creadas" strokeDasharray="4 2" />
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -1210,11 +1172,11 @@ export default function AnaliticaPage() {
                     return (
                       <tr
                         key={t.id}
-                        style={{ borderBottom: `1px solid ${C.border}`, background: isOverloaded ? C.dangerBg + "80" : highBlocked ? C.warningBg + "80" : "transparent" }}
+                        style={{ borderBottom: `1px solid ${C.border}`, background: isOverloaded ? C.dangerBg : highBlocked ? C.warningBg : "transparent" }}
                       >
                         <td style={{ padding: "12px 16px" }}>
                           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                            <div style={{ width: 32, height: 32, borderRadius: "50%", background: `linear-gradient(135deg, ${C.brand}, ${C.mid})`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: "#fff", flexShrink: 0 }}>
+                            <div style={{ width: 32, height: 32, borderRadius: "50%", background: `linear-gradient(135deg, var(--brand-active), var(--brand))`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: "var(--fg-on-brand)", flexShrink: 0 }}>
                               {t.nombre.split(" ").map(p => p[0]).slice(0, 2).join("")}
                             </div>
                             <div>
@@ -1278,7 +1240,7 @@ export default function AnaliticaPage() {
                   <YAxis type="category" dataKey="name" tick={{ fontSize: 11, fill: C.text2 }} width={130} />
                   <Tooltip contentStyle={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12 }} formatter={v => [`${v} uds`, "Consumo"]} />
                   <Bar dataKey="cantidad" radius={[0, 4, 4, 0]} name="Uds. usadas">
-                    {topMateriales.map((_, i) => <Cell key={i} fill={i === 0 ? C.mid : i < 3 ? C.info : C.text3 + "80"} />)}
+                    {topMateriales.map((_, i) => <Cell key={i} fill={i === 0 ? C.mid : i < 3 ? C.info : C.text3} />)}
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
@@ -1347,7 +1309,7 @@ export default function AnaliticaPage() {
                   <YAxis type="category" dataKey="name" tick={{ fontSize: 11, fill: C.text2 }} width={130} />
                   <Tooltip contentStyle={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12 }} formatter={v => [`${v} uds`, "Consumo"]} />
                   <Bar dataKey="cantidad" fill={C.warning} radius={[0, 4, 4, 0]} name="Uds. usadas">
-                    {matsByAsset.map((_, i) => <Cell key={i} fill={i === 0 ? C.danger : i < 3 ? C.warning : C.mid + "99"} />)}
+                    {matsByAsset.map((_, i) => <Cell key={i} fill={i === 0 ? C.danger : i < 3 ? C.warning : C.mid} />)}
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>

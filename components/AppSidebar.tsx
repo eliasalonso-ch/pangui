@@ -45,6 +45,30 @@ interface UserData {
   rol: string;
 }
 
+const menuPopupStyle: React.CSSProperties = {
+  width: 180,
+  background: "var(--surface-2)",
+  border: "1px solid var(--border)",
+  borderRadius: "var(--r-md)",
+  boxShadow: "var(--shadow-md)",
+  overflow: "hidden",
+};
+
+const menuBtnBase: React.CSSProperties = {
+  width: "100%",
+  display: "flex",
+  alignItems: "center",
+  gap: 10,
+  padding: "10px 12px",
+  background: "none",
+  border: "none",
+  cursor: "pointer",
+  fontSize: "var(--fs-sm)",
+  fontWeight: 500,
+  fontFamily: "inherit",
+  color: "var(--fg-1)",
+};
+
 function SidebarUserFooter({ user }: { user: UserData | null }) {
   const [open, setOpen] = useState(false);
   const [popupPos, setPopupPos] = useState({ bottom: 56, left: 64 });
@@ -75,37 +99,40 @@ function SidebarUserFooter({ user }: { user: UserData | null }) {
 
   const rolLabel = (ROL_LABEL as Record<string, string>)[user.rol] ?? user.rol;
 
+  const avatarStyle: React.CSSProperties = {
+    borderRadius: "50%",
+    background: "linear-gradient(135deg, var(--brand-active), var(--brand))",
+    color: "var(--fg-on-brand)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontSize: "var(--fs-xs)",
+    fontWeight: 700,
+    border: "none",
+    cursor: "pointer",
+    flexShrink: 0,
+  };
+
   if (collapsed) {
     return (
       <div style={{ position: "relative", display: "flex", justifyContent: "center" }}>
         {open && (
           <>
             <div style={{ position: "fixed", inset: 0, zIndex: 9998 }} onMouseDown={() => setOpen(false)} />
-            <div style={{
-              position: "fixed",
-              bottom: popupPos.bottom,
-              left: popupPos.left,
-              zIndex: 9999,
-              width: 180,
-              background: "#fff",
-              border: "1px solid #E2E8F0",
-              borderRadius: 8,
-              boxShadow: "0 8px 24px rgba(0,0,0,0.10)",
-              overflow: "hidden",
-            }}>
+            <div style={{ position: "fixed", bottom: popupPos.bottom, left: popupPos.left, zIndex: 9999, ...menuPopupStyle }}>
               <button
                 onClick={() => { setOpen(false); router.push("/configuracion"); }}
-                style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: "none", border: "none", cursor: "pointer", fontSize: 13, fontWeight: 500, color: "#0F172A", fontFamily: "inherit" }}
-                onMouseEnter={e => { e.currentTarget.style.background = "#F1F5F9"; }}
+                style={menuBtnBase}
+                onMouseEnter={e => { e.currentTarget.style.background = "var(--surface-hover)"; }}
                 onMouseLeave={e => { e.currentTarget.style.background = "none"; }}
               >
                 <Settings size={14} />Configuración
               </button>
-              <div style={{ height: 1, background: "#E2E8F0", margin: "0 12px" }} />
+              <div style={{ height: 1, background: "var(--divider)", margin: "0 12px" }} />
               <button
                 onClick={handleLogout}
-                style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: "none", border: "none", cursor: "pointer", fontSize: 13, fontWeight: 500, color: "#EF4444", fontFamily: "inherit" }}
-                onMouseEnter={e => { e.currentTarget.style.background = "#FEF2F2"; }}
+                style={{ ...menuBtnBase, color: "var(--danger)" }}
+                onMouseEnter={e => { e.currentTarget.style.background = "var(--danger-bg)"; }}
                 onMouseLeave={e => { e.currentTarget.style.background = "none"; }}
               >
                 <LogOut size={14} />Cerrar sesión
@@ -117,7 +144,7 @@ function SidebarUserFooter({ user }: { user: UserData | null }) {
           ref={avatarRef}
           onClick={handleOpen}
           title={user.nombre}
-          style={{ width: 36, height: 36, borderRadius: "50%", background: "linear-gradient(135deg, #1E3A8A, #2563EB)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, border: "none", cursor: "pointer" }}
+          style={{ ...avatarStyle, width: 36, height: 36 }}
         >
           {initials(user.nombre)}
         </button>
@@ -130,31 +157,20 @@ function SidebarUserFooter({ user }: { user: UserData | null }) {
       {open && (
         <>
           <div style={{ position: "fixed", inset: 0, zIndex: 40 }} onClick={() => setOpen(false)} />
-          <div style={{
-            position: "absolute",
-            bottom: "calc(100% + 6px)",
-            left: 0,
-            right: 0,
-            zIndex: 50,
-            background: "#fff",
-            border: "1px solid #E2E8F0",
-            borderRadius: 8,
-            boxShadow: "0 8px 24px rgba(0,0,0,0.10)",
-            overflow: "hidden",
-          }}>
+          <div style={{ position: "absolute", bottom: "calc(100% + 6px)", left: 0, right: 0, zIndex: 50, ...menuPopupStyle }}>
             <button
               onClick={() => { setOpen(false); router.push("/configuracion"); }}
-              style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: "none", border: "none", cursor: "pointer", fontSize: 13, fontWeight: 500, color: "#0F172A", fontFamily: "inherit" }}
-              onMouseEnter={e => { e.currentTarget.style.background = "#F1F5F9"; }}
+              style={menuBtnBase}
+              onMouseEnter={e => { e.currentTarget.style.background = "var(--surface-hover)"; }}
               onMouseLeave={e => { e.currentTarget.style.background = "none"; }}
             >
               <Settings size={14} />Configuración
             </button>
-            <div style={{ height: 1, background: "#E2E8F0", margin: "0 12px" }} />
+            <div style={{ height: 1, background: "var(--divider)", margin: "0 12px" }} />
             <button
               onClick={handleLogout}
-              style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: "none", border: "none", cursor: "pointer", fontSize: 13, fontWeight: 500, color: "#EF4444", fontFamily: "inherit" }}
-              onMouseEnter={e => { e.currentTarget.style.background = "#FEF2F2"; }}
+              style={{ ...menuBtnBase, color: "var(--danger)" }}
+              onMouseEnter={e => { e.currentTarget.style.background = "var(--danger-bg)"; }}
               onMouseLeave={e => { e.currentTarget.style.background = "none"; }}
             >
               <LogOut size={14} />Cerrar sesión
@@ -164,18 +180,23 @@ function SidebarUserFooter({ user }: { user: UserData | null }) {
       )}
       <button
         onClick={() => setOpen(v => !v)}
-        style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", background: "none", border: "none", borderRadius: 8, cursor: "pointer", fontFamily: "inherit", transition: "background 0.15s" }}
-        onMouseEnter={e => { e.currentTarget.style.background = "#F1F5F9"; }}
+        style={{
+          width: "100%", display: "flex", alignItems: "center", gap: 10,
+          padding: "8px 10px", background: "none", border: "none",
+          borderRadius: "var(--r-md)", cursor: "pointer", fontFamily: "inherit",
+          transition: "background var(--dur-fast) var(--ease)",
+        }}
+        onMouseEnter={e => { e.currentTarget.style.background = "var(--surface-hover)"; }}
         onMouseLeave={e => { e.currentTarget.style.background = "none"; }}
       >
-        <span style={{ width: 32, height: 32, borderRadius: "50%", background: "linear-gradient(135deg, #1E3A8A, #2563EB)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, flexShrink: 0 }}>
+        <span style={{ ...avatarStyle, width: 32, height: 32 }}>
           {initials(user.nombre)}
         </span>
         <div style={{ flex: 1, minWidth: 0, textAlign: "left" }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: "#0F172A", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{user.nombre}</div>
-          <div style={{ fontSize: 11, color: "#64748B", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{rolLabel}</div>
+          <div style={{ fontSize: "var(--fs-sm)", fontWeight: 600, color: "var(--fg-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{user.nombre}</div>
+          <div style={{ fontSize: "var(--fs-xs)", color: "var(--fg-3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{rolLabel}</div>
         </div>
-        <ChevronUp size={14} style={{ color: "#94A3B8", flexShrink: 0, transform: open ? "rotate(0deg)" : "rotate(180deg)", transition: "transform 0.15s" }} />
+        <ChevronUp size={14} style={{ color: "var(--fg-4)", flexShrink: 0, transform: open ? "rotate(0deg)" : "rotate(180deg)", transition: "transform 0.15s" }} />
       </button>
     </div>
   );
@@ -270,23 +291,26 @@ export default function AppSidebar() {
       title={collapsed ? "Expandir menú" : "Colapsar menú"}
       style={{
         display: "flex", alignItems: "center", justifyContent: "center",
-        width: "100%", height: 36, border: "1px solid #BFDBFE", background: "none",
-        cursor: "pointer", color: "#1D4ED8", borderRadius: 6, padding: 0,
-        transition: "background 0.15s, border-color 0.15s, color 0.15s",
+        width: "100%", height: 36,
+        border: "1px solid var(--border-strong)",
+        background: "none",
+        cursor: "pointer",
+        color: "var(--brand-fg)",
+        borderRadius: "var(--r-sm)",
+        padding: 0,
+        transition: "background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease)",
       }}
-      onMouseEnter={e => { e.currentTarget.style.background = "#EFF6FF"; e.currentTarget.style.borderColor = "#93C5FD"; }}
-      onMouseLeave={e => { e.currentTarget.style.background = "none"; e.currentTarget.style.borderColor = "#BFDBFE"; }}
+      onMouseEnter={e => { e.currentTarget.style.background = "var(--brand-tint)"; e.currentTarget.style.borderColor = "var(--brand)"; }}
+      onMouseLeave={e => { e.currentTarget.style.background = "none"; e.currentTarget.style.borderColor = "var(--border-strong)"; }}
     >
       <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
         {collapsed ? (
-          /* Two bars + arrow pointing right (expand) */
           <>
             <rect x="2" y="4" width="3" height="12" rx="1" fill="currentColor" opacity="0.5" />
             <rect x="7" y="4" width="3" height="12" rx="1" fill="currentColor" opacity="0.5" />
             <path d="M13 7l3 3-3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
           </>
         ) : (
-          /* Two bars + arrow pointing left (collapse) */
           <>
             <rect x="15" y="4" width="3" height="12" rx="1" fill="currentColor" opacity="0.5" />
             <rect x="10" y="4" width="3" height="12" rx="1" fill="currentColor" opacity="0.5" />
@@ -307,14 +331,14 @@ export default function AppSidebar() {
           alignItems: "center",
           justifyContent: "center",
           padding: "12px 16px",
-          borderBottom: "1px solid #E2E8F0",
+          borderBottom: "1px solid var(--border)",
         }}>
           {workspaceLogo !== undefined && (
             collapsed ? (
               <img
                 src={workspaceLogo ?? "/logo2.svg"}
                 alt="Logo"
-                style={{ width: 36, height: 36, objectFit: "contain", borderRadius: 6 }}
+                style={{ width: 36, height: 36, objectFit: "contain", borderRadius: "var(--r-sm)" }}
               />
             ) : (
               <img
@@ -435,7 +459,12 @@ export default function AppSidebar() {
                     <span style={{ position: "relative", display: "inline-flex", flexShrink: 0 }}>
                       <Bell size={16} />
                       {unreadCount > 0 && (
-                        <span style={{ position: "absolute", top: -4, right: -4, width: 8, height: 8, borderRadius: "50%", background: "#EF4444", border: "1.5px solid #fff" }} />
+                        <span style={{
+                          position: "absolute", top: -4, right: -4,
+                          width: 8, height: 8, borderRadius: "50%",
+                          background: "var(--danger)",
+                          border: "1.5px solid var(--sidebar-bg)",
+                        }} />
                       )}
                     </span>
                     {!collapsed && <span>Notificaciones</span>}

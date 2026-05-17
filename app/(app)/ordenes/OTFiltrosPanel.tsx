@@ -74,10 +74,10 @@ function FilterDropdown({ label, icon, active, count, onClear, children }: {
         style={{
           display: "flex", alignItems: "center", gap: 5,
           height: 28, padding: "0 10px",
-          border: active ? "1.5px solid #2563EB" : "1px solid #E2E8F0",
+          border: active ? "1.5px solid var(--brand)" : "1px solid var(--border)",
           borderRadius: 6,
-          background: active ? "#EFF6FF" : "#fff",
-          color: active ? "#1D4ED8" : "#475569",
+          background: active ? "var(--brand-tint)" : "var(--surface-1)",
+          color: active ? "var(--brand)" : "var(--fg-2)",
           fontSize: 12, fontWeight: active ? 600 : 500,
           cursor: "pointer", fontFamily: "inherit",
           whiteSpace: "nowrap",
@@ -86,7 +86,7 @@ function FilterDropdown({ label, icon, active, count, onClear, children }: {
         {icon}
         {label}
         {count > 0
-          ? <span style={{ fontSize: 10, fontWeight: 700, background: "#2563EB", color: "#fff", borderRadius: "50%", width: 15, height: 15, display: "flex", alignItems: "center", justifyContent: "center" }}>{count}</span>
+          ? <span style={{ fontSize: 10, fontWeight: 700, background: "var(--brand)", color: "var(--fg-on-brand)", borderRadius: "50%", width: 15, height: 15, display: "flex", alignItems: "center", justifyContent: "center" }}>{count}</span>
           : <ChevronDown size={11} style={{ opacity: 0.5 }} />
         }
       </button>
@@ -94,18 +94,18 @@ function FilterDropdown({ label, icon, active, count, onClear, children }: {
       {open && (
         <div style={{
           position: "absolute", top: "calc(100% + 4px)", left: 0, zIndex: 200,
-          minWidth: 220, background: "#fff",
-          border: "1px solid #E2E8F0", borderRadius: 8,
-          boxShadow: "0 4px 20px rgba(0,0,0,0.10)", overflow: "hidden",
+          minWidth: 220, background: "var(--surface-1)",
+          border: "1px solid var(--border)", borderRadius: 8,
+          boxShadow: "var(--shadow-md)", overflow: "hidden",
         }}>
           {/* Dropdown header */}
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px 6px", borderBottom: "1px solid #F1F5F9" }}>
-            <span style={{ fontSize: 11, fontWeight: 700, color: "#64748B", textTransform: "uppercase", letterSpacing: "0.06em" }}>{label}</span>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px 6px", borderBottom: "1px solid var(--border)" }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: "var(--fg-3)", textTransform: "uppercase", letterSpacing: "0.06em" }}>{label}</span>
             {count > 0 && (
               <button
                 type="button"
                 onClick={onClear}
-                style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 11, color: "#94A3B8", background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", padding: 0 }}
+                style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 11, color: "var(--fg-4)", background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", padding: 0 }}
               >
                 <RotateCcw size={10} />
                 Limpiar
@@ -136,7 +136,6 @@ export function FilterBar({ filtros, onChange, usuarios, ubicaciones, sociedades
   const [userSearch, setUserSearch]  = useState("");
   const [ubicSearch, setUbicSearch]  = useState("");
   const [socSearch,  setSocSearch]   = useState("");
-  const [estadoSearch, setEstadoSearch] = useState("");
 
   useEffect(() => {
     function handler(e: MouseEvent) {
@@ -176,14 +175,14 @@ export function FilterBar({ filtros, onChange, usuarios, ubicaciones, sociedades
         onClear={() => set({ asignadoIds: [] })}
       >
         <div style={{ padding: "6px 8px 4px" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 6, height: 30, padding: "0 8px", border: "1px solid #E2E8F0", borderRadius: 6, background: "#F8FAFC" }}>
-            <Search size={12} style={{ color: "#94A3B8", flexShrink: 0 }} />
+          <div style={{ display: "flex", alignItems: "center", gap: 6, height: 30, padding: "0 8px", border: "1px solid var(--border)", borderRadius: 6, background: "var(--surface-0)" }}>
+            <Search size={12} style={{ color: "var(--fg-4)", flexShrink: 0 }} />
             <input
               autoFocus
               placeholder="Buscar usuario…"
               value={userSearch}
               onChange={e => setUserSearch(e.target.value)}
-              style={{ flex: 1, fontSize: 12.5, border: "none", outline: "none", background: "transparent", color: "#0F172A", fontFamily: "inherit" }}
+              style={{ flex: 1, fontSize: 12.5, border: "none", outline: "none", background: "transparent", color: "var(--fg-1)", fontFamily: "inherit" }}
             />
           </div>
         </div>
@@ -195,17 +194,17 @@ export function FilterBar({ filtros, onChange, usuarios, ubicaciones, sociedades
                 key={u.id}
                 type="button"
                 onClick={() => set({ asignadoIds: toggle(filtros.asignadoIds, u.id) })}
-                style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "7px 12px", background: active ? "#EFF6FF" : "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}
+                style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "7px 12px", background: active ? "var(--brand-tint)" : "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}
               >
-                <span style={{ width: 22, height: 22, borderRadius: "50%", background: active ? "#1D4ED8" : "#E2E8F0", color: active ? "#fff" : "#475569", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 700, flexShrink: 0 }}>
+                <span style={{ width: 22, height: 22, borderRadius: "50%", background: active ? "var(--brand)" : "var(--surface-hover)", color: active ? "var(--fg-on-brand)" : "var(--fg-2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 700, flexShrink: 0 }}>
                   {initials(u.nombre)}
                 </span>
-                <span style={{ flex: 1, fontSize: 12.5, color: "#0F172A", textAlign: "left" }}>{u.nombre}</span>
-                {active && <Check size={12} style={{ color: "#1D4ED8", flexShrink: 0 }} />}
+                <span style={{ flex: 1, fontSize: 12.5, color: "var(--fg-1)", textAlign: "left" }}>{u.nombre}</span>
+                {active && <Check size={12} style={{ color: "var(--brand)", flexShrink: 0 }} />}
               </button>
             );
           })}
-          {filteredUsers.length === 0 && <div style={{ padding: "8px 12px", fontSize: 12, color: "#94A3B8" }}>Sin resultados</div>}
+          {filteredUsers.length === 0 && <div style={{ padding: "8px 12px", fontSize: 12, color: "var(--fg-4)" }}>Sin resultados</div>}
         </div>
       </FilterDropdown>
 
@@ -232,10 +231,10 @@ export function FilterBar({ filtros, onChange, usuarios, ubicaciones, sociedades
                 key={opt.value}
                 type="button"
                 onClick={() => set({ fechaVencimiento: active ? null : opt.value })}
-                style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "8px 12px", background: active ? "#EFF6FF" : "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}
+                style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "8px 12px", background: active ? "var(--brand-tint)" : "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}
               >
-                <span style={{ fontSize: 13, color: "#0F172A", flex: 1, textAlign: "left" }}>{opt.label}</span>
-                {active && <Check size={12} style={{ color: "#1D4ED8" }} />}
+                <span style={{ fontSize: 13, color: "var(--fg-1)", flex: 1, textAlign: "left" }}>{opt.label}</span>
+                {active && <Check size={12} style={{ color: "var(--brand)" }} />}
               </button>
             );
           })}
@@ -251,14 +250,14 @@ export function FilterBar({ filtros, onChange, usuarios, ubicaciones, sociedades
         onClear={() => set({ ubicacionIds: [] })}
       >
         <div style={{ padding: "6px 8px 4px" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 6, height: 30, padding: "0 8px", border: "1px solid #E2E8F0", borderRadius: 6, background: "#F8FAFC" }}>
-            <Search size={12} style={{ color: "#94A3B8", flexShrink: 0 }} />
+          <div style={{ display: "flex", alignItems: "center", gap: 6, height: 30, padding: "0 8px", border: "1px solid var(--border)", borderRadius: 6, background: "var(--surface-0)" }}>
+            <Search size={12} style={{ color: "var(--fg-4)", flexShrink: 0 }} />
             <input
               autoFocus
               placeholder="Buscar ubicación…"
               value={ubicSearch}
               onChange={e => setUbicSearch(e.target.value)}
-              style={{ flex: 1, fontSize: 12.5, border: "none", outline: "none", background: "transparent", color: "#0F172A", fontFamily: "inherit" }}
+              style={{ flex: 1, fontSize: 12.5, border: "none", outline: "none", background: "transparent", color: "var(--fg-1)", fontFamily: "inherit" }}
             />
           </div>
         </div>
@@ -271,14 +270,14 @@ export function FilterBar({ filtros, onChange, usuarios, ubicaciones, sociedades
                 key={u.id}
                 type="button"
                 onClick={() => set({ ubicacionIds: toggle(filtros.ubicacionIds, u.id) })}
-                style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "7px 12px", background: active ? "#EFF6FF" : "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}
+                style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "7px 12px", background: active ? "var(--brand-tint)" : "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}
               >
-                <span style={{ flex: 1, fontSize: 12.5, color: "#0F172A", textAlign: "left" }}>{label}</span>
-                {active && <Check size={12} style={{ color: "#1D4ED8", flexShrink: 0 }} />}
+                <span style={{ flex: 1, fontSize: 12.5, color: "var(--fg-1)", textAlign: "left" }}>{label}</span>
+                {active && <Check size={12} style={{ color: "var(--brand)", flexShrink: 0 }} />}
               </button>
             );
           })}
-          {filteredUbic.length === 0 && <div style={{ padding: "8px 12px", fontSize: 12, color: "#94A3B8" }}>Sin resultados</div>}
+          {filteredUbic.length === 0 && <div style={{ padding: "8px 12px", fontSize: 12, color: "var(--fg-4)" }}>Sin resultados</div>}
         </div>
       </FilterDropdown>
 
@@ -298,11 +297,11 @@ export function FilterBar({ filtros, onChange, usuarios, ubicaciones, sociedades
                 key={p.value}
                 type="button"
                 onClick={() => set({ prioridades: toggle(filtros.prioridades, p.value) })}
-                style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "7px 12px", background: active ? "#EFF6FF" : "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}
+                style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "7px 12px", background: active ? "var(--brand-tint)" : "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}
               >
                 <span style={{ width: 8, height: 8, borderRadius: "50%", background: p.color, flexShrink: 0 }} />
-                <span style={{ flex: 1, fontSize: 12.5, color: "#0F172A", textAlign: "left" }}>{p.label}</span>
-                {active && <Check size={12} style={{ color: "#1D4ED8", flexShrink: 0 }} />}
+                <span style={{ flex: 1, fontSize: 12.5, color: "var(--fg-1)", textAlign: "left" }}>{p.label}</span>
+                {active && <Check size={12} style={{ color: "var(--brand)", flexShrink: 0 }} />}
               </button>
             );
           })}
@@ -317,17 +316,17 @@ export function FilterBar({ filtros, onChange, usuarios, ubicaciones, sociedades
           style={{
             display: "flex", alignItems: "center", gap: 5,
             height: 28, padding: "0 10px",
-            border: extraCount > 0 ? "1.5px solid #2563EB" : "1px dashed #CBD5E1",
+            border: extraCount > 0 ? "1.5px solid var(--brand)" : "1px dashed var(--border)",
             borderRadius: 6,
-            background: extraCount > 0 ? "#EFF6FF" : "#fff",
-            color: extraCount > 0 ? "#1D4ED8" : "#64748B",
+            background: extraCount > 0 ? "var(--brand-tint)" : "var(--surface-1)",
+            color: extraCount > 0 ? "var(--brand)" : "var(--fg-3)",
             fontSize: 12, fontWeight: 500, cursor: "pointer", fontFamily: "inherit",
           }}
         >
           <Plus size={12} />
           Añadir filtro
           {extraCount > 0 && (
-            <span style={{ fontSize: 10, fontWeight: 700, background: "#2563EB", color: "#fff", borderRadius: "50%", width: 15, height: 15, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <span style={{ fontSize: 10, fontWeight: 700, background: "var(--brand)", color: "var(--fg-on-brand)", borderRadius: "50%", width: 15, height: 15, display: "flex", alignItems: "center", justifyContent: "center" }}>
               {extraCount}
             </span>
           )}
@@ -336,17 +335,17 @@ export function FilterBar({ filtros, onChange, usuarios, ubicaciones, sociedades
         {extraOpen && (
           <div style={{
             position: "absolute", top: "calc(100% + 4px)", left: 0, zIndex: 200,
-            width: 260, background: "#fff",
-            border: "1px solid #E2E8F0", borderRadius: 8,
-            boxShadow: "0 4px 20px rgba(0,0,0,0.10)", overflow: "hidden",
+            width: 260, background: "var(--surface-1)",
+            border: "1px solid var(--border)", borderRadius: 8,
+            boxShadow: "var(--shadow-md)", overflow: "hidden",
           }}>
 
             {/* Estado */}
-            <div style={{ padding: "8px 12px 4px", borderBottom: "1px solid #F1F5F9" }}>
+            <div style={{ padding: "8px 12px 4px", borderBottom: "1px solid var(--border)" }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
-                <span style={{ fontSize: 11, fontWeight: 700, color: "#64748B", textTransform: "uppercase", letterSpacing: "0.06em" }}>Estado</span>
+                <span style={{ fontSize: 11, fontWeight: 700, color: "var(--fg-3)", textTransform: "uppercase", letterSpacing: "0.06em" }}>Estado</span>
                 {filtros.estados.length > 0 && (
-                  <button type="button" onClick={() => set({ estados: [] })} style={{ fontSize: 11, color: "#94A3B8", background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", padding: 0 }}>Limpiar</button>
+                  <button type="button" onClick={() => set({ estados: [] })} style={{ fontSize: 11, color: "var(--fg-4)", background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", padding: 0 }}>Limpiar</button>
                 )}
               </div>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 4, paddingBottom: 8 }}>
@@ -357,7 +356,7 @@ export function FilterBar({ filtros, onChange, usuarios, ubicaciones, sociedades
                       key={e.value}
                       type="button"
                       onClick={() => set({ estados: toggle(filtros.estados, e.value) })}
-                      style={{ height: 24, padding: "0 8px", border: active ? `1.5px solid ${e.color}` : "1px solid #E2E8F0", borderRadius: 4, background: active ? e.color + "15" : "#fff", color: active ? e.color : "#475569", fontSize: 11.5, fontWeight: active ? 600 : 400, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 3 }}
+                      style={{ height: 24, padding: "0 8px", border: active ? `1.5px solid ${e.color}` : "1px solid var(--border)", borderRadius: 4, background: active ? e.color + "20" : "var(--surface-1)", color: active ? e.color : "var(--fg-2)", fontSize: 11.5, fontWeight: active ? 600 : 400, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 3 }}
                     >
                       {active && <Check size={9} />}{e.label}
                     </button>
@@ -367,11 +366,11 @@ export function FilterBar({ filtros, onChange, usuarios, ubicaciones, sociedades
             </div>
 
             {/* Tipo de trabajo */}
-            <div style={{ padding: "8px 12px 4px", borderBottom: "1px solid #F1F5F9" }}>
+            <div style={{ padding: "8px 12px 4px", borderBottom: "1px solid var(--border)" }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
-                <span style={{ fontSize: 11, fontWeight: 700, color: "#64748B", textTransform: "uppercase", letterSpacing: "0.06em" }}>Tipo de trabajo</span>
+                <span style={{ fontSize: 11, fontWeight: 700, color: "var(--fg-3)", textTransform: "uppercase", letterSpacing: "0.06em" }}>Tipo de trabajo</span>
                 {filtros.tipos.length > 0 && (
-                  <button type="button" onClick={() => set({ tipos: [] })} style={{ fontSize: 11, color: "#94A3B8", background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", padding: 0 }}>Limpiar</button>
+                  <button type="button" onClick={() => set({ tipos: [] })} style={{ fontSize: 11, color: "var(--fg-4)", background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", padding: 0 }}>Limpiar</button>
                 )}
               </div>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 4, paddingBottom: 8 }}>
@@ -382,7 +381,7 @@ export function FilterBar({ filtros, onChange, usuarios, ubicaciones, sociedades
                       key={t.value}
                       type="button"
                       onClick={() => set({ tipos: toggle(filtros.tipos, t.value) })}
-                      style={{ height: 24, padding: "0 8px", border: active ? "1.5px solid #1D4ED8" : "1px solid #E2E8F0", borderRadius: 4, background: active ? "#EFF6FF" : "#fff", color: active ? "#1D4ED8" : "#475569", fontSize: 11.5, fontWeight: active ? 600 : 400, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 3 }}
+                      style={{ height: 24, padding: "0 8px", border: active ? "1.5px solid var(--brand)" : "1px solid var(--border)", borderRadius: 4, background: active ? "var(--brand-tint)" : "var(--surface-1)", color: active ? "var(--brand)" : "var(--fg-2)", fontSize: 11.5, fontWeight: active ? 600 : 400, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 3 }}
                     >
                       {active && <Check size={9} />}{t.label}
                     </button>
@@ -393,21 +392,21 @@ export function FilterBar({ filtros, onChange, usuarios, ubicaciones, sociedades
 
             {/* Sociedad */}
             {sociedades.length > 0 && (
-              <div style={{ padding: "8px 12px 4px", borderBottom: "1px solid #F1F5F9" }}>
+              <div style={{ padding: "8px 12px 4px", borderBottom: "1px solid var(--border)" }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: "#64748B", textTransform: "uppercase", letterSpacing: "0.06em" }}>Sociedad</span>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: "var(--fg-3)", textTransform: "uppercase", letterSpacing: "0.06em" }}>Sociedad</span>
                   {filtros.sociedadIds.length > 0 && (
-                    <button type="button" onClick={() => set({ sociedadIds: [] })} style={{ fontSize: 11, color: "#94A3B8", background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", padding: 0 }}>Limpiar</button>
+                    <button type="button" onClick={() => set({ sociedadIds: [] })} style={{ fontSize: 11, color: "var(--fg-4)", background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", padding: 0 }}>Limpiar</button>
                   )}
                 </div>
                 <div style={{ padding: "2px 0", marginBottom: 4 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6, height: 28, padding: "0 8px", border: "1px solid #E2E8F0", borderRadius: 6, background: "#F8FAFC", marginBottom: 4 }}>
-                    <Search size={11} style={{ color: "#94A3B8", flexShrink: 0 }} />
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, height: 28, padding: "0 8px", border: "1px solid var(--border)", borderRadius: 6, background: "var(--surface-0)", marginBottom: 4 }}>
+                    <Search size={11} style={{ color: "var(--fg-4)", flexShrink: 0 }} />
                     <input
                       placeholder="Buscar sociedad…"
                       value={socSearch}
                       onChange={e => setSocSearch(e.target.value)}
-                      style={{ flex: 1, fontSize: 12, border: "none", outline: "none", background: "transparent", color: "#0F172A", fontFamily: "inherit" }}
+                      style={{ flex: 1, fontSize: 12, border: "none", outline: "none", background: "transparent", color: "var(--fg-1)", fontFamily: "inherit" }}
                     />
                   </div>
                   {filteredSoc.map(s => {
@@ -417,10 +416,10 @@ export function FilterBar({ filtros, onChange, usuarios, ubicaciones, sociedades
                         key={s.id}
                         type="button"
                         onClick={() => set({ sociedadIds: toggle(filtros.sociedadIds, s.id) })}
-                        style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "6px 4px", background: active ? "#EFF6FF" : "transparent", border: "none", cursor: "pointer", borderRadius: 4, fontFamily: "inherit" }}
+                        style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "6px 4px", background: active ? "var(--brand-tint)" : "transparent", border: "none", cursor: "pointer", borderRadius: 4, fontFamily: "inherit" }}
                       >
-                        <span style={{ flex: 1, fontSize: 12.5, color: "#0F172A", textAlign: "left" }}>{s.nombre}</span>
-                        {active && <Check size={12} style={{ color: "#1D4ED8" }} />}
+                        <span style={{ flex: 1, fontSize: 12.5, color: "var(--fg-1)", textAlign: "left" }}>{s.nombre}</span>
+                        {active && <Check size={12} style={{ color: "var(--brand)" }} />}
                       </button>
                     );
                   })}
@@ -430,7 +429,7 @@ export function FilterBar({ filtros, onChange, usuarios, ubicaciones, sociedades
 
             {/* Otros */}
             <div style={{ padding: "8px 12px 8px" }}>
-              <span style={{ fontSize: 11, fontWeight: 700, color: "#64748B", textTransform: "uppercase", letterSpacing: "0.06em", display: "block", marginBottom: 6 }}>Otros</span>
+              <span style={{ fontSize: 11, fontWeight: 700, color: "var(--fg-3)", textTransform: "uppercase", letterSpacing: "0.06em", display: "block", marginBottom: 6 }}>Otros</span>
               {[
                 { key: "sinAsignar", label: "Sin asignar", active: filtros.sinAsignar },
               ].map(opt => (
@@ -438,10 +437,10 @@ export function FilterBar({ filtros, onChange, usuarios, ubicaciones, sociedades
                   key={opt.key}
                   type="button"
                   onClick={() => set({ [opt.key]: !opt.active } as Partial<FiltrosState>)}
-                  style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "6px 4px", background: opt.active ? "#EFF6FF" : "transparent", border: "none", cursor: "pointer", borderRadius: 4, fontFamily: "inherit" }}
+                  style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "6px 4px", background: opt.active ? "var(--brand-tint)" : "transparent", border: "none", cursor: "pointer", borderRadius: 4, fontFamily: "inherit" }}
                 >
-                  <span style={{ flex: 1, fontSize: 12.5, color: "#0F172A", textAlign: "left" }}>{opt.label}</span>
-                  {opt.active && <Check size={12} style={{ color: "#1D4ED8" }} />}
+                  <span style={{ flex: 1, fontSize: 12.5, color: "var(--fg-1)", textAlign: "left" }}>{opt.label}</span>
+                  {opt.active && <Check size={12} style={{ color: "var(--brand)" }} />}
                 </button>
               ))}
             </div>
@@ -455,9 +454,9 @@ export function FilterBar({ filtros, onChange, usuarios, ubicaciones, sociedades
         <button
           type="button"
           onClick={() => onChange({ ...EMPTY })}
-          style={{ display: "flex", alignItems: "center", gap: 4, height: 28, padding: "0 8px", border: "none", background: "none", color: "#94A3B8", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}
-          onMouseEnter={e => { e.currentTarget.style.color = "#EF4444"; }}
-          onMouseLeave={e => { e.currentTarget.style.color = "#94A3B8"; }}
+          style={{ display: "flex", alignItems: "center", gap: 4, height: 28, padding: "0 8px", border: "none", background: "none", color: "var(--fg-4)", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}
+          onMouseEnter={e => { e.currentTarget.style.color = "var(--danger)"; }}
+          onMouseLeave={e => { e.currentTarget.style.color = "var(--fg-4)"; }}
         >
           <X size={11} />
           Limpiar todo
@@ -472,8 +471,8 @@ export function FilterBar({ filtros, onChange, usuarios, ubicaciones, sociedades
 
 function Section({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div style={{ borderBottom: "1px solid #F3F4F6", paddingBottom: 14, marginBottom: 14 }}>
-      <div style={{ fontSize: 11, fontWeight: 700, color: "#8594A3", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 8 }}>
+    <div style={{ borderBottom: "1px solid var(--border)", paddingBottom: 14, marginBottom: 14 }}>
+      <div style={{ fontSize: 11, fontWeight: 700, color: "var(--fg-3)", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 8 }}>
         {label}
       </div>
       {children}
@@ -499,10 +498,10 @@ function ChipGroup<T extends string>({
             onClick={() => onToggle(o.value)}
             style={{
               height: 26, padding: "0 9px",
-              border: active ? "1.5px solid " + (o.color ?? "#273D88") : "1px solid #E5E7EB",
+              border: active ? "1.5px solid " + (o.color ?? "var(--brand)") : "1px solid var(--border)",
               borderRadius: 4,
-              background: active ? (o.color ?? "#273D88") + "15" : "#fff",
-              color: active ? (o.color ?? "#273D88") : "#4D5A66",
+              background: active ? (o.color ? o.color + "20" : "var(--brand-tint)") : "var(--surface-1)",
+              color: active ? (o.color ?? "var(--brand)") : "var(--fg-2)",
               fontSize: 12, fontWeight: active ? 600 : 400,
               cursor: "pointer", display: "flex", alignItems: "center", gap: 4,
               transition: "all 0.1s", fontFamily: "inherit",
@@ -538,21 +537,21 @@ export default function OTFiltrosPanel({ filtros, onChange, onClose, usuarios, u
   ].reduce((a, b) => a + b, 0);
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "#fff" }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 16px", height: 48, borderBottom: "1px solid #E5E7EB", flexShrink: 0 }}>
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "var(--surface-1)" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 16px", height: 48, borderBottom: "1px solid var(--border)", flexShrink: 0 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ fontSize: 14, fontWeight: 600, color: "#1E2429" }}>Filtros</span>
+          <span style={{ fontSize: 14, fontWeight: 600, color: "var(--fg-1)" }}>Filtros</span>
           {activeCount > 0 && (
-            <span style={{ fontSize: 11, fontWeight: 600, padding: "1px 7px", background: "#273D88", color: "#fff", borderRadius: 10 }}>{activeCount}</span>
+            <span style={{ fontSize: 11, fontWeight: 600, padding: "1px 7px", background: "var(--brand)", color: "var(--fg-on-brand)", borderRadius: 10 }}>{activeCount}</span>
           )}
         </div>
         <div style={{ display: "flex", gap: 6 }}>
           {activeCount > 0 && (
-            <button type="button" onClick={() => onChange({ ...EMPTY })} style={{ display: "flex", alignItems: "center", gap: 4, height: 28, padding: "0 8px", border: "1px solid #E5E7EB", borderRadius: 4, background: "#fff", color: "#677888", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
+            <button type="button" onClick={() => onChange({ ...EMPTY })} style={{ display: "flex", alignItems: "center", gap: 4, height: 28, padding: "0 8px", border: "1px solid var(--border)", borderRadius: 4, background: "var(--surface-1)", color: "var(--fg-3)", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
               <RotateCcw size={11} />Limpiar
             </button>
           )}
-          <button type="button" onClick={onClose} style={{ width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center", border: "1px solid #E5E7EB", borderRadius: 4, background: "#fff", cursor: "pointer", color: "#677888" }}>
+          <button type="button" onClick={onClose} style={{ width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center", border: "1px solid var(--border)", borderRadius: 4, background: "var(--surface-1)", cursor: "pointer", color: "var(--fg-3)" }}>
             <X size={13} />
           </button>
         </div>
@@ -573,7 +572,7 @@ export default function OTFiltrosPanel({ filtros, onChange, onClose, usuarios, u
             ] as const).map(opt => {
               const active = filtros.fechaVencimiento === opt.value;
               return (
-                <button key={opt.value} type="button" onClick={() => set({ fechaVencimiento: active ? null : opt.value })} style={{ height: 26, padding: "0 9px", border: active ? "1.5px solid #2563EB" : "1px solid #E5E7EB", borderRadius: 4, background: active ? "#EFF6FF" : "#fff", color: active ? "#1D4ED8" : "#4D5A66", fontSize: 12, fontWeight: active ? 600 : 400, cursor: "pointer", display: "flex", alignItems: "center", gap: 4, fontFamily: "inherit" }}>
+                <button key={opt.value} type="button" onClick={() => set({ fechaVencimiento: active ? null : opt.value })} style={{ height: 26, padding: "0 9px", border: active ? "1.5px solid var(--brand)" : "1px solid var(--border)", borderRadius: 4, background: active ? "var(--brand-tint)" : "var(--surface-1)", color: active ? "var(--brand)" : "var(--fg-2)", fontSize: 12, fontWeight: active ? 600 : 400, cursor: "pointer", display: "flex", alignItems: "center", gap: 4, fontFamily: "inherit" }}>
                   {active && <Check size={10} />}{opt.label}
                 </button>
               );
@@ -586,10 +585,10 @@ export default function OTFiltrosPanel({ filtros, onChange, onClose, usuarios, u
               {usuarios.map(u => {
                 const active = filtros.asignadoIds.includes(u.id);
                 return (
-                  <button key={u.id} type="button" onClick={() => set({ asignadoIds: toggle(filtros.asignadoIds, u.id) })} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 8px", border: "none", borderRadius: 4, background: active ? "#EEF1FB" : "transparent", cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}>
-                    <span style={{ width: 24, height: 24, borderRadius: "50%", background: active ? "#273D88" : "#F3F4F6", color: active ? "#fff" : "#677888", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 700, flexShrink: 0 }}>{initials(u.nombre)}</span>
-                    <span style={{ flex: 1, fontSize: 12.5, color: "#1E2429" }}>{u.nombre}</span>
-                    {active && <Check size={12} style={{ color: "#273D88", flexShrink: 0 }} />}
+                  <button key={u.id} type="button" onClick={() => set({ asignadoIds: toggle(filtros.asignadoIds, u.id) })} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 8px", border: "none", borderRadius: 4, background: active ? "var(--brand-tint)" : "transparent", cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}>
+                    <span style={{ width: 24, height: 24, borderRadius: "50%", background: active ? "var(--brand)" : "var(--surface-hover)", color: active ? "var(--fg-on-brand)" : "var(--fg-3)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 700, flexShrink: 0 }}>{initials(u.nombre)}</span>
+                    <span style={{ flex: 1, fontSize: 12.5, color: "var(--fg-1)" }}>{u.nombre}</span>
+                    {active && <Check size={12} style={{ color: "var(--brand)", flexShrink: 0 }} />}
                   </button>
                 );
               })}
@@ -603,9 +602,9 @@ export default function OTFiltrosPanel({ filtros, onChange, onClose, usuarios, u
                 const active = filtros.ubicacionIds.includes(u.id);
                 const label = u.edificio + (u.piso ? ` · ${u.piso}` : "");
                 return (
-                  <button key={u.id} type="button" onClick={() => set({ ubicacionIds: toggle(filtros.ubicacionIds, u.id) })} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 8px", border: "none", borderRadius: 4, background: active ? "#EEF1FB" : "transparent", cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}>
-                    <span style={{ flex: 1, fontSize: 12.5, color: "#1E2429" }}>{label}</span>
-                    {active && <Check size={12} style={{ color: "#273D88", flexShrink: 0 }} />}
+                  <button key={u.id} type="button" onClick={() => set({ ubicacionIds: toggle(filtros.ubicacionIds, u.id) })} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 8px", border: "none", borderRadius: 4, background: active ? "var(--brand-tint)" : "transparent", cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}>
+                    <span style={{ flex: 1, fontSize: 12.5, color: "var(--fg-1)" }}>{label}</span>
+                    {active && <Check size={12} style={{ color: "var(--brand)", flexShrink: 0 }} />}
                   </button>
                 );
               })}
@@ -618,9 +617,9 @@ export default function OTFiltrosPanel({ filtros, onChange, onClose, usuarios, u
               {sociedades.map(s => {
                 const active = filtros.sociedadIds.includes(s.id);
                 return (
-                  <button key={s.id} type="button" onClick={() => set({ sociedadIds: toggle(filtros.sociedadIds, s.id) })} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 8px", border: "none", borderRadius: 4, background: active ? "#EEF1FB" : "transparent", cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}>
-                    <span style={{ flex: 1, fontSize: 12.5, color: "#1E2429" }}>{s.nombre}</span>
-                    {active && <Check size={12} style={{ color: "#273D88", flexShrink: 0 }} />}
+                  <button key={s.id} type="button" onClick={() => set({ sociedadIds: toggle(filtros.sociedadIds, s.id) })} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 8px", border: "none", borderRadius: 4, background: active ? "var(--brand-tint)" : "transparent", cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}>
+                    <span style={{ flex: 1, fontSize: 12.5, color: "var(--fg-1)" }}>{s.nombre}</span>
+                    {active && <Check size={12} style={{ color: "var(--brand)", flexShrink: 0 }} />}
                   </button>
                 );
               })}

@@ -83,30 +83,30 @@ function GrupoFotosCard({ grupo, canManage, canUpload, uploading, fileInputRef, 
   const isEditable = canManage || (canUpload && !isLocked);
 
   return (
-    <div style={{ border: "1px solid #E2E8F0", borderRadius: 10, overflow: "hidden", background: "#fff" }}>
+    <div style={{ border: "1px solid var(--border)", borderRadius: "var(--r-md)", overflow: "hidden", background: "var(--surface-1)" }}>
       {/* Header */}
-      <div style={{ padding: "12px 14px", background: "#F8FAFC", borderBottom: "1px solid #E2E8F0" }}>
+      <div style={{ padding: "12px 14px", background: "var(--surface-0)", borderBottom: "1px solid var(--border)" }}>
         {editing ? (
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             <input
               autoFocus
               value={titulo}
               onChange={e => setTitulo(e.target.value)}
-              style={{ height: 32, padding: "0 8px", border: "1px solid #2563EB", borderRadius: 5, fontSize: 13, fontWeight: 600, outline: "none", fontFamily: "inherit" }}
+              style={{ height: 32, padding: "0 8px", border: "1px solid #2563EB", borderRadius: "var(--r-sm)", fontSize: 13, fontWeight: 600, outline: "none", fontFamily: "inherit" }}
             />
             <input
               value={desc}
               onChange={e => setDesc(e.target.value)}
               placeholder="Descripción (opcional)"
-              style={{ height: 28, padding: "0 8px", border: "1px solid #E2E8F0", borderRadius: 5, fontSize: 12, outline: "none", fontFamily: "inherit" }}
+              style={{ height: 28, padding: "0 8px", border: "1px solid var(--border)", borderRadius: "var(--r-sm)", fontSize: 12, outline: "none", fontFamily: "inherit" }}
             />
             <div style={{ display: "flex", gap: 6 }}>
               <button type="button" onClick={() => { onSaveEdit(titulo, desc); setEditing(false); }}
-                style={{ height: 26, padding: "0 10px", border: "none", borderRadius: 5, background: "#1E3A8A", color: "#fff", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+                style={{ height: 26, padding: "0 10px", border: "none", borderRadius: "var(--r-sm)", background: "var(--brand)", color: "var(--fg-on-brand)", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
                 Guardar
               </button>
               <button type="button" onClick={() => { setTitulo(grupo.titulo); setDesc(grupo.descripcion); setEditing(false); }}
-                style={{ height: 26, padding: "0 10px", border: "1px solid #E2E8F0", borderRadius: 5, background: "#fff", fontSize: 11, cursor: "pointer", fontFamily: "inherit" }}>
+                style={{ height: 26, padding: "0 10px", border: "1px solid var(--border)", borderRadius: "var(--r-sm)", background: "var(--surface-1)", fontSize: 11, cursor: "pointer", fontFamily: "inherit" }}>
                 Cancelar
               </button>
             </div>
@@ -114,12 +114,12 @@ function GrupoFotosCard({ grupo, canManage, canUpload, uploading, fileInputRef, 
         ) : (
           <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }}>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 14, fontWeight: 700, color: "#0F172A", lineHeight: 1.3 }}>{grupo.titulo || "Sin título"}</div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: "var(--fg-1)", lineHeight: 1.3 }}>{grupo.titulo || "Sin título"}</div>
               {grupo.descripcion && (
-                <div style={{ fontSize: 12, color: "#64748B", marginTop: 3, lineHeight: 1.4 }}>{grupo.descripcion}</div>
+                <div style={{ fontSize: 12, color: "var(--fg-2)", marginTop: 3, lineHeight: 1.4 }}>{grupo.descripcion}</div>
               )}
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
-                <span style={{ fontSize: 11, color: "#94A3B8" }}>{items.length} foto{items.length !== 1 ? "s" : ""}</span>
+                <span style={{ fontSize: 11, color: "var(--fg-4)" }}>{items.length} foto{items.length !== 1 ? "s" : ""}</span>
                 {canManage ? (
                   <button
                     type="button"
@@ -127,10 +127,10 @@ function GrupoFotosCard({ grupo, canManage, canUpload, uploading, fileInputRef, 
                     onClick={() => onChangeTipo(grupo.tipo === "referencia" ? "evidencia" : "referencia")}
                     style={{
                       display: "inline-flex", alignItems: "center", gap: 4,
-                      height: 20, padding: "0 8px", borderRadius: 4, fontSize: 11, fontWeight: 600,
-                      border: `1px solid ${grupo.tipo === "referencia" ? "#BFDBFE" : "#BBF7D0"}`,
-                      background: grupo.tipo === "referencia" ? "#EFF6FF" : "#F0FDF4",
-                      color: grupo.tipo === "referencia" ? "#1D4ED8" : "#15803D",
+                      height: 20, padding: "0 8px", borderRadius: "var(--r-xs)", fontSize: 11, fontWeight: 600,
+                      border: `1px solid ${grupo.tipo === "referencia" ? "var(--border-strong)" : "var(--border-strong)"}`,
+                      background: grupo.tipo === "referencia" ? "var(--brand-tint)" : "var(--st-progress-bg)",
+                      color: grupo.tipo === "referencia" ? "var(--brand-fg)" : "var(--st-progress-fg)",
                       cursor: "pointer", fontFamily: "inherit",
                     }}
                   >
@@ -139,10 +139,10 @@ function GrupoFotosCard({ grupo, canManage, canUpload, uploading, fileInputRef, 
                 ) : (
                   <span style={{
                     display: "inline-flex", alignItems: "center", gap: 4,
-                    height: 20, padding: "0 8px", borderRadius: 4, fontSize: 11, fontWeight: 600,
-                    border: `1px solid ${grupo.tipo === "referencia" ? "#BFDBFE" : "#BBF7D0"}`,
-                    background: grupo.tipo === "referencia" ? "#EFF6FF" : "#F0FDF4",
-                    color: grupo.tipo === "referencia" ? "#1D4ED8" : "#15803D",
+                    height: 20, padding: "0 8px", borderRadius: "var(--r-xs)", fontSize: 11, fontWeight: 600,
+                    border: `1px solid ${grupo.tipo === "referencia" ? "var(--border-strong)" : "var(--border-strong)"}`,
+                    background: grupo.tipo === "referencia" ? "var(--brand-tint)" : "var(--st-progress-bg)",
+                    color: grupo.tipo === "referencia" ? "var(--brand-fg)" : "var(--st-progress-fg)",
                   }}>
                     {grupo.tipo === "referencia" ? "📎 Referencia" : "📷 Evidencia"}
                   </span>
@@ -154,23 +154,23 @@ function GrupoFotosCard({ grupo, canManage, canUpload, uploading, fileInputRef, 
                 <>
                   <button type="button" onClick={() => setEditing(true)}
                     title="Editar grupo"
-                    style={{ width: 26, height: 26, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", borderRadius: 4, cursor: "pointer", color: "#64748B" }}
-                    onMouseEnter={e => { e.currentTarget.style.background = "#F1F5F9"; }}
-                    onMouseLeave={e => { e.currentTarget.style.background = "none"; }}>
+                    style={{ width: 26, height: 26, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", borderRadius: "var(--r-xs)", cursor: "pointer", color: "var(--fg-2)" }}
+                    onMouseEnter={e => { e.currentTarget.style.background = "var(--surface-hover)"; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}>
                     <Pencil size={12} />
                   </button>
                   <button type="button" onClick={onDelete}
                     title="Eliminar grupo"
-                    style={{ width: 26, height: 26, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", borderRadius: 4, cursor: "pointer", color: "#EF4444" }}
-                    onMouseEnter={e => { e.currentTarget.style.background = "#FEF2F2"; }}
-                    onMouseLeave={e => { e.currentTarget.style.background = "none"; }}>
+                    style={{ width: 26, height: 26, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", borderRadius: "var(--r-xs)", cursor: "pointer", color: "var(--danger)" }}
+                    onMouseEnter={e => { e.currentTarget.style.background = "var(--danger-bg)"; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}>
                     <Trash2 size={12} />
                   </button>
                   <button
                     type="button"
                     onClick={() => onToggleLocked(!isLocked)}
                     title={isLocked ? "Desbloquear grupo" : "Bloquear grupo"}
-                    style={{ display: "flex", alignItems: "center", gap: 4, height: 26, padding: "0 8px", border: `1px solid ${isLocked ? "#E2E8F0" : "#2563EB"}`, borderRadius: 5, background: isLocked ? "#fff" : "#EFF6FF", color: isLocked ? "#94A3B8" : "#2563EB", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
+                    style={{ display: "flex", alignItems: "center", gap: 4, height: 26, padding: "0 8px", border: `1px solid ${isLocked ? "var(--border)" : "var(--brand)"}`, borderRadius: "var(--r-sm)", background: isLocked ? "var(--surface-1)" : "var(--brand-tint)", color: isLocked ? "var(--fg-4)" : "var(--brand-fg)", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
                   >
                     {isLocked ? <Lock size={11} /> : <LockOpen size={11} />}
                     {isLocked ? "Bloqueado" : "Bloquear"}
@@ -185,14 +185,14 @@ function GrupoFotosCard({ grupo, canManage, canUpload, uploading, fileInputRef, 
       {/* Photo grid */}
       <div style={{ padding: 12 }}>
         {items.length === 0 && !isEditable ? (
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "20px 0", color: "#94A3B8", gap: 6 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "20px 0", color: "var(--fg-4)", gap: 6 }}>
             <Image size={16} style={{ opacity: 0.4 }} />
             <span style={{ fontSize: 12 }}>{isLocked ? "Grupo bloqueado" : "Sin fotos en este grupo"}</span>
           </div>
         ) : (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(80px, 1fr))", gap: 6 }}>
             {items.map((item, idx) => (
-              <div key={item.id} className="group" style={{ position: "relative", aspectRatio: "1", borderRadius: 6, overflow: "hidden", background: "#F3F4F6", cursor: "pointer" }}>
+              <div key={item.id} className="group" style={{ position: "relative", aspectRatio: "1", borderRadius: "var(--r-sm)", overflow: "hidden", background: "var(--surface-hover)", cursor: "pointer" }}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={item.url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} onClick={() => onLightbox(urls, idx)} />
                 {isEditable && (
@@ -209,13 +209,13 @@ function GrupoFotosCard({ grupo, canManage, canUpload, uploading, fileInputRef, 
                   onClick={() => localFileRef.current?.click()}
                   disabled={uploading}
                   style={{
-                    aspectRatio: "1", border: "1.5px dashed #CBD5E1", borderRadius: 6,
-                    background: "#F8FAFC", display: "flex", flexDirection: "column",
+                    aspectRatio: "1", border: "1.5px dashed #CBD5E1", borderRadius: "var(--r-sm)",
+                    background: "var(--surface-0)", display: "flex", flexDirection: "column",
                     alignItems: "center", justifyContent: "center", gap: 3,
-                    cursor: uploading ? "default" : "pointer", color: "#94A3B8",
+                    cursor: uploading ? "default" : "pointer", color: "var(--fg-4)",
                   }}
-                  onMouseEnter={e => { if (!uploading) { e.currentTarget.style.borderColor = "#2563EB"; e.currentTarget.style.color = "#2563EB"; } }}
-                  onMouseLeave={e => { e.currentTarget.style.borderColor = "#CBD5E1"; e.currentTarget.style.color = "#94A3B8"; }}>
+                  onMouseEnter={e => { if (!uploading) { e.currentTarget.style.borderColor = "var(--brand)"; e.currentTarget.style.color = "var(--brand-fg)"; } }}
+                  onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--border-strong)"; e.currentTarget.style.color = "var(--fg-4)"; }}>
                   {uploading ? <Loader2 size={14} className="animate-spin" /> : <><Camera size={14} /><span style={{ fontSize: 9, fontWeight: 600 }}>AGREGAR</span></>}
                 </button>
                 <input
@@ -234,7 +234,7 @@ function GrupoFotosCard({ grupo, canManage, canUpload, uploading, fileInputRef, 
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
-const ESTADOS: { value: Estado; label: string; icon: React.ComponentType<{ className?: string }>; className: string }[] = [
+const ESTADOS: { value: Estado; label: string; icon: React.ComponentType<{ className?: string; size?: number }>; className: string }[] = [
   { value: "pendiente",   label: "Sin asignar", icon: CircleDot,    className: "text-blue-600" },
   { value: "en_espera",   label: "En espera",   icon: PauseCircle,  className: "text-amber-600" },
   { value: "en_curso",    label: "En curso",    icon: PlayCircle,   className: "text-purple-600" },
@@ -335,13 +335,13 @@ function NOTBadge({ nOT }: { nOT: string }) {
       style={{
         display: "inline-flex", alignItems: "center", gap: 3,
         fontSize: 11, fontFamily: "monospace", fontWeight: 600,
-        color: "#1E3A8A", background: "none", border: "none", cursor: "pointer", padding: 0,
+        color: "var(--brand-fg)", background: "none", border: "none", cursor: "pointer", padding: 0,
       }}
     >
       <span>{nOT}</span>
       {copied
-        ? <Check size={10} style={{ color: "#16A34A" }} />
-        : <Copy size={10} style={{ color: "#C4CDD6" }} />
+        ? <Check size={10} style={{ color: "var(--success)" }} />
+        : <Copy size={10} style={{ color: "var(--fg-4)" }} />
       }
     </button>
   );
@@ -1507,78 +1507,83 @@ export default function OTDetail({
   // ── Render ─────────────────────────────────────────────────────────────────
 
   const ESTADO_STYLE: Record<string, { bg: string; color: string; dot: string }> = {
-    pendiente:   { bg: "#EFF6FF", color: "#1D4ED8", dot: "#3B82F6" },
-    en_espera:   { bg: "#FFF7ED", color: "#C2410C", dot: "#F97316" },
-    en_curso:    { bg: "#F0FDF4", color: "#15803D", dot: "#22C55E" },
-    completado:  { bg: "#F0FDF4", color: "#166534", dot: "#16A34A" },
+    pendiente:   { bg: "var(--st-open-bg)", color: "var(--brand-fg)", dot: "var(--st-open-dot)" },
+    en_espera:   { bg: "var(--st-wait-bg)", color: "var(--pr-high)", dot: "var(--st-wait-dot)" },
+    en_curso:    { bg: "var(--st-progress-bg)", color: "var(--success)", dot: "var(--st-progress-dot)" },
+    completado:  { bg: "var(--st-progress-bg)", color: "var(--success)", dot: "var(--st-done-dot)" },
   };
   const PRIO_COLOR: Record<string, string> = {
-    ninguna: "#9CA3AF", baja: "#9CA3AF", media: "#3B82F6", alta: "#F97316", urgente: "#EF4444",
+    ninguna: "var(--pr-low)", baja: "var(--pr-low)", media: "var(--pr-medium)", alta: "var(--pr-high)", urgente: "var(--danger)",
   };
   const estadoStyle = ESTADO_STYLE[orden.estado] ?? ESTADO_STYLE.pendiente;
-  const prioColor   = PRIO_COLOR[orden.prioridad] ?? "#9CA3AF";
+  const prioColor   = PRIO_COLOR[orden.prioridad] ?? "var(--pr-low)";
   const prioLabel   = PRIORIDADES.find(p => p.value === orden.prioridad)?.label ?? "Sin prioridad";
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden", background: "#fff" }}>
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden", background: "var(--surface-1)" }}>
 
       {/* ── Header ── */}
-      <div style={{ flexShrink: 0, borderBottom: "1px solid #E2E8F0", background: "#fff" }}>
-        {/* Top bar: status + priority dropdowns + actions */}
+      <div style={{ flexShrink: 0, borderBottom: "1px solid var(--border)", background: "var(--surface-1)" }}>
+        {/* Top bar: timer + action buttons */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 16px", height: 52, gap: 8 }}>
+          {/* Timer inline — only visible when active */}
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            {/* Status dropdown */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button style={{
-                  display: "flex", alignItems: "center", gap: 6,
-                  height: 30, padding: "0 10px",
-                  background: estadoStyle.bg, color: estadoStyle.color,
-                  border: `1px solid ${estadoStyle.color}30`, borderRadius: 6,
-                  fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
+            {isActive && (
+              <>
+                <span style={{
+                  fontSize: 13, fontWeight: 700, fontFamily: "monospace",
+                  color: orden.en_ejecucion ? "var(--success)" : "var(--fg-3)",
+                  minWidth: 52,
                 }}>
-                  <span style={{ width: 6, height: 6, borderRadius: "50%", background: estadoStyle.dot, flexShrink: 0 }} />
-                  {estadoCfg.label}
-                  <ChevronDown className="size-3" style={{ opacity: 0.6 }} />
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-44">
-                {ESTADOS.map(e => {
-                  const Icon = e.icon;
-                  return (
-                    <DropdownMenuItem key={e.value} onClick={() => changeStatus(e.value)} className={cn("gap-2 text-sm", e.value === orden.estado && "bg-muted")}>
-                      <Icon className={cn("size-4 shrink-0", e.className)} />
-                      {e.label}
-                      {e.value === orden.estado && <Check className="ml-auto size-3.5" />}
-                    </DropdownMenuItem>
-                  );
-                })}
-              </DropdownMenuContent>
-            </DropdownMenu>
+                  {fmtSecs(elapsed)}
+                </span>
 
-            {/* Priority dropdown */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button style={{
-                  display: "flex", alignItems: "center", gap: 5,
-                  height: 30, padding: "0 10px",
-                  background: prioColor + "18", color: prioColor,
-                  border: `1px solid ${prioColor}30`, borderRadius: 6,
-                  fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
-                }}>
-                  {prioLabel}
-                  <ChevronDown className="size-3" style={{ opacity: 0.6 }} />
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-40">
-                {PRIORIDADES.map(p => (
-                  <DropdownMenuItem key={p.value} onClick={() => changePrioridad(p.value)} className={cn("gap-2 text-sm", p.value === orden.prioridad && "bg-muted")}>
-                    <span className={cn("text-sm font-medium", p.color)}>{p.label}</span>
-                    {p.value === orden.prioridad && <Check className="ml-auto size-3.5" />}
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
+                {timerAction ? (
+                  <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                    <input
+                      type="text"
+                      placeholder={timerAction === "pausar" ? "Motivo (opcional)…" : "Comentario (opcional)…"}
+                      value={timerComment}
+                      onChange={e => setTimerComment(e.target.value)}
+                      style={{
+                        height: 28, padding: "0 8px", fontSize: 12,
+                        border: "1px solid var(--border)", borderRadius: "var(--r-sm)",
+                        background: "var(--surface-1)", color: "var(--fg-1)",
+                        outline: "none", fontFamily: "inherit", width: 160,
+                      }}
+                    />
+                    <button type="button" onClick={confirmTimerAction} disabled={timerBusy}
+                      style={{
+                        height: 28, padding: "0 10px", border: "none", borderRadius: "var(--r-sm)",
+                        background: timerAction === "completar" ? "var(--success)" : "var(--brand)",
+                        color: "var(--fg-on-brand)", fontSize: 12, fontWeight: 600,
+                        cursor: "pointer", fontFamily: "inherit",
+                      }}>
+                      {timerAction === "pausar" ? "Pausar" : "Completar"}
+                    </button>
+                    <button type="button" onClick={() => { setTimerAction(null); setTimerComment(""); }} disabled={timerBusy}
+                      style={{
+                        height: 28, padding: "0 8px", border: "1px solid var(--border)", borderRadius: "var(--r-sm)",
+                        background: "var(--surface-1)", color: "var(--fg-2)", fontSize: 12,
+                        cursor: "pointer", fontFamily: "inherit",
+                      }}>
+                      ✕
+                    </button>
+                  </div>
+                ) : orden.en_ejecucion ? (
+                  <button type="button" onClick={() => setTimerAction("pausar")} disabled={timerBusy}
+                    title="Pausar"
+                    style={{
+                      width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center",
+                      border: "1px solid var(--border)", borderRadius: "var(--r-sm)",
+                      background: "var(--surface-1)", color: "var(--fg-2)",
+                      cursor: "pointer",
+                    }}>
+                    <Pause size={13} />
+                  </button>
+                ) : null}
+              </>
+            )}
           </div>
 
           {/* Action buttons */}
@@ -1590,16 +1595,16 @@ export default function OTDetail({
                 type="button"
                 onClick={() => setExportMenuOpen(v => !v)}
                 title="Exportar"
-                style={{ width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", borderRadius: 6, cursor: "pointer", color: "#64748B" }}
-                onMouseEnter={e => { e.currentTarget.style.background = "#F1F5F9"; }}
-                onMouseLeave={e => { e.currentTarget.style.background = "none"; }}
+                style={{ width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", borderRadius: "var(--r-sm)", cursor: "pointer", color: "var(--fg-2)" }}
+                onMouseEnter={e => { e.currentTarget.style.background = "var(--surface-hover)"; }}
+                onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}
               >
                 {exporting ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
               </button>
               {exportMenuOpen && (
                 <div style={{
                   position: "absolute", top: "calc(100% + 4px)", right: 0, zIndex: 300,
-                  background: "#fff", border: "1px solid #E2E8F0", borderRadius: 8,
+                  background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: "var(--r-md)",
                   boxShadow: "0 8px 24px rgba(15,23,42,0.12)", width: 180, overflow: "hidden",
                 }}>
                   {[
@@ -1616,13 +1621,13 @@ export default function OTDetail({
                         width: "100%", display: "flex", alignItems: "center", gap: 8,
                         padding: "9px 12px", background: "none", border: "none",
                         cursor: exporting ? "default" : "pointer", fontSize: 13,
-                        color: "#0F172A", fontFamily: "inherit", textAlign: "left",
+                        color: "var(--fg-1)", fontFamily: "inherit", textAlign: "left",
                         opacity: exporting && exporting !== item.key ? 0.5 : 1,
                       }}
-                      onMouseEnter={e => { if (!exporting) e.currentTarget.style.background = "#F8FAFC"; }}
-                      onMouseLeave={e => { e.currentTarget.style.background = "none"; }}
+                      onMouseEnter={e => { if (!exporting) e.currentTarget.style.background = "var(--surface-hover)"; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}
                     >
-                      <span style={{ color: "#94A3B8" }}>{item.icon}</span>
+                      <span style={{ color: "var(--fg-4)" }}>{item.icon}</span>
                       {item.label}
                       {exporting === item.key && <Loader2 size={11} className="animate-spin" style={{ marginLeft: "auto" }} />}
                     </button>
@@ -1635,9 +1640,9 @@ export default function OTDetail({
               <>
                 <button
                   type="button" onClick={onEdit}
-                  style={{ width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", borderRadius: 6, cursor: "pointer", color: "#64748B" }}
-                  onMouseEnter={e => { e.currentTarget.style.background = "#F1F5F9"; }}
-                  onMouseLeave={e => { e.currentTarget.style.background = "none"; }}
+                  style={{ width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", borderRadius: "var(--r-sm)", cursor: "pointer", color: "var(--fg-2)" }}
+                  onMouseEnter={e => { e.currentTarget.style.background = "var(--surface-hover)"; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}
                 >
                   <Pencil size={14} />
                 </button>
@@ -1645,9 +1650,9 @@ export default function OTDetail({
                   <AlertDialogTrigger asChild>
                     <button
                       type="button"
-                      style={{ width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", borderRadius: 6, cursor: "pointer", color: "#EF4444" }}
-                      onMouseEnter={e => { e.currentTarget.style.background = "#FEF2F2"; }}
-                      onMouseLeave={e => { e.currentTarget.style.background = "none"; }}
+                      style={{ width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", borderRadius: "var(--r-sm)", cursor: "pointer", color: "var(--danger)" }}
+                      onMouseEnter={e => { e.currentTarget.style.background = "var(--danger-bg)"; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}
                     >
                       <Trash2 size={14} />
                     </button>
@@ -1667,9 +1672,9 @@ export default function OTDetail({
             )}
             <button
               type="button" onClick={onClose}
-              style={{ width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", borderRadius: 6, cursor: "pointer", color: "#94A3B8" }}
-              onMouseEnter={e => { e.currentTarget.style.background = "#F1F5F9"; }}
-              onMouseLeave={e => { e.currentTarget.style.background = "none"; }}
+              style={{ width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", borderRadius: "var(--r-sm)", cursor: "pointer", color: "var(--fg-4)" }}
+              onMouseEnter={e => { e.currentTarget.style.background = "var(--surface-hover)"; }}
+              onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}
             >
               <X size={15} />
             </button>
@@ -1691,7 +1696,7 @@ export default function OTDetail({
                 height: 38, padding: "0 14px",
                 background: "none", border: "none",
                 borderBottom: tab === t ? "2px solid #2563EB" : "2px solid transparent",
-                color: tab === t ? "#1D4ED8" : "#94A3B8",
+                color: tab === t ? "var(--brand-fg)" : "var(--fg-4)",
                 fontSize: 13, fontWeight: tab === t ? 600 : 500,
                 cursor: "pointer", fontFamily: "inherit",
                 marginBottom: -1, transition: "color 0.1s", whiteSpace: "nowrap",
@@ -1719,31 +1724,114 @@ export default function OTDetail({
             {meta.nOT && <NOTBadge nOT={meta.nOT} />}
 
             {/* Title */}
-            <h2 style={{ fontSize: 17, fontWeight: 700, color: "#111827", lineHeight: 1.35, margin: meta.nOT ? "6px 0 0" : "0 0 0" }}>
+            <h2 style={{ fontSize: 17, fontWeight: 700, color: "var(--fg-1)", lineHeight: 1.35, margin: meta.nOT ? "6px 0 0" : "0 0 0" }}>
               {orden.titulo || "Sin título"}
             </h2>
 
             {/* Description */}
             {meta.descripcion && (
-              <div style={{ marginTop: 8, padding: "12px 14px", background: "#F8FAFC", borderRadius: 8, borderLeft: "3px solid #2563EB" }}>
-                <p style={{ fontSize: 13, color: "#475569", lineHeight: 1.65, whiteSpace: "pre-wrap", margin: 0 }}>{meta.descripcion}</p>
+              <div style={{ marginTop: 12 }}>
+                <p style={{ fontSize: 11, fontWeight: 600, color: "var(--fg-4)", textTransform: "uppercase", letterSpacing: "0.07em", margin: "0 0 4px" }}>Descripción</p>
+                <p style={{ fontSize: 13, color: "var(--fg-2)", lineHeight: 1.65, whiteSpace: "pre-wrap", margin: 0 }}>{meta.descripcion}</p>
               </div>
             )}
+
+            {/* Estado */}
+            {(() => {
+              const STATUS_STYLE: Record<string, { color: string; activeBg: string; activeBorder: string }> = {
+                pendiente:  { color: "var(--brand-fg)",  activeBg: "var(--st-open-bg)",     activeBorder: "var(--brand-fg)" },
+                en_espera:  { color: "var(--pr-high)",   activeBg: "var(--st-wait-bg)",     activeBorder: "var(--pr-high)" },
+                en_curso:   { color: "var(--st-running-fg)", activeBg: "var(--st-running-bg)", activeBorder: "var(--st-running-fg)" },
+                completado: { color: "var(--success)",   activeBg: "var(--success-bg)",     activeBorder: "var(--success)" },
+              };
+              return (
+                <div style={{ marginTop: 16 }}>
+                  <p style={{ fontSize: 11, fontWeight: 600, color: "var(--fg-4)", textTransform: "uppercase", letterSpacing: "0.07em", margin: "0 0 8px" }}>Estado</p>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    {ESTADOS.map(e => {
+                      const Icon = e.icon;
+                      const isSelected = orden.estado === e.value;
+                      const s = STATUS_STYLE[e.value];
+                      const handleClick = async () => {
+                        if (e.value === "en_curso") {
+                          if (orden.en_ejecucion) return; // already running
+                          await changeStatus("en_curso");
+                          if (orden.pausado_at) {
+                            await handleReanudar();
+                          } else {
+                            await handleIniciar();
+                          }
+                        } else {
+                          if (orden.en_ejecucion) {
+                            // pause before switching away
+                            setTimerBusy(true);
+                            try {
+                              await pausarOrden(orden.id, myId, "", elapsed);
+                              onOrdenUpdated({ en_ejecucion: false, pausado_at: new Date().toISOString(), estado: e.value as Estado });
+                              await updateOrdenEstado(orden.id, e.value as Estado, myId);
+                            } finally {
+                              setTimerBusy(false);
+                            }
+                          } else {
+                            await changeStatus(e.value);
+                          }
+                        }
+                      };
+                      return (
+                        <button
+                          key={e.value}
+                          type="button"
+                          onClick={handleClick}
+                          disabled={timerBusy}
+                          style={{
+                            display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+                            gap: 5, padding: "8px 12px", minWidth: 72,
+                            border: isSelected ? `2px solid ${s.activeBorder}` : "2px solid var(--border)",
+                            borderRadius: "var(--r-md)",
+                            background: isSelected ? s.activeBg : "var(--surface-0)",
+                            color: isSelected ? s.color : "var(--fg-3)",
+                            cursor: timerBusy ? "default" : "pointer",
+                            transition: "all 0.15s",
+                          }}
+                          onMouseEnter={ev => {
+                            if (!isSelected && !timerBusy) {
+                              ev.currentTarget.style.borderColor = s.activeBorder;
+                              ev.currentTarget.style.color = s.color;
+                              ev.currentTarget.style.background = s.activeBg;
+                            }
+                          }}
+                          onMouseLeave={ev => {
+                            if (!isSelected) {
+                              ev.currentTarget.style.borderColor = "var(--border)";
+                              ev.currentTarget.style.color = "var(--fg-3)";
+                              ev.currentTarget.style.background = "var(--surface-0)";
+                            }
+                          }}
+                        >
+                          <Icon size={16} />
+                          <span style={{ fontSize: 10, fontWeight: 600, textAlign: "center", lineHeight: 1.2 }}>{e.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* Clasificacion banner (levantamiento) */}
             {clasificacion === "levantamiento" && (
               <div style={{
                 marginTop: 12,
                 padding: "12px 14px",
-                borderRadius: 10,
-                background: "#EFF6FF",
+                borderRadius: "var(--r-md)",
+                background: "var(--brand-tint)",
                 border: "1px solid #BFDBFE",
                 display: "flex", alignItems: "flex-start", gap: 10,
               }}>
-                <Search size={16} style={{ color: "#1D4ED8", flexShrink: 0, marginTop: 1 }} />
+                <Search size={16} style={{ color: "var(--brand-fg)", flexShrink: 0, marginTop: 1 }} />
                 <div style={{ flex: 1 }}>
-                  <p style={{ fontSize: 13, fontWeight: 700, color: "#1D4ED8", margin: 0 }}>Levantamiento</p>
-                  <p style={{ fontSize: 12, color: "#3B82F6", margin: "2px 0 0", lineHeight: 1.5 }}>
+                  <p style={{ fontSize: 13, fontWeight: 700, color: "var(--brand-fg)", margin: 0 }}>Levantamiento</p>
+                  <p style={{ fontSize: 12, color: "var(--brand-fg)", margin: "2px 0 0", lineHeight: 1.5 }}>
                     Esta orden está marcada como levantamiento. El temporizador no corre hasta cambiarla a ejecución.
                   </p>
                   {canManage && (
@@ -1754,8 +1842,8 @@ export default function OTDetail({
                       style={{
                         marginTop: 8,
                         height: 30, padding: "0 12px",
-                        background: "#1D4ED8", color: "#fff",
-                        border: "none", borderRadius: 6,
+                        background: "var(--brand-hover)", color: "var(--fg-on-brand)",
+                        border: "none", borderRadius: "var(--r-sm)",
                         fontSize: 12, fontWeight: 600,
                         cursor: changingClasif ? "default" : "pointer",
                         display: "flex", alignItems: "center", gap: 6,
@@ -1779,7 +1867,7 @@ export default function OTDetail({
                 <>
                   {fileLinks.length > 0 && (
                     <div style={{ marginTop: 12 }}>
-                      <div style={{ fontSize: 11, fontWeight: 600, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 6 }}>
+                      <div style={{ fontSize: 11, fontWeight: 600, color: "var(--fg-4)", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 6 }}>
                         Adjuntos
                       </div>
                       <LinksDisplay links={fileLinks} />
@@ -1787,7 +1875,7 @@ export default function OTDetail({
                   )}
                   {urlLinks.length > 0 && (
                     <div style={{ marginTop: 12 }}>
-                      <div style={{ fontSize: 11, fontWeight: 600, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 6 }}>
+                      <div style={{ fontSize: 11, fontWeight: 600, color: "var(--fg-4)", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 6 }}>
                         Links
                       </div>
                       <LinksDisplay links={urlLinks} />
@@ -1796,65 +1884,6 @@ export default function OTDetail({
                 </>
               );
             })()}
-
-            {/* Timer card */}
-            {isActive && (
-              <div style={{ marginTop: 16, background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 10, padding: 14 }}>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-                  <span style={{ fontSize: 11, fontWeight: 600, color: "#64748B", textTransform: "uppercase", letterSpacing: "0.07em" }}>Tiempo trabajado</span>
-                  <span style={{ fontSize: 22, fontWeight: 700, fontFamily: "monospace", color: "#1E3A8A", tabularNums: true } as React.CSSProperties}>
-                    {fmtSecs(elapsed)}
-                  </span>
-                </div>
-
-                {timerAction ? (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                    <textarea
-                      rows={2}
-                      placeholder={timerAction === "pausar" ? "Motivo de pausa (opcional)…" : "Comentario de cierre (opcional)…"}
-                      value={timerComment}
-                      onChange={e => setTimerComment(e.target.value)}
-                      style={{ width: "100%", fontSize: 13, border: "1px solid #E2E8F0", borderRadius: 8, padding: "8px 10px", resize: "none", outline: "none", fontFamily: "inherit", background: "#fff", boxSizing: "border-box" }}
-                    />
-                    <div style={{ display: "flex", gap: 8 }}>
-                      <button type="button" onClick={() => { setTimerAction(null); setTimerComment(""); }} disabled={timerBusy}
-                        style={{ flex: 1, height: 36, border: "1px solid #E2E8F0", borderRadius: 8, background: "#fff", fontSize: 13, fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}>
-                        Cancelar
-                      </button>
-                      <button type="button" onClick={confirmTimerAction} disabled={timerBusy}
-                        style={{ flex: 1, height: 36, border: "none", borderRadius: 8, background: timerAction === "completar" ? "#16A34A" : "#1E3A8A", color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
-                        {timerAction === "pausar" ? "Pausar" : "Completar"}
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <div style={{ display: "flex", gap: 8 }}>
-                    {!orden.en_ejecucion ? (
-                      <button type="button"
-                        onClick={orden.estado === "en_espera" || orden.estado === "en_curso" ? handleReanudar : handleIniciar}
-                        disabled={timerBusy}
-                        style={{ flex: 1, height: 38, border: "none", borderRadius: 8, background: "#16A34A", color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, fontFamily: "inherit" }}>
-                        <Play size={14} />
-                        {orden.pausado_at ? "Reanudar" : "Iniciar"}
-                      </button>
-                    ) : (
-                      <>
-                        <button type="button" onClick={() => setTimerAction("pausar")} disabled={timerBusy}
-                          style={{ flex: 1, height: 38, border: "1px solid #E2E8F0", borderRadius: 8, background: "#fff", fontSize: 13, fontWeight: 500, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, fontFamily: "inherit", color: "#475569" }}>
-                          <Pause size={14} />
-                          Pausar
-                        </button>
-                        <button type="button" onClick={() => setTimerAction("completar")} disabled={timerBusy}
-                          style={{ flex: 1, height: 38, border: "none", borderRadius: 8, background: "#16A34A", color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, fontFamily: "inherit" }}>
-                          <Square size={14} />
-                          Completar
-                        </button>
-                      </>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
 
             {/* Meta fields */}
             <div style={{ marginTop: 20, display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px 24px" }}>
@@ -1872,9 +1901,9 @@ export default function OTDetail({
                 (orden.tiempo_total_segundos != null && orden.tiempo_total_segundos > 0) && { label: "Tiempo total", value: fmtSecs(orden.tiempo_total_segundos), icon: <RotateCcw size={13} /> },
               ].filter(Boolean).map((field: any) => (
                 <div key={field.label}>
-                  <p style={{ fontSize: 11, fontWeight: 600, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 3, marginTop: 0 }}>{field.label}</p>
-                  <p style={{ fontSize: 13, color: "#0F172A", margin: 0, display: "flex", alignItems: "center", gap: 5 }}>
-                    <span style={{ color: "#94A3B8", flexShrink: 0 }}>{field.icon}</span>
+                  <p style={{ fontSize: 11, fontWeight: 600, color: "var(--fg-4)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 3, marginTop: 0 }}>{field.label}</p>
+                  <p style={{ fontSize: 13, color: "var(--fg-1)", margin: 0, display: "flex", alignItems: "center", gap: 5 }}>
+                    <span style={{ color: "var(--fg-4)", flexShrink: 0 }}>{field.icon}</span>
                     {field.value}
                   </p>
                 </div>
@@ -1883,12 +1912,12 @@ export default function OTDetail({
 
             {/* Category */}
             {orden.categorias_ot?.nombre && (
-              <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid #E2E8F0" }}>
+              <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid var(--border)" }}>
                 <span style={{
                   display: "inline-flex", alignItems: "center", gap: 5,
-                  fontSize: 12, fontWeight: 600, padding: "4px 10px", borderRadius: 6,
-                  background: (orden.categorias_ot.color ?? "#64748B") + "18",
-                  color: orden.categorias_ot.color ?? "#64748B",
+                  fontSize: 12, fontWeight: 600, padding: "4px 10px", borderRadius: "var(--r-sm)",
+                  background: (orden.categorias_ot.color ?? "var(--fg-2)") + "18",
+                  color: orden.categorias_ot.color ?? "var(--fg-2)",
                 }}>
                   {orden.categorias_ot.icono && <span>{orden.categorias_ot.icono}</span>}
                   {orden.categorias_ot.nombre}
@@ -1898,22 +1927,22 @@ export default function OTDetail({
 
             {/* Assigned */}
             {assigned.length > 0 && (
-              <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid #E2E8F0" }}>
-                <p style={{ fontSize: 11, fontWeight: 600, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 10, marginTop: 0 }}>Asignados</p>
+              <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid var(--border)" }}>
+                <p style={{ fontSize: 11, fontWeight: 600, color: "var(--fg-4)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 10, marginTop: 0 }}>Asignados</p>
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                   {assigned.map(u => (
                     <div key={u.id} style={{ display: "flex", alignItems: "center", gap: 10 }}>
                       <span style={{
                         width: 32, height: 32, borderRadius: "50%",
-                        background: "linear-gradient(135deg, #1E3A8A, #2563EB)", color: "#fff",
+                        background: "linear-gradient(135deg, var(--brand-active), var(--brand))", color: "var(--fg-on-brand)",
                         display: "flex", alignItems: "center", justifyContent: "center",
                         fontSize: 11, fontWeight: 700, flexShrink: 0,
                       }}>
                         {initials(u.nombre)}
                       </span>
                       <div>
-                        <p style={{ fontSize: 13, fontWeight: 600, color: "#0F172A", margin: 0 }}>{u.nombre}</p>
-                        <p style={{ fontSize: 11, color: "#94A3B8", margin: 0, textTransform: "capitalize" }}>{u.rol}</p>
+                        <p style={{ fontSize: 13, fontWeight: 600, color: "var(--fg-1)", margin: 0 }}>{u.nombre}</p>
+                        <p style={{ fontSize: 11, color: "var(--fg-4)", margin: 0, textTransform: "capitalize" }}>{u.rol}</p>
                       </div>
                     </div>
                   ))}
@@ -1923,60 +1952,60 @@ export default function OTDetail({
 
             {/* Creador */}
             {orden.creador?.nombre && (
-              <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid #E2E8F0", display: "flex", alignItems: "center", gap: 6 }}>
-                <User size={13} style={{ color: "#94A3B8" }} />
-                <span style={{ fontSize: 12, color: "#94A3B8" }}>Creado por</span>
-                <span style={{ fontSize: 12, fontWeight: 600, color: "#475569" }}>{orden.creador.nombre}</span>
+              <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid var(--border)", display: "flex", alignItems: "center", gap: 6 }}>
+                <User size={13} style={{ color: "var(--fg-4)" }} />
+                <span style={{ fontSize: 12, color: "var(--fg-4)" }}>Creado por</span>
+                <span style={{ fontSize: 12, fontWeight: 600, color: "var(--fg-2)" }}>{orden.creador.nombre}</span>
               </div>
             )}
 
             {/* ── Requisitos section — visible to all, editable by admins ── */}
             {(canManage || requiereMateriales || requiereHoja || requiereFotos || fotosObligatoriasTodas) && (
-              <div style={{ marginTop: 20, paddingTop: 16, borderTop: "1px solid #E2E8F0" }}>
-                <p style={{ fontSize: 11, fontWeight: 600, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 10, marginTop: 0 }}>
+              <div style={{ marginTop: 20, paddingTop: 16, borderTop: "1px solid var(--border)" }}>
+                <p style={{ fontSize: 11, fontWeight: 600, color: "var(--fg-4)", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 10, marginTop: 0 }}>
                   Requisitos para cerrar
                 </p>
                 <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                   {/* Materiales — hidden for Electrilam and when modo_registro is hoja-only */}
                   {(canManage || requiereMateriales) && wsId !== "f1b64714-6de2-4d49-b6e4-5959553e94d7" && modoRegistro !== "hoja" && (
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 8 }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", background: "var(--surface-0)", border: "1px solid var(--border)", borderRadius: "var(--r-md)" }}>
                       <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                        <span style={{ fontSize: 13, fontWeight: 600, color: "#0F172A" }}>Requiere materiales</span>
-                        <span style={{ fontSize: 12, color: "#64748B" }}>Bloquea el cierre si no hay materiales registrados</span>
+                        <span style={{ fontSize: 13, fontWeight: 600, color: "var(--fg-1)" }}>Requiere materiales</span>
+                        <span style={{ fontSize: 12, color: "var(--fg-2)" }}>Bloquea el cierre si no hay materiales registrados</span>
                       </div>
                       {canManage ? (
                         <button type="button" onClick={handleToggleRequiereMateriales} disabled={togglingMat}
-                          style={{ width: 42, height: 24, borderRadius: 12, border: "none", cursor: "pointer", background: requiereMateriales ? "#2563EB" : "#CBD5E1", position: "relative", transition: "background 0.2s", flexShrink: 0, opacity: togglingMat ? 0.6 : 1 }}>
-                          <span style={{ position: "absolute", top: 2, left: requiereMateriales ? 20 : 2, width: 20, height: 20, borderRadius: "50%", background: "#fff", transition: "left 0.2s", boxShadow: "0 1px 3px rgba(0,0,0,0.2)" }} />
+                          style={{ width: 42, height: 24, borderRadius: 12, border: "none", cursor: "pointer", background: requiereMateriales ? "var(--brand)" : "var(--border-strong)", position: "relative", transition: "background 0.2s", flexShrink: 0, opacity: togglingMat ? 0.6 : 1 }}>
+                          <span style={{ position: "absolute", top: 2, left: requiereMateriales ? 20 : 2, width: 20, height: 20, borderRadius: "50%", background: "var(--surface-1)", transition: "left 0.2s", boxShadow: "0 1px 3px rgba(0,0,0,0.2)" }} />
                         </button>
                       ) : (
-                        <span style={{ fontSize: 12, fontWeight: 600, color: requiereMateriales ? "#2563EB" : "#94A3B8" }}>{requiereMateriales ? "Sí" : "No"}</span>
+                        <span style={{ fontSize: 12, fontWeight: 600, color: requiereMateriales ? "var(--brand-fg)" : "var(--fg-4)" }}>{requiereMateriales ? "Sí" : "No"}</span>
                       )}
                     </div>
                   )}
                   {/* Hoja de cálculo */}
                   {(canManage || requiereHoja) && modoRegistro !== "materiales" && (
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 8 }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", background: "var(--surface-0)", border: "1px solid var(--border)", borderRadius: "var(--r-md)" }}>
                       <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                        <span style={{ fontSize: 13, fontWeight: 600, color: "#0F172A" }}>Requiere hoja de cálculo</span>
-                        <span style={{ fontSize: 12, color: "#64748B" }}>Bloquea el cierre si la hoja no tiene filas registradas</span>
+                        <span style={{ fontSize: 13, fontWeight: 600, color: "var(--fg-1)" }}>Requiere hoja de cálculo</span>
+                        <span style={{ fontSize: 12, color: "var(--fg-2)" }}>Bloquea el cierre si la hoja no tiene filas registradas</span>
                       </div>
                       {canManage ? (
                         <button type="button" onClick={handleToggleRequiereHoja} disabled={togglingHoja}
-                          style={{ width: 42, height: 24, borderRadius: 12, border: "none", cursor: "pointer", background: requiereHoja ? "#2563EB" : "#CBD5E1", position: "relative", transition: "background 0.2s", flexShrink: 0, opacity: togglingHoja ? 0.6 : 1 }}>
-                          <span style={{ position: "absolute", top: 2, left: requiereHoja ? 20 : 2, width: 20, height: 20, borderRadius: "50%", background: "#fff", transition: "left 0.2s", boxShadow: "0 1px 3px rgba(0,0,0,0.2)" }} />
+                          style={{ width: 42, height: 24, borderRadius: 12, border: "none", cursor: "pointer", background: requiereHoja ? "var(--brand)" : "var(--border-strong)", position: "relative", transition: "background 0.2s", flexShrink: 0, opacity: togglingHoja ? 0.6 : 1 }}>
+                          <span style={{ position: "absolute", top: 2, left: requiereHoja ? 20 : 2, width: 20, height: 20, borderRadius: "50%", background: "var(--surface-1)", transition: "left 0.2s", boxShadow: "0 1px 3px rgba(0,0,0,0.2)" }} />
                         </button>
                       ) : (
-                        <span style={{ fontSize: 12, fontWeight: 600, color: requiereHoja ? "#2563EB" : "#94A3B8" }}>{requiereHoja ? "Sí" : "No"}</span>
+                        <span style={{ fontSize: 12, fontWeight: 600, color: requiereHoja ? "var(--brand-fg)" : "var(--fg-4)" }}>{requiereHoja ? "Sí" : "No"}</span>
                       )}
                     </div>
                   )}
                   {/* Fotos */}
                   {(canManage || requiereFotos || fotosObligatoriasTodas) && (
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 8 }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", background: "var(--surface-0)", border: "1px solid var(--border)", borderRadius: "var(--r-md)" }}>
                       <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                        <span style={{ fontSize: 13, fontWeight: 600, color: "#0F172A" }}>Requiere fotos</span>
-                        <span style={{ fontSize: 12, color: "#64748B" }}>
+                        <span style={{ fontSize: 13, fontWeight: 600, color: "var(--fg-1)" }}>Requiere fotos</span>
+                        <span style={{ fontSize: 12, color: "var(--fg-2)" }}>
                           {fotosObligatoriasTodas
                             ? "Obligatorio en todas las OTs del workspace"
                             : "Bloquea el cierre si no hay fotos registradas"}
@@ -1984,11 +2013,11 @@ export default function OTDetail({
                       </div>
                       {canManage && !fotosObligatoriasTodas ? (
                         <button type="button" onClick={handleToggleRequiereFotos} disabled={togglingFotos}
-                          style={{ width: 42, height: 24, borderRadius: 12, border: "none", cursor: "pointer", background: requiereFotos ? "#2563EB" : "#CBD5E1", position: "relative", transition: "background 0.2s", flexShrink: 0, opacity: togglingFotos ? 0.6 : 1 }}>
-                          <span style={{ position: "absolute", top: 2, left: requiereFotos ? 20 : 2, width: 20, height: 20, borderRadius: "50%", background: "#fff", transition: "left 0.2s", boxShadow: "0 1px 3px rgba(0,0,0,0.2)" }} />
+                          style={{ width: 42, height: 24, borderRadius: 12, border: "none", cursor: "pointer", background: requiereFotos ? "var(--brand)" : "var(--border-strong)", position: "relative", transition: "background 0.2s", flexShrink: 0, opacity: togglingFotos ? 0.6 : 1 }}>
+                          <span style={{ position: "absolute", top: 2, left: requiereFotos ? 20 : 2, width: 20, height: 20, borderRadius: "50%", background: "var(--surface-1)", transition: "left 0.2s", boxShadow: "0 1px 3px rgba(0,0,0,0.2)" }} />
                         </button>
                       ) : (
-                        <span style={{ fontSize: 12, fontWeight: 600, color: (requiereFotos || fotosObligatoriasTodas) ? "#2563EB" : "#94A3B8" }}>
+                        <span style={{ fontSize: 12, fontWeight: 600, color: (requiereFotos || fotosObligatoriasTodas) ? "var(--brand-fg)" : "var(--fg-4)" }}>
                           {(requiereFotos || fotosObligatoriasTodas) ? "Sí" : "No"}
                         </span>
                       )}
@@ -2005,10 +2034,10 @@ export default function OTDetail({
           <div style={{ padding: "16px 20px" }}>
             {loadingAct ? (
               <div style={{ display: "flex", justifyContent: "center", padding: "32px 0" }}>
-                <Loader2 size={18} style={{ color: "#9CA3AF", animation: "spin 1s linear infinite" }} />
+                <Loader2 size={18} style={{ color: "var(--pr-low)", animation: "spin 1s linear infinite" }} />
               </div>
             ) : actividad.length === 0 ? (
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "48px 0", gap: 8, color: "#9CA3AF" }}>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "48px 0", gap: 8, color: "var(--pr-low)" }}>
                 <CircleDot size={32} style={{ opacity: 0.2 }} />
                 <p style={{ fontSize: 13, margin: 0 }}>Sin actividad registrada</p>
               </div>
@@ -2030,7 +2059,7 @@ export default function OTDetail({
                     <div key={act.id} style={{ display: "flex", gap: 12, position: "relative" }}>
                       {/* Timeline line */}
                       {!isLast && (
-                        <div style={{ position: "absolute", left: 15, top: 26, bottom: 0, width: 1, background: "#E2E8F0" }} />
+                        <div style={{ position: "absolute", left: 15, top: 26, bottom: 0, width: 1, background: "var(--border)" }} />
                       )}
                       <div className={cn("mt-1 size-7 rounded-full border-2 border-white bg-gray-50 flex items-center justify-center shrink-0 shadow-sm z-10", colorClass)} style={{ minWidth: 28, minHeight: 28 }}>
                         <Icon className="w-3 h-3" />
@@ -2038,17 +2067,17 @@ export default function OTDetail({
                       <div style={{ flex: 1, minWidth: 0, paddingBottom: isLast ? 0 : 16 }}>
                         <div style={{ display: "flex", alignItems: "baseline", gap: 6, flexWrap: "wrap" }}>
                           {act.usuario?.nombre && (
-                            <span style={{ fontSize: 13, fontWeight: 600, color: "#111827" }}>{act.usuario.nombre}</span>
+                            <span style={{ fontSize: 13, fontWeight: 600, color: "var(--fg-1)" }}>{act.usuario.nombre}</span>
                           )}
                           {!isComment && label && (
-                            <span style={{ fontSize: 12, color: "#6B7280" }}>{label}</span>
+                            <span style={{ fontSize: 12, color: "var(--fg-2)" }}>{label}</span>
                           )}
-                          <span style={{ fontSize: 11, color: "#9CA3AF", marginLeft: "auto" }}>{fmtTs(act.created_at)}</span>
+                          <span style={{ fontSize: 11, color: "var(--pr-low)", marginLeft: "auto" }}>{fmtTs(act.created_at)}</span>
                         </div>
                         {resolvedComentario && (
                           <div style={{
-                            marginTop: 4, fontSize: 13, lineHeight: 1.6, color: isComment ? "#0F172A" : "#64748B",
-                            background: isComment ? "#F8FAFC" : "transparent",
+                            marginTop: 4, fontSize: 13, lineHeight: 1.6, color: isComment ? "var(--fg-1)" : "var(--fg-2)",
+                            background: isComment ? "var(--surface-hover)" : "transparent",
                             padding: isComment ? "8px 10px" : "0",
                             borderRadius: isComment ? 6 : 0,
                             borderLeft: isComment ? "2px solid #2563EB" : "none",
@@ -2069,7 +2098,7 @@ export default function OTDetail({
         {tab === "fotos" && (
           <div style={{ padding: "16px 20px 100px" }}>
             {loadingGrupos ? (
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "40px 0", gap: 8, color: "#9CA3AF" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "40px 0", gap: 8, color: "var(--pr-low)" }}>
                 <Loader2 size={16} className="animate-spin" />
                 <span style={{ fontSize: 13 }}>Cargando fotos…</span>
               </div>
@@ -2077,7 +2106,7 @@ export default function OTDetail({
               <>
                 {/* Groups list */}
                 {fotoGrupos.length === 0 && !isActive ? (
-                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "40px 0", gap: 8, color: "#9CA3AF" }}>
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "40px 0", gap: 8, color: "var(--pr-low)" }}>
                     <FolderOpen size={32} style={{ opacity: 0.3 }} />
                     <p style={{ fontSize: 13, margin: 0 }}>Sin grupos de fotos</p>
                   </div>
@@ -2105,10 +2134,10 @@ export default function OTDetail({
 
                 {/* Add group form */}
                 {(isActive || canManage) && (
-                  <div style={{ marginTop: fotoGrupos.length > 0 ? 16 : 0, border: "1.5px dashed #D1D5DB", borderRadius: 8, padding: 14, background: "#FAFAFA" }}>
+                  <div style={{ marginTop: fotoGrupos.length > 0 ? 16 : 0, border: "1.5px dashed var(--border-strong)", borderRadius: "var(--r-md)", padding: 14, background: "var(--surface-0)" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
-                      <ImagePlus size={14} style={{ color: "#8594A3" }} />
-                      <span style={{ fontSize: 12, fontWeight: 700, color: "#8594A3", textTransform: "uppercase", letterSpacing: "0.05em" }}>Nuevo grupo de fotos</span>
+                      <ImagePlus size={14} style={{ color: "var(--fg-3)" }} />
+                      <span style={{ fontSize: 12, fontWeight: 700, color: "var(--fg-3)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Nuevo grupo de fotos</span>
                     </div>
                     <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                       <input
@@ -2116,9 +2145,9 @@ export default function OTDetail({
                         placeholder="Título (ej. Antes del trabajo, Instrucciones...)"
                         value={newGrupoTitulo}
                         onChange={e => setNewGrupoTitulo(e.target.value)}
-                        style={{ height: 34, padding: "0 10px", border: "1px solid #E5E7EB", borderRadius: 6, fontSize: 13, fontWeight: 600, color: "#0F172A", outline: "none", fontFamily: "inherit", background: "#fff" }}
-                        onFocus={e => { e.currentTarget.style.borderColor = "#2563EB"; }}
-                        onBlur={e => { e.currentTarget.style.borderColor = "#E5E7EB"; }}
+                        style={{ height: 34, padding: "0 10px", border: "1px solid #E5E7EB", borderRadius: "var(--r-sm)", fontSize: 13, fontWeight: 600, color: "var(--fg-1)", outline: "none", fontFamily: "inherit", background: "var(--surface-1)" }}
+                        onFocus={e => { e.currentTarget.style.borderColor = "var(--brand)"; }}
+                        onBlur={e => { e.currentTarget.style.borderColor = "var(--border)"; }}
                         onKeyDown={e => { if (e.key === "Enter" && newGrupoTitulo.trim()) handleCreateGrupo(); }}
                       />
                       <input
@@ -2126,9 +2155,9 @@ export default function OTDetail({
                         placeholder="Descripción o instrucciones (opcional)"
                         value={newGrupoDesc}
                         onChange={e => setNewGrupoDesc(e.target.value)}
-                        style={{ height: 30, padding: "0 10px", border: "1px solid #E5E7EB", borderRadius: 6, fontSize: 12, color: "#475569", outline: "none", fontFamily: "inherit", background: "#fff" }}
-                        onFocus={e => { e.currentTarget.style.borderColor = "#2563EB"; }}
-                        onBlur={e => { e.currentTarget.style.borderColor = "#E5E7EB"; }}
+                        style={{ height: 30, padding: "0 10px", border: "1px solid #E5E7EB", borderRadius: "var(--r-sm)", fontSize: 12, color: "var(--fg-2)", outline: "none", fontFamily: "inherit", background: "var(--surface-1)" }}
+                        onFocus={e => { e.currentTarget.style.borderColor = "var(--brand)"; }}
+                        onBlur={e => { e.currentTarget.style.borderColor = "var(--border)"; }}
                       />
                       <div style={{ display: "flex", gap: 6 }}>
                         {(["referencia", "evidencia"] as const).map(t => (
@@ -2137,17 +2166,17 @@ export default function OTDetail({
                             type="button"
                             onClick={() => setNewGrupoTipo(t)}
                             style={{
-                              height: 28, padding: "0 12px", borderRadius: 6, fontSize: 12, fontWeight: 600,
-                              border: `1.5px solid ${newGrupoTipo === t ? "#1E3A8A" : "#E5E7EB"}`,
-                              background: newGrupoTipo === t ? "#EEF2FF" : "#fff",
-                              color: newGrupoTipo === t ? "#1E3A8A" : "#6B7280",
+                              height: 28, padding: "0 12px", borderRadius: "var(--r-sm)", fontSize: 12, fontWeight: 600,
+                              border: `1.5px solid ${newGrupoTipo === t ? "var(--brand)" : "var(--border)"}`,
+                              background: newGrupoTipo === t ? "var(--brand-tint)" : "var(--surface-1)",
+                              color: newGrupoTipo === t ? "var(--brand-fg)" : "var(--fg-2)",
                               cursor: "pointer", fontFamily: "inherit",
                             }}
                           >
                             {t === "referencia" ? "📎 Referencia" : "📷 Evidencia"}
                           </button>
                         ))}
-                        <span style={{ fontSize: 11, color: "#9CA3AF", alignSelf: "center", marginLeft: 4 }}>
+                        <span style={{ fontSize: 11, color: "var(--pr-low)", alignSelf: "center", marginLeft: 4 }}>
                           {newGrupoTipo === "referencia" ? "Fotos del supervisor para guiar al técnico" : "Fotos que el técnico debe subir en campo"}
                         </span>
                       </div>
@@ -2157,9 +2186,9 @@ export default function OTDetail({
                         disabled={!newGrupoTitulo.trim() || creatingGrupo}
                         style={{
                           alignSelf: "flex-start", height: 30, padding: "0 14px",
-                          border: "none", borderRadius: 6,
-                          background: newGrupoTitulo.trim() ? "#1E3A8A" : "#E5E7EB",
-                          color: newGrupoTitulo.trim() ? "#fff" : "#9CA3AF",
+                          border: "none", borderRadius: "var(--r-sm)",
+                          background: newGrupoTitulo.trim() ? "var(--brand)" : "var(--border)",
+                          color: newGrupoTitulo.trim() ? "var(--surface-1)" : "var(--pr-low)",
                           fontSize: 12, fontWeight: 600, cursor: newGrupoTitulo.trim() ? "pointer" : "default",
                           display: "flex", alignItems: "center", gap: 5, fontFamily: "inherit",
                         }}
@@ -2210,10 +2239,10 @@ export default function OTDetail({
               <div style={{
                 display: "flex", alignItems: "center", gap: 8,
                 padding: "10px 14px", marginBottom: 14,
-                background: "#F0FDF4", border: "1px solid #BBF7D0", borderRadius: 8,
+                background: "var(--st-progress-bg)", border: "1px solid #BBF7D0", borderRadius: "var(--r-md)",
               }}>
-                <CheckCircle2 size={14} style={{ color: "#16A34A", flexShrink: 0 }} />
-                <span style={{ fontSize: 12, color: "#15803D" }}>
+                <CheckCircle2 size={14} style={{ color: "var(--success)", flexShrink: 0 }} />
+                <span style={{ fontSize: 12, color: "var(--success)" }}>
                   Esta orden está completada. Puedes seguir consultando los materiales registrados.
                 </span>
               </div>
@@ -2224,10 +2253,10 @@ export default function OTDetail({
               <div style={{
                 display: "flex", alignItems: "center", gap: 8,
                 padding: "10px 14px", marginBottom: 10,
-                background: "#FFF7ED", border: "1px solid #FED7AA", borderRadius: 8,
+                background: "var(--st-wait-bg)", border: "1px solid var(--border-strong)", borderRadius: "var(--r-md)",
               }}>
-                <AlertTriangle size={14} style={{ color: "#D97706", flexShrink: 0 }} />
-                <span style={{ fontSize: 12, color: "#92400E" }}>
+                <AlertTriangle size={14} style={{ color: "var(--warning)", flexShrink: 0 }} />
+                <span style={{ fontSize: 12, color: "var(--st-wait-fg)" }}>
                   Esta OT requiere al menos un material registrado para poder cerrarse.
                 </span>
               </div>
@@ -2236,10 +2265,10 @@ export default function OTDetail({
               <div style={{
                 display: "flex", alignItems: "center", gap: 8,
                 padding: "10px 14px", marginBottom: 10,
-                background: "#FFF7ED", border: "1px solid #FED7AA", borderRadius: 8,
+                background: "var(--st-wait-bg)", border: "1px solid var(--border-strong)", borderRadius: "var(--r-md)",
               }}>
-                <AlertTriangle size={14} style={{ color: "#D97706", flexShrink: 0 }} />
-                <span style={{ fontSize: 12, color: "#92400E" }}>
+                <AlertTriangle size={14} style={{ color: "var(--warning)", flexShrink: 0 }} />
+                <span style={{ fontSize: 12, color: "var(--st-wait-fg)" }}>
                   Esta OT requiere completar la hoja de cálculo antes de poder cerrarse.
                 </span>
               </div>
@@ -2248,10 +2277,10 @@ export default function OTDetail({
               <div style={{
                 display: "flex", alignItems: "center", gap: 8,
                 padding: "10px 14px", marginBottom: 10,
-                background: "#FFF7ED", border: "1px solid #FED7AA", borderRadius: 8,
+                background: "var(--st-wait-bg)", border: "1px solid var(--border-strong)", borderRadius: "var(--r-md)",
               }}>
-                <AlertTriangle size={14} style={{ color: "#D97706", flexShrink: 0 }} />
-                <span style={{ fontSize: 12, color: "#92400E" }}>
+                <AlertTriangle size={14} style={{ color: "var(--warning)", flexShrink: 0 }} />
+                <span style={{ fontSize: 12, color: "var(--st-wait-fg)" }}>
                   Esta OT requiere al menos una foto antes de poder cerrarse.
                 </span>
               </div>
@@ -2262,7 +2291,7 @@ export default function OTDetail({
             {(isActive || canManage) && (
               <div style={{ marginBottom: 14 }}>
                 <div style={{ position: "relative" }}>
-                  <Search size={13} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "#94A3B8", pointerEvents: "none" }} />
+                  <Search size={13} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "var(--fg-4)", pointerEvents: "none" }} />
                   <input
                     type="text"
                     placeholder="Buscar material en inventario…"
@@ -2270,17 +2299,17 @@ export default function OTDetail({
                     onChange={e => setCatalogSearch(e.target.value)}
                     style={{
                       width: "100%", height: 38, paddingLeft: 32, paddingRight: 12,
-                      fontSize: 13, border: "1px solid #E2E8F0", borderRadius: 8,
-                      background: "#F8FAFC", outline: "none", fontFamily: "inherit",
-                      boxSizing: "border-box", color: "#0F172A",
+                      fontSize: 13, border: "1px solid var(--border)", borderRadius: "var(--r-md)",
+                      background: "var(--surface-0)", outline: "none", fontFamily: "inherit",
+                      boxSizing: "border-box", color: "var(--fg-1)",
                     }}
-                    onFocus={e => { e.currentTarget.style.borderColor = "#2563EB"; e.currentTarget.style.background = "#fff"; e.currentTarget.style.boxShadow = "0 0 0 3px rgba(37,99,235,0.10)"; }}
-                    onBlur={e => { e.currentTarget.style.borderColor = "#E2E8F0"; e.currentTarget.style.background = "#F8FAFC"; e.currentTarget.style.boxShadow = "none"; }}
+                    onFocus={e => { e.currentTarget.style.borderColor = "var(--brand)"; e.currentTarget.style.background = "var(--surface-1)"; e.currentTarget.style.boxShadow = "var(--shadow-focus)"; }}
+                    onBlur={e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.background = "var(--surface-hover)"; e.currentTarget.style.boxShadow = "none"; }}
                   />
                 </div>
 
                 {filteredCatalog.length > 0 && (
-                  <div style={{ marginTop: 4, border: "1px solid #E2E8F0", borderRadius: 8, overflow: "hidden", background: "#fff", boxShadow: "0 4px 12px rgba(15,23,42,0.08)" }}>
+                  <div style={{ marginTop: 4, border: "1px solid var(--border)", borderRadius: "var(--r-md)", overflow: "hidden", background: "var(--surface-1)", boxShadow: "0 4px 12px rgba(15,23,42,0.08)" }}>
                     {filteredCatalog.map(p => (
                       <button
                         key={p.id}
@@ -2290,28 +2319,28 @@ export default function OTDetail({
                         style={{
                           width: "100%", display: "flex", alignItems: "center", gap: 12,
                           padding: "9px 12px", background: "none", border: "none",
-                          borderBottom: "1px solid #F1F5F9", cursor: "pointer",
+                          borderBottom: "1px solid var(--divider)", cursor: "pointer",
                           fontFamily: "inherit", textAlign: "left",
                         }}
-                        onMouseEnter={e => { e.currentTarget.style.background = "#F8FAFC"; }}
-                        onMouseLeave={e => { e.currentTarget.style.background = "none"; }}
+                        onMouseEnter={e => { e.currentTarget.style.background = "var(--surface-hover)"; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}
                       >
-                        <Package size={14} style={{ color: "#94A3B8", flexShrink: 0 }} />
+                        <Package size={14} style={{ color: "var(--fg-4)", flexShrink: 0 }} />
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontSize: 13, fontWeight: 500, color: "#0F172A", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.nombre}</div>
-                          <div style={{ fontSize: 11, color: p.stock_actual <= 0 ? "#EF4444" : "#94A3B8" }}>
+                          <div style={{ fontSize: 13, fontWeight: 500, color: "var(--fg-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.nombre}</div>
+                          <div style={{ fontSize: 11, color: p.stock_actual <= 0 ? "var(--danger)" : "var(--fg-4)" }}>
                             {p.unidad} · Stock: {p.stock_actual}
                           </div>
                         </div>
-                        <span style={{ fontSize: 11, color: "#2563EB", fontWeight: 600, flexShrink: 0 }}>+ Agregar</span>
+                        <span style={{ fontSize: 11, color: "var(--brand-fg)", fontWeight: 600, flexShrink: 0 }}>+ Agregar</span>
                       </button>
                     ))}
                   </div>
                 )}
-                {loadingCatalog && <div style={{ marginTop: 4, padding: "8px 0", fontSize: 12, color: "#94A3B8" }}>Cargando inventario…</div>}
+                {loadingCatalog && <div style={{ marginTop: 4, padding: "8px 0", fontSize: 12, color: "var(--fg-4)" }}>Cargando inventario…</div>}
                 {catalogSearch.length >= 1 && filteredCatalog.length === 0 && !loadingCatalog && (
-                  <div style={{ marginTop: 4, padding: "8px 0", fontSize: 12, color: "#94A3B8" }}>
-                    Sin resultados. Agrega la parte en <a href="/partes" style={{ color: "#2563EB" }}>Inventario</a> primero.
+                  <div style={{ marginTop: 4, padding: "8px 0", fontSize: 12, color: "var(--fg-4)" }}>
+                    Sin resultados. Agrega la parte en <a href="/partes" style={{ color: "var(--brand-fg)" }}>Inventario</a> primero.
                   </div>
                 )}
               </div>
@@ -2320,26 +2349,26 @@ export default function OTDetail({
             {/* Parts list */}
             {loadingPartes ? (
               <div style={{ display: "flex", justifyContent: "center", padding: "32px 0" }}>
-                <Loader2 size={18} style={{ color: "#9CA3AF", animation: "spin 1s linear infinite" }} />
+                <Loader2 size={18} style={{ color: "var(--pr-low)", animation: "spin 1s linear infinite" }} />
               </div>
             ) : ordenPartes.length === 0 ? (
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "40px 0", gap: 8, color: "#9CA3AF" }}>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "40px 0", gap: 8, color: "var(--pr-low)" }}>
                 <Package size={32} style={{ opacity: 0.2 }} />
                 <p style={{ fontSize: 13, margin: 0 }}>Sin materiales registrados</p>
                 {(isActive || canManage) && <p style={{ fontSize: 12, margin: 0 }}>Busca un material del inventario arriba</p>}
               </div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 90px 32px", gap: 8, padding: "6px 10px", borderBottom: "1px solid #E2E8F0" }}>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 90px 32px", gap: 8, padding: "6px 10px", borderBottom: "1px solid var(--border)" }}>
                   {["Material", "Cantidad", ""].map(h => (
-                    <span key={h} style={{ fontSize: 10, fontWeight: 600, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.05em" }}>{h}</span>
+                    <span key={h} style={{ fontSize: 10, fontWeight: 600, color: "var(--fg-4)", textTransform: "uppercase", letterSpacing: "0.05em" }}>{h}</span>
                   ))}
                 </div>
                 {ordenPartes.map(op => (
-                  <div key={op.id} style={{ display: "grid", gridTemplateColumns: "1fr 90px 32px", gap: 8, alignItems: "center", padding: "8px 10px", borderBottom: "1px solid #F1F5F9" }}>
+                  <div key={op.id} style={{ display: "grid", gridTemplateColumns: "1fr 90px 32px", gap: 8, alignItems: "center", padding: "8px 10px", borderBottom: "1px solid var(--divider)" }}>
                     <div>
-                      <div style={{ fontSize: 13, fontWeight: 500, color: "#0F172A" }}>{op.parte?.nombre ?? "—"}</div>
-                      <div style={{ fontSize: 11, color: "#94A3B8" }}>{op.parte?.unidad}</div>
+                      <div style={{ fontSize: 13, fontWeight: 500, color: "var(--fg-1)" }}>{op.parte?.nombre ?? "—"}</div>
+                      <div style={{ fontSize: 11, color: "var(--fg-4)" }}>{op.parte?.unidad}</div>
                     </div>
                     {(isActive || canManage) ? (
                       <input
@@ -2348,19 +2377,19 @@ export default function OTDetail({
                         step="any"
                         value={op.cantidad}
                         onChange={e => handleUpdateCantidad(op.id, parseFloat(e.target.value) || op.cantidad)}
-                        style={{ height: 30, padding: "0 8px", fontSize: 13, border: "1px solid #E2E8F0", borderRadius: 6, outline: "none", fontFamily: "inherit", background: "#fff", width: "100%" }}
+                        style={{ height: 30, padding: "0 8px", fontSize: 13, border: "1px solid var(--border)", borderRadius: "var(--r-sm)", outline: "none", fontFamily: "inherit", background: "var(--surface-1)", width: "100%" }}
                       />
                     ) : (
-                      <span style={{ fontSize: 13, color: "#475569" }}>{op.cantidad}</span>
+                      <span style={{ fontSize: 13, color: "var(--fg-2)" }}>{op.cantidad}</span>
                     )}
                     {(isActive || canManage) ? (
                       <button
                         type="button"
                         onClick={() => handleDeleteParte(op.id)}
                         disabled={deletingParteId === op.id}
-                        style={{ width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", borderRadius: 6, cursor: "pointer", color: "#EF4444" }}
-                        onMouseEnter={e => { e.currentTarget.style.background = "#FEF2F2"; }}
-                        onMouseLeave={e => { e.currentTarget.style.background = "none"; }}
+                        style={{ width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", borderRadius: "var(--r-sm)", cursor: "pointer", color: "var(--danger)" }}
+                        onMouseEnter={e => { e.currentTarget.style.background = "var(--danger-bg)"; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}
                       >
                         {deletingParteId === op.id ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={13} />}
                       </button>
@@ -2377,14 +2406,14 @@ export default function OTDetail({
           <div style={{ padding: "16px 20px 100px" }}>
             {loadingProcs ? (
               <div style={{ display: "flex", justifyContent: "center", padding: "40px 0" }}>
-                <Loader2 size={18} className="animate-spin" style={{ color: "#94A3B8" }} />
+                <Loader2 size={18} className="animate-spin" style={{ color: "var(--fg-4)" }} />
               </div>
             ) : (
               <>
                 {/* Attached procedures */}
                 {otProcs.length === 0 ? (
-                  <div style={{ textAlign: "center", padding: "32px 0", color: "#94A3B8", fontSize: 13 }}>
-                    <ClipboardCheck size={28} style={{ color: "#CBD5E1", margin: "0 auto 8px" }} />
+                  <div style={{ textAlign: "center", padding: "32px 0", color: "var(--fg-4)", fontSize: 13 }}>
+                    <ClipboardCheck size={28} style={{ color: "var(--border-strong)", margin: "0 auto 8px" }} />
                     <div>No hay procedimientos adjuntos</div>
                   </div>
                 ) : (
@@ -2395,27 +2424,27 @@ export default function OTDetail({
                       const isCompleted = ejec?.estado === "completado";
                       const inProgress = ejec?.estado === "en_curso";
                       return (
-                        <div key={otp.id} style={{ border: "1px solid #E2E8F0", borderRadius: 10, overflow: "hidden", background: "#fff" }}>
+                        <div key={otp.id} style={{ border: "1px solid var(--border)", borderRadius: "var(--r-md)", overflow: "hidden", background: "var(--surface-1)" }}>
                           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 14px" }}>
                             <div style={{ flex: 1 }}>
-                              <div style={{ fontSize: 13.5, fontWeight: 600, color: "#0F172A" }}>{proc?.nombre ?? "—"}</div>
+                              <div style={{ fontSize: 13.5, fontWeight: 600, color: "var(--fg-1)" }}>{proc?.nombre ?? "—"}</div>
                               {proc?.descripcion && (
-                                <div style={{ fontSize: 12, color: "#64748B", marginTop: 2 }}>{proc.descripcion}</div>
+                                <div style={{ fontSize: 12, color: "var(--fg-2)", marginTop: 2 }}>{proc.descripcion}</div>
                               )}
                               <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6 }}>
-                                <span style={{ fontSize: 11, color: "#94A3B8" }}>{proc?.pasos_count ?? 0} pasos</span>
+                                <span style={{ fontSize: 11, color: "var(--fg-4)" }}>{proc?.pasos_count ?? 0} pasos</span>
                                 {proc?.bloquea_cierre_ot && (
-                                  <span style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 11, color: "#F59E0B", fontWeight: 500 }}>
+                                  <span style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 11, color: "var(--warning)", fontWeight: 500 }}>
                                     <Shield size={10} />Bloquea cierre
                                   </span>
                                 )}
                                 {isCompleted && (
-                                  <span style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 11, color: "#10B981", fontWeight: 600, background: "#ECFDF5", borderRadius: 4, padding: "1px 6px" }}>
+                                  <span style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 11, color: "var(--success)", fontWeight: 600, background: "var(--success-bg)", borderRadius: "var(--r-xs)", padding: "1px 6px" }}>
                                     <CheckCircle2 size={10} />Completado
                                   </span>
                                 )}
                                 {inProgress && (
-                                  <span style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 11, color: "#8B5CF6", fontWeight: 600, background: "#F5F3FF", borderRadius: 4, padding: "1px 6px" }}>
+                                  <span style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 11, color: "var(--brand-fg)", fontWeight: 600, background: "var(--brand-tint)", borderRadius: "var(--r-xs)", padding: "1px 6px" }}>
                                     <PlayCircle size={10} />En curso
                                   </span>
                                 )}
@@ -2428,10 +2457,10 @@ export default function OTDetail({
                                   disabled={startingEjec === otp.procedimiento_id}
                                   style={{
                                     height: 30, padding: "0 12px",
-                                    background: inProgress ? "#F5F3FF" : "#EFF6FF",
-                                    border: `1px solid ${inProgress ? "#8B5CF6" : "#2563EB"}`,
-                                    borderRadius: 6, cursor: "pointer", fontSize: 12, fontWeight: 600,
-                                    color: inProgress ? "#8B5CF6" : "#2563EB", fontFamily: "inherit",
+                                    background: "var(--brand-tint)",
+                                    border: `1px solid ${"var(--brand-fg)"}`,
+                                    borderRadius: "var(--r-sm)", cursor: "pointer", fontSize: 12, fontWeight: 600,
+                                    color: "var(--brand-fg)", fontFamily: "inherit",
                                     display: "flex", alignItems: "center", gap: 5,
                                   }}
                                 >
@@ -2442,7 +2471,7 @@ export default function OTDetail({
                               {isCompleted && (
                                 <button
                                   onClick={() => handleStartEjec(otp)}
-                                  style={{ height: 30, padding: "0 12px", background: "none", border: "1px solid #E2E8F0", borderRadius: 6, cursor: "pointer", fontSize: 12, color: "#64748B", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 5 }}
+                                  style={{ height: 30, padding: "0 12px", background: "none", border: "1px solid var(--border)", borderRadius: "var(--r-sm)", cursor: "pointer", fontSize: 12, color: "var(--fg-2)", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 5 }}
                                 >
                                   <CheckCircle2 size={11} />Ver
                                 </button>
@@ -2450,9 +2479,9 @@ export default function OTDetail({
                               <button
                                 onClick={() => handleDetachProc(otp.procedimiento_id)}
                                 disabled={detachingProc === otp.procedimiento_id}
-                                style={{ width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", borderRadius: 6, cursor: "pointer", color: "#94A3B8" }}
-                                onMouseEnter={e => { e.currentTarget.style.color = "#EF4444"; e.currentTarget.style.background = "#FEF2F2"; }}
-                                onMouseLeave={e => { e.currentTarget.style.color = "#94A3B8"; e.currentTarget.style.background = "none"; }}
+                                style={{ width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", borderRadius: "var(--r-sm)", cursor: "pointer", color: "var(--fg-4)" }}
+                                onMouseEnter={e => { e.currentTarget.style.color = "var(--danger)"; e.currentTarget.style.background = "var(--danger-bg)"; }}
+                                onMouseLeave={e => { e.currentTarget.style.color = "var(--fg-4)"; e.currentTarget.style.background = "transparent"; }}
                               >
                                 {detachingProc === otp.procedimiento_id ? <Loader2 size={12} className="animate-spin" /> : <X size={13} />}
                               </button>
@@ -2467,29 +2496,29 @@ export default function OTDetail({
                 {/* Attach picker */}
                 {isActive && (
                   <div style={{ borderTop: otProcs.length > 0 ? "1px solid #F1F5F9" : "none", paddingTop: otProcs.length > 0 ? 16 : 0 }}>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 10 }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: "var(--fg-4)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 10 }}>
                       Agregar procedimiento
                     </div>
                     {loadingProcLib ? (
                       <div style={{ display: "flex", justifyContent: "center", padding: "20px 0" }}>
-                        <Loader2 size={14} className="animate-spin" style={{ color: "#CBD5E1" }} />
+                        <Loader2 size={14} className="animate-spin" style={{ color: "var(--border-strong)" }} />
                       </div>
                     ) : procLibrary.filter(p => !otProcs.some(op => op.procedimiento_id === p.id)).length === 0 ? (
-                      <div style={{ fontSize: 12.5, color: "#94A3B8", padding: "8px 0" }}>
+                      <div style={{ fontSize: 12.5, color: "var(--fg-4)", padding: "8px 0" }}>
                         {procLibrary.length === 0 ? "No hay procedimientos en la biblioteca." : "Todos los procedimientos ya están adjuntos."}
                       </div>
                     ) : (
                       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                         {procLibrary.filter(p => !otProcs.some(op => op.procedimiento_id === p.id)).map(p => (
-                          <div key={p.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", border: "1px solid #E2E8F0", borderRadius: 8, background: "#F8FAFC" }}>
+                          <div key={p.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", border: "1px solid var(--border)", borderRadius: "var(--r-md)", background: "var(--surface-0)" }}>
                             <div>
-                              <div style={{ fontSize: 13, fontWeight: 500, color: "#0F172A" }}>{p.nombre}</div>
-                              <div style={{ fontSize: 11, color: "#94A3B8" }}>{p.pasos_count} pasos{p.categoria ? ` · ${p.categoria}` : ""}</div>
+                              <div style={{ fontSize: 13, fontWeight: 500, color: "var(--fg-1)" }}>{p.nombre}</div>
+                              <div style={{ fontSize: 11, color: "var(--fg-4)" }}>{p.pasos_count} pasos{p.categoria ? ` · ${p.categoria}` : ""}</div>
                             </div>
                             <button
                               onClick={() => handleAttachProc(p.id)}
                               disabled={attachingProc === p.id}
-                              style={{ height: 28, padding: "0 10px", background: "#EFF6FF", border: "1px solid #2563EB", borderRadius: 6, cursor: "pointer", fontSize: 12, fontWeight: 600, color: "#2563EB", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 4 }}
+                              style={{ height: 28, padding: "0 10px", background: "var(--brand-tint)", border: "1px solid #2563EB", borderRadius: "var(--r-sm)", cursor: "pointer", fontSize: 12, fontWeight: 600, color: "var(--brand-fg)", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 4 }}
                             >
                               {attachingProc === p.id ? <Loader2 size={11} className="animate-spin" /> : <Plus size={11} />}
                               Adjuntar
@@ -2512,10 +2541,10 @@ export default function OTDetail({
               <div style={{
                 display: "flex", alignItems: "center", gap: 8,
                 padding: "10px 14px", marginBottom: 14,
-                background: "#FFF7ED", border: "1px solid #FED7AA", borderRadius: 8,
+                background: "var(--st-wait-bg)", border: "1px solid var(--border-strong)", borderRadius: "var(--r-md)",
               }}>
-                <AlertTriangle size={14} style={{ color: "#D97706", flexShrink: 0 }} />
-                <span style={{ fontSize: 12, color: "#92400E" }}>
+                <AlertTriangle size={14} style={{ color: "var(--warning)", flexShrink: 0 }} />
+                <span style={{ fontSize: 12, color: "var(--st-wait-fg)" }}>
                   Esta OT requiere completar la hoja de cálculo antes de poder cerrarse.
                 </span>
               </div>
@@ -2548,21 +2577,21 @@ export default function OTDetail({
       )}
 
       {/* ── Comment input ── */}
-      {tab === "actividad" && <div style={{ flexShrink: 0, borderTop: "1px solid #E2E8F0", padding: "12px 16px", background: "#fff" }}>
+      {tab === "actividad" && <div style={{ flexShrink: 0, borderTop: "1px solid var(--border)", padding: "12px 16px", background: "var(--surface-1)" }}>
         <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
           <textarea
             style={{
               flex: 1, minHeight: 42, maxHeight: 96, resize: "none",
-              fontSize: 13, border: "1px solid #E2E8F0", borderRadius: 8,
+              fontSize: 13, border: "1px solid var(--border)", borderRadius: "var(--r-md)",
               padding: "10px 12px", outline: "none", fontFamily: "inherit",
-              background: "#F8FAFC", color: "#0F172A", lineHeight: 1.5,
+              background: "var(--surface-0)", color: "var(--fg-1)", lineHeight: 1.5,
               transition: "border-color 0.12s, box-shadow 0.12s",
             }}
             placeholder="Agregar comentario…"
             value={commentText}
             onChange={e => setCommentText(e.target.value)}
-            onFocus={e => { e.currentTarget.style.borderColor = "#2563EB"; e.currentTarget.style.background = "#fff"; e.currentTarget.style.boxShadow = "0 0 0 3px rgba(37,99,235,0.10)"; }}
-            onBlur={e => { e.currentTarget.style.borderColor = "#E2E8F0"; e.currentTarget.style.background = "#F8FAFC"; e.currentTarget.style.boxShadow = "none"; }}
+            onFocus={e => { e.currentTarget.style.borderColor = "var(--brand)"; e.currentTarget.style.background = "var(--surface-1)"; e.currentTarget.style.boxShadow = "var(--shadow-focus)"; }}
+            onBlur={e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.background = "var(--surface-hover)"; e.currentTarget.style.boxShadow = "none"; }}
             onKeyDown={e => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) sendComment(); }}
           />
           <button
@@ -2571,16 +2600,16 @@ export default function OTDetail({
             disabled={!commentText.trim() || sending}
             style={{
               width: 38, height: 38, flexShrink: 0,
-              background: commentText.trim() ? "linear-gradient(135deg, #1E3A8A, #2563EB)" : "#E2E8F0",
-              border: "none", borderRadius: 8, cursor: commentText.trim() ? "pointer" : "default",
+              background: commentText.trim() ? "linear-gradient(135deg, #1E3A8A, #2563EB)" : "var(--border)",
+              border: "none", borderRadius: "var(--r-md)", cursor: commentText.trim() ? "pointer" : "default",
               display: "flex", alignItems: "center", justifyContent: "center",
               transition: "opacity 0.15s",
             }}
           >
-            {sending ? <Loader2 size={15} style={{ color: "#fff", animation: "spin 1s linear infinite" }} /> : <Send size={15} style={{ color: commentText.trim() ? "#fff" : "#94A3B8" }} />}
+            {sending ? <Loader2 size={15} style={{ color: "var(--fg-on-brand)", animation: "spin 1s linear infinite" }} /> : <Send size={15} style={{ color: commentText.trim() ? "var(--fg-on-brand)" : "var(--fg-4)" }} />}
           </button>
         </div>
-        <p style={{ fontSize: 11, color: "#94A3B8", marginTop: 5, marginBottom: 0 }}>Ctrl+Enter para enviar</p>
+        <p style={{ fontSize: 11, color: "var(--fg-4)", marginTop: 5, marginBottom: 0 }}>Ctrl+Enter para enviar</p>
       </div>}
 
       <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
@@ -2592,21 +2621,21 @@ export default function OTDetail({
           onClick={() => setExportConfigOpen(false)}
         >
           <div
-            style={{ background: "#fff", borderRadius: 14, width: 420, boxShadow: "0 20px 60px rgba(15,23,42,0.20)", overflow: "hidden" }}
+            style={{ background: "var(--surface-1)", borderRadius: 14, width: 420, boxShadow: "0 20px 60px rgba(15,23,42,0.20)", overflow: "hidden" }}
             onClick={e => e.stopPropagation()}
           >
             {/* Header */}
-            <div style={{ padding: "18px 20px 14px", borderBottom: "1px solid #E2E8F0", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <div style={{ padding: "18px 20px 14px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <div>
-                <div style={{ fontSize: 15, fontWeight: 700, color: "#0F172A" }}>Exportar Excel</div>
-                <div style={{ fontSize: 12, color: "#94A3B8", marginTop: 2 }}>Selecciona las secciones a incluir</div>
+                <div style={{ fontSize: 15, fontWeight: 700, color: "var(--fg-1)" }}>Exportar Excel</div>
+                <div style={{ fontSize: 12, color: "var(--fg-4)", marginTop: 2 }}>Selecciona las secciones a incluir</div>
               </div>
               <button
                 type="button"
                 onClick={() => setExportConfigOpen(false)}
-                style={{ width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", borderRadius: 6, cursor: "pointer", color: "#94A3B8" }}
-                onMouseEnter={e => { e.currentTarget.style.background = "#F1F5F9"; }}
-                onMouseLeave={e => { e.currentTarget.style.background = "none"; }}
+                style={{ width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", borderRadius: "var(--r-sm)", cursor: "pointer", color: "var(--fg-4)" }}
+                onMouseEnter={e => { e.currentTarget.style.background = "var(--surface-hover)"; }}
+                onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}
               >
                 <X size={15} />
               </button>
@@ -2616,7 +2645,7 @@ export default function OTDetail({
             <div style={{ padding: "8px 20px 4px", maxHeight: 380, overflowY: "auto" }}>
               {Array.from(new Set(EXPORT_FIELDS.map(f => f.group))).map(group => (
                 <div key={group} style={{ marginBottom: 12 }}>
-                  <div style={{ fontSize: 10, fontWeight: 700, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 4, paddingLeft: 10 }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: "var(--fg-4)", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 4, paddingLeft: 10 }}>
                     {group}
                   </div>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1 }}>
@@ -2624,16 +2653,16 @@ export default function OTDetail({
                       <label
                         key={field.key}
                         style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 10px", borderRadius: 7, cursor: "pointer" }}
-                        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#F8FAFC"; }}
+                        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "var(--surface-hover)"; }}
                         onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
                       >
                         <input
                           type="checkbox"
                           checked={exportFields[field.key]}
                           onChange={e => setExportFields(prev => ({ ...prev, [field.key]: e.target.checked }))}
-                          style={{ width: 14, height: 14, accentColor: "#2563EB", cursor: "pointer", flexShrink: 0 }}
+                          style={{ width: 14, height: 14, accentColor: "var(--brand)", cursor: "pointer", flexShrink: 0 }}
                         />
-                        <span style={{ fontSize: 12.5, color: exportFields[field.key] ? "#0F172A" : "#94A3B8" }}>{field.label}</span>
+                        <span style={{ fontSize: 12.5, color: exportFields[field.key] ? "var(--fg-1)" : "var(--fg-4)" }}>{field.label}</span>
                       </label>
                     ))}
                   </div>
@@ -2644,36 +2673,36 @@ export default function OTDetail({
             {/* Select all / none */}
             <div style={{ padding: "0 20px 10px", display: "flex", gap: 8, borderTop: "1px solid #F1F5F9", paddingTop: 8 }}>
               <button type="button" onClick={() => setExportFields(ALL_FIELDS_ON)}
-                style={{ fontSize: 12, color: "#2563EB", background: "none", border: "none", cursor: "pointer", padding: "2px 0", fontFamily: "inherit" }}>
+                style={{ fontSize: 12, color: "var(--brand-fg)", background: "none", border: "none", cursor: "pointer", padding: "2px 0", fontFamily: "inherit" }}>
                 Seleccionar todo
               </button>
-              <span style={{ color: "#E2E8F0" }}>·</span>
+              <span style={{ color: "var(--border)" }}>·</span>
               <button type="button" onClick={() => setExportFields(ALL_FIELDS_OFF)}
-                style={{ fontSize: 12, color: "#94A3B8", background: "none", border: "none", cursor: "pointer", padding: "2px 0", fontFamily: "inherit" }}>
+                style={{ fontSize: 12, color: "var(--fg-4)", background: "none", border: "none", cursor: "pointer", padding: "2px 0", fontFamily: "inherit" }}>
                 Limpiar
               </button>
-              <span style={{ marginLeft: "auto", fontSize: 12, color: "#94A3B8" }}>
+              <span style={{ marginLeft: "auto", fontSize: 12, color: "var(--fg-4)" }}>
                 {Object.values(exportFields).filter(Boolean).length} seleccionados
               </span>
             </div>
 
             {/* Footer */}
-            <div style={{ padding: "10px 20px 16px", borderTop: "1px solid #E2E8F0", display: "flex", justifyContent: "flex-end", gap: 8 }}>
+            <div style={{ padding: "10px 20px 16px", borderTop: "1px solid var(--border)", display: "flex", justifyContent: "flex-end", gap: 8 }}>
               <button
                 type="button"
                 onClick={() => setExportConfigOpen(false)}
-                style={{ height: 36, padding: "0 16px", borderRadius: 8, border: "1px solid #E2E8F0", background: "#fff", fontSize: 13, color: "#475569", cursor: "pointer", fontFamily: "inherit" }}
-                onMouseEnter={e => { e.currentTarget.style.background = "#F8FAFC"; }}
-                onMouseLeave={e => { e.currentTarget.style.background = "#fff"; }}
+                style={{ height: 36, padding: "0 16px", borderRadius: "var(--r-md)", border: "1px solid var(--border)", background: "var(--surface-1)", fontSize: 13, color: "var(--fg-2)", cursor: "pointer", fontFamily: "inherit" }}
+                onMouseEnter={e => { e.currentTarget.style.background = "var(--surface-hover)"; }}
+                onMouseLeave={e => { e.currentTarget.style.background = "var(--surface-1)"; }}
               >Cancelar</button>
               <button
                 type="button"
                 onClick={handleExportExcel}
                 disabled={!Object.values(exportFields).some(Boolean)}
                 style={{
-                  height: 36, padding: "0 18px", borderRadius: 8, border: "none",
-                  background: Object.values(exportFields).some(Boolean) ? "#2563EB" : "#CBD5E1",
-                  fontSize: 13, fontWeight: 600, color: "#fff",
+                  height: 36, padding: "0 18px", borderRadius: "var(--r-md)", border: "none",
+                  background: Object.values(exportFields).some(Boolean) ? "var(--brand)" : "var(--border-strong)",
+                  fontSize: 13, fontWeight: 600, color: "var(--fg-on-brand)",
                   cursor: Object.values(exportFields).some(Boolean) ? "pointer" : "default",
                   fontFamily: "inherit", display: "flex", alignItems: "center", gap: 6,
                 }}
@@ -2692,21 +2721,21 @@ export default function OTDetail({
           onClick={() => setPdfConfigOpen(false)}
         >
           <div
-            style={{ background: "#fff", borderRadius: 14, width: 420, boxShadow: "0 20px 60px rgba(15,23,42,0.20)", overflow: "hidden" }}
+            style={{ background: "var(--surface-1)", borderRadius: 14, width: 420, boxShadow: "0 20px 60px rgba(15,23,42,0.20)", overflow: "hidden" }}
             onClick={e => e.stopPropagation()}
           >
             {/* Header */}
-            <div style={{ padding: "18px 20px 14px", borderBottom: "1px solid #E2E8F0", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <div style={{ padding: "18px 20px 14px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <div>
-                <div style={{ fontSize: 15, fontWeight: 700, color: "#0F172A" }}>Exportar PDF</div>
-                <div style={{ fontSize: 12, color: "#94A3B8", marginTop: 2 }}>Selecciona las secciones a incluir</div>
+                <div style={{ fontSize: 15, fontWeight: 700, color: "var(--fg-1)" }}>Exportar PDF</div>
+                <div style={{ fontSize: 12, color: "var(--fg-4)", marginTop: 2 }}>Selecciona las secciones a incluir</div>
               </div>
               <button
                 type="button"
                 onClick={() => setPdfConfigOpen(false)}
-                style={{ width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", borderRadius: 6, cursor: "pointer", color: "#94A3B8" }}
-                onMouseEnter={e => { e.currentTarget.style.background = "#F1F5F9"; }}
-                onMouseLeave={e => { e.currentTarget.style.background = "none"; }}
+                style={{ width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", borderRadius: "var(--r-sm)", cursor: "pointer", color: "var(--fg-4)" }}
+                onMouseEnter={e => { e.currentTarget.style.background = "var(--surface-hover)"; }}
+                onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}
               >
                 <X size={15} />
               </button>
@@ -2716,7 +2745,7 @@ export default function OTDetail({
             <div style={{ padding: "8px 20px 4px", maxHeight: 380, overflowY: "auto" }}>
               {Array.from(new Set(PDF_FIELDS.map(f => f.group))).map(group => (
                 <div key={group} style={{ marginBottom: 12 }}>
-                  <div style={{ fontSize: 10, fontWeight: 700, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 4, paddingLeft: 10 }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: "var(--fg-4)", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 4, paddingLeft: 10 }}>
                     {group}
                   </div>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1 }}>
@@ -2724,16 +2753,16 @@ export default function OTDetail({
                       <label
                         key={field.key}
                         style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 10px", borderRadius: 7, cursor: "pointer" }}
-                        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#F8FAFC"; }}
+                        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "var(--surface-hover)"; }}
                         onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
                       >
                         <input
                           type="checkbox"
                           checked={pdfFields[field.key]}
                           onChange={e => setPdfFields(prev => ({ ...prev, [field.key]: e.target.checked }))}
-                          style={{ width: 14, height: 14, accentColor: "#2563EB", cursor: "pointer", flexShrink: 0 }}
+                          style={{ width: 14, height: 14, accentColor: "var(--brand)", cursor: "pointer", flexShrink: 0 }}
                         />
-                        <span style={{ fontSize: 12.5, color: pdfFields[field.key] ? "#0F172A" : "#94A3B8" }}>{field.label}</span>
+                        <span style={{ fontSize: 12.5, color: pdfFields[field.key] ? "var(--fg-1)" : "var(--fg-4)" }}>{field.label}</span>
                       </label>
                     ))}
                   </div>
@@ -2744,36 +2773,36 @@ export default function OTDetail({
             {/* Select all / none */}
             <div style={{ padding: "0 20px 10px", display: "flex", gap: 8, borderTop: "1px solid #F1F5F9", paddingTop: 8 }}>
               <button type="button" onClick={() => setPdfFields(ALL_PDF_ON)}
-                style={{ fontSize: 12, color: "#2563EB", background: "none", border: "none", cursor: "pointer", padding: "2px 0", fontFamily: "inherit" }}>
+                style={{ fontSize: 12, color: "var(--brand-fg)", background: "none", border: "none", cursor: "pointer", padding: "2px 0", fontFamily: "inherit" }}>
                 Seleccionar todo
               </button>
-              <span style={{ color: "#E2E8F0" }}>·</span>
+              <span style={{ color: "var(--border)" }}>·</span>
               <button type="button" onClick={() => setPdfFields(ALL_PDF_OFF)}
-                style={{ fontSize: 12, color: "#94A3B8", background: "none", border: "none", cursor: "pointer", padding: "2px 0", fontFamily: "inherit" }}>
+                style={{ fontSize: 12, color: "var(--fg-4)", background: "none", border: "none", cursor: "pointer", padding: "2px 0", fontFamily: "inherit" }}>
                 Limpiar
               </button>
-              <span style={{ marginLeft: "auto", fontSize: 12, color: "#94A3B8" }}>
+              <span style={{ marginLeft: "auto", fontSize: 12, color: "var(--fg-4)" }}>
                 {Object.values(pdfFields).filter(Boolean).length} seleccionados
               </span>
             </div>
 
             {/* Footer */}
-            <div style={{ padding: "10px 20px 16px", borderTop: "1px solid #E2E8F0", display: "flex", justifyContent: "flex-end", gap: 8 }}>
+            <div style={{ padding: "10px 20px 16px", borderTop: "1px solid var(--border)", display: "flex", justifyContent: "flex-end", gap: 8 }}>
               <button
                 type="button"
                 onClick={() => setPdfConfigOpen(false)}
-                style={{ height: 36, padding: "0 16px", borderRadius: 8, border: "1px solid #E2E8F0", background: "#fff", fontSize: 13, color: "#475569", cursor: "pointer", fontFamily: "inherit" }}
-                onMouseEnter={e => { e.currentTarget.style.background = "#F8FAFC"; }}
-                onMouseLeave={e => { e.currentTarget.style.background = "#fff"; }}
+                style={{ height: 36, padding: "0 16px", borderRadius: "var(--r-md)", border: "1px solid var(--border)", background: "var(--surface-1)", fontSize: 13, color: "var(--fg-2)", cursor: "pointer", fontFamily: "inherit" }}
+                onMouseEnter={e => { e.currentTarget.style.background = "var(--surface-hover)"; }}
+                onMouseLeave={e => { e.currentTarget.style.background = "var(--surface-1)"; }}
               >Cancelar</button>
               <button
                 type="button"
                 onClick={doExportPDF}
                 disabled={!Object.values(pdfFields).some(Boolean)}
                 style={{
-                  height: 36, padding: "0 18px", borderRadius: 8, border: "none",
-                  background: Object.values(pdfFields).some(Boolean) ? "#2563EB" : "#CBD5E1",
-                  fontSize: 13, fontWeight: 600, color: "#fff",
+                  height: 36, padding: "0 18px", borderRadius: "var(--r-md)", border: "none",
+                  background: Object.values(pdfFields).some(Boolean) ? "var(--brand)" : "var(--border-strong)",
+                  fontSize: 13, fontWeight: 600, color: "var(--fg-on-brand)",
                   cursor: Object.values(pdfFields).some(Boolean) ? "pointer" : "default",
                   fontFamily: "inherit", display: "flex", alignItems: "center", gap: 6,
                 }}
@@ -2791,17 +2820,17 @@ export default function OTDetail({
 // ── Procedure execution modal ─────────────────────────────────────────────────
 
 const EXEC_TIPO_META: Record<TipoPasoProc, { icon: React.ReactNode; color: string }> = {
-  instruccion:        { icon: <Info size={13} />,          color: "#3B82F6" },
-  advertencia:        { icon: <AlertTriangle size={13} />, color: "#F59E0B" },
-  texto:              { icon: <Type size={13} />,          color: "#8B5CF6" },
-  numero:             { icon: <HashIcon size={13} />,      color: "#6366F1" },
-  monto:              { icon: <DollarSign size={13} />,    color: "#10B981" },
-  si_no_na:           { icon: <CheckSquare size={13} />,   color: "#14B8A6" },
-  opcion_multiple:    { icon: <List size={13} />,          color: "#F97316" },
-  lista_verificacion: { icon: <ListChecks size={13} />,    color: "#EF4444" },
-  inspeccion:         { icon: <ClipboardCheck size={13} />,color: "#EC4899" },
-  imagen:             { icon: <Camera size={13} />,        color: "#64748B" },
-  firma:              { icon: <PenLine size={13} />,       color: "#0EA5E9" },
+  instruccion:        { icon: <Info size={13} />,          color: "var(--brand-fg)" },
+  advertencia:        { icon: <AlertTriangle size={13} />, color: "var(--warning)" },
+  texto:              { icon: <Type size={13} />,          color: "var(--brand-fg)" },
+  numero:             { icon: <HashIcon size={13} />,      color: "var(--brand-fg)" },
+  monto:              { icon: <DollarSign size={13} />,    color: "var(--success)" },
+  si_no_na:           { icon: <CheckSquare size={13} />,   color: "var(--info)" },
+  opcion_multiple:    { icon: <List size={13} />,          color: "var(--pr-high)" },
+  lista_verificacion: { icon: <ListChecks size={13} />,    color: "var(--danger)" },
+  inspeccion:         { icon: <ClipboardCheck size={13} />,color: "var(--pr-high)" },
+  imagen:             { icon: <Camera size={13} />,        color: "var(--fg-2)" },
+  firma:              { icon: <PenLine size={13} />,       color: "var(--info)" },
 };
 
 function isAnsweredForType(paso: ProcedimientoPaso, resp: PendingResp | undefined): boolean {
@@ -2827,31 +2856,31 @@ function ReadonlyAnswer({ paso, resp }: { paso: ProcedimientoPaso; resp: Pending
   const currency = paso.moneda ?? "CLP";
   switch (paso.tipo) {
     case "texto":
-      return <div style={{ fontSize: 12.5, color: "#475569", marginTop: 4, whiteSpace: "pre-wrap" }}>{resp.valor_texto}</div>;
+      return <div style={{ fontSize: 12.5, color: "var(--fg-2)", marginTop: 4, whiteSpace: "pre-wrap" }}>{resp.valor_texto}</div>;
     case "numero":
-      return <div style={{ fontSize: 12.5, color: "#475569", marginTop: 4 }}>{resp.valor_medido} {paso.unidad}</div>;
+      return <div style={{ fontSize: 12.5, color: "var(--fg-2)", marginTop: 4 }}>{resp.valor_medido} {paso.unidad}</div>;
     case "monto":
-      return <div style={{ fontSize: 12.5, color: "#475569", marginTop: 4 }}>{currency} {resp.valor_medido?.toLocaleString("es-CL")}</div>;
+      return <div style={{ fontSize: 12.5, color: "var(--fg-2)", marginTop: 4 }}>{currency} {resp.valor_medido?.toLocaleString("es-CL")}</div>;
     case "si_no_na":
     case "opcion_multiple":
-      return <div style={{ fontSize: 12.5, color: "#475569", marginTop: 4 }}>{resp.valor_texto}</div>;
+      return <div style={{ fontSize: 12.5, color: "var(--fg-2)", marginTop: 4 }}>{resp.valor_texto}</div>;
     case "lista_verificacion": {
       const checked: string[] = (resp.valor_json as any)?.checked ?? [];
-      return <div style={{ fontSize: 12, color: "#475569", marginTop: 4 }}>{checked.length} de {paso.opciones?.length ?? 0} marcados</div>;
+      return <div style={{ fontSize: 12, color: "var(--fg-2)", marginTop: 4 }}>{checked.length} de {paso.opciones?.length ?? 0} marcados</div>;
     }
     case "inspeccion": {
       const items: { item: string; result: string }[] = (resp.valor_json as any)?.items ?? [];
       const pass = items.filter(i => i.result === "pass").length;
-      return <div style={{ fontSize: 12, color: "#475569", marginTop: 4 }}>{pass}/{items.length} pasaron</div>;
+      return <div style={{ fontSize: 12, color: "var(--fg-2)", marginTop: 4 }}>{pass}/{items.length} pasaron</div>;
     }
     case "imagen":
       return resp.foto_url
-        ? <img src={resp.foto_url} alt="foto" style={{ marginTop: 6, maxWidth: 180, borderRadius: 6, border: "1px solid #E2E8F0" }} />
+        ? <img src={resp.foto_url} alt="foto" style={{ marginTop: 6, maxWidth: 180, borderRadius: "var(--r-sm)", border: "1px solid var(--border)" }} />
         : null;
     case "firma":
       return resp.firma_svg
-        ? <img src={resp.firma_svg} alt="firma" style={{ marginTop: 6, maxWidth: "100%", height: 80, objectFit: "contain", border: "1px solid #E2E8F0", borderRadius: 6, background: "#F8FAFC" }} />
-        : <div style={{ fontSize: 12.5, color: "#10B981", marginTop: 4 }}>✓ Firmado</div>;
+        ? <img src={resp.firma_svg} alt="firma" style={{ marginTop: 6, maxWidth: "100%", height: 80, objectFit: "contain", border: "1px solid var(--border)", borderRadius: "var(--r-sm)", background: "var(--surface-0)" }} />
+        : <div style={{ fontSize: 12.5, color: "var(--success)", marginTop: 4 }}>✓ Firmado</div>;
     default:
       return null;
   }
@@ -2958,8 +2987,8 @@ function SignatureCanvas({
         height={160}
         style={{
           width: "100%", height: 160, display: "block",
-          border: "1px solid #E2E8F0", borderRadius: 8,
-          background: "#F8FAFC", cursor: "crosshair", touchAction: "none",
+          border: "1px solid var(--border)", borderRadius: "var(--r-md)",
+          background: "var(--surface-0)", cursor: "crosshair", touchAction: "none",
         }}
         onMouseDown={startDraw}
         onMouseMove={draw}
@@ -2970,14 +2999,14 @@ function SignatureCanvas({
         onTouchEnd={stopDraw}
       />
       {!hasStrokes && (
-        <div style={{ fontSize: 12, color: "#94A3B8", textAlign: "center", marginTop: 4 }}>
+        <div style={{ fontSize: 12, color: "var(--fg-4)", textAlign: "center", marginTop: 4 }}>
           Dibuja tu firma con el mouse o dedo
         </div>
       )}
       <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
         <button
           onClick={clear}
-          style={{ height: 30, padding: "0 12px", background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 6, cursor: "pointer", fontSize: 12, color: "#64748B", fontFamily: "inherit" }}
+          style={{ height: 30, padding: "0 12px", background: "var(--surface-0)", border: "1px solid var(--border)", borderRadius: "var(--r-sm)", cursor: "pointer", fontSize: 12, color: "var(--fg-2)", fontFamily: "inherit" }}
         >
           Limpiar
         </button>
@@ -2986,10 +3015,10 @@ function SignatureCanvas({
           disabled={!hasStrokes || isSaving}
           style={{
             height: 30, padding: "0 14px",
-            background: hasStrokes ? "#F0F9FF" : "#F8FAFC",
-            border: `1px solid ${hasStrokes ? "#0EA5E9" : "#E2E8F0"}`,
-            borderRadius: 6, cursor: hasStrokes && !isSaving ? "pointer" : "default",
-            fontSize: 12, fontWeight: 600, color: hasStrokes ? "#0369A1" : "#94A3B8",
+            background: hasStrokes ? "var(--brand-tint)" : "var(--surface-0)",
+            border: `1px solid ${hasStrokes ? "var(--brand)" : "var(--border)"}`,
+            borderRadius: "var(--r-sm)", cursor: hasStrokes && !isSaving ? "pointer" : "default",
+            fontSize: 12, fontWeight: 600, color: hasStrokes ? "var(--brand-fg)" : "var(--fg-4)",
             fontFamily: "inherit", display: "flex", alignItems: "center", gap: 4,
             opacity: !hasStrokes ? 0.5 : 1,
           }}
@@ -2998,7 +3027,7 @@ function SignatureCanvas({
           Guardar firma
         </button>
         {saved && !isSaving && (
-          <span style={{ fontSize: 12, color: "#10B981", display: "flex", alignItems: "center", gap: 4 }}>
+          <span style={{ fontSize: 12, color: "var(--success)", display: "flex", alignItems: "center", gap: 4 }}>
             <Check size={11} /> Guardado
           </span>
         )}
@@ -3020,18 +3049,18 @@ function PasoInput({
   const val = (k: keyof PendingResp) => (resp as any)[k] ?? (existingResp as any)?.[k];
   const inputStyle: React.CSSProperties = {
     width: "100%", height: 32, padding: "0 10px",
-    border: "1px solid #E2E8F0", borderRadius: 6,
-    fontSize: 13, fontFamily: "inherit", color: "#0F172A",
-    background: "#fff", outline: "none", boxSizing: "border-box",
+    border: "1px solid var(--border)", borderRadius: "var(--r-sm)",
+    fontSize: 13, fontFamily: "inherit", color: "var(--fg-1)",
+    background: "var(--surface-1)", outline: "none", boxSizing: "border-box",
   };
   const saveBtn = (label: string, disabled = false) => (
     <button
       onClick={() => onSave()}
       disabled={isSaving || disabled}
       style={{
-        height: 30, padding: "0 14px", background: "#EFF6FF",
-        border: "1px solid #2563EB", borderRadius: 6, cursor: disabled || isSaving ? "default" : "pointer",
-        fontSize: 12, fontWeight: 600, color: "#2563EB", fontFamily: "inherit",
+        height: 30, padding: "0 14px", background: "var(--brand-tint)",
+        border: "1px solid #2563EB", borderRadius: "var(--r-sm)", cursor: disabled || isSaving ? "default" : "pointer",
+        fontSize: 12, fontWeight: 600, color: "var(--brand-fg)", fontFamily: "inherit",
         display: "flex", alignItems: "center", gap: 4, opacity: disabled ? 0.5 : 1,
       }}
     >
@@ -3042,14 +3071,14 @@ function PasoInput({
 
   if (paso.tipo === "instruccion" || paso.tipo === "advertencia") {
     const isAck = !!existingResp;
-    const bg = paso.tipo === "instruccion" ? "#EFF6FF" : "#FFFBEB";
-    const bc = paso.tipo === "instruccion" ? "#2563EB" : "#F59E0B";
-    const tc = paso.tipo === "instruccion" ? "#2563EB" : "#B45309";
+    const bg = paso.tipo === "instruccion" ? "var(--brand-tint)" : "var(--warning-bg)";
+    const bc = paso.tipo === "instruccion" ? "var(--brand)" : "var(--warning)";
+    const tc = paso.tipo === "instruccion" ? "var(--brand-fg)" : "var(--warning)";
     return (
       <button
         onClick={() => onSave({})}
         disabled={isAck || isSaving}
-        style={{ height: 28, padding: "0 12px", background: isAck ? "#D1FAE5" : bg, border: `1px solid ${isAck ? "#10B981" : bc}`, borderRadius: 6, cursor: isAck ? "default" : "pointer", fontSize: 12, fontWeight: 600, color: isAck ? "#10B981" : tc, fontFamily: "inherit", display: "flex", alignItems: "center", gap: 5 }}
+        style={{ height: 28, padding: "0 12px", background: isAck ? "var(--success-bg)" : bg, border: `1px solid ${isAck ? "var(--success)" : bc}`, borderRadius: "var(--r-sm)", cursor: isAck ? "default" : "pointer", fontSize: 12, fontWeight: 600, color: isAck ? "var(--success)" : tc, fontFamily: "inherit", display: "flex", alignItems: "center", gap: 5 }}
       >
         {isSaving ? <Loader2 size={11} className="animate-spin" /> : <Check size={11} />}
         {isAck ? (paso.tipo === "instruccion" ? "Confirmado" : "Leído y entendido") : (paso.tipo === "instruccion" ? "Confirmar lectura" : "Leído y entendido")}
@@ -3067,11 +3096,11 @@ function PasoInput({
             onClick={() => onSave({ valor_texto: opt })}
             disabled={isSaving}
             style={{
-              height: 30, padding: "0 16px", borderRadius: 6, cursor: "pointer",
+              height: 30, padding: "0 16px", borderRadius: "var(--r-sm)", cursor: "pointer",
               fontSize: 12.5, fontWeight: 600, fontFamily: "inherit",
-              border: cur === opt ? "1px solid #2563EB" : "1px solid #E2E8F0",
-              background: cur === opt ? "#EFF6FF" : "#F8FAFC",
-              color: cur === opt ? "#2563EB" : "#64748B",
+              border: cur === opt ? "1px solid #2563EB" : "1px solid var(--border)",
+              background: cur === opt ? "var(--brand-tint)" : "var(--surface-hover)",
+              color: cur === opt ? "var(--brand-fg)" : "var(--fg-2)",
             }}
           >
             {isSaving && cur === opt ? <Loader2 size={11} className="animate-spin" /> : opt}
@@ -3092,15 +3121,15 @@ function PasoInput({
             onClick={() => onSave({ valor_texto: opt })}
             disabled={isSaving}
             style={{
-              height: 32, padding: "0 12px", borderRadius: 6, cursor: "pointer",
+              height: 32, padding: "0 12px", borderRadius: "var(--r-sm)", cursor: "pointer",
               fontSize: 12.5, fontWeight: 500, fontFamily: "inherit", textAlign: "left",
-              border: cur === opt ? "1px solid #2563EB" : "1px solid #E2E8F0",
-              background: cur === opt ? "#EFF6FF" : "#F8FAFC",
-              color: cur === opt ? "#2563EB" : "#0F172A",
+              border: cur === opt ? "1px solid #2563EB" : "1px solid var(--border)",
+              background: cur === opt ? "var(--brand-tint)" : "var(--surface-hover)",
+              color: cur === opt ? "var(--brand-fg)" : "var(--fg-1)",
               display: "flex", alignItems: "center", gap: 8,
             }}
           >
-            <span style={{ width: 14, height: 14, borderRadius: "50%", border: `2px solid ${cur === opt ? "#2563EB" : "#CBD5E1"}`, background: cur === opt ? "#2563EB" : "transparent", flexShrink: 0 }} />
+            <span style={{ width: 14, height: 14, borderRadius: "50%", border: `2px solid ${cur === opt ? "var(--brand)" : "var(--border-strong)"}`, background: cur === opt ? "var(--brand)" : "transparent", flexShrink: 0 }} />
             {opt}
           </button>
         ))}
@@ -3125,16 +3154,16 @@ function PasoInput({
               onClick={() => toggle(opt)}
               disabled={isSaving}
               style={{
-                height: 32, padding: "0 12px", borderRadius: 6, cursor: "pointer",
+                height: 32, padding: "0 12px", borderRadius: "var(--r-sm)", cursor: "pointer",
                 fontSize: 12.5, fontWeight: 500, fontFamily: "inherit", textAlign: "left",
-                border: isChecked ? "1px solid #10B981" : "1px solid #E2E8F0",
-                background: isChecked ? "#F0FDF4" : "#F8FAFC",
-                color: isChecked ? "#059669" : "#0F172A",
+                border: isChecked ? "1px solid #10B981" : "1px solid var(--border)",
+                background: isChecked ? "var(--success-bg)" : "var(--surface-hover)",
+                color: isChecked ? "var(--success)" : "var(--fg-1)",
                 display: "flex", alignItems: "center", gap: 8,
               }}
             >
-              <span style={{ width: 14, height: 14, borderRadius: 3, border: `2px solid ${isChecked ? "#10B981" : "#CBD5E1"}`, background: isChecked ? "#10B981" : "transparent", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                {isChecked && <Check size={9} style={{ color: "#fff" }} />}
+              <span style={{ width: 14, height: 14, borderRadius: 3, border: `2px solid ${isChecked ? "var(--success)" : "var(--border-strong)"}`, background: isChecked ? "var(--success)" : "transparent", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                {isChecked && <Check size={9} style={{ color: "var(--fg-on-brand)" }} />}
               </span>
               {opt}
             </button>
@@ -3157,21 +3186,21 @@ function PasoInput({
       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
         {items.map(({ item, result }) => (
           <div key={item} style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <span style={{ flex: 1, fontSize: 12.5, color: "#0F172A" }}>{item}</span>
+            <span style={{ flex: 1, fontSize: 12.5, color: "var(--fg-1)" }}>{item}</span>
             {(["pass", "fail", "na"] as const).map(r => {
               const labels = { pass: "OK", fail: "Falla", na: "N/A" };
-              const colors = { pass: "#10B981", fail: "#EF4444", na: "#94A3B8" };
+              const colors = { pass: "var(--success)", fail: "var(--danger)", na: "var(--fg-4)" };
               return (
                 <button
                   key={r}
                   onClick={() => setResult(item, r)}
                   disabled={isSaving}
                   style={{
-                    height: 26, padding: "0 10px", borderRadius: 5, cursor: "pointer",
+                    height: 26, padding: "0 10px", borderRadius: "var(--r-sm)", cursor: "pointer",
                     fontSize: 11.5, fontWeight: 600, fontFamily: "inherit",
-                    border: result === r ? `1px solid ${colors[r]}` : "1px solid #E2E8F0",
-                    background: result === r ? colors[r] + "15" : "#F8FAFC",
-                    color: result === r ? colors[r] : "#94A3B8",
+                    border: result === r ? `1px solid ${colors[r]}` : "1px solid var(--border)",
+                    background: result === r ? colors[r] + "15" : "var(--surface-hover)",
+                    color: result === r ? colors[r] : "var(--fg-4)",
                   }}
                 >
                   {labels[r]}
@@ -3194,8 +3223,8 @@ function PasoInput({
             onChange={e => onUpdate({ valor_texto: e.target.value })}
             placeholder="Escribe tu respuesta…"
             style={{ ...inputStyle, height: "auto", minHeight: 72, padding: "7px 10px", resize: "vertical", lineHeight: 1.5 }}
-            onFocus={e => { e.currentTarget.style.borderColor = "#2563EB"; }}
-            onBlur={e => { e.currentTarget.style.borderColor = "#E2E8F0"; }}
+            onFocus={e => { e.currentTarget.style.borderColor = "var(--brand)"; }}
+            onBlur={e => { e.currentTarget.style.borderColor = "var(--border)"; }}
           />
         ) : (
           <input
@@ -3204,8 +3233,8 @@ function PasoInput({
             onChange={e => onUpdate({ valor_texto: e.target.value })}
             placeholder="Escribe tu respuesta…"
             style={inputStyle}
-            onFocus={e => { e.currentTarget.style.borderColor = "#2563EB"; }}
-            onBlur={e => { e.currentTarget.style.borderColor = "#E2E8F0"; }}
+            onFocus={e => { e.currentTarget.style.borderColor = "var(--brand)"; }}
+            onBlur={e => { e.currentTarget.style.borderColor = "var(--border)"; }}
           />
         )}
         {saveBtn("Guardar", !cur.trim())}
@@ -3218,19 +3247,19 @@ function PasoInput({
     const currency = paso.moneda ?? "CLP";
     return (
       <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-        {paso.tipo === "monto" && <span style={{ fontSize: 12.5, fontWeight: 600, color: "#64748B" }}>{currency}</span>}
+        {paso.tipo === "monto" && <span style={{ fontSize: 12.5, fontWeight: 600, color: "var(--fg-2)" }}>{currency}</span>}
         <input
           type="number"
           value={cur}
           onChange={e => onUpdate({ valor_medido: parseFloat(e.target.value) ?? undefined })}
           placeholder="0"
           style={{ ...inputStyle, width: 120 }}
-          onFocus={e => { e.currentTarget.style.borderColor = "#2563EB"; }}
-          onBlur={e => { e.currentTarget.style.borderColor = "#E2E8F0"; }}
+          onFocus={e => { e.currentTarget.style.borderColor = "var(--brand)"; }}
+          onBlur={e => { e.currentTarget.style.borderColor = "var(--border)"; }}
         />
-        {paso.tipo === "numero" && paso.unidad && <span style={{ fontSize: 12, color: "#64748B" }}>{paso.unidad}</span>}
+        {paso.tipo === "numero" && paso.unidad && <span style={{ fontSize: 12, color: "var(--fg-2)" }}>{paso.unidad}</span>}
         {paso.tipo === "numero" && paso.valor_min != null && (
-          <span style={{ fontSize: 11, color: "#94A3B8" }}>({paso.valor_min} – {paso.valor_max})</span>
+          <span style={{ fontSize: 11, color: "var(--fg-4)" }}>({paso.valor_min} – {paso.valor_max})</span>
         )}
         {saveBtn("OK", !cur)}
       </div>
@@ -3239,7 +3268,7 @@ function PasoInput({
 
   if (paso.tipo === "imagen") {
     return (
-      <div style={{ fontSize: 12, color: "#94A3B8", fontStyle: "italic" }}>
+      <div style={{ fontSize: 12, color: "var(--fg-4)", fontStyle: "italic" }}>
         (Subida de imágenes disponible en la app móvil)
       </div>
     );
@@ -3249,7 +3278,7 @@ function PasoInput({
     return (
       <div>
         {paso.rol_firmante && (
-          <div style={{ fontSize: 12, color: "#64748B", marginBottom: 6 }}>
+          <div style={{ fontSize: 12, color: "var(--fg-2)", marginBottom: 6 }}>
             Firma de: <strong>{paso.rol_firmante}</strong>
           </div>
         )}
@@ -3291,24 +3320,24 @@ function ProcEjecucionModal({
 
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 70, background: "rgba(15,23,42,0.50)", display: "flex", alignItems: "center", justifyContent: "center", padding: "24px" }}>
-      <div style={{ background: "#fff", width: "100%", maxWidth: 680, maxHeight: "85vh", borderRadius: 16, display: "flex", flexDirection: "column", boxShadow: "0 24px 64px rgba(0,0,0,0.25)" }}>
+      <div style={{ background: "var(--surface-1)", width: "100%", maxWidth: 680, maxHeight: "85vh", borderRadius: 16, display: "flex", flexDirection: "column", boxShadow: "0 24px 64px rgba(0,0,0,0.25)" }}>
 
         {/* Header */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px", borderBottom: "1px solid #E2E8F0", flexShrink: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px", borderBottom: "1px solid var(--border)", flexShrink: 0 }}>
           <div>
-            <div style={{ fontSize: 15, fontWeight: 700, color: "#0F172A" }}>{proc?.nombre ?? "Procedimiento"}</div>
-            <div style={{ fontSize: 12, color: "#94A3B8" }}>{pasos.length} campo{pasos.length !== 1 ? "s" : ""}</div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: "var(--fg-1)" }}>{proc?.nombre ?? "Procedimiento"}</div>
+            <div style={{ fontSize: 12, color: "var(--fg-4)" }}>{pasos.length} campo{pasos.length !== 1 ? "s" : ""}</div>
           </div>
           {isCompleted && (
-            <span style={{ fontSize: 11.5, fontWeight: 600, color: "#10B981", background: "#ECFDF5", border: "1px solid #6EE7B7", borderRadius: 6, padding: "3px 10px" }}>
+            <span style={{ fontSize: 11.5, fontWeight: 600, color: "var(--success)", background: "var(--success-bg)", border: "1px solid #6EE7B7", borderRadius: "var(--r-sm)", padding: "3px 10px" }}>
               Completado
             </span>
           )}
           <button
             onClick={onClose}
-            style={{ width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", borderRadius: 6, cursor: "pointer", color: "#94A3B8" }}
-            onMouseEnter={e => { e.currentTarget.style.background = "#F1F5F9"; }}
-            onMouseLeave={e => { e.currentTarget.style.background = "none"; }}
+            style={{ width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", borderRadius: "var(--r-sm)", cursor: "pointer", color: "var(--fg-4)" }}
+            onMouseEnter={e => { e.currentTarget.style.background = "var(--surface-hover)"; }}
+            onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}
           >
             <X size={16} />
           </button>
@@ -3317,7 +3346,7 @@ function ProcEjecucionModal({
         {/* Body */}
         <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "14px 20px 20px" }}>
           {pasos.length === 0 ? (
-            <div style={{ textAlign: "center", padding: "32px 0", color: "#94A3B8", fontSize: 13 }}>Sin campos definidos</div>
+            <div style={{ textAlign: "center", padding: "32px 0", color: "var(--fg-4)", fontSize: 13 }}>Sin campos definidos</div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               {pasos.map((paso, idx) => {
@@ -3332,8 +3361,8 @@ function ProcEjecucionModal({
                   <div
                     key={paso.id}
                     style={{
-                      border: `1px solid ${answered ? "#D1FAE5" : "#E2E8F0"}`,
-                      borderRadius: 10, background: answered ? "#F0FDF4" : "#fff",
+                      border: `1px solid ${answered ? "var(--success-bg)" : "var(--border)"}`,
+                      borderRadius: "var(--r-md)", background: answered ? "var(--success-bg)" : "var(--surface-1)",
                       overflow: "hidden",
                     }}
                   >
@@ -3341,22 +3370,22 @@ function ProcEjecucionModal({
                       {/* Step header */}
                       <div style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: (paso.descripcion || !isInfoOnly) ? 8 : 0 }}>
                         <span style={{
-                          width: 26, height: 26, borderRadius: 6, flexShrink: 0,
-                          background: answered ? "#D1FAE5" : meta.color + "15",
-                          color: answered ? "#10B981" : meta.color,
+                          width: 26, height: 26, borderRadius: "var(--r-sm)", flexShrink: 0,
+                          background: answered ? "var(--success-bg)" : meta.color + "15",
+                          color: answered ? "var(--success)" : meta.color,
                           display: "flex", alignItems: "center", justifyContent: "center",
                         }}>
                           {answered ? <Check size={13} /> : meta.icon}
                         </span>
                         <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: 13.5, fontWeight: 600, color: "#0F172A", lineHeight: 1.3 }}>
+                          <div style={{ fontSize: 13.5, fontWeight: 600, color: "var(--fg-1)", lineHeight: 1.3 }}>
                             {idx + 1}. {paso.titulo}
                             {!paso.requerido && !isInfoOnly && (
-                              <span style={{ fontSize: 11, color: "#94A3B8", fontWeight: 400, marginLeft: 6 }}>(opcional)</span>
+                              <span style={{ fontSize: 11, color: "var(--fg-4)", fontWeight: 400, marginLeft: 6 }}>(opcional)</span>
                             )}
                           </div>
                           {paso.descripcion && (
-                            <div style={{ fontSize: 12.5, color: "#64748B", lineHeight: 1.5, marginTop: 3 }}>{paso.descripcion}</div>
+                            <div style={{ fontSize: 12.5, color: "var(--fg-2)", lineHeight: 1.5, marginTop: 3 }}>{paso.descripcion}</div>
                           )}
                         </div>
                       </div>
@@ -3388,8 +3417,8 @@ function ProcEjecucionModal({
 
         {/* Footer */}
         {!isCompleted && (
-          <div style={{ padding: "12px 20px", borderTop: "1px solid #E2E8F0", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "space-between", background: "#F8FAFC" }}>
-            <div style={{ fontSize: 12, color: "#94A3B8" }}>
+          <div style={{ padding: "12px 20px", borderTop: "1px solid var(--border)", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "space-between", background: "var(--surface-0)" }}>
+            <div style={{ fontSize: 12, color: "var(--fg-4)" }}>
               {answeredRequired.length}/{allRequired.length} campos requeridos completados
             </div>
             <button
@@ -3397,9 +3426,9 @@ function ProcEjecucionModal({
               disabled={!canComplete || completingEjec}
               style={{
                 height: 36, padding: "0 18px",
-                background: canComplete ? "linear-gradient(135deg, #10B981, #059669)" : "#E2E8F0",
-                border: "none", borderRadius: 8, cursor: canComplete ? "pointer" : "default",
-                fontSize: 13, fontWeight: 600, color: canComplete ? "#fff" : "#94A3B8",
+                background: canComplete ? "linear-gradient(135deg, #10B981, #059669)" : "var(--border)",
+                border: "none", borderRadius: "var(--r-md)", cursor: canComplete ? "pointer" : "default",
+                fontSize: 13, fontWeight: 600, color: canComplete ? "var(--fg-on-brand)" : "var(--fg-4)",
                 fontFamily: "inherit", display: "flex", alignItems: "center", gap: 6,
               }}
             >

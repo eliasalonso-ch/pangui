@@ -29,12 +29,12 @@ const TIPO_ICON: Record<string, React.ElementType> = {
 };
 
 const TIPO_COLOR: Record<string, string> = {
-  emergencia: "#EF4444",
-  ot: "#6366F1",
-  preventivo: "#3B82F6",
-  inventario: "#F59E0B",
-  solicitud_materiales: "#F97316",
-  tipo_trabajo_actualizado: "#1D4ED8",
+  emergencia: "var(--danger)",
+  ot: "var(--brand)",
+  preventivo: "var(--brand)",
+  inventario: "var(--warning)",
+  solicitud_materiales: "var(--warning)",
+  tipo_trabajo_actualizado: "var(--brand)",
 };
 
 function formatTime(iso: string) {
@@ -94,22 +94,23 @@ export default function NotificacionesPage() {
   const unread = notifs.filter(n => !n.leida).length;
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100dvh", overflow: "hidden", background: "#fff" }}>
+    <div style={{ display: "flex", flexDirection: "column", height: "100dvh", overflow: "hidden", background: "var(--surface-0)" }}>
 
       {/* Header */}
       <div style={{
-        flexShrink: 0, borderBottom: "1px solid #E5E7EB",
+        flexShrink: 0, borderBottom: "1px solid var(--border)",
         padding: "0 24px", height: 56,
         display: "flex", alignItems: "center", justifyContent: "space-between",
+        background: "var(--surface-1)",
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <Bell size={20} style={{ color: "#273D88" }} />
-          <h1 style={{ fontSize: 20, fontWeight: 700, color: "#1E2429", margin: 0, letterSpacing: "-0.3px" }}>
+          <Bell size={20} style={{ color: "var(--brand)" }} />
+          <h1 style={{ fontSize: 20, fontWeight: 700, color: "var(--fg-1)", margin: 0, letterSpacing: "-0.3px" }}>
             Notificaciones
           </h1>
           {unread > 0 && (
             <span style={{
-              background: "#EF4444", color: "#fff",
+              background: "var(--danger)", color: "var(--fg-on-brand)",
               fontSize: 11, fontWeight: 700,
               borderRadius: 10, padding: "1px 7px",
               lineHeight: "18px",
@@ -125,8 +126,8 @@ export default function NotificacionesPage() {
             style={{
               display: "flex", alignItems: "center", gap: 5,
               height: 30, padding: "0 12px",
-              background: "none", border: "1px solid #E5E7EB", borderRadius: 6,
-              fontSize: 12, color: "#6B7280", cursor: "pointer", fontFamily: "inherit",
+              background: "none", border: "1px solid var(--border)", borderRadius: 6,
+              fontSize: 12, color: "var(--fg-3)", cursor: "pointer", fontFamily: "inherit",
             }}
           >
             <Trash2 size={13} />
@@ -138,14 +139,14 @@ export default function NotificacionesPage() {
       {/* Body */}
       <div style={{ flex: 1, overflowY: "auto" }}>
         {loading ? (
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: 200, gap: 8, color: "#9CA3AF" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: 200, gap: 8, color: "var(--fg-4)" }}>
             <Loader2 size={16} className="animate-spin" />
             <span style={{ fontSize: 13 }}>Cargando…</span>
           </div>
         ) : notifs.length === 0 ? (
           <div style={{
             display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-            height: 300, gap: 12, color: "#9CA3AF",
+            height: 300, gap: 12, color: "var(--fg-4)",
           }}>
             <CheckCheck size={40} style={{ opacity: 0.2 }} />
             <p style={{ fontSize: 14, margin: 0, textAlign: "center", lineHeight: 1.6 }}>
@@ -156,14 +157,14 @@ export default function NotificacionesPage() {
           <div>
             {notifs.map(n => {
               const Icon = TIPO_ICON[n.tipo] ?? Info;
-              const color = TIPO_COLOR[n.tipo] ?? "#6B7280";
+              const color = TIPO_COLOR[n.tipo] ?? "var(--fg-3)";
               return (
                 <div
                   key={n.id}
                   style={{
                     display: "flex", alignItems: "flex-start",
-                    borderBottom: "1px solid #F3F4F6",
-                    background: n.leida ? "#fff" : "#F8F9FF",
+                    borderBottom: "1px solid var(--border)",
+                    background: n.leida ? "var(--surface-1)" : "var(--brand-tint)",
                   }}
                 >
                   <button
@@ -190,15 +191,15 @@ export default function NotificacionesPage() {
                       <Icon size={16} />
                     </span>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <p style={{ fontSize: 13, fontWeight: 600, color: "#111827", margin: 0, lineHeight: 1.4 }}>
+                      <p style={{ fontSize: 13, fontWeight: 600, color: "var(--fg-1)", margin: 0, lineHeight: 1.4 }}>
                         {n.titulo}
                       </p>
                       {n.mensaje && (
-                        <p style={{ fontSize: 12, color: "#6B7280", margin: "2px 0 0", lineHeight: 1.4 }}>
+                        <p style={{ fontSize: 12, color: "var(--fg-3)", margin: "2px 0 0", lineHeight: 1.4 }}>
                           {n.mensaje}
                         </p>
                       )}
-                      <p style={{ fontSize: 11, color: "#9CA3AF", margin: "4px 0 0" }}>
+                      <p style={{ fontSize: 11, color: "var(--fg-4)", margin: "4px 0 0" }}>
                         {formatTime(n.created_at)}
                       </p>
                     </div>
@@ -211,10 +212,10 @@ export default function NotificacionesPage() {
                       width: 36, height: 36, margin: "10px 12px 10px 0", flexShrink: 0,
                       display: "flex", alignItems: "center", justifyContent: "center",
                       background: "none", border: "none", borderRadius: 6,
-                      cursor: "pointer", color: "#D1D5DB",
+                      cursor: "pointer", color: "var(--fg-4)",
                     }}
-                    onMouseEnter={e => { e.currentTarget.style.color = "#EF4444"; e.currentTarget.style.background = "#FEF2F2"; }}
-                    onMouseLeave={e => { e.currentTarget.style.color = "#D1D5DB"; e.currentTarget.style.background = "none"; }}
+                    onMouseEnter={e => { e.currentTarget.style.color = "var(--danger)"; e.currentTarget.style.background = "var(--danger-bg)"; }}
+                    onMouseLeave={e => { e.currentTarget.style.color = "var(--fg-4)"; e.currentTarget.style.background = "none"; }}
                   >
                     <Trash2 size={14} />
                   </button>

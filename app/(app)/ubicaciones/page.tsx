@@ -51,7 +51,7 @@ function Avatar({ src, name, size = 40 }: { src: string | null; name: string; si
   return (
     <div style={{
       width: size, height: size, borderRadius: 8, flexShrink: 0,
-      background: "#EFF6FF", color: "#1E3A8A",
+      background: "var(--brand-tint)", color: "var(--brand)",
       display: "flex", alignItems: "center", justifyContent: "center",
       fontSize: size * 0.35, fontWeight: 700,
     }}>
@@ -62,7 +62,7 @@ function Avatar({ src, name, size = 40 }: { src: string | null; name: string; si
 
 function FieldLabel({ children }: { children: React.ReactNode }) {
   return (
-    <p style={{ fontSize: 11, fontWeight: 600, color: "#9CA3AF", textTransform: "uppercase", letterSpacing: "0.06em", margin: "0 0 5px" }}>
+    <p style={{ fontSize: 11, fontWeight: 600, color: "var(--fg-4)", textTransform: "uppercase", letterSpacing: "0.06em", margin: "0 0 5px" }}>
       {children}
     </p>
   );
@@ -80,13 +80,13 @@ function FieldInput({
       disabled={disabled}
       style={{
         width: "100%", height: 36, padding: "0 10px",
-        border: "1px solid #E2E8F0", borderRadius: 6,
-        fontSize: 13, color: "#0F172A", outline: "none",
-        fontFamily: "inherit", background: disabled ? "#F9FAFB" : "#fff",
+        border: "1px solid var(--border)", borderRadius: 6,
+        fontSize: 13, color: "var(--fg-1)", outline: "none",
+        fontFamily: "inherit", background: disabled ? "var(--surface-0)" : "var(--surface-1)",
         boxSizing: "border-box",
       }}
-      onFocus={e => { e.currentTarget.style.borderColor = "#1E3A8A"; }}
-      onBlur={e => { e.currentTarget.style.borderColor = "#E2E8F0"; }}
+      onFocus={e => { e.currentTarget.style.borderColor = "var(--brand)"; }}
+      onBlur={e => { e.currentTarget.style.borderColor = "var(--border)"; }}
     />
   );
 }
@@ -102,13 +102,13 @@ function FieldTextarea({
       rows={rows}
       style={{
         width: "100%", padding: "8px 10px",
-        border: "1px solid #E2E8F0", borderRadius: 6,
-        fontSize: 13, color: "#0F172A", outline: "none",
-        fontFamily: "inherit", background: "#fff", resize: "vertical",
+        border: "1px solid var(--border)", borderRadius: 6,
+        fontSize: 13, color: "var(--fg-1)", outline: "none",
+        fontFamily: "inherit", background: "var(--surface-1)", resize: "vertical",
         boxSizing: "border-box",
       }}
-      onFocus={e => { e.currentTarget.style.borderColor = "#1E3A8A"; }}
-      onBlur={e => { e.currentTarget.style.borderColor = "#E2E8F0"; }}
+      onFocus={e => { e.currentTarget.style.borderColor = "var(--brand)"; }}
+      onBlur={e => { e.currentTarget.style.borderColor = "var(--border)"; }}
     />
   );
 }
@@ -130,9 +130,9 @@ function Btn({
     opacity: disabled ? 0.6 : 1,
   };
   const styles: Record<string, React.CSSProperties> = {
-    primary: { background: "#1E3A8A", color: "#fff" },
-    ghost:   { background: "#F3F4F6", color: "#374151" },
-    danger:  { background: "#FEF2F2", color: "#DC2626" },
+    primary: { background: "var(--brand)", color: "var(--fg-on-brand)" },
+    ghost:   { background: "var(--surface-hover)", color: "var(--fg-2)" },
+    danger:  { background: "var(--danger-bg)", color: "var(--danger)" },
   };
   return (
     <button type="button" onClick={onClick} disabled={disabled} style={{ ...base, ...styles[variant], ...extraStyle }}>
@@ -157,16 +157,16 @@ function ImageUpload({
     <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
       <div style={{
         width: 80, height: 80, borderRadius: 10,
-        border: "1px dashed #D1D5DB", overflow: "hidden",
+        border: "1px dashed var(--border)", overflow: "hidden",
         display: "flex", alignItems: "center", justifyContent: "center",
-        background: "#F9FAFB", flexShrink: 0, position: "relative",
+        background: "var(--surface-0)", flexShrink: 0, position: "relative",
       }}>
         {uploading ? (
-          <Loader2 size={20} className="animate-spin" style={{ color: "#9CA3AF" }} />
+          <Loader2 size={20} className="animate-spin" style={{ color: "var(--fg-4)" }} />
         ) : src ? (
           <img src={src} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
         ) : (
-          <ImageIcon size={24} style={{ color: "#D1D5DB" }} />
+          <ImageIcon size={24} style={{ color: "var(--fg-4)" }} />
         )}
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
@@ -403,21 +403,21 @@ export default function UbicacionesPage() {
 
   if (loading) {
     return (
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", color: "#9CA3AF", gap: 8 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", color: "var(--fg-4)", gap: 8 }}>
         <Loader2 size={18} className="animate-spin" /> Cargando…
       </div>
     );
   }
 
   return (
-    <div style={{ display: "flex", height: "100dvh", overflow: "hidden", background: "#fff" }}>
+    <div style={{ display: "flex", height: "100dvh", overflow: "hidden", background: "var(--surface-1)" }}>
 
       {/* Main list */}
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, borderRight: panel ? "1px solid #E2E8F0" : "none" }}>
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, borderRight: panel ? "1px solid var(--border)" : "none" }}>
 
         {/* Header */}
-        <div style={{ flexShrink: 0, borderBottom: "1px solid #E2E8F0", padding: "0 24px", height: 56, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <h1 style={{ fontSize: 18, fontWeight: 700, color: "#0F172A", margin: 0 }}>Ubicaciones</h1>
+        <div style={{ flexShrink: 0, borderBottom: "1px solid var(--border)", padding: "0 24px", height: 56, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <h1 style={{ fontSize: 18, fontWeight: 700, color: "var(--fg-1)", margin: 0 }}>Ubicaciones</h1>
           {canEdit && (
             <Btn onClick={() => openCreate(section)}>
               <Plus size={14} />
@@ -429,7 +429,7 @@ export default function UbicacionesPage() {
         </div>
 
         {/* Tabs */}
-        <div style={{ flexShrink: 0, borderBottom: "1px solid #E2E8F0", padding: "0 24px", display: "flex", gap: 0 }}>
+        <div style={{ flexShrink: 0, borderBottom: "1px solid var(--border)", padding: "0 24px", display: "flex", gap: 0 }}>
           {([["ubicaciones", "Ubicaciones"], ["lugares", "Lugares"], ["sociedades", "Empresas"]] as [Section, string][]).map(([key, label]) => (
             <button
               key={key}
@@ -438,8 +438,8 @@ export default function UbicacionesPage() {
               style={{
                 height: 40, padding: "0 16px",
                 background: "none", border: "none",
-                borderBottom: section === key ? "2px solid #1E3A8A" : "2px solid transparent",
-                color: section === key ? "#1E3A8A" : "#9CA3AF",
+                borderBottom: section === key ? "2px solid var(--brand)" : "2px solid transparent",
+                color: section === key ? "var(--brand)" : "var(--fg-4)",
                 fontSize: 13, fontWeight: section === key ? 600 : 500,
                 cursor: "pointer", fontFamily: "inherit",
                 marginBottom: -1, transition: "color 0.1s",
@@ -451,9 +451,9 @@ export default function UbicacionesPage() {
         </div>
 
         {/* Search */}
-        <div style={{ flexShrink: 0, padding: "12px 24px", borderBottom: "1px solid #F1F3F5" }}>
+        <div style={{ flexShrink: 0, padding: "12px 24px", borderBottom: "1px solid var(--border)" }}>
           <div style={{ position: "relative", maxWidth: 360 }}>
-            <Search size={14} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "#9CA3AF" }} />
+            <Search size={14} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "var(--fg-4)" }} />
             <input
               type="text"
               value={search}
@@ -461,14 +461,14 @@ export default function UbicacionesPage() {
               placeholder="Buscar…"
               style={{
                 width: "100%", height: 34, padding: "0 10px 0 32px",
-                border: "1px solid #E2E8F0", borderRadius: 6,
-                fontSize: 13, color: "#0F172A", outline: "none",
-                fontFamily: "inherit", background: "#fff", boxSizing: "border-box",
+                border: "1px solid var(--border)", borderRadius: 6,
+                fontSize: 13, color: "var(--fg-1)", outline: "none",
+                fontFamily: "inherit", background: "var(--surface-1)", boxSizing: "border-box",
               }}
             />
             {search && (
               <button type="button" onClick={() => setSearch("")}
-                style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "#9CA3AF", display: "flex" }}>
+                style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "var(--fg-4)", display: "flex" }}>
                 <X size={13} />
               </button>
             )}
@@ -520,12 +520,12 @@ export default function UbicacionesPage() {
 
       {/* Edit / Create panel */}
       {panel && (
-        <div style={{ width: 380, flexShrink: 0, display: "flex", flexDirection: "column", background: "#fff" }}>
+        <div style={{ width: 380, flexShrink: 0, display: "flex", flexDirection: "column", background: "var(--surface-1)" }}>
           {/* Panel header */}
-          <div style={{ flexShrink: 0, borderBottom: "1px solid #E2E8F0", padding: "0 20px", height: 56, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <span style={{ fontSize: 15, fontWeight: 700, color: "#0F172A" }}>{panelTitle}</span>
+          <div style={{ flexShrink: 0, borderBottom: "1px solid var(--border)", padding: "0 20px", height: 56, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <span style={{ fontSize: 15, fontWeight: 700, color: "var(--fg-1)" }}>{panelTitle}</span>
             <button type="button" onClick={() => setPanel(null)}
-              style={{ width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", borderRadius: 6, cursor: "pointer", color: "#9CA3AF" }}>
+              style={{ width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", borderRadius: 6, cursor: "pointer", color: "var(--fg-4)" }}>
               <X size={15} />
             </button>
           </div>
@@ -572,9 +572,9 @@ export default function UbicacionesPage() {
                       onChange={e => setForm(f => ({ ...f, sociedad_id: e.target.value }))}
                       style={{
                         width: "100%", height: 36, padding: "0 10px",
-                        border: "1px solid #E2E8F0", borderRadius: 6,
-                        fontSize: 13, color: form.sociedad_id ? "#0F172A" : "#9CA3AF",
-                        outline: "none", fontFamily: "inherit", background: "#fff",
+                        border: "1px solid var(--border)", borderRadius: 6,
+                        fontSize: 13, color: form.sociedad_id ? "var(--fg-1)" : "var(--fg-4)",
+                        outline: "none", fontFamily: "inherit", background: "var(--surface-1)",
                         boxSizing: "border-box", cursor: "pointer",
                       }}
                     >
@@ -607,9 +607,9 @@ export default function UbicacionesPage() {
                       onChange={e => setForm(f => ({ ...f, ubicacion_id: e.target.value }))}
                       style={{
                         width: "100%", height: 36, padding: "0 10px",
-                        border: "1px solid #E2E8F0", borderRadius: 6,
-                        fontSize: 13, color: form.ubicacion_id ? "#0F172A" : "#9CA3AF",
-                        outline: "none", fontFamily: "inherit", background: "#fff",
+                        border: "1px solid var(--border)", borderRadius: 6,
+                        fontSize: 13, color: form.ubicacion_id ? "var(--fg-1)" : "var(--fg-4)",
+                        outline: "none", fontFamily: "inherit", background: "var(--surface-1)",
                         boxSizing: "border-box", cursor: "pointer",
                       }}
                     >
@@ -632,7 +632,7 @@ export default function UbicacionesPage() {
           </div>
 
           {/* Panel footer */}
-          <div style={{ flexShrink: 0, borderTop: "1px solid #E2E8F0", padding: "14px 20px", display: "flex", justifyContent: "flex-end", gap: 8 }}>
+          <div style={{ flexShrink: 0, borderTop: "1px solid var(--border)", padding: "14px 20px", display: "flex", justifyContent: "flex-end", gap: 8 }}>
             <Btn variant="ghost" onClick={() => setPanel(null)}>Cancelar</Btn>
             <Btn onClick={handleSave} disabled={!canSave}>
               {saving ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
@@ -651,17 +651,17 @@ export default function UbicacionesPage() {
           />
           <div style={{
             position: "fixed", top: "50%", left: "50%", transform: "translate(-50%,-50%)",
-            zIndex: 101, background: "#fff", borderRadius: 12,
-            boxShadow: "0 8px 32px rgba(15,23,42,0.18)",
+            zIndex: 101, background: "var(--surface-1)", borderRadius: 12,
+            boxShadow: "var(--shadow-lg)",
             padding: "28px 28px 22px", width: 380, maxWidth: "90vw",
           }}>
             <div style={{ display: "flex", alignItems: "flex-start", gap: 14, marginBottom: 20 }}>
-              <div style={{ width: 40, height: 40, borderRadius: 10, background: "#FEF2F2", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                <Trash2 size={18} style={{ color: "#DC2626" }} />
+              <div style={{ width: 40, height: 40, borderRadius: 10, background: "var(--danger-bg)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                <Trash2 size={18} style={{ color: "var(--danger)" }} />
               </div>
               <div>
-                <p style={{ fontSize: 15, fontWeight: 700, color: "#111827", margin: "0 0 4px" }}>¿Desactivar?</p>
-                <p style={{ fontSize: 13, color: "#6B7280", margin: 0 }}>
+                <p style={{ fontSize: 15, fontWeight: 700, color: "var(--fg-1)", margin: "0 0 4px" }}>¿Desactivar?</p>
+                <p style={{ fontSize: 13, color: "var(--fg-3)", margin: 0 }}>
                   Se desactivará <strong>"{confirmDel.name}"</strong>. No se eliminará, pero dejará de aparecer.
                 </p>
               </div>
@@ -694,30 +694,30 @@ function ListRow({
   return (
     <div style={{
       display: "flex", alignItems: "center", gap: 12,
-      padding: "12px 24px", borderBottom: "1px solid #F9FAFB",
+      padding: "12px 24px", borderBottom: "1px solid var(--border)",
       transition: "background 0.1s",
     }}
-      onMouseEnter={e => { e.currentTarget.style.background = "#FAFAFA"; }}
+      onMouseEnter={e => { e.currentTarget.style.background = "var(--surface-hover)"; }}
       onMouseLeave={e => { e.currentTarget.style.background = ""; }}
     >
       <Avatar src={img} name={name} size={42} />
       <div style={{ flex: 1, minWidth: 0 }}>
-        <p style={{ fontSize: 13.5, fontWeight: 600, color: "#111827", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{name}</p>
-        {sub && <p style={{ fontSize: 12, color: "#9CA3AF", margin: "2px 0 0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{sub}</p>}
+        <p style={{ fontSize: 13.5, fontWeight: 600, color: "var(--fg-1)", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{name}</p>
+        {sub && <p style={{ fontSize: 12, color: "var(--fg-4)", margin: "2px 0 0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{sub}</p>}
       </div>
       {onEdit && (
         <button type="button" onClick={onEdit}
-          style={{ width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", borderRadius: 6, cursor: "pointer", color: "#9CA3AF" }}
-          onMouseEnter={e => { e.currentTarget.style.background = "#F3F4F6"; e.currentTarget.style.color = "#374151"; }}
-          onMouseLeave={e => { e.currentTarget.style.background = "none"; e.currentTarget.style.color = "#9CA3AF"; }}>
+          style={{ width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", borderRadius: 6, cursor: "pointer", color: "var(--fg-4)" }}
+          onMouseEnter={e => { e.currentTarget.style.background = "var(--surface-hover)"; e.currentTarget.style.color = "var(--fg-2)"; }}
+          onMouseLeave={e => { e.currentTarget.style.background = "none"; e.currentTarget.style.color = "var(--fg-4)"; }}>
           <Pencil size={14} />
         </button>
       )}
       {onDelete && (
         <button type="button" onClick={onDelete}
-          style={{ width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", borderRadius: 6, cursor: "pointer", color: "#9CA3AF" }}
-          onMouseEnter={e => { e.currentTarget.style.background = "#FEF2F2"; e.currentTarget.style.color = "#DC2626"; }}
-          onMouseLeave={e => { e.currentTarget.style.background = "none"; e.currentTarget.style.color = "#9CA3AF"; }}>
+          style={{ width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", borderRadius: 6, cursor: "pointer", color: "var(--fg-4)" }}
+          onMouseEnter={e => { e.currentTarget.style.background = "var(--danger-bg)"; e.currentTarget.style.color = "var(--danger)"; }}
+          onMouseLeave={e => { e.currentTarget.style.background = "none"; e.currentTarget.style.color = "var(--fg-4)"; }}>
           <Trash2 size={14} />
         </button>
       )}
@@ -727,7 +727,7 @@ function ListRow({
 
 function Empty({ label }: { label: string }) {
   return (
-    <div style={{ padding: "48px 24px", textAlign: "center", color: "#C4CDD6", fontSize: 13 }}>
+    <div style={{ padding: "48px 24px", textAlign: "center", color: "var(--fg-4)", fontSize: 13 }}>
       {label}
     </div>
   );

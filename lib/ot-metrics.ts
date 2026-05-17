@@ -34,12 +34,14 @@ export function getResponseTime(ot: OTLifecycle): number | null {
 
 /**
  * Hours from OT creation to completion.
- * Uses updated_at as completedAt proxy (only meaningful when estado = "completado").
+ * Prefers fecha_termino (set by completarOrden); falls back to updated_at.
  * Returns null if not yet completed.
  */
 export function getResolutionTime(ot: OTLifecycle): number | null {
-  if (ot.estado !== "completado" || !ot.updated_at) return null;
-  return msToHours(new Date(ot.updated_at).getTime() - new Date(ot.created_at).getTime());
+  if (ot.estado !== "completado") return null;
+  const completedAt = ot.fecha_termino ?? ot.updated_at;
+  if (!completedAt) return null;
+  return msToHours(new Date(completedAt).getTime() - new Date(ot.created_at).getTime());
 }
 
 /**
@@ -59,8 +61,9 @@ export function getBlockedDuration(ot: OTLifecycle): number | null {
   if (working === null) return null;
 
   // If completed: total elapsed = created → completed
-  if (ot.estado === "completado" && ot.updated_at) {
-    const total = msToHours(new Date(ot.updated_at).getTime() - new Date(ot.created_at).getTime());
+  const completedAt = ot.fecha_termino ?? ot.updated_at;
+  if (ot.estado === "completado" && completedAt) {
+    const total = msToHours(new Date(completedAt).getTime() - new Date(ot.created_at).getTime());
     return Math.max(0, total - working);
   }
 
@@ -161,18 +164,19 @@ export function avgResolutionTime(ots: OTLifecycle[]): number {
 }
 
 /**
- * First-Time Fix Rate: % of completed OTs whose asset had only one reactive
- * completion in the period (proxy for "resolved without repeat visit").
+ * First-Time Fix Rate: % of completed reactive OTs whose asset had only one
+ * reactive completion in the period (proxy for "resolved without repeat visit").
+ * Preventive completions are excluded — they inflate FTFR artificially.
  */
 export function calcFTFR(ots: (OTLifecycle & { activo_id: string | null; tipo_trabajo: string | null })[]): number {
-  const completed = ots.filter(o => o.estado === "completado");
-  if (completed.length === 0) return 0;
+  const reactiveCompleted = ots.filter(o => o.estado === "completado" && o.tipo_trabajo === "reactiva");
+  if (reactiveCompleted.length === 0) return 0;
   const assetCount: Record<string, number> = {};
-  completed.forEach(o => {
+  reactiveCompleted.forEach(o => {
     if (o.activo_id) assetCount[o.activo_id] = (assetCount[o.activo_id] ?? 0) + 1;
   });
-  const singleFix = completed.filter(o => !o.activo_id || assetCount[o.activo_id] === 1).length;
-  return Math.round((singleFix / completed.length) * 100);
+  const singleFix = reactiveCompleted.filter(o => !o.activo_id || assetCount[o.activo_id] === 1).length;
+  return Math.round((singleFix / reactiveCompleted.length) * 100);
 }
 
 // ── Internal ──────────────────────────────────────────────────────────────────

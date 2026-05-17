@@ -6,21 +6,27 @@ import { Clock, MapPin, Copy, Check as CheckIcon, AlertCircle, UserPlus, X as XI
 import { parseDescMeta, updateOrden } from "@/lib/ordenes-api";
 import type { OrdenListItem, Usuario, Estado, Prioridad } from "@/types/ordenes";
 
+// Status and priority now use CSS custom properties from v2 token system
 const ESTADO: Record<Estado, { label: string; bg: string; color: string; dot: string }> = {
-  pendiente:   { label: "Sin asignar", bg: "#EFF6FF", color: "#1D4ED8", dot: "#3B82F6" },
-  en_espera:   { label: "En espera",   bg: "#FFF7ED", color: "#C2410C", dot: "#F97316" },
-  en_curso:    { label: "En curso",    bg: "#F0FDF4", color: "#15803D", dot: "#22C55E" },
-  completado:  { label: "Completada",  bg: "#F0FDF4", color: "#166534", dot: "#16A34A" },
+  pendiente:   { label: "Sin asignar", bg: "var(--st-open-bg)",     color: "var(--st-open-fg)",     dot: "var(--st-open-dot)"     },
+  en_espera:   { label: "En espera",   bg: "var(--st-wait-bg)",     color: "var(--st-wait-fg)",     dot: "var(--st-wait-dot)"     },
+  en_curso:    { label: "En curso",    bg: "var(--st-progress-bg)", color: "var(--st-progress-fg)", dot: "var(--st-progress-dot)" },
+  completado:  { label: "Completada",  bg: "var(--st-done-bg)",     color: "var(--st-done-fg)",     dot: "var(--st-done-dot)"     },
 };
 
-const ESTADO_ASIGNADA = { label: "Asignada", bg: "#F0FDF4", color: "#15803D", dot: "#22C55E" };
+const ESTADO_ASIGNADA = {
+  label: "Asignada",
+  bg:    "var(--st-progress-bg)",
+  color: "var(--st-progress-fg)",
+  dot:   "var(--st-progress-dot)",
+};
 
 const PRIORIDAD: Record<Prioridad, { label: string; bg: string; color: string }> = {
-  ninguna: { label: "",        bg: "transparent", color: "transparent" },
-  baja:    { label: "Baja",    bg: "#F1F5F9",     color: "#64748B" },
-  media:   { label: "Media",   bg: "#EFF6FF",     color: "#2563EB" },
-  alta:    { label: "Alta",    bg: "#FFF7ED",     color: "#C2410C" },
-  urgente: { label: "Urgente", bg: "#FEF2F2",     color: "#DC2626" },
+  ninguna: { label: "",        bg: "transparent",          color: "transparent"       },
+  baja:    { label: "Baja",    bg: "var(--surface-hover)", color: "var(--pr-low)"     },
+  media:   { label: "Media",   bg: "var(--brand-tint)",    color: "var(--pr-medium)"  },
+  alta:    { label: "Alta",    bg: "var(--st-wait-bg)",    color: "var(--pr-high)"    },
+  urgente: { label: "Urgente", bg: "var(--danger-bg)",     color: "var(--pr-urgent)"  },
 };
 
 function timeAgo(dateStr: string): string {
@@ -97,18 +103,18 @@ function HoverTooltip({ label, body, children, triggerStyle }: {
             left: pos.left,
             width: 300,
             zIndex: 9999,
-            background: "#fff",
-            border: "1px solid #E2E8F0",
-            borderRadius: 10,
-            boxShadow: "0 8px 28px rgba(15,23,42,0.12), 0 2px 8px rgba(15,23,42,0.06)",
+            background: "var(--surface-2)",
+            border: "1px solid var(--border)",
+            borderRadius: "var(--r-md)",
+            boxShadow: "var(--shadow-md)",
             padding: "12px 14px",
             transform: pos.flipUp ? "translateY(-100%) translateY(-6px)" : "none",
           }}
         >
-          <p style={{ fontSize: 10, fontWeight: 700, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.07em", margin: "0 0 6px" }}>
+          <p style={{ fontSize: "var(--fs-2xs)", fontWeight: 700, color: "var(--fg-4)", textTransform: "uppercase", letterSpacing: "0.07em", margin: "0 0 6px" }}>
             {label}
           </p>
-          <p style={{ fontSize: 13, color: "#0F172A", lineHeight: 1.6, margin: 0, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+          <p style={{ fontSize: "var(--fs-sm)", color: "var(--fg-1)", lineHeight: 1.6, margin: 0, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
             {body}
           </p>
         </div>,
@@ -171,26 +177,26 @@ function AssignDropdown({ orden, usuarios, myId, onAssigned, onClose, anchorRect
         left,
         width: W,
         zIndex: 9999,
-        background: "#fff",
-        border: "1px solid #E2E8F0",
-        borderRadius: 10,
-        boxShadow: "0 8px 28px rgba(15,23,42,0.12), 0 2px 8px rgba(15,23,42,0.06)",
+        background: "var(--surface-2)",
+        border: "1px solid var(--border)",
+        borderRadius: "var(--r-md)",
+        boxShadow: "var(--shadow-md)",
         overflow: "hidden",
         transform: flipUp ? "translateY(-100%) translateY(-6px)" : "none",
       }}
       onMouseDown={e => e.stopPropagation()}
     >
-      <div style={{ padding: "8px 12px 6px", borderBottom: "1px solid #F1F5F9", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <span style={{ fontSize: 10, fontWeight: 700, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.07em" }}>
+      <div style={{ padding: "8px 12px 6px", borderBottom: "1px solid var(--divider)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <span style={{ fontSize: "var(--fs-2xs)", fontWeight: 700, color: "var(--fg-4)", textTransform: "uppercase", letterSpacing: "0.07em" }}>
           Asignar
         </span>
-        <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: "#94A3B8", padding: 2, display: "flex" }}>
+        <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--fg-4)", padding: 2, display: "flex" }}>
           <XIcon size={12} />
         </button>
       </div>
       <div style={{ maxHeight: 200, overflowY: "auto" }}>
         {usuarios.length === 0 && (
-          <p style={{ padding: "10px 12px", fontSize: 12, color: "#94A3B8", margin: 0 }}>Sin usuarios</p>
+          <p style={{ padding: "10px 12px", fontSize: "var(--fs-sm)", color: "var(--fg-4)", margin: 0 }}>Sin usuarios</p>
         )}
         {usuarios.map(u => {
           const isAssigned = currentIds.includes(u.id);
@@ -206,29 +212,29 @@ function AssignDropdown({ orden, usuarios, myId, onAssigned, onClose, anchorRect
                 alignItems: "center",
                 gap: 10,
                 padding: "8px 12px",
-                background: isAssigned ? "#EFF6FF" : "none",
+                background: isAssigned ? "var(--brand-tint)" : "none",
                 border: "none",
                 cursor: "pointer",
                 textAlign: "left",
                 opacity: isSaving ? 0.6 : 1,
-                transition: "background 0.1s",
+                transition: "background var(--dur-fast) var(--ease)",
               }}
-              onMouseEnter={e => { if (!isAssigned) e.currentTarget.style.background = "#F8FAFC"; }}
+              onMouseEnter={e => { if (!isAssigned) e.currentTarget.style.background = "var(--surface-hover)"; }}
               onMouseLeave={e => { if (!isAssigned) e.currentTarget.style.background = "none"; }}
             >
               <span style={{
                 width: 28, height: 28, borderRadius: "50%", flexShrink: 0,
-                background: isAssigned ? "linear-gradient(135deg,#1E3A8A,#2563EB)" : "#E2E8F0",
-                color: isAssigned ? "#fff" : "#64748B",
+                background: isAssigned ? "linear-gradient(135deg, var(--brand-active), var(--brand))" : "var(--surface-hover)",
+                color: isAssigned ? "var(--fg-on-brand)" : "var(--fg-3)",
                 display: "flex", alignItems: "center", justifyContent: "center",
-                fontSize: 10, fontWeight: 700,
+                fontSize: "var(--fs-2xs)", fontWeight: 700,
               }}>
                 {initials(u.nombre)}
               </span>
-              <span style={{ flex: 1, fontSize: 13, color: "#0F172A", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              <span style={{ flex: 1, fontSize: "var(--fs-sm)", color: "var(--fg-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                 {u.nombre}
               </span>
-              {isAssigned && <CheckIcon size={13} color="#2563EB" />}
+              {isAssigned && <CheckIcon size={13} color="var(--brand-fg)" />}
             </button>
           );
         })}
@@ -292,34 +298,34 @@ export default function OTRow({ orden, rowNumber, usuarios, isSelected, onClick,
       onClick={isPending ? undefined : onClick}
       style={{
         padding: "14px 20px",
-        background: isSelected ? "#EFF6FF" : "#fff",
-        borderBottom: "1px solid #E2E8F0",
-        borderLeft: isSelected ? "3px solid #2563EB" : "3px solid transparent",
+        background: isSelected ? "var(--brand-tint)" : "var(--surface-1)",
+        borderBottom: "1px solid var(--divider)",
+        borderLeft: isSelected ? "3px solid var(--brand)" : "3px solid transparent",
         cursor: isPending ? "default" : "pointer",
         opacity: isPending ? 0.55 : 1,
-        transition: "background 0.12s",
+        transition: "background var(--dur-fast) var(--ease)",
       }}
-      onMouseEnter={e => { if (!isSelected) e.currentTarget.style.background = "#F8FAFC"; }}
-      onMouseLeave={e => { if (!isSelected) e.currentTarget.style.background = "#fff"; }}
+      onMouseEnter={e => { if (!isSelected) e.currentTarget.style.background = "var(--surface-hover)"; }}
+      onMouseLeave={e => { if (!isSelected) e.currentTarget.style.background = "var(--surface-1)"; }}
     >
       {/* Top: row number + N°OT + due date */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 5 }}>
         <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <span style={{ fontSize: 10, fontWeight: 700, color: "#CBD5E1", minWidth: 16, textAlign: "right", flexShrink: 0 }}>
+          <span style={{ fontSize: "var(--fs-2xs)", fontWeight: 700, color: "var(--fg-4)", minWidth: 16, textAlign: "right", flexShrink: 0 }}>
             {rowNumber}
           </span>
           {meta.nOT && (
             <span style={{ display: "flex", alignItems: "center", gap: 3 }}>
-              <span style={{ fontSize: 11, fontWeight: 600, color: "#1E3A8A", fontFamily: "monospace", letterSpacing: "0.02em" }}>
+              <span style={{ fontSize: "var(--fs-xs)", fontWeight: 600, color: "var(--brand-fg)", fontFamily: "var(--font-mono)", letterSpacing: "0.02em" }}>
                 {meta.nOT}
               </span>
               <button
                 type="button"
                 onClick={copyNOT}
                 title="Copiar N° OT"
-                style={{ display: "flex", alignItems: "center", background: "none", border: "none", cursor: "pointer", padding: 2, color: copied ? "#16A34A" : "#CBD5E1", transition: "color 0.15s" }}
-                onMouseEnter={e => { if (!copied) e.currentTarget.style.color = "#94A3B8"; }}
-                onMouseLeave={e => { if (!copied) e.currentTarget.style.color = "#CBD5E1"; }}
+                style={{ display: "flex", alignItems: "center", background: "none", border: "none", cursor: "pointer", padding: 2, color: copied ? "var(--success)" : "var(--fg-4)", transition: "color var(--dur-fast) var(--ease)" }}
+                onMouseEnter={e => { if (!copied) e.currentTarget.style.color = "var(--fg-3)"; }}
+                onMouseLeave={e => { if (!copied) e.currentTarget.style.color = "var(--fg-4)"; }}
               >
                 {copied ? <CheckIcon size={10} /> : <Copy size={10} />}
               </button>
@@ -327,7 +333,7 @@ export default function OTRow({ orden, rowNumber, usuarios, isSelected, onClick,
           )}
         </span>
         {due && (
-          <span style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 11, fontWeight: 600, color: due.overdue ? "#DC2626" : "#D97706" }}>
+          <span style={{ display: "flex", alignItems: "center", gap: 3, fontSize: "var(--fs-xs)", fontWeight: 600, color: due.overdue ? "var(--danger)" : "var(--warning)" }}>
             {due.overdue && <AlertCircle size={11} />}
             <Clock size={10} />
             {due.text}
@@ -338,7 +344,7 @@ export default function OTRow({ orden, rowNumber, usuarios, isSelected, onClick,
       {/* Title */}
       <HoverTooltip label="Título" body={titulo} triggerStyle={{ margin: "0 0 6px" }}>
         <p style={{
-          fontSize: 14, fontWeight: 600, color: "#0F172A",
+          fontSize: "var(--fs-base)", fontWeight: 600, color: "var(--fg-1)",
           lineHeight: 1.4, margin: 0,
           display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden",
         }}>
@@ -350,7 +356,7 @@ export default function OTRow({ orden, rowNumber, usuarios, isSelected, onClick,
       {meta.descripcion && (
         <HoverTooltip label="Descripción" body={meta.descripcion} triggerStyle={{ margin: "0 0 6px" }}>
           <p style={{
-            fontSize: 12, color: "#64748B", margin: 0,
+            fontSize: "var(--fs-sm)", color: "var(--fg-2)", margin: 0,
             display: "-webkit-box", WebkitLineClamp: 1, WebkitBoxOrient: "vertical",
             overflow: "hidden", lineHeight: 1.5,
           }}>
@@ -361,8 +367,8 @@ export default function OTRow({ orden, rowNumber, usuarios, isSelected, onClick,
 
       {/* Hito */}
       {meta.hito && (
-        <p style={{ fontSize: 11, color: "#64748B", margin: "0 0 7px", display: "flex", alignItems: "center", gap: 4 }}>
-          <span style={{ color: "#94A3B8" }}>Hito:</span> {meta.hito}
+        <p style={{ fontSize: "var(--fs-xs)", color: "var(--fg-2)", margin: "0 0 7px", display: "flex", alignItems: "center", gap: 4 }}>
+          <span style={{ color: "var(--fg-4)" }}>Hito:</span> {meta.hito}
         </p>
       )}
 
@@ -373,8 +379,8 @@ export default function OTRow({ orden, rowNumber, usuarios, isSelected, onClick,
           {/* Status pill */}
           <span style={{
             display: "inline-flex", alignItems: "center", gap: 4,
-            fontSize: 11, fontWeight: 600, padding: "3px 8px",
-            background: estado.bg, color: estado.color, borderRadius: 6,
+            fontSize: "var(--fs-xs)", fontWeight: 600, padding: "3px 8px",
+            background: estado.bg, color: estado.color, borderRadius: "var(--r-sm)",
           }}>
             <span style={{ width: 5, height: 5, borderRadius: "50%", background: estado.dot, flexShrink: 0 }} />
             {estado.label}
@@ -383,8 +389,8 @@ export default function OTRow({ orden, rowNumber, usuarios, isSelected, onClick,
           {/* Priority */}
           {orden.prioridad !== "ninguna" && (
             <span style={{
-              fontSize: 11, fontWeight: 600, padding: "3px 8px",
-              background: prio.bg, color: prio.color, borderRadius: 6,
+              fontSize: "var(--fs-xs)", fontWeight: 600, padding: "3px 8px",
+              background: prio.bg, color: prio.color, borderRadius: "var(--r-sm)",
             }}>
               {prio.label}
             </span>
@@ -393,7 +399,7 @@ export default function OTRow({ orden, rowNumber, usuarios, isSelected, onClick,
           {/* Location */}
           {orden.ubicaciones?.edificio && (
             <HoverTooltip label="Ubicación" body={orden.ubicaciones.edificio}>
-              <span style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 11, color: "#64748B" }}>
+              <span style={{ display: "flex", alignItems: "center", gap: 3, fontSize: "var(--fs-xs)", color: "var(--fg-3)" }}>
                 <MapPin size={11} />
                 <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 120 }}>
                   {orden.ubicaciones.edificio}
@@ -405,9 +411,9 @@ export default function OTRow({ orden, rowNumber, usuarios, isSelected, onClick,
           {/* Category */}
           {orden.categorias_ot?.nombre && (
             <span style={{
-              fontSize: 11, fontWeight: 500, padding: "2px 7px", borderRadius: 6,
-              background: (orden.categorias_ot.color ?? "#64748B") + "20",
-              color: orden.categorias_ot.color ?? "#64748B",
+              fontSize: "var(--fs-xs)", fontWeight: 500, padding: "2px 7px", borderRadius: "var(--r-sm)",
+              background: (orden.categorias_ot.color ?? "var(--fg-3)") + "20",
+              color: orden.categorias_ot.color ?? "var(--fg-3)",
             }}>
               {orden.categorias_ot.icono && <span style={{ marginRight: 2 }}>{orden.categorias_ot.icono}</span>}
               {orden.categorias_ot.nombre}
@@ -417,7 +423,7 @@ export default function OTRow({ orden, rowNumber, usuarios, isSelected, onClick,
 
         {/* Right: time + avatars */}
         <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
-          <span suppressHydrationWarning style={{ fontSize: 11, color: "#94A3B8" }}>{timeAgo(orden.created_at)}</span>
+          <span suppressHydrationWarning style={{ fontSize: "var(--fs-xs)", color: "var(--fg-4)" }}>{timeAgo(orden.created_at)}</span>
 
           {/* Avatar trigger — always shown as a button when onAssigned is wired */}
           <button
@@ -433,9 +439,9 @@ export default function OTRow({ orden, rowNumber, usuarios, isSelected, onClick,
             {assigned.length === 0 ? (
               <span style={{
                 width: 26, height: 26, borderRadius: "50%",
-                border: "1.5px dashed #CBD5E1",
+                border: "1.5px dashed var(--border-strong)",
                 display: "flex", alignItems: "center", justifyContent: "center",
-                color: "#CBD5E1",
+                color: "var(--fg-4)",
               }}>
                 <UserPlus size={12} />
               </span>
@@ -447,8 +453,9 @@ export default function OTRow({ orden, rowNumber, usuarios, isSelected, onClick,
                     title={u.nombre}
                     style={{
                       width: 26, height: 26, borderRadius: "50%",
-                      background: "linear-gradient(135deg, #1E3A8A, #2563EB)", color: "#fff",
-                      border: "2px solid #fff",
+                      background: "linear-gradient(135deg, var(--brand-active), var(--brand))",
+                      color: "var(--fg-on-brand)",
+                      border: "2px solid var(--surface-1)",
                       display: "flex", alignItems: "center", justifyContent: "center",
                       fontSize: 9, fontWeight: 700, flexShrink: 0,
                       marginLeft: i > 0 ? -7 : 0,
@@ -460,8 +467,8 @@ export default function OTRow({ orden, rowNumber, usuarios, isSelected, onClick,
                 {assigned.length > 3 && (
                   <span style={{
                     width: 26, height: 26, borderRadius: "50%",
-                    background: "#E2E8F0", color: "#64748B",
-                    border: "2px solid #fff",
+                    background: "var(--surface-hover)", color: "var(--fg-2)",
+                    border: "2px solid var(--surface-1)",
                     display: "flex", alignItems: "center", justifyContent: "center",
                     fontSize: 9, fontWeight: 700, marginLeft: -7,
                   }}>
