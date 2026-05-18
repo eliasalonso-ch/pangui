@@ -149,6 +149,23 @@ const TIPO_PDF_MAP: Record<string, TipoTrabajo> = {
   mejora: "mejora",
 };
 
+const SPANISH_MONTHS: Record<string, string> = {
+  enero: "01", febrero: "02", marzo: "03", abril: "04",
+  mayo: "05", junio: "06", julio: "07", agosto: "08",
+  septiembre: "09", octubre: "10", noviembre: "11", diciembre: "12",
+};
+
+// Parse Spanish date like "Viernes 10 de Abril del 2026" → "2026-04-10"
+function parseSpanishDate(text: string): string {
+  const m = text.match(/(\d{1,2})\s+de\s+([a-záéíóú]+)\s+del?\s+(\d{4})/i);
+  if (!m) return "";
+  const day = m[1].padStart(2, "0");
+  const month = SPANISH_MONTHS[m[2].toLowerCase()];
+  const year = m[3];
+  if (!month) return "";
+  return `${year}-${month}-${day}`;
+}
+
 interface ParsedPDF {
   n_ot: string;
   solicitante: string;
@@ -159,6 +176,7 @@ interface ParsedPDF {
   sociedad_id: string;
   ubicacionText: string;
   lugarText: string;
+  fecha_inicio: string;
 }
 
 async function parseSolicitudPDF(file: File, sociedades: Sociedad[]): Promise<ParsedPDF> {
@@ -235,6 +253,12 @@ async function parseSolicitudPDF(file: File, sociedades: Sociedad[]): Promise<Pa
   // Tipo de trabajo
   const tipoPDF = lineField(fullText, "Tipo de Mantención").toLowerCase();
 
+  // Fecha del documento SF — match the first "Fecha  <Spanish date>" row.
+  // Avoid picking up "FECHA REGISTRO" from the BITÁCORA table by anchoring to
+  // the row that contains a recognisable Spanish weekday + day pattern.
+  const fechaRe = fullText.match(/\bFecha\s{2,}(\w+\s+\d{1,2}\s+de\s+\w+\s+del?\s+\d{4})/i);
+  const fechaISO = parseSpanishDate(fechaRe?.[1] ?? "");
+
   return {
     n_ot:          nOT,
     solicitante,
@@ -245,6 +269,7 @@ async function parseSolicitudPDF(file: File, sociedades: Sociedad[]): Promise<Pa
     sociedad_id:   fuzzyMatch(sociedadPDF, sociedades, s => s.nombre),
     ubicacionText: ubicPDF,
     lugarText:     lugarPDF,
+    fecha_inicio:  fechaISO,
   };
 }
 
@@ -1484,7 +1509,7 @@ export default function OTCrearPanel({
                 ref={adjuntoInputRef}
                 type="file"
                 multiple
-                accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.dwg,.dxf,.zip,image/*"
+                accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.dwg,.dxf,.zip,.mp3,.m4a,.wav,.ogg,.webm,image/*,audio/*"
                 style={{ display: "none" }}
                 onChange={e => {
                   const files = Array.from(e.target.files ?? []);
@@ -1507,7 +1532,7 @@ export default function OTCrearPanel({
                 onMouseLeave={e => { e.currentTarget.style.opacity = "1"; }}
               >
                 <Paperclip size={18} strokeWidth={1.5} />
-                <span style={{ fontSize: 12 }}>PDF, Word, Excel, TXT, CSV, DWG…</span>
+                <span style={{ fontSize: 12 }}>PDF, Word, Excel, TXT, CSV, DWG, MP3, M4A…</span>
               </button>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>

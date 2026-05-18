@@ -135,6 +135,8 @@ export interface ActividadOT {
   orden_id: string;
   tipo: ActividadTipo;
   comentario: string | null;
+  foto_url: string | null;
+  audio_url: string | null;
   usuario_id: string | null;
   created_at: string;
   usuario?: Pick<Usuario, "id" | "nombre"> | null;
@@ -203,7 +205,7 @@ export interface OrdenTrabajo {
 export type OrdenListItem = Pick<
   OrdenTrabajo,
   | "id" | "titulo" | "descripcion" | "estado" | "prioridad"
-  | "tipo" | "tipo_trabajo" | "clasificacion" | "fecha_termino" | "recurrencia"
+  | "tipo" | "tipo_trabajo" | "clasificacion" | "fecha_inicio" | "fecha_termino" | "recurrencia"
   | "created_at" | "categoria_id" | "ubicacion_id" | "activo_id"
   | "creado_por" | "asignados_ids" | "numero" | "parent_id"
   | "n_serie" | "solicitante" | "hito"

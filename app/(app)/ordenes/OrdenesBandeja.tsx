@@ -104,30 +104,30 @@ export default function OrdenesBandeja({
   const [exportConfigOpen, setExportConfigOpen] = useState(false);
 
   type ExportCol =
-    | "numero" | "n_serie" | "titulo" | "descripcion" | "estado" | "prioridad" | "tipo_trabajo"
-    | "solicitante" | "hito"
+    | "numero" | "n_serie" | "hito" | "estado" | "prioridad" | "tipo_trabajo"
+    | "descripcion" | "solicitante"
     | "categoria" | "ubicacion" | "activo" | "asignados" | "creado" | "fecha_limite" | "resumen"
-    | "hoja_calculo" | "materiales_inventario";
+    | "hoja_calculo" | "materiales_inventario" | "fotos";
 
   const EXPORT_COLS: { key: ExportCol; label: string; group: string }[] = [
-    { key: "numero",       label: "N° OT",              group: "Información general" },
-    { key: "n_serie",      label: "N° de serie / folio",group: "Información general" },
-    { key: "titulo",       label: "Título",              group: "Información general" },
-    { key: "descripcion",  label: "Descripción",         group: "Información general" },
-    { key: "solicitante",  label: "Solicitante",         group: "Información general" },
+    { key: "numero",       label: "ID (N° interno)",     group: "Información general" },
+    { key: "n_serie",      label: "N° OT (SF folio)",    group: "Información general" },
     { key: "hito",         label: "Hito",                group: "Información general" },
     { key: "estado",       label: "Estado",              group: "Información general" },
+    { key: "fecha_limite", label: "Fecha término",       group: "Información general" },
+    { key: "ubicacion",    label: "Ubicación",           group: "Información general" },
+    { key: "descripcion",  label: "Descripción",         group: "Información general" },
+    { key: "solicitante",  label: "Solicitante",         group: "Información general" },
     { key: "prioridad",    label: "Prioridad",           group: "Información general" },
-    { key: "tipo_trabajo", label: "Tipo de trabajo",     group: "Información general" },
+    { key: "tipo_trabajo", label: "Tipo",                group: "Información general" },
     { key: "categoria",    label: "Categoría",           group: "Información general" },
-    { key: "ubicacion",    label: "Ubicación",           group: "Personas y ubicación" },
-    { key: "activo",       label: "Activo / Equipo",     group: "Personas y ubicación" },
-    { key: "asignados",    label: "Asignados",           group: "Personas y ubicación" },
+    { key: "activo",       label: "Activo / Equipo",     group: "Información general" },
+    { key: "asignados",    label: "Asignados",           group: "Información general" },
     { key: "creado",       label: "Creado el",           group: "Fechas" },
-    { key: "fecha_limite", label: "Fecha límite",        group: "Fechas" },
     { key: "resumen",               label: "Hoja de resumen KPIs",    group: "Otros" },
     { key: "hoja_calculo",          label: "Hoja de cálculo",         group: "Materiales" },
     { key: "materiales_inventario", label: "Materiales de inventario", group: "Materiales" },
+    { key: "fotos",                 label: "Fotos (URLs)",            group: "Materiales" },
   ];
 
   const ALL_COLS_ON  = Object.fromEntries(EXPORT_COLS.map(c => [c.key, true]))  as Record<ExportCol, boolean>;
@@ -378,14 +378,42 @@ export default function OrdenesBandeja({
   }, [ordenes, filtros, search, ubicaciones]);
   const currentSortLabel = SORT_OPTIONS.find(o => o.value === sort)?.label ?? "";
 
-  // ── Excel export (current filtered view, column-driven) ──────────────────
+  // ── Excel export (all OTs across tabs, respecting filters/search) ─────────
   async function handleExportExcel() {
-    if (exporting || filtered.length === 0) return;
+    if (exporting) return;
     setExportConfigOpen(false);
     setExporting(true);
     try {
       const XLSX = await import("xlsx-js-style");
       const f = exportCols;
+
+      // Export ALL ordenes (ignore tab split), but keep filters + search applied
+      const allFiltered = (() => {
+        let list = [...ordenes];
+        if (filtros.estados.length)      list = list.filter(o => filtros.estados.includes(o.estado));
+        if (filtros.prioridades.length)  list = list.filter(o => filtros.prioridades.includes(o.prioridad));
+        if (filtros.tipos.length)        list = list.filter(o => o.tipo_trabajo != null && filtros.tipos.includes(o.tipo_trabajo));
+        if (filtros.asignadoIds.length)  list = list.filter(o => filtros.asignadoIds.some(id => o.asignados_ids?.includes(id)));
+        if (filtros.ubicacionIds.length) list = list.filter(o => o.ubicacion_id != null && filtros.ubicacionIds.includes(o.ubicacion_id));
+        if (filtros.sinAsignar)          list = list.filter(o => !o.asignados_ids || o.asignados_ids.length === 0);
+        if (filtros.soloAsignados)       list = list.filter(o => o.asignados_ids && o.asignados_ids.length > 0);
+        if (search.trim()) {
+          const q = search.trim().replace(/\s+/g, " ").toLowerCase();
+          list = list.filter(o => {
+            if ((o.titulo ?? "").toLowerCase().includes(q)) return true;
+            const meta = parseDescMeta(o.descripcion ?? null);
+            return (
+              (meta.nOT ?? "").toLowerCase().includes(q) ||
+              (meta.solicitante ?? "").toLowerCase().includes(q) ||
+              (meta.descripcion ?? "").toLowerCase().includes(q)
+            );
+          });
+        }
+        list.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+        return list;
+      })();
+
+      if (allFiltered.length === 0) { setExporting(false); return; }
 
       // ── Helpers ──────────────────────────────────────────────────────────
       const fmtDate = (s: string | null | undefined) =>
@@ -486,7 +514,6 @@ export default function OrdenesBandeja({
       }
 
       // ── Column definitions ────────────────────────────────────────────────
-      // Each active column: { header, width, getValue, badgeKey? }
       type ColDef = {
         header: string;
         width: number;
@@ -510,19 +537,20 @@ export default function OrdenesBandeja({
         ninguna: { font: "94A3B8", fill: "F8FAFC" },
       };
 
+      // Column order matches the supervisor's required format
       const COL_DEFS: { key: ExportCol; def: ColDef }[] = [
-        { key: "numero",       def: { header: "N° OT",         width: 8,  getValue: o => o.numero ?? "—" } },
-        { key: "n_serie",      def: { header: "N° de serie",   width: 20, getValue: o => parseDescMeta(o.descripcion ?? null).nOT || "—" } },
-        { key: "titulo",       def: { header: "Título",        width: 44, getValue: o => o.titulo || "—" } },
-        { key: "descripcion",  def: { header: "Descripción",   width: 50, getValue: o => parseDescMeta(o.descripcion ?? null).descripcion || "—" } },
-        { key: "solicitante",  def: { header: "Solicitante",   width: 24, getValue: o => parseDescMeta(o.descripcion ?? null).solicitante || "—" } },
-        { key: "hito",         def: { header: "Hito",          width: 18, getValue: o => parseDescMeta(o.descripcion ?? null).hito || "—" } },
-        { key: "estado",       def: { header: "Estado",        width: 14, getValue: o => ESTADO_LABEL[o.estado] ?? o.estado, estadoBadge: true } },
-        { key: "prioridad",    def: { header: "Prioridad",     width: 12, getValue: o => PRIORIDAD_LABEL[o.prioridad] ?? o.prioridad, prioBadge: true } },
-        { key: "tipo_trabajo", def: { header: "Tipo",          width: 14, getValue: o => o.tipo_trabajo ? (TIPO_LABEL[o.tipo_trabajo] ?? o.tipo_trabajo) : "—" } },
-        { key: "categoria",    def: { header: "Categoría",     width: 20, getValue: o => (o as OrdenListItem & { categorias_ot?: { nombre: string } | null }).categorias_ot?.nombre ?? "—" } },
-        { key: "ubicacion",    def: { header: "Ubicación",     width: 32, getValue: o => o.ubicaciones?.edificio ?? "—" } },
-        { key: "activo",       def: { header: "Activo",        width: 22, getValue: o => o.activos?.nombre ?? "—" } },
+        { key: "numero",       def: { header: "ID",             width: 8,  getValue: o => o.numero ?? "—" } },
+        { key: "n_serie",      def: { header: "N° OT",          width: 22, getValue: o => (o as OrdenListItem & { n_serie?: string | null }).n_serie || parseDescMeta(o.descripcion ?? null).nOT || "—" } },
+        { key: "hito",         def: { header: "Hito",           width: 20, getValue: o => (o as OrdenListItem & { hito?: string | null }).hito || parseDescMeta(o.descripcion ?? null).hito || "—" } },
+        { key: "estado",       def: { header: "Estado",         width: 14, getValue: o => ESTADO_LABEL[o.estado] ?? o.estado, estadoBadge: true } },
+        { key: "fecha_limite", def: { header: "Fecha término",  width: 14, getValue: o => fmtDate(o.fecha_termino), mutableIfEmpty: o => !o.fecha_termino } },
+        { key: "ubicacion",    def: { header: "Ubicación",      width: 34, getValue: o => o.ubicaciones?.edificio ?? "—" } },
+        { key: "descripcion",  def: { header: "Descripción",    width: 52, getValue: o => parseDescMeta(o.descripcion ?? null).descripcion || o.titulo || "—" } },
+        { key: "solicitante",  def: { header: "Solicitante",    width: 26, getValue: o => (o as OrdenListItem & { solicitante?: string | null }).solicitante || parseDescMeta(o.descripcion ?? null).solicitante || "—" } },
+        { key: "prioridad",    def: { header: "Prioridad",      width: 12, getValue: o => PRIORIDAD_LABEL[o.prioridad] ?? o.prioridad, prioBadge: true } },
+        { key: "tipo_trabajo", def: { header: "Tipo",           width: 14, getValue: o => o.tipo_trabajo ? (TIPO_LABEL[o.tipo_trabajo] ?? o.tipo_trabajo) : "—" } },
+        { key: "categoria",    def: { header: "Categoría",      width: 20, getValue: o => (o as OrdenListItem & { categorias_ot?: { nombre: string } | null }).categorias_ot?.nombre ?? "—" } },
+        { key: "activo",       def: { header: "Activo",         width: 22, getValue: o => o.activos?.nombre ?? "—" } },
         { key: "asignados",    def: {
           header: "Asignados", width: 30,
           getValue: o => Array.isArray(o.asignados_ids) && o.asignados_ids.length > 0
@@ -530,32 +558,102 @@ export default function OrdenesBandeja({
             : "Sin asignar",
           mutableIfEmpty: o => !o.asignados_ids?.length,
         } },
-        { key: "creado",       def: { header: "Creado",        width: 13, getValue: o => fmtDate(o.created_at) } },
-        { key: "fecha_limite", def: {
-          header: "Fecha límite", width: 13,
-          getValue: o => fmtDate(o.fecha_termino),
-          mutableIfEmpty: o => !o.fecha_termino,
-        } },
+        { key: "creado",       def: { header: "Creado",         width: 13, getValue: o => fmtDate(o.created_at) } },
       ];
 
-      const activeCols = COL_DEFS.filter(c => c.key !== "resumen" && f[c.key]);
+      const activeCols = COL_DEFS.filter(c => f[c.key]);
 
-      // Pre-parse metadata once per order to avoid redundant calls
-      const metaMap = new Map(filtered.map(o => [o.id, parseDescMeta(o.descripcion ?? null)]));
+      // Pre-parse metadata once per order
+      const metaMap = new Map(allFiltered.map(o => [o.id, parseDescMeta(o.descripcion ?? null)]));
 
-      // Override getValue for metadata-dependent cols to use the pre-parsed map
       const getValueWithMeta = (col: typeof COL_DEFS[number], o: OrdenListItem): string | number => {
         const m = metaMap.get(o.id);
-        if (col.key === "n_serie")    return m?.nOT        || "—";
-        if (col.key === "descripcion") return m?.descripcion || "—";
-        if (col.key === "solicitante") return m?.solicitante || "—";
-        if (col.key === "hito")        return m?.hito        || "—";
+        if (col.key === "descripcion") return m?.descripcion || o.titulo || "—";
+        if (col.key === "solicitante") return (o as OrdenListItem & { solicitante?: string | null }).solicitante || m?.solicitante || "—";
+        if (col.key === "hito")        return (o as OrdenListItem & { hito?: string | null }).hito || m?.hito || "—";
+        if (col.key === "n_serie")     return (o as OrdenListItem & { n_serie?: string | null }).n_serie || m?.nOT || "—";
         return col.def.getValue(o);
       };
 
+      // ── Pre-fetch linked sheet data so we know row positions before building main sheet ──
+      // Maps ordenId → first row index (1-based, accounting for header) in each linked sheet
+      const hojaFirstRow  = new Map<string, number>();
+      const matFirstRow   = new Map<string, number>();
+      let hojaSheetData:  { hojaRows: (string | number)[][]; colLabels: string[] } | null = null;
+      let matSheetData:   { matData: (string | number)[][]; matHeaders: string[] } | null = null;
+
+      if (f.hoja_calculo) {
+        const sb = createClient();
+        const ordenIds = allFiltered.map(o => o.id);
+        const { data: hojas } = await sb
+          .from("hojas_inventario")
+          .select("id, nombre, columnas, orden_id")
+          .in("orden_id", ordenIds)
+          .order("created_at");
+        const hojaIds = (hojas ?? []).map((h: { id: string }) => h.id);
+        const { data: filas } = hojaIds.length > 0
+          ? await sb.from("hojas_inventario_filas").select("hoja_id, celdas, orden").in("hoja_id", hojaIds).order("orden")
+          : { data: [] };
+        const allColLabels = new Set<string>();
+        (hojas ?? []).forEach((h: { columnas: { label: string }[] }) =>
+          h.columnas.forEach((c: { label: string }) => allColLabels.add(c.label))
+        );
+        const colLabels = ["ID", "N° OT (SF)", "Hoja", ...Array.from(allColLabels)];
+        const hojaRows: (string | number)[][] = [colLabels];
+        for (const hoja of (hojas ?? []) as { id: string; nombre: string; columnas: { id: string; label: string }[]; orden_id: string }[]) {
+          const ot = allFiltered.find(o => o.id === hoja.orden_id);
+          const otNumero = ot?.numero ?? "—";
+          const otNSerie = (ot as OrdenListItem & { n_serie?: string | null } | undefined)?.n_serie ?? metaMap.get(ot?.id ?? "")?.nOT ?? "—";
+          const hojaFilas = ((filas ?? []) as { hoja_id: string; celdas: Record<string, string>; orden: number }[])
+            .filter(row => row.hoja_id === hoja.id);
+          if (!hojaFirstRow.has(hoja.orden_id)) hojaFirstRow.set(hoja.orden_id, hojaRows.length);
+          if (hojaFilas.length === 0) {
+            hojaRows.push([otNumero, otNSerie, hoja.nombre, ...Array.from(allColLabels).map(() => "")]);
+          } else {
+            for (const fila of hojaFilas) {
+              const row: (string | number)[] = [otNumero, otNSerie, hoja.nombre];
+              for (const label of allColLabels) {
+                const col = hoja.columnas.find((c: { label: string }) => c.label === label);
+                row.push(col ? (fila.celdas[col.id] ?? "") : "");
+              }
+              hojaRows.push(row);
+            }
+          }
+        }
+        hojaSheetData = { hojaRows, colLabels };
+      }
+
+      if (f.materiales_inventario) {
+        const sb = createClient();
+        const ordenIds = allFiltered.map(o => o.id);
+        const { data: matRows } = await sb
+          .from("materiales_usados")
+          .select("orden_id, nombre, cantidad, unidad, precio_unitario")
+          .in("orden_id", ordenIds)
+          .order("orden_id");
+        const matHeaders = ["ID", "N° OT (SF)", "Material", "Cantidad", "Unidad", "Precio unitario", "Total"];
+        const matData: (string | number)[][] = [matHeaders];
+        for (const mat of (matRows ?? []) as { orden_id: string; nombre: string; cantidad: number; unidad: string | null; precio_unitario: number | null }[]) {
+          const ot = allFiltered.find(o => o.id === mat.orden_id);
+          const otNSerie = (ot as OrdenListItem & { n_serie?: string | null } | undefined)?.n_serie ?? metaMap.get(ot?.id ?? "")?.nOT ?? "—";
+          if (!matFirstRow.has(mat.orden_id)) matFirstRow.set(mat.orden_id, matData.length);
+          const total = mat.precio_unitario != null ? mat.cantidad * mat.precio_unitario : "";
+          matData.push([ot?.numero ?? "—", otNSerie, mat.nombre, mat.cantidad, mat.unidad ?? "—", mat.precio_unitario ?? "—", total]);
+        }
+        matSheetData = { matData, matHeaders };
+      }
+
+      // Hyperlink style for ID cells
+      const S_link = (even: boolean) => ({
+        font: { bold: true, sz: 10, color: { rgb: "1D4ED8" }, underline: true },
+        fill: { fgColor: { rgb: even ? "EFF6FF" : "DBEAFE" } },
+        border: { bottom: { style: "thin", color: { rgb: "BFDBFE" } } },
+        alignment: { vertical: "center" },
+      });
+
       // ── SHEET 1: Órdenes ─────────────────────────────────────────────────
       const headers = activeCols.map(c => c.def.header);
-      const dataRows = filtered.map(o => activeCols.map(c => getValueWithMeta(c, o)));
+      const dataRows = allFiltered.map(o => activeCols.map(c => getValueWithMeta(c, o)));
 
       const wsOrd = XLSX.utils.aoa_to_sheet([headers, ...dataRows]);
       wsOrd["!cols"]   = activeCols.map(c => ({ wch: c.def.width }));
@@ -563,6 +661,8 @@ export default function OrdenesBandeja({
       wsOrd["!freeze"] = { xSplit: 0, ySplit: 1 };
 
       styleRow(wsOrd, 0, activeCols.length, S.headerDark);
+
+      const idColIdx = activeCols.findIndex(c => c.key === "numero");
 
       dataRows.forEach((_, i) => {
         const rIdx = i + 1;
@@ -572,21 +672,46 @@ export default function OrdenesBandeja({
         activeCols.forEach((c, colIdx) => {
           const addr = XLSX.utils.encode_cell({ r: rIdx, c: colIdx });
           if (c.def.estadoBadge) {
-            const ec = estadoColors[filtered[i].estado] ?? { font: "475569", fill: "F8FAFC" };
+            const ec = estadoColors[allFiltered[i].estado] ?? { font: "475569", fill: "F8FAFC" };
             applyStyle(wsOrd, addr, S.badge(ec.font, ec.fill));
           } else if (c.def.prioBadge) {
-            const pc = prioColors[filtered[i].prioridad] ?? prioColors.ninguna;
+            const pc = prioColors[allFiltered[i].prioridad] ?? prioColors.ninguna;
             applyStyle(wsOrd, addr, S.badge(pc.font, pc.fill));
-          } else if (c.def.mutableIfEmpty?.(filtered[i])) {
+          } else if (c.def.mutableIfEmpty?.(allFiltered[i])) {
             applyStyle(wsOrd, addr, S.rowMuted(even));
           }
         });
+
+        // Add hyperlinks on the ID cell to linked sheets
+        if (idColIdx >= 0) {
+          const ot = allFiltered[i];
+          const idAddr = XLSX.utils.encode_cell({ r: rIdx, c: idColIdx });
+          const idVal = ot.numero ?? "—";
+          const hojaRow = hojaFirstRow.get(ot.id);
+          const matRow  = matFirstRow.get(ot.id);
+
+          // Prefer linking to Hoja de cálculo if available, else Materiales
+          const linkTarget = hojaRow != null
+            ? `#'Hoja de cálculo'!A${hojaRow + 1}`
+            : matRow != null
+            ? `#'Materiales'!A${matRow + 1}`
+            : null;
+
+          if (linkTarget) {
+            const tooltip = [
+              hojaRow != null ? "→ Hoja de cálculo" : null,
+              matRow  != null ? "→ Materiales" : null,
+            ].filter(Boolean).join("  |  ");
+            wsOrd[idAddr] = { v: idVal, t: "s", l: { Target: linkTarget, Tooltip: tooltip } };
+            applyStyle(wsOrd, idAddr, S_link(even));
+          }
+        }
       });
 
       // Total row
       const totalRowIdx = dataRows.length + 1;
       const totAddr = XLSX.utils.encode_cell({ r: totalRowIdx, c: 0 });
-      wsOrd[totAddr] = { v: `Total: ${filtered.length} órdenes`, t: "s" };
+      wsOrd[totAddr] = { v: `Total: ${allFiltered.length} órdenes`, t: "s" };
       applyStyle(wsOrd, totAddr, S.totalRow);
       const sheetRange = XLSX.utils.decode_range(wsOrd["!ref"] ?? "A1");
       sheetRange.e.r = totalRowIdx;
@@ -603,21 +728,21 @@ export default function OrdenesBandeja({
 
       // ── SHEET 2: KPIs / Resumen (optional) ───────────────────────────────
       if (f.resumen) {
-        const total      = filtered.length;
-        const completado = filtered.filter(o => o.estado === "completado").length;
-        const enCurso    = filtered.filter(o => o.estado === "en_curso").length;
-        const pendiente  = filtered.filter(o => o.estado === "pendiente").length;
-        const enEspera   = filtered.filter(o => o.estado === "en_espera").length;
-        const urgentes   = filtered.filter(o => o.prioridad === "urgente").length;
-        const vencidas   = filtered.filter(o =>
+        const total      = allFiltered.length;
+        const completado = allFiltered.filter(o => o.estado === "completado").length;
+        const enCurso    = allFiltered.filter(o => o.estado === "en_curso").length;
+        const pendiente  = allFiltered.filter(o => o.estado === "pendiente").length;
+        const enEspera   = allFiltered.filter(o => o.estado === "en_espera").length;
+        const urgentes   = allFiltered.filter(o => o.prioridad === "urgente").length;
+        const vencidas   = allFiltered.filter(o =>
           o.estado !== "completado" && o.fecha_termino && new Date(o.fecha_termino) < new Date()
         ).length;
-        const sinAsignar = filtered.filter(o => !o.asignados_ids?.length).length;
+        const sinAsignar = allFiltered.filter(o => !o.asignados_ids?.length).length;
 
         const byTipo: Record<string, number> = {};
-        filtered.forEach(o => { if (o.tipo_trabajo) byTipo[o.tipo_trabajo] = (byTipo[o.tipo_trabajo] ?? 0) + 1; });
+        allFiltered.forEach(o => { if (o.tipo_trabajo) byTipo[o.tipo_trabajo] = (byTipo[o.tipo_trabajo] ?? 0) + 1; });
         const byUbic: Record<string, number> = {};
-        filtered.forEach(o => {
+        allFiltered.forEach(o => {
           const label = o.ubicaciones?.edificio ?? "Sin ubicación";
           byUbic[label] = (byUbic[label] ?? 0) + 1;
         });
@@ -678,96 +803,41 @@ export default function OrdenesBandeja({
       }
 
       // ── SHEET: Hoja de cálculo ───────────────────────────────────────────
-      if (f.hoja_calculo) {
-        const sb = createClient();
-        const ordenIds = filtered.map(o => o.id);
-
-        const { data: hojas } = await sb
-          .from("hojas_inventario")
-          .select("id, nombre, columnas, orden_id")
-          .in("orden_id", ordenIds)
-          .order("created_at");
-
-        const hojaIds = (hojas ?? []).map((h: { id: string }) => h.id);
-        const { data: filas } = hojaIds.length > 0
-          ? await sb.from("hojas_inventario_filas").select("hoja_id, celdas, orden").in("hoja_id", hojaIds).order("orden")
-          : { data: [] };
-
-        // Build rows: OT N°, Título, Hoja, then dynamic columns
-        // Collect all unique column labels across all hojas
-        const allColLabels = new Set<string>();
-        (hojas ?? []).forEach((h: { columnas: { label: string }[] }) =>
-          h.columnas.forEach((c: { label: string }) => allColLabels.add(c.label))
-        );
-        const colLabels = ["N° OT", "Título OT", "Hoja", ...Array.from(allColLabels)];
-
-        const hojaRows: (string | number)[][] = [colLabels];
-        for (const hoja of (hojas ?? []) as { id: string; nombre: string; columnas: { id: string; label: string }[]; orden_id: string }[]) {
-          const ot = filtered.find(o => o.id === hoja.orden_id);
-          const otNumero = ot?.numero ?? "—";
-          const otTitulo = ot?.titulo ?? "—";
-          const hojaFilas = ((filas ?? []) as { hoja_id: string; celdas: Record<string, string>; orden: number }[])
-            .filter(row => row.hoja_id === hoja.id);
-          if (hojaFilas.length === 0) {
-            hojaRows.push([otNumero, otTitulo, hoja.nombre, ...Array.from(allColLabels).map(() => "")]);
-          } else {
-            for (const fila of hojaFilas) {
-              const row: (string | number)[] = [otNumero, otTitulo, hoja.nombre];
-              for (const label of allColLabels) {
-                const col = hoja.columnas.find((c: { label: string }) => c.label === label);
-                row.push(col ? (fila.celdas[col.id] ?? "") : "");
-              }
-              hojaRows.push(row);
-            }
-          }
-        }
-
+      if (hojaSheetData) {
+        const { hojaRows, colLabels } = hojaSheetData;
         const wsHoja = XLSX.utils.aoa_to_sheet(hojaRows);
-        wsHoja["!cols"] = colLabels.map((_, i) => ({ wch: i < 3 ? 16 : 20 }));
-        wsHoja["!rows"] = hojaRows.map(() => ({ hpt: 18 }));
+        wsHoja["!cols"]   = colLabels.map((_, i) => ({ wch: i < 3 ? 16 : 20 }));
+        wsHoja["!rows"]   = hojaRows.map(() => ({ hpt: 18 }));
         wsHoja["!freeze"] = { xSplit: 0, ySplit: 1 };
         styleRow(wsHoja, 0, colLabels.length, S.headerDark);
+        // Style rows + back-link on ID cell → Órdenes de trabajo
         for (let r = 1; r < hojaRows.length; r++) {
-          styleRow(wsHoja, r, colLabels.length, r % 2 === 0 ? S.rowEven : S.rowOdd);
+          const even = r % 2 === 0;
+          styleRow(wsHoja, r, colLabels.length, even ? S.rowEven : S.rowOdd);
+          const idAddr = XLSX.utils.encode_cell({ r, c: 0 });
+          const idVal  = hojaRows[r][0];
+          wsHoja[idAddr] = { v: idVal, t: "s", l: { Target: `#'Órdenes de trabajo'!A${r + 1}`, Tooltip: "← Volver a Órdenes" } };
+          applyStyle(wsHoja, idAddr, S_link(even));
         }
         XLSX.utils.book_append_sheet(wb, wsHoja, "Hoja de cálculo");
       }
 
       // ── SHEET: Materiales de inventario ──────────────────────────────────
-      if (f.materiales_inventario) {
-        const sb = createClient();
-        const ordenIds = filtered.map(o => o.id);
-
-        const { data: matRows } = await sb
-          .from("materiales_usados")
-          .select("orden_id, nombre, cantidad, unidad, precio_unitario")
-          .in("orden_id", ordenIds)
-          .order("orden_id");
-
-        const matHeaders = ["N° OT", "Título OT", "Material", "Cantidad", "Unidad", "Precio unitario", "Total"];
-        const matData: (string | number)[][] = [matHeaders];
-
-        for (const mat of (matRows ?? []) as { orden_id: string; nombre: string; cantidad: number; unidad: string | null; precio_unitario: number | null }[]) {
-          const ot = filtered.find(o => o.id === mat.orden_id);
-          const total = mat.precio_unitario != null ? mat.cantidad * mat.precio_unitario : "";
-          matData.push([
-            ot?.numero ?? "—",
-            ot?.titulo ?? "—",
-            mat.nombre,
-            mat.cantidad,
-            mat.unidad ?? "—",
-            mat.precio_unitario ?? "—",
-            total,
-          ]);
-        }
-
+      if (matSheetData) {
+        const { matData, matHeaders } = matSheetData;
         const wsMat = XLSX.utils.aoa_to_sheet(matData);
-        wsMat["!cols"] = [8, 36, 28, 12, 12, 16, 14].map(wch => ({ wch }));
-        wsMat["!rows"] = matData.map(() => ({ hpt: 18 }));
+        wsMat["!cols"]   = [8, 22, 28, 12, 12, 16, 14].map(wch => ({ wch }));
+        wsMat["!rows"]   = matData.map(() => ({ hpt: 18 }));
         wsMat["!freeze"] = { xSplit: 0, ySplit: 1 };
         styleRow(wsMat, 0, matHeaders.length, S.headerDark);
+        // Style rows + back-link on ID cell → Órdenes de trabajo
         for (let r = 1; r < matData.length; r++) {
-          styleRow(wsMat, r, matHeaders.length, r % 2 === 0 ? S.rowEven : S.rowOdd);
+          const even = r % 2 === 0;
+          styleRow(wsMat, r, matHeaders.length, even ? S.rowEven : S.rowOdd);
+          const idAddr = XLSX.utils.encode_cell({ r, c: 0 });
+          const idVal  = matData[r][0];
+          wsMat[idAddr] = { v: idVal, t: "s", l: { Target: `#'Órdenes de trabajo'!A${r + 1}`, Tooltip: "← Volver a Órdenes" } };
+          applyStyle(wsMat, idAddr, S_link(even));
         }
         if (matData.length > 1) {
           const totalRow = ["", "", "TOTAL", "", "", "", matData.slice(1).reduce((sum, r) => sum + (typeof r[6] === "number" ? r[6] : 0), 0)];
@@ -778,9 +848,56 @@ export default function OrdenesBandeja({
         XLSX.utils.book_append_sheet(wb, wsMat, "Materiales");
       }
 
-      const dateStr  = new Date().toISOString().slice(0, 10);
-      const tabLabel = tab === "activas" ? "activas" : tab === "cerradas" ? "completadas" : tab === "levantamientos" ? "levantamientos" : "sin_asignar";
-      XLSX.writeFile(wb, `pangui_ordenes_${tabLabel}_${dateStr}.xlsx`);
+      // ── SHEET: Fotos ─────────────────────────────────────────────────────
+      if (f.fotos) {
+        const sb = createClient();
+        const ordenIds = allFiltered.map(o => o.id);
+
+        const { data: grupoItems } = await sb
+          .from("foto_grupo_items")
+          .select("url, grupo_id, foto_grupos!inner(orden_id, tipo)")
+          .in("foto_grupos.orden_id", ordenIds)
+          .order("created_at");
+
+        const fotosHeaders = ["ID", "N° OT (SF)", "Tipo", "URL Foto"];
+        const fotosData: (string | number)[][] = [fotosHeaders];
+
+        for (const item of (grupoItems ?? []) as { url: string; grupo_id: string; foto_grupos: { orden_id: string; tipo: string } }[]) {
+          const ot = allFiltered.find(o => o.id === item.foto_grupos.orden_id);
+          const otNSerie = (ot as OrdenListItem & { n_serie?: string | null } | undefined)?.n_serie ?? metaMap.get(ot?.id ?? "")?.nOT ?? "—";
+          fotosData.push([ot?.numero ?? "—", otNSerie, item.foto_grupos.tipo, item.url]);
+        }
+
+        // Also include legacy fotos_urls if any
+        for (const ot of allFiltered) {
+          const legacy = (ot as OrdenListItem & { fotos_urls?: string[] | null }).fotos_urls;
+          if (!legacy?.length) continue;
+          const otNSerie = (ot as OrdenListItem & { n_serie?: string | null }).n_serie ?? metaMap.get(ot.id)?.nOT ?? "—";
+          for (const url of legacy) {
+            fotosData.push([ot.numero ?? "—", otNSerie, "legacy", url]);
+          }
+        }
+
+        const wsFootos = XLSX.utils.aoa_to_sheet(fotosData);
+        wsFootos["!cols"] = [8, 22, 12, 80].map(wch => ({ wch }));
+        wsFootos["!rows"] = fotosData.map(() => ({ hpt: 18 }));
+        wsFootos["!freeze"] = { xSplit: 0, ySplit: 1 };
+        styleRow(wsFootos, 0, fotosHeaders.length, S.headerDark);
+
+        // Make URL cells clickable hyperlinks
+        for (let r = 1; r < fotosData.length; r++) {
+          styleRow(wsFootos, r, fotosHeaders.length, r % 2 === 0 ? S.rowEven : S.rowOdd);
+          const urlVal = fotosData[r][3];
+          if (typeof urlVal === "string" && urlVal.startsWith("http")) {
+            const addr = XLSX.utils.encode_cell({ r, c: 3 });
+            wsFootos[addr] = { v: urlVal, t: "s", l: { Target: urlVal }, s: { font: { color: { rgb: "1D4ED8" }, underline: true, sz: 10 } } };
+          }
+        }
+        XLSX.utils.book_append_sheet(wb, wsFootos, "Fotos");
+      }
+
+      const dateStr = new Date().toISOString().slice(0, 10);
+      XLSX.writeFile(wb, `pangui_ordenes_${dateStr}.xlsx`);
     } finally {
       setExporting(false);
     }
@@ -873,21 +990,21 @@ export default function OrdenesBandeja({
           {/* Export Excel */}
           <button
             type="button"
-            onClick={() => { if (filtered.length > 0 && !exporting) setExportConfigOpen(true); }}
-            disabled={exporting || filtered.length === 0}
-            title={filtered.length === 0 ? "No hay órdenes para exportar" : `Exportar ${filtered.length} órdenes a Excel`}
+            onClick={() => { if (ordenes.length > 0 && !exporting) setExportConfigOpen(true); }}
+            disabled={exporting || ordenes.length === 0}
+            title={ordenes.length === 0 ? "No hay órdenes para exportar" : `Exportar todas las órdenes a Excel (${ordenes.length})`}
             style={{
               display:"flex", alignItems:"center", gap:5,
               height:28, padding:"0 10px",
               border:"1px solid var(--border)", borderRadius:6,
               background: exporting ? "var(--surface-0)" : "var(--surface-1)",
-              color: filtered.length === 0 ? "var(--border-strong)" : "var(--fg-2)",
-              fontSize:12, fontWeight:500, cursor: filtered.length === 0 ? "not-allowed" : "pointer",
+              color: ordenes.length === 0 ? "var(--border-strong)" : "var(--fg-2)",
+              fontSize:12, fontWeight:500, cursor: ordenes.length === 0 ? "not-allowed" : "pointer",
               fontFamily:"inherit", whiteSpace:"nowrap",
               transition:"all 0.12s",
             }}
-            onMouseEnter={e => { if (filtered.length > 0 && !exporting) { e.currentTarget.style.borderColor = "var(--success)"; e.currentTarget.style.color = "var(--success)"; e.currentTarget.style.background = "var(--success-bg)"; } }}
-            onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.color = filtered.length === 0 ? "var(--border-strong)" : "var(--fg-2)"; e.currentTarget.style.background = "var(--surface-1)"; }}
+            onMouseEnter={e => { if (ordenes.length > 0 && !exporting) { e.currentTarget.style.borderColor = "var(--success)"; e.currentTarget.style.color = "var(--success)"; e.currentTarget.style.background = "var(--success-bg)"; } }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.color = ordenes.length === 0 ? "var(--border-strong)" : "var(--fg-2)"; e.currentTarget.style.background = "var(--surface-1)"; }}
           >
             {exporting
               ? <Loader2 size={12} className="animate-spin" style={{ color:"var(--success)" }} />
@@ -1215,7 +1332,7 @@ export default function OrdenesBandeja({
               <div>
                 <div style={{ fontSize:15, fontWeight:700, color:"var(--fg-1)" }}>Exportar Excel</div>
                 <div style={{ fontSize:12, color:"var(--fg-4)", marginTop:2 }}>
-                  {filtered.length} órdenes · selecciona las columnas a incluir
+                  {ordenes.length} órdenes en total · selecciona las columnas a incluir
                 </div>
               </div>
               <button

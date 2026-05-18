@@ -777,7 +777,7 @@ export default function OTEditPanel({
                 ref={adjuntoInputRef}
                 type="file"
                 multiple
-                accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.dwg,.dxf,.zip,image/*"
+                accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.dwg,.dxf,.zip,.mp3,.m4a,.wav,.ogg,.webm,image/*,audio/*"
                 style={{ display: "none" }}
                 onChange={e => {
                   const files = Array.from(e.target.files ?? []);
@@ -845,7 +845,7 @@ export default function OTEditPanel({
                 style={{ width: "100%", border: "1.5px dashed var(--brand)", borderRadius: 8, padding: "12px", display: "flex", flexDirection: "column", alignItems: "center", gap: 4, color: "var(--brand)", cursor: "pointer", background: "var(--brand-tint)", fontFamily: "inherit" }}
               >
                 <Paperclip size={18} strokeWidth={1.5} />
-                <span style={{ fontSize: 12 }}>PDF, Word, Excel, TXT, CSV, DWG…</span>
+                <span style={{ fontSize: 12 }}>PDF, Word, Excel, TXT, CSV, DWG, MP3, M4A…</span>
               </button>
             )}
           </div>

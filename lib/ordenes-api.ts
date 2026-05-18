@@ -97,7 +97,7 @@ export const ORDEN_SELECT = `
 
 export const LIST_SELECT = `
   id, titulo, descripcion, estado, prioridad, tipo, tipo_trabajo, clasificacion,
-  fecha_termino, recurrencia, created_at,
+  fecha_inicio, fecha_termino, recurrencia, created_at,
   n_serie, solicitante, hito,
   categoria_id, ubicacion_id, activo_id, creado_por, asignados_ids,
   numero, parent_id,
@@ -147,7 +147,7 @@ export async function fetchActividad(ordenId: string): Promise<ActividadOT[]> {
   const sb = createClient();
   const { data, error } = await sb
     .from("actividad_ot")
-    .select("id, orden_id, tipo, comentario, usuario_id, created_at, usuario:usuarios!usuario_id(id, nombre)")
+    .select("id, orden_id, tipo, comentario, foto_url, audio_url, usuario_id, created_at, usuario:usuarios!usuario_id(id, nombre)")
     .eq("orden_id", ordenId)
     .order("created_at", { ascending: false });
   if (error) throw error;
@@ -541,8 +541,13 @@ export async function removeOrdenFoto(orderId: string, url: string): Promise<voi
 
 // ── Activity / Comments ───────────────────────────────────────────────────────
 
-export async function addComentario(ordenId: string, userId: string, comentario: string): Promise<void> {
-  await insertActividad(ordenId, userId, "comentario", comentario);
+export async function addComentario(
+  ordenId: string,
+  userId: string,
+  comentario: string,
+  audioUrl?: string | null,
+): Promise<void> {
+  await insertActividad(ordenId, userId, "comentario", comentario, undefined, audioUrl);
 }
 
 export async function insertActividad(
@@ -550,6 +555,8 @@ export async function insertActividad(
   userId: string,
   tipo: ActividadTipo,
   comentario?: string,
+  fotoUrl?: string | null,
+  audioUrl?: string | null,
 ): Promise<void> {
   const sb = createClient();
   const { error } = await sb.from("actividad_ot").insert({
@@ -557,6 +564,8 @@ export async function insertActividad(
     usuario_id: userId,
     tipo,
     comentario: comentario ?? null,
+    foto_url:   fotoUrl   ?? null,
+    audio_url:  audioUrl  ?? null,
   });
   if (error) throw error;
 }

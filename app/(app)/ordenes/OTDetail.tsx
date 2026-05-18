@@ -13,7 +13,7 @@ import {
   Package, Search,
   ClipboardCheck, Info, Hash as HashIcon, Camera, PenLine, Shield, CheckSquare,
   Type, DollarSign, List, ListChecks, AlertCircle, ImagePlus, FolderOpen,
-  Lock, LockOpen,
+  Lock, LockOpen, Mic, MicOff, Volume2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { LinksDisplay } from "@/components/LinksInput";
@@ -417,6 +417,12 @@ export default function OTDetail({
   const [loadingAct, setLoadingAct] = useState(false);
   const [commentText, setCommentText] = useState("");
   const [sending, setSending] = useState(false);
+  const [recording, setRecording] = useState(false);
+  const [recordingElapsed, setRecordingElapsed] = useState(0);
+  const [pendingAudio, setPendingAudio] = useState<{ blob: Blob; url: string } | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recordingChunksRef = useRef<Blob[]>([]);
+  const recordingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const [timerAction, setTimerAction] = useState<"pausar" | "completar" | null>(null);
   const [timerComment, setTimerComment] = useState("");
@@ -1040,20 +1046,74 @@ export default function OTDetail({
 
   const sendComment = async () => {
     const text = commentText.trim();
-    if (!text) return;
+    if (!text && !pendingAudio) return;
     setSending(true);
     try {
-      await addComentario(orden.id, myId, text);
-      setCommentText("");
-      // Switch to actividad tab so the user sees their comment
-      // Realtime will update the list automatically if already on that tab
-      if (tab !== "actividad") {
-        setTab("actividad");
+      let audioUrl: string | null = null;
+      if (pendingAudio) {
+        // Upload blob to R2 via presigned URL
+        const { data: { session } } = await createClient().auth.getSession();
+        const token = session?.access_token;
+        const presignRes = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/r2-presign`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+            apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+          },
+          body: JSON.stringify({ ext: "m4a", folder: `ordenes/${orden.id}/actividad` }),
+        });
+        if (presignRes.ok) {
+          const { uploadUrl, publicUrl } = await presignRes.json();
+          await fetch(uploadUrl, { method: "PUT", headers: { "Content-Type": "audio/mp4" }, body: pendingAudio.blob });
+          audioUrl = publicUrl;
+        }
+        URL.revokeObjectURL(pendingAudio.url);
+        setPendingAudio(null);
       }
+      await addComentario(orden.id, myId, text, audioUrl);
+      setCommentText("");
+      if (tab !== "actividad") setTab("actividad");
     } finally {
       setSending(false);
     }
   };
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+        ? "audio/webm;codecs=opus"
+        : "audio/webm";
+      const mr = new MediaRecorder(stream, { mimeType, audioBitsPerSecond: 32000 });
+      recordingChunksRef.current = [];
+      mr.ondataavailable = (e) => { if (e.data.size > 0) recordingChunksRef.current.push(e.data); };
+      mr.onstop = () => {
+        stream.getTracks().forEach(t => t.stop());
+        const blob = new Blob(recordingChunksRef.current, { type: mimeType });
+        const url = URL.createObjectURL(blob);
+        setPendingAudio({ blob, url });
+      };
+      mr.start(250);
+      mediaRecorderRef.current = mr;
+      setRecording(true);
+      setRecordingElapsed(0);
+      recordingIntervalRef.current = setInterval(() => setRecordingElapsed(e => e + 1), 1000);
+    } catch {
+      alert("No se pudo acceder al micrófono.");
+    }
+  };
+
+  const stopRecording = () => {
+    if (recordingIntervalRef.current) clearInterval(recordingIntervalRef.current);
+    mediaRecorderRef.current?.stop();
+    mediaRecorderRef.current = null;
+    setRecording(false);
+  };
+
+  function fmtRecDuration(s: number) {
+    return `${Math.floor(s / 60).toString().padStart(2, "0")}:${(s % 60).toString().padStart(2, "0")}`;
+  }
 
   // ── Export helpers ────────────────────────────────────────────────────────
 
@@ -1870,7 +1930,29 @@ export default function OTDetail({
                       <div style={{ fontSize: 11, fontWeight: 600, color: "var(--fg-4)", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 6 }}>
                         Adjuntos
                       </div>
-                      <LinksDisplay links={fileLinks} />
+                      <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+                        {fileLinks.map((l, i) => {
+                          const ext = l.url.split("?")[0].split(".").pop()?.toLowerCase() ?? "";
+                          const isAudio = ["mp3","m4a","wav","ogg","webm","aac"].includes(ext);
+                          const name = l.nombre || l.url.split("/").pop()?.split("?")[0] || "Archivo";
+                          if (isAudio) return (
+                            <div key={i} style={{ display: "flex", flexDirection: "column", gap: 3, padding: "8px 10px", border: "1px solid var(--border)", borderRadius: 8, background: "var(--surface-0)" }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
+                                <Volume2 size={13} style={{ color: "#2563EB", flexShrink: 0 }} />
+                                <span style={{ fontSize: 12, color: "var(--fg-2)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{name}</span>
+                              </div>
+                              <audio controls src={l.url} style={{ width: "100%", height: 32 }} />
+                            </div>
+                          );
+                          return (
+                            <a key={i} href={l.url} target="_blank" rel="noopener noreferrer"
+                              style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", border: "1px solid var(--border)", borderRadius: 8, background: "var(--surface-0)", textDecoration: "none", color: "var(--fg-1)" }}>
+                              <FileText size={13} style={{ color: "var(--brand)", flexShrink: 0 }} />
+                              <span style={{ flex: 1, fontSize: 12.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{name}</span>
+                            </a>
+                          );
+                        })}
+                      </div>
                     </div>
                   )}
                   {urlLinks.length > 0 && (
@@ -2083,6 +2165,12 @@ export default function OTDetail({
                             borderLeft: isComment ? "2px solid #2563EB" : "none",
                           }}>
                             {resolvedComentario}
+                          </div>
+                        )}
+                        {act.audio_url && (
+                          <div style={{ marginTop: 6, display: "flex", alignItems: "center", gap: 6 }}>
+                            <Volume2 size={13} style={{ color: "#2563EB", flexShrink: 0 }} />
+                            <audio controls src={act.audio_url} style={{ height: 28 }} />
                           </div>
                         )}
                       </div>
@@ -2578,7 +2666,41 @@ export default function OTDetail({
 
       {/* ── Comment input ── */}
       {tab === "actividad" && <div style={{ flexShrink: 0, borderTop: "1px solid var(--border)", padding: "12px 16px", background: "var(--surface-1)" }}>
+        {/* Recording indicator */}
+        {recording && (
+          <div style={{ display: "flex", alignItems: "center", gap: 8, background: "#FEE2E2", borderRadius: 8, padding: "6px 10px", marginBottom: 8 }}>
+            <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#EF4444", display: "inline-block", animation: "pulse 1s ease-in-out infinite" }} />
+            <span style={{ fontSize: 13, color: "#B91C1C", flex: 1 }}>Grabando… {fmtRecDuration(recordingElapsed)}</span>
+            <button type="button" onClick={stopRecording} style={{ fontSize: 12, fontWeight: 600, color: "#fff", background: "#EF4444", border: "none", borderRadius: 6, padding: "3px 10px", cursor: "pointer" }}>Detener</button>
+          </div>
+        )}
+        {/* Pending audio preview */}
+        {pendingAudio && !recording && (
+          <div style={{ display: "flex", alignItems: "center", gap: 8, background: "var(--surface-hover)", borderRadius: 8, padding: "6px 10px", marginBottom: 8 }}>
+            <Volume2 size={14} style={{ color: "#2563EB", flexShrink: 0 }} />
+            <audio controls src={pendingAudio.url} preload="metadata" style={{ height: 28, flex: 1, minWidth: 0 }} />
+            <button type="button" onClick={() => { URL.revokeObjectURL(pendingAudio.url); setPendingAudio(null); }} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--fg-4)", display: "flex", alignItems: "center" }}>
+              <X size={14} />
+            </button>
+          </div>
+        )}
         <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
+          {/* Mic button */}
+          <button
+            type="button"
+            onClick={recording ? stopRecording : startRecording}
+            disabled={sending}
+            title={recording ? "Detener grabación" : "Grabar audio"}
+            style={{
+              width: 38, height: 38, flexShrink: 0,
+              background: recording ? "#FEE2E2" : "var(--surface-hover)",
+              border: `1px solid ${recording ? "#FCA5A5" : "var(--border)"}`,
+              borderRadius: "var(--r-md)", cursor: "pointer",
+              display: "flex", alignItems: "center", justifyContent: "center",
+            }}
+          >
+            {recording ? <MicOff size={15} style={{ color: "#EF4444" }} /> : <Mic size={15} style={{ color: pendingAudio ? "#2563EB" : "var(--fg-4)" }} />}
+          </button>
           <textarea
             style={{
               flex: 1, minHeight: 42, maxHeight: 96, resize: "none",
@@ -2587,7 +2709,7 @@ export default function OTDetail({
               background: "var(--surface-0)", color: "var(--fg-1)", lineHeight: 1.5,
               transition: "border-color 0.12s, box-shadow 0.12s",
             }}
-            placeholder="Agregar comentario…"
+            placeholder={pendingAudio ? "Añadir descripción (opcional)…" : "Agregar comentario…"}
             value={commentText}
             onChange={e => setCommentText(e.target.value)}
             onFocus={e => { e.currentTarget.style.borderColor = "var(--brand)"; e.currentTarget.style.background = "var(--surface-1)"; e.currentTarget.style.boxShadow = "var(--shadow-focus)"; }}
@@ -2597,22 +2719,22 @@ export default function OTDetail({
           <button
             type="button"
             onClick={sendComment}
-            disabled={!commentText.trim() || sending}
+            disabled={(!commentText.trim() && !pendingAudio) || sending}
             style={{
               width: 38, height: 38, flexShrink: 0,
-              background: commentText.trim() ? "linear-gradient(135deg, #1E3A8A, #2563EB)" : "var(--border)",
-              border: "none", borderRadius: "var(--r-md)", cursor: commentText.trim() ? "pointer" : "default",
+              background: (commentText.trim() || pendingAudio) ? "linear-gradient(135deg, #1E3A8A, #2563EB)" : "var(--border)",
+              border: "none", borderRadius: "var(--r-md)", cursor: (commentText.trim() || pendingAudio) ? "pointer" : "default",
               display: "flex", alignItems: "center", justifyContent: "center",
               transition: "opacity 0.15s",
             }}
           >
-            {sending ? <Loader2 size={15} style={{ color: "var(--fg-on-brand)", animation: "spin 1s linear infinite" }} /> : <Send size={15} style={{ color: commentText.trim() ? "var(--fg-on-brand)" : "var(--fg-4)" }} />}
+            {sending ? <Loader2 size={15} style={{ color: "var(--fg-on-brand)", animation: "spin 1s linear infinite" }} /> : <Send size={15} style={{ color: (commentText.trim() || pendingAudio) ? "var(--fg-on-brand)" : "var(--fg-4)" }} />}
           </button>
         </div>
         <p style={{ fontSize: 11, color: "var(--fg-4)", marginTop: 5, marginBottom: 0 }}>Ctrl+Enter para enviar</p>
       </div>}
 
-      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } } @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }`}</style>
 
       {/* ── Export config modal ── */}
       {exportConfigOpen && (
