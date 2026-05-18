@@ -862,10 +862,11 @@ export default function OrdenesBandeja({
         const fotosHeaders = ["ID", "N° OT (SF)", "Tipo", "URL Foto"];
         const fotosData: (string | number)[][] = [fotosHeaders];
 
-        for (const item of (grupoItems ?? []) as { url: string; grupo_id: string; foto_grupos: { orden_id: string; tipo: string } }[]) {
-          const ot = allFiltered.find(o => o.id === item.foto_grupos.orden_id);
+        for (const item of (grupoItems ?? []) as unknown as { url: string; grupo_id: string; foto_grupos: { orden_id: string; tipo: string } | { orden_id: string; tipo: string }[] }[]) {
+          const fg = Array.isArray(item.foto_grupos) ? item.foto_grupos[0] : item.foto_grupos;
+          const ot = allFiltered.find(o => o.id === fg?.orden_id);
           const otNSerie = (ot as OrdenListItem & { n_serie?: string | null } | undefined)?.n_serie ?? metaMap.get(ot?.id ?? "")?.nOT ?? "—";
-          fotosData.push([ot?.numero ?? "—", otNSerie, item.foto_grupos.tipo, item.url]);
+          fotosData.push([ot?.numero ?? "—", otNSerie, fg?.tipo ?? "—", item.url]);
         }
 
         // Also include legacy fotos_urls if any
