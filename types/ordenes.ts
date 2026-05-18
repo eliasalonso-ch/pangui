@@ -35,7 +35,8 @@ export type ActividadTipo =
   | "reanudado"
   | "completado"
   | "cancelado"
-  | "comentario";
+  | "comentario"
+  | "fotos_grupo_subidas";
 
 export type RolUsuario = "admin" | "jefe" | "tecnico";
 

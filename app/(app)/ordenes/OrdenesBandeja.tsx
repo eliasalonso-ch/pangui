@@ -107,7 +107,7 @@ export default function OrdenesBandeja({
     | "numero" | "n_serie" | "hito" | "estado" | "prioridad" | "tipo_trabajo"
     | "descripcion" | "solicitante"
     | "categoria" | "ubicacion" | "activo" | "asignados" | "creado" | "fecha_limite" | "resumen"
-    | "hoja_calculo" | "materiales_inventario" | "fotos";
+    | "hoja_calculo" | "materiales_inventario";
 
   const EXPORT_COLS: { key: ExportCol; label: string; group: string }[] = [
     { key: "numero",       label: "ID (N° interno)",     group: "Información general" },
@@ -125,9 +125,8 @@ export default function OrdenesBandeja({
     { key: "asignados",    label: "Asignados",           group: "Información general" },
     { key: "creado",       label: "Creado el",           group: "Fechas" },
     { key: "resumen",               label: "Hoja de resumen KPIs",    group: "Otros" },
-    { key: "hoja_calculo",          label: "Hoja de cálculo",         group: "Materiales" },
+    { key: "hoja_calculo",          label: "Hoja de cálculo + Fotos",  group: "Materiales" },
     { key: "materiales_inventario", label: "Materiales de inventario", group: "Materiales" },
-    { key: "fotos",                 label: "Fotos (URLs)",            group: "Materiales" },
   ];
 
   const ALL_COLS_ON  = Object.fromEntries(EXPORT_COLS.map(c => [c.key, true]))  as Record<ExportCol, boolean>;
@@ -575,16 +574,27 @@ export default function OrdenesBandeja({
         return col.def.getValue(o);
       };
 
-      // ── Pre-fetch linked sheet data so we know row positions before building main sheet ──
-      // Maps ordenId → first row index (1-based, accounting for header) in each linked sheet
-      const hojaFirstRow  = new Map<string, number>();
-      const matFirstRow   = new Map<string, number>();
-      let hojaSheetData:  { hojaRows: (string | number)[][]; colLabels: string[] } | null = null;
-      let matSheetData:   { matData: (string | number)[][]; matHeaders: string[] } | null = null;
+      // ── Pre-fetch per-OT data ──────────────────────────────────────────
+      // Each OT that has at least one hoja or one photo gets its own sheet:
+      // hoja rows + a Fotos section below. Clicking the ID in the Orders
+      // sheet jumps to that OT's sheet — that IS the filtered view.
+      //
+      // Excel sheet names are limited to 31 chars and can't contain :\/?*[].
+      // We name sheets "OT-{numero}" with the running ID and dedupe collisions.
+      type HojaRow = { id: string; nombre: string; columnas: { id: string; label: string }[] };
+      type FilaRow = { hoja_id: string; celdas: Record<string, string>; orden: number };
+      const otHojas  = new Map<string, HojaRow[]>();        // orden_id → hojas (with their ids)
+      const filasByHojaId = new Map<string, FilaRow[]>();   // hoja_id → its filas
+      const otFotos  = new Map<string, { url: string; tipo: string }[]>(); // orden_id → photos
+      const otSheetName = new Map<string, string>();        // orden_id → final sheet name
+      const matFirstRow = new Map<string, number>();         // orden_id → first row in Materiales sheet
+      let matSheetData: { matData: (string | number)[][]; matHeaders: string[] } | null = null;
 
       if (f.hoja_calculo) {
         const sb = createClient();
         const ordenIds = allFiltered.map(o => o.id);
+
+        // Hojas + their filas
         const { data: hojas } = await sb
           .from("hojas_inventario")
           .select("id, nombre, columnas, orden_id")
@@ -592,35 +602,64 @@ export default function OrdenesBandeja({
           .order("created_at");
         const hojaIds = (hojas ?? []).map((h: { id: string }) => h.id);
         const { data: filas } = hojaIds.length > 0
-          ? await sb.from("hojas_inventario_filas").select("hoja_id, celdas, orden").in("hoja_id", hojaIds).order("orden")
+          ? await sb.from("hojas_inventario_filas")
+              .select("hoja_id, celdas, orden")
+              .in("hoja_id", hojaIds)
+              .order("orden")
           : { data: [] };
-        const allColLabels = new Set<string>();
-        (hojas ?? []).forEach((h: { columnas: { label: string }[] }) =>
-          h.columnas.forEach((c: { label: string }) => allColLabels.add(c.label))
-        );
-        const colLabels = ["ID", "N° OT (SF)", "Hoja", ...Array.from(allColLabels)];
-        const hojaRows: (string | number)[][] = [colLabels];
+
         for (const hoja of (hojas ?? []) as { id: string; nombre: string; columnas: { id: string; label: string }[]; orden_id: string }[]) {
-          const ot = allFiltered.find(o => o.id === hoja.orden_id);
-          const otNumero = ot?.numero ?? "—";
-          const otNSerie = (ot as OrdenListItem & { n_serie?: string | null } | undefined)?.n_serie ?? metaMap.get(ot?.id ?? "")?.nOT ?? "—";
-          const hojaFilas = ((filas ?? []) as { hoja_id: string; celdas: Record<string, string>; orden: number }[])
-            .filter(row => row.hoja_id === hoja.id);
-          if (!hojaFirstRow.has(hoja.orden_id)) hojaFirstRow.set(hoja.orden_id, hojaRows.length);
-          if (hojaFilas.length === 0) {
-            hojaRows.push([otNumero, otNSerie, hoja.nombre, ...Array.from(allColLabels).map(() => "")]);
-          } else {
-            for (const fila of hojaFilas) {
-              const row: (string | number)[] = [otNumero, otNSerie, hoja.nombre];
-              for (const label of allColLabels) {
-                const col = hoja.columnas.find((c: { label: string }) => c.label === label);
-                row.push(col ? (fila.celdas[col.id] ?? "") : "");
-              }
-              hojaRows.push(row);
-            }
-          }
+          const list = otHojas.get(hoja.orden_id) ?? [];
+          list.push({ id: hoja.id, nombre: hoja.nombre, columnas: hoja.columnas });
+          otHojas.set(hoja.orden_id, list);
         }
-        hojaSheetData = { hojaRows, colLabels };
+        for (const fila of (filas ?? []) as FilaRow[]) {
+          const list = filasByHojaId.get(fila.hoja_id) ?? [];
+          list.push(fila);
+          filasByHojaId.set(fila.hoja_id, list);
+        }
+
+        // Photos for every OT — included in the same per-OT sheet so the
+        // user gets one filtered view per ID click instead of a separate tab.
+        const { data: grupoItems } = await sb
+          .from("foto_grupo_items")
+          .select("url, foto_grupos!inner(orden_id, tipo)")
+          .in("foto_grupos.orden_id", ordenIds)
+          .order("created_at");
+        for (const item of (grupoItems ?? []) as unknown as { url: string; foto_grupos: { orden_id: string; tipo: string } | { orden_id: string; tipo: string }[] }[]) {
+          const fg = Array.isArray(item.foto_grupos) ? item.foto_grupos[0] : item.foto_grupos;
+          if (!fg?.orden_id || !item.url) continue;
+          const list = otFotos.get(fg.orden_id) ?? [];
+          list.push({ url: item.url, tipo: fg.tipo ?? "—" });
+          otFotos.set(fg.orden_id, list);
+        }
+        // Legacy fotos_urls column on the OT row itself.
+        for (const ot of allFiltered) {
+          const legacy = (ot as OrdenListItem & { fotos_urls?: string[] | null }).fotos_urls;
+          if (!legacy?.length) continue;
+          const list = otFotos.get(ot.id) ?? [];
+          for (const url of legacy) list.push({ url, tipo: "legacy" });
+          otFotos.set(ot.id, list);
+        }
+
+        // Reserve a unique, Excel-safe sheet name for every OT that has data.
+        // Sheet names are capped at 31 chars and can't contain : \ / ? * [ ].
+        const usedNames = new Set<string>(["Órdenes de trabajo", "Resumen", "Materiales"]);
+        const sanitize = (s: string) => s.replace(/[:\\/?*\[\]]/g, "_").slice(0, 31);
+        for (const ot of allFiltered) {
+          const hasHoja  = (otHojas.get(ot.id)?.length ?? 0) > 0;
+          const hasFotos = (otFotos.get(ot.id)?.length ?? 0) > 0;
+          if (!hasHoja && !hasFotos) continue;
+          let base = sanitize(`OT-${ot.numero ?? ot.id.slice(0, 6)}`);
+          let name = base;
+          let n = 2;
+          while (usedNames.has(name)) {
+            const suffix = `-${n++}`;
+            name = sanitize(base.slice(0, 31 - suffix.length) + suffix);
+          }
+          usedNames.add(name);
+          otSheetName.set(ot.id, name);
+        }
       }
 
       if (f.materiales_inventario) {
@@ -682,26 +721,28 @@ export default function OrdenesBandeja({
           }
         });
 
-        // Add hyperlinks on the ID cell to linked sheets
+        // Add hyperlinks on the ID cell. Priority:
+        //   1. Per-OT sheet (hoja + fotos) — filtered view for this OT.
+        //   2. Materiales sheet — first row for this OT (fallback only).
+        // The per-OT sheet IS the filter the user asked for: clicking the ID
+        // jumps straight to that OT's hoja rows and photo links, nothing else.
         if (idColIdx >= 0) {
           const ot = allFiltered[i];
           const idAddr = XLSX.utils.encode_cell({ r: rIdx, c: idColIdx });
           const idVal = ot.numero ?? "—";
-          const hojaRow = hojaFirstRow.get(ot.id);
+          const otSheet = otSheetName.get(ot.id);
           const matRow  = matFirstRow.get(ot.id);
 
-          // Prefer linking to Hoja de cálculo if available, else Materiales
-          const linkTarget = hojaRow != null
-            ? `#'Hoja de cálculo'!A${hojaRow + 1}`
+          const linkTarget = otSheet
+            ? `#'${otSheet}'!A1`
             : matRow != null
             ? `#'Materiales'!A${matRow + 1}`
             : null;
 
           if (linkTarget) {
-            const tooltip = [
-              hojaRow != null ? "→ Hoja de cálculo" : null,
-              matRow  != null ? "→ Materiales" : null,
-            ].filter(Boolean).join("  |  ");
+            const tooltip = otSheet
+              ? "→ Hoja de cálculo + Fotos (filtrado)"
+              : "→ Materiales";
             wsOrd[idAddr] = { v: idVal, t: "s", l: { Target: linkTarget, Tooltip: tooltip } };
             applyStyle(wsOrd, idAddr, S_link(even));
           }
@@ -802,24 +843,130 @@ export default function OrdenesBandeja({
         XLSX.utils.book_append_sheet(wb, wsKpi, "Resumen");
       }
 
-      // ── SHEET: Hoja de cálculo ───────────────────────────────────────────
-      if (hojaSheetData) {
-        const { hojaRows, colLabels } = hojaSheetData;
-        const wsHoja = XLSX.utils.aoa_to_sheet(hojaRows);
-        wsHoja["!cols"]   = colLabels.map((_, i) => ({ wch: i < 3 ? 16 : 20 }));
-        wsHoja["!rows"]   = hojaRows.map(() => ({ hpt: 18 }));
-        wsHoja["!freeze"] = { xSplit: 0, ySplit: 1 };
-        styleRow(wsHoja, 0, colLabels.length, S.headerDark);
-        // Style rows + back-link on ID cell → Órdenes de trabajo
-        for (let r = 1; r < hojaRows.length; r++) {
-          const even = r % 2 === 0;
-          styleRow(wsHoja, r, colLabels.length, even ? S.rowEven : S.rowOdd);
-          const idAddr = XLSX.utils.encode_cell({ r, c: 0 });
-          const idVal  = hojaRows[r][0];
-          wsHoja[idAddr] = { v: idVal, t: "s", l: { Target: `#'Órdenes de trabajo'!A${r + 1}`, Tooltip: "← Volver a Órdenes" } };
-          applyStyle(wsHoja, idAddr, S_link(even));
+      // ── SHEETS: one per OT (Hoja de cálculo rows + Fotos section) ──────
+      // Each OT that has hoja rows OR photos gets its own sheet. This IS the
+      // filtered view — clicking the ID in "Órdenes de trabajo" lands here
+      // and shows ONLY this OT's hoja(s) and photo links, nothing else.
+      if (f.hoja_calculo) {
+        for (const ot of allFiltered) {
+          const sheetName = otSheetName.get(ot.id);
+          if (!sheetName) continue;
+
+          const hojas = otHojas.get(ot.id) ?? [];
+          const fotos = otFotos.get(ot.id) ?? [];
+
+          const otNumero = ot.numero ?? "—";
+          const otNSerie = (ot as OrdenListItem & { n_serie?: string | null }).n_serie
+            ?? metaMap.get(ot.id)?.nOT ?? "—";
+          const otTitulo = ot.titulo ?? "Sin título";
+
+          // Build the sheet as an array-of-arrays so we can intersperse
+          // titles, hoja-blocks, and the Fotos section with blank-row gaps.
+          const rows: (string | number)[][] = [];
+          const blockStyles: { row: number; nCols: number; style: Record<string, unknown> }[] = [];
+          const backlinkCells: { row: number; col: number }[] = [];
+          const hyperlinkCells: { row: number; col: number; url: string }[] = [];
+          const widestRow = (() => {
+            let w = 4;
+            for (const h of hojas) w = Math.max(w, (h.columnas?.length ?? 0));
+            return Math.max(w, 4); // photos section uses 4 cols
+          })();
+
+          // Title block — OT identification + back-link to the Orders sheet.
+          rows.push([`OT-${otNumero}  ·  ${otTitulo}`]);
+          blockStyles.push({ row: rows.length - 1, nCols: widestRow, style: S.kpiHeader });
+          rows.push([`N° OT (SF): ${otNSerie}`]);
+          blockStyles.push({ row: rows.length - 1, nCols: widestRow, style: S.kpiLabel });
+          rows.push(["← Volver a Órdenes"]);
+          backlinkCells.push({ row: rows.length - 1, col: 0 });
+          rows.push([""]); // gap
+
+          // Hoja blocks — one per hoja, with its own column headers.
+          for (const hoja of hojas) {
+            const hojaFilas = filasByHojaId.get(hoja.id) ?? [];
+
+            // Hoja section title
+            rows.push([`Hoja: ${hoja.nombre}`]);
+            blockStyles.push({ row: rows.length - 1, nCols: widestRow, style: S.headerBrand });
+
+            // Column headers
+            const headers = (hoja.columnas ?? []).map(c => c.label);
+            rows.push(headers.length > 0 ? headers : ["(sin columnas)"]);
+            blockStyles.push({ row: rows.length - 1, nCols: Math.max(headers.length, 1), style: S.headerDark });
+
+            // Filas
+            if (hojaFilas.length === 0) {
+              rows.push(["(sin filas)"]);
+              blockStyles.push({ row: rows.length - 1, nCols: Math.max(headers.length, 1), style: S.rowMuted(true) });
+            } else {
+              hojaFilas.forEach((fila, idx) => {
+                const row = (hoja.columnas ?? []).map(c => fila.celdas?.[c.id] ?? "");
+                rows.push(row.length > 0 ? row : [""]);
+                blockStyles.push({
+                  row: rows.length - 1,
+                  nCols: Math.max(headers.length, 1),
+                  style: idx % 2 === 0 ? S.rowEven : S.rowOdd,
+                });
+              });
+            }
+
+            rows.push([""]); // gap between hojas
+          }
+
+          // Fotos section — placed below all hoja blocks, scoped to this OT.
+          rows.push(["Fotos"]);
+          blockStyles.push({ row: rows.length - 1, nCols: widestRow, style: S.kpiHeader });
+          if (fotos.length === 0) {
+            rows.push(["(sin fotos)"]);
+            blockStyles.push({ row: rows.length - 1, nCols: widestRow, style: S.rowMuted(true) });
+          } else {
+            rows.push(["#", "Tipo", "URL"]);
+            blockStyles.push({ row: rows.length - 1, nCols: 3, style: S.headerDark });
+            fotos.forEach((foto, idx) => {
+              rows.push([idx + 1, foto.tipo, foto.url]);
+              blockStyles.push({
+                row: rows.length - 1,
+                nCols: 3,
+                style: idx % 2 === 0 ? S.rowEven : S.rowOdd,
+              });
+              hyperlinkCells.push({ row: rows.length - 1, col: 2, url: foto.url });
+            });
+          }
+
+          const wsOt = XLSX.utils.aoa_to_sheet(rows);
+          wsOt["!cols"] = Array.from({ length: widestRow }, (_, i) => ({
+            wch: i === 0 ? 18 : i === widestRow - 1 ? 60 : 24,
+          }));
+          wsOt["!rows"] = rows.map(() => ({ hpt: 18 }));
+          wsOt["!freeze"] = { xSplit: 0, ySplit: 4 }; // freeze title block
+
+          // Apply styles
+          for (const { row, nCols, style } of blockStyles) {
+            styleRow(wsOt, row, nCols, style);
+          }
+          // Back-link cell → Órdenes de trabajo
+          for (const { row, col } of backlinkCells) {
+            const addr = XLSX.utils.encode_cell({ r: row, c: col });
+            wsOt[addr] = {
+              v: "← Volver a Órdenes",
+              t: "s",
+              l: { Target: `#'Órdenes de trabajo'!A1`, Tooltip: "Volver a la lista de órdenes" },
+            };
+            applyStyle(wsOt, addr, S_link(false));
+          }
+          // Photo URL hyperlinks
+          for (const { row, col, url } of hyperlinkCells) {
+            const addr = XLSX.utils.encode_cell({ r: row, c: col });
+            wsOt[addr] = {
+              v: url,
+              t: "s",
+              l: { Target: url },
+              s: { font: { color: { rgb: "1D4ED8" }, underline: true, sz: 10 } },
+            };
+          }
+
+          XLSX.utils.book_append_sheet(wb, wsOt, sheetName);
         }
-        XLSX.utils.book_append_sheet(wb, wsHoja, "Hoja de cálculo");
       }
 
       // ── SHEET: Materiales de inventario ──────────────────────────────────
@@ -848,54 +995,9 @@ export default function OrdenesBandeja({
         XLSX.utils.book_append_sheet(wb, wsMat, "Materiales");
       }
 
-      // ── SHEET: Fotos ─────────────────────────────────────────────────────
-      if (f.fotos) {
-        const sb = createClient();
-        const ordenIds = allFiltered.map(o => o.id);
-
-        const { data: grupoItems } = await sb
-          .from("foto_grupo_items")
-          .select("url, grupo_id, foto_grupos!inner(orden_id, tipo)")
-          .in("foto_grupos.orden_id", ordenIds)
-          .order("created_at");
-
-        const fotosHeaders = ["ID", "N° OT (SF)", "Tipo", "URL Foto"];
-        const fotosData: (string | number)[][] = [fotosHeaders];
-
-        for (const item of (grupoItems ?? []) as unknown as { url: string; grupo_id: string; foto_grupos: { orden_id: string; tipo: string } | { orden_id: string; tipo: string }[] }[]) {
-          const fg = Array.isArray(item.foto_grupos) ? item.foto_grupos[0] : item.foto_grupos;
-          const ot = allFiltered.find(o => o.id === fg?.orden_id);
-          const otNSerie = (ot as OrdenListItem & { n_serie?: string | null } | undefined)?.n_serie ?? metaMap.get(ot?.id ?? "")?.nOT ?? "—";
-          fotosData.push([ot?.numero ?? "—", otNSerie, fg?.tipo ?? "—", item.url]);
-        }
-
-        // Also include legacy fotos_urls if any
-        for (const ot of allFiltered) {
-          const legacy = (ot as OrdenListItem & { fotos_urls?: string[] | null }).fotos_urls;
-          if (!legacy?.length) continue;
-          const otNSerie = (ot as OrdenListItem & { n_serie?: string | null }).n_serie ?? metaMap.get(ot.id)?.nOT ?? "—";
-          for (const url of legacy) {
-            fotosData.push([ot.numero ?? "—", otNSerie, "legacy", url]);
-          }
-        }
-
-        const wsFootos = XLSX.utils.aoa_to_sheet(fotosData);
-        wsFootos["!cols"] = [8, 22, 12, 80].map(wch => ({ wch }));
-        wsFootos["!rows"] = fotosData.map(() => ({ hpt: 18 }));
-        wsFootos["!freeze"] = { xSplit: 0, ySplit: 1 };
-        styleRow(wsFootos, 0, fotosHeaders.length, S.headerDark);
-
-        // Make URL cells clickable hyperlinks
-        for (let r = 1; r < fotosData.length; r++) {
-          styleRow(wsFootos, r, fotosHeaders.length, r % 2 === 0 ? S.rowEven : S.rowOdd);
-          const urlVal = fotosData[r][3];
-          if (typeof urlVal === "string" && urlVal.startsWith("http")) {
-            const addr = XLSX.utils.encode_cell({ r, c: 3 });
-            wsFootos[addr] = { v: urlVal, t: "s", l: { Target: urlVal }, s: { font: { color: { rgb: "1D4ED8" }, underline: true, sz: 10 } } };
-          }
-        }
-        XLSX.utils.book_append_sheet(wb, wsFootos, "Fotos");
-      }
+      // (The standalone "Fotos" sheet was removed — photo URLs now live
+      // inside each per-OT sheet, alongside that OT's Hoja de cálculo rows,
+      // so the user gets a single filtered view per ID click.)
 
       const dateStr = new Date().toISOString().slice(0, 10);
       XLSX.writeFile(wb, `pangui_ordenes_${dateStr}.xlsx`);

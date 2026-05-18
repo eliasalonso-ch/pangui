@@ -255,48 +255,51 @@ const TIPO_LABEL: Record<string, string> = {
 };
 
 const ACT_ICON: Record<ActividadTipo, React.ComponentType<{ className?: string }>> = {
-  creado:           CircleDot,
-  asignado:         User,
-  estado_cambiado:  PlayCircle,
-  prioridad_cambiada: AlertTriangle,
-  editado:          Pencil,
-  ubicacion_cambiada: MapPin,
-  iniciado:         Play,
-  pausado:          Pause,
-  reanudado:        RotateCcw,
-  completado:       CheckCircle2,
-  cancelado:        XCircle,
-  comentario:       Send,
+  creado:               CircleDot,
+  asignado:             User,
+  estado_cambiado:      PlayCircle,
+  prioridad_cambiada:   AlertTriangle,
+  editado:              Pencil,
+  ubicacion_cambiada:   MapPin,
+  iniciado:             Play,
+  pausado:              Pause,
+  reanudado:            RotateCcw,
+  completado:           CheckCircle2,
+  cancelado:            XCircle,
+  comentario:           Send,
+  fotos_grupo_subidas:  Image,
 };
 
 const ACT_COLOR: Record<ActividadTipo, string> = {
-  creado:            "text-indigo-500",
-  asignado:          "text-violet-500",
-  estado_cambiado:   "text-blue-500",
-  prioridad_cambiada:"text-orange-500",
-  editado:           "text-zinc-500",
-  ubicacion_cambiada:"text-teal-500",
-  iniciado:          "text-green-500",
-  pausado:           "text-amber-500",
-  reanudado:         "text-cyan-500",
-  completado:        "text-green-600",
-  cancelado:         "text-zinc-400",
-  comentario:        "text-blue-500",
+  creado:               "text-indigo-500",
+  asignado:             "text-violet-500",
+  estado_cambiado:      "text-blue-500",
+  prioridad_cambiada:   "text-orange-500",
+  editado:              "text-zinc-500",
+  ubicacion_cambiada:   "text-teal-500",
+  iniciado:             "text-green-500",
+  pausado:              "text-amber-500",
+  reanudado:            "text-cyan-500",
+  completado:           "text-green-600",
+  cancelado:            "text-zinc-400",
+  comentario:           "text-blue-500",
+  fotos_grupo_subidas:  "text-sky-500",
 };
 
 const ACT_LABEL: Record<ActividadTipo, string> = {
-  creado:            "Orden creada",
-  asignado:          "Asignado a",
-  estado_cambiado:   "Estado cambiado a",
-  prioridad_cambiada:"Prioridad cambiada a",
-  editado:           "Orden editada",
-  ubicacion_cambiada:"Ubicación actualizada",
-  iniciado:          "Trabajo iniciado",
-  pausado:           "Trabajo pausado",
-  reanudado:         "Trabajo reanudado",
-  completado:        "Orden completada",
-  cancelado:         "Orden cancelada",
-  comentario:        "",
+  creado:               "Orden creada",
+  asignado:             "Asignado a",
+  estado_cambiado:      "Estado cambiado a",
+  prioridad_cambiada:   "Prioridad cambiada a",
+  editado:              "Orden editada",
+  ubicacion_cambiada:   "Ubicación actualizada",
+  iniciado:             "Trabajo iniciado",
+  pausado:              "Trabajo pausado",
+  reanudado:            "Trabajo reanudado",
+  completado:           "Orden completada",
+  cancelado:            "Orden cancelada",
+  comentario:           "",
+  fotos_grupo_subidas:  "Fotos subidas al grupo",
 };
 
 function fmtTs(ts: string) {
@@ -2129,13 +2132,18 @@ export default function OTDetail({
                   const Icon = ACT_ICON[act.tipo] ?? CircleDot;
                   const colorClass = ACT_COLOR[act.tipo] ?? "text-zinc-400";
                   const isComment = act.tipo === "comentario";
-                  const label = ACT_LABEL[act.tipo] ?? act.tipo;
+                  const isFotosGrupo = act.tipo === "fotos_grupo_subidas";
+                  const label = isFotosGrupo && act.comentario
+                    ? `Fotos subidas al grupo "${act.comentario}"`
+                    : (ACT_LABEL[act.tipo] ?? act.tipo);
                   const resolvedComentario = act.tipo === "asignado" && act.comentario
                     ? act.comentario.split(",").map(id => {
                         const u = usuarios.find(u => u.id === id.trim());
                         return u?.nombre ?? id.trim();
                       }).join(", ")
-                    : act.comentario;
+                    : isFotosGrupo
+                      ? null
+                      : act.comentario;
                   const isLast = idx === actividad.length - 1;
                   return (
                     <div key={act.id} style={{ display: "flex", gap: 12, position: "relative" }}>
@@ -2166,6 +2174,15 @@ export default function OTDetail({
                           }}>
                             {resolvedComentario}
                           </div>
+                        )}
+                        {act.foto_url && (
+                          <a href={act.foto_url} target="_blank" rel="noreferrer" style={{ display: "inline-block", marginTop: 8 }}>
+                            <img
+                              src={act.foto_url}
+                              alt="foto"
+                              style={{ maxWidth: 260, maxHeight: 200, borderRadius: 6, border: "1px solid var(--border)", objectFit: "cover", display: "block" }}
+                            />
+                          </a>
                         )}
                         {act.audio_url && (
                           <div style={{ marginTop: 6, display: "flex", alignItems: "center", gap: 6 }}>
