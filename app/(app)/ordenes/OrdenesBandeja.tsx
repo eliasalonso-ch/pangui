@@ -5,6 +5,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Plus, Search, X, ChevronDown, Loader2, FileText, ArrowUpDown, Download } from "lucide-react";
 import { createClient } from "@/lib/supabase";
 import { fetchOrden, deleteOrden, LIST_SELECT, parseDescMeta } from "@/lib/ordenes-api";
+import { buildOrdenesWorkbook, type ExportCols as SharedExportCols, type OrdenInput, type HojaInput, type FilaInput, type FotoItemInput, type MaterialUsadoInput } from "@/lib/excel-export-shared";
+import { ExportScheduler } from "./ExportScheduler";
 import OTRow from "./OTRow";
 import OTDetail from "./OTDetail";
 import OTCrearPanel from "./OTCrearPanel";
@@ -378,6 +380,11 @@ export default function OrdenesBandeja({
   const currentSortLabel = SORT_OPTIONS.find(o => o.value === sort)?.label ?? "";
 
   // ── Excel export (all OTs across tabs, respecting filters/search) ─────────
+  //
+  // Filtering + Supabase queries happen here (browser-side, uses the user's
+  // session). The actual workbook construction is delegated to the shared
+  // builder in lib/excel-export-shared.ts so the same code runs in the
+  // scheduled-email Edge Function (Deno) and produces identical files.
   async function handleExportExcel() {
     if (exporting) return;
     setExportConfigOpen(false);
@@ -414,213 +421,32 @@ export default function OrdenesBandeja({
 
       if (allFiltered.length === 0) { setExporting(false); return; }
 
-      // ── Helpers ──────────────────────────────────────────────────────────
-      const fmtDate = (s: string | null | undefined) =>
-        s ? new Date(s).toLocaleDateString("es-CL") : "—";
-      const fmtDateTime = (s: string | null | undefined) =>
-        s ? new Date(s).toLocaleString("es-CL", { day:"2-digit", month:"2-digit", year:"numeric", hour:"2-digit", minute:"2-digit" }) : "—";
+      // ── Fetch per-OT data (hojas, filas, fotos, materiales) ──────────────
+      const ordenIds = allFiltered.map(o => o.id);
+      let hojas: HojaInput[] = [];
+      let filas: FilaInput[] = [];
+      let fotos: FotoItemInput[] = [];
+      let materialesUsados: MaterialUsadoInput[] = [];
 
-      const ESTADO_LABEL: Record<string, string> = {
-        pendiente: "Sin asignar", en_espera: "En espera",
-        en_curso: "En curso", completado: "Completado",
-      };
-      const PRIORIDAD_LABEL: Record<string, string> = {
-        urgente: "Urgente", alta: "Alta", media: "Media", baja: "Baja", ninguna: "—",
-      };
-      const TIPO_LABEL: Record<string, string> = {
-        correctivo: "Correctivo", preventivo: "Preventivo",
-        predictivo: "Predictivo", mejora: "Mejora",
-      };
-
-      // ── Style tokens ─────────────────────────────────────────────────────
-      const S = {
-        headerDark: {
-          font:  { bold: true, color: { rgb: "FFFFFF" }, sz: 11 },
-          fill:  { fgColor: { rgb: "0F172A" } },
-          alignment: { horizontal: "center", vertical: "center", wrapText: false },
-          border: { bottom: { style: "thin", color: { rgb: "1E3A8A" } } },
-        },
-        headerBrand: {
-          font:  { bold: true, color: { rgb: "FFFFFF" }, sz: 11 },
-          fill:  { fgColor: { rgb: "1E3A8A" } },
-          alignment: { horizontal: "center", vertical: "center", wrapText: false },
-          border: { bottom: { style: "thin", color: { rgb: "2563EB" } } },
-        },
-        rowEven: {
-          fill: { fgColor: { rgb: "F8FAFC" } },
-          font: { sz: 10, color: { rgb: "0F172A" } },
-          border: { bottom: { style: "thin", color: { rgb: "E2E8F0" } } },
-          alignment: { vertical: "center" },
-        },
-        rowOdd: {
-          fill: { fgColor: { rgb: "FFFFFF" } },
-          font: { sz: 10, color: { rgb: "0F172A" } },
-          border: { bottom: { style: "thin", color: { rgb: "E2E8F0" } } },
-          alignment: { vertical: "center" },
-        },
-        rowMuted: (even: boolean) => ({
-          fill: { fgColor: { rgb: even ? "F8FAFC" : "FFFFFF" } },
-          font: { sz: 10, color: { rgb: "94A3B8" } },
-          border: { bottom: { style: "thin", color: { rgb: "E2E8F0" } } },
-          alignment: { vertical: "center" },
-        }),
-        badge: (color: string, bg: string) => ({
-          font:  { bold: true, sz: 10, color: { rgb: color } },
-          fill:  { fgColor: { rgb: bg } },
-          alignment: { horizontal: "center", vertical: "center" },
-          border: { bottom: { style: "thin", color: { rgb: "E2E8F0" } } },
-        }),
-        totalRow: {
-          font:  { bold: true, sz: 10, color: { rgb: "1D4ED8" } },
-          fill:  { fgColor: { rgb: "DBEAFE" } },
-          alignment: { horizontal: "left", vertical: "center" },
-          border: { top: { style: "medium", color: { rgb: "2563EB" } }, bottom: { style: "thin", color: { rgb: "BFDBFE" } } },
-        },
-        kpiHeader: {
-          font:  { bold: true, color: { rgb: "FFFFFF" }, sz: 12 },
-          fill:  { fgColor: { rgb: "1E3A8A" } },
-          alignment: { horizontal: "center", vertical: "center" },
-        },
-        kpiLabel: {
-          font:  { bold: true, sz: 10, color: { rgb: "64748B" } },
-          fill:  { fgColor: { rgb: "F1F5F9" } },
-          alignment: { horizontal: "left", vertical: "center" },
-          border: { bottom: { style: "thin", color: { rgb: "E2E8F0" } } },
-        },
-        kpiValue: {
-          font:  { sz: 10, color: { rgb: "0F172A" } },
-          fill:  { fgColor: { rgb: "FFFFFF" } },
-          alignment: { horizontal: "left", vertical: "center" },
-          border: { bottom: { style: "thin", color: { rgb: "E2E8F0" } } },
-        },
-        kpiValueBig: {
-          font:  { bold: true, sz: 14, color: { rgb: "1E3A8A" } },
-          fill:  { fgColor: { rgb: "EFF6FF" } },
-          alignment: { horizontal: "center", vertical: "center" },
-          border: { bottom: { style: "thin", color: { rgb: "BFDBFE" } } },
-        },
-      } as const;
-
-      function applyStyle(ws: Record<string, unknown>, addr: string, style: Record<string, unknown>) {
-        if (ws[addr] && typeof ws[addr] === "object") {
-          (ws[addr] as Record<string, unknown>).s = style;
-        }
-      }
-      function styleRow(ws: Record<string, unknown>, rowIdx: number, nCols: number, style: Record<string, unknown>) {
-        for (let c = 0; c < nCols; c++) {
-          applyStyle(ws, XLSX.utils.encode_cell({ r: rowIdx, c }), style);
-        }
-      }
-
-      // ── Column definitions ────────────────────────────────────────────────
-      type ColDef = {
-        header: string;
-        width: number;
-        getValue: (o: OrdenListItem) => string | number;
-        estadoBadge?: boolean;
-        prioBadge?: boolean;
-        mutableIfEmpty?: (o: OrdenListItem) => boolean;
-      };
-
-      const estadoColors: Record<string, { font: string; fill: string }> = {
-        pendiente:  { font: "92400E", fill: "FFFBEB" },
-        en_espera:  { font: "7C3AED", fill: "F5F3FF" },
-        en_curso:   { font: "1D4ED8", fill: "EFF6FF" },
-        completado: { font: "065F46", fill: "ECFDF5" },
-      };
-      const prioColors: Record<string, { font: string; fill: string }> = {
-        urgente: { font: "B91C1C", fill: "FEE2E2" },
-        alta:    { font: "B45309", fill: "FEF3C7" },
-        media:   { font: "1D4ED8", fill: "DBEAFE" },
-        baja:    { font: "475569", fill: "F1F5F9" },
-        ninguna: { font: "94A3B8", fill: "F8FAFC" },
-      };
-
-      // Column order matches the supervisor's required format
-      const COL_DEFS: { key: ExportCol; def: ColDef }[] = [
-        { key: "numero",       def: { header: "ID",             width: 8,  getValue: o => o.numero ?? "—" } },
-        { key: "n_serie",      def: { header: "N° OT",          width: 22, getValue: o => (o as OrdenListItem & { n_serie?: string | null }).n_serie || parseDescMeta(o.descripcion ?? null).nOT || "—" } },
-        { key: "hito",         def: { header: "Hito",           width: 20, getValue: o => (o as OrdenListItem & { hito?: string | null }).hito || parseDescMeta(o.descripcion ?? null).hito || "—" } },
-        { key: "estado",       def: { header: "Estado",         width: 14, getValue: o => ESTADO_LABEL[o.estado] ?? o.estado, estadoBadge: true } },
-        { key: "fecha_limite", def: { header: "Fecha término",  width: 14, getValue: o => fmtDate(o.fecha_termino), mutableIfEmpty: o => !o.fecha_termino } },
-        { key: "ubicacion",    def: { header: "Ubicación",      width: 34, getValue: o => o.ubicaciones?.edificio ?? "—" } },
-        { key: "descripcion",  def: { header: "Descripción",    width: 52, getValue: o => parseDescMeta(o.descripcion ?? null).descripcion || o.titulo || "—" } },
-        { key: "solicitante",  def: { header: "Solicitante",    width: 26, getValue: o => (o as OrdenListItem & { solicitante?: string | null }).solicitante || parseDescMeta(o.descripcion ?? null).solicitante || "—" } },
-        { key: "prioridad",    def: { header: "Prioridad",      width: 12, getValue: o => PRIORIDAD_LABEL[o.prioridad] ?? o.prioridad, prioBadge: true } },
-        { key: "tipo_trabajo", def: { header: "Tipo",           width: 14, getValue: o => o.tipo_trabajo ? (TIPO_LABEL[o.tipo_trabajo] ?? o.tipo_trabajo) : "—" } },
-        { key: "categoria",    def: { header: "Categoría",      width: 20, getValue: o => (o as OrdenListItem & { categorias_ot?: { nombre: string } | null }).categorias_ot?.nombre ?? "—" } },
-        { key: "activo",       def: { header: "Activo",         width: 22, getValue: o => o.activos?.nombre ?? "—" } },
-        { key: "asignados",    def: {
-          header: "Asignados", width: 30,
-          getValue: o => Array.isArray(o.asignados_ids) && o.asignados_ids.length > 0
-            ? o.asignados_ids.map(id => usuarios.find(u => u.id === id)?.nombre ?? id).join(", ")
-            : "Sin asignar",
-          mutableIfEmpty: o => !o.asignados_ids?.length,
-        } },
-        { key: "creado",       def: { header: "Creado",         width: 13, getValue: o => fmtDate(o.created_at) } },
-      ];
-
-      const activeCols = COL_DEFS.filter(c => f[c.key]);
-
-      // Pre-parse metadata once per order
-      const metaMap = new Map(allFiltered.map(o => [o.id, parseDescMeta(o.descripcion ?? null)]));
-
-      const getValueWithMeta = (col: typeof COL_DEFS[number], o: OrdenListItem): string | number => {
-        const m = metaMap.get(o.id);
-        if (col.key === "descripcion") return m?.descripcion || o.titulo || "—";
-        if (col.key === "solicitante") return (o as OrdenListItem & { solicitante?: string | null }).solicitante || m?.solicitante || "—";
-        if (col.key === "hito")        return (o as OrdenListItem & { hito?: string | null }).hito || m?.hito || "—";
-        if (col.key === "n_serie")     return (o as OrdenListItem & { n_serie?: string | null }).n_serie || m?.nOT || "—";
-        return col.def.getValue(o);
-      };
-
-      // ── Pre-fetch per-OT data ──────────────────────────────────────────
-      // Each OT that has at least one hoja or one photo gets its own sheet:
-      // hoja rows + a Fotos section below. Clicking the ID in the Orders
-      // sheet jumps to that OT's sheet — that IS the filtered view.
-      //
-      // Excel sheet names are limited to 31 chars and can't contain :\/?*[].
-      // We name sheets "OT-{numero}" with the running ID and dedupe collisions.
-      type HojaRow = { id: string; nombre: string; columnas: { id: string; label: string }[] };
-      type FilaRow = { hoja_id: string; celdas: Record<string, string>; orden: number };
-      const otHojas  = new Map<string, HojaRow[]>();        // orden_id → hojas (with their ids)
-      const filasByHojaId = new Map<string, FilaRow[]>();   // hoja_id → its filas
-      const otFotos  = new Map<string, { url: string; tipo: string }[]>(); // orden_id → photos
-      const otSheetName = new Map<string, string>();        // orden_id → final sheet name
-      const matFirstRow = new Map<string, number>();         // orden_id → first row in Materiales sheet
-      let matSheetData: { matData: (string | number)[][]; matHeaders: string[] } | null = null;
-
-      if (f.hoja_calculo) {
+      if (f.hoja_calculo && ordenIds.length > 0) {
         const sb = createClient();
-        const ordenIds = allFiltered.map(o => o.id);
-
-        // Hojas + their filas
-        const { data: hojas } = await sb
+        const { data: hojasData } = await sb
           .from("hojas_inventario")
           .select("id, nombre, columnas, orden_id")
           .in("orden_id", ordenIds)
           .order("created_at");
-        const hojaIds = (hojas ?? []).map((h: { id: string }) => h.id);
-        const { data: filas } = hojaIds.length > 0
-          ? await sb.from("hojas_inventario_filas")
-              .select("hoja_id, celdas, orden")
-              .in("hoja_id", hojaIds)
-              .order("orden")
-          : { data: [] };
+        hojas = (hojasData ?? []) as HojaInput[];
 
-        for (const hoja of (hojas ?? []) as { id: string; nombre: string; columnas: { id: string; label: string }[]; orden_id: string }[]) {
-          const list = otHojas.get(hoja.orden_id) ?? [];
-          list.push({ id: hoja.id, nombre: hoja.nombre, columnas: hoja.columnas });
-          otHojas.set(hoja.orden_id, list);
-        }
-        for (const fila of (filas ?? []) as FilaRow[]) {
-          const list = filasByHojaId.get(fila.hoja_id) ?? [];
-          list.push(fila);
-          filasByHojaId.set(fila.hoja_id, list);
+        const hojaIds = hojas.map(h => h.id);
+        if (hojaIds.length > 0) {
+          const { data: filasData } = await sb
+            .from("hojas_inventario_filas")
+            .select("hoja_id, celdas, orden")
+            .in("hoja_id", hojaIds)
+            .order("orden");
+          filas = (filasData ?? []) as FilaInput[];
         }
 
-        // Photos for every OT — included in the same per-OT sheet so the
-        // user gets one filtered view per ID click instead of a separate tab.
         const { data: grupoItems } = await sb
           .from("foto_grupo_items")
           .select("url, foto_grupos!inner(orden_id, tipo)")
@@ -629,378 +455,68 @@ export default function OrdenesBandeja({
         for (const item of (grupoItems ?? []) as unknown as { url: string; foto_grupos: { orden_id: string; tipo: string } | { orden_id: string; tipo: string }[] }[]) {
           const fg = Array.isArray(item.foto_grupos) ? item.foto_grupos[0] : item.foto_grupos;
           if (!fg?.orden_id || !item.url) continue;
-          const list = otFotos.get(fg.orden_id) ?? [];
-          list.push({ url: item.url, tipo: fg.tipo ?? "—" });
-          otFotos.set(fg.orden_id, list);
-        }
-        // Legacy fotos_urls column on the OT row itself.
-        for (const ot of allFiltered) {
-          const legacy = (ot as OrdenListItem & { fotos_urls?: string[] | null }).fotos_urls;
-          if (!legacy?.length) continue;
-          const list = otFotos.get(ot.id) ?? [];
-          for (const url of legacy) list.push({ url, tipo: "legacy" });
-          otFotos.set(ot.id, list);
-        }
-
-        // Reserve a unique, Excel-safe sheet name for every OT that has data.
-        // Sheet names are capped at 31 chars and can't contain : \ / ? * [ ].
-        const usedNames = new Set<string>(["Órdenes de trabajo", "Resumen", "Materiales"]);
-        const sanitize = (s: string) => s.replace(/[:\\/?*\[\]]/g, "_").slice(0, 31);
-        for (const ot of allFiltered) {
-          const hasHoja  = (otHojas.get(ot.id)?.length ?? 0) > 0;
-          const hasFotos = (otFotos.get(ot.id)?.length ?? 0) > 0;
-          if (!hasHoja && !hasFotos) continue;
-          let base = sanitize(`OT-${ot.numero ?? ot.id.slice(0, 6)}`);
-          let name = base;
-          let n = 2;
-          while (usedNames.has(name)) {
-            const suffix = `-${n++}`;
-            name = sanitize(base.slice(0, 31 - suffix.length) + suffix);
-          }
-          usedNames.add(name);
-          otSheetName.set(ot.id, name);
+          fotos.push({ orden_id: fg.orden_id, url: item.url, tipo: fg.tipo ?? "—" });
         }
       }
 
-      if (f.materiales_inventario) {
+      if (f.materiales_inventario && ordenIds.length > 0) {
         const sb = createClient();
-        const ordenIds = allFiltered.map(o => o.id);
         const { data: matRows } = await sb
           .from("materiales_usados")
           .select("orden_id, nombre, cantidad, unidad, precio_unitario")
           .in("orden_id", ordenIds)
           .order("orden_id");
-        const matHeaders = ["ID", "N° OT (SF)", "Material", "Cantidad", "Unidad", "Precio unitario", "Total"];
-        const matData: (string | number)[][] = [matHeaders];
-        for (const mat of (matRows ?? []) as { orden_id: string; nombre: string; cantidad: number; unidad: string | null; precio_unitario: number | null }[]) {
-          const ot = allFiltered.find(o => o.id === mat.orden_id);
-          const otNSerie = (ot as OrdenListItem & { n_serie?: string | null } | undefined)?.n_serie ?? metaMap.get(ot?.id ?? "")?.nOT ?? "—";
-          if (!matFirstRow.has(mat.orden_id)) matFirstRow.set(mat.orden_id, matData.length);
-          const total = mat.precio_unitario != null ? mat.cantidad * mat.precio_unitario : "";
-          matData.push([ot?.numero ?? "—", otNSerie, mat.nombre, mat.cantidad, mat.unidad ?? "—", mat.precio_unitario ?? "—", total]);
-        }
-        matSheetData = { matData, matHeaders };
+        materialesUsados = (matRows ?? []) as MaterialUsadoInput[];
       }
 
-      // Hyperlink style for ID cells
-      const S_link = (even: boolean) => ({
-        font: { bold: true, sz: 10, color: { rgb: "1D4ED8" }, underline: true },
-        fill: { fgColor: { rgb: even ? "EFF6FF" : "DBEAFE" } },
-        border: { bottom: { style: "thin", color: { rgb: "BFDBFE" } } },
-        alignment: { vertical: "center" },
+      // Map the in-memory OrdenListItem to the shared OrdenInput shape.
+      // Anything the builder doesn't need (joins for the bandeja UI) is dropped.
+      const ordenesForBuild: OrdenInput[] = allFiltered.map(o => ({
+        id: o.id,
+        numero: o.numero ?? null,
+        titulo: o.titulo ?? null,
+        descripcion: o.descripcion ?? null,
+        estado: o.estado,
+        prioridad: o.prioridad,
+        tipo_trabajo: o.tipo_trabajo ?? null,
+        fecha_termino: o.fecha_termino ?? null,
+        created_at: o.created_at,
+        asignados_ids: o.asignados_ids ?? null,
+        n_serie: (o as OrdenListItem & { n_serie?: string | null }).n_serie ?? null,
+        hito:    (o as OrdenListItem & { hito?: string | null }).hito ?? null,
+        solicitante: (o as OrdenListItem & { solicitante?: string | null }).solicitante ?? null,
+        ubicaciones: o.ubicaciones ? { edificio: o.ubicaciones.edificio ?? null } : null,
+        activos:     o.activos ? { nombre: o.activos.nombre ?? null } : null,
+        categorias_ot: (o as OrdenListItem & { categorias_ot?: { nombre: string | null } | null }).categorias_ot ?? null,
+        fotos_urls:  (o as OrdenListItem & { fotos_urls?: string[] | null }).fotos_urls ?? null,
+      }));
+
+      const bytes = buildOrdenesWorkbook({
+        ordenes: ordenesForBuild,
+        hojas,
+        filas,
+        fotos,
+        materialesUsados,
+        usuarios: usuarios.map(u => ({ id: u.id, nombre: u.nombre })),
+        cols: f as SharedExportCols,
+        // The dynamic import returns a synthetic { default, ...members } shape
+        // in some TS configs. The shared builder only reaches into utils/write,
+        // both of which are direct exports.
+        XLSX: XLSX as unknown as Parameters<typeof buildOrdenesWorkbook>[0]["XLSX"],
       });
 
-      // ── SHEET 1: Órdenes ─────────────────────────────────────────────────
-      const headers = activeCols.map(c => c.def.header);
-      const dataRows = allFiltered.map(o => activeCols.map(c => getValueWithMeta(c, o)));
-
-      const wsOrd = XLSX.utils.aoa_to_sheet([headers, ...dataRows]);
-      wsOrd["!cols"]   = activeCols.map(c => ({ wch: c.def.width }));
-      wsOrd["!rows"]   = [{ hpt: 22 }, ...dataRows.map(() => ({ hpt: 18 }))];
-      wsOrd["!freeze"] = { xSplit: 0, ySplit: 1 };
-
-      styleRow(wsOrd, 0, activeCols.length, S.headerDark);
-
-      const idColIdx = activeCols.findIndex(c => c.key === "numero");
-
-      dataRows.forEach((_, i) => {
-        const rIdx = i + 1;
-        const even = i % 2 === 0;
-        styleRow(wsOrd, rIdx, activeCols.length, even ? S.rowEven : S.rowOdd);
-
-        activeCols.forEach((c, colIdx) => {
-          const addr = XLSX.utils.encode_cell({ r: rIdx, c: colIdx });
-          if (c.def.estadoBadge) {
-            const ec = estadoColors[allFiltered[i].estado] ?? { font: "475569", fill: "F8FAFC" };
-            applyStyle(wsOrd, addr, S.badge(ec.font, ec.fill));
-          } else if (c.def.prioBadge) {
-            const pc = prioColors[allFiltered[i].prioridad] ?? prioColors.ninguna;
-            applyStyle(wsOrd, addr, S.badge(pc.font, pc.fill));
-          } else if (c.def.mutableIfEmpty?.(allFiltered[i])) {
-            applyStyle(wsOrd, addr, S.rowMuted(even));
-          }
-        });
-
-        // Add hyperlinks on the ID cell. Priority:
-        //   1. Per-OT sheet (hoja + fotos) — filtered view for this OT.
-        //   2. Materiales sheet — first row for this OT (fallback only).
-        // The per-OT sheet IS the filter the user asked for: clicking the ID
-        // jumps straight to that OT's hoja rows and photo links, nothing else.
-        if (idColIdx >= 0) {
-          const ot = allFiltered[i];
-          const idAddr = XLSX.utils.encode_cell({ r: rIdx, c: idColIdx });
-          const idVal = ot.numero ?? "—";
-          const otSheet = otSheetName.get(ot.id);
-          const matRow  = matFirstRow.get(ot.id);
-
-          const linkTarget = otSheet
-            ? `#'${otSheet}'!A1`
-            : matRow != null
-            ? `#'Materiales'!A${matRow + 1}`
-            : null;
-
-          if (linkTarget) {
-            const tooltip = otSheet
-              ? "→ Hoja de cálculo + Fotos (filtrado)"
-              : "→ Materiales";
-            wsOrd[idAddr] = { v: idVal, t: "s", l: { Target: linkTarget, Tooltip: tooltip } };
-            applyStyle(wsOrd, idAddr, S_link(even));
-          }
-        }
+      // Trigger browser download.
+      const blob = new Blob([new Uint8Array(bytes).buffer as ArrayBuffer], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       });
-
-      // Total row
-      const totalRowIdx = dataRows.length + 1;
-      const totAddr = XLSX.utils.encode_cell({ r: totalRowIdx, c: 0 });
-      wsOrd[totAddr] = { v: `Total: ${allFiltered.length} órdenes`, t: "s" };
-      applyStyle(wsOrd, totAddr, S.totalRow);
-      const sheetRange = XLSX.utils.decode_range(wsOrd["!ref"] ?? "A1");
-      sheetRange.e.r = totalRowIdx;
-      wsOrd["!ref"] = XLSX.utils.encode_range(sheetRange);
-      for (let c = 1; c < activeCols.length; c++) {
-        const addr = XLSX.utils.encode_cell({ r: totalRowIdx, c });
-        wsOrd[addr] = { v: "", t: "s" };
-        applyStyle(wsOrd, addr, S.totalRow);
-      }
-
-      // ── Workbook ─────────────────────────────────────────────────────────
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, wsOrd, "Órdenes de trabajo");
-
-      // ── SHEET 2: KPIs / Resumen (optional) ───────────────────────────────
-      if (f.resumen) {
-        const total      = allFiltered.length;
-        const completado = allFiltered.filter(o => o.estado === "completado").length;
-        const enCurso    = allFiltered.filter(o => o.estado === "en_curso").length;
-        const pendiente  = allFiltered.filter(o => o.estado === "pendiente").length;
-        const enEspera   = allFiltered.filter(o => o.estado === "en_espera").length;
-        const urgentes   = allFiltered.filter(o => o.prioridad === "urgente").length;
-        const vencidas   = allFiltered.filter(o =>
-          o.estado !== "completado" && o.fecha_termino && new Date(o.fecha_termino) < new Date()
-        ).length;
-        const sinAsignar = allFiltered.filter(o => !o.asignados_ids?.length).length;
-
-        const byTipo: Record<string, number> = {};
-        allFiltered.forEach(o => { if (o.tipo_trabajo) byTipo[o.tipo_trabajo] = (byTipo[o.tipo_trabajo] ?? 0) + 1; });
-        const byUbic: Record<string, number> = {};
-        allFiltered.forEach(o => {
-          const label = o.ubicaciones?.edificio ?? "Sin ubicación";
-          byUbic[label] = (byUbic[label] ?? 0) + 1;
-        });
-
-        const kpiData: (string | number)[][] = [
-          ["RESUMEN DEL REPORTE", ""],
-          ["", ""],
-          ["ESTADOS", ""],
-          ["Total de órdenes",         total],
-          ["Completadas",              completado],
-          ["En curso",                 enCurso],
-          ["Sin asignar (pendiente)",   pendiente],
-          ["En espera",                enEspera],
-          ["", ""],
-          ["ALERTAS", ""],
-          ["Urgentes",                 urgentes],
-          ["Vencidas (sin completar)", vencidas],
-          ["Sin asignar",              sinAsignar],
-          ["", ""],
-          ["POR TIPO DE TRABAJO", ""],
-          ...Object.entries(byTipo).map(([k, v]) => [TIPO_LABEL[k] ?? k, v]),
-          ["", ""],
-          ["POR UBICACIÓN (Top 10)", ""],
-          ...Object.entries(byUbic)
-            .sort((a, b) => (b[1] as number) - (a[1] as number))
-            .slice(0, 10)
-            .map(([k, v]) => [k, v]),
-          ["", ""],
-          ["Exportado el", fmtDateTime(new Date().toISOString())],
-        ];
-
-        const wsKpi = XLSX.utils.aoa_to_sheet(kpiData);
-        wsKpi["!cols"]   = [{ wch: 34 }, { wch: 18 }];
-        wsKpi["!rows"]   = kpiData.map(() => ({ hpt: 18 }));
-        wsKpi["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 1 } }];
-
-        applyStyle(wsKpi, "A1", S.kpiHeader);
-        applyStyle(wsKpi, "B1", S.kpiHeader);
-
-        const sectionKeys = new Set(["ESTADOS", "ALERTAS", "POR TIPO DE TRABAJO", "POR UBICACIÓN (Top 10)"]);
-        kpiData.forEach((row, i) => {
-          if (i === 0) return;
-          const k = row[0];
-          if (typeof k !== "string" || k === "") return;
-          if (sectionKeys.has(k)) {
-            applyStyle(wsKpi, XLSX.utils.encode_cell({ r: i, c: 0 }), S.headerBrand);
-            applyStyle(wsKpi, XLSX.utils.encode_cell({ r: i, c: 1 }), S.headerBrand);
-          } else if (typeof row[1] === "number" && i >= 3 && i <= 8) {
-            applyStyle(wsKpi, XLSX.utils.encode_cell({ r: i, c: 0 }), S.kpiLabel);
-            applyStyle(wsKpi, XLSX.utils.encode_cell({ r: i, c: 1 }), S.kpiValueBig);
-          } else {
-            applyStyle(wsKpi, XLSX.utils.encode_cell({ r: i, c: 0 }), S.kpiLabel);
-            applyStyle(wsKpi, XLSX.utils.encode_cell({ r: i, c: 1 }), S.kpiValue);
-          }
-        });
-
-        XLSX.utils.book_append_sheet(wb, wsKpi, "Resumen");
-      }
-
-      // ── SHEETS: one per OT (Hoja de cálculo rows + Fotos section) ──────
-      // Each OT that has hoja rows OR photos gets its own sheet. This IS the
-      // filtered view — clicking the ID in "Órdenes de trabajo" lands here
-      // and shows ONLY this OT's hoja(s) and photo links, nothing else.
-      if (f.hoja_calculo) {
-        for (const ot of allFiltered) {
-          const sheetName = otSheetName.get(ot.id);
-          if (!sheetName) continue;
-
-          const hojas = otHojas.get(ot.id) ?? [];
-          const fotos = otFotos.get(ot.id) ?? [];
-
-          const otNumero = ot.numero ?? "—";
-          const otNSerie = (ot as OrdenListItem & { n_serie?: string | null }).n_serie
-            ?? metaMap.get(ot.id)?.nOT ?? "—";
-          const otTitulo = ot.titulo ?? "Sin título";
-
-          // Build the sheet as an array-of-arrays so we can intersperse
-          // titles, hoja-blocks, and the Fotos section with blank-row gaps.
-          const rows: (string | number)[][] = [];
-          const blockStyles: { row: number; nCols: number; style: Record<string, unknown> }[] = [];
-          const backlinkCells: { row: number; col: number }[] = [];
-          const hyperlinkCells: { row: number; col: number; url: string }[] = [];
-          const widestRow = (() => {
-            let w = 4;
-            for (const h of hojas) w = Math.max(w, (h.columnas?.length ?? 0));
-            return Math.max(w, 4); // photos section uses 4 cols
-          })();
-
-          // Title block — OT identification + back-link to the Orders sheet.
-          rows.push([`OT-${otNumero}  ·  ${otTitulo}`]);
-          blockStyles.push({ row: rows.length - 1, nCols: widestRow, style: S.kpiHeader });
-          rows.push([`N° OT (SF): ${otNSerie}`]);
-          blockStyles.push({ row: rows.length - 1, nCols: widestRow, style: S.kpiLabel });
-          rows.push(["← Volver a Órdenes"]);
-          backlinkCells.push({ row: rows.length - 1, col: 0 });
-          rows.push([""]); // gap
-
-          // Hoja blocks — one per hoja, with its own column headers.
-          for (const hoja of hojas) {
-            const hojaFilas = filasByHojaId.get(hoja.id) ?? [];
-
-            // Hoja section title
-            rows.push([`Hoja: ${hoja.nombre}`]);
-            blockStyles.push({ row: rows.length - 1, nCols: widestRow, style: S.headerBrand });
-
-            // Column headers
-            const headers = (hoja.columnas ?? []).map(c => c.label);
-            rows.push(headers.length > 0 ? headers : ["(sin columnas)"]);
-            blockStyles.push({ row: rows.length - 1, nCols: Math.max(headers.length, 1), style: S.headerDark });
-
-            // Filas
-            if (hojaFilas.length === 0) {
-              rows.push(["(sin filas)"]);
-              blockStyles.push({ row: rows.length - 1, nCols: Math.max(headers.length, 1), style: S.rowMuted(true) });
-            } else {
-              hojaFilas.forEach((fila, idx) => {
-                const row = (hoja.columnas ?? []).map(c => fila.celdas?.[c.id] ?? "");
-                rows.push(row.length > 0 ? row : [""]);
-                blockStyles.push({
-                  row: rows.length - 1,
-                  nCols: Math.max(headers.length, 1),
-                  style: idx % 2 === 0 ? S.rowEven : S.rowOdd,
-                });
-              });
-            }
-
-            rows.push([""]); // gap between hojas
-          }
-
-          // Fotos section — placed below all hoja blocks, scoped to this OT.
-          rows.push(["Fotos"]);
-          blockStyles.push({ row: rows.length - 1, nCols: widestRow, style: S.kpiHeader });
-          if (fotos.length === 0) {
-            rows.push(["(sin fotos)"]);
-            blockStyles.push({ row: rows.length - 1, nCols: widestRow, style: S.rowMuted(true) });
-          } else {
-            rows.push(["#", "Tipo", "URL"]);
-            blockStyles.push({ row: rows.length - 1, nCols: 3, style: S.headerDark });
-            fotos.forEach((foto, idx) => {
-              rows.push([idx + 1, foto.tipo, foto.url]);
-              blockStyles.push({
-                row: rows.length - 1,
-                nCols: 3,
-                style: idx % 2 === 0 ? S.rowEven : S.rowOdd,
-              });
-              hyperlinkCells.push({ row: rows.length - 1, col: 2, url: foto.url });
-            });
-          }
-
-          const wsOt = XLSX.utils.aoa_to_sheet(rows);
-          wsOt["!cols"] = Array.from({ length: widestRow }, (_, i) => ({
-            wch: i === 0 ? 18 : i === widestRow - 1 ? 60 : 24,
-          }));
-          wsOt["!rows"] = rows.map(() => ({ hpt: 18 }));
-          wsOt["!freeze"] = { xSplit: 0, ySplit: 4 }; // freeze title block
-
-          // Apply styles
-          for (const { row, nCols, style } of blockStyles) {
-            styleRow(wsOt, row, nCols, style);
-          }
-          // Back-link cell → Órdenes de trabajo
-          for (const { row, col } of backlinkCells) {
-            const addr = XLSX.utils.encode_cell({ r: row, c: col });
-            wsOt[addr] = {
-              v: "← Volver a Órdenes",
-              t: "s",
-              l: { Target: `#'Órdenes de trabajo'!A1`, Tooltip: "Volver a la lista de órdenes" },
-            };
-            applyStyle(wsOt, addr, S_link(false));
-          }
-          // Photo URL hyperlinks
-          for (const { row, col, url } of hyperlinkCells) {
-            const addr = XLSX.utils.encode_cell({ r: row, c: col });
-            wsOt[addr] = {
-              v: url,
-              t: "s",
-              l: { Target: url },
-              s: { font: { color: { rgb: "1D4ED8" }, underline: true, sz: 10 } },
-            };
-          }
-
-          XLSX.utils.book_append_sheet(wb, wsOt, sheetName);
-        }
-      }
-
-      // ── SHEET: Materiales de inventario ──────────────────────────────────
-      if (matSheetData) {
-        const { matData, matHeaders } = matSheetData;
-        const wsMat = XLSX.utils.aoa_to_sheet(matData);
-        wsMat["!cols"]   = [8, 22, 28, 12, 12, 16, 14].map(wch => ({ wch }));
-        wsMat["!rows"]   = matData.map(() => ({ hpt: 18 }));
-        wsMat["!freeze"] = { xSplit: 0, ySplit: 1 };
-        styleRow(wsMat, 0, matHeaders.length, S.headerDark);
-        // Style rows + back-link on ID cell → Órdenes de trabajo
-        for (let r = 1; r < matData.length; r++) {
-          const even = r % 2 === 0;
-          styleRow(wsMat, r, matHeaders.length, even ? S.rowEven : S.rowOdd);
-          const idAddr = XLSX.utils.encode_cell({ r, c: 0 });
-          const idVal  = matData[r][0];
-          wsMat[idAddr] = { v: idVal, t: "s", l: { Target: `#'Órdenes de trabajo'!A${r + 1}`, Tooltip: "← Volver a Órdenes" } };
-          applyStyle(wsMat, idAddr, S_link(even));
-        }
-        if (matData.length > 1) {
-          const totalRow = ["", "", "TOTAL", "", "", "", matData.slice(1).reduce((sum, r) => sum + (typeof r[6] === "number" ? r[6] : 0), 0)];
-          const totalIdx = matData.length;
-          XLSX.utils.sheet_add_aoa(wsMat, [totalRow], { origin: totalIdx });
-          styleRow(wsMat, totalIdx, matHeaders.length, S.totalRow);
-        }
-        XLSX.utils.book_append_sheet(wb, wsMat, "Materiales");
-      }
-
-      // (The standalone "Fotos" sheet was removed — photo URLs now live
-      // inside each per-OT sheet, alongside that OT's Hoja de cálculo rows,
-      // so the user gets a single filtered view per ID click.)
-
       const dateStr = new Date().toISOString().slice(0, 10);
-      XLSX.writeFile(wb, `pangui_ordenes_${dateStr}.xlsx`);
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `pangui_ordenes_${dateStr}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(a.href);
     } finally {
       setExporting(false);
     }
@@ -1427,7 +943,16 @@ export default function OrdenesBandeja({
           onClick={() => setExportConfigOpen(false)}
         >
           <div
-            style={{ background:"var(--surface-1)", borderRadius:14, width:420, boxShadow:"0 20px 60px rgba(15,23,42,0.20)", overflow:"hidden" }}
+            style={{
+              background: "var(--surface-1)",
+              borderRadius: 14,
+              width: 520,
+              maxHeight: "calc(100vh - 48px)",   // never overflow the viewport
+              display: "flex",
+              flexDirection: "column",
+              boxShadow: "0 20px 60px rgba(15,23,42,0.20)",
+              overflow: "hidden",
+            }}
             onClick={e => e.stopPropagation()}
           >
             {/* Header */}
@@ -1449,8 +974,9 @@ export default function OrdenesBandeja({
               </button>
             </div>
 
-            {/* Fields grouped */}
-            <div style={{ padding:"8px 20px 4px", maxHeight:380, overflowY:"auto" }}>
+            {/* Scrollable body: columns + select-all + scheduler */}
+            <div style={{ flex: 1, minHeight: 0, overflowY: "auto" }}>
+            <div style={{ padding:"8px 20px 4px" }}>
               {Array.from(new Set(EXPORT_COLS.map(c => c.group))).map(group => (
                 <div key={group} style={{ marginBottom:12 }}>
                   <div style={{ fontSize:10, fontWeight:700, color:"var(--fg-4)", textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:4, paddingLeft:10 }}>
@@ -1493,6 +1019,14 @@ export default function OrdenesBandeja({
                 {Object.values(exportCols).filter(Boolean).length} seleccionados
               </span>
             </div>
+
+            {/* Scheduled email reports */}
+            <ExportScheduler
+              defaultColumns={exportCols}
+              canManage={myRol === "admin" || myRol === "owner"}
+            />
+            </div>
+            {/* /scrollable body */}
 
             {/* Footer */}
             <div style={{ padding:"10px 20px 16px", borderTop:"1px solid var(--border)", display:"flex", justifyContent:"flex-end", gap:8 }}>

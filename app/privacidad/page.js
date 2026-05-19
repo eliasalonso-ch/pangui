@@ -232,6 +232,7 @@ export default function PrivacidadPage() {
             ["Identidad", "Nombre, apellido, correo electrónico", "Sí"],
             ["Empresarial", "Nombre de la empresa/planta, cargo y oficio del usuario", "Sí"],
             ["Órdenes de trabajo", "Título, descripción, comentarios, fotos del trabajo, materiales utilizados, hojas de inventario, archivos adjuntos (PDF, planos, Excel, etc.)", "Sí"],
+            ["Grabaciones de voz", "Notas de voz que opcionalmente grabes al comentar en una orden de trabajo. La app solicita permiso de micrófono antes de grabar y puedes denegarlo sin afectar el resto del servicio.", "No (opcional)"],
             ["Firma digital", "Imagen de firma del cliente receptor del trabajo", "No (según el procedimiento)"],
             ["Procedimientos", "Respuestas a pasos del procedimiento (texto, números, opciones, fotos, firmas)", "No (según el procedimiento)"],
             ["Uso del servicio", "Logs de acceso, dispositivo, sistema operativo, dirección IP", "No (técnico)"],
@@ -288,7 +289,7 @@ export default function PrivacidadPage() {
         <Ul
           items={[
             "Ejecución de contrato: el tratamiento es necesario para prestarte el servicio de gestión de OT que suscribiste.",
-            "Consentimiento: para el envío de notificaciones push y para el uso de datos de geolocalización GPS. Puedes retirar tu consentimiento en cualquier momento desde Configuración → Notificaciones.",
+            "Consentimiento: para el envío de notificaciones push y para el uso del micrófono al grabar notas de voz en comentarios. Puedes denegar o retirar estos permisos desde la configuración del sistema operativo o desde Configuración → Notificaciones dentro de la app, sin afectar el resto del servicio.",
             "Obligación legal: conservación de documentos tributarios y registros contables conforme a la normativa del SII (5 años).",
             "Interés legítimo: logs de seguridad para detectar accesos no autorizados y proteger la integridad de la plataforma.",
           ]}
@@ -304,7 +305,7 @@ export default function PrivacidadPage() {
         <Ul
           items={[
             "Supabase Inc. (EE.UU.) — Base de datos PostgreSQL, autenticación, Edge Functions y logs. Infraestructura en AWS us-east-1. Cumple SOC 2 Type II.",
-            "Cloudflare, Inc. (EE.UU.) — Almacenamiento de fotos, firmas y archivos adjuntos en Cloudflare R2 (servidos vía cdn.getpangui.com). Cumple SOC 2 e ISO 27001.",
+            "Cloudflare, Inc. (EE.UU.) — Almacenamiento de fotos, firmas, grabaciones de voz y archivos adjuntos en Cloudflare R2 (servidos vía cdn.getpangui.com). Cumple SOC 2 e ISO 27001.",
             "Google LLC (EE.UU.) — Google Gemini API, usado únicamente cuando el usuario escanea una OT física para extraer texto del documento. Las imágenes se procesan de forma efímera. También Firebase Cloud Messaging para entrega de notificaciones push en Android.",
             "Expo (650 Industries, Inc., EE.UU.) — Servicio de notificaciones push (Expo Push) y entrega de actualizaciones de la app móvil (Expo Updates). El token push se asocia a tu cuenta.",
             "Vercel Inc. (EE.UU.) — Hosting del sitio web y backend de generación de PDF (pdf.getpangui.com). El servicio de PDF recibe el contenido completo de la OT que solicitas exportar.",
@@ -370,7 +371,7 @@ export default function PrivacidadPage() {
             "Órdenes de trabajo y materiales: retenidos 5 años desde la última OT emitida, por obligación tributaria (Art. 58 Código Tributario).",
             "Documentos DTE: retenidos según plazos del SII (mínimo 6 años).",
             "Logs de seguridad: eliminados a los 12 meses.",
-            "Fotos y firmas digitales de OT: eliminadas al cumplir el plazo de retención de la OT correspondiente.",
+            "Fotos, firmas digitales y grabaciones de voz de OT: eliminadas al cumplir el plazo de retención de la OT correspondiente. Puedes solicitar la eliminación anticipada de una grabación específica borrando el comentario asociado en la app o escribiendo a contacto@getpangui.com.",
             "Caché local en tu dispositivo (SQLite, AsyncStorage, archivos): se elimina al desinstalar la aplicación o desde Configuración → Cuenta → \"Borrar datos locales\".",
           ]}
         />
@@ -387,7 +388,7 @@ export default function PrivacidadPage() {
             "Cifrado en tránsito mediante TLS 1.3 en todas las comunicaciones.",
             "Cifrado en reposo con AES-256 en la infraestructura de Supabase/AWS.",
             "Control de acceso por roles: cada usuario solo ve los datos de su planta.",
-            "Autenticación segura mediante Supabase Auth (bcrypt para contraseñas).",
+            "Autenticación segura mediante Supabase Auth (contraseñas almacenadas con hash adaptativo, nunca en texto claro).",
             "Auditoría de cambios en OT mediante tabla auditoria_ot con trazabilidad completa.",
             "Monitoreo de accesos y alertas automáticas ante actividad inusual.",
           ]}
@@ -467,7 +468,7 @@ export default function PrivacidadPage() {
           lineHeight: 1.65,
         }}
       >
-        <strong>Última actualización: mayo de 2026.</strong> Este documento
+        <strong>Última actualización: 18 de mayo de 2026.</strong> Este documento
         tiene carácter informativo y no reemplaza asesoría legal profesional.
         Recomendamos consultar con un abogado especialista en protección de
         datos para situaciones específicas de tu empresa.
