@@ -10,13 +10,17 @@ import {
 } from "lucide-react";
 
 const THEME_KEY = "pangui_theme";
-const THEME_CYCLE = ["system", "light", "dark"];
-const THEME_ICON = { system: Monitor, light: Sun, dark: Moon };
+const THEME_CYCLE = ["auto", "light", "dark"];
+const THEME_ICON = { auto: Monitor, light: Sun, dark: Moon };
 
 function applyTheme(t) {
   const html = document.documentElement;
-  if (t === "system") { html.removeAttribute("data-theme"); localStorage.removeItem(THEME_KEY); }
-  else { html.setAttribute("data-theme", t); localStorage.setItem(THEME_KEY, t); }
+  const resolved = t === "auto"
+    ? (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light")
+    : t;
+  html.setAttribute("data-theme", resolved);
+  html.setAttribute("data-theme-pref", t);
+  localStorage.setItem(THEME_KEY, t);
 }
 
 const SECTORES = [
@@ -97,7 +101,7 @@ function Field({ icon: Icon, label, children }) {
 export default function RegistroPage() {
   const router = useRouter();
   const [step, setStep] = useState(1);
-  const [theme, setTheme] = useState("system");
+  const [theme, setTheme] = useState("auto");
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -117,7 +121,7 @@ export default function RegistroPage() {
   useEffect(() => {
     try {
       const saved = localStorage.getItem(THEME_KEY);
-      if (saved === "dark" || saved === "light") setTheme(saved);
+      if (saved === "dark" || saved === "light" || saved === "auto") setTheme(saved);
     } catch {}
   }, []);
 

@@ -226,6 +226,13 @@ export default function InicioDashboard() {
   const [partes, setPartes]             = useState<Parte[]>([]);
   const [actividad, setActividad]       = useState<ActividadItem[]>([]);
   const [totalOTs, setTotalOTs] = useState(0);
+  const [dateLabel, setDateLabel] = useState("");
+  const [greetingText, setGreetingText] = useState("");
+
+  useEffect(() => {
+    setDateLabel(new Date().toLocaleDateString("es-CL", { weekday: "long", day: "numeric", month: "long" }));
+    setGreetingText(greeting());
+  }, []);
 
   useEffect(() => {
     async function load() {
@@ -318,11 +325,11 @@ export default function InicioDashboard() {
       {/* ── Header ── */}
       <div style={{ marginBottom: 32, display: "flex", alignItems: "flex-end", justifyContent: "space-between" }}>
         <div>
-          <p style={{ fontSize: 12, fontWeight: 600, color: "var(--fg-4)", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 6px" }}>
-            {new Date().toLocaleDateString("es-CL", { weekday: "long", day: "numeric", month: "long" })}
+          <p style={{ fontSize: 12, fontWeight: 600, color: "var(--fg-4)", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 6px", minHeight: 15 }}>
+            {dateLabel}
           </p>
           <h1 style={{ fontSize: 26, fontWeight: 700, color: "var(--fg-1)", letterSpacing: "-0.02em", margin: 0 }}>
-            {greeting()}{userName ? `, ${userName}` : ""}
+            {greetingText}{greetingText && userName ? `, ${userName}` : ""}
           </h1>
         </div>
         <button
