@@ -41,16 +41,16 @@ export default function RootLayout({ children }) {
   return (
     <html lang="es" className={`${inter.variable} ${geist.variable}`} suppressHydrationWarning>
       <head>
+        {/* Pre-paint theme: runs before any CSS-styled body content paints. MUST stay in <head> as the first script. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var t=localStorage.getItem("pangui_theme")||"auto";var resolved=t==="auto"?(window.matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light"):t;var d=document.documentElement;d.setAttribute("data-theme",resolved);d.setAttribute("data-theme-pref",t);d.style.colorScheme=resolved;d.style.backgroundColor=resolved==="dark"?"#0B1220":"#F7F8FA";}catch(e){}})();`,
+          }}
+        />
         <link rel="preconnect" href="https://yqwsryjbmlvcghnwnzik.supabase.co" />
         <link rel="dns-prefetch" href="https://yqwsryjbmlvcghnwnzik.supabase.co" />
       </head>
       <body>
-        {/* Pre-paint theme: reads preference, resolves auto via OS, sets data-theme to avoid flash */}
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `(function(){try{var t=localStorage.getItem("pangui_theme")||"auto";var resolved=t==="auto"?(window.matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light"):t;document.documentElement.setAttribute("data-theme",resolved);document.documentElement.setAttribute("data-theme-pref",t);}catch(e){}})();`,
-          }}
-        />
         {children}
       </body>
     </html>

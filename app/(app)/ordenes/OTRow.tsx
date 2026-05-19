@@ -267,6 +267,8 @@ export default function OTRow({ orden, rowNumber, usuarios, isSelected, onClick,
   const titulo    = orden.titulo || meta.descripcion?.slice(0, 80) || "Sin título";
   const [copied, setCopied] = useState(false);
   const [dropOpen, setDropOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
   const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null);
   const avatarRef = useRef<HTMLButtonElement>(null);
 
@@ -274,7 +276,7 @@ export default function OTRow({ orden, rowNumber, usuarios, isSelected, onClick,
     .map(id => usuarios.find(u => u.id === id))
     .filter((u): u is Usuario => Boolean(u));
 
-  const due = orden.fecha_termino && !isPending ? dueLabel(orden.fecha_termino) : null;
+  const due = mounted && orden.fecha_termino && !isPending ? dueLabel(orden.fecha_termino) : null;
 
   function copyNOT(e: React.MouseEvent) {
     e.stopPropagation();
@@ -423,7 +425,7 @@ export default function OTRow({ orden, rowNumber, usuarios, isSelected, onClick,
 
         {/* Right: time + avatars */}
         <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
-          <span suppressHydrationWarning style={{ fontSize: "var(--fs-xs)", color: "var(--fg-4)" }}>{timeAgo(orden.created_at)}</span>
+          <span suppressHydrationWarning style={{ fontSize: "var(--fs-xs)", color: "var(--fg-4)" }}>{mounted ? timeAgo(orden.created_at) : ""}</span>
 
           {/* Avatar trigger — always shown as a button when onAssigned is wired */}
           <button
