@@ -47,47 +47,26 @@
   font-family: var(--font-mono);
 }
 
-/* Tailwind preflight is disabled in tailwind.config.js, so browser defaults
-   leak through. Zero out the platform <button> background + border so our
-   utility classes win — fixes FAQ rows rendering as grey rectangles. */
-.landing-root button {
-  background: transparent;
-  border: 0;
-  padding: 0;
-  font: inherit;
-  color: inherit;
-  cursor: pointer;
-}
-
 /* Tailwind's text-balance ships in v3.3+; alias for safety */
 .landing-root .text-balance {
   text-wrap: balance;
 }
 
 /* ---------- Recommended-tier underline (pricing) ---------- */
-/* Replaces the standard "Más popular" badge with an accent underline
-   under the tier name. Wider rule + the column itself gets an accent
-   top border for visibility. */
+/* Replaces the standard "Más popular" badge with a single
+   restrained underline under the tier name. */
 .pangui-underline {
   position: relative;
-  padding-bottom: 8px;
+  padding-bottom: 6px;
 }
 .pangui-underline::after {
   content: "";
   position: absolute;
   left: 0;
   bottom: 0;
-  width: 48px;
-  height: 3px;
+  width: 28px;
+  height: 2px;
   background: var(--accent);
-}
-
-/* The recommended pricing column gets a brand-blue top accent rule and
-   a faint blue wash so it reads as the chosen tier without resorting
-   to a "Most popular" badge. */
-.landing-root .is-recommended {
-  background: linear-gradient(180deg, rgba(39, 61, 136, 0.04) 0%, transparent 40%);
-  box-shadow: inset 0 3px 0 0 var(--accent);
 }
 
 /* ---------- Focus rings (accessibility) ---------- */
@@ -116,3 +95,7 @@
   color: #ffffff;
 }
 
+/* ---------- Image lazy hint (avoid layout shift on photos) ---------- */
+.landing-root img {
+  background-color: #14161a;
+}

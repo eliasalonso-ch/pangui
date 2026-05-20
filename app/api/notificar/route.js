@@ -1,12 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
-import webpush from "web-push";
 import { NextResponse } from "next/server";
-
-webpush.setVapidDetails(
-  "mailto:admin@pangui.cl",
-  process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY,
-  process.env.VAPID_PRIVATE_KEY
-);
 
 const adminClient = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -14,10 +7,18 @@ const adminClient = createClient(
 );
 
 export async function POST(req) {
-  const { usuario_id, usuario_ids, workspace_id_todos_tecnicos, workspace_id_jefe, titulo, mensaje, url, urgente, tipo: tipoPayload } =
-    await req.json();
+  const {
+    usuario_id,
+    usuario_ids,
+    workspace_id_todos_tecnicos,
+    workspace_id_jefe,
+    titulo,
+    mensaje,
+    url,
+    urgente,
+    tipo: tipoPayload,
+  } = await req.json();
 
-  // Collect target user IDs
   let userIds = [];
 
   if (usuario_id) {
@@ -44,8 +45,6 @@ export async function POST(req) {
     return NextResponse.json({ ok: true, enviados: 0 });
   }
 
-  // Always create in-app notifications — regardless of push subscriptions
-  // This ensures the bell works even if the user never accepted push permissions
   await adminClient.from("notifications").insert(
     userIds.map((uid) => ({
       usuario_id: uid,
@@ -56,22 +55,5 @@ export async function POST(req) {
     }))
   );
 
-  // Then try push notifications (Android/desktop) — best effort
-  const { data: subs } = await adminClient
-    .from("push_subscriptions")
-    .select("subscription")
-    .in("usuario_id", userIds);
-
-  if (!subs?.length) {
-    return NextResponse.json({ ok: true, enviados: 0 });
-  }
-
-  const payload = JSON.stringify({ titulo, mensaje, url, urgente, tag: url });
-
-  const results = await Promise.allSettled(
-    subs.map((row) => webpush.sendNotification(row.subscription, payload))
-  );
-
-  const enviados = results.filter((r) => r.status === "fulfilled").length;
-  return NextResponse.json({ ok: true, enviados });
+  return NextResponse.json({ ok: true, enviados: userIds.length });
 }

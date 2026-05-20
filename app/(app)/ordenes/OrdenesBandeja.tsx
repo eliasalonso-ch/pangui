@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Plus, Search, X, ChevronDown, Loader2, FileText, ArrowUpDown, Download } from "lucide-react";
+import { Plus, Search, X, ChevronDown, Loader2, FileText, ArrowUpDown, Download, AlertTriangle } from "lucide-react";
 import { createClient } from "@/lib/supabase";
 import { fetchOrden, deleteOrden, LIST_SELECT, parseDescMeta } from "@/lib/ordenes-api";
 import { buildOrdenesWorkbook, type ExportCols as SharedExportCols, type OrdenInput, type HojaInput, type FilaInput, type FotoItemInput, type MaterialUsadoInput } from "@/lib/excel-export-shared";
@@ -32,6 +32,26 @@ const SORT_OPTIONS: { value: SortOption; label: string }[] = [
   { value: "prioridad_asc",     label: "Prioridad: Más bajo primero" },
   { value: "ubicacion",         label: "Ubicación" },
 ];
+
+type WaitingReasonKey = "materiales" | "acceso" | "reprogramar" | "otro";
+
+type WaitingAlert = {
+  id: string;
+  title: string;
+  numero: number | null;
+  reason: WaitingReasonKey;
+  reasonLabel: string;
+  comment: string | null;
+  pausedAt: string | null;
+};
+
+function classifyWaitingReason(comment: string | null | undefined): { key: WaitingReasonKey; label: string } {
+  const c = (comment ?? "").toLowerCase();
+  if (c.includes("material")) return { key: "materiales", label: "Faltan materiales" };
+  if (c.includes("reprogram") || c.includes("reagend") || c.includes("coordino") || c.includes("coordinó")) return { key: "reprogramar", label: "Reprogramar" };
+  if (c.includes("acceso") || c.includes("ingresar") || c.includes("instalacion") || c.includes("instalación")) return { key: "acceso", label: "Sin acceso" };
+  return { key: "otro", label: "Otro motivo" };
+}
 
 const EMPTY_FILTROS: FiltrosState = {
   estados: [], prioridades: [], tipos: [],
@@ -104,6 +124,10 @@ export default function OrdenesBandeja({
   const [sortOpen, setSortOpen]  = useState(false);
   const [exporting, setExporting] = useState(false);
   const [exportConfigOpen, setExportConfigOpen] = useState(false);
+  const [waitingAlerts, setWaitingAlerts] = useState<WaitingAlert[]>([]);
+  const [waitingAlertIndex, setWaitingAlertIndex] = useState(0);
+  const [waitingOpen, setWaitingOpen] = useState(false);
+  const waitingRef = useRef<HTMLDivElement>(null);
 
   type ExportCol =
     | "numero" | "n_serie" | "hito" | "estado" | "prioridad" | "tipo_trabajo"
@@ -140,6 +164,11 @@ export default function OrdenesBandeja({
   // Keep left-panel visible when right panel is open (desktop only hides list on mobile)
   const sortRef = useRef<HTMLDivElement>(null);
 
+  const waitingOrderIds = useMemo(
+    () => ordenes.filter(o => o.estado === "en_espera").map(o => o.id).sort().join(","),
+    [ordenes],
+  );
+
   // Load initial order (when navigating directly to /ordenes/[id])
   useEffect(() => {
     if (initialSelectedId) {
@@ -166,6 +195,70 @@ export default function OrdenesBandeja({
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, [sortOpen]);
+
+  useEffect(() => {
+    if (!waitingOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (waitingRef.current && !waitingRef.current.contains(e.target as Node)) setWaitingOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [waitingOpen]);
+
+  useEffect(() => {
+    const waiting = ordenes.filter(o => o.estado === "en_espera");
+    if (waiting.length === 0) {
+      setWaitingAlerts([]);
+      setWaitingAlertIndex(0);
+      return;
+    }
+
+    let cancelled = false;
+    const ids = waiting.map(o => o.id);
+    const byId = new Map(waiting.map(o => [o.id, o]));
+
+    async function loadWaitingReasons() {
+      const sb = createClient();
+      const { data } = await sb
+        .from("actividad_ot")
+        .select("orden_id, comentario, created_at")
+        .eq("tipo", "pausado")
+        .in("orden_id", ids)
+        .order("created_at", { ascending: false });
+
+      if (cancelled) return;
+      const latest = new Map<string, { comentario: string | null; created_at: string | null }>();
+      for (const row of (data ?? []) as { orden_id: string; comentario: string | null; created_at: string | null }[]) {
+        if (!latest.has(row.orden_id)) latest.set(row.orden_id, { comentario: row.comentario, created_at: row.created_at });
+      }
+
+      setWaitingAlerts(waiting.map((o) => {
+        const activity = latest.get(o.id);
+        const reason = classifyWaitingReason(activity?.comentario);
+        return {
+          id: o.id,
+          title: o.titulo ?? "Orden sin título",
+          numero: o.numero ?? null,
+          reason: reason.key,
+          reasonLabel: reason.label,
+          comment: activity?.comentario ?? null,
+          pausedAt: activity?.created_at ?? null,
+        };
+      }));
+      setWaitingAlertIndex((idx) => Math.min(idx, Math.max(waiting.length - 1, 0)));
+    }
+
+    loadWaitingReasons();
+    return () => { cancelled = true; };
+  }, [ordenes, waitingOrderIds]);
+
+  useEffect(() => {
+    if (waitingOpen || waitingAlerts.length <= 1) return;
+    const id = setInterval(() => {
+      setWaitingAlertIndex((idx) => (idx + 1) % waitingAlerts.length);
+    }, 4500);
+    return () => clearInterval(id);
+  }, [waitingAlerts.length, waitingOpen]);
 
   // Open order detail
   const openOT = useCallback(async (id: string, pushUrl = true) => {
@@ -378,6 +471,9 @@ export default function OrdenesBandeja({
     };
   }, [ordenes, filtros, search, ubicaciones]);
   const currentSortLabel = SORT_OPTIONS.find(o => o.value === sort)?.label ?? "";
+  const currentWaitingAlert = waitingAlerts.length > 0
+    ? waitingAlerts[waitingAlertIndex % waitingAlerts.length]
+    : null;
 
   // ── Excel export (all OTs across tabs, respecting filters/search) ─────────
   //
@@ -527,6 +623,84 @@ export default function OrdenesBandeja({
 
       {/* ── Navigation header ── */}
       <div style={{ flexShrink:0, borderBottom:"1px solid var(--border)", background:"var(--surface-1)" }}>
+        {currentWaitingAlert && (
+          <div ref={waitingRef} style={{ position:"relative", padding:"8px 20px 0" }}>
+            <button
+              type="button"
+              onClick={() => setWaitingOpen(v => !v)}
+              title={`${waitingAlerts.length} OT${waitingAlerts.length > 1 ? "s" : ""} en espera`}
+              style={{
+                display:"flex", alignItems:"center", gap:10,
+                width:"100%", minWidth:0, height:36,
+                padding:"0 12px",
+                border:"1px solid var(--border)", borderRadius:8,
+                background:"var(--surface-0)", color:"var(--fg-2)",
+                fontSize:13, fontWeight:500,
+                cursor:"pointer", fontFamily:"inherit",
+                overflow:"hidden",
+              }}
+            >
+              <AlertTriangle size={15} strokeWidth={2} style={{ flexShrink:0, color:"var(--fg-3)" }} />
+              <span style={{ flexShrink:0, color:"var(--fg-2)" }}>En espera</span>
+              <span style={{ flexShrink:0, width:1, height:16, background:"var(--border)" }} />
+              <span style={{ flexShrink:0, color:"var(--fg-3)" }}>{currentWaitingAlert.reasonLabel}</span>
+              <span style={{ minWidth:0, flex:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", color:"var(--fg-1)", textAlign:"left" }}>
+                {currentWaitingAlert.numero ? `#${currentWaitingAlert.numero} · ` : ""}{currentWaitingAlert.title}
+              </span>
+              <span style={{ flexShrink:0, fontSize:12, color:"var(--fg-3)" }}>{waitingAlerts.length}</span>
+              <ChevronDown size={14} style={{ flexShrink:0, color:"var(--fg-4)", transform: waitingOpen ? "rotate(180deg)" : "none", transition:"transform 0.15s" }} />
+            </button>
+
+            {waitingOpen && (
+              <div style={{
+                position:"absolute", right:20, top:"calc(100% + 6px)", zIndex:70,
+                width:420, maxWidth:"calc(100vw - 40px)",
+                background:"var(--surface-1)", border:"1px solid var(--border)",
+                borderRadius:10, boxShadow:"0 14px 34px rgba(15,23,42,0.16)",
+                overflow:"hidden",
+              }}>
+                <div style={{ padding:"10px 12px", borderBottom:"1px solid var(--border)", display:"flex", alignItems:"center", justifyContent:"space-between", gap:8 }}>
+                  <span style={{ fontSize:12, fontWeight:700, color:"var(--fg-1)" }}>OTs en espera</span>
+                  <span style={{ fontSize:11, fontWeight:600, color:"var(--fg-3)" }}>{waitingAlerts.length}</span>
+                </div>
+                <div style={{ maxHeight:320, overflowY:"auto", padding:6 }}>
+                  {waitingAlerts.map((alert) => (
+                    <button
+                      key={alert.id}
+                      type="button"
+                      onClick={() => {
+                        setWaitingOpen(false);
+                        openOT(alert.id);
+                      }}
+                      style={{
+                        width:"100%", textAlign:"left", border:"none", background:"transparent",
+                        borderRadius:8, padding:"10px 10px", cursor:"pointer",
+                        fontFamily:"inherit", display:"flex", gap:10,
+                      }}
+                      onMouseEnter={e => { e.currentTarget.style.background = "var(--surface-hover)"; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}
+                    >
+                      <AlertTriangle size={15} style={{ marginTop:2, color:"var(--fg-4)", flexShrink:0 }} />
+                      <span style={{ minWidth:0, flex:1 }}>
+                        <span style={{ display:"block", fontSize:13, fontWeight:650, color:"var(--fg-1)", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                          {alert.numero ? `#${alert.numero} · ` : ""}{alert.title}
+                        </span>
+                        <span style={{ display:"block", fontSize:12, fontWeight:500, color:"var(--fg-3)", marginTop:2 }}>
+                          {alert.reasonLabel}
+                        </span>
+                        {alert.comment && (
+                          <span style={{ display:"block", fontSize:12, color:"var(--fg-3)", marginTop:2, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                            {alert.comment}
+                          </span>
+                        )}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Top row */}
         <div style={{
@@ -565,6 +739,83 @@ export default function OrdenesBandeja({
                 </button>
               )}
             </div>
+
+            {false && currentWaitingAlert && (
+              <div style={{ display:"none" }}>
+                <button
+                  type="button"
+                  onClick={() => setWaitingOpen(v => !v)}
+                  title={`${waitingAlerts.length} OT${waitingAlerts.length > 1 ? "s" : ""} en espera`}
+                  style={{
+                    display:"flex", alignItems:"center", gap:8,
+                    height:38, maxWidth:300,
+                    padding:"0 12px",
+                    border:"1px solid #F59E0B55", borderRadius:8,
+                    background:"#FFFBEB", color:"#92400E",
+                    fontSize:13, fontWeight:600,
+                    cursor:"pointer", fontFamily:"inherit",
+                    whiteSpace:"nowrap",
+                  }}
+                >
+                  <AlertTriangle size={16} strokeWidth={2.2} style={{ flexShrink:0 }} />
+                  <span style={{ overflow:"hidden", textOverflow:"ellipsis" }}>
+                    {currentWaitingAlert.reasonLabel}: {currentWaitingAlert.title}
+                  </span>
+                  <ChevronDown size={14} style={{ flexShrink:0, transform: waitingOpen ? "rotate(180deg)" : "none", transition:"transform 0.15s" }} />
+                </button>
+
+                {waitingOpen && (
+                  <div style={{
+                    position:"absolute", right:0, top:"calc(100% + 6px)", zIndex:70,
+                    width:360, maxWidth:"calc(100vw - 32px)",
+                    background:"var(--surface-1)", border:"1px solid var(--border)",
+                    borderRadius:10, boxShadow:"0 14px 34px rgba(15,23,42,0.16)",
+                    overflow:"hidden",
+                  }}>
+                    <div style={{ padding:"10px 12px", borderBottom:"1px solid var(--border)", display:"flex", alignItems:"center", justifyContent:"space-between", gap:8 }}>
+                      <span style={{ fontSize:12, fontWeight:700, color:"var(--fg-1)" }}>OTs en espera</span>
+                      <span style={{ fontSize:11, fontWeight:700, color:"#92400E", background:"#FFFBEB", border:"1px solid #F59E0B44", borderRadius:999, padding:"2px 7px" }}>
+                        {waitingAlerts.length}
+                      </span>
+                    </div>
+                    <div style={{ maxHeight:320, overflowY:"auto", padding:6 }}>
+                      {waitingAlerts.map((alert) => (
+                        <button
+                          key={alert.id}
+                          type="button"
+                          onClick={() => {
+                            setWaitingOpen(false);
+                            openOT(alert.id);
+                          }}
+                          style={{
+                            width:"100%", textAlign:"left", border:"none", background:"transparent",
+                            borderRadius:8, padding:"10px 10px", cursor:"pointer",
+                            fontFamily:"inherit", display:"flex", gap:10,
+                          }}
+                          onMouseEnter={e => { e.currentTarget.style.background = "var(--surface-hover)"; }}
+                          onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}
+                        >
+                          <AlertTriangle size={16} style={{ marginTop:2, color:"#D97706", flexShrink:0 }} />
+                          <span style={{ minWidth:0, flex:1 }}>
+                            <span style={{ display:"block", fontSize:13, fontWeight:700, color:"var(--fg-1)", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                              {alert.numero ? `#${alert.numero} · ` : ""}{alert.title}
+                            </span>
+                            <span style={{ display:"block", fontSize:12, fontWeight:600, color:"#92400E", marginTop:2 }}>
+                              {alert.reasonLabel}
+                            </span>
+                            {alert.comment && (
+                              <span style={{ display:"block", fontSize:12, color:"var(--fg-3)", marginTop:2, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                                {alert.comment}
+                              </span>
+                            )}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Nueva OT button */}
             <button

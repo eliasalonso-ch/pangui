@@ -96,7 +96,9 @@ module.exports = {
   				'Inter',
   				'system-ui',
   				'sans-serif'
-  			]
+  			],
+  			display: ['"Inter Tight"', 'sans-serif'],
+  			mono:    ['"JetBrains Mono"', 'monospace']
   		},
   		fontSize: {
   			'2xs':  ['10px', { lineHeight: '1.4' }],

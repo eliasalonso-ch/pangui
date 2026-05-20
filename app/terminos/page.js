@@ -217,7 +217,7 @@ export default function TerminosPage() {
         />
         <DefItem
           term="Sitio Web"
-          definition="La aplicación web Pangui accesible en pangui.cl desde cualquier navegador moderno en computadores, tablets o smartphones. Es el canal principal para administradores: gestión de equipo, configuración del espacio de trabajo, exportación de reportes, facturación y administración de planes."
+          definition="La aplicación web Pangui accesible en pangui.cl desde cualquier navegador moderno en computadores, tablets o smartphones. Es el canal principal para administradores: gestión de equipo, configuración del espacio de trabajo, exportación de reportes y administración de usuarios."
         />
         <DefItem
           term="Aplicación Móvil"
@@ -229,7 +229,7 @@ export default function TerminosPage() {
         />
         <DefItem
           term="Usuario Administrador"
-          definition="Persona o cuenta con rol de propietario o administrador del espacio de trabajo. Puede crear OT, invitar y desactivar usuarios, configurar el espacio, exportar reportes y gestionar la facturación. Su acceso es gratuito."
+          definition="Persona o cuenta con rol de propietario o administrador del espacio de trabajo. Puede crear OT, invitar y desactivar usuarios, configurar el espacio y exportar reportes."
         />
         <DefItem
           term="Usuario Invitado"
@@ -266,7 +266,7 @@ export default function TerminosPage() {
             "Configurar el espacio de trabajo: usuarios, ubicaciones, sociedades, categorías, hitos.",
             "Gestionar inventario de materiales con alertas de stock mínimo.",
             "Exportar reportes en PDF y Excel.",
-            "Administrar la facturación, los planes y los usuarios invitados.",
+            "Administrar usuarios invitados y configuración del workspace.",
           ]}
         />
 
@@ -338,15 +338,15 @@ export default function TerminosPage() {
       {/* 4. Planes y precios */}
       <LegalSection icon={CreditCard} title="4. Planes y precios">
         <p>
-          Pangui usa un modelo de cobro <strong>por usuario invitado</strong>.
-          La cuenta administradora siempre es gratuita; cada usuario adicional
-          que el administrador invita al espacio de trabajo paga una tarifa
-          mensual:
+          Pangui puede usar un modelo de cobro por usuarios invitados o por
+          condiciones comerciales acordadas con cada empresa. La cuenta
+          administradora puede comenzar gratis; cualquier suscripción pagada
+          se informa antes de activarse:
         </p>
         <PlanesTable
           rows={[
-            ["Cuenta administradora", "Gratis", "Acceso completo a todas las funcionalidades del sistema."],
-            ["Usuario invitado adicional", "$8.000 CLP / mes (IVA incluido)", "Cobro mensual por cada usuario invitado activo en el espacio de trabajo."],
+            ["Cuenta administradora", "Gratis", "Acceso inicial para configurar y evaluar la plataforma."],
+            ["Usuario invitado adicional", "Según plan vigente", "Cobro mensual por usuarios invitados activos cuando corresponda."],
             ["Plan Enterprise", "A convenir", "Para empresas con necesidades particulares: SLA dedicado, integraciones, capacitación."],
           ]}
         />
@@ -357,9 +357,9 @@ export default function TerminosPage() {
           de cada uno.
         </p>
         <p>
-          Los precios incluyen IVA (19%). Pangui se reserva el derecho de
-          modificar los precios con al menos <strong>30 días de aviso</strong>{" "}
-          previo por correo electrónico.
+          Pangui se reserva el derecho de modificar precios o condiciones con
+          al menos <strong>30 días de aviso</strong> previo por correo
+          electrónico cuando exista una suscripción activa.
         </p>
       </LegalSection>
 
@@ -372,22 +372,21 @@ export default function TerminosPage() {
           registrarte.
         </p>
         <p>
-          El cobro solo aplica cuando el administrador invita usuarios
-          adicionales al espacio de trabajo: cada usuario invitado activo
-          genera un cobro mensual según lo descrito en la sección 4.
+          El cobro solo aplica cuando se activa una suscripción pagada o se
+          acuerdan usuarios invitados pagados según lo descrito en la sección 4.
         </p>
       </LegalSection>
 
-      {/* 6. Pago y facturación */}
-      <LegalSection icon={CreditCard} title="6. Pago y facturación">
+      {/* 6. Pago y cobro */}
+      <LegalSection icon={CreditCard} title="6. Pago y cobro">
         <p>
-          La facturación por usuarios invitados se realiza mensualmente en
+          El cobro por usuarios invitados se realiza mensualmente en
           pesos chilenos (CLP):
         </p>
         <Ul
           items={[
-            "El ciclo de facturación se factura al cierre de cada mes calendario.",
-            "Emitimos una boleta electrónica o factura tributaria según corresponda.",
+            "El ciclo de cobro se calcula al cierre de cada mes calendario.",
+            "El documento tributario de la suscripción, cuando corresponda, se gestiona fuera de las órdenes de trabajo.",
             "El cobro se calcula sobre la cantidad de usuarios invitados activos durante el mes; se prorratea por los días de uso de cada usuario.",
             "El pago se realiza mediante los métodos disponibles en la plataforma.",
             "En caso de no pago, los accesos de los usuarios invitados se suspenden hasta regularizar el saldo. La cuenta administradora conserva su acceso gratuito.",
@@ -410,7 +409,7 @@ export default function TerminosPage() {
           <a href="mailto:contacto@getpangui.com" style={{ color: "var(--accent-1)" }}>
             contacto@getpangui.com
           </a>{" "}
-          con el asunto "Retracto de compra" dentro del plazo legal. El
+          con el asunto &quot;Retracto de compra&quot; dentro del plazo legal. El
           reembolso se procesa en un máximo de 10 días hábiles.
         </InfoBox>
         <p>
@@ -547,7 +546,7 @@ export default function TerminosPage() {
         <Ul
           items={[
             "Incumples estos Términos o la Política de Privacidad.",
-            "Hay impago de la facturación por usuarios invitados por más de 15 días corridos (la suspensión afecta solo a los accesos de usuarios invitados; la cuenta administradora conserva su acceso gratuito).",
+            "Hay impago de la suscripción por usuarios invitados por más de 15 días corridos (la suspensión afecta solo a los accesos de usuarios invitados; la cuenta administradora conserva su acceso gratuito).",
             "Detectamos uso fraudulento o actividad ilegal.",
             "Discontinuamos el servicio con 60 días de aviso previo.",
           ]}
@@ -568,7 +567,6 @@ export default function TerminosPage() {
           items={[
             "Ley 19.496 — Protección de los Derechos de los Consumidores.",
             "Código Civil de Chile — Obligaciones contractuales.",
-            "Ley 20.659 y normativas del SII — Facturación electrónica.",
             "Ley 21.719 — Protección de Datos Personales.",
           ]}
         />

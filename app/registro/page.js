@@ -249,7 +249,7 @@ export default function RegistroPage() {
           {[
             "Órdenes de trabajo en tiempo real",
             "Checklists DS 594 y firma digital",
-            "Facturación electrónica SII incluida",
+            "Reportes PDF y Excel para cierre administrativo",
             "Inventario con alertas de stock crítico",
             "Reportes KPI para gerencia",
           ].map((f) => (

@@ -800,38 +800,12 @@ function InfoRow({ icon, label, value }: { icon?: React.ReactNode; label: string
 // ── Notifications tab ────────────────────────────────────────────────────────
 
 function NotificacionesTab() {
-  const [permission, setPermission] = useState<NotificationPermission | "unsupported">("default");
-  const [subscribing, setSubscribing] = useState(false);
-  const [msg, setMsg] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!("Notification" in window)) { setPermission("unsupported"); return; }
-    setPermission(Notification.permission);
-  }, []);
-
-  async function requestPermission() {
-    if (!("Notification" in window)) return;
-    setSubscribing(true);
-    setMsg(null);
-    try {
-      const result = await Notification.requestPermission();
-      setPermission(result);
-      if (result === "granted") {
-        setMsg("Notificaciones activadas correctamente.");
-      } else if (result === "denied") {
-        setMsg("Bloqueaste las notificaciones. Cámbialas desde la configuración del navegador.");
-      }
-    } finally {
-      setSubscribing(false);
-    }
-  }
-
   const stateInfo = {
-    granted:     { label: "Activadas",       color: "var(--success)", bg: "var(--success-bg)", border: "var(--success)" },
-    denied:      { label: "Bloqueadas",      color: "var(--danger)", bg: "var(--danger-bg)", border: "var(--danger)" },
-    default:     { label: "Sin configurar",  color: "var(--warning)", bg: "var(--st-wait-bg)", border: "var(--border-strong)" },
-    unsupported: { label: "No disponible",   color: "var(--fg-2)", bg: "var(--surface-0)", border: "var(--border)" },
-  }[permission];
+    label: "Activas dentro de Pangui",
+    color: "var(--success)",
+    bg: "var(--success-bg)",
+    border: "var(--success)",
+  };
 
   return (
     <div style={{ maxWidth: 500, display: "flex", flexDirection: "column", gap: 20 }}>
@@ -840,27 +814,10 @@ function NotificacionesTab() {
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <Bell size={18} style={{ color: stateInfo.color }} />
             <div>
-              <p style={{ fontSize: 13, fontWeight: 600, color: "var(--fg-1)", margin: 0 }}>Notificaciones push</p>
+              <p style={{ fontSize: 13, fontWeight: 600, color: "var(--fg-1)", margin: 0 }}>Notificaciones web</p>
               <p style={{ fontSize: 11, margin: "2px 0 0", color: stateInfo.color, fontWeight: 600 }}>{stateInfo.label}</p>
             </div>
           </div>
-          {permission !== "granted" && permission !== "unsupported" && (
-            <button
-              type="button"
-              onClick={requestPermission}
-              disabled={subscribing}
-              style={{
-                height: 32, padding: "0 14px",
-                border: "none", borderRadius: "var(--r-sm)",
-                background: "var(--brand)", color: "var(--surface-1)",
-                fontSize: 12, fontWeight: 600, cursor: subscribing ? "default" : "pointer",
-                fontFamily: "inherit", display: "flex", alignItems: "center", gap: 5,
-              }}
-            >
-              {subscribing ? <Loader2 size={12} className="animate-spin" /> : null}
-              Activar
-            </button>
-          )}
         </div>
 
         <div style={{ padding: "4px 0" }}>
@@ -882,10 +839,9 @@ function NotificacionesTab() {
           ))}
         </div>
       </div>
-
-      {msg && (
-        <p style={{ fontSize: 12.5, color: permission === "granted" ? "var(--success)" : "var(--danger)", margin: 0 }}>{msg}</p>
-      )}
+      <p style={{ fontSize: 12.5, color: "var(--fg-3)", margin: 0 }}>
+        Las alertas del navegador fueron retiradas. En web verás notificaciones dentro de Pangui; la app móvil usa push nativo.
+      </p>
     </div>
   );
 }

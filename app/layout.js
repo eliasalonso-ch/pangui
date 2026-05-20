@@ -15,12 +15,6 @@ const geist = Geist({
 export const metadata = {
   title: "Pangui",
   description: "Gestión de órdenes de trabajo",
-  manifest: "/manifest.json",
-  appleWebApp: {
-    capable: true,
-    statusBarStyle: "default",
-    title: "Pangui",
-  },
   icons: {
     icon: [
       { url: "/icons/favicon.ico", sizes: "any" },
@@ -34,7 +28,6 @@ export const metadata = {
 export const viewport = {
   width: "device-width",
   initialScale: 1,
-  themeColor: "#273D88",
 };
 
 export default function RootLayout({ children }) {
