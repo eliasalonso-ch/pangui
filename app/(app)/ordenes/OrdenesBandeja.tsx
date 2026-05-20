@@ -759,7 +759,7 @@ export default function OrdenesBandeja({
                 >
                   <AlertTriangle size={16} strokeWidth={2.2} style={{ flexShrink:0 }} />
                   <span style={{ overflow:"hidden", textOverflow:"ellipsis" }}>
-                    {currentWaitingAlert.reasonLabel}: {currentWaitingAlert.title}
+                    {currentWaitingAlert?.reasonLabel}: {currentWaitingAlert?.title}
                   </span>
                   <ChevronDown size={14} style={{ flexShrink:0, transform: waitingOpen ? "rotate(180deg)" : "none", transition:"transform 0.15s" }} />
                 </button>
