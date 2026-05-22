@@ -1164,6 +1164,7 @@ export default function OrdenesBandeja({
                   onEdit={() => setRightPanel("edit")}
                   onDelete={() => deleteOT(detail.id)}
                   onClose={() => { setSelected(null); setDetail(null); router.push("/ordenes", { scroll: false }); }}
+                  onOpenOrden={(id) => openOT(id, true)}
                   onOrdenUpdated={(patch) => {
                     setDetail(prev => prev ? { ...prev, ...patch } : prev);
                     setOrdenes(prev => prev.map(o =>

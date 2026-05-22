@@ -28,17 +28,45 @@ const TIPO_META: Record<TipoPasoProc, { label: string; icon: React.ReactNode; co
   inspeccion:        { label: "Inspección",            icon: <ClipboardCheck size={14} />,color: "#EC4899", desc: "Pass / Fail / N/A por ítem" },
   imagen:            { label: "Imagen / foto",         icon: <Camera size={14} />,        color: "#64748B", desc: "Adjunta una fotografía" },
   firma:             { label: "Firma",                 icon: <PenLine size={14} />,       color: "#0EA5E9", desc: "Firma digital" },
+  // New tipos (full editor lands in the Phase-3 rewrite; stubbed here so legacy code compiles).
+  medidor:           { label: "Lectura de medidor",    icon: <Hash size={14} />,          color: "#6366F1", desc: "Lectura con unidad y delta" },
+  archivo:           { label: "Archivo adjunto",       icon: <Camera size={14} />,        color: "#64748B", desc: "Archivo / documento" },
+  fecha:             { label: "Fecha",                 icon: <Type size={14} />,          color: "#6366F1", desc: "Selector de fecha" },
+  hora:              { label: "Hora",                  icon: <Type size={14} />,          color: "#6366F1", desc: "Selector de hora" },
+  fecha_hora:        { label: "Fecha y hora",          icon: <Type size={14} />,          color: "#6366F1", desc: "Selector de fecha y hora" },
+  escaneo:           { label: "Escaneo / código QR",   icon: <List size={14} />,          color: "#F97316", desc: "Escaneo de código de barras o QR" },
+  falla_iso14224:    { label: "Falla ISO 14224",       icon: <AlertTriangle size={14} />, color: "#EF4444", desc: "Codificación de falla ISO 14224" },
+  sub_procedimiento: { label: "Sub-procedimiento",     icon: <ClipboardCheck size={14} />,color: "#EC4899", desc: "Procedimiento reutilizable embebido" },
+  seccion:           { label: "Sección",               icon: <Info size={14} />,          color: "#94A3B8", desc: "Encabezado organizador" },
+  puntuacion:        { label: "Puntuación",            icon: <CheckSquare size={14} />,   color: "#14B8A6", desc: "Puntaje calculado" },
 };
 
 const TIPO_GROUPS: { label: string; tipos: TipoPasoProc[] }[] = [
-  { label: "Bloques informativos", tipos: ["instruccion", "advertencia"] },
-  { label: "Campos de entrada",    tipos: ["texto", "numero", "monto"] },
+  { label: "Organización",         tipos: ["seccion", "instruccion", "advertencia"] },
+  { label: "Campos de entrada",    tipos: ["texto", "numero", "monto", "medidor"] },
+  { label: "Fecha y hora",         tipos: ["fecha", "hora", "fecha_hora"] },
   { label: "Selección",            tipos: ["si_no_na", "opcion_multiple"] },
   { label: "Verificación",         tipos: ["lista_verificacion", "inspeccion"] },
-  { label: "Multimedia",           tipos: ["imagen", "firma"] },
+  { label: "Multimedia",           tipos: ["imagen", "archivo", "firma"] },
+  { label: "Avanzados (ISO)",      tipos: ["escaneo", "falla_iso14224", "sub_procedimiento", "puntuacion"] },
 ];
 
 const MONEDAS = ["CLP", "USD", "EUR", "UF"];
+const UNIDADES_MEDIDOR = ["hr", "km", "mi", "rpm", "psi", "bar", "kPa", "°C", "°F", "litros", "galones", "kWh", "ciclos", "unidades"];
+const OPERADORES_CONDICION = [
+  { value: "eq",       label: "es igual a" },
+  { value: "ne",       label: "no es igual a" },
+  { value: "in",       label: "está en" },
+  { value: "gt",       label: "es mayor que" },
+  { value: "lt",       label: "es menor que" },
+  { value: "gte",      label: "es mayor o igual que" },
+  { value: "lte",      label: "es menor o igual que" },
+  { value: "contains", label: "contiene" },
+] as const;
+
+// Which step types can scoring weight be applied to? Mirrors MaintainX: only
+// answer-bearing fields, not info blocks or organizers.
+const TIPOS_SCORABLES: TipoPasoProc[] = ["si_no_na", "opcion_multiple", "lista_verificacion", "inspeccion"];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -48,7 +76,7 @@ function emptyPaso(tipo: TipoPasoProc = "instruccion"): PasoFormItem {
     tipo,
     titulo: "",
     descripcion: "",
-    requerido: true,
+    requerido: tipo !== "seccion" && tipo !== "instruccion" && tipo !== "advertencia" && tipo !== "puntuacion",
     unidad: "",
     valor_min: "",
     valor_max: "",
@@ -58,11 +86,34 @@ function emptyPaso(tipo: TipoPasoProc = "instruccion"): PasoFormItem {
       ? ["", ""]
       : [],
     rol_firmante: "",
+    // New optional fields — start unset, user opts in.
+    peso: 0,
+    condicion_tempid: null,
+    condicion_operador: null,
+    condicion_valor: null,
+    requiere_nota_si: [],
+    requiere_foto_si: [],
+    genera_correctiva: false,
+    correctiva_plantilla: null,
+    medidor_id: null,
+    iso14224_taxonomia: null,
+    sub_procedimiento_id: null,
+    multimedia_url: null,
   };
 }
 
 function emptyForm(): ProcedimientoForm {
-  return { nombre: "", descripcion: "", categoria: "", bloquea_cierre_ot: false, auto_adjuntar: false, pasos: [] };
+  return {
+    nombre: "",
+    descripcion: "",
+    categoria: "",
+    iso_categoria: "",
+    bloquea_cierre_ot: false,
+    auto_adjuntar: false,
+    hereda_a_hijos: false,
+    puntaje_minimo: null,
+    pasos: [],
+  };
 }
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
@@ -136,12 +187,21 @@ export default function ProcedimientoBuilder({ editId }: Props) {
       setMyId(user.id);
       if (editId) {
         const proc = await getProcedimiento(editId);
+        // Build the draft. We map paso.id → tempId so condicion_paso_id (a
+        // server UUID) can be reverse-mapped to condicion_tempid for the
+        // draft form. Two-pass: first build a paso.id → tempId index, then
+        // map each paso through it.
+        const idToTempId = new Map<string, string>();
+        (proc.pasos ?? []).forEach(p => idToTempId.set(p.id, p.id));
         setForm({
           nombre: proc.nombre,
           descripcion: proc.descripcion ?? "",
           categoria: proc.categoria ?? "",
+          iso_categoria: proc.iso_categoria ?? "",
           bloquea_cierre_ot: proc.bloquea_cierre_ot,
           auto_adjuntar: proc.auto_adjuntar,
+          hereda_a_hijos: proc.hereda_a_hijos ?? false,
+          puntaje_minimo: proc.puntaje_minimo ?? null,
           pasos: (proc.pasos ?? []).map(p => ({
             tempId: p.id,
             tipo: p.tipo,
@@ -155,6 +215,18 @@ export default function ProcedimientoBuilder({ editId }: Props) {
             multilinea: p.multilinea ?? false,
             opciones: p.opciones ?? [],
             rol_firmante: p.rol_firmante ?? "",
+            peso: p.peso ?? 0,
+            condicion_tempid: p.condicion_paso_id ? (idToTempId.get(p.condicion_paso_id) ?? null) : null,
+            condicion_operador: p.condicion_operador ?? null,
+            condicion_valor: p.condicion_valor ?? null,
+            requiere_nota_si: p.requiere_nota_si?.on ?? [],
+            requiere_foto_si: p.requiere_foto_si?.on ?? [],
+            genera_correctiva: p.genera_correctiva ?? false,
+            correctiva_plantilla: p.correctiva_plantilla ?? null,
+            medidor_id: p.medidor_id ?? null,
+            iso14224_taxonomia: p.iso14224_taxonomia ?? null,
+            sub_procedimiento_id: p.sub_procedimiento_id ?? null,
+            multimedia_url: p.multimedia_url ?? null,
           })),
         });
         setLoadingEdit(false);
@@ -282,6 +354,38 @@ export default function ProcedimientoBuilder({ editId }: Props) {
                   placeholder="Ej: Eléctrico, Mecánico…"
                 />
               </div>
+              <div>
+                <label style={lbl}>Categoría ISO</label>
+                <select
+                  value={form.iso_categoria ?? ""}
+                  onChange={e => setForm(f => ({ ...f, iso_categoria: e.target.value || "" }))}
+                  style={{ ...inp(), appearance: "auto" }}
+                >
+                  <option value="">— sin clasificar —</option>
+                  <option value="inspeccion">Inspección</option>
+                  <option value="mantenimiento">Mantenimiento</option>
+                  <option value="seguridad">Seguridad</option>
+                  <option value="calibracion">Calibración</option>
+                  <option value="calidad">Calidad / 9001</option>
+                  <option value="otro">Otro</option>
+                </select>
+                <div style={{ fontSize: 11.5, color: "#94A3B8", marginTop: 3 }}>
+                  Usado para sugerencias ISO (no obligatorio).
+                </div>
+              </div>
+              <div>
+                <label style={lbl}>Puntaje mínimo</label>
+                <FocusInput
+                  type="number"
+                  min={0}
+                  value={form.puntaje_minimo == null ? "" : String(form.puntaje_minimo)}
+                  onChange={e => setForm(f => ({ ...f, puntaje_minimo: e.target.value === "" ? null : Number(e.target.value) }))}
+                  placeholder="Sin mínimo"
+                />
+                <div style={{ fontSize: 11.5, color: "#94A3B8", marginTop: 3 }}>
+                  Suma de pesos requerida para aprobar. Solo aplica con pasos puntuados.
+                </div>
+              </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 10, justifyContent: "flex-end", minWidth: 0 }}>
                 <div>
                   <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
@@ -309,6 +413,20 @@ export default function ProcedimientoBuilder({ editId }: Props) {
                   </label>
                   <div style={{ fontSize: 11.5, color: "#94A3B8", marginTop: 3, paddingLeft: 22 }}>
                     Se adjunta automáticamente a cada OT nueva del workspace.
+                  </div>
+                </div>
+                <div>
+                  <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+                    <input
+                      type="checkbox"
+                      checked={form.hereda_a_hijos ?? false}
+                      onChange={e => setForm(f => ({ ...f, hereda_a_hijos: e.target.checked }))}
+                      style={{ width: 14, height: 14, accentColor: "#10B981", cursor: "pointer" }}
+                    />
+                    <span style={{ fontSize: 13, color: "#0F172A", fontWeight: 500 }}>Heredar a sub-OTs</span>
+                  </label>
+                  <div style={{ fontSize: 11.5, color: "#94A3B8", marginTop: 3, paddingLeft: 22 }}>
+                    Sub-OTs creadas debajo de una OT con este procedimiento lo reciben automáticamente.
                   </div>
                 </div>
               </div>
@@ -340,6 +458,7 @@ export default function ProcedimientoBuilder({ editId }: Props) {
                     paso={paso}
                     index={idx}
                     total={form.pasos.length}
+                    allPasos={form.pasos}
                     expanded={expandedPaso === paso.tempId}
                     onToggle={() => setExpandedPaso(expandedPaso === paso.tempId ? null : paso.tempId)}
                     onChange={patch => updatePaso(paso.tempId, patch)}
@@ -431,11 +550,12 @@ function TipoPicker({ onSelect, onClose }: { onSelect: (t: TipoPasoProc) => void
 // ─── Paso Editor ──────────────────────────────────────────────────────────────
 
 function PasoEditor({
-  paso, index, total, expanded, onToggle, onChange, onRemove, onMove,
+  paso, index, total, allPasos, expanded, onToggle, onChange, onRemove, onMove,
 }: {
   paso: PasoFormItem;
   index: number;
   total: number;
+  allPasos: PasoFormItem[];
   expanded: boolean;
   onToggle: () => void;
   onChange: (patch: Partial<PasoFormItem>) => void;
@@ -443,7 +563,16 @@ function PasoEditor({
   onMove: (dir: 1 | -1) => void;
 }) {
   const meta = TIPO_META[paso.tipo];
-  const isInfoOnly = paso.tipo === "instruccion" || paso.tipo === "advertencia";
+  const isInfoOnly = paso.tipo === "instruccion" || paso.tipo === "advertencia" || paso.tipo === "seccion";
+  const isScorable = TIPOS_SCORABLES.includes(paso.tipo);
+  // The "requiere_nota_si" / "requiere_foto_si" / "genera_correctiva" controls
+  // only make sense for answer-bearing types that have a "fail-like" state.
+  const supportsFailGuard = paso.tipo === "si_no_na" || paso.tipo === "inspeccion" || paso.tipo === "opcion_multiple";
+  // Steps that can be referenced as a condition source — anything with a
+  // distinct answer the user can match against.
+  const conditionSources = allPasos
+    .filter(p => p.tempId !== paso.tempId)
+    .filter(p => p.tipo !== "seccion" && p.tipo !== "instruccion" && p.tipo !== "advertencia" && p.tipo !== "puntuacion");
 
   return (
     <div style={{
@@ -492,16 +621,26 @@ function PasoEditor({
                 value={paso.titulo}
                 onChange={e => onChange({ titulo: e.target.value })}
                 placeholder={
+                  paso.tipo === "seccion" ? "Ej: Verificación previa" :
                   paso.tipo === "instruccion" ? "Ej: Precaución de seguridad" :
                   paso.tipo === "advertencia" ? "Ej: ¡Riesgo eléctrico!" :
                   paso.tipo === "texto" ? "Ej: Observaciones del técnico" :
                   paso.tipo === "numero" ? "Ej: Tensión L1-L2" :
                   paso.tipo === "monto" ? "Ej: Costo de repuesto" :
+                  paso.tipo === "medidor" ? "Ej: Horómetro del motor" :
+                  paso.tipo === "fecha" ? "Ej: Fecha de calibración" :
+                  paso.tipo === "hora" ? "Ej: Hora de arranque" :
+                  paso.tipo === "fecha_hora" ? "Ej: Inicio del ensayo" :
                   paso.tipo === "si_no_na" ? "Ej: ¿Se realizó la prueba?" :
                   paso.tipo === "opcion_multiple" ? "Ej: Estado general del equipo" :
                   paso.tipo === "lista_verificacion" ? "Ej: Checklist de arranque" :
                   paso.tipo === "inspeccion" ? "Ej: Inspección visual" :
                   paso.tipo === "imagen" ? "Ej: Foto del equipo revisado" :
+                  paso.tipo === "archivo" ? "Ej: Adjuntar reporte PDF" :
+                  paso.tipo === "escaneo" ? "Ej: Escanear código de activo" :
+                  paso.tipo === "falla_iso14224" ? "Ej: Registrar modo de falla" :
+                  paso.tipo === "sub_procedimiento" ? "Ej: Inspección de compresor" :
+                  paso.tipo === "puntuacion" ? "Ej: Puntaje de auditoría" :
                   "Ej: Firma del supervisor"
                 }
               />
@@ -594,6 +733,167 @@ function PasoEditor({
                   placeholder="Ej: Cliente, Supervisor, Inspector…"
                 />
               </div>
+            )}
+
+            {paso.tipo === "medidor" && (
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
+                <div>
+                  <label style={lbl}>Unidad *</label>
+                  <select
+                    value={paso.unidad}
+                    onChange={e => onChange({ unidad: e.target.value })}
+                    style={{ ...inp(), appearance: "auto" }}
+                  >
+                    <option value="">— elegir —</option>
+                    {UNIDADES_MEDIDOR.map(u => <option key={u} value={u}>{u}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label style={lbl}>Mín aceptable</label>
+                  <FocusInput type="number" value={paso.valor_min} onChange={e => onChange({ valor_min: e.target.value })} placeholder="—" />
+                </div>
+                <div>
+                  <label style={lbl}>Máx aceptable</label>
+                  <FocusInput type="number" value={paso.valor_max} onChange={e => onChange({ valor_max: e.target.value })} placeholder="—" />
+                </div>
+              </div>
+            )}
+
+            {(paso.tipo === "archivo") && (
+              <div style={{ fontSize: 12, color: "#64748B" }}>
+                El técnico podrá adjuntar un archivo (PDF, docx, etc.) al ejecutar este paso.
+              </div>
+            )}
+
+            {(paso.tipo === "fecha" || paso.tipo === "hora" || paso.tipo === "fecha_hora") && (
+              <div style={{ fontSize: 12, color: "#64748B" }}>
+                Captura una {paso.tipo === "fecha" ? "fecha" : paso.tipo === "hora" ? "hora" : "fecha y hora"} con el reloj del dispositivo.
+              </div>
+            )}
+
+            {paso.tipo === "escaneo" && (
+              <div style={{ fontSize: 12, color: "#64748B" }}>
+                Escanea un código QR o de barras (típicamente vinculado a un activo). En web se puede ingresar manualmente.
+              </div>
+            )}
+
+            {paso.tipo === "falla_iso14224" && (
+              <div style={{ fontSize: 12, color: "#64748B", background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 6, padding: "8px 10px" }}>
+                Mostrará selectores en cascada de modo / causa / mecanismo / acción ISO 14224.
+                La taxonomía se carga desde <code style={{ background: "#fff", padding: "0 4px", borderRadius: 3 }}>workspace_taxonomias</code>.
+              </div>
+            )}
+
+            {paso.tipo === "sub_procedimiento" && (
+              <div>
+                <label style={lbl}>Sub-procedimiento embebido</label>
+                <div style={{ fontSize: 11.5, color: "#94A3B8" }}>
+                  Edita el sub-procedimiento por separado en la biblioteca y referéncialo aquí (selector próximamente).
+                </div>
+              </div>
+            )}
+
+            {paso.tipo === "puntuacion" && (
+              <div style={{ fontSize: 12, color: "#64748B" }}>
+                Muestra el puntaje acumulado del procedimiento (suma de pesos de pasos ya respondidos). No requiere entrada.
+              </div>
+            )}
+
+            {/* ── Avanzado: scoring, lógica condicional, guardrails ISO ── */}
+            {(isScorable || conditionSources.length > 0 || supportsFailGuard) && (
+              <details style={{ borderTop: "1px solid #F1F5F9", paddingTop: 10 }}>
+                <summary style={{ cursor: "pointer", fontSize: 12, fontWeight: 600, color: "#475569", outline: "none" }}>
+                  Avanzado (ISO)
+                </summary>
+                <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 10 }}>
+
+                  {isScorable && (
+                    <div>
+                      <label style={lbl}>Peso (puntos)</label>
+                      <FocusInput
+                        type="number"
+                        min={0}
+                        value={paso.peso == null ? "" : String(paso.peso)}
+                        onChange={e => onChange({ peso: e.target.value === "" ? 0 : Number(e.target.value) })}
+                        placeholder="0 = no puntuado"
+                        style={{ maxWidth: 160 }}
+                      />
+                      <div style={{ fontSize: 11.5, color: "#94A3B8", marginTop: 3 }}>
+                        Suma al puntaje total del procedimiento si el paso se aprueba.
+                      </div>
+                    </div>
+                  )}
+
+                  {conditionSources.length > 0 && (
+                    <div>
+                      <label style={lbl}>Mostrar solo si…</label>
+                      <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr 1fr", gap: 6 }}>
+                        <select
+                          value={paso.condicion_tempid ?? ""}
+                          onChange={e => onChange({ condicion_tempid: e.target.value || null })}
+                          style={{ ...inp(), appearance: "auto" }}
+                        >
+                          <option value="">— sin condición —</option>
+                          {conditionSources.map(p => (
+                            <option key={p.tempId} value={p.tempId}>
+                              {p.titulo ? `${allPasos.indexOf(p) + 1}. ${p.titulo}` : `Paso ${allPasos.indexOf(p) + 1}`}
+                            </option>
+                          ))}
+                        </select>
+                        <select
+                          value={paso.condicion_operador ?? ""}
+                          onChange={e => onChange({ condicion_operador: (e.target.value || null) as PasoFormItem["condicion_operador"] })}
+                          disabled={!paso.condicion_tempid}
+                          style={{ ...inp(), appearance: "auto", opacity: paso.condicion_tempid ? 1 : 0.5 }}
+                        >
+                          <option value="">operador…</option>
+                          {OPERADORES_CONDICION.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                        </select>
+                        <FocusInput
+                          type="text"
+                          value={paso.condicion_valor == null ? "" : String(paso.condicion_valor)}
+                          onChange={e => onChange({ condicion_valor: e.target.value || null })}
+                          disabled={!paso.condicion_tempid}
+                          placeholder="valor (ej: fail)"
+                          style={{ opacity: paso.condicion_tempid ? 1 : 0.5 }}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {supportsFailGuard && (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      <div>
+                        <label style={lbl}>Exigir nota si la respuesta es…</label>
+                        <FocusInput
+                          type="text"
+                          value={paso.requiere_nota_si?.join(", ") ?? ""}
+                          onChange={e => onChange({ requiere_nota_si: e.target.value.split(",").map(s => s.trim()).filter(Boolean) })}
+                          placeholder="fail, no, poor"
+                        />
+                      </div>
+                      <div>
+                        <label style={lbl}>Exigir foto si la respuesta es…</label>
+                        <FocusInput
+                          type="text"
+                          value={paso.requiere_foto_si?.join(", ") ?? ""}
+                          onChange={e => onChange({ requiere_foto_si: e.target.value.split(",").map(s => s.trim()).filter(Boolean) })}
+                          placeholder="fail, replace"
+                        />
+                      </div>
+                      <label style={{ display: "flex", alignItems: "center", gap: 7, cursor: "pointer" }}>
+                        <input
+                          type="checkbox"
+                          checked={paso.genera_correctiva ?? false}
+                          onChange={e => onChange({ genera_correctiva: e.target.checked })}
+                          style={{ width: 14, height: 14, accentColor: "#DC2626", cursor: "pointer" }}
+                        />
+                        <span style={{ fontSize: 12.5, color: "#475569" }}>Crear OT correctiva automática al fallar</span>
+                      </label>
+                    </div>
+                  )}
+                </div>
+              </details>
             )}
 
             {/* Footer: requerido + move/delete */}

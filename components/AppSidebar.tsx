@@ -16,7 +16,7 @@ import {
   MapPin,
   BarChart2,
   ClipboardCheck,
-  Search,
+  Box,
   PackageSearch,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -206,7 +206,7 @@ const NAV_ITEMS = [
   { href: "/empezando",          icon: Rocket,         label: "Empezando",               onboarding: true  },
   { href: "/inicio",             icon: LayoutDashboard, label: "Inicio"                                    },
   { href: "/ordenes",            icon: ClipboardList,  label: "Órdenes"                                   },
-  { href: "/levantamientos",     icon: Search,         label: "Levantamientos"                            },
+  { href: "/activos",            icon: Box,            label: "Activos"                                   },
   { href: "/analitica",          icon: BarChart2,      label: "Analítica",               noMateriales: true},
   { href: "/analitica-materiales", icon: PackageSearch, label: "Analítica de Materiales", skipHoja: true   },
   { href: "/procedimientos",     icon: ClipboardCheck, label: "Procedimientos",          adminOnly: true   },
@@ -330,23 +330,32 @@ export default function AppSidebar() {
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          padding: "12px 16px",
+          padding: "12px 0",
           borderBottom: "1px solid var(--border)",
         }}>
           {workspaceLogo !== undefined && (
-            collapsed ? (
+            <div style={{
+              width: collapsed ? 40 : "calc(100% - 16px)",
+              height: collapsed ? 40 : 118,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              border: "1px solid var(--border)",
+              borderRadius: 6,
+              background: "var(--surface-1)",
+              overflow: "hidden",
+            }}>
               <img
                 src={workspaceLogo ?? "/logo2.svg"}
                 alt="Logo"
-                style={{ width: 36, height: 36, objectFit: "contain", borderRadius: "var(--r-sm)" }}
+                style={{
+                  width: collapsed ? 32 : "100%",
+                  height: collapsed ? 32 : "100%",
+                  objectFit: "contain",
+                  padding: collapsed ? 0 : 12,
+                }}
               />
-            ) : (
-              <img
-                src={workspaceLogo ?? "/logo2.svg"}
-                alt="Logo"
-                style={{ maxHeight: 100, width: "auto", maxWidth: 190, objectFit: "contain" }}
-              />
-            )
+            </div>
           )}
         </div>
       </SidebarHeader>
@@ -388,10 +397,10 @@ export default function AppSidebar() {
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={isActive("/levantamientos")} tooltip="Levantamientos">
-                  <Link href="/levantamientos" style={{ display: "flex", alignItems: "center", gap: collapsed ? 0 : 10 }}>
-                    <Search size={16} style={{ flexShrink: 0 }} />
-                    {!collapsed && <span>Levantamientos</span>}
+                <SidebarMenuButton asChild isActive={isActive("/activos")} tooltip="Activos">
+                  <Link href="/activos" style={{ display: "flex", alignItems: "center", gap: collapsed ? 0 : 10 }}>
+                    <Box size={16} style={{ flexShrink: 0 }} />
+                    {!collapsed && <span>Activos</span>}
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>

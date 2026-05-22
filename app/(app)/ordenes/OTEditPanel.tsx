@@ -89,12 +89,12 @@ function FieldRow({ icon, label, children }: {
   icon: React.ReactNode; label: string; children: React.ReactNode;
 }) {
   return (
-    <div style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: "12px 0", borderBottom: "1px solid var(--border)" }}>
-      <div style={{ width: 28, paddingTop: 2, display: "flex", justifyContent: "center", flexShrink: 0, color: "var(--fg-4)" }}>
+    <div style={{ display: "flex", alignItems: "flex-start", gap: 16, padding: "22px 0", borderBottom: "1px solid var(--border)" }}>
+      <div style={{ width: 34, paddingTop: 4, display: "flex", justifyContent: "center", flexShrink: 0, color: "var(--fg-4)" }}>
         {icon}
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 12, fontWeight: 600, color: "var(--fg-3)", marginBottom: 6 }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: "var(--fg-3)", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.06em" }}>
           {label}
         </div>
         {children}
@@ -132,8 +132,8 @@ function SearchSelect({ placeholder, value, options, onChange }: {
         type="button"
         onClick={() => { setOpen(!open); setQuery(""); }}
         style={{
-          width: "100%", height: 34, display: "flex", alignItems: "center", gap: 8,
-          padding: "0 10px", border: "1px solid var(--border)", borderRadius: 8,
+          width: "100%", height: 40, display: "flex", alignItems: "center", gap: 8,
+          padding: "0 12px", border: "1px solid var(--border)", borderRadius: 8,
           background: "var(--surface-1)", fontSize: 13, color: selected ? "var(--fg-1)" : "var(--fg-4)",
           cursor: "pointer", textAlign: "left",
         }}
@@ -149,14 +149,14 @@ function SearchSelect({ placeholder, value, options, onChange }: {
           background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: 8,
           boxShadow: "var(--shadow-md)", overflow: "hidden",
         }}>
-          <div style={{ padding: "6px 6px 3px" }}>
+          <div style={{ padding: "8px 8px 4px" }}>
             <input
               autoFocus
               placeholder="Buscar…"
               value={query}
               onChange={e => setQuery(e.target.value)}
               style={{
-                width: "100%", height: 30, padding: "0 8px",
+                width: "100%", height: 36, padding: "0 10px",
                 border: "1px solid var(--border)", borderRadius: 8,
                 fontSize: 12.5, outline: "none", color: "var(--fg-1)", fontFamily: "inherit",
                 background: "var(--surface-1)",
@@ -169,7 +169,7 @@ function SearchSelect({ placeholder, value, options, onChange }: {
               onClick={() => { onChange(""); setOpen(false); }}
               style={{
                 display: "block", width: "100%", textAlign: "left",
-                padding: "7px 10px", fontSize: 13, color: "var(--fg-4)",
+                padding: "10px 12px", fontSize: 13, color: "var(--fg-4)",
                 background: !value ? "var(--brand-tint)" : "transparent",
                 border: "none", cursor: "pointer", fontFamily: "inherit",
               }}
@@ -183,7 +183,7 @@ function SearchSelect({ placeholder, value, options, onChange }: {
                 onClick={() => { onChange(o.id); setOpen(false); }}
                 style={{
                   display: "flex", alignItems: "center", gap: 6,
-                  width: "100%", padding: "7px 10px", fontSize: 13,
+                  width: "100%", padding: "10px 12px", fontSize: 13,
                   background: value === o.id ? "var(--brand-tint)" : "transparent",
                   border: "none", cursor: "pointer", fontFamily: "inherit",
                 }}
@@ -234,7 +234,7 @@ function AssigneeSelect({ usuarios, value, onChange }: {
   return (
     <div ref={ref} style={{ position: "relative" }}>
       {selected.length > 0 && (
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginBottom: 6 }}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 10 }}>
           {selected.map(u => (
             <span key={u.id} style={{
               display: "flex", alignItems: "center", gap: 4,
@@ -258,8 +258,8 @@ function AssigneeSelect({ usuarios, value, onChange }: {
         type="button"
         onClick={() => { setOpen(!open); setQuery(""); }}
         style={{
-          height: 34, display: "flex", alignItems: "center", gap: 7,
-          padding: "0 10px", border: "1px solid var(--border)", borderRadius: 8,
+          height: 40, display: "flex", alignItems: "center", gap: 8,
+          padding: "0 12px", border: "1px solid var(--border)", borderRadius: 8,
           background: "var(--surface-1)", fontSize: 13, color: "var(--fg-4)", cursor: "pointer", fontFamily: "inherit",
         }}
       >
@@ -273,10 +273,10 @@ function AssigneeSelect({ usuarios, value, onChange }: {
           minWidth: 220, background: "var(--surface-1)", border: "1px solid var(--border)",
           borderRadius: 8, boxShadow: "var(--shadow-md)", overflow: "hidden",
         }}>
-          <div style={{ padding: "6px 6px 3px" }}>
+          <div style={{ padding: "8px 8px 4px" }}>
             <input autoFocus placeholder="Buscar por nombre…" value={query}
               onChange={e => setQuery(e.target.value)}
-              style={{ width: "100%", height: 30, padding: "0 8px", border: "1px solid var(--border)", borderRadius: 8, fontSize: 12.5, outline: "none", color: "var(--fg-1)", fontFamily: "inherit", background: "var(--surface-1)" }}
+              style={{ width: "100%", height: 36, padding: "0 10px", border: "1px solid var(--border)", borderRadius: 8, fontSize: 12.5, outline: "none", color: "var(--fg-1)", fontFamily: "inherit", background: "var(--surface-1)" }}
             />
           </div>
           <div style={{ maxHeight: 200, overflowY: "auto" }}>
@@ -284,7 +284,7 @@ function AssigneeSelect({ usuarios, value, onChange }: {
               const sel = value.includes(u.id);
               return (
                 <button key={u.id} type="button" onClick={() => toggle(u.id)}
-                  style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "8px 10px", background: sel ? "var(--brand-tint)" : "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}>
+                  style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "10px 12px", background: sel ? "var(--brand-tint)" : "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}>
                   <span style={{ width: 26, height: 26, borderRadius: "50%", background: sel ? "var(--brand)" : "var(--surface-hover)", color: sel ? "var(--fg-on-brand)" : "var(--fg-3)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 700, flexShrink: 0 }}>
                     {initials(u.nombre)}
                   </span>
@@ -367,8 +367,8 @@ function HitoSelect({ value, onChange, wsId }: {
         type="button"
         onClick={() => { setOpen(!open); setQuery(""); }}
         style={{
-          width: "100%", height: 34, display: "flex", alignItems: "center", gap: 8,
-          padding: "0 10px", border: "1px solid var(--border)", borderRadius: 8,
+          width: "100%", height: 40, display: "flex", alignItems: "center", gap: 8,
+          padding: "0 12px", border: "1px solid var(--border)", borderRadius: 8,
           background: "var(--surface-1)", fontSize: 13, color: value ? "var(--fg-1)" : "var(--fg-4)",
           cursor: "pointer", textAlign: "left", fontFamily: "inherit",
         }}
@@ -384,14 +384,14 @@ function HitoSelect({ value, onChange, wsId }: {
           background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: 8,
           boxShadow: "var(--shadow-md)", overflow: "hidden",
         }}>
-          <div style={{ padding: "6px 6px 3px" }}>
+          <div style={{ padding: "8px 8px 4px" }}>
             <input
               autoFocus
               placeholder="Buscar o crear…"
               value={query}
               onChange={e => setQuery(e.target.value)}
               style={{
-                width: "100%", height: 30, padding: "0 8px",
+                width: "100%", height: 36, padding: "0 10px",
                 border: "1px solid var(--border)", borderRadius: 8,
                 fontSize: 12.5, outline: "none", color: "var(--fg-1)",
                 fontFamily: "inherit", boxSizing: "border-box", background: "var(--surface-1)",
@@ -403,7 +403,7 @@ function HitoSelect({ value, onChange, wsId }: {
               <button
                 type="button"
                 onClick={() => { onChange(""); setOpen(false); }}
-                style={{ display: "block", width: "100%", textAlign: "left", padding: "7px 10px", fontSize: 13, color: "var(--fg-4)", background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}
+                style={{ display: "block", width: "100%", textAlign: "left", padding: "10px 12px", fontSize: 13, color: "var(--fg-4)", background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}
               >
                 Quitar hito
               </button>
@@ -415,7 +415,7 @@ function HitoSelect({ value, onChange, wsId }: {
                 onClick={() => { onChange(h.nombre); setOpen(false); }}
                 style={{
                   display: "flex", alignItems: "center", gap: 6,
-                  width: "100%", padding: "7px 10px", fontSize: 13,
+                  width: "100%", padding: "10px 12px", fontSize: 13,
                   background: value === h.nombre ? "var(--brand-tint)" : "transparent",
                   border: "none", cursor: "pointer", fontFamily: "inherit", color: "var(--fg-1)",
                 }}
@@ -431,7 +431,7 @@ function HitoSelect({ value, onChange, wsId }: {
                 disabled={creating}
                 style={{
                   display: "flex", alignItems: "center", gap: 6,
-                  width: "100%", padding: "7px 10px", fontSize: 13, fontWeight: 600,
+                  width: "100%", padding: "10px 12px", fontSize: 13, fontWeight: 600,
                   background: "var(--brand-tint)", color: "var(--brand)",
                   border: "none", borderTop: "1px solid var(--border)",
                   cursor: creating ? "default" : "pointer", fontFamily: "inherit",
@@ -605,9 +605,9 @@ export default function OTEditPanel({
       {/* Header */}
       <div style={{
         display: "flex", alignItems: "center", justifyContent: "space-between",
-        padding: "0 20px", height: 56, borderBottom: "1px solid var(--border)", flexShrink: 0,
+        padding: "0 28px", height: 64, borderBottom: "1px solid var(--border)", flexShrink: 0,
       }}>
-        <h2 style={{ fontSize: 15, fontWeight: 600, color: "var(--fg-1)", margin: 0 }}>
+        <h2 style={{ fontSize: 17, fontWeight: 700, color: "var(--fg-1)", margin: 0 }}>
           Editar Orden de Trabajo
         </h2>
         <button
@@ -620,18 +620,18 @@ export default function OTEditPanel({
 
       {/* Scrollable body */}
       <div style={{ flex: 1, overflowY: "auto", minHeight: 0 }}>
-        <div style={{ padding: "16px 20px 100px" }}>
+        <div style={{ padding: "28px 28px 120px", maxWidth: 1180 }}>
 
           {/* Title */}
-          <div style={{ marginBottom: 12 }}>
+          <div style={{ marginBottom: 24 }}>
             <input
               type="text"
               placeholder="¿Qué hay que hacer? (Necesario)"
               value={form.titulo}
               onChange={e => setF("titulo", e.target.value)}
               style={{
-                width: "100%", fontSize: 16, fontWeight: 600, color: "var(--fg-1)",
-                border: "none", outline: "none", background: "transparent", padding: "4px 0",
+                width: "100%", fontSize: 22, fontWeight: 400, color: "var(--fg-1)",
+                border: "none", outline: "none", background: "transparent", padding: "8px 0",
                 borderBottom: form.titulo ? "2px solid var(--brand)" : "2px solid var(--border)",
                 fontFamily: "inherit", transition: "border-color 0.15s",
               }}
@@ -639,34 +639,34 @@ export default function OTEditPanel({
           </div>
 
           {/* Description */}
-          <div style={{ marginBottom: 4 }}>
+          <div style={{ marginBottom: 18 }}>
             <textarea
               placeholder="Agregue una descripción"
               value={form.descripcion}
               onChange={e => setF("descripcion", e.target.value)}
               rows={3}
               style={{
-                width: "100%", fontSize: 13, color: "var(--fg-1)",
+                width: "100%", fontSize: 14, color: "var(--fg-1)",
                 border: "1px solid var(--border)", borderRadius: 8,
-                padding: "8px 10px", outline: "none", resize: "vertical",
-                fontFamily: "inherit", background: "var(--surface-1)", lineHeight: 1.5,
+                padding: "12px 14px", outline: "none", resize: "vertical",
+                fontFamily: "inherit", background: "var(--surface-1)", lineHeight: 1.7, minHeight: 108,
               }}
             />
           </div>
 
           {/* Grupos de fotos */}
-          <div style={{ padding: "12px 0", borderBottom: "1px solid var(--border)" }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+          <div style={{ padding: "24px 0", borderBottom: "1px solid var(--border)" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                 <Camera size={13} style={{ color: "var(--fg-4)" }} />
-                <span style={{ fontSize: 11, fontWeight: 600, color: "var(--fg-3)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: "var(--fg-3)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
                   Grupos de fotos
                 </span>
               </div>
               <button
                 type="button"
                 onClick={handleAddGrupo}
-                style={{ display: "flex", alignItems: "center", gap: 5, height: 26, padding: "0 10px", border: "1px solid var(--brand)", borderRadius: 6, background: "var(--brand-tint)", color: "var(--brand)", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
+                style={{ display: "flex", alignItems: "center", gap: 5, height: 32, padding: "0 12px", border: "1px solid var(--brand)", borderRadius: 6, background: "var(--brand-tint)", color: "var(--brand)", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}
               >
                 <Plus size={11} />
                 Agregar grupo
@@ -688,11 +688,11 @@ export default function OTEditPanel({
                 <span style={{ fontSize: 12 }}>Agregar fotos con título y descripción</span>
               </button>
             ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                 {grupos.map(g => (
                   <div key={g.id} style={{ border: "1px solid var(--border)", borderRadius: 8, overflow: "hidden", background: "var(--surface-1)" }}>
                     {/* Group header */}
-                    <div style={{ padding: "10px 12px", background: "var(--surface-0)", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", gap: 8 }}>
+                    <div style={{ padding: "14px 16px", background: "var(--surface-0)", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", gap: 10 }}>
                       <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: "var(--fg-1)" }}>{g.titulo}</span>
                       {g.descripcion && <span style={{ fontSize: 12, color: "var(--fg-3)", flex: 1 }}>{g.descripcion}</span>}
                       <button
@@ -706,8 +706,8 @@ export default function OTEditPanel({
                       </button>
                     </div>
                     {/* Photos grid */}
-                    <div style={{ padding: 10 }}>
-                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(80px, 1fr))", gap: 6 }}>
+                    <div style={{ padding: 14 }}>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(88px, 1fr))", gap: 10 }}>
                         {(g.items ?? []).map(item => (
                           <div key={item.id} style={{ position: "relative", aspectRatio: "1", borderRadius: 6, overflow: "hidden", background: "var(--surface-hover)" }}>
                             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -757,18 +757,18 @@ export default function OTEditPanel({
           </div>
 
           {/* Adjuntos */}
-          <div style={{ padding: "12px 0", borderBottom: "1px solid var(--border)" }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+          <div style={{ padding: "24px 0", borderBottom: "1px solid var(--border)" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                 <Paperclip size={13} style={{ color: "var(--fg-4)" }} />
-                <span style={{ fontSize: 11, fontWeight: 600, color: "var(--fg-3)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: "var(--fg-3)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
                   Adjuntos
                 </span>
               </div>
               <button
                 type="button"
                 onClick={() => adjuntoInputRef.current?.click()}
-                style={{ display: "flex", alignItems: "center", gap: 4, height: 24, padding: "0 8px", border: "1px solid var(--brand)", borderRadius: 5, background: "var(--brand-tint)", color: "var(--brand)", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
+                style={{ display: "flex", alignItems: "center", gap: 4, height: 32, padding: "0 12px", border: "1px solid var(--brand)", borderRadius: 5, background: "var(--brand-tint)", color: "var(--brand)", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}
               >
                 <Plus size={11} />
                 Adjuntar archivo
@@ -788,9 +788,9 @@ export default function OTEditPanel({
             </div>
             {/* Existing file links */}
             {form.links.filter(l => l.tipo === "archivo").length > 0 && (
-              <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: adjuntos.length ? 8 : 0 }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: adjuntos.length ? 12 : 0 }}>
                 {form.links.filter(l => l.tipo === "archivo").map((l, i) => (
-                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 8px", border: "1px solid var(--border)", borderRadius: 6, background: "var(--surface-0)" }}>
+                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", border: "1px solid var(--border)", borderRadius: 6, background: "var(--surface-0)" }}>
                     <FileText size={13} style={{ color: "var(--brand)", flexShrink: 0 }} />
                     <span style={{ flex: 1, fontSize: 12.5, color: "var(--fg-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       {l.nombre || l.url.split("/").pop()}
@@ -810,12 +810,12 @@ export default function OTEditPanel({
             )}
             {/* New draft files */}
             {adjuntos.length > 0 && (
-              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {adjuntos.map((a, i) => {
                   const ext = a.file.name.split(".").pop()?.toLowerCase() ?? "";
                   const isDoc = ["pdf","doc","docx","xls","xlsx","ppt","pptx","txt","csv","dwg","dxf"].includes(ext);
                   return (
-                    <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 8px", border: "1px solid var(--brand)", borderRadius: 6, background: "var(--brand-tint)" }}>
+                    <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", border: "1px solid var(--brand)", borderRadius: 6, background: "var(--brand-tint)" }}>
                       {isDoc ? <FileText size={13} style={{ color: "var(--brand)", flexShrink: 0 }} /> : <File size={13} style={{ color: "var(--fg-4)", flexShrink: 0 }} />}
                       <input
                         type="text"
@@ -842,7 +842,7 @@ export default function OTEditPanel({
               <button
                 type="button"
                 onClick={() => adjuntoInputRef.current?.click()}
-                style={{ width: "100%", border: "1.5px dashed var(--brand)", borderRadius: 8, padding: "12px", display: "flex", flexDirection: "column", alignItems: "center", gap: 4, color: "var(--brand)", cursor: "pointer", background: "var(--brand-tint)", fontFamily: "inherit" }}
+                style={{ width: "100%", border: "1.5px dashed var(--brand)", borderRadius: 8, padding: "18px", display: "flex", flexDirection: "column", alignItems: "center", gap: 6, color: "var(--brand)", cursor: "pointer", background: "var(--brand-tint)", fontFamily: "inherit" }}
               >
                 <Paperclip size={18} strokeWidth={1.5} />
                 <span style={{ fontSize: 12 }}>PDF, Word, Excel, TXT, CSV, DWG, MP3, M4A…</span>
@@ -851,8 +851,8 @@ export default function OTEditPanel({
           </div>
 
           {/* Links */}
-          <div style={{ padding: "12px 0", borderBottom: "1px solid var(--border)" }}>
-            <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "var(--fg-3)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>
+          <div style={{ padding: "24px 0", borderBottom: "1px solid var(--border)" }}>
+            <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "var(--fg-3)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 10 }}>
               Links
             </label>
             <LinksInput
@@ -867,7 +867,7 @@ export default function OTEditPanel({
               placeholder="Ej: SF920260325921"
               value={form.n_ot}
               onChange={e => setF("n_ot", e.target.value)}
-              style={{ width:"100%", height:34, padding:"0 10px", border:"1px solid var(--border)", borderRadius:8, fontSize:13, color:"var(--fg-1)", outline:"none", fontFamily:"monospace", background:"var(--surface-1)" }}
+              style={{ width:"100%", height:40, padding:"0 12px", border:"1px solid var(--border)", borderRadius:8, fontSize:13, color:"var(--fg-1)", outline:"none", fontFamily:"monospace", background:"var(--surface-1)" }}
             />
           </FieldRow>
 
@@ -877,7 +877,7 @@ export default function OTEditPanel({
               placeholder="Nombre del solicitante…"
               value={form.solicitante}
               onChange={e => setF("solicitante", e.target.value)}
-              style={{ width:"100%", height:34, padding:"0 10px", border:"1px solid var(--border)", borderRadius:8, fontSize:13, color:"var(--fg-1)", outline:"none", fontFamily:"inherit", background:"var(--surface-1)" }}
+              style={{ width:"100%", height:40, padding:"0 12px", border:"1px solid var(--border)", borderRadius:8, fontSize:13, color:"var(--fg-1)", outline:"none", fontFamily:"inherit", background:"var(--surface-1)" }}
             />
           </FieldRow>
 
@@ -891,7 +891,7 @@ export default function OTEditPanel({
               placeholder="Ej: PRE-2025-001"
               value={form.presupuesto}
               onChange={e => setF("presupuesto", e.target.value)}
-              style={{ width:"100%", height:34, padding:"0 10px", border:"1px solid var(--border)", borderRadius:8, fontSize:13, color:"var(--fg-1)", outline:"none", fontFamily:"inherit", background:"var(--surface-1)" }}
+              style={{ width:"100%", height:40, padding:"0 12px", border:"1px solid var(--border)", borderRadius:8, fontSize:13, color:"var(--fg-1)", outline:"none", fontFamily:"inherit", background:"var(--surface-1)" }}
             />
           </FieldRow>
 
@@ -917,29 +917,29 @@ export default function OTEditPanel({
 
           <FieldRow icon={<CalendarDays size={14} />} label="Fecha de vencimiento">
             <input type="date" value={form.fecha_termino} onChange={e => setF("fecha_termino", e.target.value)}
-              style={{ height: 34, padding: "0 10px", border: "1px solid var(--border)", borderRadius: 8, fontSize: 13, color: form.fecha_termino ? "var(--fg-1)" : "var(--fg-4)", outline: "none", fontFamily: "inherit", background: "var(--surface-1)" }}
+              style={{ height: 40, padding: "0 12px", border: "1px solid var(--border)", borderRadius: 8, fontSize: 13, color: form.fecha_termino ? "var(--fg-1)" : "var(--fg-4)", outline: "none", fontFamily: "inherit", background: "var(--surface-1)" }}
             />
           </FieldRow>
 
           <FieldRow icon={<CalendarDays size={14} />} label="Fecha de inicio">
             <input type="date" value={form.fecha_inicio} onChange={e => setF("fecha_inicio", e.target.value)}
-              style={{ height: 34, padding: "0 10px", border: "1px solid var(--border)", borderRadius: 8, fontSize: 13, color: form.fecha_inicio ? "var(--fg-1)" : "var(--fg-4)", outline: "none", fontFamily: "inherit", background: "var(--surface-1)" }}
+              style={{ height: 40, padding: "0 12px", border: "1px solid var(--border)", borderRadius: 8, fontSize: 13, color: form.fecha_inicio ? "var(--fg-1)" : "var(--fg-4)", outline: "none", fontFamily: "inherit", background: "var(--surface-1)" }}
             />
           </FieldRow>
 
           {/* Recurrence + Work type */}
-          <div style={{ display: "flex", gap: 10, padding: "12px 0", borderBottom: "1px solid var(--border)" }}>
+          <div style={{ display: "flex", gap: 24, padding: "24px 0", borderBottom: "1px solid var(--border)" }}>
             <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 12, fontWeight: 600, color: "var(--fg-3)", marginBottom: 6 }}>Recurrencia</div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: "var(--fg-3)", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.06em" }}>Recurrencia</div>
               <select value={form.recurrencia} onChange={e => setF("recurrencia", e.target.value as Recurrencia)}
-                style={{ width: "100%", height: 34, padding: "0 8px", border: "1px solid var(--border)", borderRadius: 8, fontSize: 13, color: "var(--fg-1)", outline: "none", background: "var(--surface-1)", fontFamily: "inherit" }}>
+                style={{ width: "100%", height: 40, padding: "0 12px", border: "1px solid var(--border)", borderRadius: 8, fontSize: 13, color: "var(--fg-1)", outline: "none", background: "var(--surface-1)", fontFamily: "inherit" }}>
                 {RECURRENCIAS.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
               </select>
             </div>
             <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 12, fontWeight: 600, color: "var(--fg-3)", marginBottom: 6 }}>Tipo de trabajo</div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: "var(--fg-3)", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.06em" }}>Tipo de trabajo</div>
               <select value={form.tipo_trabajo} onChange={e => setF("tipo_trabajo", e.target.value as TipoTrabajo | "")}
-                style={{ width: "100%", height: 34, padding: "0 8px", border: "1px solid var(--border)", borderRadius: 8, fontSize: 13, color: "var(--fg-1)", outline: "none", background: "var(--surface-1)", fontFamily: "inherit" }}>
+                style={{ width: "100%", height: 40, padding: "0 12px", border: "1px solid var(--border)", borderRadius: 8, fontSize: 13, color: "var(--fg-1)", outline: "none", background: "var(--surface-1)", fontFamily: "inherit" }}>
                 <option value="">Reactiva (por defecto)</option>
                 {TIPOS.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
               </select>
@@ -947,14 +947,14 @@ export default function OTEditPanel({
           </div>
 
           {/* Priority */}
-          <div style={{ padding: "12px 0", borderBottom: "1px solid var(--border)" }}>
-            <div style={{ fontSize: 12, fontWeight: 600, color: "var(--fg-3)", marginBottom: 8 }}>Prioridad</div>
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+          <div style={{ padding: "24px 0", borderBottom: "1px solid var(--border)" }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: "var(--fg-3)", marginBottom: 12, textTransform: "uppercase", letterSpacing: "0.06em" }}>Prioridad</div>
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
               {PRIORIDADES.map((p) => {
                 const active = form.prioridad === p.value;
                 return (
                   <button key={p.value} type="button" onClick={() => setF("prioridad", p.value)}
-                    style={{ height: 34, padding: "0 14px", border: active ? "none" : "1px solid var(--border)", borderRadius: 8, background: active ? "var(--surface-hover)" : "var(--surface-1)", fontSize: 13, fontWeight: active ? 600 : 400, color: active ? p.activeColor : "var(--fg-2)", cursor: "pointer", transition: "all 0.12s", fontFamily: "inherit" }}>
+                    style={{ height: 40, padding: "0 16px", border: active ? "none" : "1px solid var(--border)", borderRadius: 8, background: active ? "var(--surface-hover)" : "var(--surface-1)", fontSize: 13, fontWeight: active ? 700 : 500, color: active ? p.activeColor : "var(--fg-2)", cursor: "pointer", transition: "all 0.12s", fontFamily: "inherit" }}>
                     {p.label}
                   </button>
                 );
@@ -965,12 +965,12 @@ export default function OTEditPanel({
           {/* Categories */}
           {categorias.length > 0 && (
             <FieldRow icon={<Tag size={14} />} label="Categorías">
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                 {categorias.map(c => {
                   const active = form.categoria_id === c.id;
                   return (
                     <button key={c.id} type="button" onClick={() => setF("categoria_id", active ? "" : c.id)}
-                      style={{ height: 26, padding: "0 9px", border: "none", borderRadius: 8, background: active ? (c.color ?? "var(--brand)") : "var(--surface-hover)", color: active ? "var(--fg-on-brand)" : "var(--fg-2)", fontSize: 11.5, fontWeight: active ? 600 : 400, cursor: "pointer", display: "flex", alignItems: "center", gap: 3, transition: "all 0.1s", fontFamily: "inherit" }}>
+                      style={{ height: 32, padding: "0 12px", border: "none", borderRadius: 8, background: active ? (c.color ?? "var(--brand)") : "var(--surface-hover)", color: active ? "var(--fg-on-brand)" : "var(--fg-2)", fontSize: 12, fontWeight: active ? 700 : 500, cursor: "pointer", display: "flex", alignItems: "center", gap: 5, transition: "all 0.1s", fontFamily: "inherit" }}>
                       {c.icono && <span>{c.icono}</span>}
                       {c.nombre}
                     </button>
@@ -984,7 +984,7 @@ export default function OTEditPanel({
       </div>
 
       {/* Footer */}
-      <div style={{ borderTop: "1px solid var(--border)", padding: "12px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", background: "var(--surface-1)", flexShrink: 0 }}>
+      <div style={{ borderTop: "1px solid var(--border)", padding: "16px 28px", display: "flex", alignItems: "center", justifyContent: "space-between", background: "var(--surface-1)", flexShrink: 0 }}>
         <div style={{ flex: 1 }}>
           {error && <span style={{ fontSize: 12.5, color: "var(--danger)" }}>{error}</span>}
         </div>

@@ -1,7 +1,9 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase";
+import { uploadToR2 } from "@/lib/r2";
 import HojaSpreadsheet from "@/components/HojaSpreadsheet";
 import {
   X, Pencil, Trash2, Check, Copy, MapPin, Settings2, User, Flag,
@@ -9,11 +11,11 @@ import {
   CircleDot, PauseCircle, PlayCircle, CheckCircle2, XCircle,
   ChevronDown, Plus, Image, Building2, Hash,
   Play, Pause, Square, RotateCcw,
-  Download, FileText, Sheet, FileDown,
+  FileText, Sheet, FileDown, MoreVertical,
   Package, Search,
   ClipboardCheck, Info, Hash as HashIcon, Camera, PenLine, Shield, CheckSquare,
   Type, DollarSign, List, ListChecks, AlertCircle, ImagePlus, FolderOpen,
-  Lock, LockOpen, Mic, MicOff, Volume2,
+  Lock, LockOpen, Mic, MicOff, Volume2, GitBranch, Wrench,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { LinksDisplay } from "@/components/LinksInput";
@@ -24,16 +26,16 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel,
+  AlertDialog, AlertDialogCancel,
   AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
-  AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
+  AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
   updateOrdenEstado, updateOrdenPrioridad,
   iniciarOrden, pausarOrden, reanudarOrden, completarOrden,
   fetchActividad, addComentario,
   uploadOrdenFoto, addOrdenFoto, removeOrdenFoto,
-  parseDescMeta,
+  parseDescMeta, fetchOrden, fetchSubOrdenes, createSubOrden,
 } from "@/lib/ordenes-api";
 import {
   fetchFotoGrupos, createFotoGrupo, updateFotoGrupo, deleteFotoGrupo,
@@ -42,7 +44,7 @@ import {
 import type { FotoGrupo } from "@/lib/foto-grupos-api";
 import {
   getOTProcedimientos, attachProcedimiento, detachProcedimiento,
-  listProcedimientos, startEjecucion, saveRespuesta, completeEjecucion,
+  listProcedimientos, startEjecucion, saveRespuesta, completeEjecucion, maybeTriggerCorrectiva,
 } from "@/lib/procedimientos-api";
 import type {
   OrdenTrabajo, ActividadOT, ActividadTipo, Usuario, Estado, Prioridad,
@@ -352,6 +354,127 @@ function NOTBadge({ nOT }: { nOT: string }) {
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 
+function SubOrdenesSection({
+  subOrdenes,
+  isLoading,
+  canCreate,
+  isCreating,
+  newTitle,
+  onTitleChange,
+  onCreate,
+  onOpen,
+}: {
+  subOrdenes: OrdenTrabajo[];
+  isLoading: boolean;
+  canCreate: boolean;
+  isCreating: boolean;
+  newTitle: string;
+  onTitleChange: (value: string) => void;
+  onCreate: () => void;
+  onOpen: (id: string) => void;
+}) {
+  const completed = subOrdenes.filter((sub) => sub.estado === "completado").length;
+  const total = subOrdenes.length;
+
+  return (
+    <div style={{ marginTop: 30, paddingTop: 24, borderTop: "1px solid var(--border)", maxWidth: 1100 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
+        <span style={{ width: 40, height: 40, borderRadius: 9, background: "var(--brand-tint)", color: "var(--brand-fg)", display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+          <GitBranch size={17} />
+        </span>
+        <div style={{ flex: 1 }}>
+          <p style={{ margin: 0, fontSize: 15, fontWeight: 800, color: "var(--fg-1)" }}>Sub-OTs</p>
+          <p style={{ margin: "3px 0 0", fontSize: 13, color: "var(--fg-4)" }}>
+            {total > 0 ? `${completed}/${total} completadas` : "Crea una sub-OT por equipo, sala o tarea."}
+          </p>
+        </div>
+      </div>
+
+      {canCreate && (
+        <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+          <input
+            value={newTitle}
+            onChange={e => onTitleChange(e.target.value)}
+            placeholder="Nueva sub-OT..."
+            style={{
+              flex: 1, minWidth: 0, height: 40, padding: "0 12px",
+              border: "1px solid var(--border)", borderRadius: "var(--r-sm)",
+              background: "var(--surface-1)", color: "var(--fg-1)",
+              fontSize: 13, outline: "none", fontFamily: "inherit",
+            }}
+            onKeyDown={e => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                onCreate();
+              }
+            }}
+          />
+          <button
+            type="button"
+            onClick={onCreate}
+            disabled={!newTitle.trim() || isCreating}
+            style={{
+              height: 40, padding: "0 16px", border: "none",
+              borderRadius: "var(--r-sm)",
+              background: newTitle.trim() && !isCreating ? "var(--brand)" : "var(--border-strong)",
+              color: "var(--fg-on-brand)", fontSize: 12, fontWeight: 700,
+              cursor: newTitle.trim() && !isCreating ? "pointer" : "default",
+              display: "flex", alignItems: "center", gap: 6, fontFamily: "inherit",
+            }}
+          >
+            {isCreating ? <Loader2 size={12} className="animate-spin" /> : <Plus size={13} />}
+            Agregar
+          </button>
+        </div>
+      )}
+
+      {isLoading && total === 0 ? (
+        <div style={{ padding: 14, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--fg-4)", gap: 8, fontSize: 12 }}>
+          <Loader2 size={14} className="animate-spin" />
+          Cargando sub-OTs...
+        </div>
+      ) : total === 0 ? (
+        <div style={{ padding: 16, border: "1px solid var(--border)", borderRadius: "var(--r-md)", background: "var(--surface-0)", color: "var(--fg-2)", fontSize: 13, lineHeight: 1.65 }}>
+          Las sub-OTs funcionan como OTs completas, pero quedan agrupadas bajo esta orden principal.
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {subOrdenes.map((sub) => {
+            const done = sub.estado === "completado";
+            return (
+              <button
+                key={sub.id}
+                type="button"
+                onClick={() => onOpen(sub.id)}
+                style={{
+                  width: "100%", display: "flex", alignItems: "center", gap: 10,
+                  padding: "14px 16px", borderRadius: "var(--r-md)",
+                  border: `1px solid ${done ? "#BBF7D0" : "var(--border)"}`,
+                  background: done ? "var(--success-bg)" : "var(--surface-0)",
+                  cursor: "pointer", textAlign: "left", fontFamily: "inherit",
+                }}
+              >
+                <span style={{ width: 30, height: 30, borderRadius: 8, background: done ? "var(--success)" : "var(--brand-tint)", color: done ? "var(--fg-on-brand)" : "var(--brand-fg)", display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  {done ? <Check size={14} /> : <Wrench size={14} />}
+                </span>
+                <span style={{ flex: 1, minWidth: 0 }}>
+                  <span style={{ display: "block", fontSize: 13.5, fontWeight: 700, color: "var(--fg-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {sub.titulo ?? "Sub-OT sin título"}
+                  </span>
+                  <span style={{ display: "block", marginTop: 2, fontSize: 12, color: "var(--fg-4)" }}>
+                    {ESTADOS.find(e => e.value === sub.estado)?.label ?? sub.estado}
+                  </span>
+                </span>
+                <ChevronDown size={14} style={{ color: "var(--fg-4)", transform: "rotate(-90deg)" }} />
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 interface Props {
   orden:          OrdenTrabajo;
   usuarios:       Usuario[];
@@ -359,9 +482,10 @@ interface Props {
   myRol:          string | null;
   wsId:           string;
   onEdit:         () => void;
-  onDelete:       () => void;
+  onDelete:       () => void | Promise<void>;
   onClose:        () => void;
   onOrdenUpdated: (o: Partial<OrdenTrabajo>) => void;
+  onOpenOrden?:   (id: string) => void;
 }
 
 type Tab = "detalle" | "actividad" | "fotos" | "materiales" | "procedimientos" | "hoja";
@@ -413,8 +537,9 @@ function useTimer(orden: OrdenTrabajo) {
 
 export default function OTDetail({
   orden, usuarios, myId, myRol, wsId,
-  onEdit, onDelete, onClose, onOrdenUpdated,
+  onEdit, onDelete, onClose, onOrdenUpdated, onOpenOrden,
 }: Props) {
+  const router = useRouter();
   const [tab, setTab] = useState<Tab>("detalle");
   const [actividad, setActividad] = useState<ActividadOT[]>([]);
   const [loadingAct, setLoadingAct] = useState(false);
@@ -456,6 +581,9 @@ export default function OTDetail({
 
   const [exporting, setExporting] = useState<"pdf" | "csv" | "txt" | null>(null);
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [deletingOrden, setDeletingOrden] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const exportMenuRef = useRef<HTMLDivElement>(null);
 
   type ExportField =
@@ -566,6 +694,11 @@ export default function OTDetail({
 
   // Fetch workspace-level flags once on mount
   const [modoRegistro, setModoRegistro] = useState<"ambos" | "materiales" | "hoja">("ambos");
+  const [subOrdenes, setSubOrdenes] = useState<OrdenTrabajo[]>([]);
+  const [loadingSubOrdenes, setLoadingSubOrdenes] = useState(false);
+  const [creatingSubOrden, setCreatingSubOrden] = useState(false);
+  const [newSubOrdenTitle, setNewSubOrdenTitle] = useState("");
+  const [parentOrden, setParentOrden] = useState<OrdenTrabajo | null>(null);
   useEffect(() => {
     if (!wsId) return;
     const sb = createClient();
@@ -635,6 +768,19 @@ export default function OTDetail({
   const canUploadFotos = canManageFotos || (orden.asignados_ids ?? []).includes(myId);
   const isActive = orden.estado !== "completado";
 
+  async function handleConfirmDeleteOrden() {
+    setDeletingOrden(true);
+    setDeleteError(null);
+    try {
+      await onDelete();
+      setDeleteConfirmOpen(false);
+      setDeletingOrden(false);
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : "No se pudo eliminar la orden.");
+      setDeletingOrden(false);
+    }
+  }
+
   // Sync fotos when orden prop updates (realtime)
   useEffect(() => {
     setFotos([
@@ -644,6 +790,60 @@ export default function OTDetail({
   }, [orden.imagen_url, orden.fotos_urls]);
 
   useEffect(() => { setClasificacion(orden.clasificacion ?? null); }, [orden.clasificacion]);
+
+  const openOrden = useCallback((id: string) => {
+    if (onOpenOrden) onOpenOrden(id);
+    else router.push(`/ordenes/${id}`);
+  }, [onOpenOrden, router]);
+
+  useEffect(() => {
+    if (orden.parent_id) {
+      setSubOrdenes([]);
+      setLoadingSubOrdenes(false);
+      fetchOrden(orden.parent_id)
+        .then(setParentOrden)
+        .catch(() => setParentOrden(null));
+      return;
+    }
+
+    setParentOrden(null);
+    let cancelled = false;
+    setLoadingSubOrdenes(true);
+    fetchSubOrdenes(orden.id)
+      .then((rows) => { if (!cancelled) setSubOrdenes(rows); })
+      .catch(() => { if (!cancelled) setSubOrdenes([]); })
+      .finally(() => { if (!cancelled) setLoadingSubOrdenes(false); });
+
+    const pollId = setInterval(async () => {
+      try {
+        const rows = await fetchSubOrdenes(orden.id);
+        if (!cancelled) setSubOrdenes(rows);
+      } catch {
+        // ignore transient errors
+      }
+    }, 30_000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(pollId);
+    };
+  }, [orden.id, orden.parent_id]);
+
+  async function handleCreateSubOrden() {
+    const title = newSubOrdenTitle.trim();
+    if (!title || orden.parent_id) return;
+    setCreatingSubOrden(true);
+    try {
+      const sub = await createSubOrden(orden.id, title, orden);
+      setSubOrdenes(prev => [...prev, sub]);
+      setNewSubOrdenTitle("");
+      openOrden(sub.id);
+    } catch (e: any) {
+      alert(e?.message ?? "No se pudo crear la sub-OT.");
+    } finally {
+      setCreatingSubOrden(false);
+    }
+  }
 
   // Load + poll activity every 30s while the tab is open
   useEffect(() => {
@@ -765,8 +965,25 @@ export default function OTDetail({
         firma_svg:        resp.firma_svg ?? null,
         firmado_nombre:   resp.firmado_nombre ?? null,
         firmado_por_id:   resp.firmado_por_id ?? undefined,
-        firmado_at:       resp.firmado_at ?? undefined,
-        notas:            resp.notas ?? null,
+        firmado_at:         resp.firmado_at ?? undefined,
+        notas:              resp.notas ?? null,
+        valor_fecha:        resp.valor_fecha ?? null,
+        archivo_url:        resp.archivo_url ?? null,
+        archivo_nombre:     resp.archivo_nombre ?? null,
+        archivo_mime:       resp.archivo_mime ?? null,
+        escaneo_valor:      resp.escaneo_valor ?? null,
+        escaneo_asset_id:   resp.escaneo_asset_id ?? null,
+        iso14224_modo:      resp.iso14224_modo ?? null,
+        iso14224_causa:     resp.iso14224_causa ?? null,
+        iso14224_mecanismo: resp.iso14224_mecanismo ?? null,
+        iso14224_accion:    resp.iso14224_accion ?? null,
+        lectura_anterior:   resp.lectura_anterior ?? null,
+        lectura_delta:      resp.lectura_delta ?? null,
+        geo_lat:            resp.geo_lat ?? null,
+        geo_lng:            resp.geo_lng ?? null,
+        device_id:          resp.device_id ?? null,
+        puntaje_obtenido:   resp.puntaje_obtenido ?? null,
+        revision_paso:      resp.revision_paso ?? null,
       });
       // Merge the saved response back into the ejecucion's respuestas
       setActiveEjec(prev => {
@@ -778,6 +995,19 @@ export default function OTDetail({
           : [...existing, saved];
         return { ...prev, ejecucion: { ...prev.ejecucion, respuestas: next } };
       });
+
+      // If this paso auto-creates a corrective sub-OT on fail, fire the RPC.
+      // Idempotent — server skips when already triggered.
+      const paso = activeEjec.pasos?.pasos?.find((p: ProcedimientoPaso) => p.id === pasoId);
+      if (paso?.genera_correctiva) {
+        maybeTriggerCorrectiva({
+          respuestaId: saved.id,
+          paso,
+          answer: { ...resp, firmado_por_id: resp.firmado_por_id ?? undefined } as any,
+        }).catch(() => {
+          // Best-effort: corrective failure shouldn't block the user.
+        });
+      }
     } catch (e: any) {
       alert(e.message);
     } finally {
@@ -1581,9 +1811,72 @@ export default function OTDetail({
   const estadoStyle = ESTADO_STYLE[orden.estado] ?? ESTADO_STYLE.pendiente;
   const prioColor   = PRIO_COLOR[orden.prioridad] ?? "var(--pr-low)";
   const prioLabel   = PRIORIDADES.find(p => p.value === orden.prioridad)?.label ?? "Sin prioridad";
+  const tabMeta: Record<Tab, { icon: React.ReactNode; label: string }> = {
+    detalle: { icon: <Info size={15} />, label: "Detalle" },
+    actividad: { icon: <CircleDot size={15} />, label: "Actividad" },
+    fotos: { icon: <Camera size={15} />, label: `Fotos${fotos.length > 0 ? ` (${fotos.length})` : ""}` },
+    materiales: { icon: <Package size={15} />, label: `Materiales${ordenPartes.length > 0 ? ` (${ordenPartes.length})` : ""}` },
+    procedimientos: { icon: <ClipboardCheck size={15} />, label: `Procedimientos${otProcs.length > 0 ? ` (${otProcs.length})` : ""}` },
+    hoja: { icon: <Sheet size={15} />, label: "Hoja de cálculo" },
+  };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden", background: "var(--surface-1)" }}>
+      <AlertDialog open={deleteConfirmOpen} onOpenChange={(open) => {
+        if (!deletingOrden) {
+          setDeleteConfirmOpen(open);
+          if (!open) setDeleteError(null);
+        }
+      }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Eliminar esta orden?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta accion no se puede deshacer. La orden y su informacion asociada dejaran de estar disponibles.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {deleteError && (
+            <div style={{
+              padding: "10px 12px",
+              border: "1px solid var(--danger)",
+              borderRadius: 8,
+              background: "var(--danger-bg)",
+              color: "var(--danger)",
+              fontSize: 13,
+            }}>
+              {deleteError}
+            </div>
+          )}
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deletingOrden}>Cancelar</AlertDialogCancel>
+            <button
+              type="button"
+              onClick={handleConfirmDeleteOrden}
+              disabled={deletingOrden}
+              style={{
+                height: 40,
+                padding: "0 16px",
+                border: "none",
+                borderRadius: 6,
+                background: "var(--danger)",
+                color: "var(--fg-on-brand)",
+                fontSize: 13,
+                fontWeight: 700,
+                cursor: deletingOrden ? "default" : "pointer",
+                fontFamily: "inherit",
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 8,
+                opacity: deletingOrden ? 0.75 : 1,
+              }}
+            >
+              {deletingOrden && <Loader2 size={13} className="animate-spin" />}
+              Eliminar
+            </button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* ── Header ── */}
       <div style={{ flexShrink: 0, borderBottom: "1px solid var(--border)", background: "var(--surface-1)" }}>
@@ -1650,89 +1943,7 @@ export default function OTDetail({
           </div>
 
           {/* Action buttons */}
-          <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
-
-            {/* Export dropdown */}
-            <div ref={exportMenuRef} style={{ position: "relative" }}>
-              <button
-                type="button"
-                onClick={() => setExportMenuOpen(v => !v)}
-                title="Exportar"
-                style={{ width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", borderRadius: "var(--r-sm)", cursor: "pointer", color: "var(--fg-2)" }}
-                onMouseEnter={e => { e.currentTarget.style.background = "var(--surface-hover)"; }}
-                onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}
-              >
-                {exporting ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
-              </button>
-              {exportMenuOpen && (
-                <div style={{
-                  position: "absolute", top: "calc(100% + 4px)", right: 0, zIndex: 300,
-                  background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: "var(--r-md)",
-                  boxShadow: "0 8px 24px rgba(15,23,42,0.12)", width: 180, overflow: "hidden",
-                }}>
-                  {[
-                    { key: "pdf",  icon: <FileDown size={13} />,  label: "Exportar PDF…",       action: handleExportPDF },
-                    { key: "csv",  icon: <Sheet size={13} />,     label: "Exportar Excel…",     action: () => { setExportMenuOpen(false); setExportConfigOpen(true); } },
-                    { key: "txt",  icon: <FileText size={13} />,  label: "Exportar TXT",        action: handleExportTXT },
-                  ].map(item => (
-                    <button
-                      key={item.key}
-                      type="button"
-                      onClick={item.action}
-                      disabled={!!exporting}
-                      style={{
-                        width: "100%", display: "flex", alignItems: "center", gap: 8,
-                        padding: "9px 12px", background: "none", border: "none",
-                        cursor: exporting ? "default" : "pointer", fontSize: 13,
-                        color: "var(--fg-1)", fontFamily: "inherit", textAlign: "left",
-                        opacity: exporting && exporting !== item.key ? 0.5 : 1,
-                      }}
-                      onMouseEnter={e => { if (!exporting) e.currentTarget.style.background = "var(--surface-hover)"; }}
-                      onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}
-                    >
-                      <span style={{ color: "var(--fg-4)" }}>{item.icon}</span>
-                      {item.label}
-                      {exporting === item.key && <Loader2 size={11} className="animate-spin" style={{ marginLeft: "auto" }} />}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {(canManage || orden.creado_por === myId) && (
-              <>
-                <button
-                  type="button" onClick={onEdit}
-                  style={{ width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", borderRadius: "var(--r-sm)", cursor: "pointer", color: "var(--fg-2)" }}
-                  onMouseEnter={e => { e.currentTarget.style.background = "var(--surface-hover)"; }}
-                  onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}
-                >
-                  <Pencil size={14} />
-                </button>
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <button
-                      type="button"
-                      style={{ width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", borderRadius: "var(--r-sm)", cursor: "pointer", color: "var(--danger)" }}
-                      onMouseEnter={e => { e.currentTarget.style.background = "var(--danger-bg)"; }}
-                      onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>¿Eliminar esta orden?</AlertDialogTitle>
-                      <AlertDialogDescription>Esta acción no se puede deshacer.</AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                      <AlertDialogAction onClick={onDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Eliminar</AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
-              </>
-            )}
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <button
               type="button" onClick={onClose}
               style={{ width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", borderRadius: "var(--r-sm)", cursor: "pointer", color: "var(--fg-4)" }}
@@ -1741,38 +1952,138 @@ export default function OTDetail({
             >
               <X size={15} />
             </button>
+
+
           </div>
         </div>
 
         {/* Tabs */}
-        <div style={{ display: "flex", padding: "0 16px", gap: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", padding: "14px 20px 16px", gap: 10, flexWrap: "wrap" }}>
           {(["detalle", "actividad", "fotos", "materiales", "procedimientos", "hoja"] as Tab[]).filter(t => {
             if (t === "materiales" && modoRegistro === "hoja") return false;
             if (t === "hoja" && modoRegistro === "materiales") return false;
             return true;
-          }).map(t => (
+          }).map(t => {
+            const active = tab === t;
+            return (
             <button
               key={t}
               type="button"
               onClick={() => setTab(t)}
               style={{
-                height: 38, padding: "0 14px",
-                background: "none", border: "none",
-                borderBottom: tab === t ? "2px solid #2563EB" : "2px solid transparent",
-                color: tab === t ? "var(--brand-fg)" : "var(--fg-4)",
-                fontSize: 13, fontWeight: tab === t ? 600 : 500,
-                cursor: "pointer", fontFamily: "inherit",
-                marginBottom: -1, transition: "color 0.1s", whiteSpace: "nowrap",
+                minHeight: 42,
+                padding: "0 15px",
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 8,
+                background: active ? "var(--brand)" : "var(--surface-1)",
+                border: active ? "1px solid var(--brand)" : "1px solid #BFDBFE",
+                borderRadius: "var(--r-sm)",
+                color: active ? "var(--fg-on-brand)" : "var(--brand-fg)",
+                fontSize: 13,
+                fontWeight: 700,
+                cursor: "pointer",
+                fontFamily: "inherit",
+                whiteSpace: "nowrap",
+                boxShadow: active ? "0 6px 16px rgba(39, 61, 136, 0.16)" : "none",
+                transition: "background 0.12s, border-color 0.12s, box-shadow 0.12s",
+              }}
+              onMouseEnter={e => {
+                if (!active) {
+                  e.currentTarget.style.background = "var(--brand-tint)";
+                  e.currentTarget.style.borderColor = "var(--brand)";
+                }
+              }}
+              onMouseLeave={e => {
+                if (!active) {
+                  e.currentTarget.style.background = "var(--surface-1)";
+                  e.currentTarget.style.borderColor = "#BFDBFE";
+                }
               }}
             >
-              {t === "detalle" ? "Detalle"
-                : t === "actividad" ? "Actividad"
-                : t === "fotos" ? `Fotos${fotos.length > 0 ? ` (${fotos.length})` : ""}`
-                : t === "materiales" ? `Materiales${ordenPartes.length > 0 ? ` (${ordenPartes.length})` : ""}`
-                : t === "hoja" ? "Hoja de cálculo"
-                : `Procedimientos${otProcs.length > 0 ? ` (${otProcs.length})` : ""}`}
+              {tabMeta[t].icon}
+              {tabMeta[t].label}
             </button>
-          ))}
+            );
+          })}
+
+          <div ref={exportMenuRef} style={{ position: "relative" }}>
+            <button
+              type="button"
+              onClick={() => setExportMenuOpen(v => !v)}
+              title="Mas acciones"
+              style={{ width: 42, height: 42, display: "flex", alignItems: "center", justifyContent: "center", background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: "var(--r-sm)", cursor: "pointer", color: "var(--fg-1)" }}
+              onMouseEnter={e => { e.currentTarget.style.background = "var(--surface-hover)"; }}
+              onMouseLeave={e => { e.currentTarget.style.background = "var(--surface-1)"; }}
+            >
+              {exporting ? <Loader2 size={14} className="animate-spin" /> : <MoreVertical size={17} />}
+            </button>
+            {exportMenuOpen && (
+              <div style={{
+                position: "absolute", top: "calc(100% + 6px)", left: 0, zIndex: 300,
+                background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: "var(--r-sm)",
+                boxShadow: "var(--shadow-sm)", width: 170, overflow: "hidden",
+              }}>
+                {[
+                  { key: "pdf",  label: "Exportar PDF",   action: handleExportPDF },
+                  { key: "csv",  label: "Exportar Excel", action: () => { setExportMenuOpen(false); setExportConfigOpen(true); } },
+                  { key: "txt",  label: "Exportar TXT",   action: handleExportTXT },
+                ].map(item => (
+                  <button
+                    key={item.key}
+                    type="button"
+                    onClick={item.action}
+                    disabled={!!exporting}
+                    style={{
+                      width: "100%", display: "flex", alignItems: "center",
+                      padding: "10px 12px", background: "var(--surface-1)", border: "none",
+                      cursor: exporting ? "default" : "pointer", fontSize: 13,
+                      color: "var(--fg-1)", fontFamily: "inherit", textAlign: "left",
+                      opacity: exporting && exporting !== item.key ? 0.5 : 1,
+                    }}
+                    onMouseEnter={e => { if (!exporting) e.currentTarget.style.background = "var(--surface-hover)"; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = "var(--surface-1)"; }}
+                  >
+                    {item.label}
+                    {exporting === item.key && <Loader2 size={11} className="animate-spin" style={{ marginLeft: "auto" }} />}
+                  </button>
+                ))}
+                {(canManage || orden.creado_por === myId) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setExportMenuOpen(false);
+                      setDeleteError(null);
+                      setDeleteConfirmOpen(true);
+                    }}
+                    style={{
+                      width: "100%", display: "flex", alignItems: "center",
+                      padding: "10px 12px", background: "var(--surface-1)", border: "none",
+                      borderTop: "1px solid var(--border)", cursor: "pointer", fontSize: 13,
+                      color: "var(--danger)", fontFamily: "inherit", textAlign: "left",
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.background = "var(--surface-hover)"; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = "var(--surface-1)"; }}
+                  >
+                    Eliminar
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+
+          {(canManage || orden.creado_por === myId) && (
+            <button
+              type="button" onClick={onEdit}
+              style={{ height: 42, marginLeft: "auto", padding: "0 15px", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, background: "var(--surface-1)", border: "1px solid #BFDBFE", borderRadius: "var(--r-sm)", cursor: "pointer", color: "var(--brand-fg)", fontSize: 13, fontWeight: 700, fontFamily: "inherit" }}
+              onMouseEnter={e => { e.currentTarget.style.background = "var(--brand-tint)"; e.currentTarget.style.borderColor = "var(--brand)"; }}
+              onMouseLeave={e => { e.currentTarget.style.background = "var(--surface-1)"; e.currentTarget.style.borderColor = "#BFDBFE"; }}
+            >
+              <Pencil size={14} />
+              Editar
+            </button>
+          )}
         </div>
       </div>
 
@@ -1781,21 +2092,45 @@ export default function OTDetail({
 
         {/* ── Detalle ── */}
         {tab === "detalle" && (
-          <div style={{ padding: "20px 20px 100px" }}>
+          <div style={{ padding: "28px 28px 120px" }}>
+            {orden.parent_id && (
+              <button
+                type="button"
+                onClick={() => orden.parent_id && openOrden(orden.parent_id)}
+                style={{
+                  width: "100%", display: "flex", alignItems: "center", gap: 10,
+                  marginBottom: 14, padding: "10px 12px",
+                  border: "1px solid #BFDBFE", borderRadius: "var(--r-md)",
+                  background: "var(--brand-tint)", color: "var(--brand-fg)",
+                  cursor: "pointer", textAlign: "left", fontFamily: "inherit",
+                }}
+              >
+                <GitBranch size={15} style={{ flexShrink: 0 }} />
+                <span style={{ flex: 1, minWidth: 0 }}>
+                  <span style={{ display: "block", fontSize: 12, fontWeight: 700 }}>Sub-OT · Ver orden principal</span>
+                  {parentOrden?.titulo && (
+                    <span style={{ display: "block", marginTop: 2, fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {parentOrden.titulo}
+                    </span>
+                  )}
+                </span>
+                <ChevronDown size={14} style={{ transform: "rotate(-90deg)" }} />
+              </button>
+            )}
 
             {/* N° OT badge */}
             {meta.nOT && <NOTBadge nOT={meta.nOT} />}
 
             {/* Title */}
-            <h2 style={{ fontSize: 17, fontWeight: 700, color: "var(--fg-1)", lineHeight: 1.35, margin: meta.nOT ? "6px 0 0" : "0 0 0" }}>
+            <h2 style={{ fontSize: 22, fontWeight: 800, color: "var(--fg-1)", lineHeight: 1.25, margin: meta.nOT ? "10px 0 0" : "0 0 0", maxWidth: 900 }}>
               {orden.titulo || "Sin título"}
             </h2>
 
             {/* Description */}
             {meta.descripcion && (
-              <div style={{ marginTop: 12 }}>
+              <div style={{ marginTop: 22, maxWidth: 1100 }}>
                 <p style={{ fontSize: 11, fontWeight: 600, color: "var(--fg-4)", textTransform: "uppercase", letterSpacing: "0.07em", margin: "0 0 4px" }}>Descripción</p>
-                <p style={{ fontSize: 13, color: "var(--fg-2)", lineHeight: 1.65, whiteSpace: "pre-wrap", margin: 0 }}>{meta.descripcion}</p>
+                <p style={{ fontSize: 14, color: "var(--fg-2)", lineHeight: 1.75, whiteSpace: "pre-wrap", margin: 0 }}>{meta.descripcion}</p>
               </div>
             )}
 
@@ -1808,9 +2143,9 @@ export default function OTDetail({
                 completado: { color: "var(--success)",   activeBg: "var(--success-bg)",     activeBorder: "var(--success)" },
               };
               return (
-                <div style={{ marginTop: 16 }}>
-                  <p style={{ fontSize: 11, fontWeight: 600, color: "var(--fg-4)", textTransform: "uppercase", letterSpacing: "0.07em", margin: "0 0 8px" }}>Estado</p>
-                  <div style={{ display: "flex", gap: 8 }}>
+                <div style={{ marginTop: 28 }}>
+                  <p style={{ fontSize: 11, fontWeight: 700, color: "var(--fg-4)", textTransform: "uppercase", letterSpacing: "0.07em", margin: "0 0 12px" }}>Estado</p>
+                  <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
                     {ESTADOS.map(e => {
                       const Icon = e.icon;
                       const isSelected = orden.estado === e.value;
@@ -1848,7 +2183,7 @@ export default function OTDetail({
                           disabled={timerBusy}
                           style={{
                             display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-                            gap: 5, padding: "8px 12px", minWidth: 72,
+                            gap: 7, padding: "10px 16px", minWidth: 86, minHeight: 62,
                             border: isSelected ? `2px solid ${s.activeBorder}` : "2px solid var(--border)",
                             borderRadius: "var(--r-md)",
                             background: isSelected ? s.activeBg : "var(--surface-0)",
@@ -1872,7 +2207,7 @@ export default function OTDetail({
                           }}
                         >
                           <Icon size={16} />
-                          <span style={{ fontSize: 10, fontWeight: 600, textAlign: "center", lineHeight: 1.2 }}>{e.label}</span>
+                          <span style={{ fontSize: 11, fontWeight: 700, textAlign: "center", lineHeight: 1.2 }}>{e.label}</span>
                         </button>
                       );
                     })}
@@ -1884,8 +2219,8 @@ export default function OTDetail({
             {/* Clasificacion banner (levantamiento) */}
             {clasificacion === "levantamiento" && (
               <div style={{
-                marginTop: 12,
-                padding: "12px 14px",
+                marginTop: 22,
+                padding: "16px 18px",
                 borderRadius: "var(--r-md)",
                 background: "var(--brand-tint)",
                 border: "1px solid #BFDBFE",
@@ -1920,6 +2255,19 @@ export default function OTDetail({
                   )}
                 </div>
               </div>
+            )}
+
+            {!orden.parent_id && (
+              <SubOrdenesSection
+                subOrdenes={subOrdenes}
+                isLoading={loadingSubOrdenes}
+                canCreate={canManage || orden.creado_por === myId}
+                isCreating={creatingSubOrden}
+                newTitle={newSubOrdenTitle}
+                onTitleChange={setNewSubOrdenTitle}
+                onCreate={handleCreateSubOrden}
+                onOpen={openOrden}
+              />
             )}
 
             {/* Links & Adjuntos */}
@@ -1971,7 +2319,7 @@ export default function OTDetail({
             })()}
 
             {/* Meta fields */}
-            <div style={{ marginTop: 20, display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px 24px" }}>
+            <div style={{ marginTop: 32, paddingTop: 26, borderTop: "1px solid var(--border)", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "28px 72px", maxWidth: 1180 }}>
               {[
                 orden.tipo_trabajo && { label: "Tipo", value: TIPO_LABEL[orden.tipo_trabajo] ?? orden.tipo_trabajo, icon: <Settings2 size={13} /> },
                 orden.sociedad?.nombre && { label: "Sociedad", value: orden.sociedad.nombre, icon: <Building2 size={13} /> },
@@ -1986,8 +2334,8 @@ export default function OTDetail({
                 (orden.tiempo_total_segundos != null && orden.tiempo_total_segundos > 0) && { label: "Tiempo total", value: fmtSecs(orden.tiempo_total_segundos), icon: <RotateCcw size={13} /> },
               ].filter(Boolean).map((field: any) => (
                 <div key={field.label}>
-                  <p style={{ fontSize: 11, fontWeight: 600, color: "var(--fg-4)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 3, marginTop: 0 }}>{field.label}</p>
-                  <p style={{ fontSize: 13, color: "var(--fg-1)", margin: 0, display: "flex", alignItems: "center", gap: 5 }}>
+                  <p style={{ fontSize: 11, fontWeight: 700, color: "var(--fg-4)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 7, marginTop: 0 }}>{field.label}</p>
+                  <p style={{ fontSize: 14, color: "var(--fg-1)", margin: 0, display: "flex", alignItems: "center", gap: 7, lineHeight: 1.45 }}>
                     <span style={{ color: "var(--fg-4)", flexShrink: 0 }}>{field.icon}</span>
                     {field.value}
                   </p>
@@ -1997,7 +2345,7 @@ export default function OTDetail({
 
             {/* Category */}
             {orden.categorias_ot?.nombre && (
-              <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid var(--border)" }}>
+              <div style={{ marginTop: 30, paddingTop: 24, borderTop: "1px solid var(--border)" }}>
                 <span style={{
                   display: "inline-flex", alignItems: "center", gap: 5,
                   fontSize: 12, fontWeight: 600, padding: "4px 10px", borderRadius: "var(--r-sm)",
@@ -2012,13 +2360,13 @@ export default function OTDetail({
 
             {/* Assigned */}
             {assigned.length > 0 && (
-              <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid var(--border)" }}>
-                <p style={{ fontSize: 11, fontWeight: 600, color: "var(--fg-4)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 10, marginTop: 0 }}>Asignados</p>
-                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <div style={{ marginTop: 30, paddingTop: 24, borderTop: "1px solid var(--border)" }}>
+                <p style={{ fontSize: 11, fontWeight: 700, color: "var(--fg-4)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 14, marginTop: 0 }}>Asignados</p>
+                <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
                   {assigned.map(u => (
                     <div key={u.id} style={{ display: "flex", alignItems: "center", gap: 10 }}>
                       <span style={{
-                        width: 32, height: 32, borderRadius: "50%",
+                        width: 38, height: 38, borderRadius: "50%",
                         background: "linear-gradient(135deg, var(--brand-active), var(--brand))", color: "var(--fg-on-brand)",
                         display: "flex", alignItems: "center", justifyContent: "center",
                         fontSize: 11, fontWeight: 700, flexShrink: 0,
@@ -2026,8 +2374,8 @@ export default function OTDetail({
                         {initials(u.nombre)}
                       </span>
                       <div>
-                        <p style={{ fontSize: 13, fontWeight: 600, color: "var(--fg-1)", margin: 0 }}>{u.nombre}</p>
-                        <p style={{ fontSize: 11, color: "var(--fg-4)", margin: 0, textTransform: "capitalize" }}>{u.rol}</p>
+                        <p style={{ fontSize: 14, fontWeight: 700, color: "var(--fg-1)", margin: 0 }}>{u.nombre}</p>
+                        <p style={{ fontSize: 12, color: "var(--fg-4)", margin: "2px 0 0", textTransform: "capitalize" }}>{u.rol}</p>
                       </div>
                     </div>
                   ))}
@@ -2037,7 +2385,7 @@ export default function OTDetail({
 
             {/* Creador */}
             {orden.creador?.nombre && (
-              <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid var(--border)", display: "flex", alignItems: "center", gap: 6 }}>
+              <div style={{ marginTop: 30, paddingTop: 24, borderTop: "1px solid var(--border)", display: "flex", alignItems: "center", gap: 8 }}>
                 <User size={13} style={{ color: "var(--fg-4)" }} />
                 <span style={{ fontSize: 12, color: "var(--fg-4)" }}>Creado por</span>
                 <span style={{ fontSize: 12, fontWeight: 600, color: "var(--fg-2)" }}>{orden.creador.nombre}</span>
@@ -2046,14 +2394,14 @@ export default function OTDetail({
 
             {/* ── Requisitos section — visible to all, editable by admins ── */}
             {(canManage || requiereMateriales || requiereHoja || requiereFotos || fotosObligatoriasTodas) && (
-              <div style={{ marginTop: 20, paddingTop: 16, borderTop: "1px solid var(--border)" }}>
-                <p style={{ fontSize: 11, fontWeight: 600, color: "var(--fg-4)", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 10, marginTop: 0 }}>
+              <div style={{ marginTop: 30, paddingTop: 24, borderTop: "1px solid var(--border)", maxWidth: 1100 }}>
+                <p style={{ fontSize: 11, fontWeight: 700, color: "var(--fg-4)", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 14, marginTop: 0 }}>
                   Requisitos para cerrar
                 </p>
-                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                   {/* Materiales — hidden for Electrilam and when modo_registro is hoja-only */}
                   {(canManage || requiereMateriales) && wsId !== "f1b64714-6de2-4d49-b6e4-5959553e94d7" && modoRegistro !== "hoja" && (
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", background: "var(--surface-0)", border: "1px solid var(--border)", borderRadius: "var(--r-md)" }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px", background: "var(--surface-0)", border: "1px solid var(--border)", borderRadius: "var(--r-md)" }}>
                       <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
                         <span style={{ fontSize: 13, fontWeight: 600, color: "var(--fg-1)" }}>Requiere materiales</span>
                         <span style={{ fontSize: 12, color: "var(--fg-2)" }}>Bloquea el cierre si no hay materiales registrados</span>
@@ -2070,7 +2418,7 @@ export default function OTDetail({
                   )}
                   {/* Hoja de cálculo */}
                   {(canManage || requiereHoja) && modoRegistro !== "materiales" && (
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", background: "var(--surface-0)", border: "1px solid var(--border)", borderRadius: "var(--r-md)" }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px", background: "var(--surface-0)", border: "1px solid var(--border)", borderRadius: "var(--r-md)" }}>
                       <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
                         <span style={{ fontSize: 13, fontWeight: 600, color: "var(--fg-1)" }}>Requiere hoja de cálculo</span>
                         <span style={{ fontSize: 12, color: "var(--fg-2)" }}>Bloquea el cierre si la hoja no tiene filas registradas</span>
@@ -2087,7 +2435,7 @@ export default function OTDetail({
                   )}
                   {/* Fotos */}
                   {(canManage || requiereFotos || fotosObligatoriasTodas) && (
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", background: "var(--surface-0)", border: "1px solid var(--border)", borderRadius: "var(--r-md)" }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px", background: "var(--surface-0)", border: "1px solid var(--border)", borderRadius: "var(--r-md)" }}>
                       <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
                         <span style={{ fontSize: 13, fontWeight: 600, color: "var(--fg-1)" }}>Requiere fotos</span>
                         <span style={{ fontSize: 12, color: "var(--fg-2)" }}>
@@ -2116,7 +2464,7 @@ export default function OTDetail({
 
         {/* ── Actividad ── */}
         {tab === "actividad" && (
-          <div style={{ padding: "16px 20px" }}>
+          <div style={{ padding: "24px 28px" }}>
             {loadingAct ? (
               <div style={{ display: "flex", justifyContent: "center", padding: "32px 0" }}>
                 <Loader2 size={18} style={{ color: "var(--pr-low)", animation: "spin 1s linear infinite" }} />
@@ -2201,7 +2549,7 @@ export default function OTDetail({
 
         {/* ── Fotos ── */}
         {tab === "fotos" && (
-          <div style={{ padding: "16px 20px 100px" }}>
+          <div style={{ padding: "24px 28px 120px" }}>
             {loadingGrupos ? (
               <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "40px 0", gap: 8, color: "var(--pr-low)" }}>
                 <Loader2 size={16} className="animate-spin" />
@@ -2337,7 +2685,7 @@ export default function OTDetail({
         )}
         {/* ── Partes ── */}
         {tab === "materiales" && (
-          <div style={{ padding: "16px 20px 100px" }}>
+          <div style={{ padding: "24px 28px 120px" }}>
 
             {/* Completed notice */}
             {!isActive && (
@@ -2508,7 +2856,7 @@ export default function OTDetail({
 
         {/* ── Procedimientos ── */}
         {tab === "procedimientos" && (
-          <div style={{ padding: "16px 20px 100px" }}>
+          <div style={{ padding: "24px 28px 120px" }}>
             {loadingProcs ? (
               <div style={{ display: "flex", justifyContent: "center", padding: "40px 0" }}>
                 <Loader2 size={18} className="animate-spin" style={{ color: "var(--fg-4)" }} />
@@ -2641,7 +2989,7 @@ export default function OTDetail({
 
         {/* ── Hoja de cálculo ── */}
         {tab === "hoja" && wsId && (
-          <div style={{ padding: "16px 20px 100px" }}>
+          <div style={{ padding: "24px 28px 120px" }}>
             {requiereHoja && isActive && (
               <div style={{
                 display: "flex", alignItems: "center", gap: 8,
@@ -2970,9 +3318,22 @@ const EXEC_TIPO_META: Record<TipoPasoProc, { icon: React.ReactNode; color: strin
   inspeccion:         { icon: <ClipboardCheck size={13} />,color: "var(--pr-high)" },
   imagen:             { icon: <Camera size={13} />,        color: "var(--fg-2)" },
   firma:              { icon: <PenLine size={13} />,       color: "var(--info)" },
+  // New tipos (Phase-3 rewrite will give them full renderers in ProcEjecucionDialog).
+  medidor:            { icon: <HashIcon size={13} />,      color: "var(--brand-fg)" },
+  archivo:            { icon: <Camera size={13} />,        color: "var(--fg-2)" },
+  fecha:              { icon: <Type size={13} />,          color: "var(--brand-fg)" },
+  hora:               { icon: <Type size={13} />,          color: "var(--brand-fg)" },
+  fecha_hora:         { icon: <Type size={13} />,          color: "var(--brand-fg)" },
+  escaneo:            { icon: <List size={13} />,          color: "var(--pr-high)" },
+  falla_iso14224:     { icon: <AlertTriangle size={13} />, color: "var(--danger)" },
+  sub_procedimiento:  { icon: <ClipboardCheck size={13} />,color: "var(--pr-high)" },
+  seccion:            { icon: <Info size={13} />,          color: "var(--fg-3)" },
+  puntuacion:         { icon: <CheckSquare size={13} />,   color: "var(--info)" },
 };
 
 function isAnsweredForType(paso: ProcedimientoPaso, resp: PendingResp | undefined): boolean {
+  // Organizers and computed fields never block "completar".
+  if (paso.tipo === "seccion" || paso.tipo === "puntuacion") return true;
   if (!resp) return false;
   switch (paso.tipo) {
     case "instruccion":
@@ -2981,12 +3342,20 @@ function isAnsweredForType(paso: ProcedimientoPaso, resp: PendingResp | undefine
     case "texto":          return !!resp.valor_texto;
     case "numero":         return resp.valor_medido != null;
     case "monto":          return resp.valor_medido != null;
+    case "medidor":        return resp.valor_medido != null;
     case "si_no_na":       return !!resp.valor_texto;
     case "opcion_multiple":return !!resp.valor_texto;
     case "lista_verificacion": return resp.valor_json != null;
     case "inspeccion":     return resp.valor_json != null;
     case "imagen":         return !!resp.foto_url;
+    case "archivo":        return !!resp.archivo_url;
     case "firma":          return !!resp.firma_svg;
+    case "fecha":
+    case "hora":
+    case "fecha_hora":     return !!resp.valor_fecha;
+    case "escaneo":        return !!resp.escaneo_valor;
+    case "falla_iso14224": return !!resp.iso14224_modo;
+    case "sub_procedimiento": return true; // Phase-5 will track child completion separately
     default:               return false;
   }
 }
@@ -3020,6 +3389,35 @@ function ReadonlyAnswer({ paso, resp }: { paso: ProcedimientoPaso; resp: Pending
       return resp.firma_svg
         ? <img src={resp.firma_svg} alt="firma" style={{ marginTop: 6, maxWidth: "100%", height: 80, objectFit: "contain", border: "1px solid var(--border)", borderRadius: "var(--r-sm)", background: "var(--surface-0)" }} />
         : <div style={{ fontSize: 12.5, color: "var(--success)", marginTop: 4 }}>✓ Firmado</div>;
+    case "medidor":
+      return <div style={{ fontSize: 12.5, color: "var(--fg-2)", marginTop: 4 }}>{resp.valor_medido} {paso.unidad}{resp.lectura_delta != null ? ` (Δ ${resp.lectura_delta})` : ""}</div>;
+    case "fecha":
+    case "hora":
+    case "fecha_hora":
+      return <div style={{ fontSize: 12.5, color: "var(--fg-2)", marginTop: 4 }}>{resp.valor_fecha ? new Date(resp.valor_fecha).toLocaleString() : ""}</div>;
+    case "archivo":
+      return resp.archivo_url
+        ? <a href={resp.archivo_url} target="_blank" rel="noreferrer" style={{ fontSize: 12.5, color: "var(--brand)", marginTop: 4, display: "inline-block" }}>📎 {resp.archivo_nombre ?? "Archivo"}</a>
+        : null;
+    case "escaneo":
+      return <div style={{ fontSize: 12.5, color: "var(--fg-2)", marginTop: 4, fontFamily: "var(--font-mono)" }}>{resp.escaneo_valor}</div>;
+    case "falla_iso14224":
+      return (
+        <div style={{ fontSize: 12, color: "var(--fg-2)", marginTop: 4, display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {resp.iso14224_modo && <span><strong>Modo:</strong> {resp.iso14224_modo}</span>}
+          {resp.iso14224_causa && <span><strong>Causa:</strong> {resp.iso14224_causa}</span>}
+          {resp.iso14224_mecanismo && <span><strong>Mec:</strong> {resp.iso14224_mecanismo}</span>}
+          {resp.iso14224_accion && <span><strong>Acc:</strong> {resp.iso14224_accion}</span>}
+        </div>
+      );
+    case "seccion":
+      return null;
+    case "puntuacion":
+      return resp.puntaje_obtenido != null
+        ? <div style={{ fontSize: 12.5, color: "var(--fg-2)", marginTop: 4 }}>Puntaje: <strong>{resp.puntaje_obtenido}</strong></div>
+        : null;
+    case "sub_procedimiento":
+      return <div style={{ fontSize: 12, color: "var(--fg-3)", marginTop: 4 }}>Sub-procedimiento referenciado.</div>;
     default:
       return null;
   }
@@ -3176,7 +3574,7 @@ function SignatureCanvas({
 }
 
 function PasoInput({
-  paso, resp, existingResp, isSaving, onUpdate, onSave,
+  paso, resp, existingResp, isSaving, onUpdate, onSave, ordenId, ejecucionId,
 }: {
   paso: ProcedimientoPaso;
   resp: PendingResp;
@@ -3184,6 +3582,8 @@ function PasoInput({
   isSaving: boolean;
   onUpdate: (patch: PendingResp) => void;
   onSave: (extra?: PendingResp) => void;
+  ordenId: string;
+  ejecucionId: string;
 }) {
   const val = (k: keyof PendingResp) => (resp as any)[k] ?? (existingResp as any)?.[k];
   const inputStyle: React.CSSProperties = {
@@ -3407,9 +3807,15 @@ function PasoInput({
 
   if (paso.tipo === "imagen") {
     return (
-      <div style={{ fontSize: 12, color: "var(--fg-4)", fontStyle: "italic" }}>
-        (Subida de imágenes disponible en la app móvil)
-      </div>
+      <PasoImagenField
+        pasoId={paso.id}
+        ordenId={ordenId}
+        ejecucionId={ejecucionId}
+        fotoUrl={(val("foto_url") as string | null | undefined) ?? null}
+        isSaving={isSaving}
+        onUploaded={(url) => onSave({ foto_url: url })}
+        onClear={() => onSave({ foto_url: null })}
+      />
     );
   }
 
@@ -3430,7 +3836,246 @@ function PasoInput({
     );
   }
 
+  if (paso.tipo === "medidor") {
+    const cur = (val("valor_medido") as number | null | undefined) ?? "";
+    return (
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+        <input
+          type="number"
+          value={cur === null ? "" : cur}
+          onChange={e => onUpdate({ valor_medido: e.target.value === "" ? null : parseFloat(e.target.value) })}
+          placeholder="Lectura"
+          style={{ ...inputStyle, width: 140 }}
+        />
+        {paso.unidad && <span style={{ fontSize: 12, color: "var(--fg-2)" }}>{paso.unidad}</span>}
+        {paso.valor_min != null && paso.valor_max != null && (
+          <span style={{ fontSize: 11, color: "var(--fg-4)" }}>({paso.valor_min} – {paso.valor_max})</span>
+        )}
+        {saveBtn("OK", cur === "" || cur === null)}
+      </div>
+    );
+  }
+
+  if (paso.tipo === "fecha" || paso.tipo === "hora" || paso.tipo === "fecha_hora") {
+    const inputType = paso.tipo === "fecha" ? "date" : paso.tipo === "hora" ? "time" : "datetime-local";
+    const stored = (val("valor_fecha") as string | null | undefined) ?? "";
+    // For <input type="datetime-local"> we strip seconds + tz to render correctly.
+    const displayed = stored
+      ? (paso.tipo === "fecha"
+          ? new Date(stored).toISOString().slice(0, 10)
+          : paso.tipo === "hora"
+            ? new Date(stored).toISOString().slice(11, 16)
+            : new Date(stored).toISOString().slice(0, 16))
+      : "";
+    return (
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <input
+          type={inputType}
+          value={displayed}
+          onChange={e => {
+            // Convert back to a full ISO timestamp for the column (timestamptz).
+            const v = e.target.value;
+            if (!v) return onUpdate({ valor_fecha: null });
+            const iso = paso.tipo === "hora"
+              ? `1970-01-01T${v}:00.000Z`
+              : new Date(v).toISOString();
+            onUpdate({ valor_fecha: iso });
+          }}
+          style={{ ...inputStyle, width: 200 }}
+        />
+        {saveBtn("OK", !displayed)}
+      </div>
+    );
+  }
+
+  if (paso.tipo === "archivo") {
+    const url = (val("archivo_url") as string | null | undefined) ?? null;
+    const name = (val("archivo_nombre") as string | null | undefined) ?? null;
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        {url && <a href={url} target="_blank" rel="noreferrer" style={{ fontSize: 12.5, color: "var(--brand)" }}>📎 {name ?? "Archivo subido"}</a>}
+        <input
+          type="file"
+          onChange={async e => {
+            const f = e.target.files?.[0];
+            if (!f) return;
+            try {
+              const folder = `ordenes/${ordenId}/procedimientos/${ejecucionId}/${paso.id}`;
+              const u = await uploadToR2(f, folder);
+              onSave({ archivo_url: u, archivo_nombre: f.name, archivo_mime: f.type || null });
+            } catch (err: any) {
+              alert(err?.message ?? "Error al subir archivo");
+            } finally {
+              e.target.value = "";
+            }
+          }}
+          style={{ fontSize: 12 }}
+        />
+      </div>
+    );
+  }
+
+  if (paso.tipo === "escaneo") {
+    const cur = (val("escaneo_valor") as string | null | undefined) ?? "";
+    return (
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <input
+          type="text"
+          value={cur}
+          onChange={e => onUpdate({ escaneo_valor: e.target.value })}
+          placeholder="Código (ingreso manual en web)"
+          style={{ ...inputStyle, width: 240, fontFamily: "var(--font-mono)" }}
+        />
+        {saveBtn("OK", !cur)}
+      </div>
+    );
+  }
+
+  if (paso.tipo === "falla_iso14224") {
+    // Inline lightweight cascade — real picker fed by workspace_taxonomias
+    // lands later. Keep four free-text fields so users can record now.
+    const fields: { key: "iso14224_modo" | "iso14224_causa" | "iso14224_mecanismo" | "iso14224_accion"; label: string }[] = [
+      { key: "iso14224_modo",      label: "Modo" },
+      { key: "iso14224_causa",     label: "Causa" },
+      { key: "iso14224_mecanismo", label: "Mecanismo" },
+      { key: "iso14224_accion",    label: "Acción" },
+    ];
+    return (
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+        {fields.map(f => (
+          <div key={f.key} style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+            <label style={{ fontSize: 11, color: "var(--fg-3)", fontWeight: 600 }}>{f.label}</label>
+            <input
+              type="text"
+              value={(val(f.key) as string | null | undefined) ?? ""}
+              onChange={e => onUpdate({ [f.key]: e.target.value || null } as PendingResp)}
+              style={{ ...inputStyle }}
+              placeholder="—"
+            />
+          </div>
+        ))}
+        <div style={{ gridColumn: "1 / -1" }}>
+          {saveBtn("Guardar", !val("iso14224_modo"))}
+        </div>
+      </div>
+    );
+  }
+
+  if (paso.tipo === "seccion") {
+    return null; // organizer — no input
+  }
+
+  if (paso.tipo === "puntuacion") {
+    return (
+      <div style={{ fontSize: 12, color: "var(--fg-3)", fontStyle: "italic" }}>
+        Puntaje calculado automáticamente al completar.
+      </div>
+    );
+  }
+
+  if (paso.tipo === "sub_procedimiento") {
+    return (
+      <div style={{ fontSize: 12, color: "var(--fg-3)", fontStyle: "italic" }}>
+        Este paso embebe un sub-procedimiento (selector próximamente).
+      </div>
+    );
+  }
+
   return null;
+}
+
+// ── PasoImagenField (web) ─────────────────────────────────────────────────────
+// Real R2-backed photo upload for the "imagen" step type. Uses the existing
+// lib/r2.ts uploadToR2 helper — same path as OT/foto-grupo uploads on web.
+// `capture="environment"` opens the device camera on mobile browsers.
+
+function PasoImagenField({
+  pasoId, ordenId, ejecucionId, fotoUrl, isSaving, onUploaded, onClear,
+}: {
+  pasoId: string;
+  ordenId: string;
+  ejecucionId: string;
+  fotoUrl: string | null;
+  isSaving: boolean;
+  onUploaded: (url: string) => void;
+  onClear: () => void;
+}) {
+  const cameraInputRef = useRef<HTMLInputElement | null>(null);
+  const libraryInputRef = useRef<HTMLInputElement | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function handleFile(f: File | undefined) {
+    if (!f) return;
+    setErr(null);
+    setUploading(true);
+    try {
+      const folder = `ordenes/${ordenId}/procedimientos/${ejecucionId}/${pasoId}`;
+      const url = await uploadToR2(f, folder);
+      onUploaded(url);
+    } catch (e: any) {
+      setErr(e?.message ?? "Error al subir la foto");
+    } finally {
+      setUploading(false);
+      // Reset the inputs so picking the same file twice still fires onChange.
+      if (cameraInputRef.current) cameraInputRef.current.value = "";
+      if (libraryInputRef.current) libraryInputRef.current.value = "";
+    }
+  }
+
+  const busy = uploading || isSaving;
+  const btn: React.CSSProperties = {
+    height: 30, padding: "0 12px", background: "var(--brand-tint)",
+    border: "1px solid #2563EB", borderRadius: "var(--r-sm)", cursor: busy ? "default" : "pointer",
+    fontSize: 12, fontWeight: 600, color: "var(--brand-fg)", fontFamily: "inherit",
+    display: "inline-flex", alignItems: "center", gap: 4, opacity: busy ? 0.6 : 1,
+  };
+  const btnGhost: React.CSSProperties = {
+    ...btn, background: "transparent", border: "1px solid var(--border)", color: "var(--fg-2)",
+  };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      {fotoUrl && (
+        <img
+          src={fotoUrl}
+          alt="Foto del paso"
+          style={{ maxWidth: 320, maxHeight: 240, borderRadius: 8, border: "1px solid var(--border)", objectFit: "cover" }}
+        />
+      )}
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <button type="button" onClick={() => cameraInputRef.current?.click()} disabled={busy} style={btn}>
+          {uploading ? <Loader2 size={11} className="animate-spin" /> : <Camera size={11} />}
+          {fotoUrl ? "Reemplazar" : "Tomar foto"}
+        </button>
+        <button type="button" onClick={() => libraryInputRef.current?.click()} disabled={busy} style={btnGhost}>
+          {uploading ? <Loader2 size={11} className="animate-spin" /> : <Camera size={11} />}
+          Subir archivo
+        </button>
+        {fotoUrl && (
+          <button type="button" onClick={onClear} disabled={busy} style={{ ...btnGhost, color: "var(--danger)", borderColor: "var(--danger)" }}>
+            Quitar
+          </button>
+        )}
+      </div>
+      {err && <div style={{ fontSize: 11, color: "var(--danger)" }}>{err}</div>}
+      <input
+        ref={cameraInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        style={{ display: "none" }}
+        onChange={e => handleFile(e.target.files?.[0])}
+      />
+      <input
+        ref={libraryInputRef}
+        type="file"
+        accept="image/*"
+        style={{ display: "none" }}
+        onChange={e => handleFile(e.target.files?.[0])}
+      />
+    </div>
+  );
 }
 
 function ProcEjecucionModal({
@@ -3455,7 +4100,29 @@ function ProcEjecucionModal({
 
   const allRequired = pasos.filter(p => p.requerido && p.tipo !== "instruccion" && p.tipo !== "advertencia");
   const answeredRequired = allRequired.filter(p => isAnsweredForType(p, savedResps[p.id]));
-  const canComplete = answeredRequired.length === allRequired.length;
+
+  // Scoring: sum weights for pasos that are answered AND not a fail. Simple
+  // pass-or-not model — finer-grained scoring (partial credit per option,
+  // etc.) lands later. Server-side puntaje_obtenido per respuesta is
+  // authoritative for audit; this is the live UI hint.
+  const puntajeMaximo = pasos.reduce((s, p) => s + (p.peso ?? 0), 0);
+  const puntajeObtenido = pasos.reduce((s, p) => {
+    const w = p.peso ?? 0;
+    if (w <= 0) return s;
+    const r = savedResps[p.id];
+    if (!isAnsweredForType(p, r)) return s;
+    // crude pass detector: treat valor_texto === "no" / inspeccion fail items as fails
+    const txt = (r?.valor_texto ?? "").toLowerCase();
+    if (txt === "no" || txt === "fail") return s;
+    if (p.tipo === "inspeccion") {
+      const items = (r?.valor_json as { items?: { result?: string }[] } | null)?.items ?? [];
+      if (items.some(i => (i.result ?? "").toLowerCase() === "fail")) return s;
+    }
+    return s + w;
+  }, 0);
+  const puntajeMinimo = proc?.puntaje_minimo ?? null;
+  const meetsScore = puntajeMinimo == null || puntajeObtenido >= puntajeMinimo;
+  const canComplete = answeredRequired.length === allRequired.length && meetsScore;
 
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 70, background: "rgba(15,23,42,0.50)", display: "flex", alignItems: "center", justifyContent: "center", padding: "24px" }}>
@@ -3533,6 +4200,14 @@ function ProcEjecucionModal({
                       {isCompleted && saved ? (
                         <div style={{ paddingLeft: 36 }}>
                           <ReadonlyAnswer paso={paso} resp={saved} />
+                          {saved.editado_at && (
+                            // Surfaces the audit-log trigger (paso_respuesta_historial).
+                            // Presence of editado_at means the response was modified at
+                            // least once after first save — ISO 9001 cl. 7.5.3 traceability.
+                            <div style={{ fontSize: 11, color: "var(--fg-4)", marginTop: 4, fontStyle: "italic" }}>
+                              Editado {new Date(saved.editado_at).toLocaleString()}
+                            </div>
+                          )}
                         </div>
                       ) : !isCompleted ? (
                         <div style={{ paddingLeft: 36 }}>
@@ -3543,6 +4218,8 @@ function ProcEjecucionModal({
                             isSaving={isSaving}
                             onUpdate={patch => onUpdateResp(paso.id, patch)}
                             onSave={extra => onSaveResp(paso.id, extra)}
+                            ordenId={ejec.orden_id}
+                            ejecucionId={ejec.id}
                           />
                         </div>
                       ) : null}
@@ -3557,8 +4234,18 @@ function ProcEjecucionModal({
         {/* Footer */}
         {!isCompleted && (
           <div style={{ padding: "12px 20px", borderTop: "1px solid var(--border)", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "space-between", background: "var(--surface-0)" }}>
-            <div style={{ fontSize: 12, color: "var(--fg-4)" }}>
-              {answeredRequired.length}/{allRequired.length} campos requeridos completados
+            <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+              <div style={{ fontSize: 12, color: "var(--fg-4)" }}>
+                {answeredRequired.length}/{allRequired.length} campos requeridos completados
+              </div>
+              {puntajeMaximo > 0 && (
+                <div style={{ fontSize: 11.5, color: meetsScore ? "var(--success)" : "var(--danger)" }}>
+                  Puntaje: <strong>{puntajeObtenido}</strong> / {puntajeMaximo}
+                  {puntajeMinimo != null && (
+                    <span style={{ color: "var(--fg-4)", fontWeight: 400 }}> &nbsp;(mín: {puntajeMinimo}{meetsScore ? " ✓" : ""})</span>
+                  )}
+                </div>
+              )}
             </div>
             <button
               onClick={onComplete}

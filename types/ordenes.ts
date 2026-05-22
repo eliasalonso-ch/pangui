@@ -80,6 +80,16 @@ export interface Sociedad {
   activa: boolean;
   imagen_url: string | null;
   created_at: string;
+  rut?: string | null;
+  contacto_nombre?: string | null;
+  contacto_email?: string | null;
+  contacto_telefono?: string | null;
+  direccion?: string | null;
+  contrato_ref?: string | null;
+  contrato_inicio?: string | null;
+  contrato_termino?: string | null;
+  brand_color?: string | null;
+  notas?: string | null;
 }
 
 export interface Ubicacion {
@@ -104,10 +114,76 @@ export interface LugarEspecifico {
   ubicaciones?: Pick<Ubicacion, "id" | "edificio"> | null;
 }
 
-export interface Activo {
+export type AssetCriticality = "critico" | "semi_critico" | "no_critico";
+
+export interface AssetAttachment {
+  url: string;
+  nombre: string;
+  tipo?: "foto" | "manual" | "archivo" | "link";
+  mime?: string | null;
+  size?: number | null;
+  uploaded_at?: string;
+}
+
+export type AssetStatus = "operativo" | "fuera_servicio" | "mantencion" | "baja";
+
+export interface Fabricante {
   id: string;
   nombre: string;
+  pais: string | null;
+  created_at: string;
+}
+
+export interface Modelo {
+  id: string;
+  fabricante_id: string | null;
+  nombre: string;
+  created_at: string;
+  fabricante?: Pick<Fabricante, "id" | "nombre"> | null;
+}
+
+export interface Proveedor {
+  id: string;
+  workspace_id: string | null;
+  nombre: string;
+  contacto: string | null;
+  email: string | null;
+  telefono: string | null;
+  created_at: string;
+}
+
+export interface Activo {
+  id: string;
+  workspace_id?: string | null;
+  nombre: string;
   codigo: string | null;
+  descripcion?: string | null;
+  imagen_url?: string | null;
+  ubicacion_id?: string | null;
+  sociedad_id?: string | null;
+  fabricante_id?: string | null;
+  modelo_id?: string | null;
+  proveedor_id?: string | null;
+  responsable_id?: string | null;
+  activo_padre_id?: string | null;
+  criticidad?: AssetCriticality | null;
+  numero_serie?: string | null;
+  año_fabricacion?: number | null;
+  estado?: AssetStatus | string | null;
+  codigo_sap?: string | null;
+  fecha_garantia?: string | null;
+  archivo_url?: string | null;
+  archivo_nombre?: string | null;
+  adjuntos?: AssetAttachment[];
+  activo?: boolean;
+  created_at?: string;
+  ubicacion?: Pick<Ubicacion, "id" | "edificio" | "piso"> | null;
+  sociedad?: Pick<Sociedad, "id" | "nombre" | "imagen_url"> | null;
+  fabricante?: Pick<Fabricante, "id" | "nombre"> | null;
+  modelo?: Pick<Modelo, "id" | "nombre"> | null;
+  proveedor?: Pick<Proveedor, "id" | "nombre"> | null;
+  responsable?: Pick<Usuario, "id" | "nombre"> | null;
+  parent?: Pick<Activo, "id" | "nombre" | "codigo"> | null;
 }
 
 export interface Usuario {

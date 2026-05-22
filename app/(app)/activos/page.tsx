@@ -1,15 +1,14 @@
 import { redirect } from "next/navigation";
 import { createServerSupabase, getServerUser } from "@/lib/supabase-server";
-import LevantamientosBandeja from "./LevantamientosBandeja";
-import { LEV_SELECT } from "@/lib/levantamientos-api";
-import type { Levantamiento } from "@/types/levantamientos";
-import type { Usuario, Ubicacion, Sociedad } from "@/types/ordenes";
+import { ACTIVO_SELECT } from "@/lib/activos-api";
+import ActivosBandeja from "./ActivosBandeja";
+import type { Activo, Sociedad, Ubicacion, Usuario } from "@/types/ordenes";
 
 interface PageProps {
   searchParams: Promise<{ id?: string }>;
 }
 
-export default async function LevantamientosPage({ searchParams }: PageProps) {
+export default async function ActivosPage({ searchParams }: PageProps) {
   const { id: selectedId } = await searchParams;
   const [sb, user] = await Promise.all([createServerSupabase(), getServerUser()]);
   if (!user) redirect("/login");
@@ -23,13 +22,13 @@ export default async function LevantamientosPage({ searchParams }: PageProps) {
   if (!perfil?.workspace_id) redirect("/login");
   const wsId = perfil.workspace_id;
 
-  const [levantamientos, usuarios, ubicaciones, sociedades] = await Promise.all([
-    sb.from("levantamientos")
-      .select(LEV_SELECT)
+  const [activos, usuarios, ubicaciones, sociedades] = await Promise.all([
+    sb.from("activos")
+      .select(ACTIVO_SELECT)
       .eq("workspace_id", wsId)
-      .order("created_at", { ascending: false })
-      .limit(300)
-      .then(r => (r.data ?? []) as unknown as Levantamiento[]),
+      .eq("activo", true)
+      .order("nombre")
+      .then(r => (r.data ?? []) as unknown as Activo[]),
 
     sb.from("usuarios")
       .select("id,nombre,rol")
@@ -45,7 +44,7 @@ export default async function LevantamientosPage({ searchParams }: PageProps) {
       .then(r => (r.data ?? []) as unknown as Ubicacion[]),
 
     sb.from("sociedades")
-      .select("id,nombre,activa")
+      .select("id,nombre,activa,imagen_url,created_at,workspace_id")
       .eq("workspace_id", wsId)
       .eq("activa", true)
       .order("nombre")
@@ -53,12 +52,11 @@ export default async function LevantamientosPage({ searchParams }: PageProps) {
   ]);
 
   return (
-    <LevantamientosBandeja
-      initialLevantamientos={levantamientos}
+    <ActivosBandeja
+      initialActivos={activos}
       usuarios={usuarios}
       ubicaciones={ubicaciones}
       sociedades={sociedades}
-      myId={user.id}
       myRol={perfil.rol}
       wsId={wsId}
       initialSelectedId={selectedId ?? null}

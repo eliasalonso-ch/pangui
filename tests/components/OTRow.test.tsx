@@ -12,6 +12,8 @@ const baseOrden: OrdenListItem = {
   prioridad: "alta",
   tipo: "solicitud",
   tipo_trabajo: "reactiva",
+  clasificacion: "ejecucion",
+  fecha_inicio: null,
   fecha_termino: null,
   recurrencia: "ninguna",
   created_at: new Date(Date.now() - 3600000).toISOString(), // 1h ago
@@ -48,7 +50,7 @@ describe("OTRow", () => {
 
   it("renders status pill", () => {
     render(<OTRow orden={baseOrden} usuarios={usuarios} isSelected={false} onClick={vi.fn()} />);
-    expect(screen.getByText("Abierta")).toBeInTheDocument();
+    expect(screen.getByText("Sin asignar")).toBeInTheDocument();
   });
 
   it("renders priority pill", () => {
@@ -72,7 +74,7 @@ describe("OTRow", () => {
   it("shows selected border when isSelected=true", () => {
     render(<OTRow orden={baseOrden} usuarios={usuarios} isSelected={true} onClick={vi.fn()} />);
     const row = screen.getByRole("option");
-    expect(row).toHaveStyle({ borderLeft: "3px solid #2563EB" });
+    expect(row).toHaveAttribute("aria-selected", "true");
   });
 
   it("does not call onClick when pending", async () => {

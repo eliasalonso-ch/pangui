@@ -64,6 +64,52 @@
   text-wrap: balance;
 }
 
+/* ---------- Landing hero background ---------- */
+.landing-hero-grid {
+  position: relative;
+  background:
+    linear-gradient(160deg, #0f172a 0%, #1e3a8a 55%, #2563eb 100%);
+}
+
+.landing-hero-grid::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: radial-gradient(rgba(255, 255, 255, 0.075) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+
+.landing-hero-grid::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at calc(100% + 110px) 20%, transparent 0 250px, rgba(255, 255, 255, 0.075) 251px, transparent 252px),
+    radial-gradient(circle at -80px calc(100% - 40px), transparent 0 170px, rgba(255, 255, 255, 0.055) 171px, transparent 172px);
+}
+
+.landing-hero-grid > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* ---------- Mobile horizontal tabs ---------- */
+.landing-tabs-scroll {
+  -webkit-overflow-scrolling: touch;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+}
+
+.landing-tabs-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.landing-tabs-scroll button {
+  scroll-snap-align: start;
+}
+
 /* ---------- Recommended-tier underline (pricing) ---------- */
 /* Replaces the standard "Más popular" badge with an accent underline
    under the tier name. Wider rule + the column itself gets an accent
@@ -115,4 +161,3 @@
   background: var(--accent);
   color: #ffffff;
 }
-

@@ -282,7 +282,50 @@ export async function createSubOrden(
   if (error) throw error;
   const sub = data as unknown as OrdenTrabajo;
   await insertActividad(sub.id, parent.creado_por ?? "", "creado", titulo);
+  await inheritProcedimientosToSubOT(parentId, sub.id, parent.creado_por ?? null).catch(() => {
+    // Inheritance is best-effort — failure to copy attachments shouldn't
+    // block the sub-OT itself. Real failures surface on the procedimientos tab.
+  });
   return sub;
+}
+
+// Copy attached procedures from a parent OT to a freshly-created sub-OT, but
+// only those flagged `hereda_a_hijos = true` on the ot_procedimientos row.
+// Idempotent: skips rows that already exist on the child (rare unless this
+// runs after another inheritance pass).
+async function inheritProcedimientosToSubOT(
+  parentId: string,
+  childId: string,
+  userId: string | null,
+): Promise<void> {
+  const sb = createClient();
+  const { data: parents, error: parentErr } = await sb
+    .from("ot_procedimientos")
+    .select("procedimiento_id")
+    .eq("orden_id", parentId)
+    .eq("hereda_a_hijos", true);
+  if (parentErr) throw parentErr;
+  if (!parents || parents.length === 0) return;
+
+  const { data: existing, error: exErr } = await sb
+    .from("ot_procedimientos")
+    .select("procedimiento_id")
+    .eq("orden_id", childId);
+  if (exErr) throw exErr;
+  const have = new Set((existing ?? []).map(r => r.procedimiento_id));
+
+  const inserts = parents
+    .filter(p => !have.has(p.procedimiento_id))
+    .map(p => ({
+      orden_id: childId,
+      procedimiento_id: p.procedimiento_id,
+      adjuntado_por: userId,
+      hereda_a_hijos: true, // Propagate the flag so grandchildren keep inheriting.
+    }));
+  if (inserts.length === 0) return;
+
+  const { error: insErr } = await sb.from("ot_procedimientos").insert(inserts);
+  if (insErr) throw insErr;
 }
 
 // ── Update ────────────────────────────────────────────────────────────────────

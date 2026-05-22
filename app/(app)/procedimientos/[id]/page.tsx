@@ -22,6 +22,17 @@ const TIPO_META: Record<TipoPasoProc, { label: string; icon: React.ReactNode; co
   inspeccion:         { label: "Inspección",             icon: <ClipboardCheck size={13} />,color: "#EC4899" },
   imagen:             { label: "Imagen / foto",          icon: <Camera size={13} />,        color: "#64748B" },
   firma:              { label: "Firma",                  icon: <PenLine size={13} />,       color: "#0EA5E9" },
+  // New tipos (Phase-3 rewrite will give them full renderers).
+  medidor:            { label: "Lectura de medidor",     icon: <Hash size={13} />,          color: "#6366F1" },
+  archivo:            { label: "Archivo adjunto",        icon: <Camera size={13} />,        color: "#64748B" },
+  fecha:              { label: "Fecha",                  icon: <Type size={13} />,          color: "#6366F1" },
+  hora:               { label: "Hora",                   icon: <Type size={13} />,          color: "#6366F1" },
+  fecha_hora:         { label: "Fecha y hora",           icon: <Type size={13} />,          color: "#6366F1" },
+  escaneo:            { label: "Escaneo / código QR",    icon: <List size={13} />,          color: "#F97316" },
+  falla_iso14224:     { label: "Falla ISO 14224",        icon: <AlertTriangle size={13} />, color: "#EF4444" },
+  sub_procedimiento:  { label: "Sub-procedimiento",      icon: <ClipboardCheck size={13} />,color: "#EC4899" },
+  seccion:            { label: "Sección",                icon: <Info size={13} />,          color: "#94A3B8" },
+  puntuacion:         { label: "Puntuación",             icon: <CheckSquare size={13} />,   color: "#14B8A6" },
 };
 
 export default function ProcedimientoDetailPage({ params }: { params: Promise<{ id: string }> }) {

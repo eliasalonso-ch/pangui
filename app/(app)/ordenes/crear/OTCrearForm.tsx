@@ -539,7 +539,7 @@ export default function OTCrearForm({ usuarios, ubicaciones, activos, categorias
               value={form.titulo}
               onChange={e => setF("titulo", e.target.value)}
               style={{
-                width: "100%", fontSize: 20, fontWeight: 600,
+                width: "100%", fontSize: 20, fontWeight: 400,
                 color: "var(--fg-1)", border: "none", outline: "none",
                 background: "transparent", padding: "4px 0",
                 borderBottom: "2px solid " + (form.titulo ? "var(--brand)" : "var(--border)"),

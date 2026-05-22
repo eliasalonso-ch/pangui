@@ -366,12 +366,12 @@ function FieldRow({ icon, label, children }: {
   children: React.ReactNode;
 }) {
   return (
-    <div style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: "12px 0", borderBottom: "1px solid var(--border)" }}>
-      <div style={{ width: 28, paddingTop: 2, display: "flex", justifyContent: "center", flexShrink: 0, color: "var(--fg-4)" }}>
+    <div style={{ display: "flex", alignItems: "flex-start", gap: 16, padding: "22px 0", borderBottom: "1px solid var(--border)" }}>
+      <div style={{ width: 34, paddingTop: 4, display: "flex", justifyContent: "center", flexShrink: 0, color: "var(--fg-4)" }}>
         {icon}
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 12, fontWeight: 600, color: "var(--fg-3)", marginBottom: 6 }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: "var(--fg-3)", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.06em" }}>
           {label}
         </div>
         {children}
@@ -412,8 +412,8 @@ function SearchSelect({ placeholder, value, options, onChange }: {
         type="button"
         onClick={() => { setOpen(!open); setQuery(""); }}
         style={{
-          width: "100%", height: 38, display: "flex", alignItems: "center", gap: 8,
-          padding: "0 10px", border: "1px solid var(--border)", borderRadius: 8,
+          width: "100%", height: 40, display: "flex", alignItems: "center", gap: 8,
+          padding: "0 12px", border: "1px solid var(--border)", borderRadius: 8,
           background: "var(--surface-1)", fontSize: 13, color: selected ? "var(--fg-1)" : "var(--fg-4)",
           cursor: "pointer", textAlign: "left",
         }}
@@ -430,14 +430,14 @@ function SearchSelect({ placeholder, value, options, onChange }: {
           background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: 8,
           boxShadow: "var(--shadow-md)", overflow: "hidden",
         }}>
-          <div style={{ padding: "6px 6px 3px" }}>
+          <div style={{ padding: "8px 8px 4px" }}>
             <input
               autoFocus
               placeholder="Buscar…"
               value={query}
               onChange={e => setQuery(e.target.value)}
               style={{
-                width: "100%", height: 30, padding: "0 8px",
+                width: "100%", height: 36, padding: "0 10px",
                 border: "1px solid var(--border)", borderRadius: 6,
                 fontSize: 13, outline: "none", color: "var(--fg-1)", fontFamily: "inherit",
                 background: "var(--surface-1)",
@@ -450,7 +450,7 @@ function SearchSelect({ placeholder, value, options, onChange }: {
               onClick={() => { onChange(""); setOpen(false); }}
               style={{
                 display: "block", width: "100%", textAlign: "left",
-                padding: "7px 10px", fontSize: 13, color: "var(--fg-4)",
+                padding: "10px 12px", fontSize: 13, color: "var(--fg-4)",
                 background: !value ? "var(--brand-tint)" : "transparent",
                 border: "none", cursor: "pointer", fontFamily: "inherit",
               }}
@@ -465,7 +465,7 @@ function SearchSelect({ placeholder, value, options, onChange }: {
                 style={{
                   display: "flex", alignItems: "center", gap: 6,
                   width: "100%", textAlign: "left",
-                  padding: "7px 10px", fontSize: 13,
+                  padding: "10px 12px", fontSize: 13,
                   background: value === o.id ? "var(--brand-tint)" : "transparent",
                   border: "none", cursor: "pointer", fontFamily: "inherit",
                 }}
@@ -523,7 +523,7 @@ function AssigneeSelect({ usuarios, value, onChange }: {
   return (
     <div ref={ref} style={{ position: "relative" }}>
       {selected.length > 0 && (
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginBottom: 6 }}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 10 }}>
           {selected.map(u => (
             <span key={u.id} style={{
               display: "flex", alignItems: "center", gap: 4,
@@ -555,8 +555,8 @@ function AssigneeSelect({ usuarios, value, onChange }: {
         type="button"
         onClick={() => { setOpen(!open); setQuery(""); }}
         style={{
-          height: 34, display: "flex", alignItems: "center", gap: 7,
-          padding: "0 10px", border: "1px solid var(--border)", borderRadius: 4,
+          height: 40, display: "flex", alignItems: "center", gap: 8,
+          padding: "0 12px", border: "1px solid var(--border)", borderRadius: 8,
           background: "var(--surface-1)", fontSize: 13, color: "var(--fg-4)",
           cursor: "pointer", fontFamily: "inherit",
         }}
@@ -572,14 +572,14 @@ function AssigneeSelect({ usuarios, value, onChange }: {
           minWidth: 220, background: "var(--surface-1)", border: "1px solid var(--border)",
           borderRadius: 8, boxShadow: "var(--shadow-md)", overflow: "hidden",
         }}>
-          <div style={{ padding: "6px 6px 3px" }}>
+          <div style={{ padding: "8px 8px 4px" }}>
             <input
               autoFocus
               placeholder="Buscar por nombre…"
               value={query}
               onChange={e => setQuery(e.target.value)}
               style={{
-                width: "100%", height: 30, padding: "0 8px",
+                width: "100%", height: 36, padding: "0 10px",
                 border: "1px solid var(--border)", borderRadius: 6,
                 fontSize: 13, outline: "none", color: "var(--fg-1)", fontFamily: "inherit",
                 background: "var(--surface-1)",
@@ -595,8 +595,8 @@ function AssigneeSelect({ usuarios, value, onChange }: {
                   type="button"
                   onClick={() => toggle(u.id)}
                   style={{
-                    display: "flex", alignItems: "center", gap: 8,
-                    width: "100%", padding: "8px 10px",
+                    display: "flex", alignItems: "center", gap: 10,
+                    width: "100%", padding: "10px 12px",
                     background: sel ? "var(--brand-tint)" : "transparent",
                     border: "none", cursor: "pointer", fontFamily: "inherit",
                   }}
@@ -704,14 +704,14 @@ function HitoSelect({ value, onChange, wsId }: {
           background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: 8,
           boxShadow: "var(--shadow-md)", overflow: "hidden",
         }}>
-          <div style={{ padding: "6px 6px 3px" }}>
+          <div style={{ padding: "8px 8px 4px" }}>
             <input
               autoFocus
               placeholder="Buscar o crear…"
               value={query}
               onChange={e => setQuery(e.target.value)}
               style={{
-                width: "100%", height: 30, padding: "0 8px",
+                width: "100%", height: 36, padding: "0 10px",
                 border: "1px solid var(--border)", borderRadius: 8,
                 fontSize: 12.5, outline: "none", color: "var(--fg-1)",
                 fontFamily: "inherit", boxSizing: "border-box", background: "var(--surface-1)",
@@ -723,7 +723,7 @@ function HitoSelect({ value, onChange, wsId }: {
               <button
                 type="button"
                 onClick={() => { onChange(""); setOpen(false); }}
-                style={{ display: "block", width: "100%", textAlign: "left", padding: "7px 10px", fontSize: 13, color: "var(--fg-4)", background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}
+                style={{ display: "block", width: "100%", textAlign: "left", padding: "10px 12px", fontSize: 13, color: "var(--fg-4)", background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}
               >
                 Quitar hito
               </button>
@@ -735,7 +735,7 @@ function HitoSelect({ value, onChange, wsId }: {
                 onClick={() => { onChange(h.nombre); setOpen(false); }}
                 style={{
                   display: "flex", alignItems: "center", gap: 6,
-                  width: "100%", padding: "7px 10px", fontSize: 13,
+                  width: "100%", padding: "10px 12px", fontSize: 13,
                   background: value === h.nombre ? "var(--brand-tint)" : "transparent",
                   border: "none", cursor: "pointer", fontFamily: "inherit", color: "var(--fg-1)",
                 }}
@@ -751,7 +751,7 @@ function HitoSelect({ value, onChange, wsId }: {
                 disabled={creating}
                 style={{
                   display: "flex", alignItems: "center", gap: 6,
-                  width: "100%", padding: "7px 10px", fontSize: 13, fontWeight: 600,
+                  width: "100%", padding: "10px 12px", fontSize: 13, fontWeight: 600,
                   background: "var(--brand-tint)", color: "var(--brand)",
                   border: "none", borderTop: "1px solid var(--border)",
                   cursor: creating ? "default" : "pointer", fontFamily: "inherit",
@@ -762,7 +762,7 @@ function HitoSelect({ value, onChange, wsId }: {
               </button>
             )}
             {filtered.length === 0 && !canCreate && (
-              <div style={{ padding: "8px 10px", fontSize: 12.5, color: "var(--fg-4)" }}>Sin hitos</div>
+              <div style={{ padding: "10px 12px", fontSize: 12.5, color: "var(--fg-4)" }}>Sin hitos</div>
             )}
           </div>
         </div>
@@ -821,7 +821,7 @@ function LocationSelect({ value, options, onChange, wsId, onCreated: onUbicCreat
   return (
     <div ref={ref} style={{ position: "relative" }}>
       <button type="button" onClick={() => { setOpen(!open); setQuery(""); }}
-        style={{ width: "100%", height: 38, display: "flex", alignItems: "center", gap: 8, padding: "0 10px", border: "1px solid var(--border)", borderRadius: 8, background: "var(--surface-1)", fontSize: 13, color: selected ? "var(--fg-1)" : "var(--fg-4)", cursor: "pointer", textAlign: "left" }}>
+        style={{ width: "100%", height: 40, display: "flex", alignItems: "center", gap: 8, padding: "0 12px", border: "1px solid var(--border)", borderRadius: 8, background: "var(--surface-1)", fontSize: 13, color: selected ? "var(--fg-1)" : "var(--fg-4)", cursor: "pointer", textAlign: "left" }}>
         <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
           {selected ? selected.label : "Buscar o crear ubicación…"}
         </span>
@@ -829,18 +829,18 @@ function LocationSelect({ value, options, onChange, wsId, onCreated: onUbicCreat
       </button>
       {open && (
         <div style={{ position: "absolute", top: "calc(100% + 3px)", left: 0, right: 0, zIndex: 200, background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: 8, boxShadow: "var(--shadow-md)", overflow: "hidden" }}>
-          <div style={{ padding: "6px 6px 3px" }}>
+          <div style={{ padding: "8px 8px 4px" }}>
             <input autoFocus placeholder="Buscar o crear…" value={query} onChange={e => setQuery(e.target.value)}
-              style={{ width: "100%", height: 30, padding: "0 8px", border: "1px solid var(--border)", borderRadius: 6, fontSize: 13, outline: "none", color: "var(--fg-1)", fontFamily: "inherit", background: "var(--surface-1)" }} />
+              style={{ width: "100%", height: 36, padding: "0 10px", border: "1px solid var(--border)", borderRadius: 8, fontSize: 13, outline: "none", color: "var(--fg-1)", fontFamily: "inherit", background: "var(--surface-1)" }} />
           </div>
           <div style={{ maxHeight: 200, overflowY: "auto" }}>
             <button type="button" onClick={() => { onChange(""); setOpen(false); }}
-              style={{ display: "block", width: "100%", textAlign: "left", padding: "7px 10px", fontSize: 13, color: "var(--fg-4)", background: !value ? "var(--brand-tint)" : "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}>
+              style={{ display: "block", width: "100%", textAlign: "left", padding: "10px 12px", fontSize: 13, color: "var(--fg-4)", background: !value ? "var(--brand-tint)" : "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}>
               Sin asignar
             </button>
             {filtered.map(o => (
               <button key={o.id} type="button" onClick={() => { onChange(o.id); setOpen(false); }}
-                style={{ display: "flex", alignItems: "center", gap: 6, width: "100%", textAlign: "left", padding: "7px 10px", fontSize: 13, background: value === o.id ? "var(--brand-tint)" : "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}>
+                style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", textAlign: "left", padding: "10px 12px", fontSize: 13, background: value === o.id ? "var(--brand-tint)" : "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}>
                 {value === o.id && <Check size={11} style={{ color: "var(--brand)", flexShrink: 0 }} />}
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ color: "var(--fg-1)" }}>{o.label}</div>
@@ -850,13 +850,13 @@ function LocationSelect({ value, options, onChange, wsId, onCreated: onUbicCreat
             ))}
             {canCreate && (
               <button type="button" onClick={handleCreate} disabled={creating}
-                style={{ display: "flex", alignItems: "center", gap: 6, width: "100%", padding: "8px 10px", fontSize: 13, fontWeight: 600, background: "var(--brand-tint)", color: "var(--brand)", border: "none", borderTop: "1px solid var(--border)", cursor: creating ? "default" : "pointer", fontFamily: "inherit" }}>
+                style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "10px 12px", fontSize: 13, fontWeight: 600, background: "var(--brand-tint)", color: "var(--brand)", border: "none", borderTop: "1px solid var(--border)", cursor: creating ? "default" : "pointer", fontFamily: "inherit" }}>
                 {creating ? <Loader2 size={11} className="animate-spin" /> : <Plus size={11} />}
                 Crear "{query.trim()}"
               </button>
             )}
             {filtered.length === 0 && !canCreate && (
-              <div style={{ padding: "8px 10px", fontSize: 12.5, color: "var(--fg-4)" }}>Sin resultados</div>
+              <div style={{ padding: "10px 12px", fontSize: 12.5, color: "var(--fg-4)" }}>Sin resultados</div>
             )}
           </div>
         </div>
@@ -916,7 +916,7 @@ function LugarSelect({ value, options, onChange, wsId, ubicacion_id, onCreated: 
   return (
     <div ref={ref} style={{ position: "relative" }}>
       <button type="button" onClick={() => { setOpen(!open); setQuery(""); }}
-        style={{ width: "100%", height: 38, display: "flex", alignItems: "center", gap: 8, padding: "0 10px", border: "1px solid var(--border)", borderRadius: 8, background: "var(--surface-1)", fontSize: 13, color: selected ? "var(--fg-1)" : "var(--fg-4)", cursor: "pointer", textAlign: "left" }}>
+        style={{ width: "100%", height: 40, display: "flex", alignItems: "center", gap: 8, padding: "0 12px", border: "1px solid var(--border)", borderRadius: 8, background: "var(--surface-1)", fontSize: 13, color: selected ? "var(--fg-1)" : "var(--fg-4)", cursor: "pointer", textAlign: "left" }}>
         <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
           {selected ? selected.label : "Buscar o crear lugar…"}
         </span>
@@ -924,18 +924,18 @@ function LugarSelect({ value, options, onChange, wsId, ubicacion_id, onCreated: 
       </button>
       {open && (
         <div style={{ position: "absolute", top: "calc(100% + 3px)", left: 0, right: 0, zIndex: 200, background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: 8, boxShadow: "var(--shadow-md)", overflow: "hidden" }}>
-          <div style={{ padding: "6px 6px 3px" }}>
+          <div style={{ padding: "8px 8px 4px" }}>
             <input autoFocus placeholder="Buscar o crear…" value={query} onChange={e => setQuery(e.target.value)}
-              style={{ width: "100%", height: 30, padding: "0 8px", border: "1px solid var(--border)", borderRadius: 6, fontSize: 13, outline: "none", color: "var(--fg-1)", fontFamily: "inherit", background: "var(--surface-1)" }} />
+              style={{ width: "100%", height: 36, padding: "0 10px", border: "1px solid var(--border)", borderRadius: 8, fontSize: 13, outline: "none", color: "var(--fg-1)", fontFamily: "inherit", background: "var(--surface-1)" }} />
           </div>
           <div style={{ maxHeight: 200, overflowY: "auto" }}>
             <button type="button" onClick={() => { onChange(""); setOpen(false); }}
-              style={{ display: "block", width: "100%", textAlign: "left", padding: "7px 10px", fontSize: 13, color: "var(--fg-4)", background: !value ? "var(--brand-tint)" : "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}>
+              style={{ display: "block", width: "100%", textAlign: "left", padding: "10px 12px", fontSize: 13, color: "var(--fg-4)", background: !value ? "var(--brand-tint)" : "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}>
               Sin asignar
             </button>
             {filtered.map(o => (
               <button key={o.id} type="button" onClick={() => { onChange(o.id); setOpen(false); }}
-                style={{ display: "flex", alignItems: "center", gap: 6, width: "100%", textAlign: "left", padding: "7px 10px", fontSize: 13, background: value === o.id ? "var(--brand-tint)" : "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}>
+                style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", textAlign: "left", padding: "10px 12px", fontSize: 13, background: value === o.id ? "var(--brand-tint)" : "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}>
                 {value === o.id && <Check size={11} style={{ color: "var(--brand)", flexShrink: 0 }} />}
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ color: "var(--fg-1)" }}>{o.label}</div>
@@ -945,13 +945,13 @@ function LugarSelect({ value, options, onChange, wsId, ubicacion_id, onCreated: 
             ))}
             {canCreate && (
               <button type="button" onClick={handleCreate} disabled={creating}
-                style={{ display: "flex", alignItems: "center", gap: 6, width: "100%", padding: "8px 10px", fontSize: 13, fontWeight: 600, background: "var(--brand-tint)", color: "var(--brand)", border: "none", borderTop: "1px solid var(--border)", cursor: creating ? "default" : "pointer", fontFamily: "inherit" }}>
+                style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "10px 12px", fontSize: 13, fontWeight: 600, background: "var(--brand-tint)", color: "var(--brand)", border: "none", borderTop: "1px solid var(--border)", cursor: creating ? "default" : "pointer", fontFamily: "inherit" }}>
                 {creating ? <Loader2 size={11} className="animate-spin" /> : <Plus size={11} />}
                 Crear "{query.trim()}"
               </button>
             )}
             {filtered.length === 0 && !canCreate && (
-              <div style={{ padding: "8px 10px", fontSize: 12.5, color: "var(--fg-4)" }}>Sin resultados</div>
+              <div style={{ padding: "10px 12px", fontSize: 12.5, color: "var(--fg-4)" }}>Sin resultados</div>
             )}
           </div>
         </div>
@@ -1224,9 +1224,9 @@ export default function OTCrearPanel({
       {/* Header */}
       <div style={{
         display: "flex", alignItems: "center", justifyContent: "space-between",
-        padding: "0 20px", height: 56, borderBottom: "1px solid var(--border)", flexShrink: 0,
+        padding: "0 28px", height: 64, borderBottom: "1px solid var(--border)", flexShrink: 0,
       }}>
-        <h2 style={{ fontSize: 15, fontWeight: 600, color: "var(--fg-1)", margin: 0 }}>
+        <h2 style={{ fontSize: 18, fontWeight: 700, color: "var(--fg-1)", margin: 0 }}>
           Nueva Orden de Trabajo
         </h2>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -1238,8 +1238,8 @@ export default function OTCrearPanel({
             title="Importar desde PDF de Solicitud de Mantención"
             style={{
               display: "flex", alignItems: "center", gap: 5,
-              height: 30, padding: "0 10px",
-              border: "1px solid var(--border)", borderRadius: 6,
+              height: 36, padding: "0 12px",
+              border: "1px solid var(--border)", borderRadius: 8,
               background: "var(--brand-tint)", color: "var(--brand)",
               fontSize: 12, fontWeight: 600, cursor: parsing ? "default" : "pointer",
               fontFamily: "inherit", transition: "background 0.1s",
@@ -1257,8 +1257,8 @@ export default function OTCrearPanel({
             type="button"
             onClick={onClose}
             style={{
-              width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center",
-              border: "1px solid var(--border)", borderRadius: 6,
+              width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center",
+              border: "1px solid var(--border)", borderRadius: 8,
               background: "var(--surface-1)", cursor: "pointer", color: "var(--fg-3)",
             }}
           >
@@ -1270,7 +1270,7 @@ export default function OTCrearPanel({
       {/* Parse feedback banner */}
       {parseMsg && (
         <div style={{
-          padding: "8px 20px", fontSize: 12.5, flexShrink: 0,
+          padding: "10px 28px", fontSize: 12.5, flexShrink: 0,
           background: parseMsg.startsWith("No se") || parseMsg.startsWith("Error") ? "var(--danger-bg)" : "var(--success-bg)",
           color: parseMsg.startsWith("No se") || parseMsg.startsWith("Error") ? "var(--danger)" : "var(--success)",
           borderBottom: "1px solid var(--border)",
@@ -1285,19 +1285,19 @@ export default function OTCrearPanel({
 
       {/* Scrollable form body */}
       <div style={{ flex: 1, overflowY: "auto", minHeight: 0 }}>
-        <div style={{ padding: "16px 20px 100px" }}>
+        <div style={{ padding: "28px 28px 120px", maxWidth: 1180 }}>
 
           {/* Title */}
-          <div style={{ marginBottom: 12 }}>
+          <div style={{ marginBottom: 24 }}>
             <input
               type="text"
               placeholder="¿Qué hay que hacer? (Necesario)"
               value={form.titulo}
               onChange={e => setF("titulo", e.target.value)}
               style={{
-                width: "100%", fontSize: 16, fontWeight: 600,
+                width: "100%", fontSize: 22, fontWeight: 400,
                 color: "var(--fg-1)", border: "none", outline: "none",
-                background: "transparent", padding: "4px 0",
+                background: "transparent", padding: "8px 0",
                 borderBottom: "2px solid " + (form.titulo ? "var(--brand)" : "var(--border)"),
                 fontFamily: "inherit", transition: "border-color 0.15s",
               }}
@@ -1305,27 +1305,27 @@ export default function OTCrearPanel({
           </div>
 
           {/* Description */}
-          <div style={{ marginBottom: 4 }}>
+          <div style={{ marginBottom: 18 }}>
             <textarea
               placeholder="Agregue una descripción"
               value={form.descripcion}
               onChange={e => setF("descripcion", e.target.value)}
               rows={3}
               style={{
-                width: "100%", fontSize: 13, color: "var(--fg-1)",
-                border: "1px solid var(--border)", borderRadius: 4,
-                padding: "8px 10px", outline: "none", resize: "vertical",
-                fontFamily: "inherit", background: "var(--surface-1)", lineHeight: 1.5,
+                width: "100%", fontSize: 14, color: "var(--fg-1)",
+                border: "1px solid var(--border)", borderRadius: 8,
+                padding: "12px 14px", outline: "none", resize: "vertical",
+                fontFamily: "inherit", background: "var(--surface-1)", lineHeight: 1.7, minHeight: 108,
               }}
             />
           </div>
 
           {/* Photo groups */}
-          <div style={{ marginBottom: 12 }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+          <div style={{ padding: "24px 0", borderBottom: "1px solid var(--border)" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                 <Camera size={13} style={{ color: "var(--fg-3)" }} />
-                <span style={{ fontSize: 11, fontWeight: 600, color: "var(--fg-3)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: "var(--fg-3)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
                   Grupos de fotos
                 </span>
               </div>
@@ -1334,10 +1334,10 @@ export default function OTCrearPanel({
                 onClick={addGrupo}
                 style={{
                   display: "flex", alignItems: "center", gap: 4,
-                  height: 24, padding: "0 8px",
-                  border: "1px solid var(--brand)", borderRadius: 5,
+                  height: 32, padding: "0 12px",
+                  border: "1px solid var(--brand)", borderRadius: 8,
                   background: "var(--brand-tint)", color: "var(--brand)",
-                  fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
+                  fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
                 }}
               >
                 <Plus size={11} />
@@ -1350,8 +1350,8 @@ export default function OTCrearPanel({
                 type="button"
                 onClick={addGrupo}
                 style={{
-                  width: "100%", border: "1.5px dashed var(--brand)", borderRadius: 6,
-                  padding: "14px", display: "flex", flexDirection: "column",
+                  width: "100%", border: "1.5px dashed var(--brand)", borderRadius: 8,
+                  padding: "18px", display: "flex", flexDirection: "column",
                   alignItems: "center", gap: 5, color: "var(--brand)", cursor: "pointer",
                   background: "var(--brand-tint)", fontFamily: "inherit",
                 }}
@@ -1363,20 +1363,20 @@ export default function OTCrearPanel({
                 <span style={{ fontSize: 11, opacity: 0.7 }}>Ej: "Antes del trabajo", "Instrucciones"</span>
               </button>
             ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                 {grupos.map((g, gi) => (
-                  <div key={g.id} style={{ border: "1px solid var(--border)", borderRadius: 6, overflow: "hidden", background: "var(--surface-1)" }}>
+                  <div key={g.id} style={{ border: "1px solid var(--border)", borderRadius: 8, overflow: "hidden", background: "var(--surface-1)" }}>
                     {/* Group header */}
-                    <div style={{ padding: "10px 12px", borderBottom: "1px solid var(--border)", background: "var(--surface-0)", display: "flex", alignItems: "flex-start", gap: 8 }}>
-                      <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 5 }}>
+                    <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--border)", background: "var(--surface-0)", display: "flex", alignItems: "flex-start", gap: 10 }}>
+                      <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8 }}>
                         <input
                           type="text"
                           placeholder={`Título del grupo (ej. Fotos del trabajo)`}
                           value={g.titulo}
                           onChange={e => updateGrupo(g.id, { titulo: e.target.value })}
                           style={{
-                            width: "100%", height: 30, padding: "0 8px",
-                            border: "1px solid var(--border)", borderRadius: 4,
+                            width: "100%", height: 36, padding: "0 10px",
+                            border: "1px solid var(--border)", borderRadius: 8,
                             fontSize: 12.5, fontWeight: 600, color: "var(--fg-1)",
                             outline: "none", fontFamily: "inherit", background: "var(--surface-1)",
                           }}
@@ -1389,8 +1389,8 @@ export default function OTCrearPanel({
                           value={g.descripcion}
                           onChange={e => updateGrupo(g.id, { descripcion: e.target.value })}
                           style={{
-                            width: "100%", height: 27, padding: "0 8px",
-                            border: "1px solid var(--border)", borderRadius: 4,
+                            width: "100%", height: 36, padding: "0 10px",
+                            border: "1px solid var(--border)", borderRadius: 8,
                             fontSize: 12, color: "var(--fg-2)",
                             outline: "none", fontFamily: "inherit", background: "var(--surface-1)",
                           }}
@@ -1401,7 +1401,7 @@ export default function OTCrearPanel({
                       <button
                         type="button"
                         onClick={() => removeGrupo(g.id)}
-                        style={{ width: 26, height: 26, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", borderRadius: 4, cursor: "pointer", color: "var(--danger)", flexShrink: 0, marginTop: 1 }}
+                        style={{ width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", borderRadius: 8, cursor: "pointer", color: "var(--danger)", flexShrink: 0 }}
                         onMouseEnter={e => { e.currentTarget.style.background = "var(--danger-bg)"; }}
                         onMouseLeave={e => { e.currentTarget.style.background = "none"; }}
                       >
@@ -1410,10 +1410,10 @@ export default function OTCrearPanel({
                     </div>
 
                     {/* Photo grid */}
-                    <div style={{ padding: 10 }}>
-                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(72px, 1fr))", gap: 6 }}>
+                    <div style={{ padding: 14 }}>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(88px, 1fr))", gap: 10 }}>
                         {g.fotos.map((f, fi) => (
-                          <div key={fi} style={{ position: "relative", aspectRatio: "1", borderRadius: 4, overflow: "hidden", background: "var(--surface-hover)" }}>
+                          <div key={fi} style={{ position: "relative", aspectRatio: "1", borderRadius: 8, overflow: "hidden", background: "var(--surface-hover)" }}>
                             {/* eslint-disable-next-line @next/next/no-img-element */}
                             <img src={f.preview} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                             <button
@@ -1435,7 +1435,7 @@ export default function OTCrearPanel({
                           type="button"
                           onClick={() => grupoFileRefs.current[g.id]?.click()}
                           style={{
-                            aspectRatio: "1", border: "1.5px dashed var(--border)", borderRadius: 4,
+                            aspectRatio: "1", border: "1.5px dashed var(--border)", borderRadius: 8,
                             background: "var(--surface-0)", display: "flex", flexDirection: "column",
                             alignItems: "center", justifyContent: "center", gap: 3,
                             cursor: "pointer", color: "var(--fg-4)",
@@ -1467,7 +1467,7 @@ export default function OTCrearPanel({
                   type="button"
                   onClick={addGrupo}
                   style={{
-                    width: "100%", padding: "8px", border: "1.5px dashed var(--brand)", borderRadius: 6,
+                    width: "100%", padding: "12px", border: "1.5px dashed var(--brand)", borderRadius: 8,
                     background: "var(--brand-tint)", color: "var(--brand)", fontSize: 12, cursor: "pointer",
                     display: "flex", alignItems: "center", justifyContent: "center", gap: 5,
                     fontFamily: "inherit",
@@ -1483,11 +1483,11 @@ export default function OTCrearPanel({
           </div>
 
           {/* Adjuntos */}
-          <div style={{ marginBottom: 12 }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+          <div style={{ padding: "24px 0", borderBottom: "1px solid var(--border)" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                 <Paperclip size={13} style={{ color: "var(--fg-3)" }} />
-                <span style={{ fontSize: 11, fontWeight: 600, color: "var(--fg-3)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: "var(--fg-3)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
                   Adjuntos
                 </span>
               </div>
@@ -1496,10 +1496,10 @@ export default function OTCrearPanel({
                 onClick={() => adjuntoInputRef.current?.click()}
                 style={{
                   display: "flex", alignItems: "center", gap: 4,
-                  height: 24, padding: "0 8px",
-                  border: "1px solid var(--brand)", borderRadius: 5,
+                  height: 32, padding: "0 12px",
+                  border: "1px solid var(--brand)", borderRadius: 8,
                   background: "var(--brand-tint)", color: "var(--brand)",
-                  fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
+                  fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
                 }}
               >
                 <Plus size={11} />
@@ -1523,8 +1523,8 @@ export default function OTCrearPanel({
                 type="button"
                 onClick={() => adjuntoInputRef.current?.click()}
                 style={{
-                  width: "100%", border: "1.5px dashed var(--brand)", borderRadius: 6,
-                  padding: "12px", display: "flex", flexDirection: "column",
+                  width: "100%", border: "1.5px dashed var(--brand)", borderRadius: 8,
+                  padding: "18px", display: "flex", flexDirection: "column",
                   alignItems: "center", gap: 4, color: "var(--brand)", cursor: "pointer",
                   background: "var(--brand-tint)", fontFamily: "inherit",
                 }}
@@ -1535,12 +1535,12 @@ export default function OTCrearPanel({
                 <span style={{ fontSize: 12 }}>PDF, Word, Excel, TXT, CSV, DWG, MP3, M4A…</span>
               </button>
             ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {adjuntos.map((a, i) => {
                   const ext = a.file.name.split(".").pop()?.toLowerCase() ?? "";
                   const isDoc = ["pdf","doc","docx","xls","xlsx","ppt","pptx","txt","csv","dwg","dxf"].includes(ext);
                   return (
-                    <div key={i} style={{ display: "flex", alignItems: "center", gap: 7, padding: "7px 9px", border: "1px solid var(--border)", borderRadius: 6, background: "var(--surface-0)" }}>
+                    <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", border: "1px solid var(--border)", borderRadius: 6, background: "var(--surface-0)" }}>
                       {isDoc
                         ? <FileText size={14} style={{ color: "var(--brand)", flexShrink: 0 }} />
                         : <File size={14} style={{ color: "var(--fg-4)", flexShrink: 0 }} />}
@@ -1573,8 +1573,8 @@ export default function OTCrearPanel({
                   onClick={() => adjuntoInputRef.current?.click()}
                   style={{
                     display: "flex", alignItems: "center", gap: 4,
-                    padding: "4px 0", background: "none", border: "none",
-                    cursor: "pointer", fontSize: 11.5, color: "var(--fg-4)", fontFamily: "inherit",
+                    padding: "10px 0", background: "none", border: "none",
+                    cursor: "pointer", fontSize: 12, fontWeight: 600, color: "var(--fg-4)", fontFamily: "inherit",
                   }}
                   onMouseEnter={e => { e.currentTarget.style.color = "var(--brand)"; }}
                   onMouseLeave={e => { e.currentTarget.style.color = "var(--fg-4)"; }}
@@ -1587,8 +1587,8 @@ export default function OTCrearPanel({
           </div>
 
           {/* Links */}
-          <div style={{ marginBottom: 4 }}>
-            <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "var(--fg-3)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>
+          <div style={{ padding: "24px 0", borderBottom: "1px solid var(--border)" }}>
+            <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "var(--fg-3)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 10 }}>
               Links
             </label>
             <LinksInput
@@ -1604,7 +1604,7 @@ export default function OTCrearPanel({
               placeholder="Ej: SF920260325921"
               value={form.n_ot}
               onChange={e => setF("n_ot", e.target.value)}
-              style={{ width:"100%", height:40, padding:"0 10px", border:`1px solid ${dupWarning ? "var(--warning)" : "var(--border)"}`, borderRadius:8, fontSize:13, color:"var(--fg-1)", outline:"none", fontFamily:"monospace", background:"var(--surface-1)" }}
+              style={{ width:"100%", height:40, padding:"0 12px", border:`1px solid ${dupWarning ? "var(--warning)" : "var(--border)"}`, borderRadius:8, fontSize:13, color:"var(--fg-1)", outline:"none", fontFamily:"monospace", background:"var(--surface-1)" }}
             />
             {dupWarning && (
               <div style={{ display:"flex", alignItems:"center", gap:6, marginTop:6, padding:"6px 10px", borderRadius:6, background:"var(--warning-bg, #FFFBEB)", border:"1px solid var(--warning)" }}>
@@ -1622,7 +1622,7 @@ export default function OTCrearPanel({
               placeholder="Nombre del solicitante…"
               value={form.solicitante}
               onChange={e => setF("solicitante", e.target.value)}
-              style={{ width:"100%", height:40, padding:"0 10px", border:"1px solid var(--border)", borderRadius:8, fontSize:13, color:"var(--fg-1)", outline:"none", fontFamily:"inherit", background:"var(--surface-1)" }}
+              style={{ width:"100%", height:40, padding:"0 12px", border:"1px solid var(--border)", borderRadius:8, fontSize:13, color:"var(--fg-1)", outline:"none", fontFamily:"inherit", background:"var(--surface-1)" }}
             />
           </FieldRow>
 
@@ -1636,7 +1636,7 @@ export default function OTCrearPanel({
               placeholder="Ej: PRE-2025-001"
               value={form.presupuesto}
               onChange={e => setF("presupuesto", e.target.value)}
-              style={{ width:"100%", height:40, padding:"0 10px", border:"1px solid var(--border)", borderRadius:8, fontSize:13, color:"var(--fg-1)", outline:"none", fontFamily:"inherit", background:"var(--surface-1)" }}
+              style={{ width:"100%", height:40, padding:"0 12px", border:"1px solid var(--border)", borderRadius:8, fontSize:13, color:"var(--fg-1)", outline:"none", fontFamily:"inherit", background:"var(--surface-1)" }}
             />
           </FieldRow>
 
@@ -1664,13 +1664,13 @@ export default function OTCrearPanel({
             />
             {/* PDF hint: unresolved */}
             {pdfHints?.ubicacionText && (
-              <div style={{ marginTop: 6, display: "flex", alignItems: "center", gap: 8, padding: "7px 10px", background: "var(--warning-bg, #FFFBEB)", border: "1px solid var(--warning)", borderRadius: 7 }}>
+              <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: "var(--warning-bg, #FFFBEB)", border: "1px solid var(--warning)", borderRadius: 8 }}>
                 <MapPin size={12} style={{ color: "var(--warning)", flexShrink: 0 }} />
                 <span style={{ flex: 1, fontSize: 12, color: "var(--fg-2)" }}>
                   PDF sugirió: <strong>"{pdfHints.ubicacionText}"</strong> — no encontrada
                 </span>
                 <button type="button" onClick={createUbicFromHint} disabled={creatingUbic}
-                  style={{ display: "flex", alignItems: "center", gap: 4, height: 26, padding: "0 10px", border: "none", borderRadius: 6, background: "var(--brand)", color: "var(--fg-on-brand)", fontSize: 11, fontWeight: 600, cursor: creatingUbic ? "default" : "pointer", fontFamily: "inherit", flexShrink: 0 }}>
+                  style={{ display: "flex", alignItems: "center", gap: 4, height: 32, padding: "0 12px", border: "none", borderRadius: 8, background: "var(--brand)", color: "var(--fg-on-brand)", fontSize: 12, fontWeight: 700, cursor: creatingUbic ? "default" : "pointer", fontFamily: "inherit", flexShrink: 0 }}>
                   {creatingUbic ? <Loader2 size={10} className="animate-spin" /> : <Plus size={10} />}
                   Crear
                 </button>
@@ -1682,7 +1682,7 @@ export default function OTCrearPanel({
             )}
             {/* PDF hint: matched */}
             {pdfHints && !pdfHints.ubicacionText && pdfHints.ubicacionMatched && form.ubicacion_id && (
-              <div style={{ marginTop: 6, display: "flex", alignItems: "center", gap: 6, padding: "5px 10px", background: "var(--success-bg)", border: "1px solid var(--success)", borderRadius: 7 }}>
+              <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", background: "var(--success-bg)", border: "1px solid var(--success)", borderRadius: 8 }}>
                 <Check size={11} style={{ color: "var(--success)", flexShrink: 0 }} />
                 <span style={{ fontSize: 11, color: "var(--success)" }}>Ubicación encontrada en el sistema</span>
               </div>
@@ -1704,13 +1704,13 @@ export default function OTCrearPanel({
             />
             {/* PDF hint: unresolved */}
             {pdfHints?.lugarText && (
-              <div style={{ marginTop: 6, display: "flex", alignItems: "center", gap: 8, padding: "7px 10px", background: "var(--warning-bg, #FFFBEB)", border: "1px solid var(--warning)", borderRadius: 7 }}>
+              <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: "var(--warning-bg, #FFFBEB)", border: "1px solid var(--warning)", borderRadius: 8 }}>
                 <MapPin size={12} style={{ color: "var(--warning)", flexShrink: 0 }} />
                 <span style={{ flex: 1, fontSize: 12, color: "var(--fg-2)" }}>
                   PDF sugirió: <strong>"{pdfHints.lugarText}"</strong> — no encontrado
                 </span>
                 <button type="button" onClick={createLugarFromHint} disabled={creatingLugar}
-                  style={{ display: "flex", alignItems: "center", gap: 4, height: 26, padding: "0 10px", border: "none", borderRadius: 6, background: "var(--brand)", color: "var(--fg-on-brand)", fontSize: 11, fontWeight: 600, cursor: creatingLugar ? "default" : "pointer", fontFamily: "inherit", flexShrink: 0 }}>
+                  style={{ display: "flex", alignItems: "center", gap: 4, height: 32, padding: "0 12px", border: "none", borderRadius: 8, background: "var(--brand)", color: "var(--fg-on-brand)", fontSize: 12, fontWeight: 700, cursor: creatingLugar ? "default" : "pointer", fontFamily: "inherit", flexShrink: 0 }}>
                   {creatingLugar ? <Loader2 size={10} className="animate-spin" /> : <Plus size={10} />}
                   Crear
                 </button>
@@ -1722,7 +1722,7 @@ export default function OTCrearPanel({
             )}
             {/* PDF hint: matched */}
             {pdfHints && !pdfHints.lugarText && pdfHints.lugarMatched && form.lugar_id && (
-              <div style={{ marginTop: 6, display: "flex", alignItems: "center", gap: 6, padding: "5px 10px", background: "var(--success-bg)", border: "1px solid var(--success)", borderRadius: 7 }}>
+              <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", background: "var(--success-bg)", border: "1px solid var(--success)", borderRadius: 8 }}>
                 <Check size={11} style={{ color: "var(--success)", flexShrink: 0 }} />
                 <span style={{ fontSize: 11, color: "var(--success)" }}>Lugar encontrado en el sistema</span>
               </div>
@@ -1755,7 +1755,7 @@ export default function OTCrearPanel({
               value={form.fecha_inicio}
               onChange={e => setF("fecha_inicio", e.target.value)}
               style={{
-                height: 40, padding: "0 10px",
+                height: 40, padding: "0 12px",
                 border: "1px solid var(--border)", borderRadius: 8,
                 fontSize: 13, color: form.fecha_inicio ? "var(--fg-1)" : "var(--fg-4)",
                 outline: "none", fontFamily: "inherit", background: "var(--surface-1)",
@@ -1770,7 +1770,7 @@ export default function OTCrearPanel({
               value={form.fecha_termino}
               onChange={e => setF("fecha_termino", e.target.value)}
               style={{
-                height: 40, padding: "0 10px",
+                height: 40, padding: "0 12px",
                 border: "1px solid var(--border)", borderRadius: 8,
                 fontSize: 13, color: form.fecha_termino ? "var(--fg-1)" : "var(--fg-4)",
                 outline: "none", fontFamily: "inherit", background: "var(--surface-1)",
@@ -1779,16 +1779,16 @@ export default function OTCrearPanel({
           </FieldRow>
 
           {/* Recurrence + Work type */}
-          <div style={{ display: "flex", gap: 10, padding: "12px 0", borderBottom: "1px solid var(--border)" }}>
+          <div style={{ display: "flex", gap: 24, padding: "24px 0", borderBottom: "1px solid var(--border)" }}>
             <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 12, fontWeight: 600, color: "var(--fg-3)", marginBottom: 6 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: "var(--fg-3)", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.06em" }}>
                 Recurrencia
               </div>
               <select
                 value={form.recurrencia}
                 onChange={e => setF("recurrencia", e.target.value as Recurrencia)}
                 style={{
-                  width: "100%", height: 40, padding: "0 8px",
+                  width: "100%", height: 40, padding: "0 12px",
                   border: "1px solid var(--border)", borderRadius: 8,
                   fontSize: 13, color: "var(--fg-1)", outline: "none",
                   background: "var(--surface-1)", fontFamily: "inherit",
@@ -1800,14 +1800,14 @@ export default function OTCrearPanel({
               </select>
             </div>
             <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 12, fontWeight: 600, color: "var(--fg-3)", marginBottom: 6 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: "var(--fg-3)", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.06em" }}>
                 Tipo de trabajo
               </div>
               <select
                 value={form.tipo_trabajo}
                 onChange={e => setF("tipo_trabajo", e.target.value as TipoTrabajo | "")}
                 style={{
-                  width: "100%", height: 40, padding: "0 8px",
+                  width: "100%", height: 40, padding: "0 12px",
                   border: "1px solid var(--border)", borderRadius: 8,
                   fontSize: 13, color: "var(--fg-1)", outline: "none",
                   background: "var(--surface-1)", fontFamily: "inherit",
@@ -1822,11 +1822,11 @@ export default function OTCrearPanel({
           </div>
 
           {/* Priority */}
-          <div style={{ padding: "12px 0", borderBottom: "1px solid var(--border)" }}>
-            <div style={{ fontSize: 11, fontWeight: 600, color: "var(--fg-4)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>
+          <div style={{ padding: "24px 0", borderBottom: "1px solid var(--border)" }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: "var(--fg-3)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 12 }}>
               Prioridad
             </div>
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
               {PRIORIDADES.map((p) => {
                 const active = form.prioridad === p.value;
                 return (
@@ -1835,11 +1835,11 @@ export default function OTCrearPanel({
                     type="button"
                     onClick={() => setF("prioridad", p.value)}
                     style={{
-                      height: 34, padding: "0 14px",
+                      height: 40, padding: "0 16px",
                       border: active ? "none" : "1px solid var(--border)",
                       borderRadius: 8,
                       background: active ? "var(--surface-hover)" : "var(--surface-1)",
-                      fontSize: 13, fontWeight: active ? 600 : 400,
+                      fontSize: 13, fontWeight: active ? 700 : 500,
                       color: active ? p.activeColor : "var(--fg-2)",
                       cursor: "pointer", transition: "all 0.12s",
                       fontFamily: "inherit",
@@ -1855,7 +1855,7 @@ export default function OTCrearPanel({
           {/* Categories */}
           {categorias.length > 0 && (
             <FieldRow icon={<Tag size={14} />} label="Categorías">
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                 {categorias.map(c => {
                   const active = form.categoria_id === c.id;
                   return (
@@ -1864,12 +1864,12 @@ export default function OTCrearPanel({
                       type="button"
                       onClick={() => setF("categoria_id", active ? "" : c.id)}
                       style={{
-                        height: 26, padding: "0 9px",
-                        border: "none", borderRadius: 4,
+                        height: 32, padding: "0 12px",
+                        border: "none", borderRadius: 8,
                         background: active ? (c.color ?? "var(--brand)") : "var(--surface-hover)",
                         color: active ? "var(--fg-on-brand)" : "var(--fg-2)",
-                        fontSize: 11.5, fontWeight: active ? 600 : 400,
-                        cursor: "pointer", display: "flex", alignItems: "center", gap: 3,
+                        fontSize: 12, fontWeight: active ? 700 : 500,
+                        cursor: "pointer", display: "flex", alignItems: "center", gap: 5,
                         transition: "all 0.1s", fontFamily: "inherit",
                       }}
                     >
@@ -1887,7 +1887,7 @@ export default function OTCrearPanel({
 
       {/* Sticky footer */}
       <div style={{
-        borderTop: "1px solid var(--border)", padding: "12px 20px",
+        borderTop: "1px solid var(--border)", padding: "16px 28px",
         display: "flex", alignItems: "center", justifyContent: "space-between",
         background: "var(--surface-1)", flexShrink: 0,
       }}>
