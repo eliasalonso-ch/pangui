@@ -33,21 +33,23 @@ const stagger = {
   visible: { transition: { staggerChildren: 0.08 } },
 };
 
-function LandingNav() {
+export function LandingNav({ context = "landing" } = {}) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const prefix = context === "landing" ? "" : "/";
   const links = [
-    { label: "Soluciones", href: "#soluciones" },
-    { label: "Operación", href: "#operacion" },
-    { label: "Cumplimiento", href: "#cumplimiento" },
-    { label: "FAQ", href: "#faq" },
+    { label: "Soluciones", href: `${prefix}#soluciones` },
+    { label: "Operación", href: `${prefix}#operacion` },
+    { label: "Cumplimiento", href: `${prefix}#cumplimiento` },
+    { label: "Precios", href: "/precios" },
+    { label: "FAQ", href: `${prefix}#faq` },
   ];
 
   return (
     <header className="fixed left-0 right-0 top-0 z-50 border-b border-black/10 bg-white">
       <div className="mx-auto flex h-16 max-w-[1440px] items-center justify-between px-4 md:h-[68px] md:px-10 xl:px-12">
-        <a href="#" aria-label="Pangui - inicio" className="flex items-center">
+        <Link href="/" aria-label="Pangui - inicio" className="flex items-center">
           <img src="/logo2.svg" alt="Pangui" className="h-7 w-auto md:h-8" />
-        </a>
+        </Link>
 
         <nav className="hidden items-center gap-8 lg:flex">
           {links.map((link) => (
@@ -57,7 +59,7 @@ function LandingNav() {
               className="inline-flex items-center gap-1 text-[14px] font-semibold text-[var(--ink)] transition-colors hover:text-[var(--accent)]"
             >
               {link.label}
-              {link.label !== "FAQ" && <ChevronDown size={13} strokeWidth={2} />}
+              {link.label !== "FAQ" && link.label !== "Precios" && <ChevronDown size={13} strokeWidth={2} />}
             </a>
           ))}
         </nav>
@@ -593,7 +595,8 @@ function FAQ() {
   );
 }
 
-function LandingFooter() {
+export function LandingFooter({ context = "landing" } = {}) {
+  const prefix = context === "landing" ? "" : "/";
   return (
     <footer className="border-t border-[var(--hairline)] bg-white text-[var(--ink)]">
       <div className="mx-auto max-w-[1440px] px-4 py-10 sm:px-5 md:px-10 md:py-12 xl:px-12">
@@ -607,9 +610,9 @@ function LandingFooter() {
           <div>
             <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--ink-3)]">Producto</p>
             <div className="mt-5 flex flex-col gap-3 text-[14px] text-[var(--ink-2)]">
-              <a href="#soluciones">Soluciones</a>
-              <a href="#operacion">Operación</a>
-              <a href="#cumplimiento">Cumplimiento</a>
+              <a href={`${prefix}#soluciones`}>Soluciones</a>
+              <a href={`${prefix}#operacion`}>Operación</a>
+              <a href={`${prefix}#cumplimiento`}>Cumplimiento</a>
               <Link href="/login">Entrar</Link>
             </div>
           </div>

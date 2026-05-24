@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 40" aria-label="Tarjeta">
+  <rect width="64" height="40" rx="4" fill="rgba(255,255,255,0.18)" stroke="rgba(255,255,255,0.42)" stroke-width="1"/>
+  <rect x="6" y="10" width="14" height="9" rx="2" fill="rgba(255,255,255,0.62)"/>
+  <rect x="6" y="24" width="36" height="3" rx="1" fill="rgba(255,255,255,0.42)"/>
+  <rect x="6" y="30" width="20" height="3" rx="1" fill="rgba(255,255,255,0.32)"/>
+</svg>

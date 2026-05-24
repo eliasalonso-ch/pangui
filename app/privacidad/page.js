@@ -309,6 +309,7 @@ export default function PrivacidadPage() {
             "Expo (650 Industries, Inc., EE.UU.) — Servicio de notificaciones push (Expo Push) y entrega de actualizaciones de la app móvil (Expo Updates). El token push se asocia a tu cuenta.",
             "Vercel Inc. (EE.UU.) — Hosting del sitio web y backend de generación de PDF (pdf.getpangui.com). El servicio de PDF recibe el contenido completo de la OT que solicitas exportar.",
             "Resend Inc. (EE.UU.) — Envío de correos transaccionales (confirmación de cuenta, invitaciones, avisos). Solo recibe email y contenido del mensaje.",
+            "Flow S.A. (Chile) — Procesamiento de pagos, enrolamiento seguro de tarjetas y administración de suscripciones. Pangui almacena solo identificadores, estado de suscripción y datos parciales de tarjeta como marca y últimos 4 dígitos.",
             "Apple Inc. y Google LLC (EE.UU.) — Tiendas de aplicaciones (App Store, Google Play) para distribución de la app móvil; reciben datos de instalación y uso conforme a sus propias políticas.",
           ]}
         />

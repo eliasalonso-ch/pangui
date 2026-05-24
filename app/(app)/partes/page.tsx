@@ -8,6 +8,8 @@ import {
   Package, Minus, Pencil, Trash2, Upload,
   MapPin, Tag, AlertTriangle,
 } from "lucide-react";
+import { useSuscripcion } from "@/hooks/useSuscripcion";
+import { UpgradePrompt } from "@/components/UpgradePrompt";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -175,6 +177,25 @@ function ComboCreate({
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 export default function PartesPage() {
+  const suscripcion = useSuscripcion();
+  // Inventory is gated to Pro+. While loading we show nothing; if denied, an upgrade card.
+  if (suscripcion.loading) {
+    return <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100dvh", color: "var(--fg-4)" }}><Loader2 size={18} className="animate-spin" /></div>;
+  }
+  if (suscripcion.data && suscripcion.data.plan_features && !suscripcion.data.plan_features.inventario) {
+    return (
+      <UpgradePrompt
+        variant="card"
+        title="Inventario está disponible en Pro"
+        description="Sube tu plan para gestionar repuestos, partes y movimientos de bodega."
+        upgradeTo="Pro"
+      />
+    );
+  }
+  return <PartesPageInner />;
+}
+
+function PartesPageInner() {
   const router = useRouter();
   const [plantaId, setPlantaId] = useState<string | null>(null);
   const [partes, setPartes] = useState<Parte[]>([]);

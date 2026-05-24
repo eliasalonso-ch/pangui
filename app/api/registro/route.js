@@ -17,7 +17,10 @@ export async function POST(req) {
     email,
     password,
     empresa_nombre,
-    cargo,
+    cargo,        // human-readable name (back-compat for legacy text column)
+    cargo_id,     // FK to public.cargos.id (canonical)
+    oficio,       // human-readable name (back-compat)
+    oficio_id,    // FK to public.oficios.id (canonical)
     sector,
     tamaño_equipo,
     region,
@@ -64,25 +67,50 @@ export async function POST(req) {
     return NextResponse.json({ error: "Error creando la empresa: " + workspaceError.message }, { status: 500 });
   }
 
-  // 3. Crear perfil usuario
+  // 3. Actualizar perfil del usuario.
+  //    IMPORTANT: there is a DB trigger `handle_new_user` (AFTER INSERT on
+  //    auth.users) that already created a row in `public.usuarios` with default
+  //    values (rol='member', workspace_id=null) the moment we created the auth
+  //    user above. We just UPDATE that row instead of INSERT-ing a new one
+  //    (INSERT would fail with 409 conflict on the PK).
+  //
+  //    rol = "owner" because the signup IS the workspace creator — they own
+  //    billing and have full admin powers.
+  //    cargo_id / oficio_id go to the canonical FK columns; cargo / oficio
+  //    text are also written for backwards compatibility with the legacy schema.
   const trialEnd = new Date();
-  trialEnd.setDate(trialEnd.getDate() + 30);
+  trialEnd.setDate(trialEnd.getDate() + 14);
 
-  const { error: perfilError } = await admin.from("usuarios").insert({
-    id:           userId,
+  const { error: perfilError } = await admin.from("usuarios").update({
     workspace_id: workspace.id,
     nombre:       nombre.trim(),
-    rol:          "admin",
+    rol:          "owner",
     cargo:        cargo ?? null,
-    plan:         "basic",
+    cargo_id:     cargo_id ?? null,
+    oficio:       oficio ?? null,
+    oficio_id:    oficio_id ?? null,
+    plan:         "pro",
     plan_status:  "trial",
     trial_end:    trialEnd.toISOString(),
-  });
+  }).eq("id", userId);
 
   if (perfilError) {
     await admin.auth.admin.deleteUser(userId);
     await admin.from("workspaces").delete().eq("id", workspace.id);
     return NextResponse.json({ error: "Error creando perfil: " + perfilError.message }, { status: 500 });
+  }
+
+  // 4. Crear suscripción en estado trialing (Pro features unlocked, no Flow charge yet)
+  const { error: subError } = await admin.from("subscriptions").insert({
+    workspace_id:       workspace.id,
+    plan_key:           "pro",
+    status:             "trialing",
+    trial_end:          trialEnd.toISOString(),
+    price_per_user_clp: 0,
+  });
+  if (subError) {
+    // Not fatal — user can still use the app. Log and continue.
+    console.error("[registro] subscription insert failed:", subError);
   }
 
   return NextResponse.json({ ok: true });

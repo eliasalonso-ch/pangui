@@ -1,8 +1,44 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse } from "next/server";
 
+/**
+ * Next.js 16 proxy (formerly "middleware"). Auth gate for the app.
+ *
+ * File-naming convention: in Next.js 16+ the file MUST be named `proxy.js`
+ * (or `proxy.ts`) at the project root and export a function named `proxy`.
+ * The old `middleware` convention is deprecated.
+ *
+ * This proxy is hardened against the Supabase refresh-token loop:
+ *   - public paths skip auth entirely (no Supabase client created)
+ *   - any auth error clears all sb-* cookies and bounces to /login
+ *   - network/rate-limit exceptions are swallowed (failing closed amplifies the storm)
+ *   - each request goes through this once — server components also call
+ *     getServerUser() which is memoized per request via React.cache()
+ */
 export async function proxy(request) {
   const response = NextResponse.next();
+  const pathname = request.nextUrl.pathname;
+
+  const isLogin = pathname === "/login";
+  const isRoot  = pathname === "/";
+  const isPublic =
+    pathname.startsWith("/arco") ||
+    pathname.startsWith("/privacidad") ||
+    pathname.startsWith("/terminos") ||
+    pathname.startsWith("/registro") ||
+    pathname.startsWith("/precios") ||
+    pathname.startsWith("/recuperar-contrasena") ||
+    pathname.startsWith("/reset-contrasena") ||
+    pathname.startsWith("/confirmar-reset") ||
+    pathname === "/api/registro" ||
+    pathname === "/api/catalogos/cargos-oficios" ||
+    pathname === "/api/suscripcion/webhook" ||
+    pathname === "/api/suscripcion/register/callback" ||
+    pathname === "/api/suscripcion/card/change/callback";
+
+  // Public paths: don't even create a Supabase client. Avoids burning rate-limit
+  // budget on routes that don't need auth (landing, pricing, terms, signup, …).
+  if (isPublic || isRoot) return response;
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -19,47 +55,33 @@ export async function proxy(request) {
     },
   );
 
-  const pathname = request.nextUrl.pathname;
-
-  const isLogin = pathname === "/login";
-  const isRoot  = pathname === "/";
-  const isPublic =
-    pathname.startsWith("/arco") ||
-    pathname.startsWith("/privacidad") ||
-    pathname.startsWith("/terminos") ||
-    pathname.startsWith("/registro") ||
-    pathname.startsWith("/recuperar-contrasena") ||
-    pathname.startsWith("/reset-contrasena") ||
-    pathname.startsWith("/confirmar-reset") ||
-    pathname === "/api/registro" ||
-    pathname === "/api/suscripcion/webhook" ||
-    pathname === "/api/suscripcion/seed-planes";
-
-  // Skip auth check entirely for public routes and login
-  if (isPublic || isRoot || isLogin) return response;
+  const sendToLogin = () => {
+    const redirect = NextResponse.redirect(new URL("/login", request.url));
+    request.cookies.getAll().forEach(({ name }) => {
+      if (name.startsWith("sb-")) redirect.cookies.delete(name);
+    });
+    return redirect;
+  };
 
   let user = null;
   try {
     const { data, error } = await supabase.auth.getUser();
-    if (error?.message?.includes("refresh_token") || error?.status === 400) {
-      // Stale refresh token — clear the session and send to login
-      const redirect = NextResponse.redirect(new URL("/login", request.url));
-      request.cookies.getAll().forEach(({ name }) => {
-        if (name.startsWith("sb-")) redirect.cookies.delete(name);
-      });
-      return redirect;
+
+    // Any auth error here is treated as "session is dead". Clear cookies and
+    // bounce to /login. Don't retry — that's what caused the 429 storm.
+    if (error) {
+      if (isLogin) return response;
+      return sendToLogin();
     }
     user = data.user;
   } catch {
-    // Network error — let the request through, don't block
+    // Network error or rate-limit. Let the request through; failing closed only
+    // amplifies the problem (every retry burns another auth/v1/token call).
+    return response;
   }
 
-  // No session → allow /, /login and public routes only
-  if (!user && !isLogin && !isRoot && !isPublic) {
-    return NextResponse.redirect(new URL("/login", request.url));
-  }
+  if (!user && !isLogin) return sendToLogin();
 
-  // Session + on /login → go to app
   if (user && isLogin) {
     return NextResponse.redirect(new URL("/ordenes", request.url));
   }

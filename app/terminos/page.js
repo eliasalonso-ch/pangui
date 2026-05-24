@@ -338,23 +338,25 @@ export default function TerminosPage() {
       {/* 4. Planes y precios */}
       <LegalSection icon={CreditCard} title="4. Planes y precios">
         <p>
-          Pangui puede usar un modelo de cobro por usuarios invitados o por
-          condiciones comerciales acordadas con cada empresa. La cuenta
-          administradora puede comenzar gratis; cualquier suscripción pagada
-          se informa antes de activarse:
+          Pangui ofrece planes de suscripción mensual en pesos chilenos (CLP),
+          calculados por cada usuario activo del espacio de trabajo. Antes de
+          activar o cambiar un plan, la pantalla de suscripción muestra el
+          precio por usuario, la cantidad de usuarios activos y el costo mensual
+          estimado:
         </p>
         <PlanesTable
           rows={[
-            ["Cuenta administradora", "Gratis", "Acceso inicial para configurar y evaluar la plataforma."],
-            ["Usuario invitado adicional", "Según plan vigente", "Cobro mensual por usuarios invitados activos cuando corresponda."],
-            ["Plan Enterprise", "A convenir", "Para empresas con necesidades particulares: SLA dedicado, integraciones, capacitación."],
+            ["Basic", "$4.990 CLP / usuario activo / mes", "Funciones esenciales para comenzar."],
+            ["Esencial", "$6.990 CLP / usuario activo / mes", "Para equipos en operación con más capacidad y exportaciones."],
+            ["Pro", "$9.990 CLP / usuario activo / mes", "Funciones avanzadas, inventario, analítica y automatizaciones."],
+            ["Enterprise", "A convenir", "Para empresas con condiciones comerciales, SLA o integraciones específicas."],
           ]}
         />
         <p>
-          El cobro se calcula al cierre de cada mes según la cantidad de
-          usuarios activos en tu espacio de trabajo. Si invitas o desactivas
-          usuarios durante el mes, el cobro se prorratea según los días de uso
-          de cada uno.
+          El monto puede cambiar si activas o desactivas usuarios, porque el
+          sistema sincroniza la cantidad de usuarios activos con la suscripción.
+          La pantalla de facturación muestra el total estimado antes de enviar
+          al checkout de Flow.cl.
         </p>
         <p>
           Pangui se reserva el derecho de modificar precios o condiciones con
@@ -366,31 +368,29 @@ export default function TerminosPage() {
       {/* 5. Período de prueba */}
       <LegalSection icon={RefreshCw} title="5. Período de prueba gratuita">
         <p>
-          Al crear una cuenta administradora obtienes acceso{" "}
-          <strong>completamente gratuito y sin límite de tiempo</strong> a la
-          plataforma para uso individual. No se requiere tarjeta de crédito al
-          registrarte.
+          Al crear un workspace puedes tener una prueba gratuita de funciones
+          Pro por el plazo informado en la aplicación. No se requiere tarjeta
+          de crédito al registrarte.
         </p>
         <p>
-          El cobro solo aplica cuando se activa una suscripción pagada o se
-          acuerdan usuarios invitados pagados según lo descrito en la sección 4.
+          El cobro solo aplica cuando el owner activa una suscripción pagada,
+          acepta los términos y autoriza el cargo recurrente mediante Flow.cl.
         </p>
       </LegalSection>
 
       {/* 6. Pago y cobro */}
       <LegalSection icon={CreditCard} title="6. Pago y cobro">
         <p>
-          El cobro por usuarios invitados se realiza mensualmente en
-          pesos chilenos (CLP):
+          El cobro de planes pagados se realiza mensualmente mediante Flow.cl:
         </p>
         <Ul
           items={[
-            "El ciclo de cobro se calcula al cierre de cada mes calendario.",
+            "Los cargos se hacen en CLP, con la frecuencia mensual indicada para el plan elegido.",
+            "El cobro se calcula según el precio del plan por la cantidad de usuarios activos del workspace.",
+            "El owner puede cambiar de plan, actualizar tarjeta o cancelar la suscripción desde Configuración > Suscripción.",
             "El documento tributario de la suscripción, cuando corresponda, se gestiona fuera de las órdenes de trabajo.",
-            "El cobro se calcula sobre la cantidad de usuarios invitados activos durante el mes; se prorratea por los días de uso de cada usuario.",
-            "El pago se realiza mediante los métodos disponibles en la plataforma.",
-            "En caso de no pago, los accesos de los usuarios invitados se suspenden hasta regularizar el saldo. La cuenta administradora conserva su acceso gratuito.",
-            "Pangui no almacena datos de tarjetas de crédito; el procesamiento es responsabilidad de los procesadores de pago habilitados.",
+            "En caso de no pago, Pangui puede limitar o suspender funciones pagadas hasta regularizar el saldo.",
+            "Pangui no almacena los datos completos de tarjetas de crédito; el procesamiento lo realiza Flow.cl.",
           ]}
         />
       </LegalSection>
@@ -402,7 +402,8 @@ export default function TerminosPage() {
           tratarse de un contrato de servicio celebrado por medios electrónicos
           (a distancia), tienes derecho a retractarte dentro de los{" "}
           <strong>10 días hábiles</strong> siguientes al primer cobro pagado
-          por usuarios invitados, con reembolso íntegro del monto pagado.
+          de una suscripción, con reembolso íntegro del monto pagado cuando
+          corresponda legalmente.
         </p>
         <InfoBox>
           Para ejercer el retracto: envía un correo a{" "}
@@ -413,10 +414,10 @@ export default function TerminosPage() {
           reembolso se procesa en un máximo de 10 días hábiles.
         </InfoBox>
         <p>
-          <strong>Desactivación de usuarios invitados:</strong> Puedes
-          desactivar usuarios invitados en cualquier momento desde tu panel de
-          administración. El cobro mensual se prorratea según los días en que
-          el usuario estuvo activo.
+          <strong>Cancelación de suscripción:</strong> Puedes cancelar tu plan
+          desde Configuración &gt; Suscripción. Si eliges cancelar al fin del
+          período vigente, conservarás acceso a las funciones pagadas hasta esa
+          fecha y no se realizarán nuevos cobros del plan cancelado.
         </p>
         <p>
           <strong>Cancelación de cuenta:</strong> Puedes cancelar

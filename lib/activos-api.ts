@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase";
+import { ensureActivosCatalogo } from "@/lib/cuotas-client";
 import type { Activo, AssetAttachment, AssetCriticality, AssetStatus, Fabricante, Modelo, Proveedor } from "@/types/ordenes";
 
 export const ACTIVO_SELECT = `
@@ -65,6 +66,7 @@ function cleanInput(input: ActivoInput): Record<string, unknown> {
 }
 
 export async function createActivo(workspaceId: string, input: ActivoInput): Promise<Activo> {
+  await ensureActivosCatalogo();
   const sb = createClient();
   const payload: Record<string, unknown> = {
     workspace_id: workspaceId,

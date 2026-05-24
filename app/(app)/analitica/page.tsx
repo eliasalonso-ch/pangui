@@ -18,6 +18,7 @@ import {
   Package,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase";
+import { useSuscripcion } from "@/hooks/useSuscripcion";
 import type { Estado, Prioridad, TipoTrabajo } from "@/types/ordenes";
 import {
   getResponseTime, getResolutionTime, getWorkingTime, getBlockedDuration,
@@ -545,6 +546,13 @@ export default function AnaliticaPage() {
   const [ubicacionFilter, setUbicacionFilter] = useState("all");
   const [usuarioFilter, setUsuarioFilter] = useState("all");
 
+  // Plan-based clamp on analytics history window.
+  const suscripcion = useSuscripcion();
+  const maxRange = suscripcion.data?.plan_limits?.historial_meses ?? Infinity;
+  // setRangeSafe clamps the value to whatever the plan allows. Disabled <option>s
+  // already prevent picking blocked values via the dropdown; this guards programmatic sets.
+  const setRangeSafe = (n: number) => setRangeMonths(Number.isFinite(maxRange) && n > maxRange ? maxRange : n);
+
   // ── Load data ───────────────────────────────────────────────────────────────
   useEffect(() => {
     async function load() {
@@ -846,13 +854,13 @@ export default function AnaliticaPage() {
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           <select
             value={rangeMonths}
-            onChange={e => setRangeMonths(Number(e.target.value))}
+            onChange={e => setRangeSafe(Number(e.target.value))}
             style={{ height: 36, padding: "0 12px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.surface, fontSize: 13, color: C.text1, cursor: "pointer" }}
           >
             <option value={1}>Último mes</option>
-            <option value={2}>Últimos 2 meses</option>
-            <option value={3}>Últimos 3 meses</option>
-            <option value={6}>Últimos 6 meses</option>
+            <option value={2} disabled={maxRange < 2}>Últimos 2 meses {maxRange < 2 ? "(Esencial)" : ""}</option>
+            <option value={3} disabled={maxRange < 3}>Últimos 3 meses {maxRange < 3 ? "(Esencial)" : ""}</option>
+            <option value={6} disabled={maxRange < 6}>Últimos 6 meses {maxRange < 6 ? "(Pro)" : ""}</option>
           </select>
           <select
             value={ubicacionFilter}

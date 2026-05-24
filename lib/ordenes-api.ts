@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase";
+import { ensureOtCategoria } from "@/lib/cuotas-client";
 import type {
   OrdenTrabajo, OrdenListItem, ActividadOT, ActividadTipo,
   Estado, Prioridad, TipoTrabajo, ClasificacionOT, Recurrencia, OTLink,
@@ -182,6 +183,12 @@ export async function createOrden(payload: {
   const sb = createClient();
   const recurrencia = payload.recurrencia ?? "ninguna";
   const proxima_ejecucion = calcProximaEjecucion(recurrencia);
+
+  // Quota gate: count OTs that are preventivas or recurrentes ("repetitivas").
+  const esRepetitiva = recurrencia !== "ninguna" || payload.tipo_trabajo === "preventiva";
+  if (esRepetitiva) {
+    await ensureOtCategoria("repetitivas", "OT repetitivas");
+  }
 
   const { data: ws } = await sb
     .from("workspaces")

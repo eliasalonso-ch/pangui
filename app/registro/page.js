@@ -1,27 +1,14 @@
 "use client";
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase";
 import {
-  ArrowLeft, ArrowRight, CheckCircle2, Sun, Moon, Monitor,
-  User, Mail, Lock, Building2, Briefcase, Users, MapPin, Layers,
-  Eye, EyeOff,
+  ArrowLeft, ArrowRight, CheckCircle2,
+  User, Mail, Lock, Building2, Briefcase, Users, MapPin, Layers, Wrench,
+  Eye, EyeOff, Loader2, Sparkles,
 } from "lucide-react";
-
-const THEME_KEY = "pangui_theme";
-const THEME_CYCLE = ["auto", "light", "dark"];
-const THEME_ICON = { auto: Monitor, light: Sun, dark: Moon };
-
-function applyTheme(t) {
-  const html = document.documentElement;
-  const resolved = t === "auto"
-    ? (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light")
-    : t;
-  html.setAttribute("data-theme", resolved);
-  html.setAttribute("data-theme-pref", t);
-  localStorage.setItem(THEME_KEY, t);
-}
+import { PLANS } from "@/lib/flow-plans";
 
 const SECTORES = [
   { value: "mineria", label: "Minería" },
@@ -33,20 +20,10 @@ const SECTORES = [
   { value: "otro", label: "Otro" },
 ];
 
-const CARGOS = [
-  { value: "jefe_mantencion", label: "Jefe de Mantención" },
-  { value: "supervisor", label: "Supervisor de Operaciones" },
-  { value: "ingeniero", label: "Ingeniero de Mantenimiento" },
-  { value: "tecnico_senior", label: "Técnico Senior" },
-  { value: "gerente", label: "Gerente de Planta" },
-  { value: "contratista", label: "Contratista independiente" },
-  { value: "otro", label: "Otro" },
-];
-
-const TAMAÑOS = [
-  { value: "1-5", label: "1 – 5 técnicos" },
-  { value: "6-15", label: "6 – 15 técnicos" },
-  { value: "16-40", label: "16 – 40 técnicos" },
+const TAMANOS = [
+  { value: "1-5", label: "1 - 5 técnicos" },
+  { value: "6-15", label: "6 - 15 técnicos" },
+  { value: "16-40", label: "16 - 40 técnicos" },
   { value: "40+", label: "Más de 40 técnicos" },
 ];
 
@@ -58,38 +35,76 @@ const REGIONES = [
   "Aysén", "Magallanes",
 ];
 
+const FEATURES = [
+  "Órdenes de trabajo en tiempo real",
+  "Procedimientos, fotos y firma digital",
+  "Inventario y alertas de stock crítico",
+  "Reportes PDF, Excel y analítica Pro",
+];
+
 const inputStyle = {
-  width: "100%", padding: "11px 14px 11px 38px",
-  border: "1.5px solid var(--divider-1)", borderRadius: 0,
-  fontSize: 15, fontFamily: "inherit", color: "var(--black)",
-  background: "var(--background)", outline: "none",
-  boxSizing: "border-box", transition: "border-color 0.15s",
+  width: "100%",
+  height: 42,
+  padding: "0 12px 0 38px",
+  border: "1px solid #E2E8F0",
+  borderRadius: 8,
+  fontSize: 14,
+  fontFamily: "inherit",
+  color: "#0F172A",
+  background: "#FFFFFF",
+  outline: "none",
+  boxSizing: "border-box",
+  transition: "border-color 0.12s, box-shadow 0.12s",
 };
 
 const selectStyle = {
-  width: "100%", padding: "11px 14px",
-  border: "1.5px solid var(--divider-1)", borderRadius: 0,
-  fontSize: 15, fontFamily: "inherit", color: "var(--black)",
-  background: "var(--background)", outline: "none",
-  boxSizing: "border-box", cursor: "pointer",
+  width: "100%",
+  height: 42,
+  padding: "0 12px",
+  border: "1px solid #E2E8F0",
+  borderRadius: 8,
+  fontSize: 14,
+  fontFamily: "inherit",
+  color: "#0F172A",
+  background: "#FFFFFF",
+  outline: "none",
+  boxSizing: "border-box",
+  cursor: "pointer",
   appearance: "none",
+  transition: "border-color 0.12s, box-shadow 0.12s",
 };
 
 const labelStyle = {
-  display: "block", fontSize: 11, fontWeight: 700,
-  color: "var(--accent-5)", textTransform: "uppercase",
-  letterSpacing: "0.08em", marginBottom: 7,
+  display: "block",
+  fontSize: 12,
+  fontWeight: 600,
+  color: "#64748B",
+  marginBottom: 6,
 };
+
+function focusInput(e) {
+  e.currentTarget.style.borderColor = "#2563EB";
+  e.currentTarget.style.boxShadow = "0 0 0 3px rgba(37,99,235,0.15)";
+}
+
+function blurInput(e) {
+  e.currentTarget.style.borderColor = "#E2E8F0";
+  e.currentTarget.style.boxShadow = "none";
+}
 
 function Field({ icon: Icon, label, children }) {
   return (
-    <div style={{ position: "relative" }}>
+    <div>
       <label style={labelStyle}>{label}</label>
       <div style={{ position: "relative" }}>
         {Icon && (
           <Icon size={15} style={{
-            position: "absolute", left: 12, top: "50%",
-            transform: "translateY(-50%)", color: "var(--accent-5)", pointerEvents: "none",
+            position: "absolute",
+            left: 12,
+            top: "50%",
+            transform: "translateY(-50%)",
+            color: "#94A3B8",
+            pointerEvents: "none",
           }} />
         )}
         {children}
@@ -100,38 +115,46 @@ function Field({ icon: Icon, label, children }) {
 
 export default function RegistroPage() {
   const router = useRouter();
+  const search = useSearchParams();
+  // ?plan=esencial when arriving from /precios — used to redirect post-signup
+  // straight to /configuracion/suscripcion so the user can upgrade immediately.
+  const requestedPlan = search.get("plan");
+  const requestedPlanDef = PLANS.find(p => p.key === requestedPlan && p.selfServe);
+
   const [step, setStep] = useState(1);
-  const [theme, setTheme] = useState("auto");
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  // Step 1
   const [nombre, setNombre] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
-  // Step 2
   const [empresaNombre, setEmpresaNombre] = useState("");
-  const [cargo, setCargo] = useState("");
+  const [cargoId, setCargoId] = useState("");
+  const [oficioId, setOficioId] = useState("");
   const [sector, setSector] = useState("");
-  const [tamañoEquipo, setTamañoEquipo] = useState("");
+  const [tamanoEquipo, setTamanoEquipo] = useState("");
   const [region, setRegion] = useState("");
 
+  // Cargos + oficios fetched from the canonical DB catalog (workspace_id IS NULL).
+  // Avoids the historical mismatch where hardcoded form options didn't align
+  // with the rows the rest of the app reads from cargos / oficios tables.
+  const [cargos, setCargos] = useState([]);
+  const [oficios, setOficios] = useState([]);
+
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem(THEME_KEY);
-      if (saved === "dark" || saved === "light" || saved === "auto") setTheme(saved);
-    } catch {}
+    let cancelled = false;
+    fetch("/api/catalogos/cargos-oficios")
+      .then(r => r.ok ? r.json() : { cargos: [], oficios: [] })
+      .then(j => {
+        if (cancelled) return;
+        setCargos(j.cargos ?? []);
+        setOficios(j.oficios ?? []);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
   }, []);
-
-  function toggleTheme() {
-    const next = THEME_CYCLE[(THEME_CYCLE.indexOf(theme) + 1) % THEME_CYCLE.length];
-    setTheme(next);
-    applyTheme(next);
-  }
-
-  const ThemeIcon = THEME_ICON[theme];
 
   function validateStep1() {
     if (!nombre.trim()) return "Ingresa tu nombre completo.";
@@ -154,8 +177,12 @@ export default function RegistroPage() {
     setError(null);
     setLoading(true);
 
+    // Look up the picked cargo / oficio so we can ALSO send the human-readable
+    // name (back-compat for the legacy text columns).
+    const cargoRow  = cargos.find(c => c.id === cargoId)   ?? null;
+    const oficioRow = oficios.find(o => o.id === oficioId) ?? null;
+
     try {
-      // 1. Crear cuenta vía API (service role server-side)
       const res = await fetch("/api/registro", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -164,17 +191,25 @@ export default function RegistroPage() {
           email: email.trim().toLowerCase(),
           password,
           empresa_nombre: empresaNombre.trim(),
-          cargo: cargo || null,
-          sector: sector || null,
-          tamaño_equipo: tamañoEquipo || null,
-          region: region || null,
+          cargo_id:    cargoId  || null,
+          cargo:       cargoRow?.nombre  ?? null,
+          oficio_id:   oficioId || null,
+          oficio:      oficioRow?.nombre ?? null,
+          sector:        sector || null,
+          tamaño_equipo: tamanoEquipo || null,
+          region:        region || null,
+          // Surface the intent so the API can use it for routing post-signup
+          requested_plan: requestedPlanDef?.key ?? null,
         }),
       });
 
       const data = await res.json();
-      if (!data.ok) { setError(data.error ?? "Error al crear la cuenta."); setLoading(false); return; }
+      if (!data.ok) {
+        setError(data.error ?? "Error al crear la cuenta.");
+        setLoading(false);
+        return;
+      }
 
-      // 2. Iniciar sesión automáticamente
       const supabase = createClient();
       const { error: loginErr } = await supabase.auth.signInWithPassword({
         email: email.trim().toLowerCase(),
@@ -187,7 +222,14 @@ export default function RegistroPage() {
         return;
       }
 
-      router.push("/ordenes");
+      // If the user came from /precios with a specific plan in mind, drop them
+      // on the subscription page so they can activate the card right away.
+      // Otherwise go to /inicio with a welcome=trial toast.
+      if (requestedPlanDef) {
+        router.push(`/configuracion/suscripcion?intent=${requestedPlanDef.key}`);
+      } else {
+        router.push("/inicio?welcome=trial");
+      }
     } catch {
       setError("Error de red. Intenta de nuevo.");
       setLoading(false);
@@ -198,250 +240,241 @@ export default function RegistroPage() {
 
   return (
     <div style={{
-      display: "flex", minHeight: "100vh",
-      fontFamily: "var(--font-sans, 'DM Sans', system-ui, sans-serif)",
+      display: "flex",
+      minHeight: "100vh",
+      fontFamily: 'var(--font-sans, "Geist"), system-ui, sans-serif',
     }}>
-      {/* ── Panel izquierdo (brand) ──────────────────── */}
       <div
-        className="registro-left"
+        className="registro-left-panel"
         style={{
-          display: "none", flexDirection: "column", justifyContent: "space-between",
-          width: "45%", minHeight: "100vh",
-          background: "linear-gradient(160deg, #0d1530 0%, #1a2a6c 60%, #273D88 100%)",
-          padding: "40px 48px", position: "relative", overflow: "hidden",
+          display: "none",
+          flexDirection: "column",
+          justifyContent: "space-between",
+          width: "52%",
+          minHeight: "100vh",
+          background: "linear-gradient(160deg, #0F172A 0%, #1E3A8A 55%, #2563EB 100%)",
+          padding: "44px 56px",
+          position: "relative",
+          overflow: "hidden",
         }}
       >
-        <div style={{ position: "absolute", top: -100, right: -100, width: 400, height: 400, borderRadius: "50%", border: "1px solid rgba(255,255,255,0.06)", pointerEvents: "none" }} />
-        <div style={{ position: "absolute", bottom: -60, left: -60, width: 280, height: 280, borderRadius: "50%", border: "1px solid rgba(255,255,255,0.05)", pointerEvents: "none" }} />
+        <div style={{
+          position: "absolute", inset: 0, pointerEvents: "none",
+          backgroundImage: "radial-gradient(rgba(255,255,255,0.07) 1px, transparent 1px)",
+          backgroundSize: "28px 28px",
+        }} />
+        <div style={{ position: "absolute", top: -140, right: -140, width: 520, height: 520, borderRadius: "50%", border: "1px solid rgba(255,255,255,0.06)", pointerEvents: "none" }} />
+        <div style={{ position: "absolute", bottom: -100, left: -100, width: 360, height: 360, borderRadius: "50%", border: "1px solid rgba(255,255,255,0.05)", pointerEvents: "none" }} />
 
-        {/* Logo */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", position: "relative", zIndex: 1 }}>
-          <img src="/pangui-logo.svg" alt="Pangui" style={{ width: 90, height: "auto" }} />
-          <button onClick={toggleTheme} style={{
-            display: "flex", alignItems: "center", justifyContent: "center",
-            width: 32, height: 32, background: "rgba(255,255,255,0.08)",
-            border: "1px solid rgba(255,255,255,0.14)", borderRadius: 0,
-            color: "rgba(255,255,255,0.7)", cursor: "pointer",
-          }}>
-            <ThemeIcon size={14} />
-          </button>
+        <div style={{ position: "relative", zIndex: 1, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
+          <img src="/logo6.svg" alt="Pangui" style={{ height: 28, width: "auto" }} />
+          <Link href="/" aria-label="Volver al inicio" style={darkBackLink}>
+            <ArrowLeft size={16} />
+            Inicio
+          </Link>
         </div>
 
-        {/* Copy */}
         <div style={{ position: "relative", zIndex: 1 }}>
           <span style={{
-            display: "inline-block", fontSize: 11, fontWeight: 700, color: "#EEF1FB",
-            textTransform: "uppercase", letterSpacing: "0.14em",
-            borderLeft: "3px solid #EEF1FB", paddingLeft: 10, marginBottom: 20,
+            display: "inline-block",
+            fontSize: 11,
+            fontWeight: 700,
+            color: "rgba(255,255,255,0.6)",
+            textTransform: "uppercase",
+            letterSpacing: "0.12em",
+            borderLeft: "3px solid rgba(255,255,255,0.4)",
+            paddingLeft: 10,
+            marginBottom: 28,
           }}>
-            30 días gratis · Sin tarjeta
+            Pro gratis por 14 días
           </span>
           <h1 style={{
-            fontSize: "clamp(1.6rem, 2.5vw, 2.2rem)", fontWeight: 900, color: "#fff",
-            lineHeight: 1.12, letterSpacing: "-0.025em", marginBottom: 16,
+            fontSize: "clamp(1.9rem, 2.8vw, 2.8rem)",
+            fontWeight: 900,
+            color: "#FFFFFF",
+            lineHeight: 1.1,
+            letterSpacing: "-0.03em",
+            margin: "0 0 20px",
           }}>
             Tu equipo de mantención,<br />digitalizado en minutos.
           </h1>
-          <p style={{ fontSize: 14, color: "rgba(255,255,255,0.55)", lineHeight: 1.7, maxWidth: 340, marginBottom: 36 }}>
-            Usado por jefes de mantención en minería, facilities e industria en Chile.
+          <p style={{ fontSize: 15, color: "rgba(255,255,255,0.5)", lineHeight: 1.75, maxWidth: 390, margin: "0 0 44px" }}>
+            Crea tu workspace y prueba todas las funciones Pro sin ingresar tarjeta de crédito.
           </p>
-
-          {[
-            "Órdenes de trabajo en tiempo real",
-            "Checklists DS 594 y firma digital",
-            "Reportes PDF y Excel para cierre administrativo",
-            "Inventario con alertas de stock crítico",
-            "Reportes KPI para gerencia",
-          ].map((f) => (
-            <div key={f} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10, fontSize: 13, color: "rgba(255,255,255,0.7)" }}>
-              <CheckCircle2 size={14} style={{ color: "#10b981", flexShrink: 0 }} />
-              {f}
-            </div>
-          ))}
+          <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
+            {FEATURES.map((feature) => (
+              <li key={feature} style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14, fontSize: 14, color: "rgba(255,255,255,0.75)" }}>
+                <CheckCircle2 size={16} style={{ color: "#10B981", flexShrink: 0 }} />
+                {feature}
+              </li>
+            ))}
+          </ul>
         </div>
 
-        {/* Back link */}
-        <div style={{ position: "relative", zIndex: 1 }}>
-          <Link href="/" style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, color: "rgba(255,255,255,0.4)", textDecoration: "none" }}>
-            <ArrowLeft size={12} /> Volver al sitio
-          </Link>
-        </div>
+        <div />
       </div>
 
-      {/* ── Panel derecho (form) ─────────────────────── */}
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", background: "var(--background)", minHeight: "100vh" }}>
+      <div className="registro-mobile-bar" style={{
+        position: "fixed",
+        top: 0,
+        left: 0,
+        right: 0,
+        zIndex: 10,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: 16,
+        padding: "14px 24px",
+        background: "#1E3A8A",
+        borderBottom: "1px solid rgba(255,255,255,0.1)",
+      }}>
+        <Link href="/" aria-label="Volver al inicio" style={mobileBackBtn}>
+          <ArrowLeft size={18} />
+        </Link>
+        <img src="/logo2.svg" alt="Pangui" style={{ height: 24, width: "auto", filter: "brightness(0) invert(1)" }} />
+      </div>
 
-        {/* Mobile top bar */}
-        <div className="registro-mobile-bar" style={{
-          display: "flex", alignItems: "center", justifyContent: "space-between",
-          padding: "16px 20px", borderBottom: "1px solid var(--divider-1)",
-          background: "var(--accent-1)",
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", background: "#F8FAFC", minHeight: "100vh" }}>
+        <div style={{
+          flex: 1,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: "48px 24px",
         }}>
-          <img src="/pangui-logo.svg" alt="Pangui" style={{ width: 76, height: "auto" }} />
-          <div style={{ display: "flex", gap: 8 }}>
-            <button onClick={toggleTheme} style={{
-              display: "flex", alignItems: "center", justifyContent: "center",
-              width: 30, height: 30, background: "rgba(255,255,255,0.1)",
-              border: "1px solid rgba(255,255,255,0.15)", borderRadius: 0,
-              color: "rgba(255,255,255,0.8)", cursor: "pointer",
-            }}>
-              <ThemeIcon size={13} />
-            </button>
-            <Link href="/" style={{
-              display: "inline-flex", alignItems: "center", gap: 5,
-              fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,0.7)",
-              textDecoration: "none", padding: "5px 10px",
-              border: "1px solid rgba(255,255,255,0.2)", borderRadius: 0,
-            }}>
-              <ArrowLeft size={11} /> Volver
-            </Link>
-          </div>
-        </div>
-
-        {/* Form area */}
-        <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: "40px 24px" }}>
-          <div style={{ width: "100%", maxWidth: 400 }}>
-
-            {/* Progress */}
-            <div style={{ marginBottom: 28 }}>
+          <div style={{
+            width: "100%",
+            maxWidth: 420,
+            background: "#FFFFFF",
+            borderRadius: 16,
+            padding: "34px 34px",
+            boxShadow: "0 10px 40px rgba(15,23,42,0.10), 0 1px 3px rgba(15,23,42,0.06)",
+            border: "1px solid #E2E8F0",
+          }}>
+            <div style={{ marginBottom: 26 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-                <span style={{ fontSize: 11, fontWeight: 700, color: "var(--accent-5)", textTransform: "uppercase", letterSpacing: "0.1em" }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: "#64748B", textTransform: "uppercase", letterSpacing: "0.1em" }}>
                   Paso {step} de 2
                 </span>
-                <span style={{ fontSize: 11, color: "var(--accent-5)" }}>{progressPct}%</span>
+                <span style={{ fontSize: 11, color: "#94A3B8" }}>{progressPct}%</span>
               </div>
-              <div style={{ height: 3, background: "var(--divider-1)", borderRadius: 2 }}>
-                <div style={{ height: "100%", width: `${progressPct}%`, background: "var(--accent-1)", borderRadius: 2, transition: "width 0.4s ease" }} />
+              <div style={{ height: 3, background: "#E2E8F0", borderRadius: 999 }}>
+                <div style={{ height: "100%", width: `${progressPct}%`, background: "#2563EB", borderRadius: 999, transition: "width 0.4s ease" }} />
               </div>
             </div>
 
-            {/* Heading */}
             <div style={{ marginBottom: 28 }}>
-              <span style={{
-                display: "inline-block", fontSize: 11, fontWeight: 700,
-                color: "var(--accent-1)", textTransform: "uppercase",
-                letterSpacing: "0.12em", borderLeft: "3px solid var(--accent-1)",
-                paddingLeft: 8, marginBottom: 12,
-              }}>
-                {step === 1 ? "Crear cuenta" : "Tu empresa"}
-              </span>
-              <h1 style={{
-                fontSize: "clamp(1.3rem, 4vw, 1.7rem)", fontWeight: 900,
-                color: "var(--black)", letterSpacing: "-0.025em", marginBottom: 6,
+              <h2 style={{
+                fontSize: 24,
+                fontWeight: 800,
+                color: "#0F172A",
+                margin: "0 0 6px",
+                letterSpacing: "-0.025em",
               }}>
                 {step === 1 ? "Comienza tu prueba gratis" : "Cuéntanos sobre tu equipo"}
-              </h1>
-              <p style={{ fontSize: 13, color: "var(--accent-5)" }}>
+              </h2>
+              <p style={{ color: "#475569", fontSize: 14, margin: 0, lineHeight: 1.55 }}>
                 {step === 1
-                  ? "30 días gratis. Sin tarjeta de crédito."
-                  : "Nos ayuda a personalizar tu experiencia."}
+                  ? "14 días de Pro gratis. Sin tarjeta de crédito."
+                  : "Esto nos ayuda a configurar tu workspace."}
               </p>
             </div>
 
-            {/* Error */}
+            {requestedPlanDef && (
+              <div style={{
+                display: "flex", alignItems: "flex-start", gap: 10,
+                padding: "10px 12px", marginBottom: 20,
+                background: "#EFF6FF", border: "1px solid #BFDBFE",
+                borderRadius: 8,
+                fontSize: 12.5, color: "#1E40AF", lineHeight: 1.45,
+              }}>
+                <Sparkles size={14} style={{ marginTop: 2, flexShrink: 0 }} />
+                <div>
+                  Vienes interesado en <strong>{requestedPlanDef.name}</strong>. Crea tu cuenta con 14 días de Pro gratis y al terminar lo activas en un clic.
+                </div>
+              </div>
+            )}
+
             {error && (
               <div style={{
-                padding: "10px 12px", borderLeft: "3px solid var(--accent-1)",
-                background: "var(--accent-2)", color: "var(--accent-1)",
-                fontSize: 13, marginBottom: 20, lineHeight: 1.4,
+                fontSize: 13,
+                color: "#DC2626",
+                background: "#FEF2F2",
+                borderLeft: "3px solid #EF4444",
+                padding: "10px 14px",
+                borderRadius: "0 8px 8px 0",
+                lineHeight: 1.4,
+                marginBottom: 20,
               }}>
                 {error}
               </div>
             )}
 
-            {/* ── Step 1: Credenciales ─────────────────── */}
             {step === 1 && (
-              <form onSubmit={handleNext} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              <form onSubmit={handleNext} style={{ display: "flex", flexDirection: "column", gap: 18 }}>
                 <Field icon={User} label="Nombre completo">
-                  <input
-                    type="text" value={nombre} onChange={(e) => setNombre(e.target.value)}
-                    placeholder="Juan Pérez" required style={inputStyle}
-                    onFocus={(e) => (e.target.style.borderColor = "var(--accent-1)")}
-                    onBlur={(e) => (e.target.style.borderColor = "var(--divider-1)")}
-                  />
+                  <input type="text" value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Juan Pérez" required style={inputStyle} onFocus={focusInput} onBlur={blurInput} />
                 </Field>
 
-                <Field icon={Mail} label="Correo electrónico">
-                  <input
-                    type="email" value={email} onChange={(e) => setEmail(e.target.value)}
-                    placeholder="juan@empresa.cl" required style={inputStyle}
-                    onFocus={(e) => (e.target.style.borderColor = "var(--accent-1)")}
-                    onBlur={(e) => (e.target.style.borderColor = "var(--divider-1)")}
-                  />
+                <Field icon={Mail} label="Email">
+                  <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="juan@empresa.cl" required autoComplete="email" autoCapitalize="none" style={inputStyle} onFocus={focusInput} onBlur={blurInput} />
                 </Field>
 
                 <Field icon={Lock} label="Contraseña">
-                  <input
-                    type={showPass ? "text" : "password"}
-                    value={password} onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Mínimo 8 caracteres" required style={inputStyle}
-                    onFocus={(e) => (e.target.style.borderColor = "var(--accent-1)")}
-                    onBlur={(e) => (e.target.style.borderColor = "var(--divider-1)")}
-                  />
-                  <button
-                    type="button" onClick={() => setShowPass(!showPass)}
-                    style={{
-                      position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)",
-                      background: "none", border: "none", cursor: "pointer",
-                      color: "var(--accent-5)", padding: 2,
-                    }}
-                  >
-                    {showPass ? <EyeOff size={15} /> : <Eye size={15} />}
+                  <input type={showPass ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Mínimo 8 caracteres" required autoComplete="new-password" style={{ ...inputStyle, paddingRight: 42 }} onFocus={focusInput} onBlur={blurInput} />
+                  <button type="button" onClick={() => setShowPass(!showPass)} style={eyeBtn} aria-label={showPass ? "Ocultar contraseña" : "Mostrar contraseña"}>
+                    {showPass ? <EyeOff size={16} /> : <Eye size={16} />}
                   </button>
                 </Field>
 
-                {/* Strength indicator */}
                 {password.length > 0 && (
                   <div style={{ marginTop: -8 }}>
-                    <div style={{ height: 2, background: "var(--divider-1)", borderRadius: 1 }}>
+                    <div style={{ height: 3, background: "#E2E8F0", borderRadius: 999 }}>
                       <div style={{
-                        height: "100%", borderRadius: 1, transition: "width 0.2s, background 0.2s",
+                        height: "100%",
+                        borderRadius: 999,
+                        transition: "width 0.2s, background 0.2s",
                         width: password.length >= 12 ? "100%" : password.length >= 8 ? "65%" : "30%",
-                        background: password.length >= 12 ? "#10b981" : password.length >= 8 ? "#f59e0b" : "#ef4444",
+                        background: password.length >= 12 ? "#10B981" : password.length >= 8 ? "#F59E0B" : "#EF4444",
                       }} />
                     </div>
-                    <p style={{ fontSize: 11, color: "var(--accent-5)", marginTop: 4 }}>
+                    <p style={{ fontSize: 11, color: "#64748B", margin: "5px 0 0" }}>
                       {password.length >= 12 ? "Contraseña fuerte" : password.length >= 8 ? "Contraseña aceptable" : "Muy corta"}
                     </p>
                   </div>
                 )}
 
-                <button type="submit" style={{
-                  width: "100%", padding: "13px", marginTop: 4,
-                  background: "var(--accent-1)", color: "#fff",
-                  border: "none", borderRadius: 0, fontSize: 15, fontWeight: 700,
-                  fontFamily: "inherit", cursor: "pointer",
-                  display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-                }}>
+                <button type="submit" style={primaryBtn}>
                   Continuar <ArrowRight size={16} />
                 </button>
               </form>
             )}
 
-            {/* ── Step 2: Empresa ─────────────────────── */}
             {step === 2 && (
-              <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-                <Field icon={Building2} label="Nombre de la empresa *">
-                  <input
-                    type="text" value={empresaNombre} onChange={(e) => setEmpresaNombre(e.target.value)}
-                    placeholder="Minera Los Andes S.A." required
-                    style={inputStyle}
-                    onFocus={(e) => (e.target.style.borderColor = "var(--accent-1)")}
-                    onBlur={(e) => (e.target.style.borderColor = "var(--divider-1)")}
-                  />
+              <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                <Field icon={Building2} label="Nombre de la empresa">
+                  <input type="text" value={empresaNombre} onChange={(e) => setEmpresaNombre(e.target.value)} placeholder="Minera Los Andes S.A." required style={inputStyle} onFocus={focusInput} onBlur={blurInput} />
                 </Field>
 
                 <div>
                   <label style={labelStyle}><Briefcase size={11} style={{ display: "inline", marginRight: 4 }} />Tu cargo</label>
-                  <select value={cargo} onChange={(e) => setCargo(e.target.value)} style={selectStyle}>
+                  <select value={cargoId} onChange={(e) => setCargoId(e.target.value)} style={selectStyle} onFocus={focusInput} onBlur={blurInput}>
                     <option value="">Selecciona tu cargo...</option>
-                    {CARGOS.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+                    {cargos.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                  </select>
+                </div>
+
+                <div>
+                  <label style={labelStyle}><Wrench size={11} style={{ display: "inline", marginRight: 4 }} />Tu oficio (opcional)</label>
+                  <select value={oficioId} onChange={(e) => setOficioId(e.target.value)} style={selectStyle} onFocus={focusInput} onBlur={blurInput}>
+                    <option value="">Sin especificar</option>
+                    {oficios.map((o) => <option key={o.id} value={o.id}>{o.nombre}</option>)}
                   </select>
                 </div>
 
                 <div>
                   <label style={labelStyle}><Layers size={11} style={{ display: "inline", marginRight: 4 }} />Sector industria</label>
-                  <select value={sector} onChange={(e) => setSector(e.target.value)} style={selectStyle}>
+                  <select value={sector} onChange={(e) => setSector(e.target.value)} style={selectStyle} onFocus={focusInput} onBlur={blurInput}>
                     <option value="">Selecciona tu sector...</option>
                     {SECTORES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
                   </select>
@@ -449,15 +482,15 @@ export default function RegistroPage() {
 
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                   <div>
-                    <label style={labelStyle}><Users size={11} style={{ display: "inline", marginRight: 4 }} />Tamaño equipo</label>
-                    <select value={tamañoEquipo} onChange={(e) => setTamañoEquipo(e.target.value)} style={selectStyle}>
+                    <label style={labelStyle}><Users size={11} style={{ display: "inline", marginRight: 4 }} />Equipo</label>
+                    <select value={tamanoEquipo} onChange={(e) => setTamanoEquipo(e.target.value)} style={selectStyle} onFocus={focusInput} onBlur={blurInput}>
                       <option value="">Técnicos...</option>
-                      {TAMAÑOS.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+                      {TAMANOS.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
                     </select>
                   </div>
                   <div>
                     <label style={labelStyle}><MapPin size={11} style={{ display: "inline", marginRight: 4 }} />Región</label>
-                    <select value={region} onChange={(e) => setRegion(e.target.value)} style={selectStyle}>
+                    <select value={region} onChange={(e) => setRegion(e.target.value)} style={selectStyle} onFocus={focusInput} onBlur={blurInput}>
                       <option value="">Región...</option>
                       {REGIONES.map((r) => <option key={r} value={r}>{r}</option>)}
                     </select>
@@ -465,70 +498,120 @@ export default function RegistroPage() {
                 </div>
 
                 <div style={{ display: "flex", gap: 10, marginTop: 4 }}>
-                  <button
-                    type="button" onClick={() => { setStep(1); setError(null); }}
-                    style={{
-                      padding: "13px 16px", background: "transparent",
-                      border: "1.5px solid var(--divider-1)", borderRadius: 0,
-                      fontSize: 14, fontWeight: 600, color: "var(--accent-5)",
-                      cursor: "pointer", fontFamily: "inherit",
-                      display: "flex", alignItems: "center", gap: 6,
-                    }}
-                  >
+                  <button type="button" onClick={() => { setStep(1); setError(null); }} style={secondaryBtn}>
                     <ArrowLeft size={14} /> Atrás
                   </button>
-                  <button
-                    type="submit" disabled={loading}
-                    style={{
-                      flex: 1, padding: "13px",
-                      background: loading ? "var(--accent-5)" : "var(--accent-1)",
-                      color: "#fff", border: "none", borderRadius: 0,
-                      fontSize: 15, fontWeight: 700, fontFamily: "inherit",
-                      cursor: loading ? "not-allowed" : "pointer",
-                      display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-                    }}
-                  >
-                    {loading ? "Creando cuenta…" : (<>Comenzar prueba gratis <CheckCircle2 size={16} /></>)}
+                  <button type="submit" disabled={loading} style={{ ...primaryBtn, flex: 1, marginTop: 0, background: loading ? "#64748B" : primaryBtn.background, cursor: loading ? "not-allowed" : "pointer" }}>
+                    {loading ? <><Loader2 size={16} className="animate-spin" /> Creando...</> : <>Comenzar prueba <CheckCircle2 size={16} /></>}
                   </button>
                 </div>
               </form>
             )}
 
-            <p style={{ marginTop: 24, fontSize: 12, color: "var(--accent-5)", textAlign: "center", lineHeight: 1.6 }}>
+            <div style={{ marginTop: 26, paddingTop: 20, borderTop: "1px solid #F1F5F9", fontSize: 13, color: "#64748B", textAlign: "center" }}>
               ¿Ya tienes cuenta?{" "}
-              <Link href="/login" style={{ color: "var(--accent-1)", fontWeight: 600, textDecoration: "none" }}>
+              <Link href="/login" style={{ color: "#2563EB", fontWeight: 600, textDecoration: "none" }}>
                 Iniciar sesión
               </Link>
-            </p>
-            <p style={{ marginTop: 8, fontSize: 11, color: "var(--accent-5)", textAlign: "center", lineHeight: 1.5 }}>
+            </div>
+            <p style={{ margin: "10px 0 0", fontSize: 11, color: "#94A3B8", textAlign: "center", lineHeight: 1.5 }}>
               Al registrarte aceptas nuestros{" "}
-              <Link href="/terminos" style={{ color: "var(--accent-5)", textDecoration: "underline" }}>Términos</Link>
+              <Link href="/terminos" style={{ color: "#64748B", textDecoration: "underline" }}>Términos</Link>
               {" "}y{" "}
-              <Link href="/privacidad" style={{ color: "var(--accent-5)", textDecoration: "underline" }}>Política de Privacidad</Link>.
+              <Link href="/privacidad" style={{ color: "#64748B", textDecoration: "underline" }}>Política de Privacidad</Link>.
             </p>
           </div>
         </div>
 
-        {/* Footer */}
-        <div style={{
-          padding: "14px 20px", borderTop: "1px solid var(--divider-1)",
-          fontSize: 11, color: "var(--accent-5)",
-          display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 8,
-        }}>
-          <span>© 2026 Pangui · 30 días gratis sin tarjeta</span>
-          <div style={{ display: "flex", gap: 14 }}>
-            <Link href="/privacidad" style={{ color: "var(--accent-5)", textDecoration: "none" }}>Privacidad</Link>
-            <Link href="/terminos" style={{ color: "var(--accent-5)", textDecoration: "none" }}>Términos</Link>
-          </div>
+        <div style={{ padding: "16px 24px", fontSize: 12, color: "#94A3B8", textAlign: "center" }}>
+          © 2026 Pangui
         </div>
       </div>
 
       <style>{`
         @media (min-width: 768px) {
-          .registro-left { display: flex !important; }
+          .registro-left-panel { display: flex !important; }
           .registro-mobile-bar { display: none !important; }
+        }
+        @media (max-width: 767px) {
+          .registro-mobile-bar { display: flex !important; }
         }
       `}</style>
     </div>
   );
 }
+
+const darkBackLink = {
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 8,
+  color: "rgba(255,255,255,0.78)",
+  fontSize: 13,
+  fontWeight: 600,
+  textDecoration: "none",
+  border: "1px solid rgba(255,255,255,0.14)",
+  borderRadius: 8,
+  padding: "8px 10px",
+  background: "rgba(255,255,255,0.06)",
+};
+
+const mobileBackBtn = {
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  width: 36,
+  height: 36,
+  color: "#FFFFFF",
+  border: "1px solid rgba(255,255,255,0.16)",
+  borderRadius: 8,
+  background: "rgba(255,255,255,0.08)",
+};
+
+const eyeBtn = {
+  position: "absolute",
+  right: 12,
+  top: "50%",
+  transform: "translateY(-50%)",
+  background: "none",
+  border: "none",
+  cursor: "pointer",
+  color: "#94A3B8",
+  display: "flex",
+  padding: 0,
+};
+
+const primaryBtn = {
+  width: "100%",
+  height: 44,
+  marginTop: 4,
+  background: "linear-gradient(135deg, #1E3A8A, #2563EB)",
+  color: "#FFFFFF",
+  border: "none",
+  borderRadius: 8,
+  fontSize: 14,
+  fontWeight: 700,
+  fontFamily: "inherit",
+  cursor: "pointer",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: 8,
+  boxShadow: "0 2px 8px rgba(37,99,235,0.30)",
+};
+
+const secondaryBtn = {
+  height: 44,
+  padding: "0 14px",
+  background: "#FFFFFF",
+  border: "1px solid #CBD5E1",
+  borderRadius: 8,
+  fontSize: 14,
+  fontWeight: 600,
+  color: "#475569",
+  cursor: "pointer",
+  fontFamily: "inherit",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: 6,
+};

@@ -1397,26 +1397,39 @@ export default function OTDetail({
     setPdfConfigOpen(true);
   }
 
-  async function doExportPDF() {
+  async function doExportPDF(includeSubOrdenes = false) {
     setExporting("pdf");
     setPdfConfigOpen(false);
     try {
-      const sb = createClient();
-      const [act, wsInfo, freshProcs, hojaGrupos] = await Promise.all([
+      const mapFotoGruposForPdf = (groups: FotoGrupo[]) => groups.map((g) => ({
+        ...g,
+        foto_grupo_items: [...(g.items ?? [])].sort((a, b) => a.orden_display - b.orden_display),
+      }));
+      const loadFotoGruposForPdf = async (ordenId: string) => (
+        pdfFields.fotos_grupos ? mapFotoGruposForPdf(await fetchFotoGrupos(ordenId)) : []
+      );
+
+      const shouldIncludeSubOrdenes = includeSubOrdenes && !orden.parent_id;
+      const [act, wsInfo, freshProcs, hojaGrupos, freshSubOrdenes] = await Promise.all([
         fetchActividadForExport(),
         fetchWorkspaceInfo(),
         getOTProcedimientos(orden.id),
-        pdfFields.fotos_grupos
-          ? sb.from("foto_grupos")
-              .select("id, titulo, descripcion, orden_display, foto_grupo_items(id, url, orden_display)")
-              .eq("orden_id", orden.id)
-              .order("orden_display")
-              .then(r => (r.data ?? []).map((g: any) => ({
-                ...g,
-                foto_grupo_items: (g.foto_grupo_items ?? []).sort((a: any, b: any) => a.orden_display - b.orden_display),
-              })))
-          : Promise.resolve([]),
+        loadFotoGruposForPdf(orden.id),
+        shouldIncludeSubOrdenes ? fetchSubOrdenes(orden.id) : Promise.resolve([]),
       ]);
+      const enrichedSubOrdenes = await Promise.all(
+        freshSubOrdenes.map(async (sub) => {
+          const [subProcedimientos, subFotoGrupos] = await Promise.all([
+            pdfFields.procedimientos ? getOTProcedimientos(sub.id) : Promise.resolve([]),
+            loadFotoGruposForPdf(sub.id),
+          ]);
+          return {
+            ...sub,
+            procedimientos: subProcedimientos,
+            fotoGrupos: subFotoGrupos,
+          };
+        }),
+      );
       const res = await fetch("/api/export-pdf", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1425,7 +1438,7 @@ export default function OTDetail({
           exportadoPor: exporterName(),
           workspaceNombre: wsInfo.nombre,
           nOT: meta.nOT,
-          partes: [], subOrdenes: [],
+          partes: [], subOrdenes: shouldIncludeSubOrdenes ? enrichedSubOrdenes : [],
           procedimientos: freshProcs,
           fotoGrupos: hojaGrupos,
           fields: pdfFields,
@@ -1436,9 +1449,11 @@ export default function OTDetail({
       const blob = await res.blob();
       const url  = URL.createObjectURL(blob);
       const a    = document.createElement("a");
-      const date = new Date().toISOString().slice(0, 10);
+      const d = new Date();
+      const pad = (n: number) => String(n).padStart(2, "0");
+      const stamp = `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
       a.href = url;
-      a.download = `OT-${nOT}_${date}.pdf`;
+      a.download = `OT-${nOT}_${stamp}.pdf`;
       a.click();
       URL.revokeObjectURL(url);
     } catch (err) {
@@ -3275,6 +3290,22 @@ export default function OTDetail({
 
             {/* Footer */}
             <div style={{ padding: "10px 20px 16px", borderTop: "1px solid var(--border)", display: "flex", justifyContent: "flex-end", gap: 8 }}>
+              {!orden.parent_id && subOrdenes.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => doExportPDF(true)}
+                  disabled={!Object.values(pdfFields).some(Boolean)}
+                  style={{
+                    height: 36, padding: "0 18px", borderRadius: "var(--r-md)", border: "1px solid var(--brand)",
+                    background: Object.values(pdfFields).some(Boolean) ? "var(--surface-1)" : "var(--surface-2)",
+                    fontSize: 13, fontWeight: 600, color: Object.values(pdfFields).some(Boolean) ? "var(--brand-fg)" : "var(--fg-4)",
+                    cursor: Object.values(pdfFields).some(Boolean) ? "pointer" : "default",
+                    fontFamily: "inherit", display: "flex", alignItems: "center", gap: 6,
+                  }}
+                >
+                  {exporting === "pdf" ? <><Loader2 size={13} className="animate-spin" />Generando...</> : <><FileDown size={13} />OT + subOTs</>}
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => setPdfConfigOpen(false)}
@@ -3284,7 +3315,7 @@ export default function OTDetail({
               >Cancelar</button>
               <button
                 type="button"
-                onClick={doExportPDF}
+                onClick={() => doExportPDF(false)}
                 disabled={!Object.values(pdfFields).some(Boolean)}
                 style={{
                   height: 36, padding: "0 18px", borderRadius: "var(--r-md)", border: "none",
@@ -3360,7 +3391,28 @@ function isAnsweredForType(paso: ProcedimientoPaso, resp: PendingResp | undefine
   }
 }
 
-function ReadonlyAnswer({ paso, resp }: { paso: ProcedimientoPaso; resp: PendingResp }) {
+function optimizedProcedureImageUrl(url: string, width: number) {
+  if (!url || url.startsWith("data:") || url.startsWith("blob:")) return url;
+  try {
+    const parsed = new URL(url);
+    if (!/^https?:$/.test(parsed.protocol) || parsed.hostname.endsWith("r2.dev")) return url;
+    return `${parsed.origin}/cdn-cgi/image/width=${width},quality=72,format=auto${parsed.pathname}${parsed.search}`;
+  } catch {
+    return url;
+  }
+}
+
+function signatureImageSrc(value: string | null | undefined) {
+  if (!value) return null;
+  const trimmed = value.trim();
+  if (trimmed.startsWith("data:") || /^https?:\/\//i.test(trimmed)) return trimmed;
+  if (trimmed.startsWith("<svg")) {
+    return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(trimmed)}`;
+  }
+  return trimmed;
+}
+
+function ReadonlyAnswer({ paso, resp, onPhotoClick }: { paso: ProcedimientoPaso; resp: PendingResp; onPhotoClick?: (url: string) => void }) {
   const currency = paso.moneda ?? "CLP";
   switch (paso.tipo) {
     case "texto":
@@ -3382,13 +3434,58 @@ function ReadonlyAnswer({ paso, resp }: { paso: ProcedimientoPaso; resp: Pending
       return <div style={{ fontSize: 12, color: "var(--fg-2)", marginTop: 4 }}>{pass}/{items.length} pasaron</div>;
     }
     case "imagen":
-      return resp.foto_url
-        ? <img src={resp.foto_url} alt="foto" style={{ marginTop: 6, maxWidth: 180, borderRadius: "var(--r-sm)", border: "1px solid var(--border)" }} />
-        : null;
-    case "firma":
-      return resp.firma_svg
-        ? <img src={resp.firma_svg} alt="firma" style={{ marginTop: 6, maxWidth: "100%", height: 80, objectFit: "contain", border: "1px solid var(--border)", borderRadius: "var(--r-sm)", background: "var(--surface-0)" }} />
+      if (!resp.foto_url) return null;
+      const thumbUrl = optimizedProcedureImageUrl(resp.foto_url, 360);
+      // If a click handler is provided, render the photo as a button that
+      // opens the lightbox. Otherwise it's a plain static thumbnail.
+      return onPhotoClick ? (
+        <button
+          type="button"
+          onClick={() => onPhotoClick(resp.foto_url!)}
+          style={{
+            marginTop: 6, padding: 0, border: "1px solid var(--border)",
+            borderRadius: "var(--r-sm)", background: "var(--surface-1)",
+            cursor: "pointer", display: "inline-block", position: "relative",
+          }}
+          title="Click para ampliar"
+        >
+          <img
+            src={thumbUrl}
+            alt="foto"
+            loading="lazy"
+            decoding="async"
+            onError={(e) => {
+              if (e.currentTarget.src !== resp.foto_url) e.currentTarget.src = resp.foto_url!;
+            }}
+            style={{ display: "block", width: 180, maxHeight: 140, objectFit: "cover", borderRadius: "var(--r-sm)", background: "var(--surface-hover)" }}
+          />
+          <span style={{
+            position: "absolute", top: 4, right: 4,
+            display: "inline-flex", alignItems: "center", gap: 3,
+            padding: "2px 6px", fontSize: 10, fontWeight: 600,
+            color: "#fff", background: "rgba(0,0,0,0.55)", borderRadius: 10,
+          }}>
+            <Image size={10} /> Ver
+          </span>
+        </button>
+      ) : (
+        <img
+          src={thumbUrl}
+          alt="foto"
+          loading="lazy"
+          decoding="async"
+          onError={(e) => {
+            if (e.currentTarget.src !== resp.foto_url) e.currentTarget.src = resp.foto_url!;
+          }}
+          style={{ marginTop: 6, width: 180, maxHeight: 140, objectFit: "cover", borderRadius: "var(--r-sm)", border: "1px solid var(--border)", background: "var(--surface-hover)" }}
+        />
+      );
+    case "firma": {
+      const src = signatureImageSrc(resp.firma_svg);
+      return src
+        ? <img src={src} alt="firma" loading="lazy" decoding="async" style={{ marginTop: 6, maxWidth: "100%", height: 80, objectFit: "contain", border: "1px solid var(--border)", borderRadius: "var(--r-sm)", background: "#fff" }} />
         : <div style={{ fontSize: 12.5, color: "var(--success)", marginTop: 4 }}>✓ Firmado</div>;
+    }
     case "medidor":
       return <div style={{ fontSize: 12.5, color: "var(--fg-2)", marginTop: 4 }}>{resp.valor_medido} {paso.unidad}{resp.lectura_delta != null ? ` (Δ ${resp.lectura_delta})` : ""}</div>;
     case "fecha":
@@ -3445,10 +3542,11 @@ function SignatureCanvas({
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
     ctx.fillStyle = "#0F172A";
-    if (existingDataUrl) {
+    const normalizedExisting = signatureImageSrc(existingDataUrl);
+    if (normalizedExisting) {
       const img = new window.Image();
       img.onload = () => ctx.drawImage(img, 0, 0);
-      img.src = existingDataUrl;
+      img.src = normalizedExisting;
       setHasStrokes(true);
       setSaved(true);
     }
@@ -3782,26 +3880,17 @@ function PasoInput({
   }
 
   if (paso.tipo === "numero" || paso.tipo === "monto") {
-    const cur: string = val("valor_medido") != null ? String(val("valor_medido")) : "";
     const currency = paso.moneda ?? "CLP";
     return (
-      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-        {paso.tipo === "monto" && <span style={{ fontSize: 12.5, fontWeight: 600, color: "var(--fg-2)" }}>{currency}</span>}
-        <input
-          type="number"
-          value={cur}
-          onChange={e => onUpdate({ valor_medido: parseFloat(e.target.value) ?? undefined })}
-          placeholder="0"
-          style={{ ...inputStyle, width: 120 }}
-          onFocus={e => { e.currentTarget.style.borderColor = "var(--brand)"; }}
-          onBlur={e => { e.currentTarget.style.borderColor = "var(--border)"; }}
-        />
-        {paso.tipo === "numero" && paso.unidad && <span style={{ fontSize: 12, color: "var(--fg-2)" }}>{paso.unidad}</span>}
-        {paso.tipo === "numero" && paso.valor_min != null && (
-          <span style={{ fontSize: 11, color: "var(--fg-4)" }}>({paso.valor_min} – {paso.valor_max})</span>
-        )}
-        {saveBtn("OK", !cur)}
-      </div>
+      <NumericInputField
+        value={val("valor_medido")}
+        onChange={(n) => onUpdate({ valor_medido: n })}
+        inputStyle={inputStyle}
+        prefix={paso.tipo === "monto" ? currency : undefined}
+        suffix={paso.tipo === "numero" ? paso.unidad ?? undefined : undefined}
+        rangeHint={paso.tipo === "numero" && paso.valor_min != null ? `${paso.valor_min} – ${paso.valor_max}` : undefined}
+        renderSaveBtn={(disabled) => saveBtn("OK", disabled)}
+      />
     );
   }
 
@@ -3837,22 +3926,17 @@ function PasoInput({
   }
 
   if (paso.tipo === "medidor") {
-    const cur = (val("valor_medido") as number | null | undefined) ?? "";
     return (
-      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-        <input
-          type="number"
-          value={cur === null ? "" : cur}
-          onChange={e => onUpdate({ valor_medido: e.target.value === "" ? null : parseFloat(e.target.value) })}
-          placeholder="Lectura"
-          style={{ ...inputStyle, width: 140 }}
-        />
-        {paso.unidad && <span style={{ fontSize: 12, color: "var(--fg-2)" }}>{paso.unidad}</span>}
-        {paso.valor_min != null && paso.valor_max != null && (
-          <span style={{ fontSize: 11, color: "var(--fg-4)" }}>({paso.valor_min} – {paso.valor_max})</span>
-        )}
-        {saveBtn("OK", cur === "" || cur === null)}
-      </div>
+      <NumericInputField
+        value={val("valor_medido")}
+        onChange={(n) => onUpdate({ valor_medido: n })}
+        inputStyle={inputStyle}
+        placeholder="Lectura"
+        width={140}
+        suffix={paso.unidad ?? undefined}
+        rangeHint={paso.valor_min != null && paso.valor_max != null ? `${paso.valor_min} – ${paso.valor_max}` : undefined}
+        renderSaveBtn={(disabled) => saveBtn("OK", disabled)}
+      />
     );
   }
 
@@ -3984,6 +4068,70 @@ function PasoInput({
   return null;
 }
 
+// ── NumericInputField ─────────────────────────────────────────────────────────
+// Replacement for `<input type="number">` that preserves a partially-typed
+// decimal point. The old code stringified the parsed value back into `value=`,
+// so typing "12." became "12" mid-keystroke, blocking decimals entirely.
+// This component holds a draft string locally; the parent only sees the parsed
+// number once it's actually a finite number.
+function NumericInputField({
+  value, onChange, inputStyle, placeholder, prefix, suffix, rangeHint, width = 120, renderSaveBtn,
+}: {
+  value: number | null | undefined;
+  onChange: (n: number | null | undefined) => void;
+  inputStyle: React.CSSProperties;
+  placeholder?: string;
+  prefix?: string;
+  suffix?: string;
+  rangeHint?: string;
+  width?: number;
+  renderSaveBtn?: (disabled: boolean) => React.ReactNode;
+}) {
+  const [draft, setDraft] = useState<string>(value != null ? String(value) : "");
+  // When the upstream value changes (e.g. after save), resync the draft so
+  // the next time we open the field it shows the saved value.
+  useEffect(() => {
+    if (value == null) {
+      setDraft("");
+      return;
+    }
+    // Only resync if the draft would parse to something different — avoids
+    // overwriting an in-flight "12." with "12" while typing.
+    const parsed = parseFloat(draft.replace(",", "."));
+    if (!Number.isFinite(parsed) || parsed !== value) {
+      setDraft(String(value));
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value]);
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+      {prefix && <span style={{ fontSize: 12.5, fontWeight: 600, color: "var(--fg-2)" }}>{prefix}</span>}
+      <input
+        type="text"
+        inputMode="decimal"
+        value={draft}
+        onChange={(e) => {
+          const cleaned = e.target.value.replace(/[^0-9.,-]/g, "").replace(",", ".");
+          setDraft(cleaned);
+          if (cleaned === "" || cleaned === "." || cleaned === "-") {
+            onChange(undefined);
+            return;
+          }
+          const n = parseFloat(cleaned);
+          if (Number.isFinite(n)) onChange(n);
+        }}
+        placeholder={placeholder ?? "0"}
+        style={{ ...inputStyle, width }}
+        onFocus={(e) => { e.currentTarget.style.borderColor = "var(--brand)"; }}
+        onBlur={(e) => { e.currentTarget.style.borderColor = "var(--border)"; }}
+      />
+      {suffix && <span style={{ fontSize: 12, color: "var(--fg-2)" }}>{suffix}</span>}
+      {rangeHint && <span style={{ fontSize: 11, color: "var(--fg-4)" }}>({rangeHint})</span>}
+      {renderSaveBtn?.(!draft || draft === "." || draft === "-")}
+    </div>
+  );
+}
+
 // ── PasoImagenField (web) ─────────────────────────────────────────────────────
 // Real R2-backed photo upload for the "imagen" step type. Uses the existing
 // lib/r2.ts uploadToR2 helper — same path as OT/foto-grupo uploads on web.
@@ -4038,8 +4186,13 @@ function PasoImagenField({
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
       {fotoUrl && (
         <img
-          src={fotoUrl}
+          src={optimizedProcedureImageUrl(fotoUrl, 640)}
           alt="Foto del paso"
+          loading="lazy"
+          decoding="async"
+          onError={(e) => {
+            if (e.currentTarget.src !== fotoUrl) e.currentTarget.src = fotoUrl;
+          }}
           style={{ maxWidth: 320, maxHeight: 240, borderRadius: 8, border: "1px solid var(--border)", objectFit: "cover" }}
         />
       )}
@@ -4094,6 +4247,17 @@ function ProcEjecucionModal({
 }) {
   const pasos: ProcedimientoPaso[] = (proc?.pasos ?? []);
   const isCompleted = ejec.estado === "completado";
+
+  // Per-paso "editing after completion" state. Tap "Editar" on a completed
+  // paso card → that paso re-renders its input widget so the user can change
+  // the value and re-save. Saved values trigger the audit-log trigger so we
+  // get full edit history for ISO 9001 cl. 7.5.3.
+  const [editingPasos, setEditingPasos] = useState<Record<string, boolean>>({});
+
+  // Lightbox preview for a foto step. Clicking the thumbnail opens it full-
+  // screen with a "Reemplazar" button. (PhotoEditor proper is mobile-only;
+  // on web we keep it to preview + replace, no in-browser annotation.)
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
 
   const savedResps: Record<string, PendingResp> = {};
   for (const r of ejec.respuestas ?? []) savedResps[r.paso_id] = r as PendingResp;
@@ -4196,33 +4360,78 @@ function ProcEjecucionModal({
                         </div>
                       </div>
 
-                      {/* Input or read-only answer */}
-                      {isCompleted && saved ? (
-                        <div style={{ paddingLeft: 36 }}>
-                          <ReadonlyAnswer paso={paso} resp={saved} />
-                          {saved.editado_at && (
-                            // Surfaces the audit-log trigger (paso_respuesta_historial).
-                            // Presence of editado_at means the response was modified at
-                            // least once after first save — ISO 9001 cl. 7.5.3 traceability.
-                            <div style={{ fontSize: 11, color: "var(--fg-4)", marginTop: 4, fontStyle: "italic" }}>
-                              Editado {new Date(saved.editado_at).toLocaleString()}
+                      {/* Input or read-only answer.
+                          - When isCompleted: show ReadonlyAnswer + "Editar" pill.
+                          - When user clicks Editar: replace with PasoInput so they
+                            can change the saved value and re-save (writes flow
+                            through the audit log trigger).
+                          - When !isCompleted: always show PasoInput. */}
+                      {(() => {
+                        const isInfoOnly = paso.tipo === "instruccion" || paso.tipo === "advertencia" || paso.tipo === "seccion";
+                        const editing = !!editingPasos[paso.id];
+                        if (isCompleted && saved && !editing) {
+                          return (
+                            <div style={{ paddingLeft: 36, display: "flex", alignItems: "flex-start", gap: 10 }}>
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <ReadonlyAnswer paso={paso} resp={saved} onPhotoClick={(url) => setLightboxUrl(url)} />
+                                {saved.editado_at && (
+                                  <div style={{ fontSize: 11, color: "var(--fg-4)", marginTop: 4, fontStyle: "italic" }}>
+                                    Editado {new Date(saved.editado_at).toLocaleString()}
+                                  </div>
+                                )}
+                              </div>
+                              {!isInfoOnly && (
+                                <button
+                                  onClick={() => setEditingPasos(prev => ({ ...prev, [paso.id]: true }))}
+                                  style={{
+                                    display: "flex", alignItems: "center", gap: 4,
+                                    padding: "4px 8px", fontSize: 11.5, fontWeight: 600,
+                                    color: "var(--brand)", background: "var(--brand-tint)",
+                                    border: "1px solid var(--brand)", borderRadius: "var(--r-sm)",
+                                    cursor: "pointer", flexShrink: 0, fontFamily: "inherit",
+                                  }}
+                                >
+                                  <Pencil size={11} /> Editar
+                                </button>
+                              )}
                             </div>
-                          )}
-                        </div>
-                      ) : !isCompleted ? (
-                        <div style={{ paddingLeft: 36 }}>
-                          <PasoInput
-                            paso={paso}
-                            resp={pending}
-                            existingResp={saved}
-                            isSaving={isSaving}
-                            onUpdate={patch => onUpdateResp(paso.id, patch)}
-                            onSave={extra => onSaveResp(paso.id, extra)}
-                            ordenId={ejec.orden_id}
-                            ejecucionId={ejec.id}
-                          />
-                        </div>
-                      ) : null}
+                          );
+                        }
+                        if (!isCompleted || editing) {
+                          return (
+                            <div style={{ paddingLeft: 36 }}>
+                              {editing && (
+                                <button
+                                  onClick={() => setEditingPasos(prev => { const n = { ...prev }; delete n[paso.id]; return n; })}
+                                  style={{
+                                    display: "inline-flex", alignItems: "center", gap: 3,
+                                    fontSize: 11, color: "var(--fg-3)",
+                                    background: "transparent", border: "none", cursor: "pointer",
+                                    marginBottom: 6, fontFamily: "inherit", padding: 0,
+                                  }}
+                                >
+                                  <X size={11} /> Cancelar edición
+                                </button>
+                              )}
+                              <PasoInput
+                                paso={paso}
+                                resp={pending}
+                                existingResp={saved}
+                                isSaving={isSaving}
+                                onUpdate={patch => onUpdateResp(paso.id, patch)}
+                                onSave={extra => {
+                                  onSaveResp(paso.id, extra);
+                                  // Collapse the "editing" panel after save fires.
+                                  setEditingPasos(prev => { const n = { ...prev }; delete n[paso.id]; return n; });
+                                }}
+                                ordenId={ejec.orden_id}
+                                ejecucionId={ejec.id}
+                              />
+                            </div>
+                          );
+                        }
+                        return null;
+                      })()}
                     </div>
                   </div>
                 );
@@ -4264,6 +4473,57 @@ function ProcEjecucionModal({
           </div>
         )}
       </div>
+
+      {/* Lightbox preview for a saved foto step. Opens at full size with a
+          close button. PhotoEditor proper is mobile-only; on web we keep this
+          to plain preview (replace + remove go through the existing PasoInput
+          path once the user hits "Editar"). */}
+      {lightboxUrl && (
+        <div
+          onClick={() => setLightboxUrl(null)}
+          style={{
+            position: "fixed", inset: 0, zIndex: 80,
+            background: "rgba(0,0,0,0.85)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            padding: 20, cursor: "zoom-out",
+          }}
+        >
+          <button
+            onClick={(e) => { e.stopPropagation(); setLightboxUrl(null); }}
+            style={{
+              position: "absolute", top: 20, right: 20,
+              width: 36, height: 36, borderRadius: 18,
+              background: "rgba(255,255,255,0.15)", border: "none",
+              color: "#fff", cursor: "pointer",
+              display: "flex", alignItems: "center", justifyContent: "center",
+            }}
+            aria-label="Cerrar"
+          >
+            <X size={18} />
+          </button>
+          <img
+            src={lightboxUrl}
+            alt="Vista ampliada"
+            onClick={(e) => e.stopPropagation()}
+            style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain", borderRadius: "var(--r-md)", cursor: "default" }}
+          />
+          <a
+            href={lightboxUrl}
+            target="_blank"
+            rel="noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              position: "absolute", bottom: 20, left: "50%",
+              transform: "translateX(-50%)",
+              padding: "8px 16px", fontSize: 12, fontWeight: 600,
+              color: "#fff", background: "rgba(255,255,255,0.15)",
+              borderRadius: "var(--r-md)", textDecoration: "none",
+            }}
+          >
+            Abrir en nueva pestaña
+          </a>
+        </div>
+      )}
     </div>
   );
 }

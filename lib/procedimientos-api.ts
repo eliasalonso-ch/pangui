@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase";
+import { ensureOtCategoria, ensureProcedimientosCatalogo } from "@/lib/cuotas-client";
 import type {
   Procedimiento,
   ProcedimientoListItem,
@@ -42,6 +43,46 @@ const LIST_SELECT = `
   pasos_count:${PASOS_FK}(count)
 `;
 
+function isUuid(value: string | null | undefined): value is string {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value ?? "");
+}
+
+async function getOrdenWorkspaceId(ordenId: string): Promise<string> {
+  const sb = createClient();
+  const { data, error } = await sb
+    .from("ordenes_trabajo")
+    .select("workspace_id")
+    .eq("id", ordenId)
+    .single();
+
+  if (error) throw new Error(error.message);
+  const workspaceId = (data?.workspace_id as string | null) ?? null;
+  if (!isUuid(workspaceId)) {
+    throw new Error(`Missing workspace_id for OT ${ordenId}`);
+  }
+  return workspaceId;
+}
+
+async function getEjecucionWorkspaceId(ejecucionId: string): Promise<string> {
+  if (!isUuid(ejecucionId)) {
+    throw new Error("Missing procedimiento execution id");
+  }
+
+  const sb = createClient();
+  const { data, error } = await sb
+    .from("procedimiento_ejecuciones")
+    .select("workspace_id")
+    .eq("id", ejecucionId)
+    .single();
+
+  if (error) throw new Error(error.message);
+  const workspaceId = (data?.workspace_id as string | null) ?? null;
+  if (!isUuid(workspaceId)) {
+    throw new Error(`Missing workspace_id for procedimiento execution ${ejecucionId}`);
+  }
+  return workspaceId;
+}
+
 // ── Library ───────────────────────────────────────────────────────────────────
 
 export async function listProcedimientos(workspaceId: string): Promise<ProcedimientoListItem[]> {
@@ -79,6 +120,7 @@ export async function createProcedimiento(
   userId: string,
   form: ProcedimientoForm,
 ): Promise<Procedimiento> {
+  await ensureProcedimientosCatalogo();
   const sb = createClient();
   const { data: proc, error } = await sb
     .from("procedimientos")
@@ -282,6 +324,12 @@ export async function attachProcedimiento(
   userId: string,
 ): Promise<void> {
   const sb = createClient();
+  // Skip the check if this OT already has procedimientos (the OT already counted
+  // toward the monthly "OT con procedimientos" quota the first time one was attached).
+  const { count } = await sb.from("ot_procedimientos").select("id", { count: "exact", head: true }).eq("orden_id", ordenId);
+  if (!count || count === 0) {
+    await ensureOtCategoria("con_procedimientos", "OT con procedimientos");
+  }
   const { error } = await sb.from("ot_procedimientos").insert({
     orden_id: ordenId,
     procedimiento_id: procedimientoId,
@@ -327,9 +375,12 @@ export async function startEjecucion(
     return data as ProcedimientoEjecucion;
   }
 
+  const workspaceId = await getOrdenWorkspaceId(ordenId);
+
   const { data, error } = await sb
     .from("procedimiento_ejecuciones")
     .insert({
+      workspace_id: workspaceId,
       procedimiento_id: procedimientoId,
       orden_id: ordenId,
       iniciado_por: userId,
@@ -348,11 +399,13 @@ export async function saveRespuesta(
   userId: string,
   payload: RespPendiente,
 ): Promise<PasoRespuesta> {
+  const workspaceId = await getEjecucionWorkspaceId(ejecucionId);
   const sb = createClient();
   const { data, error } = await sb
     .from("paso_respuestas")
     .upsert(
       {
+        workspace_id: workspaceId,
         ejecucion_id: ejecucionId,
         paso_id: pasoId,
         respondido_por: userId,

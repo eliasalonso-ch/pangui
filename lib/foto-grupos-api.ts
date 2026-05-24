@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase";
 import { uploadToR2, deleteFromR2 } from "@/lib/r2";
+import { ensureOtCategoria } from "@/lib/cuotas-client";
 
 export interface FotoGrupo {
   id: string;
@@ -45,6 +46,12 @@ export async function createFotoGrupo(
   tipo: "referencia" | "evidencia" = "evidencia",
 ): Promise<FotoGrupo> {
   const sb = createClient();
+  // Skip the check if this OT already has groups (we only count "OTs with photos
+  // this month" — once an OT has a group, adding more is free).
+  const { count } = await sb.from("foto_grupos").select("id", { count: "exact", head: true }).eq("orden_id", ordenId);
+  if (!count || count === 0) {
+    await ensureOtCategoria("con_fotos", "OT con fotos adjuntas");
+  }
   const { data, error } = await sb
     .from("foto_grupos")
     .insert({ orden_id: ordenId, workspace_id: workspaceId, created_by: userId, titulo, descripcion, tipo, orden_display: ordenDisplay })

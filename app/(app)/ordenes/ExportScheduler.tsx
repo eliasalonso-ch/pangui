@@ -13,6 +13,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Plus, Trash2, Mail, AlertCircle, CheckCircle2, Loader2, X, ChevronDown, ChevronRight } from "lucide-react";
+import { useSuscripcion } from "@/hooks/useSuscripcion";
+import { UpgradePrompt } from "@/components/UpgradePrompt";
 
 type Frequency = "weekly" | "monthly" | "yearly";
 type Preset    = "todas" | "pendientes" | "sin_asignar" | "en_curso" | "urgentes" | "completadas" | "levantamientos";
@@ -67,7 +69,26 @@ interface Props {
   canManage: boolean;
 }
 
-export function ExportScheduler({ defaultColumns, canManage }: Props) {
+export function ExportScheduler(props: Props) {
+  const suscripcion = useSuscripcion();
+  const schedulerEnabled = suscripcion.data?.plan_features?.scheduler !== false;
+  // Hard gate: if plan doesn't include the scheduler, render only an upgrade prompt.
+  if (suscripcion.data && !schedulerEnabled) {
+    return (
+      <div style={{ marginTop: 12 }}>
+        <UpgradePrompt
+          variant="inline"
+          title="Exportes programados están en Pro"
+          description="Envía reportes automáticos por correo cada semana, mes o año."
+          upgradeTo="Pro"
+        />
+      </div>
+    );
+  }
+  return <ExportSchedulerInner {...props} />;
+}
+
+function ExportSchedulerInner({ defaultColumns, canManage }: Props) {
   const [expanded, setExpanded] = useState(false);
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [runsBy, setRunsBy]       = useState<Record<string, ScheduleRun[]>>({});

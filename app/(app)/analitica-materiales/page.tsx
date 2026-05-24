@@ -10,9 +10,11 @@ import {
 } from "recharts";
 import {
   Package, AlertTriangle, TrendingUp, Star,
-  ArrowUpRight, Boxes, Zap, LayoutGrid,
+  ArrowUpRight, Boxes, Zap, LayoutGrid, Loader2,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase";
+import { useSuscripcion } from "@/hooks/useSuscripcion";
+import { UpgradePrompt } from "@/components/UpgradePrompt";
 
 const C = {
   brand: "var(--brand)",        mid: "var(--brand)",          light: "var(--brand-tint)",
@@ -128,6 +130,24 @@ function StockBadge({ actual, minimo }: { actual: number; minimo: number }) {
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 export default function AnaliticaMaterialesPage() {
+  const suscripcion = useSuscripcion();
+  if (suscripcion.loading) {
+    return <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100dvh", color: "var(--fg-4)" }}><Loader2 size={18} className="animate-spin" /></div>;
+  }
+  if (suscripcion.data && suscripcion.data.plan_features && !suscripcion.data.plan_features.analytics_pro) {
+    return (
+      <UpgradePrompt
+        variant="card"
+        title="Analítica de materiales está en Pro"
+        description="Sube tu plan para acceder al análisis avanzado de consumo de materiales y partes."
+        upgradeTo="Pro"
+      />
+    );
+  }
+  return <AnaliticaMaterialesPageInner />;
+}
+
+function AnaliticaMaterialesPageInner() {
   const [loading, setLoading] = useState(true);
   const [partes, setPartes] = useState<ParteRow[]>([]);
   const [hojas, setHojas] = useState<HojaRow[]>([]);

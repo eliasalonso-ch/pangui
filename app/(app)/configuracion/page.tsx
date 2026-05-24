@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase";
-import { ROL_LABEL, esAdmin } from "@/lib/roles";
+import { ROL_LABEL, esAdmin, esOwner } from "@/lib/roles";
 import {
   LogOut, KeyRound, Bell, User, Loader2, Check, Eye, EyeOff, ChevronRight,
   Pencil, Building2, Shield, MonitorSmartphone, X, ImagePlus, Trash2,
@@ -742,25 +742,28 @@ export default function ConfiguracionPage() {
                   )}
                 </div>
 
-                {/* Plan card */}
-                {plan && (
-                  <div style={{ background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: 12, padding: 20, boxShadow: "0 1px 3px rgba(15,23,42,0.06)" }}>
-                    <p style={{ fontSize: 12, fontWeight: 700, color: "var(--fg-2)", margin: "0 0 14px", textTransform: "uppercase", letterSpacing: "0.06em" }}>Plan activo</p>
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                      <div>
-                        <p style={{ fontSize: 16, fontWeight: 700, color: "var(--fg-1)", margin: 0 }}>{PLAN_LABEL[plan] ?? plan}</p>
-                        <p style={{ fontSize: 12, color: "var(--fg-2)", margin: "3px 0 0" }}>
-                          {planStatus === "active" ? "Activo" : planStatus === "paused" ? "Pausado" : planStatus === "cancelled" ? "Cancelado" : planStatus || "—"}
-                        </p>
-                      </div>
-                      <span style={{
-                        fontSize: 12, fontWeight: 700, padding: "4px 12px", borderRadius: 20,
-                        background: planInfo.bg, color: planInfo.text, border: `1px solid ${planInfo.border}`,
-                      }}>
-                        {PLAN_LABEL[plan] ?? plan}
-                      </span>
+                {/* Plan card — solo owner (responsable de facturación) */}
+                {esOwner(myRol) && (
+                <button
+                  type="button"
+                  onClick={() => router.push("/configuracion/suscripcion")}
+                  style={{
+                    background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: 12, padding: 20,
+                    boxShadow: "0 1px 3px rgba(15,23,42,0.06)", cursor: "pointer", fontFamily: "inherit",
+                    width: "100%", textAlign: "left",
+                  }}
+                >
+                  <p style={{ fontSize: 12, fontWeight: 700, color: "var(--fg-2)", margin: "0 0 14px", textTransform: "uppercase", letterSpacing: "0.06em" }}>Suscripción</p>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                    <div>
+                      <p style={{ fontSize: 16, fontWeight: 700, color: "var(--fg-1)", margin: 0 }}>{PLAN_LABEL[plan] ?? "Sin plan"}</p>
+                      <p style={{ fontSize: 12, color: "var(--fg-2)", margin: "3px 0 0" }}>
+                        {planStatus === "active" ? "Activo" : planStatus === "trial" ? "En prueba" : planStatus === "cancelled" ? "Cancelado" : "Gestionar plan y facturación"}
+                      </p>
                     </div>
+                    <ChevronRight size={16} style={{ color: "var(--fg-4)" }} />
                   </div>
+                </button>
                 )}
               </>
             )}

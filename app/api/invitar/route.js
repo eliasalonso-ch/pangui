@@ -57,6 +57,21 @@ export async function POST(request) {
       { auth: { autoRefreshToken: false, persistSession: false } }
     );
 
+    // 3a. Block invites only if the workspace is on basic_free (trial ended, no paid plan).
+    //     During trial and on active paid plans, invites are unlimited; each active user
+    //     adds price_per_user to the monthly charge (synced to Flow after insert).
+    const { data: sub } = await adminClient
+      .from("subscriptions")
+      .select("status, plan_key")
+      .eq("workspace_id", callerPerfil.workspace_id)
+      .neq("status", "canceled")
+      .maybeSingle();
+    if (sub?.status === "basic_free") {
+      return NextResponse.json({
+        error: "Tu prueba terminó. Elige un plan en Configuración → Suscripción para invitar usuarios.",
+      }, { status: 402 });
+    }
+
     const { data: newUser, error: authError } = await adminClient.auth.admin.createUser({
       email,
       password,
@@ -81,6 +96,15 @@ export async function POST(request) {
       // Rollback: delete the auth user so it doesn't become orphan
       await adminClient.auth.admin.deleteUser(newUser.user.id);
       return NextResponse.json({ error: dbError.message }, { status: 500 });
+    }
+
+    // 5. Reconcile Flow subscription items to reflect new user count.
+    //    Fire-and-forget; failures are logged but do not block the invite.
+    try {
+      const { syncSubscriptionToUserCount } = await import("@/lib/flow-sync");
+      await syncSubscriptionToUserCount(callerPerfil.workspace_id);
+    } catch (err) {
+      console.error("[invitar] flow-sync failed:", err);
     }
 
     return NextResponse.json({ ok: true });

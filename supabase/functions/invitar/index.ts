@@ -12,15 +12,15 @@ const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
   auth: { autoRefreshToken: false, persistSession: false },
 });
 
+const CORS_HEADERS = {
+  "Access-Control-Allow-Origin":  "*",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization, apikey, x-client-info",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, {
-      headers: {
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Headers": "Content-Type, Authorization",
-        "Access-Control-Allow-Methods": "POST, OPTIONS",
-      },
-    });
+    return new Response(null, { headers: CORS_HEADERS });
   }
 
   if (req.method !== "POST") {
@@ -47,7 +47,7 @@ Deno.serve(async (req: Request) => {
     .eq("id", caller.id)
     .maybeSingle();
 
-  if (!callerPerfil || !["jefe", "admin"].includes(callerPerfil.rol)) {
+  if (!callerPerfil || !["jefe", "admin", "owner"].includes(callerPerfil.rol)) {
     return json({ error: "No tienes permisos para invitar miembros." }, 403);
   }
 
@@ -57,9 +57,9 @@ Deno.serve(async (req: Request) => {
   if (!nombre || !email || !password || !rol) {
     return json({ error: "Faltan campos requeridos." }, 400);
   }
-  const rolesPermitidos = callerPerfil.rol === "admin"
-    ? ["tecnico", "jefe", "admin"]
-    : ["tecnico", "jefe"];
+  const rolesPermitidos = callerPerfil.rol === "admin" || callerPerfil.rol === "owner"
+    ? ["tecnico", "jefe", "admin", "member", "requester"]
+    : ["tecnico", "jefe", "member", "requester"];
   if (!rolesPermitidos.includes(rol)) {
     return json({ error: "Rol inválido." }, 400);
   }
@@ -69,6 +69,21 @@ Deno.serve(async (req: Request) => {
   const workspaceId = callerPerfil.workspace_id ?? bodyWorkspaceId ?? null;
   if (!workspaceId) {
     return json({ error: "No se pudo determinar el workspace. Vuelve a iniciar sesión." }, 400);
+  }
+
+  // Plan gate: workspaces on basic_free (trial expired, no paid plan) cannot
+  // invite new users. Active paid plans and trialing workspaces invite freely;
+  // each active user adds price_per_user_clp to the monthly Flow charge.
+  const { data: sub } = await admin
+    .from("subscriptions")
+    .select("status, plan_key")
+    .eq("workspace_id", workspaceId)
+    .neq("status", "canceled")
+    .maybeSingle();
+  if (sub?.status === "basic_free") {
+    return json({
+      error: "Tu prueba terminó. Elige un plan en Configuración → Suscripción para invitar usuarios.",
+    }, 402);
   }
 
   // Create auth user
@@ -102,7 +117,7 @@ function json(body: unknown, status = 200) {
     status,
     headers: {
       "Content-Type": "application/json",
-      "Access-Control-Allow-Origin": "*",
+      ...CORS_HEADERS,
     },
   });
 }

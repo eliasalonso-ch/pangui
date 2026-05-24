@@ -1,8 +1,9 @@
 "use client";
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase";
-import { CheckCircle2, Eye, EyeOff, Loader2 } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Eye, EyeOff, Loader2 } from "lucide-react";
 
 const FEATURES = [
   "Órdenes de trabajo en tiempo real",
@@ -93,10 +94,30 @@ export default function LoginForm() {
         <div style={{ position: "absolute", bottom: -100, left: -100, width: 360, height: 360, borderRadius: "50%", border: "1px solid rgba(255,255,255,0.05)", pointerEvents: "none" }} />
 
         {/* Logo */}
-        <div style={{ position: "relative", zIndex: 1 }}>
+        <div style={{ position: "relative", zIndex: 1, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
           <img src="/logo6.svg" alt="Pangui" style={{ height: 28, width: "auto"}}
             onError={e => { e.currentTarget.src = "/logo6.svg";}}
           />
+          <Link
+            href="/"
+            aria-label="Volver al inicio"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 8,
+              color: "rgba(255,255,255,0.78)",
+              fontSize: 13,
+              fontWeight: 600,
+              textDecoration: "none",
+              border: "1px solid rgba(255,255,255,0.14)",
+              borderRadius: 8,
+              padding: "8px 10px",
+              background: "rgba(255,255,255,0.06)",
+            }}
+          >
+            <ArrowLeft size={16} />
+            Inicio
+          </Link>
         </div>
 
         {/* Headline */}
@@ -139,11 +160,28 @@ export default function LoginForm() {
       {/* ── Mobile top bar ── */}
       <div className="login-mobile-bar" style={{
         position: "fixed", top: 0, left: 0, right: 0, zIndex: 10,
-        display: "flex", alignItems: "center",
+        display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16,
         padding: "14px 24px",
         background: "#1E3A8A",
         borderBottom: "1px solid rgba(255,255,255,0.1)",
       }}>
+        <Link
+          href="/"
+          aria-label="Volver al inicio"
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            width: 36,
+            height: 36,
+            color: "#FFFFFF",
+            border: "1px solid rgba(255,255,255,0.16)",
+            borderRadius: 8,
+            background: "rgba(255,255,255,0.08)",
+          }}
+        >
+          <ArrowLeft size={18} />
+        </Link>
         <img src="/logo2.svg" alt="Pangui" style={{ height: 24, width: "auto", filter: "brightness(0) invert(1)" }}
           onError={e => { e.currentTarget.style.filter = "none"; }} />
       </div>

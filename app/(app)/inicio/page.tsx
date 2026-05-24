@@ -14,6 +14,7 @@ import {
 import { createClient } from "@/lib/supabase";
 import type { Estado, Prioridad } from "@/types/ordenes";
 import { parseDescMeta } from "@/lib/ordenes-api";
+import { WelcomeToast } from "@/components/WelcomeToast";
 import {
   getOverdueDays as otGetOverdueDays,
   isOverdue as otIsOverdue,
@@ -321,6 +322,7 @@ export default function InicioDashboard() {
 
   return (
     <div style={{ padding: "32px 40px 64px", minHeight: "100vh", background: "var(--surface-0)" }}>
+      <WelcomeToast />
 
       {/* ── Header ── */}
       <div style={{ marginBottom: 32, display: "flex", alignItems: "flex-end", justifyContent: "space-between" }}>

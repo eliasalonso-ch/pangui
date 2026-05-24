@@ -24,6 +24,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase";
 import { usePermisos } from "@/lib/permisos";
 import { ROL_LABEL } from "@/lib/roles";
+import { useSuscripcion } from "@/hooks/useSuscripcion";
 
 import {
   Sidebar,
@@ -227,6 +228,11 @@ export default function AppSidebar() {
 
   const { puedeVer, userRol: permisosRol } = usePermisos();
   const effectiveRol = userRol ?? permisosRol;
+  const suscripcion = useSuscripcion();
+  const planFeatures = suscripcion.data?.plan_features ?? null;
+  // While the plan is loading, show items optimistically; once loaded, hide ones the plan blocks.
+  const hasInventario   = !planFeatures || planFeatures.inventario;
+  const hasAnalyticsPro = !planFeatures || planFeatures.analytics_pro;
   const isAdmin = effectiveRol === "jefe" || effectiveRol === "admin" || effectiveRol === "owner";
 
   useEffect(() => {
@@ -412,7 +418,7 @@ export default function AppSidebar() {
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
-              {modoRegistro !== "materiales" && (
+              {modoRegistro !== "materiales" && hasAnalyticsPro && (
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild isActive={isActive("/analitica-materiales")} tooltip="Analítica de Materiales">
                     <Link href="/analitica-materiales" style={{ display: "flex", alignItems: "center", gap: collapsed ? 0 : 10 }}>
@@ -432,7 +438,7 @@ export default function AppSidebar() {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               )}
-              {puedeVer("inventario") && modoRegistro !== "hoja" && (
+              {puedeVer("inventario") && modoRegistro !== "hoja" && hasInventario && (
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild isActive={isActive("/partes")} tooltip="Materiales">
                     <Link href="/partes" style={{ display: "flex", alignItems: "center", gap: collapsed ? 0 : 10 }}>
