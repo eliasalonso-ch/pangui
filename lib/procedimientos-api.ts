@@ -237,6 +237,17 @@ async function upsertPasos(procedimientoId: string, pasos: PasoFormItem[]) {
     multimedia_url: p.multimedia_url ?? null,
   });
 
+  for (let i = 0; i < pasos.length; i += 1) {
+    const paso = pasos[i];
+    if (!isUuid(paso.tempId) || !existingIds.has(paso.tempId)) continue;
+    const { error: tempOrderErr } = await sb
+      .from("procedimiento_pasos")
+      .update({ orden: -100000 - i })
+      .eq("id", paso.tempId)
+      .eq("procedimiento_id", procedimientoId);
+    if (tempOrderErr) throw new Error(tempOrderErr.message);
+  }
+
   const idByTempId = new Map<string, string>();
 
   for (let i = 0; i < pasos.length; i += 1) {
