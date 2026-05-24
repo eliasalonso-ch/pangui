@@ -171,20 +171,40 @@ export async function updateProcedimiento(
 
 async function upsertPasos(procedimientoId: string, pasos: PasoFormItem[]) {
   const sb = createClient();
-  // Delete-and-re-insert: simplest correctness story for ordered steps.
-  // Trade-off: any FK refs (condicion_paso_id, sub_procedimiento_id) inside
-  // the same procedure must be resolved AFTER insert via a second pass,
-  // because old paso UUIDs are wiped and new UUIDs assigned.
-  const { error: delErr } = await sb
+  const { data: existingRows, error: existingErr } = await sb
     .from("procedimiento_pasos")
-    .delete()
+    .select("id")
     .eq("procedimiento_id", procedimientoId);
-  if (delErr) throw new Error(delErr.message);
+  if (existingErr) throw new Error(existingErr.message);
+
+  const existingIds = new Set((existingRows ?? []).map(row => row.id as string));
+  const keptExistingIds = new Set(
+    pasos
+      .map(p => p.tempId)
+      .filter((id): id is string => isUuid(id) && existingIds.has(id)),
+  );
+  const removedExistingIds = [...existingIds].filter(id => !keptExistingIds.has(id));
+
+  if (removedExistingIds.length > 0) {
+    const { count, error: countErr } = await sb
+      .from("paso_respuestas")
+      .select("id", { count: "exact", head: true })
+      .in("paso_id", removedExistingIds);
+    if (countErr) throw new Error(countErr.message);
+    if ((count ?? 0) > 0) {
+      throw new Error("No se pueden eliminar pasos que ya tienen respuestas. Edita el paso existente o crea una nueva version del procedimiento.");
+    }
+
+    const { error: delErr } = await sb
+      .from("procedimiento_pasos")
+      .delete()
+      .in("id", removedExistingIds);
+    if (delErr) throw new Error(delErr.message);
+  }
 
   if (pasos.length === 0) return;
 
-  // First pass: insert with condicion_paso_id = NULL; capture the new ids.
-  const rows = pasos.map((p, i) => ({
+  const rowForPaso = (p: PasoFormItem, i: number) => ({
     procedimiento_id: procedimientoId,
     orden: i + 1,
     tipo: p.tipo,
@@ -215,24 +235,34 @@ async function upsertPasos(procedimientoId: string, pasos: PasoFormItem[]) {
     iso14224_taxonomia: p.iso14224_taxonomia ?? null,
     sub_procedimiento_id: p.sub_procedimiento_id ?? null,
     multimedia_url: p.multimedia_url ?? null,
-  }));
+  });
 
-  const { data: inserted, error } = await sb
-    .from("procedimiento_pasos")
-    .insert(rows)
-    .select("id, orden");
-  if (error) throw new Error(error.message);
-
-  // Pass 2: resolve intra-procedure FK references (condicion_paso_id) by
-  // mapping draft tempIds → orden → new paso UUIDs.
-  const tempIdByOrden = new Map<number, string>();
-  pasos.forEach((p, i) => tempIdByOrden.set(i + 1, p.tempId));
   const idByTempId = new Map<string, string>();
-  for (const row of inserted ?? []) {
-    const tid = tempIdByOrden.get(row.orden);
-    if (tid) idByTempId.set(tid, row.id);
+
+  for (let i = 0; i < pasos.length; i += 1) {
+    const paso = pasos[i];
+    const row = rowForPaso(paso, i);
+    if (isUuid(paso.tempId) && existingIds.has(paso.tempId)) {
+      const { error: updateErr } = await sb
+        .from("procedimiento_pasos")
+        .update(row)
+        .eq("id", paso.tempId)
+        .eq("procedimiento_id", procedimientoId);
+      if (updateErr) throw new Error(updateErr.message);
+      idByTempId.set(paso.tempId, paso.tempId);
+    } else {
+      const { data: inserted, error: insertErr } = await sb
+        .from("procedimiento_pasos")
+        .insert(row)
+        .select("id")
+        .single();
+      if (insertErr) throw new Error(insertErr.message);
+      idByTempId.set(paso.tempId, inserted.id);
+    }
   }
 
+  // Pass 2: resolve intra-procedure FK references (condicion_paso_id) by
+  // mapping draft tempIds to preserved or newly inserted paso UUIDs.
   const updates: { id: string; condicion_paso_id: string }[] = [];
   pasos.forEach((p) => {
     if (!p.condicion_tempid) return;
