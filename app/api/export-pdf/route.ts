@@ -25,26 +25,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: `Error del servicio PDF: ${res.status}\n${text}` }, { status: res.status });
   }
 
-  // Inspect the payload to see what the web app is sending
-  try {
-    const parsed = JSON.parse(body);
-    const proc = parsed.procedimientos?.[0];
-    const respuestas = proc?.ejecucion?.respuestas ?? [];
-    const fotoRespuestas = respuestas.filter((r: { foto_url?: string }) => r.foto_url);
-    console.log(`[export-pdf] payload summary:`, {
-      bytes: body.length,
-      procedimientos: parsed.procedimientos?.length,
-      pasosEnPrimerProc: proc?.procedimiento?.pasos?.length,
-      respuestas: respuestas.length,
-      respuestasConFoto: fotoRespuestas.length,
-      sampleFotoUrl: fotoRespuestas[0]?.foto_url?.slice(0, 80),
-      fields: parsed.fields,
-      fotoGruposItems: parsed.fotoGrupos?.reduce((n: number, g: { foto_grupo_items?: unknown[] }) => n + (g.foto_grupo_items?.length ?? 0), 0),
-    });
-  } catch {}
-
   const pdf = await res.arrayBuffer();
-  console.log(`[export-pdf] received ${pdf.byteLength} bytes from ${PDF_SERVICE_URL}`);
   return new NextResponse(pdf, {
     status: 200,
     headers: {
