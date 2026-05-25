@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { Suspense, useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase";
@@ -114,6 +114,14 @@ function Field({ icon: Icon, label, children }) {
 }
 
 export default function RegistroPage() {
+  return (
+    <Suspense fallback={null}>
+      <RegistroPageInner />
+    </Suspense>
+  );
+}
+
+function RegistroPageInner() {
   const router = useRouter();
   const search = useSearchParams();
   // ?plan=esencial when arriving from /precios — used to redirect post-signup

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useEffect, useCallback } from "react";
+import { Suspense, useState, useEffect, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion, useMotionValue, useSpring, useTransform } from "framer-motion";
 import { Loader2, Check, CreditCard, AlertCircle, ArrowLeft, X, Sparkles, ShieldCheck, Pencil, Trash2 } from "lucide-react";
@@ -38,6 +38,14 @@ const fmtDate = (iso: string | null) => iso ? new Date(iso).toLocaleDateString("
 const daysUntil = (iso: string | null) => iso ? Math.max(0, Math.ceil((new Date(iso).getTime() - Date.now()) / 86_400_000)) : 0;
 
 export default function SuscripcionPage() {
+  return (
+    <Suspense fallback={null}>
+      <SuscripcionPageInner />
+    </Suspense>
+  );
+}
+
+function SuscripcionPageInner() {
   const router = useRouter();
   const search = useSearchParams();
   const [loading, setLoading] = useState(true);
