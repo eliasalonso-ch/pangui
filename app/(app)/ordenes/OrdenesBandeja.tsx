@@ -2,12 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Plus, Search, X, ChevronDown, Loader2, FileText, ArrowUpDown, Download, AlertTriangle, Calendar } from "lucide-react";
+import { Plus, Search, X, ChevronDown, Loader2, FileText, ArrowUpDown, Download, AlertTriangle, Calendar, List, CalendarDays } from "lucide-react";
 import { createClient } from "@/lib/supabase";
 import { fetchOrden, deleteOrden, LIST_SELECT, parseDescMeta } from "@/lib/ordenes-api";
 import { buildOrdenesWorkbook, type ExportCols as SharedExportCols, type OrdenInput, type HojaInput, type FilaInput, type FotoItemInput, type MaterialUsadoInput } from "@/lib/excel-export-shared";
 import { ExportScheduler } from "./ExportScheduler";
 import OTRow from "./OTRow";
+import CalendarView from "./CalendarView";
 import OTDetail from "./OTDetail";
 import OTCrearPanel from "./OTCrearPanel";
 import OTEditPanel from "./OTEditPanel";
@@ -98,6 +99,11 @@ export default function OrdenesBandeja({
   // Two top-level tabs only; the previous sub-tabs (Sin asignar, Reprogramadas,
   // Levantamientos) are now scope filters inside the merged Mostrar/Ordenar
   // dropdown so the supervisor can drill in without losing the rest of the list.
+  type ViewKey = "lista" | "calendario";
+  const [view, setView] = useState<ViewKey>(
+    () => searchParams?.get("vista") === "calendario" ? "calendario" : "lista",
+  );
+
   type TabKey = "pendientes" | "completas";
   type ScopeKey = "todas" | "sin_asignar" | "reprogramadas" | "levantamientos";
 
@@ -276,7 +282,14 @@ export default function OrdenesBandeja({
 
   // Open order detail
   const openOT = useCallback(async (id: string, pushUrl = true) => {
-    if (pushUrl) router.push(`/ordenes?id=${id}`, { scroll: false });
+    if (pushUrl) {
+      // Preserve the calendar-view param so dismissing the modal doesn't
+      // bounce the supervisor back to the list view.
+      const params = new URLSearchParams();
+      params.set("id", id);
+      if (view === "calendario") params.set("vista", "calendario");
+      router.push(`/ordenes?${params.toString()}`, { scroll: false });
+    }
     setRightPanel("none");
     setSelected(id);
     setLoadingDetail(true);
@@ -288,7 +301,7 @@ export default function OrdenesBandeja({
     } finally {
       setLoadingDetail(false);
     }
-  }, [router]);
+  }, [router, view]);
 
   const openCreate = useCallback(() => {
     router.push("/ordenes?panel=crear", { scroll: false });
@@ -785,9 +798,45 @@ export default function OrdenesBandeja({
           display:"flex", alignItems:"center", justifyContent:"space-between",
           padding:"0 20px", height:56, gap:12,
         }}>
-          <h1 style={{ fontSize:20, fontWeight:700, color:"var(--fg-1)", letterSpacing:"-0.3px", lineHeight:1.25, flexShrink:0 }}>
-            Órdenes de Trabajo
-          </h1>
+          <div style={{ display:"flex", alignItems:"center", gap:14, flexShrink:0 }}>
+            <h1 style={{ fontSize:20, fontWeight:700, color:"var(--fg-1)", letterSpacing:"-0.3px", lineHeight:1.25, margin:0 }}>
+              Órdenes de Trabajo
+            </h1>
+            {/* Vista toggle. Same URL, ?vista= param for shareable links. */}
+            <div style={{ display:"flex", border:"1px solid var(--border)", borderRadius:8, overflow:"hidden", height:32 }}>
+              {([
+                { key: "lista" as const,      label: "Lista",      icon: List },
+                { key: "calendario" as const, label: "Calendario", icon: CalendarDays },
+              ]).map((v, i) => {
+                const isActive = view === v.key;
+                const Icon = v.icon;
+                return (
+                  <button
+                    key={v.key}
+                    type="button"
+                    onClick={() => {
+                      setView(v.key);
+                      const params = new URLSearchParams(searchParams?.toString() ?? "");
+                      if (v.key === "calendario") params.set("vista", "calendario");
+                      else params.delete("vista");
+                      router.replace(`/ordenes${params.toString() ? `?${params.toString()}` : ""}`, { scroll: false });
+                    }}
+                    style={{
+                      display:"flex", alignItems:"center", gap:6,
+                      padding:"0 12px", height:"100%",
+                      background: isActive ? "var(--brand)" : "var(--surface-1)",
+                      color: isActive ? "white" : "var(--fg-2)",
+                      border:"none", borderRight: i === 0 ? "1px solid var(--border)" : "none",
+                      fontSize:12, fontWeight:600, cursor:"pointer", fontFamily:"inherit",
+                    }}
+                  >
+                    <Icon size={13} />
+                    {v.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
 
           <div style={{ display:"flex", alignItems:"center", gap:8, flex:1, justifyContent:"flex-end" }}>
             {/* Search */}
@@ -966,20 +1015,38 @@ export default function OrdenesBandeja({
       </div>
 
       {/* ── Main split pane ── */}
-      <div style={{ display:"flex", flex:1, minHeight:0, overflow:"hidden" }}>
+      <div style={{ display:"flex", flexGrow:1, flexShrink:1, flexBasis:0, minHeight:0, minWidth:0, overflow:"hidden" }}>
 
-        {/* LEFT: list column */}
+        {/* LEFT: list column OR calendar. The calendar takes the full remaining
+            width (or shrinks to leave room for the detail panel on the right).
+            In calendar view we explicitly allow this flex item to shrink (the
+            grid relies on `minmax(0, 1fr)` and `minWidth:0` cascading from
+            here) so long event titles can't force horizontal overflow. */}
         <div style={{
           display: (!isDesktop && (selected || rightPanel === "create" || rightPanel === "edit")) ? "none" : "flex",
           flexDirection:"column",
-          width: isDesktop ? 400 : "100%",
-          minWidth: isDesktop ? 400 : undefined,
-          maxWidth: isDesktop ? 400 : undefined,
+          width: view === "calendario" ? undefined : (isDesktop ? 400 : "100%"),
+          minWidth: 0,
+          maxWidth: view === "calendario" ? undefined : (isDesktop ? 400 : undefined),
+          flexGrow: view === "calendario" ? 1 : 0,
+          flexShrink: view === "calendario" ? 1 : 0,
+          flexBasis: "auto",
           borderRight: isDesktop ? "1px solid var(--border)" : "none",
           background:"var(--surface-1)",
-          flexShrink:0,
           position:"relative",
         }}>
+          {view === "calendario" ? (
+            <CalendarView
+              ordenes={filtered}
+              reprogramadaIds={reprogramadaIds}
+              selectedId={selected}
+              myId={myId}
+              usuarios={usuarios}
+              onOpenOT={(id) => openOT(id, true)}
+              onPatchOrden={(id, patch) => setOrdenes(prev => prev.map(x => x.id === id ? { ...x, ...patch } : x))}
+            />
+          ) : (<>
+
 
           {/* Two-tab strip. Sub-scopes (Sin asignar, Reprogramadas,
               Levantamientos) live inside the merged Mostrar/Ordenar dropdown
@@ -1203,10 +1270,12 @@ export default function OrdenesBandeja({
               ))
             )}
           </div>
+          </>)}
         </div>
 
-        {/* RIGHT: create panel or detail */}
-        {isDesktop && (
+        {/* RIGHT: create panel or detail. Hidden in calendar view because the
+            calendar takes the full width and OT detail opens in a modal. */}
+        {isDesktop && view !== "calendario" && (
           <div style={{ flex:1, minWidth:0, overflow:"hidden", background:"var(--c-bg, #F8FAFC)" }}>
             {rightPanel === "create" ? (
               <OTCrearPanel
@@ -1284,6 +1353,54 @@ export default function OrdenesBandeja({
           </div>
         )}
       </div>
+
+      {/* ── OT detail modal (calendar view only) ──
+          In calendar view the right pane is hidden so the calendar can use
+          full width. When the supervisor clicks an event, the detail opens
+          here as a centered modal. Clicking the backdrop or pressing the
+          OTDetail close button dismisses it. */}
+      {view === "calendario" && selected && (
+        <div
+          style={{ position:"fixed", inset:0, zIndex:300, background:"rgba(15,23,42,0.45)", display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}
+          onClick={() => { setSelected(null); setDetail(null); router.push(`/ordenes?vista=calendario`, { scroll: false }); }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              background:"var(--surface-1)", borderRadius:14,
+              width:"min(960px, 100%)", maxHeight:"calc(100vh - 48px)",
+              display:"flex", flexDirection:"column",
+              boxShadow:"0 20px 60px rgba(15,23,42,0.25)",
+              overflow:"hidden",
+            }}
+          >
+            {loadingDetail ? (
+              <div style={{ display:"flex", alignItems:"center", justifyContent:"center", padding:"80px 20px", gap:8, color:"var(--fg-4)", fontSize:13 }}>
+                <Loader2 size={16} className="animate-spin" />
+                Cargando…
+              </div>
+            ) : detail ? (
+              <OTDetail
+                orden={detail}
+                usuarios={usuarios}
+                myId={myId}
+                myRol={myRol}
+                wsId={wsId}
+                onEdit={() => setRightPanel("edit")}
+                onDelete={() => deleteOT(detail.id)}
+                onClose={() => { setSelected(null); setDetail(null); router.push(`/ordenes?vista=calendario`, { scroll: false }); }}
+                onOpenOrden={(id) => openOT(id, true)}
+                onOrdenUpdated={(patch) => {
+                  setDetail(prev => prev ? { ...prev, ...patch } : prev);
+                  setOrdenes(prev => prev.map(o =>
+                    o.id === detail.id ? { ...o, ...patch } : o
+                  ));
+                }}
+              />
+            ) : null}
+          </div>
+        </div>
+      )}
 
       {/* ── Export config modal ── */}
       {exportConfigOpen && (
