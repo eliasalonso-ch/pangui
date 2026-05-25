@@ -48,7 +48,10 @@ type WaitingAlert = {
 function classifyWaitingReason(comment: string | null | undefined): { key: WaitingReasonKey; label: string } {
   const c = (comment ?? "").toLowerCase();
   if (c.includes("material")) return { key: "materiales", label: "Faltan materiales" };
-  if (c.includes("reprogram") || c.includes("reagend") || c.includes("coordino") || c.includes("coordinó")) return { key: "reprogramar", label: "Reprogramar" };
+  // "coordinad" catches coordinado/coordinada/coordinados/coordinadas — humans
+  // write freely; "Coordinado para las 17:00hrs" means rescheduled even though
+  // the mobile auto-prefix is "Reprogramar:".
+  if (c.includes("reprogram") || c.includes("reagend") || c.includes("coordinad") || c.includes("coordino") || c.includes("coordinó")) return { key: "reprogramar", label: "Reprogramar" };
   if (c.includes("acceso") || c.includes("ingresar") || c.includes("instalacion") || c.includes("instalación")) return { key: "acceso", label: "Sin acceso" };
   return { key: "otro", label: "Otro motivo" };
 }
@@ -92,17 +95,26 @@ export default function OrdenesBandeja({
   const [detail, setDetail]     = useState<OrdenTrabajo | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
 
-  const [tab, setTab]           = useState<"activas" | "cerradas" | "sin_asignar" | "levantamientos">(() => {
+  // Two top-level tabs only; the previous sub-tabs (Sin asignar, Reprogramadas,
+  // Levantamientos) are now scope filters inside the merged Mostrar/Ordenar
+  // dropdown so the supervisor can drill in without losing the rest of the list.
+  type TabKey = "pendientes" | "completas";
+  type ScopeKey = "todas" | "sin_asignar" | "reprogramadas" | "levantamientos";
+
+  const [tab, setTab]           = useState<TabKey>(() => {
     const f = searchParams?.get("filtro");
-    if (f === "completadas_hoy")  return "cerradas";
-    if (f === "sin_asignar")      return "sin_asignar";
-    if (f === "levantamientos")   return "levantamientos";
-    // abiertas, en_curso, bloqueadas, urgentes, etc. all show activas tab
-    return "activas";
+    if (f === "completadas_hoy")  return "completas";
+    return "pendientes";
+  });
+  const [scope, setScope]       = useState<ScopeKey>(() => {
+    const f = searchParams?.get("filtro");
+    if (f === "sin_asignar")     return "sin_asignar";
+    if (f === "reprogramadas")   return "reprogramadas";
+    if (f === "levantamientos")  return "levantamientos";
+    return "todas";
   });
   const [search, setSearch]     = useState("");
   const [sort, setSort]         = useState<SortOption>("created_at_desc");
-  const [levAccordion, setLevAccordion] = useState<{ activos: boolean; cerrados: boolean }>({ activos: true, cerrados: false });
 
   // Pre-apply filter from URL param (e.g. ?filtro=urgentes from inicio dashboard)
   const [filtros, setFiltros]   = useState<FiltrosState>(() => {
@@ -129,12 +141,6 @@ export default function OrdenesBandeja({
   const [waitingAlertIndex, setWaitingAlertIndex] = useState(0);
   const [waitingOpen, setWaitingOpen] = useState(false);
   const waitingRef = useRef<HTMLDivElement>(null);
-  // Active "Solo reprogramadas" toggle. Read from URL once; togglable via the
-  // waiting-alerts dropdown. We can't put it inside FiltrosState because the
-  // reason key lives in actividad_ot, not on ordenes_trabajo.
-  const [onlyReprogramadas, setOnlyReprogramadas] = useState(
-    () => searchParams?.get("filtro") === "reprogramadas",
-  );
 
   type ExportCol =
     | "numero" | "n_serie" | "hito" | "estado" | "prioridad" | "tipo_trabajo"
@@ -329,14 +335,18 @@ export default function OrdenesBandeja({
 
   // Apply filters + search + sort
   const filtered = useMemo(() => {
+    // Tab decides active vs. completed; scope narrows further.
     let list = ordenes.filter(o =>
-      tab === "sin_asignar"    ? ACTIVE_ESTADOS.has(o.estado) && (!o.asignados_ids || o.asignados_ids.length === 0)
-      : tab === "levantamientos" ? o.clasificacion === "levantamiento"
-      : tab === "activas"      ? ACTIVE_ESTADOS.has(o.estado)
-      : CLOSED_ESTADOS.has(o.estado)
+      tab === "pendientes" ? ACTIVE_ESTADOS.has(o.estado) : CLOSED_ESTADOS.has(o.estado)
     );
 
-    if (onlyReprogramadas) list = list.filter(o => reprogramadaIds.has(o.id));
+    if (scope === "sin_asignar") {
+      list = list.filter(o => !o.asignados_ids || o.asignados_ids.length === 0);
+    } else if (scope === "reprogramadas") {
+      list = list.filter(o => reprogramadaIds.has(o.id));
+    } else if (scope === "levantamientos") {
+      list = list.filter(o => o.clasificacion === "levantamiento");
+    }
 
     // Filtros
     if (filtros.estados.length)      list = list.filter(o => filtros.estados.includes(o.estado));
@@ -399,25 +409,37 @@ export default function OrdenesBandeja({
       });
     }
 
-    // Sort
-    list.sort((a, b) => {
-      switch (sort) {
-        case "fecha_termino_asc":
-          if (!a.fecha_termino) return 1;
-          if (!b.fecha_termino) return -1;
-          return new Date(a.fecha_termino).getTime() - new Date(b.fecha_termino).getTime();
-        case "prioridad_desc":
-          return (PRIORIDAD_ORDER[b.prioridad] ?? 0) - (PRIORIDAD_ORDER[a.prioridad] ?? 0);
-        case "prioridad_asc":
-          return (PRIORIDAD_ORDER[a.prioridad] ?? 0) - (PRIORIDAD_ORDER[b.prioridad] ?? 0);
-        case "ubicacion":
-          return (a.ubicaciones?.edificio ?? "").localeCompare(b.ubicaciones?.edificio ?? "");
-        default:
-          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-      }
-    });
+    // Sort. The reprogramadas scope forces ascending fecha_inicio so the soonest
+    // coordinated date floats to the top — the supervisor's primary need here.
+    if (scope === "reprogramadas") {
+      list.sort((a, b) => {
+        const af = a.fecha_inicio ?? "";
+        const bf = b.fecha_inicio ?? "";
+        if (!af && !bf) return 0;
+        if (!af) return 1;
+        if (!bf) return -1;
+        return af.localeCompare(bf);
+      });
+    } else {
+      list.sort((a, b) => {
+        switch (sort) {
+          case "fecha_termino_asc":
+            if (!a.fecha_termino) return 1;
+            if (!b.fecha_termino) return -1;
+            return new Date(a.fecha_termino).getTime() - new Date(b.fecha_termino).getTime();
+          case "prioridad_desc":
+            return (PRIORIDAD_ORDER[b.prioridad] ?? 0) - (PRIORIDAD_ORDER[a.prioridad] ?? 0);
+          case "prioridad_asc":
+            return (PRIORIDAD_ORDER[a.prioridad] ?? 0) - (PRIORIDAD_ORDER[b.prioridad] ?? 0);
+          case "ubicacion":
+            return (a.ubicaciones?.edificio ?? "").localeCompare(b.ubicaciones?.edificio ?? "");
+          default:
+            return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+        }
+      });
+    }
     return list;
-  }, [ordenes, tab, search, sort, filtros, ubicaciones, onlyReprogramadas, reprogramadaIds]);
+  }, [ordenes, tab, scope, search, sort, filtros, ubicaciones, reprogramadaIds]);
 
   // Counts reflect the current filters (search + filtros) but not the active/closed tab split
   const filteredCounts = useMemo(() => {
@@ -466,9 +488,6 @@ export default function OrdenesBandeja({
       if (filtros.soloAsignados) {
         list = list.filter(o => o.asignados_ids && o.asignados_ids.length > 0);
       }
-      if (onlyReprogramadas) {
-        list = list.filter(o => reprogramadaIds.has(o.id));
-      }
       if (search.trim()) {
         const q = search.trim().replace(/\s+/g, " ").toLowerCase();
         list = list.filter(o => {
@@ -483,13 +502,24 @@ export default function OrdenesBandeja({
       }
       return list;
     };
+    // Per tab × per scope. Drives the dropdown labels, the red-dot indicators,
+    // and the tab pill counts. All respect search + filtros so the count
+    // shown matches what the user would actually see if they clicked in.
+    const active = ordenes.filter(o => ACTIVE_ESTADOS.has(o.estado));
+    const closed = ordenes.filter(o => CLOSED_ESTADOS.has(o.estado));
     return {
-      activas:        applyFilters(ordenes.filter(o => ACTIVE_ESTADOS.has(o.estado))).length,
-      cerradas:       applyFilters(ordenes.filter(o => CLOSED_ESTADOS.has(o.estado))).length,
-      sin_asignar:    applyFilters(ordenes.filter(o => ACTIVE_ESTADOS.has(o.estado) && (!o.asignados_ids || o.asignados_ids.length === 0))).length,
-      levantamientos: applyFilters(ordenes.filter(o => o.clasificacion === "levantamiento")).length,
+      pendientes: {
+        todas:         applyFilters(active).length,
+        sin_asignar:   applyFilters(active.filter(o => !o.asignados_ids || o.asignados_ids.length === 0)).length,
+        reprogramadas: applyFilters(active.filter(o => reprogramadaIds.has(o.id))).length,
+        levantamientos: applyFilters(active.filter(o => o.clasificacion === "levantamiento")).length,
+      },
+      completas: {
+        todas:          applyFilters(closed).length,
+        levantamientos: applyFilters(closed.filter(o => o.clasificacion === "levantamiento")).length,
+      },
     };
-  }, [ordenes, filtros, search, ubicaciones, onlyReprogramadas, reprogramadaIds]);
+  }, [ordenes, filtros, search, ubicaciones, reprogramadaIds]);
   const currentSortLabel = SORT_OPTIONS.find(o => o.value === sort)?.label ?? "";
   const currentWaitingAlert = waitingAlerts.length > 0
     ? waitingAlerts[waitingAlertIndex % waitingAlerts.length]
@@ -687,27 +717,26 @@ export default function OrdenesBandeja({
                   <button
                     type="button"
                     onClick={() => {
-                      const next = !onlyReprogramadas;
-                      setOnlyReprogramadas(next);
+                      setTab("pendientes");
+                      setScope("reprogramadas");
                       const params = new URLSearchParams(searchParams?.toString() ?? "");
-                      if (next) params.set("filtro", "reprogramadas");
-                      else if (params.get("filtro") === "reprogramadas") params.delete("filtro");
+                      params.set("filtro", "reprogramadas");
                       router.replace(`/ordenes${params.toString() ? `?${params.toString()}` : ""}`, { scroll: false });
                       setWaitingOpen(false);
                     }}
                     style={{
                       width:"100%", display:"flex", alignItems:"center", gap:8,
                       padding:"10px 12px", borderBottom:"1px solid var(--border)",
-                      background: onlyReprogramadas ? "var(--st-wait-bg)" : "var(--surface-1)",
+                      background: scope === "reprogramadas" ? "var(--st-wait-bg)" : "var(--surface-1)",
                       border:"none", borderTop:"none", cursor:"pointer",
                       fontFamily:"inherit", textAlign:"left",
                     }}
                   >
-                    <Calendar size={14} style={{ color: onlyReprogramadas ? "var(--st-wait-fg)" : "var(--fg-3)", flexShrink:0 }} />
-                    <span style={{ flex:1, fontSize:12, fontWeight:600, color: onlyReprogramadas ? "var(--st-wait-fg)" : "var(--fg-2)" }}>
+                    <Calendar size={14} style={{ color: scope === "reprogramadas" ? "var(--st-wait-fg)" : "var(--fg-3)", flexShrink:0 }} />
+                    <span style={{ flex:1, fontSize:12, fontWeight:600, color: scope === "reprogramadas" ? "var(--st-wait-fg)" : "var(--fg-2)" }}>
                       Solo reprogramadas
                     </span>
-                    <span style={{ fontSize:11, fontWeight:700, color: onlyReprogramadas ? "var(--st-wait-fg)" : "var(--fg-3)" }}>
+                    <span style={{ fontSize:11, fontWeight:700, color: scope === "reprogramadas" ? "var(--st-wait-fg)" : "var(--fg-3)" }}>
                       {reprogramadaIds.size}
                     </span>
                   </button>
@@ -932,57 +961,6 @@ export default function OrdenesBandeja({
             {exporting ? "Exportando…" : "Excel"}
           </button>
 
-          {/* Sort dropdown */}
-          <div ref={sortRef} style={{ position:"relative" }}>
-            <button
-              type="button"
-              onClick={() => setSortOpen(v => !v)}
-              style={{
-                display:"flex", alignItems:"center", gap:4,
-                height:28, padding:"0 10px",
-                border:"1px solid var(--border)", borderRadius:6,
-                background:"var(--surface-1)", color:"var(--fg-2)",
-                fontSize:12, fontWeight:500, cursor:"pointer",
-                fontFamily:"inherit", whiteSpace:"nowrap",
-              }}
-              onMouseEnter={e => { e.currentTarget.style.borderColor = "var(--border-strong)"; e.currentTarget.style.background = "var(--surface-hover)"; }}
-              onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.background = "var(--surface-1)"; }}
-            >
-              <ArrowUpDown size={11} style={{ color:"var(--fg-4)" }} />
-              <span>Ordenar:</span>
-              <span style={{ fontWeight:600, color:"var(--fg-1)" }}>{currentSortLabel.split(":")[0]}</span>
-              <ChevronDown size={11} style={{ color:"var(--fg-4)", transform: sortOpen ? "rotate(180deg)" : "none", transition:"transform 0.15s" }} />
-            </button>
-            {sortOpen && (
-              <div style={{
-                position:"absolute", right:0, top:"calc(100% + 4px)", zIndex:50,
-                background:"var(--surface-1)", border:"1px solid var(--border)",
-                borderRadius:8, boxShadow:"0 8px 24px rgba(15,23,42,0.12)",
-                minWidth:220, overflow:"hidden",
-              }}>
-                {SORT_OPTIONS.map(o => (
-                  <button
-                    key={o.value}
-                    type="button"
-                    onClick={() => { setSort(o.value); setSortOpen(false); }}
-                    style={{
-                      display:"block", width:"100%", textAlign:"left",
-                      padding:"9px 14px", background: sort === o.value ? "var(--brand-tint)" : "transparent",
-                      border:"none", fontSize:13,
-                      color: sort === o.value ? "var(--brand-fg)" : "var(--fg-1)",
-                      fontWeight: sort === o.value ? 600 : 400,
-                      cursor:"pointer", fontFamily:"inherit",
-                    }}
-                    onMouseEnter={e => { if (sort !== o.value) e.currentTarget.style.background = "var(--surface-hover)"; }}
-                    onMouseLeave={e => { if (sort !== o.value) e.currentTarget.style.background = "transparent"; }}
-                  >
-                    {o.label}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
           </div>{/* end right side */}
         </div>
       </div>
@@ -1003,40 +981,44 @@ export default function OrdenesBandeja({
           position:"relative",
         }}>
 
-          {/* Tabs — 2×2 grid */}
+          {/* Two-tab strip. Sub-scopes (Sin asignar, Reprogramadas,
+              Levantamientos) live inside the merged Mostrar/Ordenar dropdown
+              in the header so the tab bar stays focused on the big split. */}
           <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", borderBottom:"1px solid var(--border)", flexShrink:0 }}>
             {[
-              { key:"activas",        label:"Pendientes",     count:filteredCounts.activas },
-              { key:"cerradas",       label:"Completas",      count:filteredCounts.cerradas },
-              { key:"sin_asignar",    label:"Sin asignar",    count:filteredCounts.sin_asignar },
-              { key:"levantamientos", label:"Levantamientos", count:filteredCounts.levantamientos },
+              { key:"pendientes" as const, label:"Pendientes", count:filteredCounts.pendientes.todas },
+              { key:"completas"  as const, label:"Completas",  count:filteredCounts.completas.todas },
             ].map((t, i) => {
               const isActive = tab === t.key;
-              const isLeft = i % 2 === 0;
-              const isTop = i < 2;
               return (
                 <button
                   key={t.key}
                   type="button"
-                  onClick={() => setTab(t.key as "activas" | "cerradas" | "sin_asignar" | "levantamientos")}
+                  onClick={() => {
+                    setTab(t.key);
+                    // Reset scope when switching tabs because some scopes don't
+                    // apply on both sides (e.g. "Sin asignar" is meaningless on
+                    // Completas, "Reprogramadas" requires en_espera).
+                    setScope("todas");
+                  }}
                   style={{
                     display:"flex", alignItems:"center", justifyContent:"space-between",
-                    padding:"10px 14px",
+                    padding:"12px 16px",
                     background: isActive ? "var(--surface-hover)" : "var(--surface-1)",
                     border:"none",
-                    borderBottom: isTop ? "1px solid var(--border)" : "none",
-                    borderRight: isLeft ? "1px solid var(--border)" : "none",
+                    borderRight: i === 0 ? "1px solid var(--border)" : "none",
+                    borderBottom: isActive ? "2px solid var(--brand)" : "2px solid transparent",
                     cursor:"pointer", fontFamily:"inherit",
                     transition:"background 0.1s",
                   }}
                   onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = "var(--surface-hover)"; }}
                   onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = "var(--surface-1)"; }}
                 >
-                  <span style={{ fontSize:12, fontWeight: isActive ? 600 : 500, color: isActive ? "var(--brand-fg)" : "var(--fg-2)" }}>
+                  <span style={{ fontSize:13, fontWeight: isActive ? 700 : 500, color: isActive ? "var(--brand-fg)" : "var(--fg-2)" }}>
                     {t.label}
                   </span>
                   <span style={{
-                    fontSize:11, fontWeight:700, padding:"1px 7px", borderRadius:4,
+                    fontSize:11, fontWeight:700, padding:"2px 8px", borderRadius:4,
                     background: isActive ? "var(--brand-tint)" : "var(--surface-hover)",
                     color: isActive ? "var(--brand-fg)" : "var(--fg-4)",
                   }}>
@@ -1046,6 +1028,132 @@ export default function OrdenesBandeja({
               );
             })}
           </div>
+
+          {/* Mostrar + Ordenar dropdown row. Sits directly under the tab strip
+              so its options re-scope to the active tab (Pendientes vs Completas).
+              The trigger surfaces the current sort label; the menu inside has
+              two sections: "Mostrar" (scope) and "Ordenar por" (sort). A red
+              dot on the trigger and beside each scope means OTs are waiting. */}
+          {(() => {
+            const scopeOptions: { value: ScopeKey; label: string; count: number }[] =
+              tab === "pendientes"
+                ? [
+                    { value: "todas",          label: "Todas",                       count: filteredCounts.pendientes.todas },
+                    { value: "sin_asignar",    label: "Sin asignar",                 count: filteredCounts.pendientes.sin_asignar },
+                    { value: "reprogramadas",  label: "Reprogramadas",               count: filteredCounts.pendientes.reprogramadas },
+                    { value: "levantamientos", label: "Levantamientos pendientes",   count: filteredCounts.pendientes.levantamientos },
+                  ]
+                : [
+                    { value: "todas",          label: "Todas",                       count: filteredCounts.completas.todas },
+                    { value: "levantamientos", label: "Levantamientos completados",  count: filteredCounts.completas.levantamientos },
+                  ];
+            // Red dot means "needs attention". Completed work doesn't need
+            // attention, so we only ever surface dots on the Pendientes tab.
+            const triggerHasAttention = tab === "pendientes" && scopeOptions.some(s => s.value !== "todas" && s.count > 0);
+            return (
+              <div ref={sortRef} style={{ position:"relative", borderBottom:"1px solid var(--border)", flexShrink:0 }}>
+                <button
+                  type="button"
+                  onClick={() => setSortOpen(v => !v)}
+                  style={{
+                    display:"flex", alignItems:"center", gap:6,
+                    width:"100%", padding:"10px 16px",
+                    background:"var(--surface-1)", border:"none",
+                    fontSize:13, color:"var(--fg-2)",
+                    cursor:"pointer", fontFamily:"inherit", textAlign:"left",
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.background = "var(--surface-hover)"; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = "var(--surface-1)"; }}
+                >
+                  <span style={{ color:"var(--fg-3)" }}>Ordenar por:</span>
+                  <span style={{ fontWeight:600, color:"var(--brand-fg)" }}>{currentSortLabel}</span>
+                  <ChevronDown size={14} style={{ color:"var(--brand-fg)", transform: sortOpen ? "rotate(180deg)" : "none", transition:"transform 0.15s" }} />
+                  {triggerHasAttention && (
+                    <span aria-label="Hay órdenes que requieren atención"
+                          style={{
+                            width:8, height:8, borderRadius:"50%",
+                            background:"var(--danger)", marginLeft:4,
+                          }} />
+                  )}
+                  <span style={{ marginLeft:"auto" }} />
+                </button>
+                {sortOpen && (
+                  <div style={{
+                    position:"absolute", left:8, right:8, top:"calc(100% + 4px)", zIndex:50,
+                    background:"var(--surface-1)", border:"1px solid var(--border)",
+                    borderRadius:8, boxShadow:"0 8px 24px rgba(15,23,42,0.12)",
+                    overflow:"hidden",
+                  }}>
+                    {/* Mostrar — scope filter */}
+                    <div style={{ padding:"8px 14px 4px", fontSize:10, fontWeight:700, color:"var(--fg-4)", textTransform:"uppercase", letterSpacing:"0.06em" }}>
+                      Mostrar
+                    </div>
+                    {scopeOptions.map(o => {
+                      const isActive = scope === o.value;
+                      const hasAttention = tab === "pendientes" && o.value !== "todas" && o.count > 0;
+                      return (
+                        <button
+                          key={o.value}
+                          type="button"
+                          onClick={() => { setScope(o.value); setSortOpen(false); }}
+                          style={{
+                            display:"flex", alignItems:"center", gap:8,
+                            width:"100%", textAlign:"left",
+                            padding:"9px 14px", background: isActive ? "var(--brand-tint)" : "transparent",
+                            border:"none", fontSize:13,
+                            color: isActive ? "var(--brand-fg)" : "var(--fg-1)",
+                            fontWeight: isActive ? 600 : 400,
+                            cursor:"pointer", fontFamily:"inherit",
+                          }}
+                          onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = "var(--surface-hover)"; }}
+                          onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = "transparent"; }}
+                        >
+                          <span style={{ flex:1 }}>{o.label}</span>
+                          {hasAttention && (
+                            <span style={{
+                              width:8, height:8, borderRadius:"50%",
+                              background:"var(--danger)", flexShrink:0,
+                            }} />
+                          )}
+                          <span style={{
+                            fontSize:11, fontWeight:600, minWidth:18, textAlign:"right",
+                            color: isActive ? "var(--brand-fg)" : "var(--fg-4)",
+                          }}>
+                            {o.count}
+                          </span>
+                        </button>
+                      );
+                    })}
+
+                    {/* Ordenar por */}
+                    <div style={{ borderTop:"1px solid var(--border)" }} />
+                    <div style={{ padding:"8px 14px 4px", fontSize:10, fontWeight:700, color:"var(--fg-4)", textTransform:"uppercase", letterSpacing:"0.06em" }}>
+                      Ordenar por
+                    </div>
+                    {SORT_OPTIONS.map(o => (
+                      <button
+                        key={o.value}
+                        type="button"
+                        onClick={() => { setSort(o.value); setSortOpen(false); }}
+                        style={{
+                          display:"block", width:"100%", textAlign:"left",
+                          padding:"9px 14px", background: sort === o.value ? "var(--brand-tint)" : "transparent",
+                          border:"none", fontSize:13,
+                          color: sort === o.value ? "var(--brand-fg)" : "var(--fg-1)",
+                          fontWeight: sort === o.value ? 600 : 400,
+                          cursor:"pointer", fontFamily:"inherit",
+                        }}
+                        onMouseEnter={e => { if (sort !== o.value) e.currentTarget.style.background = "var(--surface-hover)"; }}
+                        onMouseLeave={e => { if (sort !== o.value) e.currentTarget.style.background = "transparent"; }}
+                      >
+                        {o.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
 
           {/* List */}
           <div style={{ flex:1, minHeight:0, overflowY:"auto" }}>
@@ -1059,9 +1167,15 @@ export default function OrdenesBandeja({
                   <path d="M17 30a1 1 0 0 1-.707-.293l-4-4a1 1 0 1 1 1.414-1.414L17 27.586l7.293-7.293a1 1 0 1 1 1.414 1.414l-8 8A1 1 0 0 1 17 30z" fill="#72C472"/>
                 </svg>
                 <p style={{ fontSize:13, color:"var(--fg-2)", fontWeight:500 }}>
-                  {search ? "Sin resultados para tu búsqueda" : tab === "activas" ? "No tienes ninguna Orden de Trabajo" : tab === "cerradas" ? "No hay órdenes cerradas" : tab === "levantamientos" ? "No hay levantamientos" : "No hay órdenes sin asignar"}
+                  {search
+                    ? "Sin resultados para tu búsqueda"
+                    : scope === "sin_asignar"   ? "No hay órdenes sin asignar"
+                    : scope === "reprogramadas" ? "No hay órdenes reprogramadas"
+                    : scope === "levantamientos" ? "No hay levantamientos"
+                    : tab === "completas"       ? "No hay órdenes completadas"
+                    : "No tienes ninguna Orden de Trabajo"}
                 </p>
-                {!search && tab === "activas" && (
+                {!search && tab === "pendientes" && scope === "todas" && (
                   <a
                     href="#"
                     onClick={e => { e.preventDefault(); openCreate(); }}
@@ -1071,73 +1185,6 @@ export default function OrdenesBandeja({
                   </a>
                 )}
               </div>
-            ) : tab === "levantamientos" ? (
-              (() => {
-                const levActivos  = filtered.filter(o => ACTIVE_ESTADOS.has(o.estado));
-                const levCerrados = filtered.filter(o => CLOSED_ESTADOS.has(o.estado));
-                return (
-                  <>
-                    {/* Active accordion */}
-                    <button
-                      onClick={() => setLevAccordion(prev => ({ ...prev, activos: !prev.activos }))}
-                      style={{
-                        width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between",
-                        padding: "8px 16px", background: "var(--surface-0)", border: "none", borderBottom: "1px solid var(--border)",
-                        cursor: "pointer", textAlign: "left",
-                      }}
-                    >
-                      <span style={{ fontSize: 12, fontWeight: 700, color: "var(--fg-2)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                        En curso · {levActivos.length}
-                      </span>
-                      <ChevronDown size={14} color="var(--fg-4)" style={{ transform: levAccordion.activos ? "rotate(180deg)" : "none", transition: "transform 0.15s" }} />
-                    </button>
-                    {levAccordion.activos && levActivos.map((o, idx) => (
-                      <OTRow
-                        key={o.id}
-                        orden={o}
-                        rowNumber={idx + 1}
-                        usuarios={usuarios}
-                        isSelected={selected === o.id}
-                        onClick={() => openOT(o.id, true)}
-                        myId={myId}
-                        onAssigned={(id, newIds) => setOrdenes(prev =>
-                          prev.map(x => x.id === id ? { ...x, asignados_ids: newIds.length > 0 ? newIds : null } : x)
-                        )}
-                      />
-                    ))}
-
-                    {/* Closed accordion */}
-                    <button
-                      onClick={() => setLevAccordion(prev => ({ ...prev, cerrados: !prev.cerrados }))}
-                      style={{
-                        width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between",
-                        padding: "8px 16px", background: "var(--surface-0)", border: "none",
-                        borderTop: "1px solid var(--border)", borderBottom: "1px solid var(--border)",
-                        cursor: "pointer", textAlign: "left",
-                      }}
-                    >
-                      <span style={{ fontSize: 12, fontWeight: 700, color: "var(--fg-2)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                        Completados · {levCerrados.length}
-                      </span>
-                      <ChevronDown size={14} color="var(--fg-4)" style={{ transform: levAccordion.cerrados ? "rotate(180deg)" : "none", transition: "transform 0.15s" }} />
-                    </button>
-                    {levAccordion.cerrados && levCerrados.map((o, idx) => (
-                      <OTRow
-                        key={o.id}
-                        orden={o}
-                        rowNumber={idx + 1}
-                        usuarios={usuarios}
-                        isSelected={selected === o.id}
-                        onClick={() => openOT(o.id, true)}
-                        myId={myId}
-                        onAssigned={(id, newIds) => setOrdenes(prev =>
-                          prev.map(x => x.id === id ? { ...x, asignados_ids: newIds.length > 0 ? newIds : null } : x)
-                        )}
-                      />
-                    ))}
-                  </>
-                );
-              })()
             ) : (
               filtered.map((o, idx) => (
                 <OTRow
@@ -1151,6 +1198,7 @@ export default function OrdenesBandeja({
                   onAssigned={(id, newIds) => setOrdenes(prev =>
                     prev.map(x => x.id === id ? { ...x, asignados_ids: newIds.length > 0 ? newIds : null } : x)
                   )}
+                  coordinadaPara={scope === "reprogramadas" ? (o.fecha_inicio ?? null) : null}
                 />
               ))
             )}

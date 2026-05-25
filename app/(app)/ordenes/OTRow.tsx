@@ -254,9 +254,12 @@ interface Props {
   onClick:      () => void;
   myId?:        string;
   onAssigned?:  (id: string, newIds: string[]) => void;
+  // When set (only in the "Reprogramadas" tab), render a pill with the
+  // coordinated date so the supervisor sees it without opening the OT.
+  coordinadaPara?: string | null;
 }
 
-export default function OTRow({ orden, rowNumber, usuarios, isSelected, onClick, myId, onAssigned }: Props) {
+export default function OTRow({ orden, rowNumber, usuarios, isSelected, onClick, myId, onAssigned, coordinadaPara }: Props) {
   const isPending = Boolean(orden._pending);
   const hasAssignees = (orden.asignados_ids ?? []).length > 0;
   const estado = orden.estado === "pendiente"
@@ -387,6 +390,19 @@ export default function OTRow({ orden, rowNumber, usuarios, isSelected, onClick,
             <span style={{ width: 5, height: 5, borderRadius: "50%", background: estado.dot, flexShrink: 0 }} />
             {estado.label}
           </span>
+
+          {/* Coordinated date — only shown inside the Reprogramadas tab. */}
+          {coordinadaPara && (
+            <span style={{
+              display: "inline-flex", alignItems: "center", gap: 4,
+              fontSize: "var(--fs-xs)", fontWeight: 600, padding: "3px 8px",
+              background: "var(--success-bg)", color: "var(--success)",
+              borderRadius: "var(--r-sm)",
+            }}>
+              <Clock size={11} />
+              Coordinada para {new Date(coordinadaPara + "T00:00:00").toLocaleDateString("es-CL", { day: "numeric", month: "short" })}
+            </span>
+          )}
 
           {/* Priority */}
           {orden.prioridad !== "ninguna" && (

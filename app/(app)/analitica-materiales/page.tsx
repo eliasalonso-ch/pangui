@@ -61,6 +61,95 @@ interface OTRow {
   activos: { nombre: string } | null;
 }
 
+// ── Name canonicalization ─────────────────────────────────────────────────────
+// Users type the same material with different spellings, plurals, spacing, accents,
+// abbreviations. We normalize into a "fingerprint" used as the aggregation key,
+// then keep the most-frequent original spelling as the display label.
+//
+// Numeric tokens (M8, 1/2", 220V, 3.5mm) are PROTECTED: they keep specifications
+// distinct so "Tornillo M6" and "Tornillo M8" never collapse together.
+
+const STOPWORDS = new Set(["de", "del", "la", "el", "los", "las", "para", "con", "y", "o", "a"]);
+
+function stripAccents(s: string): string {
+  return s.normalize("NFD").replace(/[̀-ͯ]/g, "");
+}
+
+// Split into tokens; mark numeric/spec tokens so they survive stemming.
+function tokenize(raw: string): { word: string; isSpec: boolean }[] {
+  const cleaned = stripAccents(raw.toLowerCase())
+    .replace(/[.,;:()[\]{}]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!cleaned) return [];
+  return cleaned.split(" ").map(w => ({
+    word: w,
+    // numeric token: contains a digit (covers M8, 1/2", 220v, 3.5mm, 10x20)
+    isSpec: /\d/.test(w),
+  }));
+}
+
+// Very light Spanish stemmer for non-spec tokens: drop plurals and common suffixes.
+function stem(word: string): string {
+  if (word.length <= 3) return word;
+  // -es, -s plurals
+  if (word.endsWith("es") && word.length > 4) return word.slice(0, -2);
+  if (word.endsWith("s")) return word.slice(0, -1);
+  return word;
+}
+
+function canonicalize(raw: string): string {
+  const tokens = tokenize(raw);
+  const norm = tokens
+    .filter(t => t.isSpec || !STOPWORDS.has(t.word))
+    .map(t => t.isSpec ? t.word : stem(t.word))
+    .filter(t => t.length > 0);
+  // Sort non-spec tokens so "tornillo cabeza hex" == "cabeza hex tornillo",
+  // but keep spec tokens in original order to preserve "10x20" vs "20x10".
+  const specs = norm.filter(t => /\d/.test(t));
+  const words = norm.filter(t => !/\d/.test(t)).sort();
+  return [...words, ...specs].join(" ");
+}
+
+// Levenshtein with early exit at maxDist.
+function levenshtein(a: string, b: string, maxDist: number): number {
+  if (Math.abs(a.length - b.length) > maxDist) return maxDist + 1;
+  const m = a.length, n = b.length;
+  if (m === 0) return n;
+  if (n === 0) return m;
+  let prev = new Array(n + 1);
+  let curr = new Array(n + 1);
+  for (let j = 0; j <= n; j++) prev[j] = j;
+  for (let i = 1; i <= m; i++) {
+    curr[0] = i;
+    let rowMin = curr[0];
+    for (let j = 1; j <= n; j++) {
+      const cost = a.charCodeAt(i - 1) === b.charCodeAt(j - 1) ? 0 : 1;
+      curr[j] = Math.min(curr[j - 1] + 1, prev[j] + 1, prev[j - 1] + cost);
+      if (curr[j] < rowMin) rowMin = curr[j];
+    }
+    if (rowMin > maxDist) return maxDist + 1;
+    [prev, curr] = [curr, prev];
+  }
+  return prev[n];
+}
+
+// Two canonical strings are mergeable if their non-spec parts are very close AND
+// their spec tokens match exactly. This protects "Tornillo M6" vs "Tornillo M8".
+function shouldMerge(a: string, b: string): boolean {
+  if (a === b) return true;
+  const aSpecs = a.split(" ").filter(t => /\d/.test(t)).sort().join("|");
+  const bSpecs = b.split(" ").filter(t => /\d/.test(t)).sort().join("|");
+  if (aSpecs !== bSpecs) return false;
+  const aWords = a.split(" ").filter(t => !/\d/.test(t)).join(" ");
+  const bWords = b.split(" ").filter(t => !/\d/.test(t)).join(" ");
+  const maxLen = Math.max(aWords.length, bWords.length);
+  if (maxLen === 0) return aSpecs === bSpecs;
+  // Allow ~15% character distance, min 1, max 3.
+  const threshold = Math.min(3, Math.max(1, Math.floor(maxLen * 0.15)));
+  return levenshtein(aWords, bWords, threshold) <= threshold;
+}
+
 // ── Sub-components ────────────────────────────────────────────────────────────
 function Card({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
   return (
@@ -207,9 +296,56 @@ function AnaliticaMaterialesPageInner() {
   }, [rangeMonths]);
 
 
+  // ── Build a global name→canonical map by clustering all observed names ───
+  // Two-pass: first pass collects every raw name and its canonical fingerprint,
+  // second pass merges canonicals whose non-spec parts are within edit distance.
+  const nameToCanonical = useMemo(() => {
+    // Collect raw names with their occurrence counts (used later to pick display label).
+    const rawCounts = new Map<string, number>();
+    for (const hoja of hojas) {
+      const itemCol = hoja.columnas.find(c =>
+        c.label.toLowerCase().includes("ítem") || c.label.toLowerCase().includes("item") ||
+        c.label.toLowerCase().includes("material") || c.label.toLowerCase().includes("nombre")
+      );
+      if (!itemCol) continue;
+      for (const fila of hojaFilas.filter(f => f.hoja_id === hoja.id)) {
+        const n = fila.celdas[itemCol.id]?.trim();
+        if (!n) continue;
+        rawCounts.set(n, (rawCounts.get(n) ?? 0) + 1);
+      }
+    }
+
+    // Map raw name → its bare canonical fingerprint.
+    const rawToFingerprint = new Map<string, string>();
+    for (const raw of rawCounts.keys()) rawToFingerprint.set(raw, canonicalize(raw));
+
+    // Cluster fingerprints with shouldMerge — union-find style, but simple list scan
+    // since material catalogs are typically small (<1k unique entries).
+    const fingerprints = Array.from(new Set(rawToFingerprint.values()));
+    const clusterOf = new Map<string, string>(); // fingerprint → cluster key (representative fingerprint)
+    for (const fp of fingerprints) {
+      let assigned: string | null = null;
+      for (const existing of clusterOf.values()) {
+        if (shouldMerge(fp, existing)) { assigned = existing; break; }
+      }
+      clusterOf.set(fp, assigned ?? fp);
+    }
+
+    // Final raw → cluster-key map.
+    const result = new Map<string, string>();
+    for (const [raw, fp] of rawToFingerprint) result.set(raw, clusterOf.get(fp)!);
+    return { rawToCluster: result, rawCounts };
+  }, [hojas, hojaFilas]);
+
   // ── Aggregate all items from hojas (the only data source) ───────────────
+  // Key by cluster (canonical). Pick the most-frequent original spelling as display label.
   const hojaConsumoMap = useMemo(() => {
-    const map = new Map<string, { cantidad: number; frecuencia: number; otIds: Set<string>; unidad: string }>();
+    const map = new Map<string, {
+      cantidad: number; frecuencia: number; otIds: Set<string>; unidad: string;
+      displayName: string; displayCount: number;
+    }>();
+    const { rawToCluster, rawCounts } = nameToCanonical;
+
     for (const hoja of hojas) {
       const hojaOt = ots.find(o => o.id === hoja.orden_id);
       if (!hojaOt) continue;
@@ -227,27 +363,38 @@ function AnaliticaMaterialesPageInner() {
       if (!itemCol) continue;
       const filas = hojaFilas.filter(f => f.hoja_id === hoja.id);
       for (const fila of filas) {
-        const nombre = fila.celdas[itemCol.id]?.trim();
-        if (!nombre) continue;
+        const rawName = fila.celdas[itemCol.id]?.trim();
+        if (!rawName) continue;
+        const cluster = rawToCluster.get(rawName) ?? rawName;
+        const rawFreq = rawCounts.get(rawName) ?? 1;
         const rawQty = cantCol ? parseFloat(fila.celdas[cantCol.id] ?? "1") : 1;
         const qty = isNaN(rawQty) || rawQty <= 0 ? 1 : rawQty;
         const unidad = unidCol ? (fila.celdas[unidCol.id]?.trim() ?? "") : "";
-        const prev = map.get(nombre) ?? { cantidad: 0, frecuencia: 0, otIds: new Set<string>(), unidad };
+        const prev = map.get(cluster) ?? {
+          cantidad: 0, frecuencia: 0, otIds: new Set<string>(), unidad,
+          displayName: rawName, displayCount: 0,
+        };
         prev.cantidad += qty;
         if (hoja.orden_id && !prev.otIds.has(hoja.orden_id)) {
           prev.frecuencia += 1;
           prev.otIds.add(hoja.orden_id);
         }
-        map.set(nombre, prev);
+        // Pick the most-frequent original spelling as the display label.
+        if (rawFreq > prev.displayCount) {
+          prev.displayName = rawName;
+          prev.displayCount = rawFreq;
+        }
+        map.set(cluster, prev);
       }
     }
     return map;
-  }, [hojas, hojaFilas, ots, cutoffDate]);
+  }, [hojas, hojaFilas, ots, cutoffDate, nameToCanonical]);
 
   // ── Flat sorted list ──────────────────────────────────────────────────────
+  // `nombre` is the display label; `key` is the canonical cluster id used for lookups.
   const allItems = useMemo(() =>
     Array.from(hojaConsumoMap.entries())
-      .map(([nombre, v]) => ({ nombre, cantidad: v.cantidad, frecuencia: v.frecuencia, otIds: v.otIds, unidad: v.unidad, source: "hoja" as const }))
+      .map(([key, v]) => ({ key, nombre: v.displayName, cantidad: v.cantidad, frecuencia: v.frecuencia, otIds: v.otIds, unidad: v.unidad, source: "hoja" as const }))
       .sort((a, b) => b.cantidad - a.cantidad),
   [hojaConsumoMap]);
 
@@ -272,14 +419,22 @@ function AnaliticaMaterialesPageInner() {
   [partes]);
 
   // ── Monthly consumption trend (top 5 materials by qty) ───────────────────
-  const top5Names = useMemo(() => abcItems.slice(0, 5).map(i => i.nombre), [abcItems]);
+  // Pair each top-5 cluster key with its display label so the chart legend stays readable.
+  const top5 = useMemo(
+    () => abcItems.slice(0, 5).map(i => ({ key: i.key, label: i.nombre })),
+    [abcItems]
+  );
+  const top5Names = useMemo(() => top5.map(t => t.label), [top5]);
 
   const trendData = useMemo(() => {
+    const top5KeySet = new Set(top5.map(t => t.key));
+    const keyToLabel = new Map(top5.map(t => [t.key, t.label]));
+    const { rawToCluster } = nameToCanonical;
     const months: Record<string, Record<string, number>> = {};
     for (const hoja of hojas) {
       const ot = ots.find(o => o.id === hoja.orden_id);
       if (!ot || ot.created_at.slice(0, 10) < cutoffDate) continue;
-      const key = ot.created_at.slice(0, 7);
+      const monthKey = ot.created_at.slice(0, 7);
       const itemCol = hoja.columnas.find(c =>
         c.label.toLowerCase().includes("ítem") || c.label.toLowerCase().includes("item") ||
         c.label.toLowerCase().includes("material") || c.label.toLowerCase().includes("nombre")
@@ -289,12 +444,15 @@ function AnaliticaMaterialesPageInner() {
       );
       if (!itemCol) continue;
       for (const fila of hojaFilas.filter(f => f.hoja_id === hoja.id)) {
-        const nombre = fila.celdas[itemCol.id]?.trim();
-        if (!nombre || !top5Names.includes(nombre)) continue;
+        const rawName = fila.celdas[itemCol.id]?.trim();
+        if (!rawName) continue;
+        const cluster = rawToCluster.get(rawName) ?? rawName;
+        if (!top5KeySet.has(cluster)) continue;
+        const label = keyToLabel.get(cluster)!;
         const rawQty = cantCol ? parseFloat(fila.celdas[cantCol.id] ?? "1") : 1;
         const qty = isNaN(rawQty) ? 1 : rawQty;
-        if (!months[key]) months[key] = {};
-        months[key][nombre] = (months[key][nombre] ?? 0) + qty;
+        if (!months[monthKey]) months[monthKey] = {};
+        months[monthKey][label] = (months[monthKey][label] ?? 0) + qty;
       }
     }
     return Object.entries(months)
@@ -303,18 +461,20 @@ function AnaliticaMaterialesPageInner() {
         label: new Date(month + "-01").toLocaleDateString("es-CL", { month: "short", year: "2-digit" }),
         ...vals,
       }));
-  }, [hojas, hojaFilas, ots, cutoffDate, top5Names]);
+  }, [hojas, hojaFilas, ots, cutoffDate, top5, nameToCanonical]);
 
   // ── Per-material OT usage list ────────────────────────────────────────────
+  // `selectedMaterial` holds a cluster key, not a raw name.
   const [selectedMaterial, setSelectedMaterial] = useState<string | null>(null);
 
   const materialOTs = useMemo(() => {
     if (!selectedMaterial) return [];
     const entry = hojaConsumoMap.get(selectedMaterial);
     if (!entry) return [];
+    const { rawToCluster } = nameToCanonical;
     return Array.from(entry.otIds).map(otId => {
       const ot = ots.find(o => o.id === otId);
-      // Sum qty for this material across all hojas belonging to this OT
+      // Sum qty across every spelling that maps to the selected cluster.
       let qty = 0;
       for (const hoja of hojas.filter(h => h.orden_id === otId)) {
         const itemCol = hoja.columnas.find(c =>
@@ -326,10 +486,12 @@ function AnaliticaMaterialesPageInner() {
         );
         if (!itemCol) continue;
         for (const fila of hojaFilas.filter(f => f.hoja_id === hoja.id)) {
-          if (fila.celdas[itemCol.id]?.trim() === selectedMaterial) {
-            const rawQty = cantCol ? parseFloat(fila.celdas[cantCol.id] ?? "1") : 1;
-            qty += isNaN(rawQty) ? 1 : rawQty;
-          }
+          const rawName = fila.celdas[itemCol.id]?.trim();
+          if (!rawName) continue;
+          const cluster = rawToCluster.get(rawName) ?? rawName;
+          if (cluster !== selectedMaterial) continue;
+          const rawQty = cantCol ? parseFloat(fila.celdas[cantCol.id] ?? "1") : 1;
+          qty += isNaN(rawQty) ? 1 : rawQty;
         }
       }
       return {
@@ -340,7 +502,7 @@ function AnaliticaMaterialesPageInner() {
         qty,
       };
     }).sort((a, b) => b.created_at.localeCompare(a.created_at));
-  }, [selectedMaterial, hojaConsumoMap, hojas, hojaFilas, ots]);
+  }, [selectedMaterial, hojaConsumoMap, hojas, hojaFilas, ots, nameToCanonical]);
 
   // ── Layout recommendation: fast movers (high freq + high qty) ────────────
   const layoutRec = useMemo(() => {
@@ -530,17 +692,17 @@ function AnaliticaMaterialesPageInner() {
                 {abcItems.slice(0, 30).map((item, i) => (
                   <button
                     key={i}
-                    onClick={() => setSelectedMaterial(selectedMaterial === item.nombre ? null : item.nombre)}
+                    onClick={() => setSelectedMaterial(selectedMaterial === item.key ? null : item.key)}
                     style={{
                       width: "100%", textAlign: "left", padding: "10px 14px",
                       cursor: "pointer",
-                      background: selectedMaterial === item.nombre ? C.light : "transparent",
+                      background: selectedMaterial === item.key ? C.light : "transparent",
                       border: "none", borderBottom: `1px solid ${C.border}`,
                       display: "flex", alignItems: "center", gap: 8,
                     }}
                   >
                     <AbcBadge cls={item.abc} />
-                    <span style={{ fontSize: 12, fontWeight: selectedMaterial === item.nombre ? 600 : 400, color: selectedMaterial === item.nombre ? C.mid : C.text1, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    <span style={{ fontSize: 12, fontWeight: selectedMaterial === item.key ? 600 : 400, color: selectedMaterial === item.key ? C.mid : C.text1, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       {item.nombre}
                     </span>
                     <span style={{ fontSize: 11, color: C.text3, flexShrink: 0 }}>{item.frecuencia}x</span>
@@ -623,7 +785,7 @@ function AnaliticaMaterialesPageInner() {
             <div style={{ padding: "16px 8px" }}>
               <ResponsiveContainer width="100%" height={Math.max(180, Math.min(hojaConsumoMap.size, 12) * 32)}>
                 <BarChart
-                  data={Array.from(hojaConsumoMap.entries()).sort((a, b) => b[1].cantidad - a[1].cantidad).slice(0, 12).map(([nombre, v]) => ({ name: nombre.length > 24 ? nombre.slice(0, 22) + "…" : nombre, cantidad: Math.round(v.cantidad * 10) / 10 }))}
+                  data={Array.from(hojaConsumoMap.values()).sort((a, b) => b.cantidad - a.cantidad).slice(0, 12).map(v => ({ name: v.displayName.length > 24 ? v.displayName.slice(0, 22) + "…" : v.displayName, cantidad: Math.round(v.cantidad * 10) / 10 }))}
                   layout="vertical"
                   margin={{ left: 10, right: 36 }}
                 >
