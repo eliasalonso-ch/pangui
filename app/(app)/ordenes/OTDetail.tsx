@@ -462,7 +462,9 @@ function SubOrdenesSection({
                     {sub.titulo ?? "Sub-OT sin título"}
                   </span>
                   <span style={{ display: "block", marginTop: 2, fontSize: 12, color: "var(--fg-4)" }}>
-                    {ESTADOS.find(e => e.value === sub.estado)?.label ?? sub.estado}
+                    {sub.estado === "pendiente" && (sub.asignados_ids ?? []).length > 0
+                      ? "Asignada"
+                      : ESTADOS.find(e => e.value === sub.estado)?.label ?? sub.estado}
                   </span>
                 </span>
                 <ChevronDown size={14} style={{ color: "var(--fg-4)", transform: "rotate(-90deg)" }} />
@@ -543,6 +545,10 @@ export default function OTDetail({
   const [tab, setTab] = useState<Tab>("detalle");
   const [actividad, setActividad] = useState<ActividadOT[]>([]);
   const [loadingAct, setLoadingAct] = useState(false);
+  // Latest "pausado" actividad row, fetched eagerly when the OT is in espera so
+  // the detail tab can show the pause reason (incl. "Reprogramar: <date>"
+  // emitted by the mobile PauseSheet) without waiting for the Actividad tab.
+  const [latestPause, setLatestPause] = useState<{ comentario: string | null; created_at: string } | null>(null);
   const [commentText, setCommentText] = useState("");
   const [sending, setSending] = useState(false);
   const [recording, setRecording] = useState(false);
@@ -845,6 +851,24 @@ export default function OTDetail({
     }
   }
 
+  // Fetch the most recent pausado row whenever the OT is in espera. Cheap
+  // single-row query, runs once per estado change. We don't poll — the next
+  // pausa will trigger a refresh when the user pauses/resumes locally.
+  useEffect(() => {
+    if (orden.estado !== "en_espera") { setLatestPause(null); return; }
+    let cancelled = false;
+    const sb = createClient();
+    sb.from("actividad_ot")
+      .select("comentario, created_at")
+      .eq("orden_id", orden.id)
+      .eq("tipo", "pausado")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle()
+      .then(({ data }) => { if (!cancelled) setLatestPause(data ?? null); });
+    return () => { cancelled = true; };
+  }, [orden.id, orden.estado, orden.pausado_at]);
+
   // Load + poll activity every 30s while the tab is open
   useEffect(() => {
     if (tab !== "actividad") return;
@@ -1052,12 +1076,12 @@ export default function OTDetail({
   // Load foto grupos when fotos tab opens — or eagerly when foto requirement is active
   useEffect(() => {
     if (gruposLoaded) return;
-    if (tab !== "fotos" && !requiereFotos && !fotosObligatoriasTodas) return;
+    if (tab !== "fotos" && !requiereFotos) return;
     setLoadingGrupos(true);
     fetchFotoGrupos(orden.id)
       .then(data => { setFotoGrupos(data); setGruposLoaded(true); })
       .finally(() => setLoadingGrupos(false));
-  }, [tab, orden.id, gruposLoaded, requiereFotos, fotosObligatoriasTodas]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [tab, orden.id, gruposLoaded, requiereFotos]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleCreateGrupo() {
     if (!newGrupoTitulo.trim() || !wsId) return;
@@ -1233,13 +1257,18 @@ export default function OTDetail({
   // ── Actions ────────────────────────────────────────────────────────────────
 
   const checkCompletionRequirements = async (): Promise<string | null> => {
-    if (requiereMateriales && ordenPartes.length === 0) {
+    // If the workspace currently disables a module via modo_registro, don't
+    // enforce its close-gate even if the OT row still has the flag set
+    // (the OT may pre-date the workspace mode change).
+    if (requiereMateriales && modoRegistro !== "hoja" && ordenPartes.length === 0) {
       return "Esta OT requiere al menos un material registrado antes de cerrarse. Ve a la pestaña Materiales y agrega los materiales utilizados.";
     }
-    if (requiereHoja) {
+    if (requiereHoja && modoRegistro !== "materiales") {
       return "Esta OT requiere que completes la hoja de cálculo antes de cerrarse. Ve a la pestaña Hoja de cálculo.";
     }
-    if (requiereFotos || fotosObligatoriasTodas) {
+    // Admins/owners can override the workspace-wide requirement per OT by
+    // flipping requiere_fotos off; only the per-OT flag gates the close.
+    if (requiereFotos) {
       // Always fetch fresh foto groups so we don't block on stale/unloaded state
       let currentGrupos = fotoGrupos;
       if (!gruposLoaded) {
@@ -2164,6 +2193,10 @@ export default function OTDetail({
                     {ESTADOS.map(e => {
                       const Icon = e.icon;
                       const isSelected = orden.estado === e.value;
+                      // "pendiente" label flips to "Asignada" once someone is assigned,
+                      // mirroring the OT list badge so the two views never disagree.
+                      const hasAssignees = (orden.asignados_ids ?? []).length > 0;
+                      const label = e.value === "pendiente" && hasAssignees ? "Asignada" : e.label;
                       const s = STATUS_STYLE[e.value];
                       const handleClick = async () => {
                         if (e.value === "en_curso") {
@@ -2222,10 +2255,62 @@ export default function OTDetail({
                           }}
                         >
                           <Icon size={16} />
-                          <span style={{ fontSize: 11, fontWeight: 700, textAlign: "center", lineHeight: 1.2 }}>{e.label}</span>
+                          <span style={{ fontSize: 11, fontWeight: 700, textAlign: "center", lineHeight: 1.2 }}>{label}</span>
                         </button>
                       );
                     })}
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Pause-reason banner (en_espera). Highlights "Reprogramar" because
+                it carries a user-coordinated date the supervisor should see. */}
+            {orden.estado === "en_espera" && latestPause && (() => {
+              const c = (latestPause.comentario ?? "").trim();
+              const isReprogramar = /^reprogramar/i.test(c);
+              // Mobile format: "Reprogramar: <localized date>[ - <comment>]"
+              const reprogramarMatch = isReprogramar
+                ? c.replace(/^reprogramar\s*:\s*/i, "").split(/\s+-\s+/, 2)
+                : null;
+              const fechaTxt = reprogramarMatch?.[0] ?? null;
+              const extraTxt = reprogramarMatch?.[1] ?? null;
+
+              const tone = isReprogramar
+                ? { bg: "var(--st-wait-bg)", border: "var(--st-wait-fg)", fg: "var(--st-wait-fg)" }
+                : { bg: "var(--surface-hover)", border: "var(--border-strong)", fg: "var(--fg-2)" };
+
+              return (
+                <div style={{
+                  marginTop: 22,
+                  padding: "14px 16px",
+                  borderRadius: "var(--r-md)",
+                  background: tone.bg,
+                  border: `1px solid ${tone.border}`,
+                  display: "flex", alignItems: "flex-start", gap: 10,
+                }}>
+                  {isReprogramar
+                    ? <Calendar size={16} style={{ color: tone.fg, flexShrink: 0, marginTop: 1 }} />
+                    : <PauseCircle size={16} style={{ color: tone.fg, flexShrink: 0, marginTop: 1 }} />
+                  }
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ fontSize: 13, fontWeight: 700, color: tone.fg, margin: 0 }}>
+                      {isReprogramar
+                        ? `Reprogramada${fechaTxt ? ` para ${fechaTxt}` : ""}`
+                        : "En espera"}
+                    </p>
+                    <p style={{ fontSize: 12, color: tone.fg, margin: "2px 0 0", lineHeight: 1.5 }}>
+                      {isReprogramar
+                        ? (extraTxt ?? "El solicitante coordinó otra fecha para esta orden.")
+                        : (c || "Esta orden está pausada.")}
+                    </p>
+                    {latestPause.created_at && (
+                      <p style={{ fontSize: 11, color: tone.fg, margin: "4px 0 0", opacity: 0.8 }}>
+                        {new Date(latestPause.created_at).toLocaleString("es-CL", {
+                          day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit",
+                        })}
+                      </p>
+                    )}
                   </div>
                 </div>
               );
@@ -2414,52 +2499,66 @@ export default function OTDetail({
                   Requisitos para cerrar
                 </p>
                 <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                  {/* Materiales — hidden for Electrilam and when modo_registro is hoja-only */}
-                  {(canManage || requiereMateriales) && wsId !== "f1b64714-6de2-4d49-b6e4-5959553e94d7" && modoRegistro !== "hoja" && (
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px", background: "var(--surface-0)", border: "1px solid var(--border)", borderRadius: "var(--r-md)" }}>
-                      <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                        <span style={{ fontSize: 13, fontWeight: 600, color: "var(--fg-1)" }}>Requiere materiales</span>
-                        <span style={{ fontSize: 12, color: "var(--fg-2)" }}>Bloquea el cierre si no hay materiales registrados</span>
+                  {/* Materiales — disabled (but visible) when the workspace uses
+                       only hoja de cálculo, so users see why it's blocked. */}
+                  {(canManage || requiereMateriales) && (() => {
+                    const blocked = modoRegistro === "hoja";
+                    return (
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px", background: "var(--surface-0)", border: "1px solid var(--border)", borderRadius: "var(--r-md)", opacity: blocked ? 0.55 : 1 }}>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                          <span style={{ fontSize: 13, fontWeight: 600, color: "var(--fg-1)" }}>Requiere materiales</span>
+                          <span style={{ fontSize: 12, color: "var(--fg-2)" }}>
+                            {blocked ? "Desactivado: el workspace solo usa hoja de cálculo" : "Bloquea el cierre si no hay materiales registrados"}
+                          </span>
+                        </div>
+                        {canManage ? (
+                          <button type="button" onClick={handleToggleRequiereMateriales} disabled={togglingMat || blocked}
+                            style={{ width: 42, height: 24, borderRadius: 12, border: "none", cursor: blocked ? "not-allowed" : "pointer", background: (requiereMateriales && !blocked) ? "var(--brand)" : "var(--border-strong)", position: "relative", transition: "background 0.2s", flexShrink: 0, opacity: togglingMat ? 0.6 : 1 }}>
+                            <span style={{ position: "absolute", top: 2, left: (requiereMateriales && !blocked) ? 20 : 2, width: 20, height: 20, borderRadius: "50%", background: "var(--surface-1)", transition: "left 0.2s", boxShadow: "0 1px 3px rgba(0,0,0,0.2)" }} />
+                          </button>
+                        ) : (
+                          <span style={{ fontSize: 12, fontWeight: 600, color: (requiereMateriales && !blocked) ? "var(--brand-fg)" : "var(--fg-4)" }}>{(requiereMateriales && !blocked) ? "Sí" : "No"}</span>
+                        )}
                       </div>
-                      {canManage ? (
-                        <button type="button" onClick={handleToggleRequiereMateriales} disabled={togglingMat}
-                          style={{ width: 42, height: 24, borderRadius: 12, border: "none", cursor: "pointer", background: requiereMateriales ? "var(--brand)" : "var(--border-strong)", position: "relative", transition: "background 0.2s", flexShrink: 0, opacity: togglingMat ? 0.6 : 1 }}>
-                          <span style={{ position: "absolute", top: 2, left: requiereMateriales ? 20 : 2, width: 20, height: 20, borderRadius: "50%", background: "var(--surface-1)", transition: "left 0.2s", boxShadow: "0 1px 3px rgba(0,0,0,0.2)" }} />
-                        </button>
-                      ) : (
-                        <span style={{ fontSize: 12, fontWeight: 600, color: requiereMateriales ? "var(--brand-fg)" : "var(--fg-4)" }}>{requiereMateriales ? "Sí" : "No"}</span>
-                      )}
-                    </div>
-                  )}
-                  {/* Hoja de cálculo */}
-                  {(canManage || requiereHoja) && modoRegistro !== "materiales" && (
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px", background: "var(--surface-0)", border: "1px solid var(--border)", borderRadius: "var(--r-md)" }}>
-                      <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                        <span style={{ fontSize: 13, fontWeight: 600, color: "var(--fg-1)" }}>Requiere hoja de cálculo</span>
-                        <span style={{ fontSize: 12, color: "var(--fg-2)" }}>Bloquea el cierre si la hoja no tiene filas registradas</span>
+                    );
+                  })()}
+                  {/* Hoja de cálculo — disabled (but visible) when the workspace
+                       uses only materiales. */}
+                  {(canManage || requiereHoja) && (() => {
+                    const blocked = modoRegistro === "materiales";
+                    return (
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px", background: "var(--surface-0)", border: "1px solid var(--border)", borderRadius: "var(--r-md)", opacity: blocked ? 0.55 : 1 }}>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                          <span style={{ fontSize: 13, fontWeight: 600, color: "var(--fg-1)" }}>Requiere hoja de cálculo</span>
+                          <span style={{ fontSize: 12, color: "var(--fg-2)" }}>
+                            {blocked ? "Desactivado: el workspace solo usa materiales" : "Bloquea el cierre si la hoja no tiene filas registradas"}
+                          </span>
+                        </div>
+                        {canManage ? (
+                          <button type="button" onClick={handleToggleRequiereHoja} disabled={togglingHoja || blocked}
+                            style={{ width: 42, height: 24, borderRadius: 12, border: "none", cursor: blocked ? "not-allowed" : "pointer", background: (requiereHoja && !blocked) ? "var(--brand)" : "var(--border-strong)", position: "relative", transition: "background 0.2s", flexShrink: 0, opacity: togglingHoja ? 0.6 : 1 }}>
+                            <span style={{ position: "absolute", top: 2, left: (requiereHoja && !blocked) ? 20 : 2, width: 20, height: 20, borderRadius: "50%", background: "var(--surface-1)", transition: "left 0.2s", boxShadow: "0 1px 3px rgba(0,0,0,0.2)" }} />
+                          </button>
+                        ) : (
+                          <span style={{ fontSize: 12, fontWeight: 600, color: (requiereHoja && !blocked) ? "var(--brand-fg)" : "var(--fg-4)" }}>{(requiereHoja && !blocked) ? "Sí" : "No"}</span>
+                        )}
                       </div>
-                      {canManage ? (
-                        <button type="button" onClick={handleToggleRequiereHoja} disabled={togglingHoja}
-                          style={{ width: 42, height: 24, borderRadius: 12, border: "none", cursor: "pointer", background: requiereHoja ? "var(--brand)" : "var(--border-strong)", position: "relative", transition: "background 0.2s", flexShrink: 0, opacity: togglingHoja ? 0.6 : 1 }}>
-                          <span style={{ position: "absolute", top: 2, left: requiereHoja ? 20 : 2, width: 20, height: 20, borderRadius: "50%", background: "var(--surface-1)", transition: "left 0.2s", boxShadow: "0 1px 3px rgba(0,0,0,0.2)" }} />
-                        </button>
-                      ) : (
-                        <span style={{ fontSize: 12, fontWeight: 600, color: requiereHoja ? "var(--brand-fg)" : "var(--fg-4)" }}>{requiereHoja ? "Sí" : "No"}</span>
-                      )}
-                    </div>
-                  )}
-                  {/* Fotos */}
+                    );
+                  })()}
+                  {/* Fotos — admins/owners can override per-OT even when the
+                       workspace mandates fotos globally. Non-admins see only
+                       the effective state. */}
                   {(canManage || requiereFotos || fotosObligatoriasTodas) && (
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px", background: "var(--surface-0)", border: "1px solid var(--border)", borderRadius: "var(--r-md)" }}>
                       <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
                         <span style={{ fontSize: 13, fontWeight: 600, color: "var(--fg-1)" }}>Requiere fotos</span>
                         <span style={{ fontSize: 12, color: "var(--fg-2)" }}>
-                          {fotosObligatoriasTodas
+                          {fotosObligatoriasTodas && !canManage
                             ? "Obligatorio en todas las OTs del workspace"
                             : "Bloquea el cierre si no hay fotos registradas"}
                         </span>
                       </div>
-                      {canManage && !fotosObligatoriasTodas ? (
+                      {canManage ? (
                         <button type="button" onClick={handleToggleRequiereFotos} disabled={togglingFotos}
                           style={{ width: 42, height: 24, borderRadius: 12, border: "none", cursor: "pointer", background: requiereFotos ? "var(--brand)" : "var(--border-strong)", position: "relative", transition: "background 0.2s", flexShrink: 0, opacity: togglingFotos ? 0.6 : 1 }}>
                           <span style={{ position: "absolute", top: 2, left: requiereFotos ? 20 : 2, width: 20, height: 20, borderRadius: "50%", background: "var(--surface-1)", transition: "left 0.2s", boxShadow: "0 1px 3px rgba(0,0,0,0.2)" }} />
@@ -2741,7 +2840,7 @@ export default function OTDetail({
                 </span>
               </div>
             )}
-            {(requiereFotos || fotosObligatoriasTodas) && isActive && (
+            {requiereFotos && isActive && (
               <div style={{
                 display: "flex", alignItems: "center", gap: 8,
                 padding: "10px 14px", marginBottom: 10,

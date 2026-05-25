@@ -18,6 +18,7 @@ import {
   ClipboardCheck,
   Box,
   PackageSearch,
+  ListChecks,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
@@ -268,20 +269,27 @@ export default function AppSidebar() {
         .eq("leida", false);
       setUnreadCount(count ?? 0);
 
+      let debounceTimer: ReturnType<typeof setTimeout> | null = null;
       const channel = sb.channel(`sidebar-notif:${user.id}`)
         .on("postgres_changes", { event: "*", schema: "public", table: "notifications", filter: `usuario_id=eq.${user.id}` },
-          async () => {
-            const { count: fresh } = await sb
-              .from("notifications")
-              .select("id", { count: "exact", head: true })
-              .eq("usuario_id", user.id)
-              .eq("leida", false);
-            setUnreadCount(fresh ?? 0);
+          () => {
+            if (debounceTimer) clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(async () => {
+              const { count: fresh } = await sb
+                .from("notifications")
+                .select("id", { count: "exact", head: true })
+                .eq("usuario_id", user.id)
+                .eq("leida", false);
+              setUnreadCount(fresh ?? 0);
+            }, 300);
           }
         )
         .subscribe();
 
-      return () => { sb.removeChannel(channel); };
+      return () => {
+        if (debounceTimer) clearTimeout(debounceTimer);
+        sb.removeChannel(channel);
+      };
     }
     load();
   }, []);
@@ -492,6 +500,16 @@ export default function AppSidebar() {
                     <Link href="/ubicaciones" style={{ display: "flex", alignItems: "center", gap: collapsed ? 0 : 10 }}>
                       <MapPin size={16} style={{ flexShrink: 0 }} />
                       {!collapsed && <span>Ubicaciones</span>}
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )}
+              {isAdmin && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={isActive("/requisitos")} tooltip="Requisitos de OTs">
+                    <Link href="/requisitos" style={{ display: "flex", alignItems: "center", gap: collapsed ? 0 : 10 }}>
+                      <ListChecks size={16} style={{ flexShrink: 0 }} />
+                      {!collapsed && <span>Requisitos de OTs</span>}
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>

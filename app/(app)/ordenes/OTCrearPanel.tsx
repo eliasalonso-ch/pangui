@@ -10,6 +10,7 @@ import { createClient } from "@/lib/supabase";
 import { createOrden, buildDescripcion } from "@/lib/ordenes-api";
 import { uploadFotoGrupo, createFotoGrupo, addFotoToGrupo } from "@/lib/foto-grupos-api";
 import { uploadToR2 } from "@/lib/r2";
+import { buildRecurrenciaConfig, RecurrenceControls, RECURRENCIAS } from "./RecurrenceControls";
 import type {
   Usuario, Ubicacion, LugarEspecifico, Sociedad, Activo, CategoriaOT,
   Prioridad, TipoTrabajo, Recurrencia, OTLink,
@@ -306,6 +307,10 @@ interface FormState {
   asignados_ids: string[];
   fecha_termino: string;
   fecha_inicio:  string;
+  recurrencia_fin: string;
+  recurrencia_intervalo: string;
+  recurrencia_dias: number[];
+  recurrencia_mes_dia: string;
   recurrencia:   Recurrencia;
   tipo_trabajo:  TipoTrabajo | "";
   prioridad:     Prioridad;
@@ -326,7 +331,8 @@ const BLANK: FormState = {
   titulo: "", n_ot: "", solicitante: "", hito: "", presupuesto: "", descripcion: "",
   ubicacion_id: "", lugar_id: "", sociedad_id: "",
   activo_id: "", asignados_ids: [],
-  fecha_termino: "", fecha_inicio: "",
+  fecha_termino: "", fecha_inicio: "", recurrencia_fin: "",
+  recurrencia_intervalo: "1", recurrencia_dias: [], recurrencia_mes_dia: "1",
   recurrencia: "ninguna", tipo_trabajo: "",
   prioridad: "ninguna", categoria_id: "",
   links: [],
@@ -348,14 +354,6 @@ const TIPOS: { value: TipoTrabajo; label: string }[] = [
   { value: "inspeccion",    label: "Inspección" },
   { value: "mejora",        label: "Mejora" },
   { value: "levantamiento", label: "Levantamiento" },
-];
-
-const RECURRENCIAS: { value: Recurrencia; label: string }[] = [
-  { value: "ninguna",   label: "No se repite" },
-  { value: "diaria",    label: "Diaria" },
-  { value: "semanal",   label: "Semanal" },
-  { value: "quincenal", label: "Quincenal" },
-  { value: "mensual",   label: "Mensual" },
 ];
 
 // ── Shared field row ──────────────────────────────────────────────────────────
@@ -1173,6 +1171,7 @@ export default function OTCrearPanel({
         clasificacion: form.tipo_trabajo === "levantamiento" ? "levantamiento" : form.tipo_trabajo ? "ejecucion" : undefined,
         categoria_id:  form.categoria_id  || null,
         recurrencia:   form.recurrencia,
+        recurrencia_config: buildRecurrenciaConfig(form),
         ubicacion_id:  form.ubicacion_id  || null,
         lugar_id:      form.lugar_id      || null,
         sociedad_id:   form.sociedad_id   || null,
@@ -1820,6 +1819,12 @@ export default function OTCrearPanel({
               </select>
             </div>
           </div>
+
+          {form.recurrencia !== "ninguna" && (
+            <div style={{ padding: "0 0 24px", borderBottom: "1px solid var(--border)" }}>
+              <RecurrenceControls value={form} onChange={setF} />
+            </div>
+          )}
 
           {/* Priority */}
           <div style={{ padding: "24px 0", borderBottom: "1px solid var(--border)" }}>

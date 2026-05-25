@@ -99,9 +99,6 @@ export default function ConfiguracionPage() {
   const [savingWs, setSavingWs]   = useState(false);
   const [wsSaved, setWsSaved]     = useState(false);
   const [loadingWs, setLoadingWs] = useState(false);
-  const [modoRegistro, setModoRegistro] = useState<"ambos" | "materiales" | "hoja">("ambos");
-  const [savingModo, setSavingModo]     = useState(false);
-  const [modoSaved, setModoSaved]       = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -134,12 +131,11 @@ export default function ConfiguracionPage() {
     if (tab !== "workspace" || !workspaceId) return;
     setLoadingWs(true);
     const sb = createClient();
-    sb.from("workspaces").select("nombre, sector, region, modo_registro, logo_url").eq("id", workspaceId).maybeSingle()
+    sb.from("workspaces").select("nombre, sector, region, logo_url").eq("id", workspaceId).maybeSingle()
       .then(({ data }) => {
         const d = { nombre: data?.nombre ?? "", sector: data?.sector ?? "", region: data?.region ?? "" };
         setWs(d);
         setWsDraft(d);
-        setModoRegistro((data?.modo_registro as "ambos" | "materiales" | "hoja") ?? "ambos");
         setLogoUrl((data as any)?.logo_url ?? null);
         setLoadingWs(false);
       });
@@ -253,17 +249,6 @@ export default function ConfiguracionPage() {
     setWsSaved(true);
     setEditingWs(false);
     setTimeout(() => setWsSaved(false), 2500);
-  }
-
-  async function saveModoRegistro(next: "ambos" | "materiales" | "hoja") {
-    if (!workspaceId) return;
-    setModoRegistro(next);
-    setSavingModo(true);
-    const sb = createClient();
-    await sb.from("workspaces").update({ modo_registro: next }).eq("id", workspaceId);
-    setSavingModo(false);
-    setModoSaved(true);
-    setTimeout(() => setModoSaved(false), 2000);
   }
 
   const planInfo = PLAN_COLOR[plan] ?? PLAN_COLOR.basic;
@@ -637,6 +622,34 @@ export default function ConfiguracionPage() {
                   )}
                 </div>
 
+                {/* Requisitos de OTs link */}
+                <button
+                  type="button"
+                  onClick={() => router.push("/requisitos")}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 14, width: "100%",
+                    padding: "16px 20px", textAlign: "left",
+                    background: "var(--surface-1)", border: "1px solid var(--border)",
+                    borderRadius: 12, boxShadow: "0 1px 3px rgba(15,23,42,0.06)",
+                    cursor: "pointer", fontFamily: "inherit",
+                  }}
+                >
+                  <span style={{
+                    width: 36, height: 36, borderRadius: 8, background: "var(--brand-tint)",
+                    color: "var(--brand-fg)", display: "inline-flex", alignItems: "center",
+                    justifyContent: "center", flexShrink: 0,
+                  }}>
+                    <Shield size={16} />
+                  </span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: "var(--fg-1)" }}>Requisitos de OTs</p>
+                    <p style={{ margin: "2px 0 0", fontSize: 12, color: "var(--fg-4)" }}>
+                      Fotos, materiales, hoja de cálculo y permisos por defecto
+                    </p>
+                  </div>
+                  <ChevronRight size={16} style={{ color: "var(--fg-4)" }} />
+                </button>
+
                 {/* Logo card */}
                 <div style={{ background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: 12, padding: 20, boxShadow: "0 1px 3px rgba(15,23,42,0.06)" }}>
                   <p style={{ fontSize: 12, fontWeight: 700, color: "var(--fg-2)", margin: "0 0 6px", textTransform: "uppercase", letterSpacing: "0.06em" }}>Logo del workspace</p>
@@ -694,52 +707,6 @@ export default function ConfiguracionPage() {
                     </div>
                   </div>
                   {logoError && <p style={{ fontSize: 12, color: "var(--danger)", margin: "10px 0 0" }}>{logoError}</p>}
-                </div>
-
-                {/* Modo de registro card */}
-                <div style={{ background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: 12, padding: 20, boxShadow: "0 1px 3px rgba(15,23,42,0.06)" }}>
-                  <p style={{ fontSize: 12, fontWeight: 700, color: "var(--fg-2)", margin: "0 0 6px", textTransform: "uppercase", letterSpacing: "0.06em" }}>Modo de registro de materiales</p>
-                  <p style={{ fontSize: 12, color: "var(--fg-4)", margin: "0 0 16px" }}>Define qué módulos de registro están activos en las órdenes de trabajo.</p>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                    {([
-                      { value: "ambos",      label: "Ambos",              desc: "Materiales y hoja de cálculo" },
-                      { value: "materiales", label: "Solo materiales",    desc: "Desactiva la hoja de cálculo" },
-                      { value: "hoja",       label: "Solo hoja de cálculo", desc: "Desactiva el módulo de materiales" },
-                    ] as const).map(opt => (
-                      <button
-                        key={opt.value}
-                        type="button"
-                        onClick={() => saveModoRegistro(opt.value)}
-                        disabled={savingModo}
-                        style={{
-                          display: "flex", alignItems: "center", gap: 12,
-                          padding: "12px 14px",
-                          border: `1.5px solid ${modoRegistro === opt.value ? "var(--brand)" : "var(--border)"}`,
-                          borderRadius: "var(--r-md)", background: modoRegistro === opt.value ? "var(--brand-tint)" : "var(--surface-1)",
-                          cursor: savingModo ? "default" : "pointer", fontFamily: "inherit",
-                          textAlign: "left", transition: "border-color 0.15s, background 0.15s",
-                        }}
-                      >
-                        <span style={{
-                          width: 16, height: 16, borderRadius: "50%", flexShrink: 0,
-                          border: `2px solid ${modoRegistro === opt.value ? "var(--brand)" : "var(--border-strong)"}`,
-                          background: modoRegistro === opt.value ? "var(--brand)" : "var(--surface-1)",
-                          display: "flex", alignItems: "center", justifyContent: "center",
-                        }}>
-                          {modoRegistro === opt.value && <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--surface-1)" }} />}
-                        </span>
-                        <div>
-                          <p style={{ fontSize: 13, fontWeight: 600, color: modoRegistro === opt.value ? "var(--brand-fg)" : "var(--fg-1)", margin: 0 }}>{opt.label}</p>
-                          <p style={{ fontSize: 11, color: "var(--fg-4)", margin: 0 }}>{opt.desc}</p>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                  {modoSaved && (
-                    <div style={{ marginTop: 10, padding: "8px 12px", background: "var(--success-bg)", border: "1px solid var(--success)", borderRadius: "var(--r-md)", fontSize: 12, color: "var(--st-done-fg)", fontWeight: 600, display: "flex", alignItems: "center", gap: 6 }}>
-                      <Check size={13} /> Guardado
-                    </div>
-                  )}
                 </div>
 
                 {/* Plan card — solo owner (responsable de facturación) */}

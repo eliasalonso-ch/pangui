@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Plus, Search, X, ChevronDown, Loader2, FileText, ArrowUpDown, Download, AlertTriangle } from "lucide-react";
+import { Plus, Search, X, ChevronDown, Loader2, FileText, ArrowUpDown, Download, AlertTriangle, Calendar } from "lucide-react";
 import { createClient } from "@/lib/supabase";
 import { fetchOrden, deleteOrden, LIST_SELECT, parseDescMeta } from "@/lib/ordenes-api";
 import { buildOrdenesWorkbook, type ExportCols as SharedExportCols, type OrdenInput, type HojaInput, type FilaInput, type FotoItemInput, type MaterialUsadoInput } from "@/lib/excel-export-shared";
@@ -112,6 +112,7 @@ export default function OrdenesBandeja({
     if (f === "en_curso")         return { ...EMPTY_FILTROS, estados: ["en_curso"] };
     if (f === "abiertas")         return { ...EMPTY_FILTROS, estados: ["pendiente", "en_espera"] };
     if (f === "bloqueadas")       return { ...EMPTY_FILTROS, estados: ["en_espera"] };
+    if (f === "reprogramadas")    return { ...EMPTY_FILTROS, estados: ["en_espera"] };
     if (f === "sin_asignar")      return { ...EMPTY_FILTROS, sinAsignar: true };
     if (f === "asignado")         return { ...EMPTY_FILTROS, soloAsignados: true };
     if (f === "levantamientos")   return EMPTY_FILTROS;
@@ -128,6 +129,12 @@ export default function OrdenesBandeja({
   const [waitingAlertIndex, setWaitingAlertIndex] = useState(0);
   const [waitingOpen, setWaitingOpen] = useState(false);
   const waitingRef = useRef<HTMLDivElement>(null);
+  // Active "Solo reprogramadas" toggle. Read from URL once; togglable via the
+  // waiting-alerts dropdown. We can't put it inside FiltrosState because the
+  // reason key lives in actividad_ot, not on ordenes_trabajo.
+  const [onlyReprogramadas, setOnlyReprogramadas] = useState(
+    () => searchParams?.get("filtro") === "reprogramadas",
+  );
 
   type ExportCol =
     | "numero" | "n_serie" | "hito" | "estado" | "prioridad" | "tipo_trabajo"
@@ -250,7 +257,8 @@ export default function OrdenesBandeja({
 
     loadWaitingReasons();
     return () => { cancelled = true; };
-  }, [ordenes, waitingOrderIds]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [waitingOrderIds]);
 
   useEffect(() => {
     if (waitingOpen || waitingAlerts.length <= 1) return;
@@ -312,6 +320,13 @@ export default function OrdenesBandeja({
     }
   };
 
+  // Cache the set of OT ids whose latest pausado reason is "reprogramar",
+  // so the "Solo reprogramadas" toggle is O(1) per OT.
+  const reprogramadaIds = useMemo(
+    () => new Set(waitingAlerts.filter(a => a.reason === "reprogramar").map(a => a.id)),
+    [waitingAlerts],
+  );
+
   // Apply filters + search + sort
   const filtered = useMemo(() => {
     let list = ordenes.filter(o =>
@@ -320,6 +335,8 @@ export default function OrdenesBandeja({
       : tab === "activas"      ? ACTIVE_ESTADOS.has(o.estado)
       : CLOSED_ESTADOS.has(o.estado)
     );
+
+    if (onlyReprogramadas) list = list.filter(o => reprogramadaIds.has(o.id));
 
     // Filtros
     if (filtros.estados.length)      list = list.filter(o => filtros.estados.includes(o.estado));
@@ -400,7 +417,7 @@ export default function OrdenesBandeja({
       }
     });
     return list;
-  }, [ordenes, tab, search, sort, filtros, ubicaciones]);
+  }, [ordenes, tab, search, sort, filtros, ubicaciones, onlyReprogramadas, reprogramadaIds]);
 
   // Counts reflect the current filters (search + filtros) but not the active/closed tab split
   const filteredCounts = useMemo(() => {
@@ -449,6 +466,9 @@ export default function OrdenesBandeja({
       if (filtros.soloAsignados) {
         list = list.filter(o => o.asignados_ids && o.asignados_ids.length > 0);
       }
+      if (onlyReprogramadas) {
+        list = list.filter(o => reprogramadaIds.has(o.id));
+      }
       if (search.trim()) {
         const q = search.trim().replace(/\s+/g, " ").toLowerCase();
         list = list.filter(o => {
@@ -469,7 +489,7 @@ export default function OrdenesBandeja({
       sin_asignar:    applyFilters(ordenes.filter(o => ACTIVE_ESTADOS.has(o.estado) && (!o.asignados_ids || o.asignados_ids.length === 0))).length,
       levantamientos: applyFilters(ordenes.filter(o => o.clasificacion === "levantamiento")).length,
     };
-  }, [ordenes, filtros, search, ubicaciones]);
+  }, [ordenes, filtros, search, ubicaciones, onlyReprogramadas, reprogramadaIds]);
   const currentSortLabel = SORT_OPTIONS.find(o => o.value === sort)?.label ?? "";
   const currentWaitingAlert = waitingAlerts.length > 0
     ? waitingAlerts[waitingAlertIndex % waitingAlerts.length]
@@ -663,6 +683,35 @@ export default function OrdenesBandeja({
                   <span style={{ fontSize:12, fontWeight:700, color:"var(--fg-1)" }}>OTs en espera</span>
                   <span style={{ fontSize:11, fontWeight:600, color:"var(--fg-3)" }}>{waitingAlerts.length}</span>
                 </div>
+                {reprogramadaIds.size > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const next = !onlyReprogramadas;
+                      setOnlyReprogramadas(next);
+                      const params = new URLSearchParams(searchParams?.toString() ?? "");
+                      if (next) params.set("filtro", "reprogramadas");
+                      else if (params.get("filtro") === "reprogramadas") params.delete("filtro");
+                      router.replace(`/ordenes${params.toString() ? `?${params.toString()}` : ""}`, { scroll: false });
+                      setWaitingOpen(false);
+                    }}
+                    style={{
+                      width:"100%", display:"flex", alignItems:"center", gap:8,
+                      padding:"10px 12px", borderBottom:"1px solid var(--border)",
+                      background: onlyReprogramadas ? "var(--st-wait-bg)" : "var(--surface-1)",
+                      border:"none", borderTop:"none", cursor:"pointer",
+                      fontFamily:"inherit", textAlign:"left",
+                    }}
+                  >
+                    <Calendar size={14} style={{ color: onlyReprogramadas ? "var(--st-wait-fg)" : "var(--fg-3)", flexShrink:0 }} />
+                    <span style={{ flex:1, fontSize:12, fontWeight:600, color: onlyReprogramadas ? "var(--st-wait-fg)" : "var(--fg-2)" }}>
+                      Solo reprogramadas
+                    </span>
+                    <span style={{ fontSize:11, fontWeight:700, color: onlyReprogramadas ? "var(--st-wait-fg)" : "var(--fg-3)" }}>
+                      {reprogramadaIds.size}
+                    </span>
+                  </button>
+                )}
                 <div style={{ maxHeight:320, overflowY:"auto", padding:6 }}>
                   {waitingAlerts.map((alert) => (
                     <button

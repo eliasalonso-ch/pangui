@@ -14,6 +14,7 @@ import {
 } from "@/lib/foto-grupos-api";
 import type { FotoGrupo } from "@/lib/foto-grupos-api";
 import { createClient } from "@/lib/supabase";
+import { buildRecurrenciaConfig, recurrenceDraftFromConfig, RecurrenceControls, RECURRENCIAS } from "./RecurrenceControls";
 import type {
   OrdenTrabajo, Usuario, Ubicacion, LugarEspecifico, Sociedad, Activo, CategoriaOT,
   Prioridad, TipoTrabajo, Recurrencia, OTLink,
@@ -50,6 +51,10 @@ interface FormState {
   asignados_ids: string[];
   fecha_termino: string;
   fecha_inicio:  string;
+  recurrencia_fin: string;
+  recurrencia_intervalo: string;
+  recurrencia_dias: number[];
+  recurrencia_mes_dia: string;
   recurrencia:   Recurrencia;
   tipo_trabajo:  TipoTrabajo | "";
   prioridad:     Prioridad;
@@ -73,14 +78,6 @@ const TIPOS: { value: TipoTrabajo; label: string }[] = [
   { value: "inspeccion",    label: "Inspección" },
   { value: "mejora",        label: "Mejora" },
   { value: "levantamiento", label: "Levantamiento" },
-];
-
-const RECURRENCIAS: { value: Recurrencia; label: string }[] = [
-  { value: "ninguna",   label: "No se repite" },
-  { value: "diaria",    label: "Diaria" },
-  { value: "semanal",   label: "Semanal" },
-  { value: "quincenal", label: "Quincenal" },
-  { value: "mensual",   label: "Mensual" },
 ];
 
 // ── Shared components (same as OTCrearPanel) ──────────────────────────────────
@@ -458,6 +455,7 @@ export default function OTEditPanel({
   myId, wsId, onClose, onSaved,
 }: Props) {
   const _meta = parseDescMeta(orden.descripcion ?? null);
+  const recurrenciaDraft = recurrenceDraftFromConfig(orden.recurrencia ?? "ninguna", orden.recurrencia_config, orden.fecha_inicio ? orden.fecha_inicio.slice(0, 10) : "");
   const [form, setForm] = useState<FormState>({
     titulo:        orden.titulo ?? "",
     n_ot:          _meta.nOT          ?? "",
@@ -472,6 +470,10 @@ export default function OTEditPanel({
     asignados_ids: orden.asignados_ids ?? [],
     fecha_termino: orden.fecha_termino ? orden.fecha_termino.slice(0, 10) : "",
     fecha_inicio:  orden.fecha_inicio  ? orden.fecha_inicio.slice(0, 10)  : "",
+    recurrencia_fin: recurrenciaDraft.recurrencia_fin,
+    recurrencia_intervalo: recurrenciaDraft.recurrencia_intervalo,
+    recurrencia_dias: recurrenciaDraft.recurrencia_dias,
+    recurrencia_mes_dia: recurrenciaDraft.recurrencia_mes_dia,
     recurrencia:   orden.recurrencia   ?? "ninguna",
     tipo_trabajo:  orden.tipo_trabajo  ?? "",
     prioridad:     orden.prioridad,
@@ -581,6 +583,7 @@ export default function OTEditPanel({
           clasificacion: form.tipo_trabajo === "levantamiento" ? "levantamiento" : form.tipo_trabajo ? "ejecucion" : undefined,
           categoria_id:  form.categoria_id  || null,
           recurrencia:   form.recurrencia,
+          recurrencia_config: buildRecurrenciaConfig(form),
           fecha_inicio:  form.fecha_inicio  || null,
           fecha_termino: form.fecha_termino || null,
           ubicacion_id:  form.ubicacion_id  || null,
@@ -915,15 +918,15 @@ export default function OTEditPanel({
             <AssigneeSelect usuarios={usuarios} value={form.asignados_ids} onChange={v => setF("asignados_ids", v)} />
           </FieldRow>
 
-          <FieldRow icon={<CalendarDays size={14} />} label="Fecha de vencimiento">
-            <input type="date" value={form.fecha_termino} onChange={e => setF("fecha_termino", e.target.value)}
-              style={{ height: 40, padding: "0 12px", border: "1px solid var(--border)", borderRadius: 8, fontSize: 13, color: form.fecha_termino ? "var(--fg-1)" : "var(--fg-4)", outline: "none", fontFamily: "inherit", background: "var(--surface-1)" }}
-            />
-          </FieldRow>
-
           <FieldRow icon={<CalendarDays size={14} />} label="Fecha de inicio">
             <input type="date" value={form.fecha_inicio} onChange={e => setF("fecha_inicio", e.target.value)}
               style={{ height: 40, padding: "0 12px", border: "1px solid var(--border)", borderRadius: 8, fontSize: 13, color: form.fecha_inicio ? "var(--fg-1)" : "var(--fg-4)", outline: "none", fontFamily: "inherit", background: "var(--surface-1)" }}
+            />
+          </FieldRow>
+
+          <FieldRow icon={<CalendarDays size={14} />} label="Fecha de vencimiento">
+            <input type="date" value={form.fecha_termino} onChange={e => setF("fecha_termino", e.target.value)}
+              style={{ height: 40, padding: "0 12px", border: "1px solid var(--border)", borderRadius: 8, fontSize: 13, color: form.fecha_termino ? "var(--fg-1)" : "var(--fg-4)", outline: "none", fontFamily: "inherit", background: "var(--surface-1)" }}
             />
           </FieldRow>
 
@@ -945,6 +948,12 @@ export default function OTEditPanel({
               </select>
             </div>
           </div>
+
+          {form.recurrencia !== "ninguna" && (
+            <div style={{ padding: "0 0 24px", borderBottom: "1px solid var(--border)" }}>
+              <RecurrenceControls value={form} onChange={setF} />
+            </div>
+          )}
 
           {/* Priority */}
           <div style={{ padding: "24px 0", borderBottom: "1px solid var(--border)" }}>

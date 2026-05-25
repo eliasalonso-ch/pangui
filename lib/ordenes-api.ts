@@ -2,7 +2,7 @@ import { createClient } from "@/lib/supabase";
 import { ensureOtCategoria } from "@/lib/cuotas-client";
 import type {
   OrdenTrabajo, OrdenListItem, ActividadOT, ActividadTipo,
-  Estado, Prioridad, TipoTrabajo, ClasificacionOT, Recurrencia, OTLink,
+  Estado, Prioridad, TipoTrabajo, ClasificacionOT, Recurrencia, RecurrenciaConfig, OTLink,
 } from "@/types/ordenes";
 import {
   notifyOTCreada,
@@ -64,14 +64,30 @@ export function buildDescripcion(opts: {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function calcProximaEjecucion(recurrencia: Recurrencia): string | null {
+function calcProximaEjecucion(recurrencia: Recurrencia, fechaBase?: string | null, config?: RecurrenciaConfig | null): string | null {
   if (recurrencia === "ninguna") return null;
-  const d = new Date();
+  const d = fechaBase ? new Date(`${fechaBase.slice(0, 10)}T12:00:00`) : new Date();
+  const interval = Math.max(1, Number(config?.interval ?? 1));
+  const weekdays = config?.weekdays ?? [];
   switch (recurrencia) {
-    case "diaria":    d.setDate(d.getDate() + 1); break;
-    case "semanal":   d.setDate(d.getDate() + 7); break;
+    case "diaria":
+      d.setDate(d.getDate() + 1);
+      if (weekdays.length) while (!weekdays.includes(d.getDay())) d.setDate(d.getDate() + 1);
+      else d.setDate(d.getDate() + interval - 1);
+      break;
+    case "semanal":
+      d.setDate(d.getDate() + interval * 7);
+      if (weekdays.length) while (!weekdays.includes(d.getDay())) d.setDate(d.getDate() + 1);
+      break;
     case "quincenal": d.setDate(d.getDate() + 15); break;
-    case "mensual":   d.setMonth(d.getMonth() + 1); break;
+    case "mensual": {
+      const day = Math.min(31, Math.max(1, Number(config?.month_day ?? d.getDate())));
+      d.setMonth(d.getMonth() + interval, 1);
+      const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+      d.setDate(Math.min(day, lastDay));
+      break;
+    }
+    case "anual":     d.setFullYear(d.getFullYear() + interval); break;
   }
   return d.toISOString();
 }
@@ -85,7 +101,7 @@ export const ORDEN_SELECT = `
   n_serie, solicitante, hito, presupuesto,
   numero, categoria_id, ubicacion_id, activo_id, lugar_id, sociedad_id,
   iniciado_at, pausado_at, en_ejecucion, tiempo_total_segundos,
-  recurrencia, proxima_ejecucion, parent_id,
+  recurrencia, recurrencia_config, proxima_ejecucion, recurrencia_origen_id, recurrencia_iteracion, parent_id,
   requiere_materiales, requiere_hoja, requiere_fotos,
   imagen_url, fotos_urls, links,
   activos (id, nombre, codigo),
@@ -98,7 +114,7 @@ export const ORDEN_SELECT = `
 
 export const LIST_SELECT = `
   id, titulo, descripcion, estado, prioridad, tipo, tipo_trabajo, clasificacion,
-  fecha_inicio, fecha_termino, recurrencia, created_at,
+  fecha_inicio, fecha_termino, recurrencia, recurrencia_config, created_at,
   n_serie, solicitante, hito,
   categoria_id, ubicacion_id, activo_id, creado_por, asignados_ids,
   numero, parent_id,
@@ -171,6 +187,7 @@ export async function createOrden(payload: {
   clasificacion?: ClasificacionOT | null;
   categoria_id?: string | null;
   recurrencia?: Recurrencia;
+  recurrencia_config?: RecurrenciaConfig | null;
   ubicacion_id?: string | null;
   lugar_id?: string | null;
   sociedad_id?: string | null;
@@ -182,7 +199,8 @@ export async function createOrden(payload: {
 }): Promise<OrdenTrabajo> {
   const sb = createClient();
   const recurrencia = payload.recurrencia ?? "ninguna";
-  const proxima_ejecucion = calcProximaEjecucion(recurrencia);
+  const recurrencia_config = recurrencia === "ninguna" ? null : (payload.recurrencia_config ?? null);
+  const proxima_ejecucion = calcProximaEjecucion(recurrencia, payload.fecha_inicio, recurrencia_config);
 
   // Quota gate: count OTs that are preventivas or recurrentes ("repetitivas").
   const esRepetitiva = recurrencia !== "ninguna" || payload.tipo_trabajo === "preventiva";
@@ -192,7 +210,7 @@ export async function createOrden(payload: {
 
   const { data: ws } = await sb
     .from("workspaces")
-    .select("requiere_materiales_global, requiere_hoja_global")
+    .select("requiere_materiales_global, requiere_hoja_global, requiere_fotos_global, fotos_obligatorias_todas")
     .eq("id", payload.workspaceId)
     .maybeSingle();
 
@@ -213,10 +231,16 @@ export async function createOrden(payload: {
       estado:             "pendiente",
       prioridad:          payload.prioridad,
       recurrencia,
+      recurrencia_config,
       proxima_ejecucion,
+      recurrencia_iteracion: recurrencia !== "ninguna" ? 1 : null,
       estado_cobro:       "no_cobrable",
       requiere_materiales: ws?.requiere_materiales_global ?? false,
       requiere_hoja:       ws?.requiere_hoja_global ?? false,
+      // fotos_obligatorias_todas is the workspace mandate; requiere_fotos_global
+      // is a softer "default on". Either one seeds the new OT's flag — admins
+      // can still override per-OT from the detail panel.
+      requiere_fotos:      (ws?.fotos_obligatorias_todas ?? false) || (ws?.requiere_fotos_global ?? false),
       ...(payload.categoria_id  ? { categoria_id:  payload.categoria_id  } : {}),
       ...(payload.ubicacion_id  ? { ubicacion_id:  payload.ubicacion_id  } : {}),
       ...(payload.lugar_id      ? { lugar_id:      payload.lugar_id      } : {}),
@@ -274,6 +298,8 @@ export async function createSubOrden(
       estado:        "pendiente",
       prioridad:     parent.prioridad,
       recurrencia:   "ninguna",
+      recurrencia_config: null,
+      proxima_ejecucion: null,
       estado_cobro:  "no_cobrable",
       parent_id:     parentId,
       asignados_ids: parent.asignados_ids ?? [],
@@ -282,6 +308,11 @@ export async function createSubOrden(
       sociedad_id:   parent.sociedad_id ?? null,
       fecha_inicio:  parent.fecha_inicio ?? null,
       fecha_termino: parent.fecha_termino ?? null,
+      // Sub-OTs inherit the parent's requisitos so they behave consistently
+      // (the close-gate, fotos warning, etc. all reuse these flags).
+      requiere_materiales: parent.requiere_materiales ?? false,
+      requiere_hoja:       parent.requiere_hoja ?? false,
+      requiere_fotos:      parent.requiere_fotos ?? false,
     })
     .select(ORDEN_SELECT)
     .single();
@@ -352,6 +383,7 @@ export async function updateOrden(
     clasificacion?: ClasificacionOT | null;
     categoria_id?: string | null;
     recurrencia?: Recurrencia;
+    recurrencia_config?: RecurrenciaConfig | null;
     proxima_ejecucion?: string | null;
     fecha_inicio?: string | null;
     fecha_termino?: string | null;
@@ -365,9 +397,14 @@ export async function updateOrden(
   prevAsignadosIds?: string[] | null,
 ): Promise<OrdenTrabajo> {
   const sb = createClient();
+  const patch = { ...payload };
+  if (patch.recurrencia !== undefined) {
+    patch.recurrencia_config = patch.recurrencia === "ninguna" ? null : (patch.recurrencia_config ?? null);
+    patch.proxima_ejecucion = calcProximaEjecucion(patch.recurrencia, patch.fecha_inicio, patch.recurrencia_config);
+  }
   const { data, error } = await sb
     .from("ordenes_trabajo")
-    .update(payload)
+    .update(patch)
     .eq("id", id)
     .select(ORDEN_SELECT)
     .single();

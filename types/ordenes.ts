@@ -19,7 +19,15 @@ export type TipoTrabajo = "reactiva" | "preventiva" | "inspeccion" | "mejora" | 
 
 export type ClasificacionOT = "levantamiento" | "ejecucion";
 
-export type Recurrencia = "ninguna" | "diaria" | "semanal" | "quincenal" | "mensual";
+export type Recurrencia = "ninguna" | "diaria" | "semanal" | "quincenal" | "mensual" | "anual";
+
+export interface RecurrenciaConfig {
+  interval?: number | null;
+  unit?: "day" | "week" | "month" | "year" | null;
+  weekdays?: number[] | null;
+  month_day?: number | null;
+  end_date?: string | null;
+}
 
 export type TipoPaso = "instruccion" | "verificacion" | "advertencia";
 
@@ -232,7 +240,10 @@ export interface OrdenTrabajo {
   tipo_trabajo: TipoTrabajo | null;
   clasificacion: ClasificacionOT | null;
   recurrencia: Recurrencia;
+  recurrencia_config?: RecurrenciaConfig | null;
   proxima_ejecucion: string | null;
+  recurrencia_origen_id?: string | null;
+  recurrencia_iteracion?: number | null;
   parent_id: string | null;
   fecha_inicio: string | null;
   fecha_termino: string | null;
@@ -282,7 +293,7 @@ export interface OrdenTrabajo {
 export type OrdenListItem = Pick<
   OrdenTrabajo,
   | "id" | "titulo" | "descripcion" | "estado" | "prioridad"
-  | "tipo" | "tipo_trabajo" | "clasificacion" | "fecha_inicio" | "fecha_termino" | "recurrencia"
+  | "tipo" | "tipo_trabajo" | "clasificacion" | "fecha_inicio" | "fecha_termino" | "recurrencia" | "recurrencia_config"
   | "created_at" | "categoria_id" | "ubicacion_id" | "activo_id"
   | "creado_por" | "asignados_ids" | "numero" | "parent_id"
   | "n_serie" | "solicitante" | "hito"
@@ -305,6 +316,10 @@ export interface OTFormState {
   categoria_id: string;
   fecha_inicio: string;
   fecha_termino: string;
+  recurrencia_fin: string;
+  recurrencia_intervalo: string;
+  recurrencia_dias: number[];
+  recurrencia_mes_dia: string;
   tiempo_estimado_h: string;
   tiempo_estimado_m: string;
   recurrencia: Recurrencia;

@@ -12,6 +12,7 @@ import { createClient } from "@/lib/supabase";
 import { uploadFotoGrupo, createFotoGrupo, addFotoToGrupo } from "@/lib/foto-grupos-api";
 import { uploadToR2 } from "@/lib/r2";
 import LinksInput from "@/components/LinksInput";
+import { buildRecurrenciaConfig, RecurrenceControls, RECURRENCIAS } from "../RecurrenceControls";
 import type { Usuario, Ubicacion, Activo, CategoriaOT, Prioridad, TipoTrabajo, Recurrencia, OTLink } from "@/types/ordenes";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -47,6 +48,10 @@ interface FormState {
   tiempo_m:         string;
   fecha_termino:    string;
   fecha_inicio:     string;
+  recurrencia_fin:  string;
+  recurrencia_intervalo: string;
+  recurrencia_dias: number[];
+  recurrencia_mes_dia: string;
   recurrencia:      Recurrencia;
   tipo_trabajo:     TipoTrabajo | "";
   prioridad:        Prioridad;
@@ -58,7 +63,8 @@ const BLANK: FormState = {
   ubicacion_id: "", activo_id: "",
   asignados_ids: [],
   tiempo_h: "", tiempo_m: "",
-  fecha_termino: "", fecha_inicio: "",
+  fecha_termino: "", fecha_inicio: "", recurrencia_fin: "",
+  recurrencia_intervalo: "1", recurrencia_dias: [], recurrencia_mes_dia: "1",
   recurrencia: "ninguna", tipo_trabajo: "",
   prioridad: "ninguna", categoria_id: "",
 };
@@ -81,13 +87,33 @@ const TIPOS: { value: TipoTrabajo; label: string }[] = [
   { value: "levantamiento", label: "Levantamiento" },
 ];
 
-const RECURRENCIAS: { value: Recurrencia; label: string }[] = [
-  { value: "ninguna",   label: "Sin recurrencia" },
-  { value: "diaria",    label: "Diaria" },
-  { value: "semanal",   label: "Semanal" },
-  { value: "quincenal", label: "Quincenal" },
-  { value: "mensual",   label: "Mensual" },
-];
+function calcProximaEjecucion(recurrencia: Recurrencia, fechaBase?: string | null, config = buildRecurrenciaConfig(BLANK)): string | null {
+  if (recurrencia === "ninguna") return null;
+  const d = fechaBase ? new Date(`${fechaBase.slice(0, 10)}T12:00:00`) : new Date();
+  const interval = Math.max(1, Number(config?.interval ?? 1));
+  const weekdays = config?.weekdays ?? [];
+  switch (recurrencia) {
+    case "diaria":
+      d.setDate(d.getDate() + 1);
+      if (weekdays.length) while (!weekdays.includes(d.getDay())) d.setDate(d.getDate() + 1);
+      else d.setDate(d.getDate() + interval - 1);
+      break;
+    case "semanal":
+      d.setDate(d.getDate() + interval * 7);
+      if (weekdays.length) while (!weekdays.includes(d.getDay())) d.setDate(d.getDate() + 1);
+      break;
+    case "quincenal": d.setDate(d.getDate() + 15); break;
+    case "mensual": {
+      const day = Math.min(31, Math.max(1, Number(config?.month_day ?? d.getDate())));
+      d.setMonth(d.getMonth() + interval, 1);
+      const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+      d.setDate(Math.min(day, lastDay));
+      break;
+    }
+    case "anual": d.setFullYear(d.getFullYear() + interval); break;
+  }
+  return d.toISOString();
+}
 
 // ── Shared field row ─────────────────────────────────────────────────────────
 
@@ -395,6 +421,7 @@ export default function OTCrearForm({ usuarios, ubicaciones, activos, categorias
 
     const sb = createClient();
     const timeMin = ((parseInt(form.tiempo_h) || 0) * 60) + (parseInt(form.tiempo_m) || 0) || null;
+    const recurrenciaConfig = buildRecurrenciaConfig(form);
 
     const payload = {
       workspace_id:    wsId,
@@ -413,6 +440,9 @@ export default function OTCrearForm({ usuarios, ubicaciones, activos, categorias
       fecha_termino:   form.fecha_termino || null,
       tiempo_estimado: timeMin,
       recurrencia:     form.recurrencia,
+      recurrencia_config: recurrenciaConfig,
+      proxima_ejecucion: calcProximaEjecucion(form.recurrencia, form.fecha_inicio, recurrenciaConfig),
+      recurrencia_iteracion: form.recurrencia === "ninguna" ? null : 1,
       asignados_ids:   form.asignados_ids.length > 0 ? form.asignados_ids : null,
     };
 
@@ -861,6 +891,12 @@ export default function OTCrearForm({ usuarios, ubicaciones, activos, categorias
           </div>
 
           {/* Priority — segmented buttons */}
+          {form.recurrencia !== "ninguna" && (
+            <div style={{ padding: "0 0 14px", borderBottom: "1px solid var(--border)" }}>
+              <RecurrenceControls value={form} onChange={setF} compact />
+            </div>
+          )}
+
           <div style={{ padding: "14px 0", borderBottom: "1px solid var(--border)" }}>
             <div style={{ fontSize: 11, fontWeight: 600, color: "var(--fg-3)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 10 }}>
               Prioridad

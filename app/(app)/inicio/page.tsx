@@ -227,13 +227,8 @@ export default function InicioDashboard() {
   const [partes, setPartes]             = useState<Parte[]>([]);
   const [actividad, setActividad]       = useState<ActividadItem[]>([]);
   const [totalOTs, setTotalOTs] = useState(0);
-  const [dateLabel, setDateLabel] = useState("");
-  const [greetingText, setGreetingText] = useState("");
-
-  useEffect(() => {
-    setDateLabel(new Date().toLocaleDateString("es-CL", { weekday: "long", day: "numeric", month: "long" }));
-    setGreetingText(greeting());
-  }, []);
+  const [dateLabel] = useState(() => new Date().toLocaleDateString("es-CL", { weekday: "long", day: "numeric", month: "long" }));
+  const [greetingText] = useState(() => greeting());
 
   useEffect(() => {
     async function load() {
@@ -255,6 +250,7 @@ export default function InicioDashboard() {
         sb.from("ordenes_trabajo")
           .select(`id, titulo, descripcion, estado, prioridad, created_at, updated_at, fecha_termino, asignados_ids, numero, iniciado_at, pausado_at, tiempo_total_segundos, clasificacion, ubicaciones(edificio)`)
           .eq("workspace_id", workspaceId)
+          .is("parent_id", null)
           .neq("estado", "cancelado")
           .order("created_at", { ascending: false })
           .limit(400),
@@ -270,7 +266,8 @@ export default function InicioDashboard() {
           .gt("stock_minimo", 0),
         sb.from("ordenes_trabajo")
           .select("id", { count: "exact", head: true })
-          .eq("workspace_id", workspaceId),
+          .eq("workspace_id", workspaceId)
+          .neq("estado", "cancelado"),
       ]);
 
       const ordenes = ordenesRes.data ?? [];
@@ -374,7 +371,7 @@ export default function InicioDashboard() {
         <KpiCard
           label="Total histórico"
           value={String(totalOTs)}
-          sub="OTs creadas"
+          sub="OTs y sub-OTs"
           trend="neutral"
           onClick={() => router.push("/ordenes")}
         />
