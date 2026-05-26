@@ -15,8 +15,10 @@ import {
   Package, Search,
   ClipboardCheck, Info, Hash as HashIcon, Camera, PenLine, Shield, CheckSquare,
   Type, DollarSign, List, ListChecks, AlertCircle, ImagePlus, FolderOpen,
-  Lock, LockOpen, Mic, MicOff, Volume2, GitBranch, Wrench,
+  Lock, LockOpen, Mic, MicOff, Volume2, GitBranch, Wrench, Upload,
 } from "lucide-react";
+import ImportarMaterialesModal from "./ImportarMaterialesModal";
+import ExportarMaterialesModal from "./ExportarMaterialesModal";
 import { cn } from "@/lib/utils";
 import { LinksDisplay } from "@/components/LinksInput";
 import { Button } from "@/components/ui/button";
@@ -689,6 +691,12 @@ export default function OTDetail({
   const [addingParte, setAddingParte] = useState(false);
   const [deletingParteId, setDeletingParteId] = useState<string | null>(null);
   const [showManualForm, setShowManualForm] = useState(false);
+  const [importModalOpen, setImportModalOpen] = useState(false);
+  const [exportModalOpen, setExportModalOpen] = useState<null | "materiales" | "hoja">(null);
+  const [hasMaterialesTemplates, setHasMaterialesTemplates] = useState(false);
+  // The export button only appears when at least one template has a file
+  // attached — older templates without archivo_url can't be filled.
+  const [hasExportableTemplates, setHasExportableTemplates] = useState(false);
   const [manualCantidad, setManualCantidad] = useState("1");
   const [manualParteId, setManualParteId] = useState("");
 
@@ -1154,8 +1162,7 @@ export default function OTDetail({
   }
 
   // Load orden_partes when tab opens
-  useEffect(() => {
-    if (tab !== "materiales") return;
+  const reloadOrdenPartes = useCallback(() => {
     setLoadingPartes(true);
     const sb = createClient();
     sb.from("orden_partes")
@@ -1170,7 +1177,31 @@ export default function OTDetail({
         setOrdenPartes(normalized as OrdenParte[]);
         setLoadingPartes(false);
       });
-  }, [tab, orden.id]);
+  }, [orden.id]);
+
+  useEffect(() => {
+    // Materiales counts also gate the export button on the Hoja tab, so load
+    // them whenever either tab is open.
+    if (tab !== "materiales" && tab !== "hoja") return;
+    reloadOrdenPartes();
+  }, [tab, reloadOrdenPartes]);
+
+  // Quickly probe whether the workspace has any materiales templates so we can
+  // show/hide the "Importar desde Excel" and "Exportar a Excel" buttons.
+  // Export needs a template with an attached file; import doesn't.
+  useEffect(() => {
+    if ((tab !== "materiales" && tab !== "hoja") || !wsId) return;
+    const sb = createClient();
+    sb.from("import_templates")
+      .select("id, archivo_url")
+      .eq("workspace_id", wsId)
+      .eq("tipo", "materiales")
+      .then(({ data }) => {
+        const list = (data as { id: string; archivo_url: string | null }[] | null) ?? [];
+        setHasMaterialesTemplates(list.length > 0);
+        setHasExportableTemplates(list.some(t => !!t.archivo_url));
+      });
+  }, [tab, wsId]);
 
   // Load partes catalogue (lazy, once per open)
   useEffect(() => {
@@ -2861,6 +2892,46 @@ export default function OTDetail({
             )}
 
 
+            {/* Import / Export buttons — visible when the workspace has at
+                least one matching template. Export additionally requires a
+                template with an uploaded sample file. */}
+            {(isActive || canManage) && (hasMaterialesTemplates || hasExportableTemplates) && (
+              <div style={{ marginBottom: 10, display: "flex", justifyContent: "flex-end", gap: 8 }}>
+                {hasMaterialesTemplates && (
+                  <button
+                    type="button"
+                    onClick={() => setImportModalOpen(true)}
+                    style={{
+                      display: "inline-flex", alignItems: "center", gap: 6,
+                      height: 32, padding: "0 12px", borderRadius: 8,
+                      border: "1px solid var(--border)", background: "var(--surface-1)",
+                      color: "var(--fg-2)", fontSize: 12, fontWeight: 600,
+                      cursor: "pointer", fontFamily: "inherit",
+                    }}
+                  >
+                    <Upload size={13} />
+                    Importar desde Excel
+                  </button>
+                )}
+                {hasExportableTemplates && ordenPartes.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setExportModalOpen("materiales")}
+                    style={{
+                      display: "inline-flex", alignItems: "center", gap: 6,
+                      height: 32, padding: "0 12px", borderRadius: 8,
+                      border: "1px solid var(--border)", background: "var(--surface-1)",
+                      color: "var(--fg-2)", fontSize: 12, fontWeight: 600,
+                      cursor: "pointer", fontFamily: "inherit",
+                    }}
+                  >
+                    <FileDown size={13} />
+                    Exportar a Excel
+                  </button>
+                )}
+              </div>
+            )}
+
             {/* Search catalogue */}
             {(isActive || canManage) && (
               <div style={{ marginBottom: 14 }}>
@@ -3121,6 +3192,24 @@ export default function OTDetail({
                 <span style={{ fontSize: 12, color: "var(--st-wait-fg)" }}>
                   Esta OT requiere completar la hoja de cálculo antes de poder cerrarse.
                 </span>
+              </div>
+            )}
+            {hasExportableTemplates && (
+              <div style={{ marginBottom: 10, display: "flex", justifyContent: "flex-end" }}>
+                <button
+                  type="button"
+                  onClick={() => setExportModalOpen("hoja")}
+                  style={{
+                    display: "inline-flex", alignItems: "center", gap: 6,
+                    height: 32, padding: "0 12px", borderRadius: 8,
+                    border: "1px solid var(--border)", background: "var(--surface-1)",
+                    color: "var(--fg-2)", fontSize: 12, fontWeight: 600,
+                    cursor: "pointer", fontFamily: "inherit",
+                  }}
+                >
+                  <FileDown size={13} />
+                  Exportar a Excel
+                </button>
               </div>
             )}
             <HojaSpreadsheet
@@ -3436,6 +3525,26 @@ export default function OTDetail({
             </div>
           </div>
         </div>
+      )}
+
+      {importModalOpen && wsId && (
+        <ImportarMaterialesModal
+          ordenId={orden.id}
+          workspaceId={wsId}
+          myId={myId}
+          onClose={() => setImportModalOpen(false)}
+          onImported={reloadOrdenPartes}
+        />
+      )}
+
+      {exportModalOpen && wsId && (
+        <ExportarMaterialesModal
+          ordenId={orden.id}
+          ordenNumero={orden.numero ?? null}
+          workspaceId={wsId}
+          source={exportModalOpen}
+          onClose={() => setExportModalOpen(null)}
+        />
       )}
     </div>
   );

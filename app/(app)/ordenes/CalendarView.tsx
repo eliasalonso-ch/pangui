@@ -2,7 +2,7 @@
 
 import { useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { ChevronLeft, ChevronRight, RotateCw, Lock, MapPin, Wrench, Clock, User, AlertCircle, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, RotateCw, Lock, MapPin, Wrench, Clock, User, AlertCircle, X, CalendarClock } from "lucide-react";
 import {
   startOfMonth, endOfMonth, startOfWeek, endOfWeek, addDays, addMonths, addWeeks,
   format, isSameMonth, isSameDay, parseISO, isWeekend, getWeek,
@@ -177,6 +177,7 @@ export default function CalendarView({ ordenes, reprogramadaIds, selectedId, myI
   const [dropTarget, setDropTarget] = useState<string | null>(null);
   const [dragNavTarget, setDragNavTarget] = useState<"prev" | "next" | null>(null);
   const [dayModalKey, setDayModalKey] = useState<string | null>(null);
+  const [reprogramOpen, setReprogramOpen] = useState(false);
 
   // Hover popover state. We use a portal anchored to viewport coordinates so
   // the popover can escape the day cell (which is overflow:hidden) without
@@ -211,6 +212,12 @@ export default function CalendarView({ ordenes, reprogramadaIds, selectedId, myI
   }, [ordenes]);
 
   const orphanCount = useMemo(() => ordenes.filter(o => !o.fecha_inicio && !o.fecha_termino).length, [ordenes]);
+  const reprogramadas = useMemo(
+    () => ordenes
+      .filter(o => reprogramadaIds.has(o.id) && o.estado !== "completado")
+      .sort((a, b) => (a.fecha_inicio ?? a.fecha_termino ?? "").localeCompare(b.fecha_inicio ?? b.fecha_termino ?? "")),
+    [ordenes, reprogramadaIds],
+  );
 
   // Build the grid for the current viewport.
   const days = useMemo(() => {
@@ -374,28 +381,99 @@ export default function CalendarView({ ordenes, reprogramadaIds, selectedId, myI
         display:"flex", alignItems:"center", padding:"12px 16px",
         flexShrink:0,
       }}>
-        {/* Mode toggle */}
-        <div style={{ display:"flex", border:"1px solid var(--border)", borderRadius:8, overflow:"hidden", height:30 }}>
-          {(["mes","semana"] as CalendarMode[]).map((m, i) => {
-            const isActive = mode === m;
-            return (
+        <div style={{ display:"flex", alignItems:"center", gap:8, position:"relative" }}>
+          {/* Mode toggle */}
+          <div style={{ display:"flex", border:"1px solid var(--border)", borderRadius:8, overflow:"hidden", height:30 }}>
+            {(["mes","semana"] as CalendarMode[]).map((m, i) => {
+              const isActive = mode === m;
+              return (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => setMode(m)}
+                  style={{
+                    padding:"0 16px", height:"100%",
+                    background: isActive ? "var(--brand)" : "var(--surface-1)",
+                    color: isActive ? "white" : "var(--fg-2)",
+                    border:"none", borderRight: i === 0 ? "1px solid var(--border)" : "none",
+                    fontSize:12, fontWeight:600, cursor:"pointer", fontFamily:"inherit",
+                    textTransform:"capitalize",
+                  }}
+                >
+                  {m}
+                </button>
+              );
+            })}
+          </div>
+
+          {reprogramadas.length > 0 && (
+            <div style={{ position:"relative" }}>
               <button
-                key={m}
                 type="button"
-                onClick={() => setMode(m)}
+                onClick={() => setReprogramOpen(v => !v)}
                 style={{
-                  padding:"0 16px", height:"100%",
-                  background: isActive ? "var(--brand)" : "var(--surface-1)",
-                  color: isActive ? "white" : "var(--fg-2)",
-                  border:"none", borderRight: i === 0 ? "1px solid var(--border)" : "none",
+                  height:30, padding:"0 10px", display:"flex", alignItems:"center", gap:6,
+                  border:"1px solid var(--danger)", borderRadius:8,
+                  background:"var(--danger-bg)", color:"var(--danger)",
                   fontSize:12, fontWeight:600, cursor:"pointer", fontFamily:"inherit",
-                  textTransform:"capitalize",
+                  whiteSpace:"nowrap",
                 }}
+                title={`${reprogramadas.length} OT${reprogramadas.length > 1 ? "s" : ""} reprogramada${reprogramadas.length > 1 ? "s" : ""}`}
               >
-                {m}
+                <CalendarClock size={14} />
+                Reprogramadas
+                <span style={{ fontWeight:800 }}>{reprogramadas.length}</span>
               </button>
-            );
-          })}
+
+              {reprogramOpen && (
+                <div style={{
+                  position:"absolute", top:"calc(100% + 6px)", left:0, zIndex:60,
+                  width:360, maxWidth:"calc(100vw - 32px)",
+                  background:"var(--surface-1)", border:"1px solid var(--border)",
+                  borderRadius:10, boxShadow:"0 16px 36px rgba(15,23,42,0.16)",
+                  overflow:"hidden",
+                }}>
+                  <div style={{ padding:"10px 12px", borderBottom:"1px solid var(--border)", display:"flex", alignItems:"center", justifyContent:"space-between", gap:8 }}>
+                    <span style={{ fontSize:12, fontWeight:750, color:"var(--fg-1)" }}>OTs reprogramadas</span>
+                    <span style={{ fontSize:11, fontWeight:700, color:"var(--danger)" }}>{reprogramadas.length}</span>
+                  </div>
+                  <div style={{ maxHeight:300, overflowY:"auto", padding:6 }}>
+                    {reprogramadas.map((orden) => {
+                      const date = parseOTDate(orden.fecha_inicio ?? orden.fecha_termino ?? null);
+                      return (
+                        <button
+                          key={orden.id}
+                          type="button"
+                          onClick={() => {
+                            setReprogramOpen(false);
+                            onOpenOT(orden.id);
+                          }}
+                          style={{
+                            width:"100%", display:"flex", alignItems:"center", gap:10,
+                            padding:"9px 10px", border:"none", borderRadius:8,
+                            background:"transparent", cursor:"pointer", textAlign:"left",
+                            fontFamily:"inherit",
+                          }}
+                          onMouseEnter={e => { e.currentTarget.style.background = "var(--surface-hover)"; }}
+                          onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}
+                        >
+                          <Clock size={15} style={{ color:"var(--danger)", flexShrink:0 }} />
+                          <span style={{ minWidth:0, flex:1 }}>
+                            <span style={{ display:"block", fontSize:12, fontWeight:650, color:"var(--fg-1)", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                              {orden.numero ? `#${orden.numero} · ` : ""}{orden.titulo || "Sin titulo"}
+                            </span>
+                            <span style={{ display:"block", marginTop:2, fontSize:11, fontWeight:550, color:"var(--fg-3)" }}>
+                              {date ? `Coordinada para ${format(date, "dd MMM yyyy", { locale: es })}` : "Sin fecha coordinada"}
+                            </span>
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Centered prev / label / next */}
@@ -444,7 +522,7 @@ export default function CalendarView({ ordenes, reprogramadaIds, selectedId, myI
         </div>
 
         {/* Spacer to balance the left toggle so the label stays centered */}
-        <div style={{ width:128 }} />
+        <div style={{ width: reprogramadas.length > 0 ? 268 : 128 }} />
       </div>
 
       {orphanCount > 0 && (

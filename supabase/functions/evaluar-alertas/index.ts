@@ -72,14 +72,6 @@ interface UsuarioRow {
   rol: string | null;
 }
 
-interface AlertLog {
-  id: string;
-  work_order_id: string;
-  type: string;
-  triggered_at: string;
-  resolved_at: string | null;
-}
-
 function uniqueIds(ids: Array<string | null | undefined>): string[] {
   return [...new Set(ids.filter(Boolean))] as string[];
 }
@@ -88,44 +80,24 @@ function workspaceUsersByRole(users: UsuarioRow[], roles: string[]): string[] {
   return users.filter(u => u.rol && roles.includes(u.rol)).map(u => u.id);
 }
 
-function recipientsForAlert(
+function recipientsForAggregateAlert(
   tipo: AlertType,
-  orden: OrdenTrabajo,
   workspaceUsers: UsuarioRow[],
 ): string[] {
-  const assignees = orden.asignados_ids ?? [];
   const admins = workspaceUsersByRole(workspaceUsers, ["admin", "jefe", "owner"]);
   const owners = workspaceUsersByRole(workspaceUsers, ["owner"]);
 
   switch (tipo) {
-    case "timer_inactivo_tecnico":
-      return uniqueIds(assignees.length > 0 ? assignees : [orden.creado_por]);
-
-    case "timer_inactivo_supervisor":
-      return uniqueIds(admins);
-
-    case "timer_inactivo_manager":
+    case "ot_urgente_sin_asignar":
+    case "ot_alta_prioridad_abierta":
+    case "ot_vencida":
       return uniqueIds(owners.length > 0 ? owners : admins);
 
     case "ot_sin_asignar":
     case "ot_abierta_sin_asignar":
-    case "ot_urgente_sin_asignar":
-    case "ot_alta_prioridad_abierta":
-      return uniqueIds(admins);
-
-    case "ot_vencida":
-    case "ot_bloqueada":
-    case "ot_en_espera_prolongada":
-      return uniqueIds([...assignees, ...admins]);
-
     case "ot_abierta_sin_progreso":
-    case "ot_en_curso_inactiva":
-    case "ot_en_curso_detenida":
-    case "timer_sin_iniciar":
-      return uniqueIds([...assignees, orden.creado_por]);
-
     default:
-      return uniqueIds([...assignees, orden.creado_por]);
+      return uniqueIds(admins);
   }
 }
 
@@ -260,6 +232,61 @@ function buildNotificationContent(
       return {
         titulo: "OT no iniciada",
         mensaje: `"${orden.titulo}" lleva más de ${horas}h creada sin iniciar.`,
+      };
+  }
+}
+
+function buildAggregateNotificationContent(
+  tipo: AlertType,
+  ordenes: OrdenTrabajo[],
+): { titulo: string; mensaje: string } {
+  const count = ordenes.length;
+  const plural = count === 1 ? "OT" : "OTs";
+  const sample = ordenes
+    .slice(0, 3)
+    .map(o => o.titulo || "Sin título")
+    .join(", ");
+  const suffix = count > 3 ? ` y ${count - 3} más` : "";
+
+  switch (tipo) {
+    case "ot_sin_asignar":
+    case "ot_abierta_sin_asignar":
+      return {
+        titulo: `${count} ${plural} sin asignar`,
+        mensaje: count === 1
+          ? `"${sample}" sigue sin técnico asignado.`
+          : `${sample}${suffix} siguen sin técnico asignado.`,
+      };
+
+    case "ot_urgente_sin_asignar":
+    case "ot_alta_prioridad_abierta":
+      return {
+        titulo: `${count} ${plural} urgentes sin asignar`,
+        mensaje: count === 1
+          ? `"${sample}" es urgente y sigue sin responsable.`
+          : `${sample}${suffix} son urgentes y siguen sin responsable.`,
+      };
+
+    case "ot_abierta_sin_progreso":
+      return {
+        titulo: `${count} ${plural} sin progreso`,
+        mensaje: count === 1
+          ? `"${sample}" no registra avance después del umbral configurado.`
+          : `${sample}${suffix} no registran avance después del umbral configurado.`,
+      };
+
+    case "ot_vencida":
+      return {
+        titulo: `${count} ${plural} vencidas`,
+        mensaje: count === 1
+          ? `"${sample}" superó su fecha de vencimiento y sigue abierta.`
+          : `${sample}${suffix} superaron su fecha de vencimiento y siguen abiertas.`,
+      };
+
+    default:
+      return {
+        titulo: `${count} ${plural} requieren atención`,
+        mensaje: count === 1 ? `"${sample}" requiere atención.` : `${sample}${suffix} requieren atención.`,
       };
   }
 }
@@ -401,6 +428,7 @@ Deno.serve(async (req) => {
 
       const wsOrdenes = ordenesByWorkspace.get(regla.workspace_id) ?? [];
       const activeIds: string[] = [];
+      const newlyTriggered: OrdenTrabajo[] = [];
 
       for (const orden of wsOrdenes) {
         const conditionMet = evaluateCondition(orden, regla.tipo, regla.umbral_minutos, now);
@@ -421,40 +449,37 @@ Deno.serve(async (req) => {
           continue;
         }
 
-        const recipients = recipientsForAlert(
+        newlyTriggered.push(orden);
+      }
+
+      if (newlyTriggered.length > 0) {
+        const recipients = recipientsForAggregateAlert(
           regla.tipo,
-          orden,
           usuariosByWorkspace.get(regla.workspace_id) ?? [],
         );
 
         if (recipients.length === 0) {
           skipped++;
-          continue;
-        }
-
-        const { titulo, mensaje } = buildNotificationContent(
-          regla.tipo,
-          orden,
-          regla.umbral_minutos
-        );
-
-        const notifRows = recipients.map((uid) => ({
-          usuario_id: uid,
-          titulo,
-          mensaje,
-          tipo: regla.tipo,
-          url: `/orden/${orden.id}`,
-        }));
-
-        const { error: notifErr } = await supabase
-          .from("notifications")
-          .insert(notifRows);
-
-        if (notifErr) {
-          console.error(`Notification insert error [${orden.id}]:`, notifErr.message);
         } else {
-          sent++;
-          console.log(`Alert sent: ${regla.tipo} → OT ${orden.id} (${recipients.length} recipients)`);
+          const { titulo, mensaje } = buildAggregateNotificationContent(regla.tipo, newlyTriggered);
+          const notifRows = recipients.map((uid) => ({
+            usuario_id: uid,
+            titulo,
+            mensaje,
+            tipo: regla.tipo,
+            url: "/ordenes?vista=kanban",
+          }));
+
+          const { error: notifErr } = await supabase
+            .from("notifications")
+            .insert(notifRows);
+
+          if (notifErr) {
+            console.error(`Aggregate notification insert error [${regla.tipo}]:`, notifErr.message);
+          } else {
+            sent++;
+            console.log(`Aggregate alert sent: ${regla.tipo} -> ${newlyTriggered.length} OTs (${recipients.length} recipients)`);
+          }
         }
       }
 
