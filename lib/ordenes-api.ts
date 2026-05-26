@@ -114,7 +114,8 @@ export const ORDEN_SELECT = `
 
 export const LIST_SELECT = `
   id, titulo, descripcion, estado, prioridad, tipo, tipo_trabajo, clasificacion,
-  fecha_inicio, fecha_termino, recurrencia, recurrencia_config, created_at,
+  fecha_inicio, fecha_termino, recurrencia, recurrencia_config, proxima_ejecucion,
+  recurrencia_origen_id, recurrencia_iteracion, created_at,
   n_serie, solicitante, hito,
   categoria_id, ubicacion_id, activo_id, creado_por, asignados_ids,
   numero, parent_id,

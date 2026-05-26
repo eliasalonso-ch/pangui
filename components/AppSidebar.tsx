@@ -19,6 +19,7 @@ import {
   Box,
   PackageSearch,
   ListChecks,
+  BellRing,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
@@ -477,7 +478,7 @@ export default function AppSidebar() {
           <SidebarGroupContent>
             <SidebarMenu>
               <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={isActive("/notificaciones")} tooltip="Notificaciones">
+                <SidebarMenuButton asChild isActive={pathname === "/notificaciones"} tooltip="Notificaciones">
                   <Link href="/notificaciones" style={{ display: "flex", alignItems: "center", gap: collapsed ? 0 : 10 }}>
                     <span style={{ position: "relative", display: "inline-flex", flexShrink: 0 }}>
                       <Bell size={16} />
@@ -510,6 +511,16 @@ export default function AppSidebar() {
                     <Link href="/requisitos" style={{ display: "flex", alignItems: "center", gap: collapsed ? 0 : 10 }}>
                       <ListChecks size={16} style={{ flexShrink: 0 }} />
                       {!collapsed && <span>Requisitos de OTs</span>}
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )}
+              {isAdmin && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={isActive("/reglas-alerta")} tooltip="Reglas de alerta">
+                    <Link href="/reglas-alerta" style={{ display: "flex", alignItems: "center", gap: collapsed ? 0 : 10 }}>
+                      <BellRing size={16} style={{ flexShrink: 0 }} />
+                      {!collapsed && <span>Reglas de alerta</span>}
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>

@@ -2,13 +2,14 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Plus, Search, X, ChevronDown, Loader2, FileText, ArrowUpDown, Download, AlertTriangle, Calendar, List, CalendarDays } from "lucide-react";
+import { Plus, Search, X, ChevronDown, Loader2, FileText, ArrowUpDown, Download, AlertTriangle, Calendar, List, CalendarDays, Columns3 } from "lucide-react";
 import { createClient } from "@/lib/supabase";
 import { fetchOrden, deleteOrden, LIST_SELECT, parseDescMeta } from "@/lib/ordenes-api";
 import { buildOrdenesWorkbook, type ExportCols as SharedExportCols, type OrdenInput, type HojaInput, type FilaInput, type FotoItemInput, type MaterialUsadoInput } from "@/lib/excel-export-shared";
 import { ExportScheduler } from "./ExportScheduler";
 import OTRow from "./OTRow";
 import CalendarView from "./CalendarView";
+import KanbanView from "./KanbanView";
 import OTDetail from "./OTDetail";
 import OTCrearPanel from "./OTCrearPanel";
 import OTEditPanel from "./OTEditPanel";
@@ -99,9 +100,14 @@ export default function OrdenesBandeja({
   // Two top-level tabs only; the previous sub-tabs (Sin asignar, Reprogramadas,
   // Levantamientos) are now scope filters inside the merged Mostrar/Ordenar
   // dropdown so the supervisor can drill in without losing the rest of the list.
-  type ViewKey = "lista" | "calendario";
+  type ViewKey = "lista" | "calendario" | "kanban";
   const [view, setView] = useState<ViewKey>(
-    () => searchParams?.get("vista") === "calendario" ? "calendario" : "lista",
+    () => {
+      const v = searchParams?.get("vista");
+      if (v === "calendario") return "calendario";
+      if (v === "kanban")     return "kanban";
+      return "lista";
+    },
   );
 
   type TabKey = "pendientes" | "completas";
@@ -288,6 +294,7 @@ export default function OrdenesBandeja({
       const params = new URLSearchParams();
       params.set("id", id);
       if (view === "calendario") params.set("vista", "calendario");
+      else if (view === "kanban") params.set("vista", "kanban");
       router.push(`/ordenes?${params.toString()}`, { scroll: false });
     }
     setRightPanel("none");
@@ -304,11 +311,12 @@ export default function OrdenesBandeja({
   }, [router, view]);
 
   const openCreate = useCallback(() => {
-    router.push("/ordenes?panel=crear", { scroll: false });
+    const baseQs = view === "calendario" ? "vista=calendario&" : view === "kanban" ? "vista=kanban&" : "";
+    router.push(`/ordenes?${baseQs}panel=crear`, { scroll: false });
     setSelected(null);
     setDetail(null);
     setRightPanel("create");
-  }, [router]);
+  }, [router, view]);
 
   // Refresh list from DB
   const refreshList = useCallback(async () => {
@@ -348,10 +356,13 @@ export default function OrdenesBandeja({
 
   // Apply filters + search + sort
   const filtered = useMemo(() => {
-    // Tab decides active vs. completed; scope narrows further.
-    let list = ordenes.filter(o =>
-      tab === "pendientes" ? ACTIVE_ESTADOS.has(o.estado) : CLOSED_ESTADOS.has(o.estado)
-    );
+    // Tab decides active vs. completed; scope narrows further. Kanban shows
+    // all states side-by-side, so the tab gate is bypassed in that view.
+    let list = view === "kanban"
+      ? ordenes.slice()
+      : ordenes.filter(o =>
+          tab === "pendientes" ? ACTIVE_ESTADOS.has(o.estado) : CLOSED_ESTADOS.has(o.estado)
+        );
 
     if (scope === "sin_asignar") {
       list = list.filter(o => !o.asignados_ids || o.asignados_ids.length === 0);
@@ -452,7 +463,7 @@ export default function OrdenesBandeja({
       });
     }
     return list;
-  }, [ordenes, tab, scope, search, sort, filtros, ubicaciones, reprogramadaIds]);
+  }, [ordenes, view, tab, scope, search, sort, filtros, ubicaciones, reprogramadaIds]);
 
   // Counts reflect the current filters (search + filtros) but not the active/closed tab split
   const filteredCounts = useMemo(() => {
@@ -807,7 +818,8 @@ export default function OrdenesBandeja({
               {([
                 { key: "lista" as const,      label: "Lista",      icon: List },
                 { key: "calendario" as const, label: "Calendario", icon: CalendarDays },
-              ]).map((v, i) => {
+                { key: "kanban" as const,     label: "Kanban",     icon: Columns3 },
+              ]).map((v, i, arr) => {
                 const isActive = view === v.key;
                 const Icon = v.icon;
                 return (
@@ -817,8 +829,8 @@ export default function OrdenesBandeja({
                     onClick={() => {
                       setView(v.key);
                       const params = new URLSearchParams(searchParams?.toString() ?? "");
-                      if (v.key === "calendario") params.set("vista", "calendario");
-                      else params.delete("vista");
+                      if (v.key === "lista") params.delete("vista");
+                      else params.set("vista", v.key);
                       router.replace(`/ordenes${params.toString() ? `?${params.toString()}` : ""}`, { scroll: false });
                     }}
                     style={{
@@ -826,7 +838,7 @@ export default function OrdenesBandeja({
                       padding:"0 12px", height:"100%",
                       background: isActive ? "var(--brand)" : "var(--surface-1)",
                       color: isActive ? "white" : "var(--fg-2)",
-                      border:"none", borderRight: i === 0 ? "1px solid var(--border)" : "none",
+                      border:"none", borderRight: i < arr.length - 1 ? "1px solid var(--border)" : "none",
                       fontSize:12, fontWeight:600, cursor:"pointer", fontFamily:"inherit",
                     }}
                   >
@@ -1025,11 +1037,11 @@ export default function OrdenesBandeja({
         <div style={{
           display: (!isDesktop && (selected || rightPanel === "create" || rightPanel === "edit")) ? "none" : "flex",
           flexDirection:"column",
-          width: view === "calendario" ? undefined : (isDesktop ? 400 : "100%"),
+          width: (view === "calendario" || view === "kanban") ? undefined : (isDesktop ? 400 : "100%"),
           minWidth: 0,
-          maxWidth: view === "calendario" ? undefined : (isDesktop ? 400 : undefined),
-          flexGrow: view === "calendario" ? 1 : 0,
-          flexShrink: view === "calendario" ? 1 : 0,
+          maxWidth: (view === "calendario" || view === "kanban") ? undefined : (isDesktop ? 400 : undefined),
+          flexGrow: (view === "calendario" || view === "kanban") ? 1 : 0,
+          flexShrink: (view === "calendario" || view === "kanban") ? 1 : 0,
           flexBasis: "auto",
           borderRight: isDesktop ? "1px solid var(--border)" : "none",
           background:"var(--surface-1)",
@@ -1037,6 +1049,16 @@ export default function OrdenesBandeja({
         }}>
           {view === "calendario" ? (
             <CalendarView
+              ordenes={filtered}
+              reprogramadaIds={reprogramadaIds}
+              selectedId={selected}
+              myId={myId}
+              usuarios={usuarios}
+              onOpenOT={(id) => openOT(id, true)}
+              onPatchOrden={(id, patch) => setOrdenes(prev => prev.map(x => x.id === id ? { ...x, ...patch } : x))}
+            />
+          ) : view === "kanban" ? (
+            <KanbanView
               ordenes={filtered}
               reprogramadaIds={reprogramadaIds}
               selectedId={selected}
@@ -1273,9 +1295,9 @@ export default function OrdenesBandeja({
           </>)}
         </div>
 
-        {/* RIGHT: create panel or detail. Hidden in calendar view because the
-            calendar takes the full width and OT detail opens in a modal. */}
-        {isDesktop && view !== "calendario" && (
+        {/* RIGHT: create panel or detail. Hidden in canvas views because the
+            detail opens in a modal there. */}
+        {isDesktop && view !== "calendario" && view !== "kanban" && (
           <div style={{ flex:1, minWidth:0, overflow:"hidden", background:"var(--c-bg, #F8FAFC)" }}>
             {rightPanel === "create" ? (
               <OTCrearPanel
@@ -1354,27 +1376,64 @@ export default function OrdenesBandeja({
         )}
       </div>
 
-      {/* ── OT detail modal (calendar view only) ──
-          In calendar view the right pane is hidden so the calendar can use
-          full width. When the supervisor clicks an event, the detail opens
+      {/* ── OT detail modal (calendar & kanban views) ──
+          In these views the right pane is hidden so the canvas can use
+          full width. When the user clicks an event/card, the detail opens
           here as a centered modal. Clicking the backdrop or pressing the
           OTDetail close button dismisses it. */}
-      {view === "calendario" && selected && (
+      {(view === "calendario" || view === "kanban") && (selected || rightPanel === "create" || (rightPanel === "edit" && detail)) && (
         <div
           style={{ position:"fixed", inset:0, zIndex:300, background:"rgba(15,23,42,0.45)", display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}
-          onClick={() => { setSelected(null); setDetail(null); router.push(`/ordenes?vista=calendario`, { scroll: false }); }}
+          onClick={() => { setSelected(null); setDetail(null); setRightPanel("none"); router.push(`/ordenes?vista=${view}`, { scroll: false }); }}
         >
           <div
             onClick={e => e.stopPropagation()}
             style={{
               background:"var(--surface-1)", borderRadius:14,
-              width:"min(960px, 100%)", maxHeight:"calc(100vh - 48px)",
+              width:"min(960px, 100%)", height:"calc(100vh - 48px)", maxHeight:"calc(100vh - 48px)",
               display:"flex", flexDirection:"column",
               boxShadow:"0 20px 60px rgba(15,23,42,0.25)",
               overflow:"hidden",
             }}
           >
-            {loadingDetail ? (
+            {rightPanel === "create" ? (
+              <OTCrearPanel
+                usuarios={usuarios}
+                ubicaciones={ubicaciones}
+                lugares={lugares}
+                sociedades={sociedades}
+                activos={activos}
+                categorias={categorias}
+                myId={myId}
+                wsId={wsId}
+                onClose={() => { setRightPanel("none"); router.push(`/ordenes?vista=${view}`, { scroll: false }); }}
+                onCreated={async (orden) => {
+                  setRightPanel("none");
+                  await refreshList();
+                  openOT(orden.id, true);
+                }}
+              />
+            ) : rightPanel === "edit" && detail ? (
+              <OTEditPanel
+                orden={detail}
+                usuarios={usuarios}
+                ubicaciones={ubicaciones}
+                lugares={lugares}
+                sociedades={sociedades}
+                activos={activos}
+                categorias={categorias}
+                myId={myId}
+                wsId={wsId}
+                onClose={() => setRightPanel("none")}
+                onSaved={(updated) => {
+                  setDetail(prev => prev ? { ...prev, ...updated } : prev);
+                  setOrdenes(prev => prev.map(o =>
+                    o.id === detail.id ? { ...o, ...updated } : o
+                  ));
+                  setRightPanel("none");
+                }}
+              />
+            ) : loadingDetail ? (
               <div style={{ display:"flex", alignItems:"center", justifyContent:"center", padding:"80px 20px", gap:8, color:"var(--fg-4)", fontSize:13 }}>
                 <Loader2 size={16} className="animate-spin" />
                 Cargando…
@@ -1388,7 +1447,7 @@ export default function OrdenesBandeja({
                 wsId={wsId}
                 onEdit={() => setRightPanel("edit")}
                 onDelete={() => deleteOT(detail.id)}
-                onClose={() => { setSelected(null); setDetail(null); router.push(`/ordenes?vista=calendario`, { scroll: false }); }}
+                onClose={() => { setSelected(null); setDetail(null); setRightPanel("none"); router.push(`/ordenes?vista=${view}`, { scroll: false }); }}
                 onOpenOrden={(id) => openOT(id, true)}
                 onOrdenUpdated={(patch) => {
                   setDetail(prev => prev ? { ...prev, ...patch } : prev);

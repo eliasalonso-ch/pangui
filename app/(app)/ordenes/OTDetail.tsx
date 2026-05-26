@@ -319,6 +319,13 @@ function fmtSecs(secs: number): string {
   return `${s}s`;
 }
 
+function fmtFechaLocal(value: string): string {
+  const ymd = value.slice(0, 10).split("-");
+  if (ymd.length !== 3) return value;
+  const [y, m, d] = ymd.map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString("es-CL", { day: "numeric", month: "short", year: "numeric" });
+}
+
 function initials(n: string) {
   const p = n.trim().split(/\s+/);
   return p.length === 1 ? p[0].slice(0, 2).toUpperCase() : (p[0][0] + p[p.length - 1][0]).toUpperCase();
@@ -2429,8 +2436,8 @@ export default function OTDetail({
                 orden.ubicaciones?.edificio && { label: "Ubicación", value: orden.ubicaciones.edificio + (orden.ubicaciones.piso ? ` · ${orden.ubicaciones.piso}` : ""), icon: <MapPin size={13} /> },
                 orden.lugar?.nombre && { label: "Lugar específico", value: orden.lugar.nombre, icon: <MapPin size={13} /> },
                 orden.activos?.nombre && { label: "Activo", value: orden.activos.nombre, icon: <Settings2 size={13} /> },
-                orden.fecha_termino && { label: "Fecha límite", value: new Date(orden.fecha_termino).toLocaleDateString("es-CL", { day: "numeric", month: "short", year: "numeric" }), icon: <Calendar size={13} /> },
-                { label: "Creada", value: new Date(orden.created_at).toLocaleDateString("es-CL", { day: "numeric", month: "short", year: "numeric" }), icon: <Calendar size={13} /> },
+                orden.fecha_termino && { label: "Fecha de vencimiento", value: fmtFechaLocal(orden.fecha_termino), icon: <Calendar size={13} /> },
+                orden.fecha_inicio && { label: "Fecha de inicio", value: fmtFechaLocal(orden.fecha_inicio), icon: <Calendar size={13} /> },
                 (orden.tiempo_total_segundos != null && orden.tiempo_total_segundos > 0) && { label: "Tiempo total", value: fmtSecs(orden.tiempo_total_segundos), icon: <RotateCcw size={13} /> },
               ].filter(Boolean).map((field: any) => (
                 <div key={field.label}>

@@ -299,7 +299,7 @@ export type OrdenListItem = Pick<
   | "n_serie" | "solicitante" | "hito"
   | "categorias_ot" | "ubicaciones" | "activos"
   | "_pending"
->;
+> & Partial<Pick<OrdenTrabajo, "proxima_ejecucion" | "recurrencia_origen_id" | "recurrencia_iteracion">>;
 
 // ─── Form state ───────────────────────────────────────────────────────────────
 

@@ -565,7 +565,7 @@ export default function OTCrearForm({ usuarios, ubicaciones, activos, categorias
           <div style={{ padding: "20px 0 0" }}>
             <input
               type="text"
-              placeholder="¿Qué hay que hacer? (Necesario)"
+              placeholder="¿Qué trabajo se debe realizar?"
               value={form.titulo}
               onChange={e => setF("titulo", e.target.value)}
               style={{

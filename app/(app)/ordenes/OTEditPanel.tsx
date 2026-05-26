@@ -629,7 +629,7 @@ export default function OTEditPanel({
           <div style={{ marginBottom: 24 }}>
             <input
               type="text"
-              placeholder="¿Qué hay que hacer? (Necesario)"
+              placeholder="¿Qué trabajo se debe realizar?"
               value={form.titulo}
               onChange={e => setF("titulo", e.target.value)}
               style={{

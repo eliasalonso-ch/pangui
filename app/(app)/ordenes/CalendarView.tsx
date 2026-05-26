@@ -2,7 +2,7 @@
 
 import { useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { ChevronLeft, ChevronRight, RotateCw, Lock, MapPin, Wrench, Clock, User, AlertCircle } from "lucide-react";
+import { ChevronLeft, ChevronRight, RotateCw, Lock, MapPin, Wrench, Clock, User, AlertCircle, X } from "lucide-react";
 import {
   startOfMonth, endOfMonth, startOfWeek, endOfWeek, addDays, addMonths, addWeeks,
   format, isSameMonth, isSameDay, parseISO, isWeekend, getWeek,
@@ -23,6 +23,13 @@ interface Props {
   // Optimistic local update. The bandeja patches its `ordenes` state on drop
   // so the card visually moves before the Supabase round-trip completes.
   onPatchOrden:    (id: string, patch: Partial<OrdenListItem>) => void;
+}
+
+interface CalendarEntry {
+  key: string;
+  orden: OrdenListItem;
+  dateKey: string;
+  isPreview: boolean;
 }
 
 const ESTADO_LABEL: Record<string, string> = {
@@ -69,11 +76,107 @@ function parseOTDate(s: string | null): Date | null {
   return parseISO(s.slice(0, 10) + "T00:00:00");
 }
 
+function getCalendarDate(o: OrdenListItem): Date | null {
+  return parseOTDate(o.fecha_inicio ?? o.fecha_termino ?? null);
+}
+
+function addLocalDays(d: Date, days: number): Date {
+  const next = new Date(d);
+  next.setDate(next.getDate() + days);
+  return next;
+}
+
+function addLocalMonths(d: Date, months: number, dayOfMonth?: number | null): Date {
+  const base = new Date(d.getFullYear(), d.getMonth() + months, 1);
+  const last = new Date(base.getFullYear(), base.getMonth() + 1, 0).getDate();
+  base.setDate(Math.min(dayOfMonth ?? d.getDate(), last));
+  return base;
+}
+
+function advanceOccurrenceDate(d: Date, o: OrdenListItem): Date | null {
+  const config = o.recurrencia_config;
+  const interval = Math.max(1, Number(config?.interval ?? 1) || 1);
+  const weekdays = Array.isArray(config?.weekdays) ? config.weekdays : [];
+
+  switch (o.recurrencia) {
+    case "diaria": {
+      let next = addLocalDays(d, 1);
+      if (weekdays.length === 0) return addLocalDays(d, interval);
+      for (let guard = 0; guard < 370; guard += 1) {
+        if (weekdays.includes(next.getDay())) return next;
+        next = addLocalDays(next, 1);
+      }
+      return null;
+    }
+    case "semanal":
+      return addLocalDays(d, interval * 7);
+    case "quincenal":
+      return addLocalDays(d, 15);
+    case "mensual":
+      return addLocalMonths(d, interval, config?.month_day);
+    case "anual":
+      return new Date(d.getFullYear() + interval, d.getMonth(), d.getDate());
+    default:
+      return null;
+  }
+}
+
+function getFirstPreviewDate(o: OrdenListItem): Date | null {
+  const explicitNext = parseOTDate(o.proxima_ejecucion ?? null);
+  if (explicitNext) return explicitNext;
+  const base = getCalendarDate(o);
+  return base ? advanceOccurrenceDate(base, o) : null;
+}
+
+function buildRecurrencePreviewDates(o: OrdenListItem, rangeStart: Date, rangeEnd: Date): Date[] {
+  if (!o.recurrencia || o.recurrencia === "ninguna") return [];
+  const endDate = parseOTDate(o.recurrencia_config?.end_date ?? null);
+  const actualKey = getCalendarDate(o) ? toDateOnly(getCalendarDate(o)!) : null;
+  const out: Date[] = [];
+  let current = getFirstPreviewDate(o);
+
+  for (let guard = 0; current && guard < 80; guard += 1) {
+    if (endDate && current > endDate) break;
+    if (current > rangeEnd) break;
+
+    const key = toDateOnly(current);
+    if (current >= rangeStart && key !== actualKey) out.push(current);
+    current = advanceOccurrenceDate(current, o);
+  }
+
+  return out;
+}
+
+function setDragPreview(e: React.DragEvent, label: string) {
+  const preview = document.createElement("div");
+  preview.textContent = label;
+  preview.style.position = "fixed";
+  preview.style.top = "-1000px";
+  preview.style.left = "-1000px";
+  preview.style.maxWidth = "260px";
+  preview.style.padding = "7px 10px";
+  preview.style.border = "1px solid var(--brand)";
+  preview.style.borderRadius = "6px";
+  preview.style.background = "var(--brand-tint)";
+  preview.style.color = "var(--brand-fg)";
+  preview.style.font = "600 12px var(--font-sans)";
+  preview.style.opacity = "0.82";
+  preview.style.whiteSpace = "nowrap";
+  preview.style.overflow = "hidden";
+  preview.style.textOverflow = "ellipsis";
+  preview.style.boxShadow = "0 8px 24px rgba(15,23,42,0.16)";
+  document.body.appendChild(preview);
+  e.dataTransfer.setDragImage(preview, 16, 16);
+  window.setTimeout(() => preview.remove(), 0);
+}
+
 export default function CalendarView({ ordenes, reprogramadaIds, selectedId, myId, usuarios, onOpenOT, onPatchOrden }: Props) {
   const [mode, setMode]       = useState<CalendarMode>("mes");
   const [anchor, setAnchor]   = useState<Date>(() => new Date());
   const [dragId, setDragId]   = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<string | null>(null);
+  const [dragNavTarget, setDragNavTarget] = useState<"prev" | "next" | null>(null);
+  const [dayModalKey, setDayModalKey] = useState<string | null>(null);
 
   // Hover popover state. We use a portal anchored to viewport coordinates so
   // the popover can escape the day cell (which is overflow:hidden) without
@@ -81,31 +184,33 @@ export default function CalendarView({ ordenes, reprogramadaIds, selectedId, myI
   const [hoverOrden, setHoverOrden] = useState<OrdenListItem | null>(null);
   const [hoverPos, setHoverPos]     = useState<{ left: number; top: number } | null>(null);
   const hoverTimer = useRef<number | null>(null);
+  const dragNavTimer = useRef<number | null>(null);
 
-  // Index OTs by their fecha_inicio for O(1) cell lookup. We sort by priority
-  // then created_at so the most important rows appear at the top of each cell.
+  // Index OTs by their scheduled date for O(1) cell lookup. fecha_inicio wins
+  // when present; fecha_termino keeps due-date-only OTs visible in the calendar.
   const otsByDate = useMemo(() => {
-    const map = new Map<string, OrdenListItem[]>();
+    const map = new Map<string, CalendarEntry[]>();
     for (const o of ordenes) {
-      const d = parseOTDate(o.fecha_inicio ?? null);
+      const d = getCalendarDate(o);
       if (!d) continue;
       const key = toDateOnly(d);
       const arr = map.get(key) ?? [];
-      arr.push(o);
+      arr.push({ key: o.id, orden: o, dateKey: key, isPreview: false });
       map.set(key, arr);
     }
     const PRIO_ORDER: Record<string, number> = { urgente: 4, alta: 3, media: 2, baja: 1, ninguna: 0 };
     for (const arr of map.values()) {
       arr.sort((a, b) => {
-        const dp = (PRIO_ORDER[b.prioridad] ?? 0) - (PRIO_ORDER[a.prioridad] ?? 0);
+        const dp = (PRIO_ORDER[b.orden.prioridad] ?? 0) - (PRIO_ORDER[a.orden.prioridad] ?? 0);
         if (dp !== 0) return dp;
-        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+        if (a.isPreview !== b.isPreview) return a.isPreview ? 1 : -1;
+        return new Date(b.orden.created_at).getTime() - new Date(a.orden.created_at).getTime();
       });
     }
     return map;
   }, [ordenes]);
 
-  const orphanCount = useMemo(() => ordenes.filter(o => !o.fecha_inicio).length, [ordenes]);
+  const orphanCount = useMemo(() => ordenes.filter(o => !o.fecha_inicio && !o.fecha_termino).length, [ordenes]);
 
   // Build the grid for the current viewport.
   const days = useMemo(() => {
@@ -123,13 +228,62 @@ export default function CalendarView({ ordenes, reprogramadaIds, selectedId, myI
     return out;
   }, [anchor, mode]);
 
+  const calendarEntriesByDate = useMemo(() => {
+    const map = new Map<string, CalendarEntry[]>();
+    for (const [key, entries] of otsByDate.entries()) map.set(key, [...entries]);
+    if (days.length === 0) return map;
+
+    const rangeStart = days[0];
+    const rangeEnd = days[days.length - 1];
+    const realKeys = new Set<string>();
+    for (const entries of otsByDate.values()) {
+      for (const entry of entries) {
+        realKeys.add(`${entry.orden.recurrencia_origen_id ?? entry.orden.id}:${entry.dateKey}`);
+      }
+    }
+
+    for (const orden of ordenes) {
+      if (!orden.recurrencia || orden.recurrencia === "ninguna") continue;
+      if (orden.parent_id) continue;
+
+      const seriesId = orden.recurrencia_origen_id ?? orden.id;
+      for (const occurrence of buildRecurrencePreviewDates(orden, rangeStart, rangeEnd)) {
+        const key = toDateOnly(occurrence);
+        if (realKeys.has(`${seriesId}:${key}`)) continue;
+        const arr = map.get(key) ?? [];
+        arr.push({
+          key: `${orden.id}:preview:${key}`,
+          orden,
+          dateKey: key,
+          isPreview: true,
+        });
+        map.set(key, arr);
+      }
+    }
+
+    const PRIO_ORDER: Record<string, number> = { urgente: 4, alta: 3, media: 2, baja: 1, ninguna: 0 };
+    for (const arr of map.values()) {
+      arr.sort((a, b) => {
+        if (a.isPreview !== b.isPreview) return a.isPreview ? 1 : -1;
+        const dp = (PRIO_ORDER[b.orden.prioridad] ?? 0) - (PRIO_ORDER[a.orden.prioridad] ?? 0);
+        if (dp !== 0) return dp;
+        return new Date(b.orden.created_at).getTime() - new Date(a.orden.created_at).getTime();
+      });
+    }
+
+    return map;
+  }, [days, ordenes, otsByDate]);
+
   async function handleDrop(targetKey: string) {
     if (!dragId) return;
     const orden = ordenes.find(o => o.id === dragId);
     setDragId(null);
     setDropTarget(null);
+    setDayModalKey(null);
+    clearDragNavigation();
     if (!orden) return;
-    const currentKey = orden.fecha_inicio ? orden.fecha_inicio.slice(0, 10) : null;
+    const currentDate = getCalendarDate(orden);
+    const currentKey = currentDate ? toDateOnly(currentDate) : null;
     if (currentKey === targetKey) return;
 
     const prev = { fecha_inicio: orden.fecha_inicio, fecha_termino: orden.fecha_termino };
@@ -140,6 +294,39 @@ export default function CalendarView({ ordenes, reprogramadaIds, selectedId, myI
       onPatchOrden(orden.id, prev);
       alert("No se pudo reprogramar la orden. Verifica tu conexión e intenta de nuevo.");
     }
+  }
+
+  function moveAnchor(direction: -1 | 1) {
+    setAnchor(prev => mode === "mes" ? addMonths(prev, direction) : addWeeks(prev, direction));
+  }
+
+  function scheduleDragNavigation(direction: -1 | 1) {
+    if (!dragId || dragNavTimer.current) return;
+    setDragNavTarget(direction === -1 ? "prev" : "next");
+    dragNavTimer.current = window.setTimeout(() => {
+      dragNavTimer.current = null;
+      moveAnchor(direction);
+    }, 450);
+  }
+
+  function clearDragNavigation() {
+    if (dragNavTimer.current) {
+      window.clearTimeout(dragNavTimer.current);
+      dragNavTimer.current = null;
+    }
+    setDragNavTarget(null);
+  }
+
+  function startDraggingOrden(id: string) {
+    setDragId(id);
+    setHoverOrden(null);
+    setHoverPos(null);
+  }
+
+  function endDraggingOrden() {
+    setDragId(null);
+    setDropTarget(null);
+    clearDragNavigation();
   }
 
   // Hover handlers. Small delay so brushing past doesn't open every card.
@@ -175,6 +362,10 @@ export default function CalendarView({ ordenes, reprogramadaIds, selectedId, myI
     : `${format(anchor, "MMMM yyyy", { locale: es })} | Semana ${getWeek(anchor, { weekStartsOn: 1, firstWeekContainsDate: 4 })}`;
 
   const dow = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"];
+  const monthInlineLimit = 2;
+  const monthOverflowPreviewLimit = 1;
+  const dayModalDate = dayModalKey ? parseOTDate(dayModalKey) : null;
+  const dayModalItems = dayModalKey ? (calendarEntriesByDate.get(dayModalKey) ?? []) : [];
 
   return (
     <div style={{ flexGrow: 1, flexShrink: 1, flexBasis: 0, display: "flex", flexDirection: "column", minHeight: 0, minWidth: 0, background: "var(--surface-1)", overflow: "hidden" }}>
@@ -211,9 +402,20 @@ export default function CalendarView({ ordenes, reprogramadaIds, selectedId, myI
         <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", gap:14 }}>
           <button
             type="button"
-            onClick={() => setAnchor(mode === "mes" ? addMonths(anchor, -1) : addWeeks(anchor, -1))}
-            style={{ width:28, height:28, display:"flex", alignItems:"center", justifyContent:"center", border:"none", background:"transparent", cursor:"pointer", color:"var(--brand)" }}
+            onClick={() => moveAnchor(-1)}
+            onDragOver={(e) => { e.preventDefault(); scheduleDragNavigation(-1); }}
+            onDragLeave={clearDragNavigation}
+            onDrop={(e) => { e.preventDefault(); clearDragNavigation(); }}
+            style={{
+              width:28, height:28, display:"flex", alignItems:"center", justifyContent:"center",
+              border:"none", borderRadius:999,
+              background: dragNavTarget === "prev" ? "var(--brand-tint)" : "transparent",
+              cursor:"pointer", color:"var(--brand)",
+              outline: dragNavTarget === "prev" ? "2px solid var(--brand)" : "none",
+              outlineOffset:2,
+            }}
             aria-label="Anterior"
+            title={dragId ? "Mantén aquí para ir al periodo anterior" : "Anterior"}
           >
             <ChevronLeft size={20} />
           </button>
@@ -222,9 +424,20 @@ export default function CalendarView({ ordenes, reprogramadaIds, selectedId, myI
           </div>
           <button
             type="button"
-            onClick={() => setAnchor(mode === "mes" ? addMonths(anchor, 1) : addWeeks(anchor, 1))}
-            style={{ width:28, height:28, display:"flex", alignItems:"center", justifyContent:"center", border:"none", background:"transparent", cursor:"pointer", color:"var(--brand)" }}
+            onClick={() => moveAnchor(1)}
+            onDragOver={(e) => { e.preventDefault(); scheduleDragNavigation(1); }}
+            onDragLeave={clearDragNavigation}
+            onDrop={(e) => { e.preventDefault(); clearDragNavigation(); }}
+            style={{
+              width:28, height:28, display:"flex", alignItems:"center", justifyContent:"center",
+              border:"none", borderRadius:999,
+              background: dragNavTarget === "next" ? "var(--brand-tint)" : "transparent",
+              cursor:"pointer", color:"var(--brand)",
+              outline: dragNavTarget === "next" ? "2px solid var(--brand)" : "none",
+              outlineOffset:2,
+            }}
             aria-label="Siguiente"
+            title={dragId ? "Mantén aquí para ir al periodo siguiente" : "Siguiente"}
           >
             <ChevronRight size={20} />
           </button>
@@ -270,13 +483,16 @@ export default function CalendarView({ ordenes, reprogramadaIds, selectedId, myI
             const key      = toDateOnly(day);
             const inMonth  = mode === "semana" || isSameMonth(day, anchor);
             const isToday  = isSameDay(day, new Date());
-            const items    = otsByDate.get(key) ?? [];
+            const items    = calendarEntriesByDate.get(key) ?? [];
             const isDropTarget = dropTarget === key;
             const col      = idx % 7;
             const row      = Math.floor(idx / 7);
             const isLastCol = col === 6;
             const totalRows = Math.ceil(days.length / 7);
             const isLastRow = row === totalRows - 1;
+            const visibleMonthCount = items.length > monthInlineLimit ? monthOverflowPreviewLimit : monthInlineLimit;
+            const visibleItems = mode === "mes" ? items.slice(0, visibleMonthCount) : items;
+            const hiddenCount = mode === "mes" ? Math.max(items.length - visibleMonthCount, 0) : 0;
             return (
               <div
                 key={key}
@@ -294,7 +510,7 @@ export default function CalendarView({ ordenes, reprogramadaIds, selectedId, myI
                   overflow: "hidden",
                 }}
               >
-                <div style={{ display:"flex", justifyContent:"flex-end", marginBottom:4 }}>
+                <div style={{ display:"flex", alignItems:"center", justifyContent:"flex-end", gap:6, marginBottom:5, minHeight:20 }}>
                   <span style={{
                     fontSize:12, fontWeight: isToday ? 700 : 600,
                     color: isToday ? "white" : inMonth ? "var(--fg-2)" : "var(--fg-4)",
@@ -307,32 +523,41 @@ export default function CalendarView({ ordenes, reprogramadaIds, selectedId, myI
                     {format(day, "dd")}
                   </span>
                 </div>
-                <div style={{ display:"flex", flexDirection:"column", gap:3, overflow:"hidden", flex:1, minWidth:0 }}>
-                  {items.slice(0, mode === "mes" ? 4 : 12).map(o => (
+                <div style={{
+                  display:"flex", flexDirection:"column", gap:3,
+                  overflowX:"hidden", overflowY: mode === "semana" ? "auto" : "hidden",
+                  flex:1, minWidth:0, paddingRight: mode === "semana" && items.length > 8 ? 2 : 0,
+                }}>
+                  {visibleItems.map(entry => (
                     <EventCard
-                      key={o.id}
-                      orden={o}
-                      isReprogramada={reprogramadaIds.has(o.id)}
-                      isSelected={selectedId === o.id}
-                      isDragging={dragId === o.id}
-                      onDragStart={() => setDragId(o.id)}
-                      onDragEnd={() => { setDragId(null); setDropTarget(null); }}
-                      onClick={() => onOpenOT(o.id)}
-                      onMouseEnter={(e) => showHover(e, o)}
+                      key={entry.key}
+                      orden={entry.orden}
+                      isReprogramada={reprogramadaIds.has(entry.orden.id)}
+                      isSelected={selectedId === entry.orden.id}
+                      isDragging={dragId === entry.orden.id}
+                      isPreview={entry.isPreview}
+                      onDragStart={() => startDraggingOrden(entry.orden.id)}
+                      onDragEnd={endDraggingOrden}
+                      onClick={() => onOpenOT(entry.orden.id)}
+                      onMouseEnter={(e) => showHover(e, entry.orden)}
                       onMouseLeave={hideHover}
+                      compact={mode === "mes"}
                     />
                   ))}
-                  {mode === "mes" && items.length > 4 && (
+                  {hiddenCount > 0 && (
                     <button
                       type="button"
-                      onClick={() => { setMode("semana"); setAnchor(day); }}
+                      onClick={() => setDayModalKey(key)}
                       style={{
-                        fontSize:11, color:"var(--brand-fg)", fontWeight:600,
-                        background:"transparent", border:"none", textAlign:"left",
-                        padding:"2px 4px", cursor:"pointer", fontFamily:"inherit",
+                        minHeight:20, width:"100%",
+                        display:"flex", alignItems:"center", justifyContent:"center",
+                        fontSize:11, color:"var(--brand-fg)", fontWeight:700,
+                        background:"transparent", border:"none", borderRadius:6,
+                        textAlign:"center", padding:"0 6px", cursor:"pointer", fontFamily:"inherit",
+                        flexShrink:0,
                       }}
                     >
-                      +{items.length - 4} más
+                      {hiddenCount} más
                     </button>
                   )}
                 </div>
@@ -355,6 +580,22 @@ export default function CalendarView({ ordenes, reprogramadaIds, selectedId, myI
         />,
         document.body,
       )}
+
+      {dayModalDate && typeof document !== "undefined" && createPortal(
+        <DayOrdersModal
+          date={dayModalDate}
+          ordenes={dayModalItems}
+          usuarios={usuarios}
+          selectedId={selectedId}
+          draggingId={dragId}
+          reprogramadaIds={reprogramadaIds}
+          onClose={() => setDayModalKey(null)}
+          onOpenOT={(id) => { setDayModalKey(null); onOpenOT(id); }}
+          onDragStart={startDraggingOrden}
+          onDragEnd={endDraggingOrden}
+        />,
+        document.body,
+      )}
     </div>
   );
 }
@@ -366,14 +607,16 @@ interface EventCardProps {
   isReprogramada:  boolean;
   isSelected:      boolean;
   isDragging:      boolean;
+  isPreview?:      boolean;
   onDragStart:     () => void;
   onDragEnd:       () => void;
   onClick:         () => void;
   onMouseEnter:    (e: React.MouseEvent) => void;
   onMouseLeave:    () => void;
+  compact?:        boolean;
 }
 
-function EventCard({ orden, isReprogramada, isSelected, isDragging, onDragStart, onDragEnd, onClick, onMouseEnter, onMouseLeave }: EventCardProps) {
+function EventCard({ orden, isReprogramada, isSelected, isDragging, isPreview = false, onDragStart, onDragEnd, onClick, onMouseEnter, onMouseLeave, compact = false }: EventCardProps) {
   const title = orden.titulo || "Sin título";
   const isRecurrent = orden.recurrencia && orden.recurrencia !== "ninguna";
   // Pick the leading icon following the reference (lock for pending, refresh
@@ -393,8 +636,12 @@ function EventCard({ orden, isReprogramada, isSelected, isDragging, onDragStart,
 
   return (
     <div
-      draggable
+      draggable={!isPreview}
       onDragStart={(e) => {
+        if (isPreview) {
+          e.preventDefault();
+          return;
+        }
         e.dataTransfer.setData("text/plain", orden.id);
         e.dataTransfer.effectAllowed = "move";
         onDragStart();
@@ -406,29 +653,187 @@ function EventCard({ orden, isReprogramada, isSelected, isDragging, onDragStart,
       title={title}
       style={{
         display:"flex", alignItems:"center", gap:5,
-        padding:"4px 8px",
-        background: isReprogramada ? "var(--danger-bg)" : "var(--brand-tint)",
+        minHeight: compact ? 22 : 26,
+        padding: compact ? "3px 6px" : "4px 8px",
+        background: isReprogramada ? "var(--danger-bg)" : isPreview ? "var(--surface-hover)" : "var(--brand-tint)",
+        border: isPreview ? "1px dashed var(--border-strong)" : "none",
         borderRadius:6,
-        fontSize:12,
-        color: isReprogramada ? "var(--danger)" : "var(--brand-fg)",
-        cursor: isDragging ? "grabbing" : "grab",
-        opacity: isDragging ? 0.4 : 1,
+        fontSize: compact ? 11 : 12,
+        color: isReprogramada ? "var(--danger)" : isPreview ? "var(--fg-2)" : "var(--brand-fg)",
+        cursor: isPreview ? "pointer" : isDragging ? "grabbing" : "grab",
+        opacity: isDragging ? 0.4 : isPreview ? 0.86 : 1,
         outline: isSelected ? "2px solid var(--brand)" : "none",
         overflow:"hidden", whiteSpace:"nowrap", textOverflow:"ellipsis",
         userSelect:"none",
         fontFamily:"inherit",
         minWidth:0,
+        flexShrink:0,
       }}
     >
-      {LeadingIcon && (
+      {isPreview ? (
+        <RotateCw size={11} style={{ color:"var(--fg-3)", flexShrink:0 }} />
+      ) : LeadingIcon ? (
         <LeadingIcon size={11} style={{ color: iconColor, flexShrink:0 }} />
-      )}
+      ) : null}
       <span style={{ flex:1, overflow:"hidden", textOverflow:"ellipsis", fontWeight:500, minWidth:0 }}>
         {title}
       </span>
       {orden.prioridad === "urgente" && (
         <AlertCircle size={11} style={{ color:"var(--pr-urgent)", flexShrink:0 }} />
       )}
+    </div>
+  );
+}
+
+// ── Day orders modal ───────────────────────────────────────────────────────
+
+interface DayOrdersModalProps {
+  date:             Date;
+  ordenes:          CalendarEntry[];
+  usuarios:         Usuario[];
+  selectedId:       string | null;
+  draggingId:       string | null;
+  reprogramadaIds:  Set<string>;
+  onClose:          () => void;
+  onOpenOT:         (id: string) => void;
+  onDragStart:      (id: string) => void;
+  onDragEnd:        () => void;
+}
+
+function DayOrdersModal({ date, ordenes, usuarios, selectedId, draggingId, reprogramadaIds, onClose, onOpenOT, onDragStart, onDragEnd }: DayOrdersModalProps) {
+  const title = format(date, "EEEE, d 'de' MMMM", { locale: es });
+  const panelRef = useRef<HTMLDivElement | null>(null);
+
+  function closeWhenDragLeavesPanel(e: React.DragEvent) {
+    if (!draggingId || !panelRef.current) return;
+    const rect = panelRef.current.getBoundingClientRect();
+    const outside =
+      e.clientX < rect.left ||
+      e.clientX > rect.right ||
+      e.clientY < rect.top ||
+      e.clientY > rect.bottom;
+    if (outside) onClose();
+  }
+
+  return (
+    <div
+      onClick={onClose}
+      onDragOver={(e) => {
+        e.preventDefault();
+        closeWhenDragLeavesPanel(e);
+      }}
+      style={{
+        position:"fixed", inset:0, zIndex:260,
+        display:"flex", alignItems:"center", justifyContent:"center",
+        padding:24,
+        background: draggingId ? "rgba(15,23,42,0.10)" : "rgba(15,23,42,0.24)",
+      }}
+    >
+      <div
+        ref={panelRef}
+        onClick={e => e.stopPropagation()}
+        onDrag={closeWhenDragLeavesPanel}
+        style={{
+          width:"min(600px, 100%)", maxHeight:"min(640px, calc(100vh - 48px))",
+          background:"var(--surface-1)", border:"1px solid var(--border)",
+          borderRadius:10, boxShadow:"0 20px 60px rgba(15,23,42,0.22)",
+          display:"flex", flexDirection:"column", overflow:"hidden",
+          opacity: draggingId ? 0.78 : 1,
+        }}
+      >
+        <div style={{
+          height:68, padding:"0 18px", borderBottom:"1px solid var(--border)",
+          display:"flex", alignItems:"center", justifyContent:"space-between", gap:12,
+          flexShrink:0,
+        }}>
+          <div style={{ fontSize:23, fontWeight:700, color:"var(--fg-1)", textTransform:"lowercase" }}>
+            {title}
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Cerrar"
+            style={{
+              width:34, height:34, display:"flex", alignItems:"center", justifyContent:"center",
+              border:"none", borderRadius:8, background:"transparent",
+              color:"var(--fg-2)", cursor:"pointer",
+            }}
+          >
+            <X size={21} />
+          </button>
+        </div>
+
+        <div style={{ flex:1, minHeight:0, overflowY:"auto", padding:"18px" }}>
+          {ordenes.map((entry) => {
+            const orden = entry.orden;
+            const creator = orden.solicitante || "Sin solicitante";
+            const titleText = orden.titulo || "Sin título";
+            const isSelected = selectedId === orden.id;
+            const isDragging = draggingId === orden.id;
+            const isReprogramada = reprogramadaIds.has(orden.id);
+
+            return (
+              <div
+                key={entry.key}
+                draggable={!entry.isPreview}
+                onDragStart={(e) => {
+                  if (entry.isPreview) {
+                    e.preventDefault();
+                    return;
+                  }
+                  e.dataTransfer.setData("text/plain", orden.id);
+                  e.dataTransfer.effectAllowed = "move";
+                  setDragPreview(e, titleText);
+                  onDragStart(orden.id);
+                }}
+                onDrag={closeWhenDragLeavesPanel}
+                onDragEnd={onDragEnd}
+                onClick={() => onOpenOT(orden.id)}
+                title={titleText}
+                style={{
+                  display:"flex", alignItems:"center", gap:14,
+                  padding:"12px 14px", borderRadius:6,
+                  border: isSelected ? "1px solid var(--border-strong)" : entry.isPreview ? "1px dashed var(--border-strong)" : "1px solid transparent",
+                  background: isSelected ? "var(--surface-1)" : "transparent",
+                  opacity: isDragging ? 0.45 : entry.isPreview ? 0.76 : 1,
+                  cursor: entry.isPreview ? "pointer" : isDragging ? "grabbing" : "grab",
+                  userSelect:"none",
+                }}
+              >
+                <div style={{
+                  width:58, height:58, borderRadius:999,
+                  background:"var(--surface-hover)", border:"1px solid var(--border)",
+                  display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0,
+                }}>
+                  <Lock size={18} style={{ color:"var(--brand-fg)", opacity:0.55 }} />
+                </div>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{
+                    fontSize:18, fontWeight:700, color:"var(--fg-1)",
+                    overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap",
+                  }}>
+                    {(isReprogramada || entry.isPreview) && <RotateCw size={16} style={{ color: entry.isPreview ? "var(--fg-3)" : "var(--brand)", marginRight:6, verticalAlign:"-2px" }} />}
+                    {titleText}
+                  </div>
+                  <div style={{ marginTop:5, fontSize:15, color:"var(--fg-2)", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                    Solicitado por {creator}
+                  </div>
+                  <div style={{
+                    marginTop:5, display:"flex", alignItems:"center", gap:5,
+                    fontSize:15, color: ESTADO_FG[orden.estado] ?? "var(--brand-fg)",
+                  }}>
+                    <Lock size={12} />
+                    {entry.isPreview ? "Programada" : ESTADO_LABEL[orden.estado] ?? orden.estado}
+                  </div>
+                </div>
+                <div style={{ fontSize:14, color:"var(--fg-2)", flexShrink:0 }}>
+                  {orden.numero ? `#${orden.numero}` : ""}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 }
