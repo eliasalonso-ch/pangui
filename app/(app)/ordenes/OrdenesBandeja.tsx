@@ -818,7 +818,7 @@ export default function OrdenesBandeja({
             <div style={{ position:"relative", maxWidth:280, flex:1 }}>
               <Search size={14} style={{ position:"absolute", left:10, top:"50%", transform:"translateY(-50%)", color:"var(--fg-4)", pointerEvents:"none" }} />
               <input
-                type="search"
+                type="text"
                 placeholder="Buscar Órdenes de Trabajo"
                 value={search}
                 onChange={e => setSearch(e.target.value)}

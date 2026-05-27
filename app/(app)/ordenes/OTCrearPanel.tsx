@@ -1317,6 +1317,28 @@ export default function OTCrearPanel({
             />
           </div>
 
+          {/* Work type — promoted near the top so it's set before scrolling. */}
+          <div style={{ marginBottom: 18 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: "var(--fg-3)", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+              Tipo de trabajo
+            </div>
+            <select
+              value={form.tipo_trabajo}
+              onChange={e => setF("tipo_trabajo", e.target.value as TipoTrabajo | "")}
+              style={{
+                width: "100%", height: 40, padding: "0 12px",
+                border: "1px solid var(--border)", borderRadius: 8,
+                fontSize: 13, color: "var(--fg-1)", outline: "none",
+                background: "var(--surface-1)", fontFamily: "inherit",
+              }}
+            >
+              <option value="">Reactiva (por defecto)</option>
+              {TIPOS.map(t => (
+                <option key={t.value} value={t.value}>{t.label}</option>
+              ))}
+            </select>
+          </div>
+
           {/* Photo groups */}
           <div style={{ padding: "24px 0", borderBottom: "1px solid var(--border)" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
@@ -1784,47 +1806,25 @@ export default function OTCrearPanel({
             />
           </FieldRow>
 
-          {/* Recurrence + Work type */}
-          <div style={{ display: "flex", gap: 24, padding: "24px 0", borderBottom: "1px solid var(--border)" }}>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: "var(--fg-3)", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.06em" }}>
-                Recurrencia
-              </div>
-              <select
-                value={form.recurrencia}
-                onChange={e => setF("recurrencia", e.target.value as Recurrencia)}
-                style={{
-                  width: "100%", height: 40, padding: "0 12px",
-                  border: "1px solid var(--border)", borderRadius: 8,
-                  fontSize: 13, color: "var(--fg-1)", outline: "none",
-                  background: "var(--surface-1)", fontFamily: "inherit",
-                }}
-              >
-                {RECURRENCIAS.map(r => (
-                  <option key={r.value} value={r.value}>{r.label}</option>
-                ))}
-              </select>
+          {/* Recurrence */}
+          <div style={{ padding: "24px 0", borderBottom: "1px solid var(--border)" }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: "var(--fg-3)", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+              Recurrencia
             </div>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: "var(--fg-3)", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.06em" }}>
-                Tipo de trabajo
-              </div>
-              <select
-                value={form.tipo_trabajo}
-                onChange={e => setF("tipo_trabajo", e.target.value as TipoTrabajo | "")}
-                style={{
-                  width: "100%", height: 40, padding: "0 12px",
-                  border: "1px solid var(--border)", borderRadius: 8,
-                  fontSize: 13, color: "var(--fg-1)", outline: "none",
-                  background: "var(--surface-1)", fontFamily: "inherit",
-                }}
-              >
-                <option value="">Reactiva (por defecto)</option>
-                {TIPOS.map(t => (
-                  <option key={t.value} value={t.value}>{t.label}</option>
-                ))}
-              </select>
-            </div>
+            <select
+              value={form.recurrencia}
+              onChange={e => setF("recurrencia", e.target.value as Recurrencia)}
+              style={{
+                width: "100%", height: 40, padding: "0 12px",
+                border: "1px solid var(--border)", borderRadius: 8,
+                fontSize: 13, color: "var(--fg-1)", outline: "none",
+                background: "var(--surface-1)", fontFamily: "inherit",
+              }}
+            >
+              {RECURRENCIAS.map(r => (
+                <option key={r.value} value={r.value}>{r.label}</option>
+              ))}
+            </select>
           </div>
 
           {form.recurrencia !== "ninguna" && (

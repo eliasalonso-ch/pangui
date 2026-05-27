@@ -4,15 +4,10 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import {
   X, Loader2, User, MapPin, Settings2,
   CalendarDays, Tag, Check, ChevronDown, Building2, Hash, Plus, DollarSign,
-  Paperclip, FileText, File, Camera, ImagePlus, Trash2, Upload,
+  Paperclip, FileText, File,
 } from "lucide-react";
 import { updateOrden, parseDescMeta, buildDescripcion } from "@/lib/ordenes-api";
 import { uploadToR2 } from "@/lib/r2";
-import {
-  fetchFotoGrupos, createFotoGrupo, deleteFotoGrupo,
-  uploadFotoGrupo, addFotoToGrupo, removeFotoFromGrupo,
-} from "@/lib/foto-grupos-api";
-import type { FotoGrupo } from "@/lib/foto-grupos-api";
 import { createClient } from "@/lib/supabase";
 import { buildRecurrenciaConfig, recurrenceDraftFromConfig, RecurrenceControls, RECURRENCIAS } from "./RecurrenceControls";
 import type {
@@ -488,49 +483,6 @@ export default function OTEditPanel({
   const [adjuntos, setAdjuntos] = useState<DraftAdjunto[]>([]);
   const adjuntoInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Foto grupos — live (DB calls on interaction)
-  const [grupos, setGrupos] = useState<FotoGrupo[]>([]);
-  const [gruposLoaded, setGruposLoaded] = useState(false);
-  const [uploadingGrupo, setUploadingGrupo] = useState<string | null>(null);
-  const grupoFileRefs = useRef<Record<string, HTMLInputElement | null>>({});
-
-  useEffect(() => {
-    fetchFotoGrupos(orden.id).then(g => { setGrupos(g); setGruposLoaded(true); }).catch(() => setGruposLoaded(true));
-  }, [orden.id]);
-
-  async function handleAddGrupo() {
-    try {
-      const g = await createFotoGrupo(orden.id, wsId, myId, `Grupo ${grupos.length + 1}`, "", grupos.length, "referencia");
-      setGrupos(prev => [...prev, { ...g, items: [] }]);
-    } catch { /* ignore */ }
-  }
-
-  async function handleDeleteGrupo(id: string) {
-    try {
-      await deleteFotoGrupo(id);
-      setGrupos(prev => prev.filter(g => g.id !== id));
-    } catch { /* ignore */ }
-  }
-
-  async function handleAddFotos(grupoId: string, files: FileList) {
-    setUploadingGrupo(grupoId);
-    try {
-      for (const file of Array.from(files)) {
-        const url = await uploadFotoGrupo(orden.id, file);
-        const grupo = grupos.find(g => g.id === grupoId);
-        const item = await addFotoToGrupo(grupoId, url, grupo?.items?.length ?? 0);
-        setGrupos(prev => prev.map(g => g.id === grupoId ? { ...g, items: [...(g.items ?? []), item] } : g));
-      }
-    } catch { /* ignore */ }
-    setUploadingGrupo(null);
-  }
-
-  async function handleRemoveFoto(grupoId: string, itemId: string, url: string) {
-    try {
-      await removeFotoFromGrupo(itemId, url);
-      setGrupos(prev => prev.map(g => g.id === grupoId ? { ...g, items: (g.items ?? []).filter(i => i.id !== itemId) } : g));
-    } catch { /* ignore */ }
-  }
 
   function setF<K extends keyof FormState>(key: K, val: FormState[K]) {
     setForm(prev => {
@@ -658,106 +610,14 @@ export default function OTEditPanel({
             />
           </div>
 
-          {/* Grupos de fotos */}
-          <div style={{ padding: "24px 0", borderBottom: "1px solid var(--border)" }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <Camera size={13} style={{ color: "var(--fg-4)" }} />
-                <span style={{ fontSize: 11, fontWeight: 700, color: "var(--fg-3)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
-                  Grupos de fotos
-                </span>
-              </div>
-              <button
-                type="button"
-                onClick={handleAddGrupo}
-                style={{ display: "flex", alignItems: "center", gap: 5, height: 32, padding: "0 12px", border: "1px solid var(--brand)", borderRadius: 6, background: "var(--brand-tint)", color: "var(--brand)", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}
-              >
-                <Plus size={11} />
-                Agregar grupo
-              </button>
-            </div>
-
-            {!gruposLoaded ? (
-              <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "10px 0", color: "var(--fg-4)", fontSize: 13 }}>
-                <Loader2 size={13} style={{ animation: "spin 1s linear infinite" }} />
-                Cargando…
-              </div>
-            ) : grupos.length === 0 ? (
-              <button
-                type="button"
-                onClick={handleAddGrupo}
-                style={{ width: "100%", border: "1.5px dashed var(--brand)", borderRadius: 8, padding: "14px", display: "flex", flexDirection: "column", alignItems: "center", gap: 5, color: "var(--brand)", cursor: "pointer", background: "var(--brand-tint)", fontFamily: "inherit" }}
-              >
-                <ImagePlus size={20} strokeWidth={1.5} />
-                <span style={{ fontSize: 12 }}>Agregar fotos con título y descripción</span>
-              </button>
-            ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-                {grupos.map(g => (
-                  <div key={g.id} style={{ border: "1px solid var(--border)", borderRadius: 8, overflow: "hidden", background: "var(--surface-1)" }}>
-                    {/* Group header */}
-                    <div style={{ padding: "14px 16px", background: "var(--surface-0)", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", gap: 10 }}>
-                      <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: "var(--fg-1)" }}>{g.titulo}</span>
-                      {g.descripcion && <span style={{ fontSize: 12, color: "var(--fg-3)", flex: 1 }}>{g.descripcion}</span>}
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteGrupo(g.id)}
-                        style={{ width: 26, height: 26, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", cursor: "pointer", color: "var(--fg-4)", borderRadius: 5, flexShrink: 0 }}
-                        onMouseEnter={e => { e.currentTarget.style.color = "var(--danger)"; e.currentTarget.style.background = "var(--danger-bg)"; }}
-                        onMouseLeave={e => { e.currentTarget.style.color = "var(--fg-4)"; e.currentTarget.style.background = "none"; }}
-                      >
-                        <Trash2 size={13} />
-                      </button>
-                    </div>
-                    {/* Photos grid */}
-                    <div style={{ padding: 14 }}>
-                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(88px, 1fr))", gap: 10 }}>
-                        {(g.items ?? []).map(item => (
-                          <div key={item.id} style={{ position: "relative", aspectRatio: "1", borderRadius: 6, overflow: "hidden", background: "var(--surface-hover)" }}>
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img src={item.url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveFoto(g.id, item.id, item.url)}
-                              style={{ position: "absolute", top: 3, right: 3, width: 18, height: 18, borderRadius: "50%", background: "rgba(0,0,0,0.6)", border: "none", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#fff" }}
-                            >
-                              <X size={10} />
-                            </button>
-                          </div>
-                        ))}
-                        {/* Add photos button */}
-                        <button
-                          type="button"
-                          onClick={() => grupoFileRefs.current[g.id]?.click()}
-                          style={{ aspectRatio: "1", border: "1.5px dashed var(--border)", borderRadius: 6, background: "var(--surface-0)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 3, cursor: "pointer", color: "var(--fg-4)" }}
-                          onMouseEnter={e => { e.currentTarget.style.borderColor = "var(--brand)"; e.currentTarget.style.color = "var(--brand)"; }}
-                          onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.color = "var(--fg-4)"; }}
-                        >
-                          {uploadingGrupo === g.id
-                            ? <Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} />
-                            : <Upload size={14} />
-                          }
-                          <span style={{ fontSize: 10, fontWeight: 500 }}>Fotos</span>
-                        </button>
-                        <input
-                          ref={el => { grupoFileRefs.current[g.id] = el; }}
-                          type="file"
-                          accept="image/*"
-                          multiple
-                          style={{ display: "none" }}
-                          onChange={e => { if (e.target.files?.length) { handleAddFotos(g.id, e.target.files); e.target.value = ""; } }}
-                        />
-                      </div>
-                      {(g.items?.length ?? 0) > 0 && (
-                        <div style={{ marginTop: 5, fontSize: 11, color: "var(--fg-4)" }}>
-                          {g.items!.length} foto{g.items!.length !== 1 ? "s" : ""}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+          {/* Work type — promoted near the top so it's set before scrolling. */}
+          <div style={{ marginBottom: 18 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: "var(--fg-3)", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.06em" }}>Tipo de trabajo</div>
+            <select value={form.tipo_trabajo} onChange={e => setF("tipo_trabajo", e.target.value as TipoTrabajo | "")}
+              style={{ width: "100%", height: 40, padding: "0 12px", border: "1px solid var(--border)", borderRadius: 8, fontSize: 13, color: "var(--fg-1)", outline: "none", background: "var(--surface-1)", fontFamily: "inherit" }}>
+              <option value="">Reactiva (por defecto)</option>
+              {TIPOS.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+            </select>
           </div>
 
           {/* Adjuntos */}
@@ -931,23 +791,13 @@ export default function OTEditPanel({
             />
           </FieldRow>
 
-          {/* Recurrence + Work type */}
-          <div style={{ display: "flex", gap: 24, padding: "24px 0", borderBottom: "1px solid var(--border)" }}>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: "var(--fg-3)", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.06em" }}>Recurrencia</div>
-              <select value={form.recurrencia} onChange={e => setF("recurrencia", e.target.value as Recurrencia)}
-                style={{ width: "100%", height: 40, padding: "0 12px", border: "1px solid var(--border)", borderRadius: 8, fontSize: 13, color: "var(--fg-1)", outline: "none", background: "var(--surface-1)", fontFamily: "inherit" }}>
-                {RECURRENCIAS.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
-              </select>
-            </div>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: "var(--fg-3)", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.06em" }}>Tipo de trabajo</div>
-              <select value={form.tipo_trabajo} onChange={e => setF("tipo_trabajo", e.target.value as TipoTrabajo | "")}
-                style={{ width: "100%", height: 40, padding: "0 12px", border: "1px solid var(--border)", borderRadius: 8, fontSize: 13, color: "var(--fg-1)", outline: "none", background: "var(--surface-1)", fontFamily: "inherit" }}>
-                <option value="">Reactiva (por defecto)</option>
-                {TIPOS.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-              </select>
-            </div>
+          {/* Recurrence */}
+          <div style={{ padding: "24px 0", borderBottom: "1px solid var(--border)" }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: "var(--fg-3)", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.06em" }}>Recurrencia</div>
+            <select value={form.recurrencia} onChange={e => setF("recurrencia", e.target.value as Recurrencia)}
+              style={{ width: "100%", height: 40, padding: "0 12px", border: "1px solid var(--border)", borderRadius: 8, fontSize: 13, color: "var(--fg-1)", outline: "none", background: "var(--surface-1)", fontFamily: "inherit" }}>
+              {RECURRENCIAS.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+            </select>
           </div>
 
           {form.recurrencia !== "ninguna" && (

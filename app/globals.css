@@ -474,6 +474,16 @@ a { color: inherit; text-decoration: none; }
 
 input, select, textarea { color-scheme: inherit; }
 
+/* Text selection — use brand blue */
+::selection {
+  background: var(--brand);
+  color: var(--fg-on-brand);
+}
+::-moz-selection {
+  background: var(--brand);
+  color: var(--fg-on-brand);
+}
+
 
 
 /* ── Print ───────────────────────────────────────────────────── */
