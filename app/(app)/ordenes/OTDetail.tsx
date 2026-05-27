@@ -15,7 +15,7 @@ import {
   Package, Search,
   ClipboardCheck, Info, Hash as HashIcon, Camera, PenLine, Shield, CheckSquare,
   Type, DollarSign, List, ListChecks, AlertCircle, ImagePlus, FolderOpen,
-  Lock, LockOpen, Mic, MicOff, Volume2, GitBranch, Wrench,
+  Lock, LockOpen, Mic, MicOff, Volume2, GitBranch, Wrench, Link as LinkIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { LinksDisplay } from "@/components/LinksInput";
@@ -334,6 +334,31 @@ function initials(n: string) {
 
 // ── N° OT badge with copy ─────────────────────────────────────────────────────
 
+function CopyOTUrlButton({ ordenId }: { ordenId: string }) {
+  const [copied, setCopied] = useState(false);
+  function copy() {
+    const url = `${window.location.origin}/ordenes?id=${ordenId}`;
+    navigator.clipboard.writeText(url);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  }
+  return (
+    <button
+      type="button"
+      onClick={copy}
+      title={copied ? "URL copiada" : "Copiar URL de la OT"}
+      style={{
+        display: "inline-flex", alignItems: "center", justifyContent: "center",
+        verticalAlign: "middle", marginLeft: 8,
+        padding: 0, background: "none", border: "none",
+        cursor: "pointer", color: "var(--brand)",
+      }}
+    >
+      {copied ? <Check size={22} /> : <LinkIcon size={22} />}
+    </button>
+  );
+}
+
 function NOTBadge({ nOT }: { nOT: string }) {
   const [copied, setCopied] = useState(false);
   function copy() {
@@ -346,15 +371,16 @@ function NOTBadge({ nOT }: { nOT: string }) {
       type="button"
       onClick={copy}
       style={{
-        display: "inline-flex", alignItems: "center", gap: 3,
-        fontSize: 11, fontFamily: "monospace", fontWeight: 600,
-        color: "var(--brand-fg)", background: "none", border: "none", cursor: "pointer", padding: 0,
+        display: "inline-flex", alignItems: "center", gap: 6,
+        marginBottom: 16,
+        fontSize: 14, fontFamily: "inherit", fontWeight: 500,
+        color: "var(--fg-1)", background: "none", border: "none", cursor: "pointer", padding: 0,
       }}
     >
       <span>{nOT}</span>
       {copied
-        ? <Check size={10} style={{ color: "var(--success)" }} />
-        : <Copy size={10} style={{ color: "var(--fg-4)" }} />
+        ? <Check size={16} style={{ color: "var(--brand)" }} />
+        : <Copy size={16} style={{ color: "var(--brand)" }} />
       }
     </button>
   );
@@ -496,6 +522,9 @@ interface Props {
   onClose:        () => void;
   onOrdenUpdated: (o: Partial<OrdenTrabajo>) => void;
   onOpenOrden?:   (id: string) => void;
+  // Show an X button in the sticky header. Off by default (list view has its
+  // own close affordances); on for calendar/kanban modal overlays.
+  showCloseButton?: boolean;
 }
 
 type Tab = "detalle" | "actividad" | "fotos" | "materiales" | "procedimientos" | "hoja";
@@ -548,6 +577,7 @@ function useTimer(orden: OrdenTrabajo) {
 export default function OTDetail({
   orden, usuarios, myId, myRol, wsId,
   onEdit, onDelete, onClose, onOrdenUpdated, onOpenOrden,
+  showCloseButton = false,
 }: Props) {
   const router = useRouter();
   const [tab, setTab] = useState<Tab>("detalle");
@@ -807,7 +837,7 @@ export default function OTDetail({
 
   const openOrden = useCallback((id: string) => {
     if (onOpenOrden) onOpenOrden(id);
-    else router.push(`/ordenes/${id}`);
+    else router.push(`/ordenes?id=${id}`);
   }, [onOpenOrden, router]);
 
   useEffect(() => {
@@ -1936,81 +1966,30 @@ export default function OTDetail({
 
       {/* ── Header ── */}
       <div style={{ flexShrink: 0, borderBottom: "1px solid var(--border)", background: "var(--surface-1)" }}>
-        {/* Top bar: timer + action buttons */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 16px", height: 52, gap: 8 }}>
-          {/* Timer inline — only visible when active */}
-          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            {isActive && (
-              <>
-                <span style={{
-                  fontSize: 13, fontWeight: 700, fontFamily: "monospace",
-                  color: orden.en_ejecucion ? "var(--success)" : "var(--fg-3)",
-                  minWidth: 52,
-                }}>
-                  {fmtSecs(elapsed)}
-                </span>
-
-                {timerAction ? (
-                  <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                    <input
-                      type="text"
-                      placeholder={timerAction === "pausar" ? "Motivo (opcional)…" : "Comentario (opcional)…"}
-                      value={timerComment}
-                      onChange={e => setTimerComment(e.target.value)}
-                      style={{
-                        height: 28, padding: "0 8px", fontSize: 12,
-                        border: "1px solid var(--border)", borderRadius: "var(--r-sm)",
-                        background: "var(--surface-1)", color: "var(--fg-1)",
-                        outline: "none", fontFamily: "inherit", width: 160,
-                      }}
-                    />
-                    <button type="button" onClick={confirmTimerAction} disabled={timerBusy}
-                      style={{
-                        height: 28, padding: "0 10px", border: "none", borderRadius: "var(--r-sm)",
-                        background: timerAction === "completar" ? "var(--success)" : "var(--brand)",
-                        color: "var(--fg-on-brand)", fontSize: 12, fontWeight: 600,
-                        cursor: "pointer", fontFamily: "inherit",
-                      }}>
-                      {timerAction === "pausar" ? "Pausar" : "Completar"}
-                    </button>
-                    <button type="button" onClick={() => { setTimerAction(null); setTimerComment(""); }} disabled={timerBusy}
-                      style={{
-                        height: 28, padding: "0 8px", border: "1px solid var(--border)", borderRadius: "var(--r-sm)",
-                        background: "var(--surface-1)", color: "var(--fg-2)", fontSize: 12,
-                        cursor: "pointer", fontFamily: "inherit",
-                      }}>
-                      ✕
-                    </button>
-                  </div>
-                ) : orden.en_ejecucion ? (
-                  <button type="button" onClick={() => setTimerAction("pausar")} disabled={timerBusy}
-                    title="Pausar"
-                    style={{
-                      width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center",
-                      border: "1px solid var(--border)", borderRadius: "var(--r-sm)",
-                      background: "var(--surface-1)", color: "var(--fg-2)",
-                      cursor: "pointer",
-                    }}>
-                    <Pause size={13} />
-                  </button>
-                ) : null}
-              </>
-            )}
-          </div>
-
-          {/* Action buttons */}
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        {/* Top bar: title + optional close (modal overlays). Timer was moved into the body. */}
+        <div style={{ display: "flex", alignItems: "flex-start", padding: "12px 16px", minHeight: 52, gap: 8 }}>
+          <h1
+            style={{
+              flex: 1, minWidth: 0,
+              fontSize: 22, fontWeight: 500, color: "var(--fg-1)",
+              margin: 0, lineHeight: 1.3,
+              overflowWrap: "break-word",
+              wordBreak: "break-word",
+            }}
+          >
+            {orden.titulo || "Sin título"}
+            <CopyOTUrlButton ordenId={orden.id} />
+          </h1>
+          {showCloseButton && (
             <button
               type="button" onClick={onClose}
-              style={{ width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", borderRadius: "var(--r-sm)", cursor: "pointer", color: "var(--fg-4)" }}
+              style={{ width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", borderRadius: "var(--r-sm)", cursor: "pointer", color: "var(--fg-4)", flexShrink: 0 }}
               onMouseEnter={e => { e.currentTarget.style.background = "var(--surface-hover)"; }}
               onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}
             >
               <X size={15} />
             </button>
-
-
-          </div>
+          )}
         </div>
 
         {/* Tabs */}
@@ -2177,14 +2156,9 @@ export default function OTDetail({
             {/* N° OT badge */}
             {meta.nOT && <NOTBadge nOT={meta.nOT} />}
 
-            {/* Title */}
-            <h2 style={{ fontSize: 22, fontWeight: 800, color: "var(--fg-1)", lineHeight: 1.25, margin: meta.nOT ? "10px 0 0" : "0 0 0", maxWidth: 900 }}>
-              {orden.titulo || "Sin título"}
-            </h2>
-
             {/* Description */}
             {meta.descripcion && (
-              <div style={{ marginTop: 22, maxWidth: 1100 }}>
+              <div style={{ maxWidth: 1100 }}>
                 <p style={{ fontSize: 11, fontWeight: 600, color: "var(--fg-4)", textTransform: "uppercase", letterSpacing: "0.07em", margin: "0 0 4px" }}>Descripción</p>
                 <p style={{ fontSize: 14, color: "var(--fg-2)", lineHeight: 1.75, whiteSpace: "pre-wrap", margin: 0 }}>{meta.descripcion}</p>
               </div>
@@ -2192,11 +2166,13 @@ export default function OTDetail({
 
             {/* Estado */}
             {(() => {
-              const STATUS_STYLE: Record<string, { color: string; activeBg: string; activeBorder: string }> = {
-                pendiente:  { color: "var(--brand-fg)",  activeBg: "var(--st-open-bg)",     activeBorder: "var(--brand-fg)" },
-                en_espera:  { color: "var(--pr-high)",   activeBg: "var(--st-wait-bg)",     activeBorder: "var(--pr-high)" },
-                en_curso:   { color: "var(--st-running-fg)", activeBg: "var(--st-running-bg)", activeBorder: "var(--st-running-fg)" },
-                completado: { color: "var(--success)",   activeBg: "var(--success-bg)",     activeBorder: "var(--success)" },
+              // Solid per-status fill when selected; the unselected state always
+              // shows the brand blue (see button styles below).
+              const STATUS_STYLE: Record<string, { bg: string }> = {
+                pendiente:  { bg: "var(--brand)" },
+                en_espera:  { bg: "#F59E0B" },        // orange
+                en_curso:   { bg: "#7C3AED" },        // purple (matches --st-running-fg family)
+                completado: { bg: "#10B981" },        // green
               };
               return (
                 <div style={{ marginTop: 28 }}>
@@ -2244,30 +2220,29 @@ export default function OTDetail({
                           style={{
                             display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
                             gap: 7, padding: "10px 16px", minWidth: 86, minHeight: 62,
-                            border: isSelected ? `2px solid ${s.activeBorder}` : "2px solid var(--border)",
+                            border: "none",
                             borderRadius: "var(--r-md)",
-                            background: isSelected ? s.activeBg : "var(--surface-0)",
-                            color: isSelected ? s.color : "var(--fg-3)",
+                            background: isSelected ? s.bg : "var(--brand)",
+                            color: "var(--fg-on-brand)",
                             cursor: timerBusy ? "default" : "pointer",
                             transition: "all 0.15s",
+                            opacity: isSelected ? 1 : 0.85,
                           }}
                           onMouseEnter={ev => {
-                            if (!isSelected && !timerBusy) {
-                              ev.currentTarget.style.borderColor = s.activeBorder;
-                              ev.currentTarget.style.color = s.color;
-                              ev.currentTarget.style.background = s.activeBg;
-                            }
+                            if (!timerBusy) ev.currentTarget.style.opacity = "1";
                           }}
                           onMouseLeave={ev => {
-                            if (!isSelected) {
-                              ev.currentTarget.style.borderColor = "var(--border)";
-                              ev.currentTarget.style.color = "var(--fg-3)";
-                              ev.currentTarget.style.background = "var(--surface-0)";
-                            }
+                            ev.currentTarget.style.opacity = isSelected ? "1" : "0.85";
                           }}
                         >
-                          <Icon size={16} />
-                          <span style={{ fontSize: 11, fontWeight: 700, textAlign: "center", lineHeight: 1.2 }}>{label}</span>
+                          <Icon size={18} />
+                          {e.value === "en_curso" && orden.en_ejecucion ? (
+                            <span style={{ fontSize: 12, fontWeight: 700, fontFamily: "monospace", textAlign: "center", lineHeight: 1.2 }}>
+                              {fmtSecs(elapsed)}
+                            </span>
+                          ) : (
+                            <span style={{ fontSize: 11, fontWeight: 700, textAlign: "center", lineHeight: 1.2 }}>{label}</span>
+                          )}
                         </button>
                       );
                     })}
@@ -2415,15 +2390,22 @@ export default function OTDetail({
                       <div style={{ fontSize: 11, fontWeight: 600, color: "var(--fg-4)", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 6 }}>
                         Adjuntos
                       </div>
-                      <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+                      <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 5 }}>
                         {fileLinks.map((l, i) => {
                           const ext = l.url.split("?")[0].split(".").pop()?.toLowerCase() ?? "";
                           const isAudio = ["mp3","m4a","wav","ogg","webm","aac"].includes(ext);
                           const name = l.nombre || l.url.split("/").pop()?.split("?")[0] || "Archivo";
                           if (isAudio) return (
                             <div key={i} style={{ display: "flex", flexDirection: "column", gap: 3, padding: "8px 10px", border: "1px solid var(--border)", borderRadius: 8, background: "var(--surface-0)" }}>
-                              <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
-                                <Volume2 size={13} style={{ color: "#2563EB", flexShrink: 0 }} />
+                              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
+                                <span style={{
+                                  width: 28, height: 28, borderRadius: "var(--r-sm)",
+                                  background: "var(--brand-tint)", color: "var(--brand)",
+                                  display: "inline-flex", alignItems: "center", justifyContent: "center",
+                                  flexShrink: 0,
+                                }}>
+                                  <Volume2 size={16} />
+                                </span>
                                 <span style={{ fontSize: 12, color: "var(--fg-2)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{name}</span>
                               </div>
                               <audio controls src={l.url} style={{ width: "100%", height: 32 }} />
@@ -2431,9 +2413,16 @@ export default function OTDetail({
                           );
                           return (
                             <a key={i} href={l.url} target="_blank" rel="noopener noreferrer"
-                              style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", border: "1px solid var(--border)", borderRadius: 8, background: "var(--surface-0)", textDecoration: "none", color: "var(--fg-1)" }}>
-                              <FileText size={13} style={{ color: "var(--brand)", flexShrink: 0 }} />
-                              <span style={{ flex: 1, fontSize: 12.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{name}</span>
+                              style={{ display: "inline-flex", alignItems: "center", gap: 10, padding: "8px 14px 8px 8px", border: "1px solid var(--border)", borderRadius: 8, background: "var(--surface-0)", textDecoration: "none", color: "var(--fg-1)" }}>
+                              <span style={{
+                                width: 28, height: 28, borderRadius: "var(--r-sm)",
+                                background: "var(--brand-tint)", color: "var(--brand)",
+                                display: "inline-flex", alignItems: "center", justifyContent: "center",
+                                flexShrink: 0,
+                              }}>
+                                <FileText size={16} />
+                              </span>
+                              <span style={{ fontSize: 13, color: "var(--fg-1)" }}>{name}</span>
                             </a>
                           );
                         })}
@@ -2455,22 +2444,27 @@ export default function OTDetail({
             {/* Meta fields */}
             <div style={{ marginTop: 32, paddingTop: 26, borderTop: "1px solid var(--border)", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "28px 72px", maxWidth: 1180 }}>
               {[
-                orden.tipo_trabajo && { label: "Tipo", value: TIPO_LABEL[orden.tipo_trabajo] ?? orden.tipo_trabajo, icon: <Settings2 size={13} /> },
-                orden.sociedad?.nombre && { label: "Sociedad", value: orden.sociedad.nombre, icon: <Building2 size={13} /> },
-                meta.solicitante && { label: "Solicitante", value: meta.solicitante, icon: <User size={13} /> },
-                meta.hito && { label: "Hito", value: meta.hito, icon: <Flag size={13} /> },
-                orden.presupuesto && { label: "N° de presupuesto", value: orden.presupuesto, icon: <DollarSign size={13} /> },
-                orden.ubicaciones?.edificio && { label: "Ubicación", value: orden.ubicaciones.edificio + (orden.ubicaciones.piso ? ` · ${orden.ubicaciones.piso}` : ""), icon: <MapPin size={13} /> },
-                orden.lugar?.nombre && { label: "Lugar específico", value: orden.lugar.nombre, icon: <MapPin size={13} /> },
-                orden.activos?.nombre && { label: "Activo", value: orden.activos.nombre, icon: <Settings2 size={13} /> },
-                orden.fecha_termino && { label: "Fecha de vencimiento", value: fmtFechaLocal(orden.fecha_termino), icon: <Calendar size={13} /> },
-                orden.fecha_inicio && { label: "Fecha de inicio", value: fmtFechaLocal(orden.fecha_inicio), icon: <Calendar size={13} /> },
-                (orden.tiempo_total_segundos != null && orden.tiempo_total_segundos > 0) && { label: "Tiempo total", value: fmtSecs(orden.tiempo_total_segundos), icon: <RotateCcw size={13} /> },
+                orden.tipo_trabajo && { label: "Tipo", value: TIPO_LABEL[orden.tipo_trabajo] ?? orden.tipo_trabajo, icon: <Settings2 size={16} /> },
+                orden.sociedad?.nombre && { label: "Sociedad", value: orden.sociedad.nombre, icon: <Building2 size={16} /> },
+                meta.solicitante && { label: "Solicitante", value: meta.solicitante, icon: <User size={16} /> },
+                meta.hito && { label: "Hito", value: meta.hito, icon: <Flag size={16} /> },
+                orden.presupuesto && { label: "N° de presupuesto", value: orden.presupuesto, icon: <DollarSign size={16} /> },
+                orden.ubicaciones?.edificio && { label: "Ubicación", value: orden.ubicaciones.edificio + (orden.ubicaciones.piso ? ` · ${orden.ubicaciones.piso}` : ""), icon: <MapPin size={16} /> },
+                orden.lugar?.nombre && { label: "Lugar específico", value: orden.lugar.nombre, icon: <MapPin size={16} /> },
+                orden.activos?.nombre && { label: "Activo", value: orden.activos.nombre, icon: <Settings2 size={16} /> },
+                orden.fecha_termino && { label: "Fecha de vencimiento", value: fmtFechaLocal(orden.fecha_termino), icon: <Calendar size={16} /> },
+                orden.fecha_inicio && { label: "Fecha de inicio", value: fmtFechaLocal(orden.fecha_inicio), icon: <Calendar size={16} /> },
+                (orden.tiempo_total_segundos != null && orden.tiempo_total_segundos > 0) && { label: "Tiempo total", value: fmtSecs(orden.tiempo_total_segundos), icon: <RotateCcw size={16} /> },
               ].filter(Boolean).map((field: any) => (
                 <div key={field.label}>
                   <p style={{ fontSize: 11, fontWeight: 700, color: "var(--fg-4)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 7, marginTop: 0 }}>{field.label}</p>
-                  <p style={{ fontSize: 14, color: "var(--fg-1)", margin: 0, display: "flex", alignItems: "center", gap: 7, lineHeight: 1.45 }}>
-                    <span style={{ color: "var(--fg-4)", flexShrink: 0 }}>{field.icon}</span>
+                  <p style={{ fontSize: 14, color: "var(--fg-1)", margin: 0, display: "flex", alignItems: "center", gap: 10, lineHeight: 1.45 }}>
+                    <span style={{
+                      width: 28, height: 28, borderRadius: "var(--r-sm)",
+                      background: "var(--brand-tint)", color: "var(--brand)",
+                      display: "inline-flex", alignItems: "center", justifyContent: "center",
+                      flexShrink: 0,
+                    }}>{field.icon}</span>
                     {field.value}
                   </p>
                 </div>
@@ -3241,7 +3235,7 @@ export default function OTDetail({
             disabled={(!commentText.trim() && !pendingAudio) || sending}
             style={{
               width: 38, height: 38, flexShrink: 0,
-              background: (commentText.trim() || pendingAudio) ? "linear-gradient(135deg, #1E3A8A, #2563EB)" : "var(--border)",
+              background: (commentText.trim() || pendingAudio) ? "var(--brand)" : "var(--border)",
               border: "none", borderRadius: "var(--r-md)", cursor: (commentText.trim() || pendingAudio) ? "pointer" : "default",
               display: "flex", alignItems: "center", justifyContent: "center",
               transition: "opacity 0.15s",

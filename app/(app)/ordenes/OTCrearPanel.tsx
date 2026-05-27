@@ -7,6 +7,7 @@ import {
   Camera, ImagePlus, Trash2, Upload, Paperclip, FileText, File, DollarSign,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase";
+import { callEdge } from "@/lib/edge";
 import { createOrden, buildDescripcion } from "@/lib/ordenes-api";
 import { uploadFotoGrupo, createFotoGrupo, addFotoToGrupo } from "@/lib/foto-grupos-api";
 import { uploadToR2 } from "@/lib/r2";
@@ -17,172 +18,17 @@ import type {
 } from "@/types/ordenes";
 import LinksInput from "@/components/LinksInput";
 
-// ── PDF Parser ────────────────────────────────────────────────────────────────
+// ── PDF text extraction ───────────────────────────────────────────────────────
+//
+// We used to parse the Solicitud de Mantención PDF with workspace-specific
+// regex (Electrilam's UdeC format). That broke for every other workspace's
+// PDF layout. Now we just extract a clean token stream from the PDF and hand
+// it off, together with the workspace catalog, to the escanear-orden edge
+// function. Gemini both extracts the fields AND fuzzy-matches them against
+// the catalog, returning ranked candidates with confidence scores per field.
 
-// Extract text between two label patterns in the flat pdfjs token stream.
-// Returns the content between `startLabel` and the first `stopLabel` that matches.
-function between(text: string, startLabel: string, ...stopLabels: string[]): string {
-  const startRe = new RegExp(startLabel, "i");
-  const startM = startRe.exec(text);
-  if (!startM) return "";
-  let after = text.slice(startM.index + startM[0].length).trimStart();
-  for (const stop of stopLabels) {
-    const stopM = new RegExp(stop, "i").exec(after);
-    if (stopM) after = after.slice(0, stopM.index);
-  }
-  return after.trim();
-}
-
-// Extract the value of a labelled field — one "cell" worth of text before the next known label.
-const SECTION_STOPS = "Repartición|Sociedad|N°|Estado|Fecha|Título|Prioridad|Ubicación|Ubicacion|Lugar|Centro de Costo|Persona de Contacto|Nombre|Anexo|E-mail|Documentos|Archivos|Informacion Anexa|Tipo de Mantención|Tipo Convenio|Procedimiento|Nombre Ejecutor|BITÁCORA|Detalle Solicitud";
-
-function field(text: string, ...labels: string[]): string {
-  for (const label of labels) {
-    const val = between(text, label, SECTION_STOPS.replace(label + "|", "").replace("|" + label, ""));
-    // Take only the first "line" worth of text (up to ~80 chars before a long gap or next caps word)
-    const firstLine = val.split(/\s{3,}|\n/)[0].trim();
-    if (firstLine) return firstLine;
-  }
-  return "";
-}
-
-function cleanPdfValue(value: string): string {
-  return value.split("\n").map(line => line.trim()).filter(Boolean).join(" ").replace(/\s+/g, " ").trim();
-}
-
-function lineField(text: string, label: string): string {
-  const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const matches = [...text.matchAll(new RegExp(`^${escaped}\\s{2,}([^\\n]+)`, "gim"))];
-  return matches.at(-1)?.[1]?.trim() ?? "";
-}
-
-function blockField(text: string, startLabel: string, ...stopLabels: string[]): string {
-  return cleanPdfValue(between(text, startLabel, ...stopLabels));
-}
-
-function normalizePdfMatch(value: string): string {
-  return value
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9\s]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function extractLugarPDF(text: string): string {
-  const stopLabels = SECTION_STOPS
-    .split("|")
-    .filter(label => !/^Lugar$/i.test(label))
-    .join("|");
-  const lugarRe = /\bLugar\s+(?!específico|especifico)([^\n]+)/gi;
-  let match: RegExpExecArray | null;
-
-  while ((match = lugarRe.exec(text))) {
-    const raw = match[1] ?? "";
-    const value = raw
-      .replace(new RegExp(`\\b(?:${stopLabels})\\b.*$`, "i"), "")
-      .replace(/\s+/g, " ")
-      .trim();
-
-    if (value && !new RegExp(`^(?:${stopLabels})\\b`, "i").test(value)) {
-      return value;
-    }
-  }
-
-  return "";
-}
-
-function exactMatch<T extends { id: string }>(
-  query: string,
-  items: T[],
-  getLabel: (item: T) => string,
-): string {
-  if (!query || items.length === 0) return "";
-  const q = normalizePdfMatch(query);
-  return items.find(item => normalizePdfMatch(getLabel(item)) === q)?.id ?? "";
-}
-
-function fuzzyMatch<T extends { id: string }>(
-  query: string,
-  items: T[],
-  getLabel: (item: T) => string,
-): string {
-  if (!query || items.length === 0) return "";
-  const q = normalizePdfMatch(query);
-
-  // 1. Exact substring: label contains query or query contains label
-  const exact = items.find(i => {
-    const label = normalizePdfMatch(getLabel(i));
-    return label.includes(q) || q.includes(label);
-  });
-  if (exact) return exact.id;
-
-  // 2. Word-overlap: only words >3 chars, require >=50% of query words to match
-  const queryWords = q.split(/\s+/).filter(w => w.length > 3);
-  if (queryWords.length === 0) return "";
-
-  let topScore = 0;
-  let best: T | undefined;
-  for (const item of items) {
-    const label = normalizePdfMatch(getLabel(item));
-    const score = queryWords.filter(w => label.includes(w)).length;
-    if (score > topScore) { topScore = score; best = item; }
-  }
-
-  // Require at least half the significant query words to match
-  const minRequired = Math.ceil(queryWords.length * 0.5);
-  if (topScore < minRequired) return "";
-
-  return best?.id ?? "";
-}
-const PRIORIDAD_PDF_MAP: Record<string, Prioridad> = {
-  emergencia: "urgente", urgente: "urgente",
-  alta: "alta",
-  media: "media", normal: "media",
-  baja: "baja",
-};
-
-const TIPO_PDF_MAP: Record<string, TipoTrabajo> = {
-  electrica: "reactiva", eléctrica: "reactiva", electrico: "reactiva", eléctrico: "reactiva",
-  preventiva: "preventiva",
-  inspeccion: "inspeccion", inspección: "inspeccion",
-  mejora: "mejora",
-};
-
-const SPANISH_MONTHS: Record<string, string> = {
-  enero: "01", febrero: "02", marzo: "03", abril: "04",
-  mayo: "05", junio: "06", julio: "07", agosto: "08",
-  septiembre: "09", octubre: "10", noviembre: "11", diciembre: "12",
-};
-
-// Parse Spanish date like "Viernes 10 de Abril del 2026" → "2026-04-10"
-function parseSpanishDate(text: string): string {
-  const m = text.match(/(\d{1,2})\s+de\s+([a-záéíóú]+)\s+del?\s+(\d{4})/i);
-  if (!m) return "";
-  const day = m[1].padStart(2, "0");
-  const month = SPANISH_MONTHS[m[2].toLowerCase()];
-  const year = m[3];
-  if (!month) return "";
-  return `${year}-${month}-${day}`;
-}
-
-interface ParsedPDF {
-  n_ot: string;
-  solicitante: string;
-  titulo: string;
-  descripcion: string;
-  prioridad: Prioridad;
-  tipo_trabajo: TipoTrabajo | "";
-  sociedad_id: string;
-  ubicacionText: string;
-  lugarText: string;
-  fecha_inicio: string;
-}
-
-async function parseSolicitudPDF(file: File, sociedades: Sociedad[]): Promise<ParsedPDF> {
+async function extractPdfText(file: File): Promise<string> {
   const arrayBuffer = await file.arrayBuffer();
-
   // @ts-ignore
   const pdfjsLib = await import("pdfjs-dist");
   pdfjsLib.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
@@ -194,7 +40,6 @@ async function parseSolicitudPDF(file: File, sociedades: Sociedad[]): Promise<Pa
     disableFontFace: true,
   }).promise;
 
-  // Build token stream preserving spacing from the PDF layout
   let fullText = "";
   for (let p = 1; p <= pdf.numPages; p++) {
     const page = await pdf.getPage(p);
@@ -202,7 +47,6 @@ async function parseSolicitudPDF(file: File, sociedades: Sociedad[]): Promise<Pa
     let lastY: number | null = null;
     for (const item of content.items as any[]) {
       if (!item.str) continue;
-      // Insert newline when Y position changes significantly (new row in the table)
       const y = item.transform?.[5] ?? null;
       if (lastY !== null && y !== null && Math.abs(y - lastY) > 4) fullText += "\n";
       else if (fullText && !fullText.endsWith(" ") && !fullText.endsWith("\n")) fullText += " ";
@@ -211,68 +55,33 @@ async function parseSolicitudPDF(file: File, sociedades: Sociedad[]): Promise<Pa
     }
     fullText += "\n";
   }
-
-  // ── Extract fields ────────────────────────────────────────────────────────
-
-  // N° SF... folio — second occurrence has the actual value
-  const nOT = fullText.match(/N°\s+(SF\d+)/i)?.[1] ?? "";
-
-  // Solicitante — line after "Nombres y Apellidos"
-  const solicitante = lineField(fullText, "Nombres y Apellidos");
-
-  // Título Solicitud
-  const titulo = blockField(fullText, "Título Solicitud", "Prioridad", "Ubicación", "Ubicacion");
-
-  // Prioridad — line-anchored so the section header "Prioridad" is ignored.
-  const prioPDF = lineField(fullText, "Prioridad").toLowerCase();
-
-  // Ubicación — match the label+value row (two+ spaces between label and value)
-  const ubicRe = fullText.match(/Ubicaci[oó]n\s{2,}([^\n]+)\n([^\n]+)/i);
-  const ubicLine1Raw = ubicRe?.[1]?.trim() ?? "";
-  const ubicLine2 = ubicRe?.[2]?.trim() ?? "";
-  // If line1 ends with " -" the value wrapped across lines; join and clean the dash
-  const isLabel = /^(Lugar|Objeto|Centro|Persona|Nombre|Anexo|E-mail|Documentos)/i;
-  let ubicPDF = ubicLine1Raw;
-  if (ubicLine1Raw.endsWith("-") && ubicLine2 && !isLabel.test(ubicLine2)) {
-    // Wrapped hyphenated value (e.g. "FACULTAD DE INGENIERIA -\nADMINISTRACION")
-    ubicPDF = (ubicLine1Raw.replace(/-$/, "").trim() + " " + ubicLine2).trim();
-  } else if (!isLabel.test(ubicLine2) && ubicLine2 && !ubicLine1Raw.endsWith("-")) {
-    // Normal continuation line that isn't a new field label
-    ubicPDF = (ubicLine1Raw + " " + ubicLine2).trim();
-  }
-
-  // Lugar — match "Lugar <value>", avoid "Lugar específico" header and "Lugar" standalone labels
-  // pdfjs may emit this mid-line; allow values that start with a number (e.g. "2DO PISO").
-  const lugarPDF = extractLugarPDF(fullText);
-
-  // Sociedad
-  const sociedadPDF = lineField(fullText, "Sociedad");
-
-  // Detalle — multi-line, stop at "Informacion Anexa"
-  const detalle = blockField(fullText, "Detalle Solicitud\\s{2,}", "Informacion Anexa", "BITÁCORA");
-
-  // Tipo de trabajo
-  const tipoPDF = lineField(fullText, "Tipo de Mantención").toLowerCase();
-
-  // Fecha del documento SF — match the first "Fecha  <Spanish date>" row.
-  // Avoid picking up "FECHA REGISTRO" from the BITÁCORA table by anchoring to
-  // the row that contains a recognisable Spanish weekday + day pattern.
-  const fechaRe = fullText.match(/\bFecha\s{2,}(\w+\s+\d{1,2}\s+de\s+\w+\s+del?\s+\d{4})/i);
-  const fechaISO = parseSpanishDate(fechaRe?.[1] ?? "");
-
-  return {
-    n_ot:          nOT,
-    solicitante,
-    titulo,
-    descripcion:   detalle,
-    prioridad:     PRIORIDAD_PDF_MAP[prioPDF] ?? "ninguna",
-    tipo_trabajo:  TIPO_PDF_MAP[tipoPDF] ?? "",
-    sociedad_id:   fuzzyMatch(sociedadPDF, sociedades, s => s.nombre),
-    ubicacionText: ubicPDF,
-    lugarText:     lugarPDF,
-    fecha_inicio:  fechaISO,
-  };
+  return fullText;
 }
+
+// ── AI scan result types ──────────────────────────────────────────────────────
+
+interface ScanCandidate { id: string; name: string; confidence: number }
+interface ScanField { extracted: string | null; candidates: ScanCandidate[] }
+interface ScanResult {
+  titulo:       string | null;
+  n_ot:         string | null;
+  solicitante:  string | null;
+  descripcion:  string | null;
+  prioridad:    Prioridad;
+  tipo_trabajo: TipoTrabajo | "";
+  fecha_inicio: string | null;
+  sociedad:   ScanField;
+  ubicacion:  ScanField;
+  lugar:      ScanField;
+  hito:       ScanField;
+  categoria:  ScanField;
+  activo:     ScanField;
+  asignados:  ScanField[];
+}
+
+// Confidence tiers used to decide auto-fill vs. suggest vs. manual.
+const AUTO_FILL_THRESHOLD = 0.9;
+const SUGGEST_THRESHOLD   = 0.6;
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -319,12 +128,18 @@ interface FormState {
 }
 
 // Raw text from PDF that couldn't be resolved to an existing record
+// After an AI scan, each catalog-bound field gets a ScanField. We keep only
+// the fields that weren't auto-filled (medium-confidence suggestions to ask
+// the user about, or low-confidence ones where we offer "Crear nuevo"). The
+// caller drops the entry once the user picks or dismisses it.
 interface PdfHints {
-  ubicacionText: string;   // unresolved → show "create?" prompt
-  lugarText:     string;
-  sociedadText:  string;
-  ubicacionMatched: boolean;  // true = fuzzy matched an existing record
-  lugarMatched:     boolean;
+  sociedad?:  ScanField;
+  ubicacion?: ScanField;
+  lugar?:     ScanField;
+  hito?:      ScanField;
+  categoria?: ScanField;
+  activo?:    ScanField;
+  asignados?: ScanField[];
 }
 
 const BLANK: FormState = {
@@ -487,6 +302,61 @@ function SearchSelect({ placeholder, value, options, onChange }: {
 }
 
 // ── Assignee select ───────────────────────────────────────────────────────────
+
+// ── PdfSuggestion ─────────────────────────────────────────────────────────────
+//
+// Renders the medium-/low-confidence AI match for a single catalog field as
+// an inline card under the corresponding form input. Three states:
+//   - candidates with confidence >= SUGGEST_THRESHOLD → list, user picks one
+//   - no candidates but extracted text → "Crear nuevo «text»" + dismiss
+//   - both → list THEN "Crear nuevo" at the bottom
+function PdfSuggestion({
+  field, extractedLabel, onPick, onCreate, onDismiss, canCreate,
+}: {
+  field: ScanField;
+  extractedLabel: string;
+  onPick: (id: string) => void;
+  onCreate?: () => void;
+  onDismiss: () => void;
+  canCreate: boolean;
+}) {
+  const usable = field.candidates.filter(c => c.confidence >= SUGGEST_THRESHOLD);
+  if (usable.length === 0 && !field.extracted) return null;
+
+  return (
+    <div style={{ marginTop: 10, padding: "10px 12px", background: "var(--warning-bg, #FFFBEB)", border: "1px solid var(--warning, #F59E0B)", borderRadius: 8 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: usable.length > 0 ? 8 : 0 }}>
+        <AlertTriangle size={12} style={{ color: "var(--warning, #F59E0B)", flexShrink: 0 }} />
+        <span style={{ flex: 1, fontSize: 12, color: "var(--fg-2)" }}>
+          IA detectó <strong>"{field.extracted ?? extractedLabel}"</strong>
+          {usable.length > 0 ? " — ¿es alguno de estos?" : " — sin coincidencias"}
+        </span>
+        <button type="button" onClick={onDismiss}
+          style={{ background: "none", border: "none", cursor: "pointer", color: "var(--fg-4)", display: "flex", padding: 2 }}>
+          <X size={12} />
+        </button>
+      </div>
+      {usable.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          {usable.map(c => (
+            <button key={c.id} type="button" onClick={() => onPick(c.id)}
+              style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", border: "1px solid var(--border)", borderRadius: 6, background: "var(--surface-1)", cursor: "pointer", textAlign: "left", fontFamily: "inherit", fontSize: 12.5, color: "var(--fg-1)" }}>
+              <Check size={11} style={{ color: "var(--brand)", flexShrink: 0 }} />
+              <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.name}</span>
+              <span style={{ fontSize: 10.5, color: "var(--fg-4)", flexShrink: 0 }}>{Math.round(c.confidence * 100)}%</span>
+            </button>
+          ))}
+        </div>
+      )}
+      {canCreate && field.extracted && onCreate && (
+        <button type="button" onClick={onCreate}
+          style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 5, height: 30, padding: "0 10px", border: "1px dashed var(--brand)", borderRadius: 6, background: "transparent", color: "var(--brand)", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+          <Plus size={11} /> Crear «{field.extracted}»
+        </button>
+      )}
+    </div>
+  );
+}
 
 function AssigneeSelect({ usuarios, value, onChange }: {
   usuarios: Usuario[];
@@ -983,8 +853,6 @@ export default function OTCrearPanel({
 
   // PDF-suggested values that couldn't be auto-resolved
   const [pdfHints, setPdfHints] = useState<PdfHints | null>(null);
-  const [creatingUbic, setCreatingUbic] = useState(false);
-  const [creatingLugar, setCreatingLugar] = useState(false);
 
   // Debounced duplicate N° OT check
   useEffect(() => {
@@ -1016,37 +884,121 @@ export default function OTCrearPanel({
     setParseMsg(null);
     setPdfHints(null);
     try {
-      const { ubicacionText, lugarText, ...parsed } = await parseSolicitudPDF(file, sociedades);
+      // 1. Extract raw text from the PDF (workspace-agnostic).
+      const pdfText = await extractPdfText(file);
+      if (!pdfText.trim()) {
+        setParseMsg("No se pudo leer texto del PDF. ¿Es un PDF escaneado como imagen?");
+        return;
+      }
 
-      // Only fuzzy-match — never auto-create
-      const ubicacion_id      = exactMatch(ubicacionText, ubicaciones, u => u.edificio + (u.piso ? ` ${u.piso}` : ""));
-      // Scope lugar search to the resolved ubicacion to avoid wrong-building matches
-      const lugaresForUbic    = ubicacion_id ? lugares.filter(l => l.ubicacion_id === ubicacion_id) : lugares;
-      const lugar_id          = exactMatch(lugarText, lugaresForUbic, l => l.nombre);
+      // 2. Load the catalogs the AI needs to resolve fields against.
+      const sb = createClient();
+      const [hitosRes] = await Promise.all([
+        sb.from("hitos").select("id, nombre").eq("workspace_id", wsId),
+      ]);
+      const hitosCatalog = (hitosRes.data ?? []).map(h => ({ id: h.id, name: h.nombre }));
 
-      const ubicacionMatched  = !!ubicacion_id || !ubicacionText;
-      const lugarMatched      = !!lugar_id || !lugarText;
+      const catalog = {
+        sociedades:  sociedades.map(s => ({ id: s.id, name: s.nombre })),
+        ubicaciones: ubicaciones.map(u => ({
+          id: u.id,
+          name: u.edificio + (u.piso ? ` · ${u.piso}` : ""),
+        })),
+        lugares:     lugares.map(l => ({ id: l.id, name: l.nombre })),
+        hitos:       hitosCatalog,
+        categorias:  categorias.map(c => ({ id: c.id, name: c.nombre })),
+        usuarios:    usuarios.map(u => ({ id: u.id, name: u.nombre })),
+        activos:     activos.map(a => ({ id: a.id, name: a.nombre })),
+      };
 
-      const formPatch = { ...parsed, ubicacion_id, lugar_id };
-      const filled = Object.values(formPatch).filter(v => v && v !== "ninguna" && v !== "").length;
+      // 3. Ask Gemini to extract + resolve.
+      const res = await callEdge("escanear-orden", { pdfText, catalog });
+      if (!res.ok) {
+        setParseMsg(`Error al analizar el PDF (${res.status}). Intenta de nuevo.`);
+        return;
+      }
+      const ai = (await res.json()) as ScanResult | { error: string };
+      if ("error" in ai) {
+        setParseMsg(`IA: ${ai.error}`);
+        return;
+      }
 
-      if (filled === 0) {
-        setParseMsg("No se encontraron datos en el PDF. Verifica que sea una Solicitud de Mantención válida.");
+      // 4. Apply non-catalog text fields directly.
+      const patch: Partial<FormState> = {};
+      if (ai.titulo)       patch.titulo       = ai.titulo;
+      if (ai.n_ot)         patch.n_ot         = ai.n_ot;
+      if (ai.solicitante)  patch.solicitante  = ai.solicitante;
+      if (ai.descripcion)  patch.descripcion  = ai.descripcion;
+      if (ai.prioridad && ai.prioridad !== "ninguna") patch.prioridad = ai.prioridad;
+      if (ai.tipo_trabajo) patch.tipo_trabajo = ai.tipo_trabajo;
+      if (ai.fecha_inicio) patch.fecha_inicio = ai.fecha_inicio;
+
+      // 5. Apply catalog fields by confidence tier.
+      const remainingHints: PdfHints = {};
+
+      const applyField = (
+        field: ScanField,
+        key: keyof FormState,
+        hintKey: keyof PdfHints,
+        valueFromCandidate: (c: ScanCandidate) => string = (c) => c.id,
+      ) => {
+        const top = field.candidates[0];
+        if (top && top.confidence >= AUTO_FILL_THRESHOLD) {
+          (patch as any)[key] = valueFromCandidate(top);
+          return;
+        }
+        // Medium-confidence suggestion OR an extracted value with no match worth offering "Crear nuevo".
+        const hasMediumSuggestion = top && top.confidence >= SUGGEST_THRESHOLD;
+        if (hasMediumSuggestion || field.extracted) {
+          (remainingHints as any)[hintKey] = field;
+        }
+      };
+
+      applyField(ai.sociedad,  "sociedad_id",  "sociedad");
+      applyField(ai.ubicacion, "ubicacion_id", "ubicacion");
+      // For lugar, scope auto-fill: only accept the top candidate if it belongs to whatever
+      // ubicación we just resolved (or no ubicación was resolved).
+      {
+        const top = ai.lugar.candidates[0];
+        const resolvedUbic = (patch as any).ubicacion_id ?? form.ubicacion_id;
+        const topLugar = top ? lugares.find(l => l.id === top.id) : null;
+        const lugarBelongs = !resolvedUbic || !topLugar || !topLugar.ubicacion_id || topLugar.ubicacion_id === resolvedUbic;
+        if (top && top.confidence >= AUTO_FILL_THRESHOLD && lugarBelongs) {
+          patch.lugar_id = top.id;
+        } else if ((top && top.confidence >= SUGGEST_THRESHOLD) || ai.lugar.extracted) {
+          remainingHints.lugar = ai.lugar;
+        }
+      }
+      applyField(ai.hito,      "hito",         "hito", (c) => c.name);
+      applyField(ai.categoria, "categoria_id", "categoria");
+      applyField(ai.activo,    "activo_id",    "activo");
+
+      // Asignados is multi-pick: auto-add every high-confidence person, surface the rest.
+      const autoAsignados: string[] = [];
+      const mediumAsignados: ScanField[] = [];
+      for (const person of ai.asignados ?? []) {
+        const top = person.candidates[0];
+        if (top && top.confidence >= AUTO_FILL_THRESHOLD) {
+          if (!autoAsignados.includes(top.id)) autoAsignados.push(top.id);
+        } else if ((top && top.confidence >= SUGGEST_THRESHOLD) || person.extracted) {
+          mediumAsignados.push(person);
+        }
+      }
+      if (autoAsignados.length > 0) {
+        patch.asignados_ids = Array.from(new Set([...(form.asignados_ids ?? []), ...autoAsignados]));
+      }
+      if (mediumAsignados.length > 0) remainingHints.asignados = mediumAsignados;
+
+      const filled = Object.values(patch).filter(v => v && v !== "ninguna" && v !== "").length;
+      if (filled === 0 && Object.keys(remainingHints).length === 0) {
+        setParseMsg("No se encontraron datos en el PDF.");
       } else {
-        setForm(prev => ({ ...prev, ...formPatch }));
-        setParseMsg(`PDF importado — ${filled} campos completados. Revisa y ajusta lo necesario.`);
+        setForm(prev => ({ ...prev, ...patch }));
+        const hintCount = Object.keys(remainingHints).length;
+        const hintNote = hintCount > 0 ? ` ${hintCount} sugerencia${hintCount === 1 ? "" : "s"} para revisar.` : "";
+        setParseMsg(`PDF importado — ${filled} campo${filled === 1 ? "" : "s"} completado${filled === 1 ? "" : "s"}.${hintNote}`);
       }
-
-      // Store hints for any unresolved location fields
-      if (ubicacionText || lugarText) {
-        setPdfHints({
-          ubicacionText:   ubicacionMatched ? "" : ubicacionText,
-          lugarText:       lugarMatched     ? "" : lugarText,
-          sociedadText:    "",   // sociedades already resolved via fuzzyMatch above
-          ubicacionMatched,
-          lugarMatched,
-        });
-      }
+      if (Object.keys(remainingHints).length > 0) setPdfHints(remainingHints);
     } catch (err) {
       setParseMsg(`Error al leer el PDF: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
@@ -1054,43 +1006,88 @@ export default function OTCrearPanel({
     }
   }
 
-  async function createUbicFromHint() {
-    if (!pdfHints?.ubicacionText) return;
-    setCreatingUbic(true);
-    try {
-      const sb = createClient();
-      const { data } = await sb
-        .from("ubicaciones")
-        .insert({ workspace_id: wsId, edificio: pdfHints.ubicacionText, activa: true })
-        .select("id,edificio,piso,detalle,activa,sociedad_id")
-        .single();
+  // Accept a suggestion: write the picked candidate to the form and remove
+  // the hint. If `candidateId === null` the user dismissed it without picking.
+  function resolveHint(hintKey: keyof PdfHints, candidateId: string | null) {
+    setPdfHints(prev => {
+      if (!prev) return prev;
+      const next = { ...prev };
+      delete (next as any)[hintKey];
+      return Object.keys(next).length === 0 ? null : next;
+    });
+    if (!candidateId) return;
+    if (hintKey === "sociedad")  setF("sociedad_id",  candidateId);
+    if (hintKey === "ubicacion") setForm(prev => ({ ...prev, ubicacion_id: candidateId, lugar_id: "" }));
+    if (hintKey === "lugar")     setF("lugar_id",     candidateId);
+    if (hintKey === "hito") {
+      // hito is stored by name, not id — look up the candidate's name in the hint.
+      const hint = pdfHints?.hito;
+      const cand = hint?.candidates.find(c => c.id === candidateId);
+      if (cand) setF("hito", cand.name);
+    }
+    if (hintKey === "categoria") setF("categoria_id", candidateId);
+    if (hintKey === "activo")    setF("activo_id",    candidateId);
+  }
+
+  function resolveAsignadoHint(personIndex: number, candidateId: string | null) {
+    setPdfHints(prev => {
+      if (!prev?.asignados) return prev;
+      const next = { ...prev };
+      const arr = (next.asignados ?? []).filter((_, i) => i !== personIndex);
+      if (arr.length === 0) delete next.asignados;
+      else next.asignados = arr;
+      return Object.keys(next).length === 0 ? null : next;
+    });
+    if (!candidateId) return;
+    setForm(prev => ({
+      ...prev,
+      asignados_ids: prev.asignados_ids.includes(candidateId)
+        ? prev.asignados_ids
+        : [...prev.asignados_ids, candidateId],
+    }));
+  }
+
+  // Create a new catalog entity from the extracted text and assign it.
+  async function createFromHint(hintKey: "sociedad" | "ubicacion" | "lugar" | "hito") {
+    const hint = pdfHints?.[hintKey];
+    if (!hint?.extracted) return;
+    const name = hint.extracted;
+    const sb = createClient();
+    if (hintKey === "sociedad") {
+      const { data } = await sb.from("sociedades")
+        .insert({ workspace_id: wsId, nombre: name, activa: true })
+        .select("id, nombre, activa, imagen_url, workspace_id").single();
+      if (data) {
+        // Don't mutate the parent's sociedades list; just write the id.
+        setF("sociedad_id", data.id);
+        resolveHint("sociedad", null);
+      }
+    } else if (hintKey === "ubicacion") {
+      const { data } = await sb.from("ubicaciones")
+        .insert({ workspace_id: wsId, edificio: name, activa: true })
+        .select("id, edificio, piso, detalle, activa, sociedad_id").single();
       if (data) {
         setUbicaciones(prev => [...prev, data as Ubicacion]);
         setForm(prev => ({ ...prev, ubicacion_id: data.id, lugar_id: "" }));
-        setPdfHints(prev => prev ? { ...prev, ubicacionText: "", ubicacionMatched: true } : prev);
+        resolveHint("ubicacion", null);
       }
-    } finally {
-      setCreatingUbic(false);
-    }
-  }
-
-  async function createLugarFromHint() {
-    if (!pdfHints?.lugarText) return;
-    setCreatingLugar(true);
-    try {
-      const sb = createClient();
-      const { data } = await sb
-        .from("lugares")
-        .insert({ workspace_id: wsId, nombre: pdfHints.lugarText, ubicacion_id: form.ubicacion_id || null, activo: true })
-        .select("id,nombre,ubicacion_id,activo,imagen_url,descripcion,workspace_id,created_at")
-        .single();
+    } else if (hintKey === "lugar") {
+      const { data } = await sb.from("lugares")
+        .insert({ workspace_id: wsId, nombre: name, ubicacion_id: form.ubicacion_id || null, activo: true })
+        .select("id, nombre, ubicacion_id, activo, imagen_url, descripcion, workspace_id, created_at").single();
       if (data) {
         setLugares(prev => [...prev, data as LugarEspecifico]);
         setForm(prev => ({ ...prev, lugar_id: data.id }));
-        setPdfHints(prev => prev ? { ...prev, lugarText: "", lugarMatched: true } : prev);
+        resolveHint("lugar", null);
       }
-    } finally {
-      setCreatingLugar(false);
+    } else if (hintKey === "hito") {
+      const { data } = await sb.from("hitos")
+        .insert({ workspace_id: wsId, nombre: name })
+        .select("id, nombre").single();
+      if (data) {
+        setF("hito", data.nombre);
+        resolveHint("hito", null);
+      }
     }
   }
 
@@ -1628,6 +1625,16 @@ export default function OTCrearPanel({
 
           <FieldRow icon={<Tag size={14} />} label="Hito">
             <HitoSelect value={form.hito} onChange={v => setF("hito", v)} wsId={wsId} />
+            {pdfHints?.hito && (
+              <PdfSuggestion
+                field={pdfHints.hito}
+                extractedLabel="hito"
+                onPick={(id) => resolveHint("hito", id)}
+                onCreate={() => createFromHint("hito")}
+                onDismiss={() => resolveHint("hito", null)}
+                canCreate
+              />
+            )}
           </FieldRow>
 
           <FieldRow icon={<DollarSign size={14} />} label="N° de presupuesto">
@@ -1648,6 +1655,16 @@ export default function OTCrearPanel({
               options={sociedadOptions}
               onChange={v => setF("sociedad_id", v)}
             />
+            {pdfHints?.sociedad && (
+              <PdfSuggestion
+                field={pdfHints.sociedad}
+                extractedLabel="sociedad"
+                onPick={(id) => resolveHint("sociedad", id)}
+                onCreate={() => createFromHint("sociedad")}
+                onDismiss={() => resolveHint("sociedad", null)}
+                canCreate
+              />
+            )}
           </FieldRow>
 
           {/* Ubicación */}
@@ -1662,30 +1679,15 @@ export default function OTCrearPanel({
                 setForm(prev => ({ ...prev, ubicacion_id: u.id, lugar_id: "" }));
               }}
             />
-            {/* PDF hint: unresolved */}
-            {pdfHints?.ubicacionText && (
-              <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: "var(--warning-bg, #FFFBEB)", border: "1px solid var(--warning)", borderRadius: 8 }}>
-                <MapPin size={12} style={{ color: "var(--warning)", flexShrink: 0 }} />
-                <span style={{ flex: 1, fontSize: 12, color: "var(--fg-2)" }}>
-                  PDF sugirió: <strong>"{pdfHints.ubicacionText}"</strong> — no encontrada
-                </span>
-                <button type="button" onClick={createUbicFromHint} disabled={creatingUbic}
-                  style={{ display: "flex", alignItems: "center", gap: 4, height: 32, padding: "0 12px", border: "none", borderRadius: 8, background: "var(--brand)", color: "var(--fg-on-brand)", fontSize: 12, fontWeight: 700, cursor: creatingUbic ? "default" : "pointer", fontFamily: "inherit", flexShrink: 0 }}>
-                  {creatingUbic ? <Loader2 size={10} className="animate-spin" /> : <Plus size={10} />}
-                  Crear
-                </button>
-                <button type="button" onClick={() => setPdfHints(p => p ? { ...p, ubicacionText: "" } : p)}
-                  style={{ background: "none", border: "none", cursor: "pointer", color: "var(--fg-4)", display: "flex", padding: 2 }}>
-                  <X size={12} />
-                </button>
-              </div>
-            )}
-            {/* PDF hint: matched */}
-            {pdfHints && !pdfHints.ubicacionText && pdfHints.ubicacionMatched && form.ubicacion_id && (
-              <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", background: "var(--success-bg)", border: "1px solid var(--success)", borderRadius: 8 }}>
-                <Check size={11} style={{ color: "var(--success)", flexShrink: 0 }} />
-                <span style={{ fontSize: 11, color: "var(--success)" }}>Ubicación encontrada en el sistema</span>
-              </div>
+            {pdfHints?.ubicacion && (
+              <PdfSuggestion
+                field={pdfHints.ubicacion}
+                extractedLabel="ubicación"
+                onPick={(id) => resolveHint("ubicacion", id)}
+                onCreate={() => createFromHint("ubicacion")}
+                onDismiss={() => resolveHint("ubicacion", null)}
+                canCreate
+              />
             )}
           </FieldRow>
 
@@ -1702,30 +1704,15 @@ export default function OTCrearPanel({
                 setForm(prev => ({ ...prev, lugar_id: l.id }));
               }}
             />
-            {/* PDF hint: unresolved */}
-            {pdfHints?.lugarText && (
-              <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: "var(--warning-bg, #FFFBEB)", border: "1px solid var(--warning)", borderRadius: 8 }}>
-                <MapPin size={12} style={{ color: "var(--warning)", flexShrink: 0 }} />
-                <span style={{ flex: 1, fontSize: 12, color: "var(--fg-2)" }}>
-                  PDF sugirió: <strong>"{pdfHints.lugarText}"</strong> — no encontrado
-                </span>
-                <button type="button" onClick={createLugarFromHint} disabled={creatingLugar}
-                  style={{ display: "flex", alignItems: "center", gap: 4, height: 32, padding: "0 12px", border: "none", borderRadius: 8, background: "var(--brand)", color: "var(--fg-on-brand)", fontSize: 12, fontWeight: 700, cursor: creatingLugar ? "default" : "pointer", fontFamily: "inherit", flexShrink: 0 }}>
-                  {creatingLugar ? <Loader2 size={10} className="animate-spin" /> : <Plus size={10} />}
-                  Crear
-                </button>
-                <button type="button" onClick={() => setPdfHints(p => p ? { ...p, lugarText: "" } : p)}
-                  style={{ background: "none", border: "none", cursor: "pointer", color: "var(--fg-4)", display: "flex", padding: 2 }}>
-                  <X size={12} />
-                </button>
-              </div>
-            )}
-            {/* PDF hint: matched */}
-            {pdfHints && !pdfHints.lugarText && pdfHints.lugarMatched && form.lugar_id && (
-              <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", background: "var(--success-bg)", border: "1px solid var(--success)", borderRadius: 8 }}>
-                <Check size={11} style={{ color: "var(--success)", flexShrink: 0 }} />
-                <span style={{ fontSize: 11, color: "var(--success)" }}>Lugar encontrado en el sistema</span>
-              </div>
+            {pdfHints?.lugar && (
+              <PdfSuggestion
+                field={pdfHints.lugar}
+                extractedLabel="lugar"
+                onPick={(id) => resolveHint("lugar", id)}
+                onCreate={() => createFromHint("lugar")}
+                onDismiss={() => resolveHint("lugar", null)}
+                canCreate
+              />
             )}
           </FieldRow>
 
@@ -1737,6 +1724,15 @@ export default function OTCrearPanel({
               options={activoOptions}
               onChange={v => setF("activo_id", v)}
             />
+            {pdfHints?.activo && (
+              <PdfSuggestion
+                field={pdfHints.activo}
+                extractedLabel="activo"
+                onPick={(id) => resolveHint("activo", id)}
+                onDismiss={() => resolveHint("activo", null)}
+                canCreate={false}
+              />
+            )}
           </FieldRow>
 
           {/* Asignar */}
@@ -1746,6 +1742,16 @@ export default function OTCrearPanel({
               value={form.asignados_ids}
               onChange={v => setF("asignados_ids", v)}
             />
+            {pdfHints?.asignados?.map((person, i) => (
+              <PdfSuggestion
+                key={`${person.extracted ?? "person"}-${i}`}
+                field={person}
+                extractedLabel={`persona ${i + 1}`}
+                onPick={(id) => resolveAsignadoHint(i, id)}
+                onDismiss={() => resolveAsignadoHint(i, null)}
+                canCreate={false}
+              />
+            ))}
           </FieldRow>
 
           {/* Fecha de inicio */}
@@ -1885,6 +1891,15 @@ export default function OTCrearPanel({
                   );
                 })}
               </div>
+              {pdfHints?.categoria && (
+                <PdfSuggestion
+                  field={pdfHints.categoria}
+                  extractedLabel="categoría"
+                  onPick={(id) => resolveHint("categoria", id)}
+                  onDismiss={() => resolveHint("categoria", null)}
+                  canCreate={false}
+                />
+              )}
             </FieldRow>
           )}
 

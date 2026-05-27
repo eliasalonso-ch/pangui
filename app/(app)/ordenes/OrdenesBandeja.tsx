@@ -151,10 +151,9 @@ export default function OrdenesBandeja({
   const [sortOpen, setSortOpen]  = useState(false);
   const [exporting, setExporting] = useState(false);
   const [exportConfigOpen, setExportConfigOpen] = useState(false);
+  // waitingAlerts is still loaded so we can derive `reprogramadaIds` for the
+  // filter chips, even though the visible "En espera" banner/pill was removed.
   const [waitingAlerts, setWaitingAlerts] = useState<WaitingAlert[]>([]);
-  const [waitingAlertIndex, setWaitingAlertIndex] = useState(0);
-  const [waitingOpen, setWaitingOpen] = useState(false);
-  const waitingRef = useRef<HTMLDivElement>(null);
 
   type ExportCol =
     | "numero" | "n_serie" | "hito" | "titulo" | "estado" | "prioridad" | "tipo_trabajo"
@@ -226,7 +225,7 @@ export default function OrdenesBandeja({
     [ordenes],
   );
 
-  // Load initial order (when navigating directly to /ordenes/[id])
+  // Load initial order from ?id= (SSR-provided via the page component).
   useEffect(() => {
     if (initialSelectedId) {
       openOT(initialSelectedId, false);
@@ -254,19 +253,9 @@ export default function OrdenesBandeja({
   }, [sortOpen]);
 
   useEffect(() => {
-    if (!waitingOpen) return;
-    const handler = (e: MouseEvent) => {
-      if (waitingRef.current && !waitingRef.current.contains(e.target as Node)) setWaitingOpen(false);
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [waitingOpen]);
-
-  useEffect(() => {
     const waiting = ordenes.filter(o => o.estado === "en_espera");
     if (waiting.length === 0) {
       setWaitingAlerts([]);
-      setWaitingAlertIndex(0);
       return;
     }
 
@@ -302,21 +291,12 @@ export default function OrdenesBandeja({
           pausedAt: activity?.created_at ?? null,
         };
       }));
-      setWaitingAlertIndex((idx) => Math.min(idx, Math.max(waiting.length - 1, 0)));
     }
 
     loadWaitingReasons();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [waitingOrderIds]);
-
-  useEffect(() => {
-    if (waitingOpen || waitingAlerts.length <= 1) return;
-    const id = setInterval(() => {
-      setWaitingAlertIndex((idx) => (idx + 1) % waitingAlerts.length);
-    }, 4500);
-    return () => clearInterval(id);
-  }, [waitingAlerts.length, waitingOpen]);
 
   // Open order detail
   const openOT = useCallback(async (id: string, pushUrl = true) => {
@@ -349,6 +329,19 @@ export default function OrdenesBandeja({
     setDetail(null);
     setRightPanel("create");
   }, [router, view]);
+
+  // Sync the panel with the ?id= URL param so direct/pasted links open the
+  // OT detail, and so closing the panel (which strips ?id=) clears it.
+  useEffect(() => {
+    const urlId = searchParams?.get("id") ?? null;
+    if (urlId && urlId !== selected) {
+      openOT(urlId, false);
+    } else if (!urlId && selected) {
+      setSelected(null);
+      setDetail(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   // Refresh list from DB
   const refreshList = useCallback(async () => {
@@ -619,9 +612,6 @@ export default function OrdenesBandeja({
     };
   }, [ordenes, filtros, search, ubicaciones, reprogramadaIds]);
   const currentSortLabel = SORT_OPTIONS.find(o => o.value === sort)?.label ?? "";
-  const currentWaitingAlert = waitingAlerts.length > 0
-    ? waitingAlerts[waitingAlertIndex % waitingAlerts.length]
-    : null;
 
   // ── Excel export (all OTs across tabs, respecting filters/search) ─────────
   //
@@ -776,112 +766,6 @@ export default function OrdenesBandeja({
 
       {/* ── Navigation header ── */}
       <div style={{ flexShrink:0, borderBottom:"1px solid var(--border)", background:"var(--surface-1)" }}>
-        {currentWaitingAlert && (
-          <div ref={waitingRef} style={{ position:"relative", padding:"8px 20px 0" }}>
-            <button
-              type="button"
-              onClick={() => setWaitingOpen(v => !v)}
-              title={`${waitingAlerts.length} OT${waitingAlerts.length > 1 ? "s" : ""} en espera`}
-              style={{
-                display:"flex", alignItems:"center", gap:10,
-                width:"100%", minWidth:0, height:36,
-                padding:"0 12px",
-                border:"1px solid var(--border)", borderRadius:8,
-                background:"var(--surface-0)", color:"var(--fg-2)",
-                fontSize:13, fontWeight:500,
-                cursor:"pointer", fontFamily:"inherit",
-                overflow:"hidden",
-              }}
-            >
-              <AlertTriangle size={15} strokeWidth={2} style={{ flexShrink:0, color:"var(--fg-3)" }} />
-              <span style={{ flexShrink:0, color:"var(--fg-2)" }}>En espera</span>
-              <span style={{ flexShrink:0, width:1, height:16, background:"var(--border)" }} />
-              <span style={{ flexShrink:0, color:"var(--fg-3)" }}>{currentWaitingAlert.reasonLabel}</span>
-              <span style={{ minWidth:0, flex:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", color:"var(--fg-1)", textAlign:"left" }}>
-                {currentWaitingAlert.numero ? `#${currentWaitingAlert.numero} · ` : ""}{currentWaitingAlert.title}
-              </span>
-              <span style={{ flexShrink:0, fontSize:12, color:"var(--fg-3)" }}>{waitingAlerts.length}</span>
-              <ChevronDown size={14} style={{ flexShrink:0, color:"var(--fg-4)", transform: waitingOpen ? "rotate(180deg)" : "none", transition:"transform 0.15s" }} />
-            </button>
-
-            {waitingOpen && (
-              <div style={{
-                position:"absolute", right:20, top:"calc(100% + 6px)", zIndex:70,
-                width:420, maxWidth:"calc(100vw - 40px)",
-                background:"var(--surface-1)", border:"1px solid var(--border)",
-                borderRadius:10, boxShadow:"0 14px 34px rgba(15,23,42,0.16)",
-                overflow:"hidden",
-              }}>
-                <div style={{ padding:"10px 12px", borderBottom:"1px solid var(--border)", display:"flex", alignItems:"center", justifyContent:"space-between", gap:8 }}>
-                  <span style={{ fontSize:12, fontWeight:700, color:"var(--fg-1)" }}>OTs en espera</span>
-                  <span style={{ fontSize:11, fontWeight:600, color:"var(--fg-3)" }}>{waitingAlerts.length}</span>
-                </div>
-                {reprogramadaIds.size > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setTab("pendientes");
-                      setScope("reprogramadas");
-                      const params = new URLSearchParams(searchParams?.toString() ?? "");
-                      params.set("filtro", "reprogramadas");
-                      router.replace(`/ordenes${params.toString() ? `?${params.toString()}` : ""}`, { scroll: false });
-                      setWaitingOpen(false);
-                    }}
-                    style={{
-                      width:"100%", display:"flex", alignItems:"center", gap:8,
-                      padding:"10px 12px", borderBottom:"1px solid var(--border)",
-                      background: scope === "reprogramadas" ? "var(--st-wait-bg)" : "var(--surface-1)",
-                      border:"none", borderTop:"none", cursor:"pointer",
-                      fontFamily:"inherit", textAlign:"left",
-                    }}
-                  >
-                    <Calendar size={14} style={{ color: scope === "reprogramadas" ? "var(--st-wait-fg)" : "var(--fg-3)", flexShrink:0 }} />
-                    <span style={{ flex:1, fontSize:12, fontWeight:600, color: scope === "reprogramadas" ? "var(--st-wait-fg)" : "var(--fg-2)" }}>
-                      Solo reprogramadas
-                    </span>
-                    <span style={{ fontSize:11, fontWeight:700, color: scope === "reprogramadas" ? "var(--st-wait-fg)" : "var(--fg-3)" }}>
-                      {reprogramadaIds.size}
-                    </span>
-                  </button>
-                )}
-                <div style={{ maxHeight:320, overflowY:"auto", padding:6 }}>
-                  {waitingAlerts.map((alert) => (
-                    <button
-                      key={alert.id}
-                      type="button"
-                      onClick={() => {
-                        setWaitingOpen(false);
-                        openOT(alert.id);
-                      }}
-                      style={{
-                        width:"100%", textAlign:"left", border:"none", background:"transparent",
-                        borderRadius:8, padding:"10px 10px", cursor:"pointer",
-                        fontFamily:"inherit", display:"flex", gap:10,
-                      }}
-                      onMouseEnter={e => { e.currentTarget.style.background = "var(--surface-hover)"; }}
-                      onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}
-                    >
-                      <AlertTriangle size={15} style={{ marginTop:2, color:"var(--fg-4)", flexShrink:0 }} />
-                      <span style={{ minWidth:0, flex:1 }}>
-                        <span style={{ display:"block", fontSize:13, fontWeight:650, color:"var(--fg-1)", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
-                          {alert.numero ? `#${alert.numero} · ` : ""}{alert.title}
-                        </span>
-                        <span style={{ display:"block", fontSize:12, fontWeight:500, color:"var(--fg-3)", marginTop:2 }}>
-                          {alert.reasonLabel}
-                        </span>
-                        {alert.comment && (
-                          <span style={{ display:"block", fontSize:12, color:"var(--fg-3)", marginTop:2, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
-                            {alert.comment}
-                          </span>
-                        )}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
 
         {/* Top row */}
         <div style={{
@@ -958,82 +842,6 @@ export default function OrdenesBandeja({
               )}
             </div>
 
-            {false && currentWaitingAlert && (
-              <div style={{ display:"none" }}>
-                <button
-                  type="button"
-                  onClick={() => setWaitingOpen(v => !v)}
-                  title={`${waitingAlerts.length} OT${waitingAlerts.length > 1 ? "s" : ""} en espera`}
-                  style={{
-                    display:"flex", alignItems:"center", gap:8,
-                    height:38, maxWidth:300,
-                    padding:"0 12px",
-                    border:"1px solid #F59E0B55", borderRadius:8,
-                    background:"#FFFBEB", color:"#92400E",
-                    fontSize:13, fontWeight:600,
-                    cursor:"pointer", fontFamily:"inherit",
-                    whiteSpace:"nowrap",
-                  }}
-                >
-                  <AlertTriangle size={16} strokeWidth={2.2} style={{ flexShrink:0 }} />
-                  <span style={{ overflow:"hidden", textOverflow:"ellipsis" }}>
-                    {currentWaitingAlert?.reasonLabel}: {currentWaitingAlert?.title}
-                  </span>
-                  <ChevronDown size={14} style={{ flexShrink:0, transform: waitingOpen ? "rotate(180deg)" : "none", transition:"transform 0.15s" }} />
-                </button>
-
-                {waitingOpen && (
-                  <div style={{
-                    position:"absolute", right:0, top:"calc(100% + 6px)", zIndex:70,
-                    width:360, maxWidth:"calc(100vw - 32px)",
-                    background:"var(--surface-1)", border:"1px solid var(--border)",
-                    borderRadius:10, boxShadow:"0 14px 34px rgba(15,23,42,0.16)",
-                    overflow:"hidden",
-                  }}>
-                    <div style={{ padding:"10px 12px", borderBottom:"1px solid var(--border)", display:"flex", alignItems:"center", justifyContent:"space-between", gap:8 }}>
-                      <span style={{ fontSize:12, fontWeight:700, color:"var(--fg-1)" }}>OTs en espera</span>
-                      <span style={{ fontSize:11, fontWeight:700, color:"#92400E", background:"#FFFBEB", border:"1px solid #F59E0B44", borderRadius:999, padding:"2px 7px" }}>
-                        {waitingAlerts.length}
-                      </span>
-                    </div>
-                    <div style={{ maxHeight:320, overflowY:"auto", padding:6 }}>
-                      {waitingAlerts.map((alert) => (
-                        <button
-                          key={alert.id}
-                          type="button"
-                          onClick={() => {
-                            setWaitingOpen(false);
-                            openOT(alert.id);
-                          }}
-                          style={{
-                            width:"100%", textAlign:"left", border:"none", background:"transparent",
-                            borderRadius:8, padding:"10px 10px", cursor:"pointer",
-                            fontFamily:"inherit", display:"flex", gap:10,
-                          }}
-                          onMouseEnter={e => { e.currentTarget.style.background = "var(--surface-hover)"; }}
-                          onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}
-                        >
-                          <AlertTriangle size={16} style={{ marginTop:2, color:"#D97706", flexShrink:0 }} />
-                          <span style={{ minWidth:0, flex:1 }}>
-                            <span style={{ display:"block", fontSize:13, fontWeight:700, color:"var(--fg-1)", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
-                              {alert.numero ? `#${alert.numero} · ` : ""}{alert.title}
-                            </span>
-                            <span style={{ display:"block", fontSize:12, fontWeight:600, color:"#92400E", marginTop:2 }}>
-                              {alert.reasonLabel}
-                            </span>
-                            {alert.comment && (
-                              <span style={{ display:"block", fontSize:12, color:"var(--fg-3)", marginTop:2, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
-                                {alert.comment}
-                              </span>
-                            )}
-                          </span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
 
             {/* Nueva OT button */}
             <button
@@ -1042,12 +850,12 @@ export default function OrdenesBandeja({
               style={{
                 display:"flex", alignItems:"center", gap:6,
                 padding:"0 16px", height:38,
-                background:"linear-gradient(135deg, #1E3A8A, #2563EB)", color:"var(--surface-1)",
+                background:"var(--brand)", color:"var(--fg-on-brand)",
                 border:"none", borderRadius:8,
                 fontSize:13, fontWeight:600,
                 cursor:"pointer", fontFamily:"inherit",
                 transition:"opacity 0.1s", whiteSpace:"nowrap", flexShrink:0,
-                boxShadow:"0 2px 6px rgba(37,99,235,0.25)",
+                boxShadow:"0 2px 6px rgba(0,122,255,0.25)",
               }}
               onMouseEnter={e => (e.currentTarget.style.opacity = "0.9")}
               onMouseLeave={e => (e.currentTarget.style.opacity = "1")}
@@ -1530,6 +1338,7 @@ export default function OrdenesBandeja({
                 onEdit={() => setRightPanel("edit")}
                 onDelete={() => deleteOT(detail.id)}
                 onClose={() => { setSelected(null); setDetail(null); setRightPanel("none"); router.push(`/ordenes?vista=${view}`, { scroll: false }); }}
+                showCloseButton
                 onOpenOrden={(id) => openOT(id, true)}
                 onOrdenUpdated={(patch) => {
                   setDetail(prev => prev ? { ...prev, ...patch } : prev);

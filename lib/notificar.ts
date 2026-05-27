@@ -121,7 +121,7 @@ export function notifySolicitudMateriales(opts: {
     tipo: "solicitud_materiales",
     titulo: "Solicitud de materiales",
     mensaje: opts.titulo,
-    url: `/ordenes/${opts.ordenId}`,
+    url: `/ordenes?id=${opts.ordenId}`,
     workspace_id_jefe: opts.workspaceId,
   });
 }
@@ -137,7 +137,7 @@ export function notifyClasificacionCambiada(opts: {
     tipo: "tipo_trabajo_actualizado",
     titulo: `OT marcada como ${label}`,
     mensaje: opts.titulo,
-    url: `/ordenes/${opts.ordenId}`,
+    url: `/ordenes?id=${opts.ordenId}`,
     workspace_id_jefe: opts.workspaceId,
   });
 }
@@ -152,7 +152,7 @@ export function notifyClasificacionSolicitada(opts: {
     tipo: "tipo_trabajo_actualizado",
     titulo: "Solicitud: cambiar a orden de trabajo",
     mensaje: `${opts.solicitanteNombre} solicitó cambiar "${opts.titulo}" de levantamiento a ejecución`,
-    url: `/ordenes/${opts.ordenId}`,
+    url: `/ordenes?id=${opts.ordenId}`,
     workspace_id_jefe: opts.workspaceId,
   });
 }
