@@ -71,7 +71,7 @@ export interface UsuarioInput {
 }
 
 export type ExportColKey =
-  | "numero" | "n_serie" | "hito" | "estado" | "prioridad" | "tipo_trabajo"
+  | "numero" | "n_serie" | "hito" | "titulo" | "estado" | "prioridad" | "tipo_trabajo"
   | "descripcion" | "solicitante"
   | "categoria" | "ubicacion" | "activo" | "asignados" | "creado" | "fecha_limite" | "resumen"
   | "hoja_calculo" | "materiales_inventario";
@@ -132,8 +132,9 @@ const PRIORIDAD_LABEL: Record<string, string> = {
   urgente: "Urgente", alta: "Alta", media: "Media", baja: "Baja", ninguna: "—",
 };
 const TIPO_LABEL: Record<string, string> = {
-  correctivo: "Correctivo", preventivo: "Preventivo",
-  predictivo: "Predictivo", mejora: "Mejora",
+  reactiva: "Reactiva", preventiva: "Preventiva",
+  inspeccion: "Inspección", mejora: "Mejora",
+  presupuesto: "Presupuesto", levantamiento: "Levantamiento",
 };
 
 function fmtDate(s: string | null | undefined): string {
@@ -302,10 +303,11 @@ const COL_DEFS: ColDef[] = [
   { key: "numero",       header: "ID",            width: 8,  getValue: o => o.numero ?? "—" },
   { key: "n_serie",      header: "N° OT",         width: 22, getValue: (o, m) => o.n_serie || m.nOT || "—" },
   { key: "hito",         header: "Hito",          width: 20, getValue: (o, m) => o.hito || m.hito || "—" },
+  { key: "titulo",       header: "Título",        width: 40, getValue: o => o.titulo ?? "—" },
   { key: "estado",       header: "Estado",        width: 14, getValue: o => ESTADO_LABEL[o.estado] ?? o.estado, estadoBadge: true },
   { key: "fecha_limite", header: "Fecha término", width: 14, getValue: o => fmtDate(o.fecha_termino), mutableIfEmpty: o => !o.fecha_termino },
   { key: "ubicacion",    header: "Ubicación",     width: 34, getValue: o => o.ubicaciones?.edificio ?? "—" },
-  { key: "descripcion",  header: "Descripción",   width: 52, getValue: (o, m) => m.descripcion || o.titulo || "—" },
+  { key: "descripcion",  header: "Descripción",   width: 52, getValue: (_o, m) => m.descripcion || "—" },
   { key: "solicitante",  header: "Solicitante",   width: 26, getValue: (o, m) => o.solicitante || m.solicitante || "—" },
   { key: "prioridad",    header: "Prioridad",     width: 12, getValue: o => PRIORIDAD_LABEL[o.prioridad] ?? o.prioridad, prioBadge: true },
   { key: "tipo_trabajo", header: "Tipo",          width: 14, getValue: o => o.tipo_trabajo ? (TIPO_LABEL[o.tipo_trabajo] ?? o.tipo_trabajo) : "—" },

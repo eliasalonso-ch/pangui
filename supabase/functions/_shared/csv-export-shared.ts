@@ -23,8 +23,9 @@ const PRIORIDAD_LABEL: Record<string, string> = {
   urgente: "Urgente", alta: "Alta", media: "Media", baja: "Baja", ninguna: "—",
 };
 const TIPO_LABEL: Record<string, string> = {
-  correctivo: "Correctivo", preventivo: "Preventivo",
-  predictivo: "Predictivo", mejora: "Mejora",
+  reactiva: "Reactiva", preventiva: "Preventiva",
+  inspeccion: "Inspección", mejora: "Mejora",
+  presupuesto: "Presupuesto", levantamiento: "Levantamiento",
 };
 
 function fmtDate(s: string | null | undefined): string {
@@ -63,6 +64,7 @@ export function buildOrdenesCsv(opts: BuildCsvOptions): Uint8Array {
     { key: "numero",       header: "ID",            get: o => o.numero ?? "" },
     { key: "n_serie",      header: "N° OT",         get: o => o.n_serie ?? "" },
     { key: "hito",         header: "Hito",          get: o => o.hito ?? "" },
+    { key: "titulo",       header: "Título",        get: o => o.titulo ?? "" },
     { key: "estado",       header: "Estado",        get: o => ESTADO_LABEL[o.estado] ?? o.estado },
     { key: "fecha_limite", header: "Fecha término", get: o => fmtDate(o.fecha_termino) },
     { key: "ubicacion",    header: "Ubicación",     get: o => o.ubicaciones?.edificio ?? "" },
@@ -82,7 +84,7 @@ export function buildOrdenesCsv(opts: BuildCsvOptions): Uint8Array {
     // Fallback: always include ID + title so the CSV is never empty.
     activeCols.push(
       { key: "numero", header: "ID", get: o => o.numero ?? "" },
-      { key: "descripcion", header: "Descripción", get: o => o.titulo ?? "" },
+      { key: "titulo", header: "Título", get: o => o.titulo ?? "" },
     );
   }
 

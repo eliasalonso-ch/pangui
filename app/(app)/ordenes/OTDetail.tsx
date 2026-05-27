@@ -15,10 +15,8 @@ import {
   Package, Search,
   ClipboardCheck, Info, Hash as HashIcon, Camera, PenLine, Shield, CheckSquare,
   Type, DollarSign, List, ListChecks, AlertCircle, ImagePlus, FolderOpen,
-  Lock, LockOpen, Mic, MicOff, Volume2, GitBranch, Wrench, Upload,
+  Lock, LockOpen, Mic, MicOff, Volume2, GitBranch, Wrench,
 } from "lucide-react";
-import ImportarMaterialesModal from "./ImportarMaterialesModal";
-import ExportarMaterialesModal from "./ExportarMaterialesModal";
 import { cn } from "@/lib/utils";
 import { LinksDisplay } from "@/components/LinksInput";
 import { Button } from "@/components/ui/button";
@@ -256,6 +254,7 @@ const PRIORIDADES: { value: Prioridad; label: string; color: string }[] = [
 const TIPO_LABEL: Record<string, string> = {
   reactiva: "Reactiva", preventiva: "Preventiva",
   inspeccion: "Inspección", mejora: "Mejora",
+  presupuesto: "Presupuesto", levantamiento: "Levantamiento",
 };
 
 const ACT_ICON: Record<ActividadTipo, React.ComponentType<{ className?: string }>> = {
@@ -691,12 +690,6 @@ export default function OTDetail({
   const [addingParte, setAddingParte] = useState(false);
   const [deletingParteId, setDeletingParteId] = useState<string | null>(null);
   const [showManualForm, setShowManualForm] = useState(false);
-  const [importModalOpen, setImportModalOpen] = useState(false);
-  const [exportModalOpen, setExportModalOpen] = useState<null | "materiales" | "hoja">(null);
-  const [hasMaterialesTemplates, setHasMaterialesTemplates] = useState(false);
-  // The export button only appears when at least one template has a file
-  // attached — older templates without archivo_url can't be filled.
-  const [hasExportableTemplates, setHasExportableTemplates] = useState(false);
   const [manualCantidad, setManualCantidad] = useState("1");
   const [manualParteId, setManualParteId] = useState("");
 
@@ -1180,28 +1173,9 @@ export default function OTDetail({
   }, [orden.id]);
 
   useEffect(() => {
-    // Materiales counts also gate the export button on the Hoja tab, so load
-    // them whenever either tab is open.
-    if (tab !== "materiales" && tab !== "hoja") return;
+    if (tab !== "materiales") return;
     reloadOrdenPartes();
   }, [tab, reloadOrdenPartes]);
-
-  // Quickly probe whether the workspace has any materiales templates so we can
-  // show/hide the "Importar desde Excel" and "Exportar a Excel" buttons.
-  // Export needs a template with an attached file; import doesn't.
-  useEffect(() => {
-    if ((tab !== "materiales" && tab !== "hoja") || !wsId) return;
-    const sb = createClient();
-    sb.from("import_templates")
-      .select("id, archivo_url")
-      .eq("workspace_id", wsId)
-      .eq("tipo", "materiales")
-      .then(({ data }) => {
-        const list = (data as { id: string; archivo_url: string | null }[] | null) ?? [];
-        setHasMaterialesTemplates(list.length > 0);
-        setHasExportableTemplates(list.some(t => !!t.archivo_url));
-      });
-  }, [tab, wsId]);
 
   // Load partes catalogue (lazy, once per open)
   useEffect(() => {
@@ -2395,6 +2369,28 @@ export default function OTDetail({
               </div>
             )}
 
+            {/* Presupuesto banner — informational, no actions. Lets users
+                spot at a glance that the OT is licitation-driven planned
+                work, not regular ejecución. */}
+            {orden.tipo_trabajo === "presupuesto" && (
+              <div style={{
+                marginTop: 22,
+                padding: "16px 18px",
+                borderRadius: "var(--r-md)",
+                background: "var(--st-wait-bg)",
+                border: "1px solid var(--border-strong)",
+                display: "flex", alignItems: "flex-start", gap: 10,
+              }}>
+                <DollarSign size={16} style={{ color: "var(--st-wait-fg)", flexShrink: 0, marginTop: 1 }} />
+                <div style={{ flex: 1 }}>
+                  <p style={{ fontSize: 13, fontWeight: 700, color: "var(--st-wait-fg)", margin: 0 }}>Presupuesto</p>
+                  <p style={{ fontSize: 12, color: "var(--st-wait-fg)", margin: "2px 0 0", lineHeight: 1.5 }}>
+                    Esta orden es un presupuesto: trabajo planificado, normalmente asociado a una licitación.
+                  </p>
+                </div>
+              </div>
+            )}
+
             {!orden.parent_id && (
               <SubOrdenesSection
                 subOrdenes={subOrdenes}
@@ -2805,30 +2801,36 @@ export default function OTDetail({
                   </div>
                 )}
 
-                {/* Lightbox */}
+                {/* Lightbox. The arrows + close button live inside the image
+                    frame: we wrap the <img> in an inline-block container that
+                    shrinks to the image's rendered size, then position the
+                    controls absolutely against that container instead of the
+                    viewport. */}
                 {lightboxGrupo !== null && (
                   <div className="fixed inset-0 z-50 bg-black/92 flex items-center justify-center" onClick={() => setLightboxGrupo(null)}>
-                    {lightboxGrupo.idx > 0 && (
-                      <button type="button" onClick={e => { e.stopPropagation(); setLightboxGrupo(g => g && { ...g, idx: g.idx - 1 }); }}
-                        className="absolute left-4 top-1/2 -translate-y-1/2 size-11 rounded-full bg-white/10 hover:bg-white/25 text-white flex items-center justify-center transition-colors z-10">
-                        <ChevronDown className="size-5 rotate-90" />
+                    <div className="relative inline-block max-h-[88vh] max-w-[88vw]" onClick={e => e.stopPropagation()}>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={lightboxGrupo.urls[lightboxGrupo.idx]} alt="" className="block max-h-[88vh] max-w-[88vw] object-contain select-none rounded-lg shadow-2xl" />
+                      {lightboxGrupo.idx > 0 && (
+                        <button type="button" onClick={e => { e.stopPropagation(); setLightboxGrupo(g => g && { ...g, idx: g.idx - 1 }); }}
+                          className="absolute left-3 top-1/2 -translate-y-1/2 size-10 rounded-full bg-black/45 hover:bg-black/65 text-white flex items-center justify-center transition-colors">
+                          <ChevronDown className="size-5 rotate-90" />
+                        </button>
+                      )}
+                      {lightboxGrupo.idx < lightboxGrupo.urls.length - 1 && (
+                        <button type="button" onClick={e => { e.stopPropagation(); setLightboxGrupo(g => g && { ...g, idx: g.idx + 1 }); }}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 size-10 rounded-full bg-black/45 hover:bg-black/65 text-white flex items-center justify-center transition-colors">
+                          <ChevronDown className="size-5 -rotate-90" />
+                        </button>
+                      )}
+                      <button type="button" onClick={(e) => { e.stopPropagation(); setLightboxGrupo(null); }}
+                        className="absolute top-3 right-3 size-9 rounded-full bg-black/45 hover:bg-black/65 text-white flex items-center justify-center transition-colors">
+                        <X size={15} />
                       </button>
-                    )}
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={lightboxGrupo.urls[lightboxGrupo.idx]} alt="" className="max-h-[88vh] max-w-[88vw] object-contain select-none rounded-lg shadow-2xl" onClick={e => e.stopPropagation()} />
-                    {lightboxGrupo.idx < lightboxGrupo.urls.length - 1 && (
-                      <button type="button" onClick={e => { e.stopPropagation(); setLightboxGrupo(g => g && { ...g, idx: g.idx + 1 }); }}
-                        className="absolute right-4 top-1/2 -translate-y-1/2 size-11 rounded-full bg-white/10 hover:bg-white/25 text-white flex items-center justify-center transition-colors z-10">
-                        <ChevronDown className="size-5 -rotate-90" />
-                      </button>
-                    )}
-                    <div className="absolute top-4 left-1/2 -translate-x-1/2 text-white/60 text-xs bg-black/40 px-3 py-1 rounded-full">
-                      {lightboxGrupo.idx + 1} / {lightboxGrupo.urls.length}
+                      <div className="absolute top-3 left-1/2 -translate-x-1/2 text-white text-xs bg-black/45 px-3 py-1 rounded-full">
+                        {lightboxGrupo.idx + 1} / {lightboxGrupo.urls.length}
+                      </div>
                     </div>
-                    <button type="button" onClick={() => setLightboxGrupo(null)}
-                      className="absolute top-4 right-4 size-9 rounded-full bg-white/10 hover:bg-white/25 text-white flex items-center justify-center transition-colors">
-                      <X size={15} />
-                    </button>
                   </div>
                 )}
               </>
@@ -2891,46 +2893,6 @@ export default function OTDetail({
               </div>
             )}
 
-
-            {/* Import / Export buttons — visible when the workspace has at
-                least one matching template. Export additionally requires a
-                template with an uploaded sample file. */}
-            {(isActive || canManage) && (hasMaterialesTemplates || hasExportableTemplates) && (
-              <div style={{ marginBottom: 10, display: "flex", justifyContent: "flex-end", gap: 8 }}>
-                {hasMaterialesTemplates && (
-                  <button
-                    type="button"
-                    onClick={() => setImportModalOpen(true)}
-                    style={{
-                      display: "inline-flex", alignItems: "center", gap: 6,
-                      height: 32, padding: "0 12px", borderRadius: 8,
-                      border: "1px solid var(--border)", background: "var(--surface-1)",
-                      color: "var(--fg-2)", fontSize: 12, fontWeight: 600,
-                      cursor: "pointer", fontFamily: "inherit",
-                    }}
-                  >
-                    <Upload size={13} />
-                    Importar desde Excel
-                  </button>
-                )}
-                {hasExportableTemplates && ordenPartes.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => setExportModalOpen("materiales")}
-                    style={{
-                      display: "inline-flex", alignItems: "center", gap: 6,
-                      height: 32, padding: "0 12px", borderRadius: 8,
-                      border: "1px solid var(--border)", background: "var(--surface-1)",
-                      color: "var(--fg-2)", fontSize: 12, fontWeight: 600,
-                      cursor: "pointer", fontFamily: "inherit",
-                    }}
-                  >
-                    <FileDown size={13} />
-                    Exportar a Excel
-                  </button>
-                )}
-              </div>
-            )}
 
             {/* Search catalogue */}
             {(isActive || canManage) && (
@@ -3192,24 +3154,6 @@ export default function OTDetail({
                 <span style={{ fontSize: 12, color: "var(--st-wait-fg)" }}>
                   Esta OT requiere completar la hoja de cálculo antes de poder cerrarse.
                 </span>
-              </div>
-            )}
-            {hasExportableTemplates && (
-              <div style={{ marginBottom: 10, display: "flex", justifyContent: "flex-end" }}>
-                <button
-                  type="button"
-                  onClick={() => setExportModalOpen("hoja")}
-                  style={{
-                    display: "inline-flex", alignItems: "center", gap: 6,
-                    height: 32, padding: "0 12px", borderRadius: 8,
-                    border: "1px solid var(--border)", background: "var(--surface-1)",
-                    color: "var(--fg-2)", fontSize: 12, fontWeight: 600,
-                    cursor: "pointer", fontFamily: "inherit",
-                  }}
-                >
-                  <FileDown size={13} />
-                  Exportar a Excel
-                </button>
               </div>
             )}
             <HojaSpreadsheet
@@ -3527,25 +3471,6 @@ export default function OTDetail({
         </div>
       )}
 
-      {importModalOpen && wsId && (
-        <ImportarMaterialesModal
-          ordenId={orden.id}
-          workspaceId={wsId}
-          myId={myId}
-          onClose={() => setImportModalOpen(false)}
-          onImported={reloadOrdenPartes}
-        />
-      )}
-
-      {exportModalOpen && wsId && (
-        <ExportarMaterialesModal
-          ordenId={orden.id}
-          ordenNumero={orden.numero ?? null}
-          workspaceId={wsId}
-          source={exportModalOpen}
-          onClose={() => setExportModalOpen(null)}
-        />
-      )}
     </div>
   );
 }

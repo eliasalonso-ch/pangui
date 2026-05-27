@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import OTDetail from "../OTDetail";
 import OTEditPanel from "../OTEditPanel";
+import { createClient } from "@/lib/supabase";
 import { deleteOrden, fetchOrden } from "@/lib/ordenes-api";
 import type {
   OrdenTrabajo, Usuario, Ubicacion, LugarEspecifico, Sociedad, Activo, CategoriaOT,
@@ -42,6 +43,24 @@ export default function OTDetailPage({
       }
     }, 30_000);
     return () => clearInterval(id);
+  }, [orden.id]);
+
+  useEffect(() => {
+    const sb = createClient();
+    const channel = sb
+      .channel(`orden-trabajo-${orden.id}`)
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "ordenes_trabajo", filter: `id=eq.${orden.id}` },
+        (payload) => {
+          setOrden(prev => ({ ...prev, ...(payload.new as Partial<OrdenTrabajo>) }));
+        },
+      )
+      .subscribe();
+
+    return () => {
+      sb.removeChannel(channel);
+    };
   }, [orden.id]);
 
   const handleDelete = useCallback(async () => {

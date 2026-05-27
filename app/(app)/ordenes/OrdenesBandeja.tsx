@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Plus, Search, X, ChevronDown, Loader2, FileText, ArrowUpDown, Download, AlertTriangle, Calendar, List, CalendarDays, Columns3 } from "lucide-react";
+import { Plus, Search, X, ChevronDown, Loader2, FileText, ArrowUpDown, Download, AlertTriangle, Calendar, List, CalendarDays, Columns3, Check } from "lucide-react";
 import { createClient } from "@/lib/supabase";
 import { fetchOrden, deleteOrden, LIST_SELECT, parseDescMeta } from "@/lib/ordenes-api";
 import { buildOrdenesWorkbook, type ExportCols as SharedExportCols, type OrdenInput, type HojaInput, type FilaInput, type FotoItemInput, type MaterialUsadoInput } from "@/lib/excel-export-shared";
@@ -18,7 +18,7 @@ import { FilterBar } from "./OTFiltrosPanel";
 import type {
   OrdenListItem, OrdenTrabajo,
   Usuario, Ubicacion, LugarEspecifico, Sociedad, Activo, CategoriaOT,
-  Estado, FiltrosState, SortOption,
+  Estado, FiltrosState, SortOption, TipoTrabajo,
 } from "@/types/ordenes";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -111,7 +111,7 @@ export default function OrdenesBandeja({
   );
 
   type TabKey = "pendientes" | "completas";
-  type ScopeKey = "todas" | "sin_asignar" | "reprogramadas" | "levantamientos";
+  type ScopeKey = "todas" | "sin_asignar" | "reprogramadas" | "levantamientos" | "presupuestos";
 
   const [tab, setTab]           = useState<TabKey>(() => {
     const f = searchParams?.get("filtro");
@@ -123,6 +123,7 @@ export default function OrdenesBandeja({
     if (f === "sin_asignar")     return "sin_asignar";
     if (f === "reprogramadas")   return "reprogramadas";
     if (f === "levantamientos")  return "levantamientos";
+    if (f === "presupuestos")    return "presupuestos";
     return "todas";
   });
   const [search, setSearch]     = useState("");
@@ -140,6 +141,7 @@ export default function OrdenesBandeja({
     if (f === "sin_asignar")      return { ...EMPTY_FILTROS, sinAsignar: true };
     if (f === "asignado")         return { ...EMPTY_FILTROS, soloAsignados: true };
     if (f === "levantamientos")   return EMPTY_FILTROS;
+    if (f === "presupuestos")     return EMPTY_FILTROS;
     if (f === "vencidas")         return { ...EMPTY_FILTROS, fechaVencimiento: "vencidas" as const };
     if (f === "vence_hoy")        return { ...EMPTY_FILTROS, fechaVencimiento: "hoy" as const };
     if (f === "completadas_hoy")  return { ...EMPTY_FILTROS, estados: ["completado"] };
@@ -155,7 +157,7 @@ export default function OrdenesBandeja({
   const waitingRef = useRef<HTMLDivElement>(null);
 
   type ExportCol =
-    | "numero" | "n_serie" | "hito" | "estado" | "prioridad" | "tipo_trabajo"
+    | "numero" | "n_serie" | "hito" | "titulo" | "estado" | "prioridad" | "tipo_trabajo"
     | "descripcion" | "solicitante"
     | "categoria" | "ubicacion" | "activo" | "asignados" | "creado" | "fecha_limite" | "resumen"
     | "hoja_calculo" | "materiales_inventario";
@@ -164,6 +166,7 @@ export default function OrdenesBandeja({
     { key: "numero",       label: "ID (N° interno)",     group: "Información general" },
     { key: "n_serie",      label: "N° OT (SF folio)",    group: "Información general" },
     { key: "hito",         label: "Hito",                group: "Información general" },
+    { key: "titulo",       label: "Título",              group: "Información general" },
     { key: "estado",       label: "Estado",              group: "Información general" },
     { key: "fecha_limite", label: "Fecha término",       group: "Información general" },
     { key: "ubicacion",    label: "Ubicación",           group: "Información general" },
@@ -183,6 +186,35 @@ export default function OrdenesBandeja({
   const ALL_COLS_ON  = Object.fromEntries(EXPORT_COLS.map(c => [c.key, true]))  as Record<ExportCol, boolean>;
   const ALL_COLS_OFF = Object.fromEntries(EXPORT_COLS.map(c => [c.key, false])) as Record<ExportCol, boolean>;
   const [exportCols, setExportCols] = useState<Record<ExportCol, boolean>>(ALL_COLS_ON);
+
+  // In-modal filters so the user can narrow the export without first touching
+  // the bandeja's filter panel. Empty arrays = no filter.
+  const [exportFilterEstados, setExportFilterEstados] = useState<Estado[]>([]);
+  const [exportFilterTipos,   setExportFilterTipos]   = useState<TipoTrabajo[]>([]);
+
+  const EXPORT_FILTER_ESTADOS: { value: Estado; label: string; color: string }[] = [
+    { value: "pendiente",  label: "Asignada",   color: "#3B82F6" },
+    { value: "en_espera",  label: "En espera",  color: "#F59E0B" },
+    { value: "en_curso",   label: "En curso",   color: "#8B5CF6" },
+    { value: "completado", label: "Completada", color: "#10B981" },
+  ];
+
+  const EXPORT_FILTER_TIPOS: { value: TipoTrabajo; label: string }[] = [
+    { value: "reactiva",     label: "Reactiva" },
+    { value: "preventiva",   label: "Preventiva" },
+    { value: "inspeccion",   label: "Inspección" },
+    { value: "mejora",       label: "Mejora" },
+    { value: "presupuesto",  label: "Presupuesto" },
+    { value: "levantamiento",label: "Levantamiento" },
+  ];
+
+  // Live count of OTs that match the export-modal filters (estado/tipo only),
+  // so the header sub can show "X de Y" and the export button stays in sync.
+  const exportPreviewCount = ordenes.filter(o => {
+    if (exportFilterEstados.length && !exportFilterEstados.includes(o.estado)) return false;
+    if (exportFilterTipos.length && (o.tipo_trabajo == null || !exportFilterTipos.includes(o.tipo_trabajo))) return false;
+    return true;
+  }).length;
 
   const [rightPanel, setRightPanel] = useState<"none" | "create" | "edit">(initialPanel === "create" ? "create" : "none");
 
@@ -337,6 +369,44 @@ export default function OrdenesBandeja({
     return () => clearInterval(id);
   }, [refreshList]);
 
+  useEffect(() => {
+    if (!wsId) return;
+    const sb = createClient();
+    const channel = sb
+      .channel(`ordenes-trabajo-${wsId}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "ordenes_trabajo", filter: `workspace_id=eq.${wsId}` },
+        (payload) => {
+          if (payload.eventType === "DELETE") {
+            const oldRow = payload.old as { id?: string };
+            if (!oldRow.id) return;
+            setOrdenes(prev => prev.filter(o => o.id !== oldRow.id));
+            if (selected === oldRow.id) setDetail(null);
+            return;
+          }
+
+          const next = payload.new as Partial<OrdenTrabajo> & Partial<OrdenListItem> & { id?: string };
+          if (!next.id) return;
+
+          if (payload.eventType === "INSERT") {
+            refreshList();
+            return;
+          }
+
+          setOrdenes(prev => prev.map(o => o.id === next.id ? { ...o, ...next } : o));
+          if (selected === next.id) {
+            setDetail(prev => prev ? { ...prev, ...next } : prev);
+          }
+        },
+      )
+      .subscribe();
+
+    return () => {
+      sb.removeChannel(channel);
+    };
+  }, [refreshList, selected, wsId]);
+
   const deleteOT = async (id: string) => {
     await deleteOrden(id);
     setOrdenes(prev => prev.filter(o => o.id !== id));
@@ -370,6 +440,8 @@ export default function OrdenesBandeja({
       list = list.filter(o => reprogramadaIds.has(o.id));
     } else if (scope === "levantamientos") {
       list = list.filter(o => o.clasificacion === "levantamiento");
+    } else if (scope === "presupuestos") {
+      list = list.filter(o => o.tipo_trabajo === "presupuesto");
     }
 
     // Filtros
@@ -537,10 +609,12 @@ export default function OrdenesBandeja({
         sin_asignar:   applyFilters(active.filter(o => !o.asignados_ids || o.asignados_ids.length === 0)).length,
         reprogramadas: applyFilters(active.filter(o => reprogramadaIds.has(o.id))).length,
         levantamientos: applyFilters(active.filter(o => o.clasificacion === "levantamiento")).length,
+        presupuestos:   applyFilters(active.filter(o => o.tipo_trabajo === "presupuesto")).length,
       },
       completas: {
         todas:          applyFilters(closed).length,
         levantamientos: applyFilters(closed.filter(o => o.clasificacion === "levantamiento")).length,
+        presupuestos:   applyFilters(closed.filter(o => o.tipo_trabajo === "presupuesto")).length,
       },
     };
   }, [ordenes, filtros, search, ubicaciones, reprogramadaIds]);
@@ -563,9 +637,14 @@ export default function OrdenesBandeja({
       const XLSX = await import("xlsx-js-style");
       const f = exportCols;
 
-      // Export ALL ordenes (ignore tab split), but keep filters + search applied
+      // Export ALL ordenes (ignore tab split), but keep filters + search applied.
+      // In-modal export filters (estado / tipo) layer on top of the bandeja's
+      // global filtros so the user can narrow further at export time without
+      // touching the main filter panel.
       const allFiltered = (() => {
         let list = [...ordenes];
+        if (exportFilterEstados.length)  list = list.filter(o => exportFilterEstados.includes(o.estado));
+        if (exportFilterTipos.length)    list = list.filter(o => o.tipo_trabajo != null && exportFilterTipos.includes(o.tipo_trabajo));
         if (filtros.estados.length)      list = list.filter(o => filtros.estados.includes(o.estado));
         if (filtros.prioridades.length)  list = list.filter(o => filtros.prioridades.includes(o.prioridad));
         if (filtros.tipos.length)        list = list.filter(o => o.tipo_trabajo != null && filtros.tipos.includes(o.tipo_trabajo));
@@ -1131,10 +1210,12 @@ export default function OrdenesBandeja({
                     { value: "sin_asignar",    label: "Sin asignar",                 count: filteredCounts.pendientes.sin_asignar },
                     { value: "reprogramadas",  label: "Reprogramadas",               count: filteredCounts.pendientes.reprogramadas },
                     { value: "levantamientos", label: "Levantamientos pendientes",   count: filteredCounts.pendientes.levantamientos },
+                    { value: "presupuestos",   label: "Presupuestos pendientes",     count: filteredCounts.pendientes.presupuestos },
                   ]
                 : [
                     { value: "todas",          label: "Todas",                       count: filteredCounts.completas.todas },
                     { value: "levantamientos", label: "Levantamientos completados",  count: filteredCounts.completas.levantamientos },
+                    { value: "presupuestos",   label: "Presupuestos completados",    count: filteredCounts.completas.presupuestos },
                   ];
             // Red dot means "needs attention". Completed work doesn't need
             // attention, so we only ever surface dots on the Pendientes tab.
@@ -1261,6 +1342,7 @@ export default function OrdenesBandeja({
                     : scope === "sin_asignar"   ? "No hay órdenes sin asignar"
                     : scope === "reprogramadas" ? "No hay órdenes reprogramadas"
                     : scope === "levantamientos" ? "No hay levantamientos"
+                    : scope === "presupuestos"   ? "No hay presupuestos"
                     : tab === "completas"       ? "No hay órdenes completadas"
                     : "No tienes ninguna Orden de Trabajo"}
                 </p>
@@ -1485,7 +1567,9 @@ export default function OrdenesBandeja({
               <div>
                 <div style={{ fontSize:15, fontWeight:700, color:"var(--fg-1)" }}>Exportar Excel</div>
                 <div style={{ fontSize:12, color:"var(--fg-4)", marginTop:2 }}>
-                  {ordenes.length} órdenes en total · selecciona las columnas a incluir
+                  {(exportFilterEstados.length > 0 || exportFilterTipos.length > 0)
+                    ? `${exportPreviewCount} de ${ordenes.length} órdenes coinciden con los filtros`
+                    : `${ordenes.length} órdenes en total · selecciona las columnas a incluir`}
                 </div>
               </div>
               <button
@@ -1499,8 +1583,90 @@ export default function OrdenesBandeja({
               </button>
             </div>
 
-            {/* Scrollable body: columns + select-all + scheduler */}
+            {/* Scrollable body: filters + columns + select-all + scheduler */}
             <div style={{ flex: 1, minHeight: 0, overflowY: "auto" }}>
+
+            {/* In-modal filters — narrow the export without touching the
+                bandeja's global filter panel. Applies on top of any filtros
+                already set in the bandeja. */}
+            <div style={{ padding:"12px 20px 4px", borderBottom:"1px solid var(--border)" }}>
+              <div style={{ marginBottom: 10 }}>
+                <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom: 6 }}>
+                  <span style={{ fontSize: 10, fontWeight: 700, color: "var(--fg-4)", textTransform: "uppercase", letterSpacing: "0.07em" }}>Filtrar por estado</span>
+                  {exportFilterEstados.length > 0 && (
+                    <button type="button" onClick={() => setExportFilterEstados([])}
+                      style={{ fontSize: 11, color: "var(--fg-4)", background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", padding: 0 }}>
+                      Limpiar
+                    </button>
+                  )}
+                </div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                  {EXPORT_FILTER_ESTADOS.map(e => {
+                    const active = exportFilterEstados.includes(e.value);
+                    return (
+                      <button
+                        key={e.value}
+                        type="button"
+                        onClick={() => setExportFilterEstados(prev =>
+                          prev.includes(e.value) ? prev.filter(x => x !== e.value) : [...prev, e.value]
+                        )}
+                        style={{
+                          height: 26, padding: "0 10px",
+                          border: active ? `1.5px solid ${e.color}` : "1px solid var(--border)",
+                          borderRadius: 4,
+                          background: active ? e.color + "20" : "var(--surface-1)",
+                          color: active ? e.color : "var(--fg-2)",
+                          fontSize: 12, fontWeight: active ? 600 : 400,
+                          cursor: "pointer", fontFamily: "inherit",
+                          display: "flex", alignItems: "center", gap: 3,
+                        }}
+                      >
+                        {active && <Check size={9} />}{e.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div style={{ marginBottom: 10 }}>
+                <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom: 6 }}>
+                  <span style={{ fontSize: 10, fontWeight: 700, color: "var(--fg-4)", textTransform: "uppercase", letterSpacing: "0.07em" }}>Filtrar por tipo de trabajo</span>
+                  {exportFilterTipos.length > 0 && (
+                    <button type="button" onClick={() => setExportFilterTipos([])}
+                      style={{ fontSize: 11, color: "var(--fg-4)", background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", padding: 0 }}>
+                      Limpiar
+                    </button>
+                  )}
+                </div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                  {EXPORT_FILTER_TIPOS.map(t => {
+                    const active = exportFilterTipos.includes(t.value);
+                    return (
+                      <button
+                        key={t.value}
+                        type="button"
+                        onClick={() => setExportFilterTipos(prev =>
+                          prev.includes(t.value) ? prev.filter(x => x !== t.value) : [...prev, t.value]
+                        )}
+                        style={{
+                          height: 26, padding: "0 10px",
+                          border: active ? "1.5px solid var(--brand)" : "1px solid var(--border)",
+                          borderRadius: 4,
+                          background: active ? "var(--brand-tint)" : "var(--surface-1)",
+                          color: active ? "var(--brand)" : "var(--fg-2)",
+                          fontSize: 12, fontWeight: active ? 600 : 400,
+                          cursor: "pointer", fontFamily: "inherit",
+                          display: "flex", alignItems: "center", gap: 3,
+                        }}
+                      >
+                        {active && <Check size={9} />}{t.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
             <div style={{ padding:"8px 20px 4px" }}>
               {Array.from(new Set(EXPORT_COLS.map(c => c.group))).map(group => (
                 <div key={group} style={{ marginBottom:12 }}>

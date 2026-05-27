@@ -20,7 +20,6 @@ import {
   PackageSearch,
   ListChecks,
   BellRing,
-  FileSpreadsheet,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
@@ -512,16 +511,6 @@ export default function AppSidebar() {
                     <Link href="/requisitos" style={{ display: "flex", alignItems: "center", gap: collapsed ? 0 : 10 }}>
                       <ListChecks size={16} style={{ flexShrink: 0 }} />
                       {!collapsed && <span>Requisitos de OTs</span>}
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              )}
-              {isAdmin && (
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={isActive("/configuracion/plantillas-importacion")} tooltip="Plantillas de importación">
-                    <Link href="/configuracion/plantillas-importacion" style={{ display: "flex", alignItems: "center", gap: collapsed ? 0 : 10 }}>
-                      <FileSpreadsheet size={16} style={{ flexShrink: 0 }} />
-                      {!collapsed && <span>Plantillas de importación</span>}
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>

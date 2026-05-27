@@ -28,6 +28,7 @@ const TIPOS: TipoTrabajo[] = [
   "preventiva",
   "inspeccion",
   "mejora",
+  "presupuesto",
 ]
 
 export default function FilterSheet({ filtros, setFiltros }: Props) {

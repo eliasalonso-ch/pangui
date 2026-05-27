@@ -84,6 +84,7 @@ const TIPOS: { value: TipoTrabajo; label: string }[] = [
   { value: "preventiva",    label: "Preventiva" },
   { value: "inspeccion",    label: "Inspección" },
   { value: "mejora",        label: "Mejora" },
+  { value: "presupuesto",   label: "Presupuesto" },
   { value: "levantamiento", label: "Levantamiento" },
 ];
 
