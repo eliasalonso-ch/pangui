@@ -50,6 +50,8 @@ import type {
   OrdenTrabajo, ActividadOT, ActividadTipo, Usuario, Estado, Prioridad,
 } from "@/types/ordenes";
 import { notifyClasificacionCambiada } from "@/lib/notificar";
+import { esElevado, esAdmin } from "@/lib/roles";
+import { CategoriaIcon } from "@/components/ordenes/categoria-icon";
 import type {
   OTProcedimiento, ProcedimientoListItem, ProcedimientoEjecucion,
   PasoRespuesta, TipoPasoProc, ProcedimientoPaso,
@@ -253,7 +255,7 @@ const PRIORIDADES: { value: Prioridad; label: string; color: string }[] = [
 
 const TIPO_LABEL: Record<string, string> = {
   reactiva: "Reactiva", preventiva: "Preventiva",
-  inspeccion: "Inspección", mejora: "Mejora",
+  emergencia: "Emergencia",
   presupuesto: "Presupuesto", levantamiento: "Levantamiento",
 };
 
@@ -807,8 +809,13 @@ export default function OTDetail({
   }, []);
 
   const elapsed = useTimer(orden);
-  const canManage = myRol === "admin" || myRol === "jefe" || myRol === "owner" || myRol === "supervisor";
-  const canManageFotos = myRol === "admin" || myRol === "owner";
+  // Edit / content-management access mirrors the RLS UPDATE policy (owner/admin/member).
+  const canManage = esElevado(myRol);
+  // Delete is restricted further than edit: the RLS DELETE policy only allows
+  // owner/admin, so gate the delete affordance with esAdmin to avoid showing a
+  // button that the database will reject.
+  const canDelete = esAdmin(myRol);
+  const canManageFotos = esAdmin(myRol);
   const canUploadFotos = canManageFotos || (orden.asignados_ids ?? []).includes(myId);
   const isActive = orden.estado !== "completado";
 
@@ -1235,13 +1242,23 @@ export default function OTDetail({
       cantidad,
     }).select("id, parte_id, cantidad, cantidad_utilizada").single();
 
-    if (!error && data) {
-      setOrdenPartes(prev => [...prev, { ...(data as any), parte }]);
-      setCatalogSearch("");
-      // Deduct stock
-      const stockNuevo = Math.max(0, parte.stock_actual - cantidad);
-      await sb.from("partes").update({ stock_actual: stockNuevo }).eq("id", parte.id);
-      setCatalogo(prev => prev.map(p => p.id === parte.id ? { ...p, stock_actual: stockNuevo } : p));
+    if (error || !data) {
+      alert(error?.message ?? "No se pudo agregar el material.");
+      setAddingParte(false);
+      return;
+    }
+    setOrdenPartes(prev => [...prev, { ...(data as any), parte }]);
+    setCatalogSearch("");
+    // Deduct stock atomically in the DB (avoids the lost-update race between
+    // concurrent web/mobile edits). Use the returned value as the source of truth.
+    const { data: stockNuevo, error: stockErr } = await sb.rpc("ajustar_stock_parte", {
+      p_parte_id: parte.id,
+      p_delta: -cantidad,
+    });
+    if (stockErr) {
+      alert("El material se agregó, pero no se pudo descontar el stock: " + stockErr.message);
+    } else if (stockNuevo !== null && stockNuevo !== undefined) {
+      setCatalogo(prev => prev.map(p => p.id === parte.id ? { ...p, stock_actual: stockNuevo as number } : p));
     }
     setAddingParte(false);
   }
@@ -1252,15 +1269,22 @@ export default function OTDetail({
     if (!prev) return;
     const diff = newCantidad - prev.cantidad;
     const sb = createClient();
-    await sb.from("orden_partes").update({ cantidad: newCantidad }).eq("id", id);
+    const { error: cantErr } = await sb.from("orden_partes").update({ cantidad: newCantidad }).eq("id", id);
+    if (cantErr) {
+      alert("No se pudo actualizar la cantidad: " + cantErr.message);
+      return;
+    }
     setOrdenPartes(p => p.map(op => op.id === id ? { ...op, cantidad: newCantidad } : op));
-    // Adjust stock by the difference
-    if (prev.parte_id) {
-      const cat = catalogo.find(c => c.id === prev.parte_id);
-      if (cat) {
-        const stockNuevo = Math.max(0, cat.stock_actual - diff);
-        await sb.from("partes").update({ stock_actual: stockNuevo }).eq("id", prev.parte_id);
-        setCatalogo(p => p.map(c => c.id === prev.parte_id ? { ...c, stock_actual: stockNuevo } : c));
+    // Adjust stock atomically by the difference (more consumed => stock down).
+    if (prev.parte_id && diff !== 0) {
+      const { data: stockNuevo, error: stockErr } = await sb.rpc("ajustar_stock_parte", {
+        p_parte_id: prev.parte_id,
+        p_delta: -diff,
+      });
+      if (stockErr) {
+        alert("La cantidad se actualizó, pero no se pudo ajustar el stock: " + stockErr.message);
+      } else if (stockNuevo !== null && stockNuevo !== undefined) {
+        setCatalogo(p => p.map(c => c.id === prev.parte_id ? { ...c, stock_actual: stockNuevo as number } : c));
       }
     }
   }
@@ -1269,14 +1293,24 @@ export default function OTDetail({
     setDeletingParteId(id);
     const op = ordenPartes.find(p => p.id === id);
     const sb = createClient();
-    await sb.from("orden_partes").delete().eq("id", id);
+    const { error: delErr } = await sb.from("orden_partes").delete().eq("id", id);
+    if (delErr) {
+      alert("No se pudo eliminar el material: " + delErr.message);
+      setDeletingParteId(null);
+      return;
+    }
     setOrdenPartes(prev => prev.filter(p => p.id !== id));
-    // Restore stock
+    // Restore stock atomically (the consumed quantity goes back to inventory).
     if (op?.parte_id) {
-      const cat = catalogo.find(c => c.id === op.parte_id);
-      const stockNuevo = (cat?.stock_actual ?? 0) + op.cantidad;
-      await sb.from("partes").update({ stock_actual: stockNuevo }).eq("id", op.parte_id);
-      setCatalogo(prev => prev.map(c => c.id === op.parte_id ? { ...c, stock_actual: stockNuevo } : c));
+      const { data: stockNuevo, error: stockErr } = await sb.rpc("ajustar_stock_parte", {
+        p_parte_id: op.parte_id,
+        p_delta: op.cantidad,
+      });
+      if (stockErr) {
+        alert("El material se eliminó, pero no se pudo restaurar el stock: " + stockErr.message);
+      } else if (stockNuevo !== null && stockNuevo !== undefined) {
+        setCatalogo(prev => prev.map(c => c.id === op.parte_id ? { ...c, stock_actual: stockNuevo as number } : c));
+      }
     }
     setDeletingParteId(null);
   }
@@ -2084,7 +2118,7 @@ export default function OTDetail({
                     {exporting === item.key && <Loader2 size={11} className="animate-spin" style={{ marginLeft: "auto" }} />}
                   </button>
                 ))}
-                {(canManage || orden.creado_por === myId) && (
+                {canDelete && (
                   <button
                     type="button"
                     onClick={() => {
@@ -2480,7 +2514,7 @@ export default function OTDetail({
                   background: (orden.categorias_ot.color ?? "var(--fg-2)") + "18",
                   color: orden.categorias_ot.color ?? "var(--fg-2)",
                 }}>
-                  {orden.categorias_ot.icono && <span>{orden.categorias_ot.icono}</span>}
+                  <CategoriaIcon icono={orden.categorias_ot.icono} size={13} />
                   {orden.categorias_ot.nombre}
                 </span>
               </div>
