@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { Clock, MapPin, Copy, Check as CheckIcon, AlertCircle, UserPlus, X as XIcon } from "lucide-react";
 import { parseDescMeta, updateOrden } from "@/lib/ordenes-api";
 import type { OrdenListItem, Usuario, Estado, Prioridad } from "@/types/ordenes";
+import { CategoriaIcon } from "@/components/ordenes/categoria-icon";
 
 // Status and priority now use CSS custom properties from v2 token system
 const ESTADO: Record<Estado, { label: string; bg: string; color: string; dot: string }> = {
@@ -429,11 +430,12 @@ export default function OTRow({ orden, rowNumber, usuarios, isSelected, onClick,
           {/* Category */}
           {orden.categorias_ot?.nombre && (
             <span style={{
+              display: "inline-flex", alignItems: "center", gap: 3,
               fontSize: "var(--fs-xs)", fontWeight: 500, padding: "2px 7px", borderRadius: "var(--r-sm)",
               background: (orden.categorias_ot.color ?? "var(--fg-3)") + "20",
               color: orden.categorias_ot.color ?? "var(--fg-3)",
             }}>
-              {orden.categorias_ot.icono && <span style={{ marginRight: 2 }}>{orden.categorias_ot.icono}</span>}
+              <CategoriaIcon icono={orden.categorias_ot.icono} size={11} />
               {orden.categorias_ot.nombre}
             </span>
           )}

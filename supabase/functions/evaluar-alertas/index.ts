@@ -410,10 +410,12 @@ Deno.serve(async (req) => {
     }
 
     const usuariosByWorkspace = new Map<string, UsuarioRow[]>();
+    const validUserIds = new Set<string>();
     for (const u of (usuarios ?? []) as UsuarioRow[]) {
       const list = usuariosByWorkspace.get(u.workspace_id) ?? [];
       list.push(u);
       usuariosByWorkspace.set(u.workspace_id, list);
+      validUserIds.add(u.id);
     }
 
     let sent = 0;
@@ -456,7 +458,7 @@ Deno.serve(async (req) => {
         const recipients = recipientsForAggregateAlert(
           regla.tipo,
           usuariosByWorkspace.get(regla.workspace_id) ?? [],
-        );
+        ).filter((uid) => validUserIds.has(uid)); // guard against stale/deleted user ids → avoids FK 23503 tanking the batch
 
         if (recipients.length === 0) {
           skipped++;

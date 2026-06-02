@@ -15,7 +15,7 @@ export type Estado =
 
 export type Prioridad = "ninguna" | "baja" | "media" | "alta" | "urgente";
 
-export type TipoTrabajo = "reactiva" | "preventiva" | "inspeccion" | "mejora" | "levantamiento" | "presupuesto";
+export type TipoTrabajo = "reactiva" | "preventiva" | "emergencia" | "levantamiento" | "presupuesto";
 
 export type ClasificacionOT = "levantamiento" | "ejecucion";
 
@@ -46,7 +46,10 @@ export type ActividadTipo =
   | "comentario"
   | "fotos_grupo_subidas";
 
-export type RolUsuario = "admin" | "jefe" | "tecnico";
+// DB role taxonomy (post role-system rewrite). `jefe`/`tecnico` are legacy
+// aliases kept only so old rows/string comparisons don't break; new data uses
+// owner/admin/member/requester. See lib/roles.js for the canonical predicates.
+export type RolUsuario = "owner" | "admin" | "member" | "requester" | "jefe" | "tecnico";
 
 export type Plan = "basic" | "pro" | "enterprise";
 
@@ -164,7 +167,6 @@ export interface Activo {
   id: string;
   workspace_id?: string | null;
   nombre: string;
-  codigo: string | null;
   descripcion?: string | null;
   imagen_url?: string | null;
   ubicacion_id?: string | null;
@@ -178,7 +180,6 @@ export interface Activo {
   numero_serie?: string | null;
   año_fabricacion?: number | null;
   estado?: AssetStatus | string | null;
-  codigo_sap?: string | null;
   fecha_garantia?: string | null;
   archivo_url?: string | null;
   archivo_nombre?: string | null;
@@ -191,28 +192,13 @@ export interface Activo {
   modelo?: Pick<Modelo, "id" | "nombre"> | null;
   proveedor?: Pick<Proveedor, "id" | "nombre"> | null;
   responsable?: Pick<Usuario, "id" | "nombre"> | null;
-  parent?: Pick<Activo, "id" | "nombre" | "codigo"> | null;
+  parent?: Pick<Activo, "id" | "nombre"> | null;
 }
 
 export interface Usuario {
   id: string;
   nombre: string;
   rol: RolUsuario;
-}
-
-export interface PasoProcedimiento {
-  id: string;
-  plantilla_id: string;
-  orden: number;
-  tipo: TipoPaso;
-  contenido: string;
-}
-
-export interface ParteRequerida {
-  parte_id: string | null;
-  nombre: string;
-  cantidad: number;
-  unidad: string;
 }
 
 export interface ActividadOT {
@@ -250,6 +236,7 @@ export interface OrdenTrabajo {
   creado_por: string | null;
   asignados_ids: string[] | null;
   categoria_id: string | null;
+  categoria_ids: string[] | null;
   ubicacion_id: string | null;
   activo_id: string | null;
   lugar_id: string | null;
@@ -281,11 +268,10 @@ export interface OrdenTrabajo {
   ubicaciones?: (Pick<Ubicacion, "id" | "edificio" | "piso" | "sociedad_id"> & { sociedades?: Pick<Sociedad, "nombre"> | null }) | null;
   lugar?: Pick<LugarEspecifico, "id" | "nombre" | "imagen_url"> | null;
   sociedad?: Pick<Sociedad, "id" | "nombre" | "imagen_url"> | null;
-  activos?: Pick<Activo, "id" | "nombre" | "codigo"> | null;
+  activos?: Pick<Activo, "id" | "nombre"> | null;
   creador?: Pick<Usuario, "id" | "nombre"> | null;
   // Client-only
   _pending?: boolean;
-  _pasos?: PasoProcedimiento[];
 }
 
 // ─── List item (lighter shape from bandeja query) ─────────────────────────────
@@ -301,38 +287,6 @@ export type OrdenListItem = Pick<
   | "_pending"
 > & Partial<Pick<OrdenTrabajo, "proxima_ejecucion" | "recurrencia_origen_id" | "recurrencia_iteracion">>;
 
-// ─── Form state ───────────────────────────────────────────────────────────────
-
-export interface OTFormState {
-  titulo: string;
-  descripcion: string;
-  tipo_trabajo: TipoTrabajo;
-  prioridad: Prioridad;
-  estado: Estado;
-  ubicacion_id: string;
-  lugar_id: string;
-  sociedad_id: string;
-  activo_id: string;
-  categoria_id: string;
-  fecha_inicio: string;
-  fecha_termino: string;
-  recurrencia_fin: string;
-  recurrencia_intervalo: string;
-  recurrencia_dias: number[];
-  recurrencia_mes_dia: string;
-  tiempo_estimado_h: string;
-  tiempo_estimado_m: string;
-  recurrencia: Recurrencia;
-  plantilla_id: string;
-  pasos: PasoProcedimiento[];
-  partes: ParteRequerida[];
-  nueva_ubicacion: string;
-  nuevo_activo: string;
-  guardarComoPreventivo: boolean;
-  frecuencia_dias: string;
-  asignados_ids: string[];
-  links: OTLink[];
-}
 
 // ─── Filter state ─────────────────────────────────────────────────────────────
 

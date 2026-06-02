@@ -99,12 +99,12 @@ export const ORDEN_SELECT = `
   fecha_inicio, fecha_termino, created_at, updated_at,
   creado_por, asignados_ids, workspace_id,
   n_serie, solicitante, hito, presupuesto,
-  numero, categoria_id, ubicacion_id, activo_id, lugar_id, sociedad_id,
+  numero, categoria_id, categoria_ids, ubicacion_id, activo_id, lugar_id, sociedad_id,
   iniciado_at, pausado_at, en_ejecucion, tiempo_total_segundos,
   recurrencia, recurrencia_config, proxima_ejecucion, recurrencia_origen_id, recurrencia_iteracion, parent_id,
   requiere_materiales, requiere_hoja, requiere_fotos,
   imagen_url, fotos_urls, links,
-  activos (id, nombre, codigo),
+  activos (id, nombre),
   ubicaciones (id, edificio, piso, sociedad_id, sociedades(nombre)),
   lugar:lugares!lugar_id(id, nombre, imagen_url),
   sociedad:sociedades!sociedad_id(id, nombre, imagen_url),
@@ -126,17 +126,27 @@ export const LIST_SELECT = `
 
 // ── Fetch ─────────────────────────────────────────────────────────────────────
 
-export async function fetchOrdenes(wsId: string): Promise<OrdenListItem[]> {
+export const ORDENES_PAGE_SIZE = 300;
+
+export async function fetchOrdenesPage(wsId: string, beforeCreatedAt?: string | null): Promise<OrdenListItem[]> {
   const sb = createClient();
-  const { data, error } = await sb
+  let query = sb
     .from("ordenes_trabajo")
     .select(LIST_SELECT)
     .eq("workspace_id", wsId)
     .is("parent_id", null)
     .order("created_at", { ascending: false })
-    .limit(300);
+    .limit(ORDENES_PAGE_SIZE);
+
+  if (beforeCreatedAt) query = query.lt("created_at", beforeCreatedAt);
+
+  const { data, error } = await query;
   if (error) throw error;
   return (data ?? []) as unknown as OrdenListItem[];
+}
+
+export async function fetchOrdenes(wsId: string): Promise<OrdenListItem[]> {
+  return fetchOrdenesPage(wsId);
 }
 
 export async function fetchOrden(id: string): Promise<OrdenTrabajo | null> {
@@ -187,6 +197,7 @@ export async function createOrden(payload: {
   tipo_trabajo: TipoTrabajo | "";
   clasificacion?: ClasificacionOT | null;
   categoria_id?: string | null;
+  categoria_ids?: string[] | null;
   recurrencia?: Recurrencia;
   recurrencia_config?: RecurrenciaConfig | null;
   ubicacion_id?: string | null;
@@ -243,6 +254,7 @@ export async function createOrden(payload: {
       // can still override per-OT from the detail panel.
       requiere_fotos:      (ws?.fotos_obligatorias_todas ?? false) || (ws?.requiere_fotos_global ?? false),
       ...(payload.categoria_id  ? { categoria_id:  payload.categoria_id  } : {}),
+      ...(payload.categoria_ids?.length ? { categoria_ids: payload.categoria_ids } : {}),
       ...(payload.ubicacion_id  ? { ubicacion_id:  payload.ubicacion_id  } : {}),
       ...(payload.lugar_id      ? { lugar_id:      payload.lugar_id      } : {}),
       ...(payload.sociedad_id   ? { sociedad_id:   payload.sociedad_id   } : {}),
@@ -383,6 +395,7 @@ export async function updateOrden(
     tipo_trabajo?: TipoTrabajo | null;
     clasificacion?: ClasificacionOT | null;
     categoria_id?: string | null;
+    categoria_ids?: string[] | null;
     recurrencia?: Recurrencia;
     recurrencia_config?: RecurrenciaConfig | null;
     proxima_ejecucion?: string | null;

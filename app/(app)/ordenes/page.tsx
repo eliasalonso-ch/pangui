@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { createServerSupabase, getServerUser } from "@/lib/supabase-server";
 import OrdenesBandeja from "./OrdenesBandeja";
 import type { OrdenListItem, Usuario, Ubicacion, Activo, CategoriaOT, LugarEspecifico, Sociedad } from "@/types/ordenes";
-import { LIST_SELECT } from "@/lib/ordenes-api";
+import { LIST_SELECT, ORDENES_PAGE_SIZE } from "@/lib/ordenes-api";
 
 interface PageProps {
   searchParams: Promise<{ id?: string; panel?: string }>;
@@ -29,7 +29,7 @@ export default async function OrdenesPage({ searchParams }: PageProps) {
       .eq("workspace_id", wsId)
       .is("parent_id", null)
       .order("created_at", { ascending: false })
-      .limit(300)
+      .limit(ORDENES_PAGE_SIZE)
       .then(r => (r.data ?? []) as unknown as OrdenListItem[]),
 
     sb.from("usuarios")
@@ -60,7 +60,7 @@ export default async function OrdenesPage({ searchParams }: PageProps) {
       .then(r => (r.data ?? []) as unknown as Sociedad[]),
 
     sb.from("activos")
-      .select("id,nombre,codigo")
+      .select("id,nombre,numero_serie")
       .eq("workspace_id", wsId)
       .eq("activo", true)
       .then(r => (r.data ?? []) as Activo[]),

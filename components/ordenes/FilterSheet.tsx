@@ -26,8 +26,8 @@ const PRIORIDADES: Prioridad[] = [
 const TIPOS: TipoTrabajo[] = [
   "reactiva",
   "preventiva",
-  "inspeccion",
-  "mejora",
+  "emergencia",
+  "levantamiento",
   "presupuesto",
 ]
 

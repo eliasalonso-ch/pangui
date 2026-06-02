@@ -3,10 +3,10 @@ import { ensureActivosCatalogo } from "@/lib/cuotas-client";
 import type { Activo, AssetAttachment, AssetCriticality, AssetStatus, Fabricante, Modelo, Proveedor } from "@/types/ordenes";
 
 export const ACTIVO_SELECT = `
-  id, workspace_id, nombre, codigo, descripcion, imagen_url,
+  id, workspace_id, nombre, descripcion, imagen_url,
   ubicacion_id, sociedad_id, fabricante_id, modelo_id, proveedor_id, responsable_id,
   activo_padre_id, criticidad, numero_serie, año_fabricacion,
-  estado, codigo_sap, fecha_garantia, archivo_url, archivo_nombre,
+  estado, fecha_garantia, archivo_url, archivo_nombre,
   adjuntos, activo, created_at,
   ubicacion:ubicaciones(id, edificio, piso),
   sociedad:sociedades(id, nombre, imagen_url),
@@ -14,12 +14,11 @@ export const ACTIVO_SELECT = `
   modelo:modelos(id, nombre),
   proveedor:proveedores(id, nombre),
   responsable:usuarios!responsable_id(id, nombre),
-  parent:activos!activo_padre_id(id, nombre, codigo)
+  parent:activos!activo_padre_id(id, nombre)
 `;
 
 export interface ActivoInput {
   nombre: string;
-  codigo?: string | null;
   descripcion?: string | null;
   imagen_url?: string | null;
   ubicacion_id?: string | null;
@@ -33,7 +32,6 @@ export interface ActivoInput {
   numero_serie?: string | null;
   año_fabricacion?: number | null;
   estado?: AssetStatus | string | null;
-  codigo_sap?: string | null;
   fecha_garantia?: string | null;
   archivo_url?: string | null;
   archivo_nombre?: string | null;
@@ -43,7 +41,6 @@ export interface ActivoInput {
 function cleanInput(input: ActivoInput): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   if (input.nombre !== undefined) out.nombre = input.nombre.trim();
-  if (input.codigo !== undefined) out.codigo = input.codigo?.toString().trim() || null;
   if (input.descripcion !== undefined) out.descripcion = input.descripcion?.toString().trim() || null;
   if (input.imagen_url !== undefined) out.imagen_url = input.imagen_url ?? null;
   if (input.ubicacion_id !== undefined) out.ubicacion_id = input.ubicacion_id ?? null;
@@ -57,7 +54,6 @@ function cleanInput(input: ActivoInput): Record<string, unknown> {
   if (input.numero_serie !== undefined) out.numero_serie = input.numero_serie?.toString().trim() || null;
   if (input.año_fabricacion !== undefined) out["año_fabricacion"] = input.año_fabricacion ?? null;
   if (input.estado !== undefined) out.estado = input.estado ?? null;
-  if (input.codigo_sap !== undefined) out.codigo_sap = input.codigo_sap?.toString().trim() || null;
   if (input.fecha_garantia !== undefined) out.fecha_garantia = input.fecha_garantia ?? null;
   if (input.archivo_url !== undefined) out.archivo_url = input.archivo_url ?? null;
   if (input.archivo_nombre !== undefined) out.archivo_nombre = input.archivo_nombre ?? null;

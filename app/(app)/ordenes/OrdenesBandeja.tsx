@@ -3,8 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Plus, Search, X, ChevronDown, Loader2, FileText, ArrowUpDown, Download, AlertTriangle, Calendar, List, CalendarDays, Columns3, Check } from "lucide-react";
-import { createClient } from "@/lib/supabase";
-import { fetchOrden, deleteOrden, LIST_SELECT, parseDescMeta } from "@/lib/ordenes-api";
+import { createClient, logRealtimeChannel } from "@/lib/supabase";
+import { fetchOrden, fetchOrdenesPage, deleteOrden, ORDENES_PAGE_SIZE, parseDescMeta } from "@/lib/ordenes-api";
 import { buildOrdenesWorkbook, type ExportCols as SharedExportCols, type OrdenInput, type HojaInput, type FilaInput, type FotoItemInput, type MaterialUsadoInput } from "@/lib/excel-export-shared";
 import { ExportScheduler } from "./ExportScheduler";
 import OTRow from "./OTRow";
@@ -93,8 +93,11 @@ export default function OrdenesBandeja({
   const searchParams = useSearchParams();
 
   const [ordenes, setOrdenes]   = useState<OrdenListItem[]>(initialOrdenes);
+  const [hasMoreOrdenes, setHasMoreOrdenes] = useState(initialOrdenes.length >= ORDENES_PAGE_SIZE);
+  const [loadingMoreOrdenes, setLoadingMoreOrdenes] = useState(false);
   const [selected, setSelected] = useState<string | null>(initialSelectedId ?? null);
   const [detail, setDetail]     = useState<OrdenTrabajo | null>(null);
+  const selectedRef = useRef<string | null>(initialSelectedId ?? null);
   const [loadingDetail, setLoadingDetail] = useState(false);
 
   // Two top-level tabs only; the previous sub-tabs (Sin asignar, Reprogramadas,
@@ -201,8 +204,7 @@ export default function OrdenesBandeja({
   const EXPORT_FILTER_TIPOS: { value: TipoTrabajo; label: string }[] = [
     { value: "reactiva",     label: "Reactiva" },
     { value: "preventiva",   label: "Preventiva" },
-    { value: "inspeccion",   label: "Inspección" },
-    { value: "mejora",       label: "Mejora" },
+    { value: "emergencia",   label: "Emergencia" },
     { value: "presupuesto",  label: "Presupuesto" },
     { value: "levantamiento",label: "Levantamiento" },
   ];
@@ -343,18 +345,35 @@ export default function OrdenesBandeja({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
 
+  useEffect(() => {
+    selectedRef.current = selected;
+  }, [selected]);
+
   // Refresh list from DB
   const refreshList = useCallback(async () => {
-    const sb = createClient();
-    const { data } = await sb
-      .from("ordenes_trabajo")
-      .select(LIST_SELECT)
-      .eq("workspace_id", wsId)
-      .is("parent_id", null)
-      .order("created_at", { ascending: false })
-      .limit(300);
-    if (data) setOrdenes(data as unknown as OrdenListItem[]);
+    const data = await fetchOrdenesPage(wsId);
+    setOrdenes(data);
+    setHasMoreOrdenes(data.length >= ORDENES_PAGE_SIZE);
   }, [wsId]);
+
+  const loadMoreOrdenes = useCallback(async () => {
+    if (loadingMoreOrdenes || !hasMoreOrdenes) return;
+    const lastCreatedAt = ordenes[ordenes.length - 1]?.created_at ?? null;
+    if (!lastCreatedAt) return;
+
+    setLoadingMoreOrdenes(true);
+    try {
+      const nextPage = await fetchOrdenesPage(wsId, lastCreatedAt);
+      setOrdenes(prev => {
+        const seen = new Set(prev.map(o => o.id));
+        const merged = [...prev, ...nextPage.filter(o => !seen.has(o.id))];
+        return merged;
+      });
+      setHasMoreOrdenes(nextPage.length >= ORDENES_PAGE_SIZE);
+    } finally {
+      setLoadingMoreOrdenes(false);
+    }
+  }, [hasMoreOrdenes, loadingMoreOrdenes, ordenes, wsId]);
 
   // Poll list every 60s — no realtime channel for ordenes_trabajo
   useEffect(() => {
@@ -365,17 +384,26 @@ export default function OrdenesBandeja({
   useEffect(() => {
     if (!wsId) return;
     const sb = createClient();
+    const channelName = `ordenes-trabajo-${wsId}`;
+    const channelDetails = {
+      channelName,
+      screen: "OrdenesBandeja",
+      table: "ordenes_trabajo",
+      filter: `workspace_id=eq.${wsId}`,
+    };
+    logRealtimeChannel("create", channelDetails, sb);
     const channel = sb
-      .channel(`ordenes-trabajo-${wsId}`)
+      .channel(channelName)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "ordenes_trabajo", filter: `workspace_id=eq.${wsId}` },
         (payload) => {
+          const selectedId = selectedRef.current;
           if (payload.eventType === "DELETE") {
             const oldRow = payload.old as { id?: string };
             if (!oldRow.id) return;
             setOrdenes(prev => prev.filter(o => o.id !== oldRow.id));
-            if (selected === oldRow.id) setDetail(null);
+            if (selectedId === oldRow.id) setDetail(null);
             return;
           }
 
@@ -388,17 +416,22 @@ export default function OrdenesBandeja({
           }
 
           setOrdenes(prev => prev.map(o => o.id === next.id ? { ...o, ...next } : o));
-          if (selected === next.id) {
+          if (selectedId === next.id) {
             setDetail(prev => prev ? { ...prev, ...next } : prev);
           }
         },
       )
-      .subscribe();
+      .subscribe((status) => {
+        logRealtimeChannel("status", { ...channelDetails, status }, sb);
+      });
 
     return () => {
-      sb.removeChannel(channel);
+      logRealtimeChannel("remove:start", channelDetails, sb);
+      void sb.removeChannel(channel).then(() => {
+        logRealtimeChannel("remove:done", channelDetails, sb);
+      });
     };
-  }, [refreshList, selected, wsId]);
+  }, [refreshList, wsId]);
 
   const deleteOT = async (id: string) => {
     await deleteOrden(id);
@@ -1165,21 +1198,41 @@ export default function OrdenesBandeja({
                 )}
               </div>
             ) : (
-              filtered.map((o, idx) => (
-                <OTRow
-                  key={o.id}
-                  orden={o}
-                  rowNumber={idx + 1}
-                  usuarios={usuarios}
-                  isSelected={selected === o.id}
-                  onClick={() => openOT(o.id, true)}
-                  myId={myId}
-                  onAssigned={(id, newIds) => setOrdenes(prev =>
-                    prev.map(x => x.id === id ? { ...x, asignados_ids: newIds.length > 0 ? newIds : null } : x)
-                  )}
-                  coordinadaPara={scope === "reprogramadas" ? (o.fecha_inicio ?? null) : null}
-                />
-              ))
+              <>
+                {filtered.map((o, idx) => (
+                  <OTRow
+                    key={o.id}
+                    orden={o}
+                    rowNumber={idx + 1}
+                    usuarios={usuarios}
+                    isSelected={selected === o.id}
+                    onClick={() => openOT(o.id, true)}
+                    myId={myId}
+                    onAssigned={(id, newIds) => setOrdenes(prev =>
+                      prev.map(x => x.id === id ? { ...x, asignados_ids: newIds.length > 0 ? newIds : null } : x)
+                    )}
+                    coordinadaPara={scope === "reprogramadas" ? (o.fecha_inicio ?? null) : null}
+                  />
+                ))}
+                {hasMoreOrdenes && (
+                  <div style={{ padding: "14px 16px 18px", display: "flex", justifyContent: "center" }}>
+                    <button
+                      type="button"
+                      onClick={loadMoreOrdenes}
+                      disabled={loadingMoreOrdenes}
+                      style={{
+                        height: 34, padding: "0 14px", border: "1px solid var(--border)",
+                        borderRadius: 8, background: "var(--surface-1)", color: "var(--fg-2)",
+                        fontSize: 12, fontWeight: 700, cursor: loadingMoreOrdenes ? "default" : "pointer",
+                        fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 7,
+                      }}
+                    >
+                      {loadingMoreOrdenes && <Loader2 size={13} className="animate-spin" />}
+                      Cargar mas
+                    </button>
+                  </div>
+                )}
+              </>
             )}
           </div>
           </>)}

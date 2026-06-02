@@ -448,7 +448,7 @@ export default function AnaliticaPage() {
   const procCompleted = procInScope.filter(p => p.estado === "completado").length;
   const procCompletion = fmtPct(procCompleted, procInScope.length);
   const reactiveOTs = periodOTs.filter(o => o.tipo_trabajo === "reactiva");
-  const plannedOTs = periodOTs.filter(o => o.tipo_trabajo === "preventiva" || o.tipo_trabajo === "inspeccion" || o.tipo_trabajo === "mejora" || o.tipo_trabajo === "presupuesto");
+  const plannedOTs = periodOTs.filter(o => o.tipo_trabajo === "preventiva" || o.tipo_trabajo === "presupuesto");
   const plannedRatio = fmtPct(plannedOTs.length, plannedOTs.length + reactiveOTs.length);
   const urgentReactive = reactiveOTs.filter(o => o.prioridad === "urgente" || o.prioridad === "alta");
   const budgetRefOTs = periodOTs.filter(o => !!o.presupuesto?.trim());

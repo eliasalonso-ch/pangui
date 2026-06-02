@@ -1,9 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Box, ChevronDown, ExternalLink, Loader2, Plus, Search, Trash2, X } from "lucide-react";
-import { createClient } from "@/lib/supabase";
+import { createClient, logRealtimeChannel } from "@/lib/supabase";
 import { ACTIVO_SELECT, createActivo, deleteActivo, updateActivo } from "@/lib/activos-api";
 import type { Activo, AssetCriticality, AssetStatus, Sociedad, Ubicacion, Usuario } from "@/types/ordenes";
 
@@ -114,7 +114,7 @@ function ActivoRow({ activo, selected, onClick }: { activo: Activo; selected: bo
       <span style={{ flex: 1, minWidth: 0 }}>
         <span style={{ display: "block", fontSize: 14, fontWeight: 700, color: "#0F172A", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{activo.nombre}</span>
         <span style={{ display: "block", marginTop: 3, fontSize: 12, color: "#64748B", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-          {[activo.codigo, location].filter(Boolean).join(" · ") || "Sin código"}
+          {[activo.numero_serie, location].filter(Boolean).join(" · ") || "Sin n° de serie"}
         </span>
         <span style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginTop: 7 }}>
           <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, color: "#64748B" }}>
@@ -159,7 +159,6 @@ function ActivoForm({
 }) {
   const [form, setForm] = useState({
     nombre: activo?.nombre ?? "",
-    codigo: activo?.codigo ?? "",
     descripcion: activo?.descripcion ?? "",
     sociedad_id: activo?.sociedad_id ?? "",
     ubicacion_id: activo?.ubicacion_id ?? "",
@@ -168,7 +167,6 @@ function ActivoForm({
     criticidad: (activo?.criticidad ?? "no_critico") as AssetCriticality,
     estado: (activo?.estado ?? "operativo") as AssetStatus,
     numero_serie: activo?.numero_serie ?? "",
-    codigo_sap: activo?.codigo_sap ?? "",
     año_fabricacion: activo?.año_fabricacion ? String(activo.año_fabricacion) : "",
   });
   const [saving, setSaving] = useState(false);
@@ -185,7 +183,6 @@ function ActivoForm({
     try {
       const payload = {
         nombre: form.nombre,
-        codigo: form.codigo || null,
         descripcion: form.descripcion || null,
         sociedad_id: form.sociedad_id || null,
         ubicacion_id: form.ubicacion_id || null,
@@ -194,7 +191,6 @@ function ActivoForm({
         criticidad: form.criticidad,
         estado: form.estado,
         numero_serie: form.numero_serie || null,
-        codigo_sap: form.codigo_sap || null,
         año_fabricacion: form.año_fabricacion ? Number(form.año_fabricacion) : null,
       };
       const saved = activo ? await updateActivo(activo.id, payload) : await createActivo(wsId, payload);
@@ -217,15 +213,9 @@ function ActivoForm({
           <label style={labelStyle}>Nombre *</label>
           <input value={form.nombre} onChange={e => set("nombre", e.target.value)} style={inputStyle} required />
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-          <div>
-            <label style={labelStyle}>Código</label>
-            <input value={form.codigo} onChange={e => set("codigo", e.target.value)} style={inputStyle} />
-          </div>
-          <div>
-            <label style={labelStyle}>N° serie</label>
-            <input value={form.numero_serie} onChange={e => set("numero_serie", e.target.value)} style={inputStyle} />
-          </div>
+        <div>
+          <label style={labelStyle}>N° serie</label>
+          <input value={form.numero_serie} onChange={e => set("numero_serie", e.target.value)} style={inputStyle} />
         </div>
         <div>
           <label style={labelStyle}>Descripción</label>
@@ -298,10 +288,6 @@ function ActivoForm({
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
           <div>
-            <label style={labelStyle}>Código SAP</label>
-            <input value={form.codigo_sap} onChange={e => set("codigo_sap", e.target.value)} style={inputStyle} />
-          </div>
-          <div>
             <label style={labelStyle}>Año</label>
             <input value={form.año_fabricacion} onChange={e => set("año_fabricacion", e.target.value)} type="number" min="1900" max="2100" style={inputStyle} />
           </div>
@@ -352,7 +338,7 @@ function ActivoDetail({
           <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
             <div>
               <h2 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: "#0F172A" }}>{activo.nombre}</h2>
-              <div style={{ marginTop: 4, fontSize: 13, color: "#64748B" }}>{activo.codigo || "Sin código"}</div>
+              <div style={{ marginTop: 4, fontSize: 13, color: "#64748B" }}>{activo.numero_serie || "Sin n° de serie"}</div>
             </div>
             <button onClick={onClose} style={{ border: "none", background: "none", cursor: "pointer", color: "#94A3B8", height: 28 }}><X size={18} /></button>
           </div>
@@ -373,7 +359,6 @@ function ActivoDetail({
           <DetailRow label="Modelo" value={activo.modelo?.nombre} />
           <DetailRow label="N° serie" value={activo.numero_serie} />
           <DetailRow label="Año" value={activo.año_fabricacion ? String(activo.año_fabricacion) : null} />
-          <DetailRow label="Código SAP" value={activo.codigo_sap} />
           <DetailRow label="Cliente" value={activo.sociedad?.nombre} />
           <DetailRow label="Ubicación" value={ubicacionLabel(activo)} />
           <DetailRow label="Responsable" value={activo.responsable?.nombre} />
@@ -411,6 +396,7 @@ export default function ActivosBandeja({ initialActivos, usuarios, ubicaciones, 
   const searchParams = useSearchParams();
   const [activos, setActivos] = useState<Activo[]>(initialActivos);
   const [selected, setSelected] = useState<string | null>(initialSelectedId ?? null);
+  const selectedRef = useRef<string | null>(initialSelectedId ?? null);
   const [editing, setEditing] = useState<Activo | null | "new">(null);
   const [search, setSearch] = useState("");
   const [filterCrit, setFilterCrit] = useState<CritFilter>("all");
@@ -418,6 +404,10 @@ export default function ActivosBandeja({ initialActivos, usuarios, ubicaciones, 
 
   const canCreate = myRol !== "requester";
   const selectedActivo = selected ? activos.find(a => a.id === selected) ?? null : null;
+
+  useEffect(() => {
+    selectedRef.current = selected;
+  }, [selected]);
 
   useEffect(() => {
     const params = new URLSearchParams(searchParams?.toString() ?? "");
@@ -428,14 +418,53 @@ export default function ActivosBandeja({ initialActivos, usuarios, ubicaciones, 
 
   useEffect(() => {
     const sb = createClient();
+    const channelName = "activos-list";
+    const channelDetails = {
+      channelName,
+      screen: "ActivosBandeja",
+      table: "activos",
+      filter: `workspace_id=eq.${wsId}`,
+    };
+    logRealtimeChannel("create", channelDetails, sb);
     const channel = sb
-      .channel("activos-list")
-      .on("postgres_changes", { event: "*", schema: "public", table: "activos", filter: `workspace_id=eq.${wsId}` }, async () => {
-        const { data } = await sb.from("activos").select(ACTIVO_SELECT).eq("workspace_id", wsId).eq("activo", true).order("nombre");
-        if (data) setActivos(data as unknown as Activo[]);
+      .channel(channelName)
+      .on("postgres_changes", { event: "*", schema: "public", table: "activos", filter: `workspace_id=eq.${wsId}` }, async (payload) => {
+        const row = (payload.eventType === "DELETE" ? payload.old : payload.new) as { id?: string; activo?: boolean } | null;
+        if (!row?.id) return;
+
+        if (payload.eventType === "DELETE" || row.activo === false) {
+          setActivos(prev => prev.filter(a => a.id !== row.id));
+          if (selectedRef.current === row.id) setSelected(null);
+          return;
+        }
+
+        const { data } = await sb
+          .from("activos")
+          .select(ACTIVO_SELECT)
+          .eq("id", row.id)
+          .eq("workspace_id", wsId)
+          .eq("activo", true)
+          .maybeSingle();
+
+        if (!data) return;
+        const changed = data as unknown as Activo;
+        setActivos(prev => {
+          const exists = prev.some(a => a.id === changed.id);
+          const next = exists
+            ? prev.map(a => a.id === changed.id ? changed : a)
+            : [changed, ...prev];
+          return next.sort((a, b) => a.nombre.localeCompare(b.nombre));
+        });
       })
-      .subscribe();
-    return () => { sb.removeChannel(channel); };
+      .subscribe((status) => {
+        logRealtimeChannel("status", { ...channelDetails, status }, sb);
+      });
+    return () => {
+      logRealtimeChannel("remove:start", channelDetails, sb);
+      void sb.removeChannel(channel).then(() => {
+        logRealtimeChannel("remove:done", channelDetails, sb);
+      });
+    };
   }, [wsId]);
 
   const filtered = useMemo(() => {
@@ -444,7 +473,7 @@ export default function ActivosBandeja({ initialActivos, usuarios, ubicaciones, 
       if (filterCrit !== "all" && a.criticidad !== filterCrit) return false;
       if (filterSociedadId !== "all" && a.sociedad_id !== filterSociedadId) return false;
       if (!q) return true;
-      return [a.nombre, a.codigo, a.numero_serie, a.codigo_sap, a.fabricante?.nombre, a.modelo?.nombre, a.sociedad?.nombre, ubicacionLabel(a)]
+      return [a.nombre, a.numero_serie, a.fabricante?.nombre, a.modelo?.nombre, a.sociedad?.nombre, ubicacionLabel(a)]
         .filter(Boolean)
         .some(v => String(v).toLowerCase().includes(q));
     });

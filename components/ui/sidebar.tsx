@@ -26,7 +26,10 @@ export function SidebarProvider({ children }: { children: React.ReactNode }) {
   const [collapsed, setCollapsed] = React.useState(false);
   return (
     <SidebarContext.Provider value={{ collapsed, setCollapsed }}>
-      <div className="flex min-h-screen w-full">{children}</div>
+      {/* h-screen + overflow-hidden so neither the sidebar nor the main pane
+          ever pushes the page itself into a scroll — each child manages its
+          own overflow. */}
+      <div className="flex h-screen w-full overflow-hidden">{children}</div>
     </SidebarContext.Provider>
   );
 }
@@ -45,8 +48,9 @@ export const Sidebar = ({ children, className, ...props }: React.HTMLAttributes<
         height: "100vh",
         position: "sticky",
         top: 0,
-        overflowY: "auto",
-        overflowX: "hidden",
+        // No outer scroll — SidebarContent is the only scrollable region so we
+        // don't get two stacked scrollbars when the menu overflows.
+        overflow: "hidden",
       }}
       {...props}
     >
@@ -56,15 +60,22 @@ export const Sidebar = ({ children, className, ...props }: React.HTMLAttributes<
 };
 
 export const SidebarInset = ({ children }: { children: React.ReactNode }) => (
-  <main className="flex-1 min-w-0" style={{ background: "var(--surface-0)" }}>{children}</main>
+  // h-screen + overflow-y-auto makes the main pane the scroll container for page
+  // content. The provider clips page-level scroll (overflow-hidden), so this is
+  // the element that actually scrolls. min-w-0 prevents flex overflow on the X axis.
+  <main className="flex-1 min-w-0 h-screen overflow-y-auto" style={{ background: "var(--surface-0)" }}>{children}</main>
 )
 
 export const SidebarHeader = (props: React.HTMLAttributes<HTMLDivElement>) => (
   <div {...props} />
 )
 
-export const SidebarContent = (props: React.HTMLAttributes<HTMLDivElement>) => (
-  <div className="flex-1 overflow-auto" style={{ padding: "8px 0" }} {...props} />
+export const SidebarContent = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
+  <div
+    className={cn("flex-1 overflow-y-auto overflow-x-hidden", className)}
+    style={{ padding: "8px 0" }}
+    {...props}
+  />
 )
 
 export const SidebarGroup = (props: React.HTMLAttributes<HTMLDivElement>) => (

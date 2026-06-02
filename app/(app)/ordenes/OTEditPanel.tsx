@@ -15,6 +15,7 @@ import type {
   Prioridad, TipoTrabajo, Recurrencia, OTLink,
 } from "@/types/ordenes";
 import LinksInput from "@/components/LinksInput";
+import CategoriaMultiSelect from "@/components/ordenes/CategoriaMultiSelect";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -70,8 +71,7 @@ const PRIORIDADES: { value: Prioridad; label: string; activeColor: string }[] = 
 const TIPOS: { value: TipoTrabajo; label: string }[] = [
   { value: "reactiva",      label: "Reactiva" },
   { value: "preventiva",    label: "Preventiva" },
-  { value: "inspeccion",    label: "Inspección" },
-  { value: "mejora",        label: "Mejora" },
+  { value: "emergencia",    label: "Emergencia" },
   { value: "presupuesto",   label: "Presupuesto" },
   { value: "levantamiento", label: "Levantamiento" },
 ];
@@ -444,6 +444,156 @@ function HitoSelect({ value, onChange, wsId }: {
   );
 }
 
+// ── SolicitanteSelect ─────────────────────────────────────────────────────────
+// Searchable picker backed by the `solicitantes` catalog (same pattern as
+// HitoSelect / the mobile solicitante-list). Stores the chosen *name* string,
+// matching how mobile stores it — avoids the free-text duplication problem.
+
+function SolicitanteSelect({ value, onChange, wsId }: {
+  value: string;
+  onChange: (v: string) => void;
+  wsId: string;
+}) {
+  const [open, setOpen]                 = useState(false);
+  const [query, setQuery]               = useState("");
+  const [solicitantes, setSolicitantes] = useState<{ id: string; nombre: string }[]>([]);
+  const [creating, setCreating]         = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  const load = useCallback(async () => {
+    const sb = createClient();
+    const { data } = await sb
+      .from("solicitantes").select("id, nombre")
+      .eq("workspace_id", wsId).order("nombre");
+    setSolicitantes(data ?? []);
+  }, [wsId]);
+
+  useEffect(() => {
+    if (open) load();
+  }, [open, load]);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const filtered = solicitantes.filter(s => s.nombre.toLowerCase().includes(query.toLowerCase()));
+  const exactMatch = solicitantes.some(s => s.nombre.toLowerCase() === query.toLowerCase().trim());
+  const canCreate = query.trim().length > 0 && !exactMatch;
+
+  async function handleCreate() {
+    const nombre = query.trim();
+    if (!nombre) return;
+    setCreating(true);
+    try {
+      const sb = createClient();
+      const { data } = await sb
+        .from("solicitantes").insert({ workspace_id: wsId, nombre })
+        .select("id, nombre").single();
+      if (data) {
+        setSolicitantes(prev => [...prev, data].sort((a, b) => a.nombre.localeCompare(b.nombre)));
+        onChange(data.nombre);
+        setQuery("");
+        setOpen(false);
+      }
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  return (
+    <div ref={ref} style={{ position: "relative" }}>
+      <button
+        type="button"
+        onClick={() => { setOpen(!open); setQuery(""); }}
+        style={{
+          width: "100%", height: 40, display: "flex", alignItems: "center", gap: 8,
+          padding: "0 12px", border: "1px solid var(--border)", borderRadius: 8,
+          background: "var(--surface-1)", fontSize: 13, color: value ? "var(--fg-1)" : "var(--fg-4)",
+          cursor: "pointer", textAlign: "left", fontFamily: "inherit",
+        }}
+      >
+        <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {value || "Seleccionar o crear solicitante…"}
+        </span>
+        <ChevronDown size={13} style={{ flexShrink: 0, color: "var(--fg-4)" }} />
+      </button>
+      {open && (
+        <div style={{
+          position: "absolute", top: "calc(100% + 3px)", left: 0, right: 0, zIndex: 200,
+          background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: 8,
+          boxShadow: "var(--shadow-md)", overflow: "hidden",
+        }}>
+          <div style={{ padding: "8px 8px 4px" }}>
+            <input
+              autoFocus
+              placeholder="Buscar o crear…"
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              style={{
+                width: "100%", height: 36, padding: "0 10px",
+                border: "1px solid var(--border)", borderRadius: 8,
+                fontSize: 12.5, outline: "none", color: "var(--fg-1)",
+                fontFamily: "inherit", boxSizing: "border-box", background: "var(--surface-1)",
+              }}
+            />
+          </div>
+          <div style={{ maxHeight: 220, overflowY: "auto" }}>
+            {value && (
+              <button
+                type="button"
+                onClick={() => { onChange(""); setOpen(false); }}
+                style={{ display: "block", width: "100%", textAlign: "left", padding: "10px 12px", fontSize: 13, color: "var(--fg-4)", background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}
+              >
+                Quitar solicitante
+              </button>
+            )}
+            {filtered.map(s => (
+              <button
+                key={s.id}
+                type="button"
+                onClick={() => { onChange(s.nombre); setOpen(false); }}
+                style={{
+                  display: "flex", alignItems: "center", gap: 6,
+                  width: "100%", padding: "10px 12px", fontSize: 13,
+                  background: value === s.nombre ? "var(--brand-tint)" : "transparent",
+                  border: "none", cursor: "pointer", fontFamily: "inherit", color: "var(--fg-1)",
+                }}
+              >
+                {value === s.nombre && <Check size={11} style={{ color: "var(--brand)", flexShrink: 0 }} />}
+                {s.nombre}
+              </button>
+            ))}
+            {canCreate && (
+              <button
+                type="button"
+                onClick={handleCreate}
+                disabled={creating}
+                style={{
+                  display: "flex", alignItems: "center", gap: 6,
+                  width: "100%", padding: "10px 12px", fontSize: 13, fontWeight: 600,
+                  background: "var(--brand-tint)", color: "var(--brand)",
+                  border: "none", borderTop: "1px solid var(--border)",
+                  cursor: creating ? "default" : "pointer", fontFamily: "inherit",
+                }}
+              >
+                {creating ? <Loader2 size={11} className="animate-spin" /> : <Plus size={11} />}
+                Crear "{query.trim()}"
+              </button>
+            )}
+            {filtered.length === 0 && !canCreate && (
+              <div style={{ padding: "8px 10px", fontSize: 12.5, color: "var(--fg-4)" }}>Sin solicitantes</div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 export default function OTEditPanel({
@@ -471,7 +621,7 @@ export default function OTEditPanel({
     recurrencia_dias: recurrenciaDraft.recurrencia_dias,
     recurrencia_mes_dia: recurrenciaDraft.recurrencia_mes_dia,
     recurrencia:   orden.recurrencia   ?? "ninguna",
-    tipo_trabajo:  orden.tipo_trabajo  ?? "",
+    tipo_trabajo:  orden.tipo_trabajo  ?? "reactiva",
     prioridad:     orden.prioridad,
     categoria_id:  orden.categoria_id  ?? "",
     links:         Array.isArray(orden.links) ? orden.links : [],
@@ -481,6 +631,12 @@ export default function OTEditPanel({
 
   interface DraftAdjunto { file: File; nombre: string }
   const [adjuntos, setAdjuntos] = useState<DraftAdjunto[]>([]);
+
+  // Categorías — multiple selection (parity with OTCrearPanel/mobile). Seeds
+  // from the array column, falling back to the single legacy column.
+  const [categoriaIds, setCategoriaIds] = useState<string[]>(
+    () => orden.categoria_ids ?? (orden.categoria_id ? [orden.categoria_id] : []),
+  );
   const adjuntoInputRef = useRef<HTMLInputElement | null>(null);
 
 
@@ -503,7 +659,7 @@ export default function OTEditPanel({
     .map(l => ({ id: l.id, label: l.nombre, sub: l.ubicaciones?.edificio }));
 
   const sociedadOptions = sociedades.map(s => ({ id: s.id, label: s.nombre }));
-  const activoOptions   = activos.map(a => ({ id: a.id, label: a.nombre + (a.codigo ? ` (${a.codigo})` : "") }));
+  const activoOptions   = activos.map(a => ({ id: a.id, label: a.nombre + (a.numero_serie ? ` (${a.numero_serie})` : "") }));
 
   const save = async () => {
     if (!form.titulo.trim()) { setError("El título es obligatorio."); return; }
@@ -534,7 +690,8 @@ export default function OTEditPanel({
           prioridad:     form.prioridad,
           tipo_trabajo:  form.tipo_trabajo || null,
           clasificacion: form.tipo_trabajo === "levantamiento" ? "levantamiento" : form.tipo_trabajo ? "ejecucion" : undefined,
-          categoria_id:  form.categoria_id  || null,
+          categoria_id:  categoriaIds[0] ?? null,
+          categoria_ids: categoriaIds.length > 0 ? categoriaIds : null,
           recurrencia:   form.recurrencia,
           recurrencia_config: buildRecurrenciaConfig(form),
           fecha_inicio:  form.fecha_inicio  || null,
@@ -615,7 +772,6 @@ export default function OTEditPanel({
             <div style={{ fontSize: 12, fontWeight: 700, color: "var(--fg-3)", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.06em" }}>Tipo de trabajo</div>
             <select value={form.tipo_trabajo} onChange={e => setF("tipo_trabajo", e.target.value as TipoTrabajo | "")}
               style={{ width: "100%", height: 40, padding: "0 12px", border: "1px solid var(--border)", borderRadius: 8, fontSize: 13, color: "var(--fg-1)", outline: "none", background: "var(--surface-1)", fontFamily: "inherit" }}>
-              <option value="">Reactiva (por defecto)</option>
               {TIPOS.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
             </select>
           </div>
@@ -725,7 +881,7 @@ export default function OTEditPanel({
             />
           </div>
 
-          <FieldRow icon={<Hash size={14} />} label="N° OT / Folio">
+          <FieldRow icon={<Hash size={14} />} label="N° de OT">
             <input
               type="text"
               placeholder="Ej: SF920260325921"
@@ -736,13 +892,7 @@ export default function OTEditPanel({
           </FieldRow>
 
           <FieldRow icon={<User size={14} />} label="Solicitante">
-            <input
-              type="text"
-              placeholder="Nombre del solicitante…"
-              value={form.solicitante}
-              onChange={e => setF("solicitante", e.target.value)}
-              style={{ width:"100%", height:40, padding:"0 12px", border:"1px solid var(--border)", borderRadius:8, fontSize:13, color:"var(--fg-1)", outline:"none", fontFamily:"inherit", background:"var(--surface-1)" }}
-            />
+            <SolicitanteSelect value={form.solicitante} onChange={v => setF("solicitante", v)} wsId={wsId} />
           </FieldRow>
 
           <FieldRow icon={<Tag size={14} />} label="Hito">
@@ -825,18 +975,7 @@ export default function OTEditPanel({
           {/* Categories */}
           {categorias.length > 0 && (
             <FieldRow icon={<Tag size={14} />} label="Categorías">
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                {categorias.map(c => {
-                  const active = form.categoria_id === c.id;
-                  return (
-                    <button key={c.id} type="button" onClick={() => setF("categoria_id", active ? "" : c.id)}
-                      style={{ height: 32, padding: "0 12px", border: "none", borderRadius: 8, background: active ? (c.color ?? "var(--brand)") : "var(--surface-hover)", color: active ? "var(--fg-on-brand)" : "var(--fg-2)", fontSize: 12, fontWeight: active ? 700 : 500, cursor: "pointer", display: "flex", alignItems: "center", gap: 5, transition: "all 0.1s", fontFamily: "inherit" }}>
-                      {c.icono && <span>{c.icono}</span>}
-                      {c.nombre}
-                    </button>
-                  );
-                })}
-              </div>
+              <CategoriaMultiSelect categorias={categorias} value={categoriaIds} onChange={setCategoriaIds} />
             </FieldRow>
           )}
 

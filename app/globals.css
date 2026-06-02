@@ -448,7 +448,6 @@ html {
 *::before,
 *::after {
   box-sizing: inherit;
-  flex: none;
   min-height: 0;
   margin: 0;
   padding: 0;
@@ -482,6 +481,41 @@ input, select, textarea { color-scheme: inherit; }
 ::-moz-selection {
   background: var(--brand);
   color: var(--fg-on-brand);
+}
+
+/* Global thin, minimalist scrollbar — the gutter is ALWAYS reserved (thin) so
+   content never reflows when the thumb appears; the thumb is transparent at
+   rest and fades in (color only, no width change) on hover. No browser
+   chevrons, no corners, no extra chrome. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+*::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 3px;
+  transition: background 0.15s;
+}
+*::-webkit-scrollbar-button {
+  display: none;       /* kills the up/down chevron buttons */
+  width: 0;
+  height: 0;
+}
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}
+*:hover::-webkit-scrollbar-thumb {
+  background: var(--scroll-thumb);
+}
+*:hover {
+  scrollbar-color: var(--scroll-thumb) transparent;
 }
 
 

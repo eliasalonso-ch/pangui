@@ -133,7 +133,7 @@ const PRIORIDAD_LABEL: Record<string, string> = {
 };
 const TIPO_LABEL: Record<string, string> = {
   reactiva: "Reactiva", preventiva: "Preventiva",
-  inspeccion: "Inspección", mejora: "Mejora",
+  emergencia: "Emergencia",
   presupuesto: "Presupuesto", levantamiento: "Levantamiento",
 };
 

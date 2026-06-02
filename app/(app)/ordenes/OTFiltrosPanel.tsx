@@ -24,8 +24,7 @@ const PRIORIDADES: { value: Prioridad; label: string; color: string }[] = [
 const TIPOS: { value: TipoTrabajo; label: string }[] = [
   { value: "reactiva",   label: "Reactiva" },
   { value: "preventiva", label: "Preventiva" },
-  { value: "inspeccion", label: "Inspección" },
-  { value: "mejora",     label: "Mejora" },
+  { value: "emergencia", label: "Emergencia" },
   { value: "presupuesto", label: "Presupuesto" },
 ];
 

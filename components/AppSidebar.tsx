@@ -23,7 +23,7 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
-import { createClient } from "@/lib/supabase";
+import { createClient, logRealtimeChannel } from "@/lib/supabase";
 import { usePermisos } from "@/lib/permisos";
 import { ROL_LABEL } from "@/lib/roles";
 import { useSuscripcion } from "@/hooks/useSuscripcion";
@@ -238,16 +238,21 @@ export default function AppSidebar() {
   const isAdmin = effectiveRol === "jefe" || effectiveRol === "admin" || effectiveRol === "owner";
 
   useEffect(() => {
+    let active = true;
+    let cleanupChannel: (() => void) | null = null;
+
     async function load() {
       const sb = createClient();
       const { data: { user } } = await sb.auth.getUser();
-      if (!user) return;
+      if (!active || !user) return;
 
       const { data } = await sb
         .from("usuarios")
         .select("workspace_id, rol, onboarding_done, nombre")
         .eq("id", user.id)
         .maybeSingle();
+
+      if (!active) return;
 
       if (data?.rol) setUserRol(data.rol);
       setOnboardingDone(data?.onboarding_done ?? false);
@@ -271,6 +276,14 @@ export default function AppSidebar() {
       setUnreadCount(count ?? 0);
 
       let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+      const channelName = `sidebar-notif:${user.id}`;
+      const channelDetails = {
+        channelName,
+        screen: "AppSidebar",
+        table: "notifications",
+        filter: `usuario_id=eq.${user.id}`,
+      };
+      logRealtimeChannel("create", channelDetails, sb);
       const channel = sb.channel(`sidebar-notif:${user.id}`)
         .on("postgres_changes", { event: "*", schema: "public", table: "notifications", filter: `usuario_id=eq.${user.id}` },
           () => {
@@ -285,14 +298,24 @@ export default function AppSidebar() {
             }, 300);
           }
         )
-        .subscribe();
+        .subscribe((status) => {
+          logRealtimeChannel("status", { ...channelDetails, status }, sb);
+        });
 
-      return () => {
+      cleanupChannel = () => {
         if (debounceTimer) clearTimeout(debounceTimer);
-        sb.removeChannel(channel);
+        logRealtimeChannel("remove:start", channelDetails, sb);
+        void sb.removeChannel(channel).then(() => {
+          logRealtimeChannel("remove:done", channelDetails, sb);
+        });
       };
     }
     load();
+
+    return () => {
+      active = false;
+      cleanupChannel?.();
+    };
   }, []);
 
   function isActive(href: string) {

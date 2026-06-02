@@ -77,7 +77,7 @@ Devuelve SOLO un JSON válido con esta forma exacta (sin markdown, sin explicaci
   "solicitante": "nombre completo del solicitante o null",
   "descripcion": "detalle completo del trabajo o null",
   "prioridad":   "urgente | alta | media | baja | ninguna",
-  "tipo_trabajo": "reactiva | preventiva | inspeccion | mejora | levantamiento | ''",
+  "tipo_trabajo": "reactiva | preventiva | emergencia | levantamiento | ''",
   "fecha_inicio": "YYYY-MM-DD o null",
   "sociedad":   { "extracted": "texto crudo del PDF o null", "candidates": [{ "id": "...", "name": "...", "confidence": 0.0 }] },
   "ubicacion":  { "extracted": "...", "candidates": [...] },
@@ -91,7 +91,7 @@ Devuelve SOLO un JSON válido con esta forma exacta (sin markdown, sin explicaci
 Si un campo no aparece en el documento, "extracted" debe ser null y "candidates" debe ser []. "asignados" puede ser [] si no hay personas mencionadas.`;
 
 const VALID_PRIOS = new Set(["urgente", "alta", "media", "baja", "ninguna"]);
-const VALID_TIPOS = new Set(["reactiva", "preventiva", "inspeccion", "mejora", "levantamiento", ""]);
+const VALID_TIPOS = new Set(["reactiva", "preventiva", "emergencia", "levantamiento", ""]);
 
 interface FieldResult {
   extracted: string | null;

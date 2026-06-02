@@ -371,11 +371,19 @@ export async function attachProcedimiento(
   if (!count || count === 0) {
     await ensureOtCategoria("con_procedimientos", "OT con procedimientos");
   }
-  const { error } = await sb.from("ot_procedimientos").insert({
-    orden_id: ordenId,
-    procedimiento_id: procedimientoId,
-    adjuntado_por: userId,
-  });
+  // Idempotent: a procedimiento may already be attached (double-click, retry,
+  // or sub-OT inheritance). The UNIQUE(orden_id, procedimiento_id) constraint
+  // would otherwise surface as a 409. Ignore duplicates instead of erroring.
+  const { error } = await sb
+    .from("ot_procedimientos")
+    .upsert(
+      {
+        orden_id: ordenId,
+        procedimiento_id: procedimientoId,
+        adjuntado_por: userId,
+      },
+      { onConflict: "orden_id,procedimiento_id", ignoreDuplicates: true },
+    );
   if (error) throw new Error(error.message);
 }
 

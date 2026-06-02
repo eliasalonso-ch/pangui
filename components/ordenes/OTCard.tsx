@@ -4,6 +4,7 @@ import React from "react";
 import { Settings2, MapPin, Clock, MessageSquare } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import type { OrdenListItem, Usuario, Estado, Prioridad } from "@/types/ordenes";
+import { CategoriaIcon } from "@/components/ordenes/categoria-icon";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -267,9 +268,9 @@ export function OTCard({
                 : undefined
             }
           >
-            {orden.categorias_ot.icono && (
-              <span className="mr-1">{orden.categorias_ot.icono}</span>
-            )}
+            <span className="mr-1 inline-flex items-center">
+              <CategoriaIcon icono={orden.categorias_ot.icono} size={11} />
+            </span>
             {orden.categorias_ot.nombre}
           </span>
         )}

@@ -82,8 +82,7 @@ const PRIORIDADES: { value: Prioridad; label: string; activeColor: string }[] = 
 const TIPOS: { value: TipoTrabajo; label: string }[] = [
   { value: "reactiva",      label: "Reactiva" },
   { value: "preventiva",    label: "Preventiva" },
-  { value: "inspeccion",    label: "Inspección" },
-  { value: "mejora",        label: "Mejora" },
+  { value: "emergencia",    label: "Emergencia" },
   { value: "presupuesto",   label: "Presupuesto" },
   { value: "levantamiento", label: "Levantamiento" },
 ];
@@ -409,7 +408,7 @@ export default function OTCrearForm({ usuarios, ubicaciones, activos, categorias
 
   const activoOptions = activos.map(a => ({
     id: a.id,
-    label: a.nombre + (a.codigo ? ` (${a.codigo})` : ""),
+    label: a.nombre + (a.numero_serie ? ` (${a.numero_serie})` : ""),
   }));
 
   const save = async () => {
