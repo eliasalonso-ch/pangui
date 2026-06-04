@@ -22,6 +22,7 @@ export async function proxy(request) {
   const isLogin = pathname === "/login";
   const isRoot  = pathname === "/";
   const isPublic =
+    pathname.startsWith("/monitoring") || // Sentry tunnel — must bypass auth
     pathname.startsWith("/arco") ||
     pathname.startsWith("/privacidad") ||
     pathname.startsWith("/terminos") ||
