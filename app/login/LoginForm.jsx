@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase";
+import posthog from "posthog-js";
 import { ArrowLeft, CheckCircle2, Eye, EyeOff, Loader2 } from "lucide-react";
 
 const FEATURES = [
@@ -58,6 +59,7 @@ export default function LoginForm() {
       setLoading(false);
       return;
     }
+    if (posthog.__loaded) posthog.capture("signed_in", { method: "password" });
     router.push("/inicio");
   }
 

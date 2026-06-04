@@ -1,9 +1,15 @@
 import AppShell from "./AppShell";
+import AnalyticsIdentity from "./AnalyticsIdentity";
 
 export const metadata = {
   title: "Pangui",
 };
 
 export default function AppLayout({ children }) {
-  return <AppShell>{children}</AppShell>;
+  return (
+    <>
+      <AnalyticsIdentity />
+      <AppShell>{children}</AppShell>
+    </>
+  );
 }

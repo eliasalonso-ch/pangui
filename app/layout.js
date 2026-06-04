@@ -1,5 +1,6 @@
 import { Inter, Geist } from "next/font/google";
 import "./globals.css";
+import { PostHogProvider } from "./PostHogProvider";
 
 const inter = Inter({
   variable: "--font-heading",
@@ -44,7 +45,7 @@ export default function RootLayout({ children }) {
         <link rel="dns-prefetch" href="https://yqwsryjbmlvcghnwnzik.supabase.co" />
       </head>
       <body>
-        {children}
+        <PostHogProvider>{children}</PostHogProvider>
       </body>
     </html>
   );
