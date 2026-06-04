@@ -9,6 +9,7 @@ import {
 import { createClient } from "@/lib/supabase";
 import { callEdge } from "@/lib/edge";
 import { createOrden, buildDescripcion } from "@/lib/ordenes-api";
+import { analytics } from "@/lib/analytics";
 import { uploadFotoGrupo, createFotoGrupo, addFotoToGrupo } from "@/lib/foto-grupos-api";
 import { uploadToR2 } from "@/lib/r2";
 import { buildRecurrenciaConfig, RecurrenceControls, RECURRENCIAS } from "./RecurrenceControls";
@@ -1366,6 +1367,15 @@ export default function OTCrearPanel({
           }
         } catch { /* don't block OT creation */ }
       }
+
+      analytics.otCreated({
+        ot_id: orden.id,
+        workspace_id: wsId,
+        tipo_trabajo: form.tipo_trabajo || "sin_tipo",
+        prioridad: form.prioridad,
+        recurrencia: form.recurrencia,
+        asignados_count: form.asignados_ids.length,
+      });
 
       onCreated(orden);
     } catch (e) {

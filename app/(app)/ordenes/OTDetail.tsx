@@ -37,6 +37,7 @@ import {
   uploadOrdenFoto, addOrdenFoto, removeOrdenFoto,
   parseDescMeta, fetchOrden, fetchSubOrdenes, createSubOrden,
 } from "@/lib/ordenes-api";
+import { analytics } from "@/lib/analytics";
 import {
   fetchFotoGrupos, createFotoGrupo, updateFotoGrupo, deleteFotoGrupo,
   addFotoToGrupo, removeFotoFromGrupo, uploadFotoGrupo, toggleFotoGrupoLocked,
@@ -1863,6 +1864,11 @@ export default function OTDetail({
           workspaceId: wsId,
           asignadosIds: orden.asignados_ids ?? [],
         } : undefined);
+        analytics.otCompleted({
+          ot_id: orden.id,
+          workspace_id: wsId ?? "",
+          tiempo_total_segundos: elapsed,
+        });
         onOrdenUpdated({
           en_ejecucion: false,
           tiempo_total_segundos: elapsed,

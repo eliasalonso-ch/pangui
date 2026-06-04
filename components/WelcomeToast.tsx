@@ -15,6 +15,7 @@ import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Sparkles, X } from "lucide-react";
 import { PLANS, type PlanKey } from "@/lib/flow-plans";
+import { analytics } from "@/lib/analytics";
 
 const AUTO_DISMISS_MS = 6500;
 
@@ -40,6 +41,13 @@ function WelcomeToastInner({ variant }: { variant: Variant }) {
   const [visible, setVisible] = useState(true);
 
   useEffect(() => {
+    // Fire the conversion event once, before we strip the query param.
+    if (variant.kind === "trial") {
+      analytics.trialStarted();
+    } else {
+      analytics.subscriptionActivated({ plan_key: variant.planKey });
+    }
+
     if (typeof window !== "undefined" && window.location.search.includes("welcome=")) {
       const url = new URL(window.location.href);
       url.searchParams.delete("welcome");
