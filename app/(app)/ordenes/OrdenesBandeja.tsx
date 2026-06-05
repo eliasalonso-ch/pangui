@@ -375,9 +375,14 @@ export default function OrdenesBandeja({
     }
   }, [hasMoreOrdenes, loadingMoreOrdenes, ordenes, wsId]);
 
-  // Poll list every 60s — no realtime channel for ordenes_trabajo
+  // Poll list every 60s — no realtime channel for ordenes_trabajo.
+  // Swallow transient network errors (e.g. the user's connection drops): the
+  // next poll recovers. Without this, a failed fetch becomes an unhandled
+  // promise rejection that surfaces as a crash.
   useEffect(() => {
-    const id = setInterval(refreshList, 60_000);
+    const id = setInterval(() => {
+      refreshList().catch(() => { /* transient — next poll retries */ });
+    }, 60_000);
     return () => clearInterval(id);
   }, [refreshList]);
 
@@ -411,7 +416,7 @@ export default function OrdenesBandeja({
           if (!next.id) return;
 
           if (payload.eventType === "INSERT") {
-            refreshList();
+            refreshList().catch(() => { /* transient — next event/poll retries */ });
             return;
           }
 
