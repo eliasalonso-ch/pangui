@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo, memo } from "react";
 import { createPortal } from "react-dom";
 import { Clock, MapPin, Copy, Check as CheckIcon, AlertCircle, UserPlus, X as XIcon } from "lucide-react";
 import { parseDescMeta, updateOrden } from "@/lib/ordenes-api";
@@ -252,7 +252,7 @@ interface Props {
   rowNumber?:   number;
   usuarios:     Usuario[];
   isSelected:   boolean;
-  onClick:      () => void;
+  onClick:      (id: string) => void;
   myId?:        string;
   onAssigned?:  (id: string, newIds: string[]) => void;
   // When set (only in the "Reprogramadas" tab), render a pill with the
@@ -260,14 +260,16 @@ interface Props {
   coordinadaPara?: string | null;
 }
 
-export default function OTRow({ orden, rowNumber, usuarios, isSelected, onClick, myId, onAssigned, coordinadaPara }: Props) {
+function OTRow({ orden, rowNumber, usuarios, isSelected, onClick, myId, onAssigned, coordinadaPara }: Props) {
   const isPending = Boolean(orden._pending);
   const hasAssignees = (orden.asignados_ids ?? []).length > 0;
   const estado = orden.estado === "pendiente"
     ? (hasAssignees ? ESTADO_ASIGNADA : ESTADO["pendiente"])
     : ESTADO[orden.estado];
   const prio      = PRIORIDAD[orden.prioridad];
-  const meta      = parseDescMeta(orden.descripcion ?? null);
+  // Parsing the description is non-trivial; memoize so it only re-runs when the
+  // description text actually changes, not on every parent re-render.
+  const meta      = useMemo(() => parseDescMeta(orden.descripcion ?? null), [orden.descripcion]);
   const titulo    = orden.titulo || meta.descripcion?.slice(0, 80) || "Sin título";
   const [copied, setCopied] = useState(false);
   const [dropOpen, setDropOpen] = useState(false);
@@ -301,7 +303,7 @@ export default function OTRow({ orden, rowNumber, usuarios, isSelected, onClick,
     <div
       role="option"
       aria-selected={isSelected}
-      onClick={isPending ? undefined : onClick}
+      onClick={isPending ? undefined : () => onClick(orden.id)}
       style={{
         padding: "14px 20px",
         background: isSelected ? "var(--brand-tint)" : "var(--surface-1)",
@@ -514,3 +516,9 @@ export default function OTRow({ orden, rowNumber, usuarios, isSelected, onClick,
     </div>
   );
 }
+
+// Memoized so a parent re-render (e.g. selecting another row, the 60s list
+// poll) only re-renders rows whose props actually changed — not all 70+. This
+// is the main lever for INP on the orders list. Requires the parent to pass
+// stable onClick/onAssigned callbacks (see OrdenesBandeja).
+export default memo(OTRow);

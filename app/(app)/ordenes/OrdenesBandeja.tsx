@@ -332,6 +332,16 @@ export default function OrdenesBandeja({
     setRightPanel("create");
   }, [router, view]);
 
+  // Stable per-list callbacks so memoized OTRows don't re-render on every parent
+  // update. These take the OT id and avoid per-row inline closures.
+  const handleRowClick = useCallback((id: string) => openOT(id, true), [openOT]);
+
+  const handleRowAssigned = useCallback((id: string, newIds: string[]) => {
+    setOrdenes(prev =>
+      prev.map(x => x.id === id ? { ...x, asignados_ids: newIds.length > 0 ? newIds : null } : x)
+    );
+  }, []);
+
   // Sync the panel with the ?id= URL param so direct/pasted links open the
   // OT detail, and so closing the panel (which strips ?id=) clears it.
   useEffect(() => {
@@ -1211,11 +1221,9 @@ export default function OrdenesBandeja({
                     rowNumber={idx + 1}
                     usuarios={usuarios}
                     isSelected={selected === o.id}
-                    onClick={() => openOT(o.id, true)}
+                    onClick={handleRowClick}
                     myId={myId}
-                    onAssigned={(id, newIds) => setOrdenes(prev =>
-                      prev.map(x => x.id === id ? { ...x, asignados_ids: newIds.length > 0 ? newIds : null } : x)
-                    )}
+                    onAssigned={handleRowAssigned}
                     coordinadaPara={scope === "reprogramadas" ? (o.fecha_inicio ?? null) : null}
                   />
                 ))}
