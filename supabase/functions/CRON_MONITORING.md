@@ -19,8 +19,11 @@ The helper is a **no-op until `SENTRY_DSN` is set** in the functions' environmen
 Use the **web Sentry DSN** (`javascript-nextjs` project) — these are server-side
 jobs, so they belong with the web errors, not a separate project.
 
+⚠️ Paste the DSN **without** angle brackets — `<...>` in the value makes the
+SDK throw "Invalid Sentry Dsn" and the monitor silently no-ops.
+
 ```
-supabase secrets set SENTRY_DSN="<your web project DSN>" --project-ref yqwsryjbmlvcghnwnzik
+supabase secrets set SENTRY_DSN="https://ac30491de1a95c16896be2566aa39583@o4511507555614720.ingest.us.sentry.io/4511507563216896" --project-ref yqwsryjbmlvcghnwnzik
 supabase secrets set SENTRY_ENV="production" --project-ref yqwsryjbmlvcghnwnzik
 ```
 
