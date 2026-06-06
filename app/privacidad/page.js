@@ -235,6 +235,7 @@ export default function PrivacidadPage() {
             ["Firma digital", "Imagen de firma del cliente receptor del trabajo", "No (según el procedimiento)"],
             ["Procedimientos", "Respuestas a pasos del procedimiento (texto, números, opciones, fotos, firmas)", "No (según el procedimiento)"],
             ["Uso del servicio", "Logs de acceso, dispositivo, sistema operativo, dirección IP", "No (técnico)"],
+            ["Uso y diagnóstico", "Eventos de uso de la aplicación (pantallas visitadas, interacciones), reportes de errores y fallos (incluyendo dispositivo, versión de la app y registros técnicos), asociados a tu identificador de usuario y correo para mejorar el servicio y diagnosticar problemas", "No (técnico)"],
             ["Notificaciones", "Token push del dispositivo móvil (Expo Push) para envío de alertas en Android/iOS", "No (opcional)"],
           ]}
         />
@@ -270,7 +271,7 @@ export default function PrivacidadPage() {
             "Gestionar el inventario de materiales y generar alertas de stock mínimo.",
             "Exportar reportes PDF y Excel para auditoría interna de tu empresa.",
             "Autenticarte de forma segura mediante Supabase Auth.",
-            "Mejorar el servicio mediante análisis de uso agregado y anonimizado.",
+            "Mejorar el servicio y diagnosticar errores mediante análisis de uso del producto y reportes de fallos (analítica y monitoreo de errores), asociados a tu identificador de usuario.",
           ]}
         />
         <InfoBox>
@@ -309,6 +310,9 @@ export default function PrivacidadPage() {
             "Expo (650 Industries, Inc., EE.UU.) — Servicio de notificaciones push (Expo Push) y entrega de actualizaciones de la app móvil (Expo Updates). El token push se asocia a tu cuenta.",
             "Vercel Inc. (EE.UU.) — Hosting del sitio web y backend de generación de PDF (pdf.getpangui.com). El servicio de PDF recibe el contenido completo de la OT que solicitas exportar.",
             "Resend Inc. (EE.UU.) — Envío de correos transaccionales (confirmación de cuenta, invitaciones, avisos). Solo recibe email y contenido del mensaje.",
+            "PostHog Inc. (EE.UU.) — Analítica de producto: registra eventos de uso de la aplicación (pantallas, interacciones) asociados a tu identificador de usuario y correo, para entender el uso y mejorar el servicio. No se usa para publicidad. Las solicitudes se enrutan a través de nuestro propio dominio.",
+            "Functional Software, Inc. (Sentry, EE.UU.) — Monitoreo de errores y rendimiento: recibe reportes de fallos y excepciones de la aplicación, incluyendo dispositivo, versión, registros técnicos y tu identificador de usuario y correo, para diagnosticar y corregir problemas.",
+            "Better Stack (EE.UU.) — Monitoreo de disponibilidad del servicio (uptime) y página pública de estado. No recibe datos personales de los usuarios; solo verifica que la plataforma esté en línea.",
             "Flow S.A. (Chile) — Procesamiento de pagos, enrolamiento seguro de tarjetas y administración de suscripciones. Pangui almacena solo identificadores, estado de suscripción y datos parciales de tarjeta como marca y últimos 4 dígitos.",
             "Apple Inc. y Google LLC (EE.UU.) — Tiendas de aplicaciones (App Store, Google Play) para distribución de la app móvil; reciben datos de instalación y uso conforme a sus propias políticas.",
           ]}
@@ -422,7 +426,12 @@ export default function PrivacidadPage() {
         <p>
           <strong>No usamos cookies de seguimiento publicitario</strong> ni
           terceros con fines de marketing. No hay píxeles de Facebook, Google
-          Ads u otros trackers en la plataforma de gestión ni en la app móvil.
+          Ads ni redes publicitarias en la plataforma ni en la app móvil. Sí
+          utilizamos herramientas de <strong>analítica de producto y monitoreo
+          de errores</strong> (PostHog y Sentry) para entender el uso y
+          diagnosticar fallos; estos datos se usan únicamente para mejorar el
+          servicio y nunca para publicidad. Ver la sección de Encargados del
+          tratamiento para más detalle.
         </p>
       </LegalSection>
 
@@ -467,7 +476,7 @@ export default function PrivacidadPage() {
           lineHeight: 1.65,
         }}
       >
-        <strong>Última actualización: 18 de mayo de 2026.</strong> Este documento
+        <strong>Última actualización: 6 de junio de 2026.</strong> Este documento
         tiene carácter informativo y no reemplaza asesoría legal profesional.
         Recomendamos consultar con un abogado especialista en protección de
         datos para situaciones específicas de tu empresa.
