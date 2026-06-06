@@ -33,3 +33,13 @@ verify_jwt = false
 
 [functions.invitar]
 verify_jwt = false
+
+# Cron-triggered by pg_cron, which calls them without a JWT. Must allow
+# unauthenticated invocation (they use the service-role key internally and
+# are not user-facing). Without this they 401 before the handler runs, so the
+# Sentry cron check-in never fires.
+[functions.evaluar-alertas]
+verify_jwt = false
+
+[functions.export-schedules-cron]
+verify_jwt = false
