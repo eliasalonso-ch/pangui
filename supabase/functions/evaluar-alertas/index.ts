@@ -15,6 +15,7 @@
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { withCronMonitor } from "../_shared/sentry-cron.ts";
 
 const ACTIVE_ALERT_TYPES = new Set<AlertType>([
   "ot_vencida",
@@ -354,6 +355,10 @@ async function resolveStaleAlerts(
 
 Deno.serve(async (req) => {
   try {
+    return await withCronMonitor(
+      "evaluar-alertas",
+      { schedule: "0 * * * *", maxRuntime: 10 },
+      async () => {
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
@@ -368,8 +373,9 @@ Deno.serve(async (req) => {
       .eq("activa", true);
 
     if (reglaErr) {
-      console.error("Failed to fetch reglas:", reglaErr.message);
-      return new Response("Error fetching rules", { status: 500 });
+      // Throw so the cron monitor records a failure (the outer catch still
+      // returns a 500 Response).
+      throw new Error(`Error fetching rules: ${reglaErr.message}`);
     }
 
     if (!reglas || reglas.length === 0) {
@@ -388,8 +394,7 @@ Deno.serve(async (req) => {
       .not("estado", "in", "(completado,cancelado)");
 
     if (ordenErr) {
-      console.error("Failed to fetch ordenes:", ordenErr.message);
-      return new Response("Error fetching orders", { status: 500 });
+      throw new Error(`Error fetching orders: ${ordenErr.message}`);
     }
 
     const ordenesByWorkspace = new Map<string, OrdenTrabajo[]>();
@@ -405,8 +410,7 @@ Deno.serve(async (req) => {
       .in("workspace_id", workspaceIds);
 
     if (usuariosErr) {
-      console.error("Failed to fetch usuarios:", usuariosErr.message);
-      return new Response("Error fetching users", { status: 500 });
+      throw new Error(`Error fetching users: ${usuariosErr.message}`);
     }
 
     const usuariosByWorkspace = new Map<string, UsuarioRow[]>();
@@ -495,6 +499,8 @@ Deno.serve(async (req) => {
       status: 200,
       headers: { "Content-Type": "application/json" },
     });
+      },
+    );
   } catch (err) {
     console.error("Unhandled error:", String(err));
     return new Response(String(err), { status: 500 });

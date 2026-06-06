@@ -33,6 +33,7 @@ import {
   type ExportCols,
 } from "../_shared/excel-export-shared.ts";
 import { buildOrdenesCsv } from "../_shared/csv-export-shared.ts";
+import { withCronMonitor } from "../_shared/sentry-cron.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY  = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -374,6 +375,10 @@ function renderEmailHtml(opts: {
 // (which is auto-injected and we don't control its value at call sites).
 
 Deno.serve(async (_req) => {
+  return await withCronMonitor(
+    "export-schedules-cron",
+    { schedule: "0 * * * *", maxRuntime: 10 },
+    async () => {
   const supabase = createClient(SUPABASE_URL, SERVICE_KEY, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
@@ -388,7 +393,8 @@ Deno.serve(async (_req) => {
 
   if (error) {
     console.error("[export-cron] fetch schedules failed", error);
-    return new Response(JSON.stringify({ error: error.message }), { status: 500 });
+    // Throw so the cron monitor records a failure.
+    throw new Error(`fetch schedules failed: ${error.message}`);
   }
 
   const results: { schedule_id: string; ok: boolean; error?: string }[] = [];
@@ -439,4 +445,6 @@ Deno.serve(async (_req) => {
     status: 200,
     headers: { "Content-Type": "application/json" },
   });
+    },
+  );
 });
