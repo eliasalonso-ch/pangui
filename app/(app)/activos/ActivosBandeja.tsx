@@ -76,7 +76,7 @@ function estadoColor(estado: string | null | undefined) {
 }
 
 function ubicacionLabel(activo: Activo) {
-  return activo.ubicacion ? [activo.ubicacion.edificio, activo.ubicacion.piso].filter(Boolean).join(" · ") : null;
+  return activo.ubicacion ? [activo.ubicacion.edificio, activo.ubicacion.detalle].filter(Boolean).join(" · ") : null;
 }
 
 function SelectChevron() {
@@ -261,7 +261,7 @@ function ActivoForm({
           <div style={{ position: "relative" }}>
             <select value={form.ubicacion_id} onChange={e => set("ubicacion_id", e.target.value)} style={selectStyle}>
               <option value="">Sin ubicación</option>
-              {filteredUbicaciones.map(u => <option key={u.id} value={u.id}>{u.edificio}{u.piso ? ` · ${u.piso}` : ""}</option>)}
+              {filteredUbicaciones.map(u => <option key={u.id} value={u.id}>{u.edificio}{u.detalle ? ` · ${u.detalle}` : ""}</option>)}
             </select>
             <SelectChevron />
           </div>

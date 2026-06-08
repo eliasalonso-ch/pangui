@@ -650,7 +650,7 @@ export default function OTEditPanel({
 
   const ubicOptions = ubicaciones.map(u => ({
     id: u.id,
-    label: u.edificio + (u.piso ? ` · ${u.piso}` : ""),
+    label: u.edificio + (u.detalle ? ` · ${u.detalle}` : ""),
     sub: u.sociedades?.nombre,
   }));
 

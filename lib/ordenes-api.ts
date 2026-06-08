@@ -105,7 +105,7 @@ export const ORDEN_SELECT = `
   requiere_materiales, requiere_hoja, requiere_fotos,
   imagen_url, fotos_urls, links,
   activos (id, nombre),
-  ubicaciones (id, edificio, piso, sociedad_id, sociedades(nombre)),
+  ubicaciones (id, edificio, detalle, sociedad_id, sociedades(nombre)),
   lugar:lugares!lugar_id(id, nombre, imagen_url),
   sociedad:sociedades!sociedad_id(id, nombre, imagen_url),
   categorias_ot (id, nombre, icono, color),
@@ -120,7 +120,7 @@ export const LIST_SELECT = `
   categoria_id, ubicacion_id, activo_id, creado_por, asignados_ids,
   numero, parent_id,
   categorias_ot (nombre, icono, color),
-  ubicaciones (edificio, piso),
+  ubicaciones (edificio, detalle),
   activos (nombre)
 `;
 

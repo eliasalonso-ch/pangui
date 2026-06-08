@@ -1647,7 +1647,7 @@ export default function OTDetail({
       if (f.descripcion)     resCols.push({ header: "Descripción",      value: meta.descripcion ?? "—",           width: 44 });
       if (f.asignados)       resCols.push({ header: "Asignados",        value: asignadosNames || "—",             width: 28 });
       if (f.empresa)         resCols.push({ header: "Empresa",          value: (orden as any).sociedad?.nombre ?? "—", width: 20 });
-      if (f.ubicacion)       resCols.push({ header: "Ubicación",        value: orden.ubicaciones ? [orden.ubicaciones.edificio, orden.ubicaciones.piso].filter(Boolean).join(" · ") : "—", width: 26 });
+      if (f.ubicacion)       resCols.push({ header: "Ubicación",        value: orden.ubicaciones ? [orden.ubicaciones.edificio, orden.ubicaciones.detalle].filter(Boolean).join(" · ") : "—", width: 26 });
       if (f.lugar)           resCols.push({ header: "Lugar específico", value: (orden as any).lugar?.nombre ?? "—", width: 20 });
       if (f.creada_el)       resCols.push({ header: "Creada el",        value: orden.created_at ? orden.created_at.slice(0, 19).replace("T", " ") : "—", width: 18 });
       if (f.fecha_inicio)    resCols.push({ header: "Fecha inicio",     value: fmtDate(orden.fecha_inicio),       width: 14 });
@@ -1808,7 +1808,7 @@ export default function OTDetail({
       ``,
       `Asignados:       ${asignadosNames || "—"}`,
       `Empresa:         ${(orden as any).sociedad?.nombre ?? "—"}`,
-      `Ubicación:       ${orden.ubicaciones ? [orden.ubicaciones.edificio, orden.ubicaciones.piso].filter(Boolean).join(" · ") : "—"}`,
+      `Ubicación:       ${orden.ubicaciones ? [orden.ubicaciones.edificio, orden.ubicaciones.detalle].filter(Boolean).join(" · ") : "—"}`,
       `Lugar:           ${(orden as any).lugar?.nombre ?? "—"}`,
       ``,
       `Fecha inicio:    ${fmtDate(orden.fecha_inicio)}`,
@@ -2489,7 +2489,7 @@ export default function OTDetail({
                 meta.solicitante && { label: "Solicitante", value: meta.solicitante, icon: <User size={16} /> },
                 meta.hito && { label: "Hito", value: meta.hito, icon: <Flag size={16} /> },
                 orden.presupuesto && { label: "N° de presupuesto", value: orden.presupuesto, icon: <DollarSign size={16} /> },
-                orden.ubicaciones?.edificio && { label: "Ubicación", value: orden.ubicaciones.edificio + (orden.ubicaciones.piso ? ` · ${orden.ubicaciones.piso}` : ""), icon: <MapPin size={16} /> },
+                orden.ubicaciones?.edificio && { label: "Ubicación", value: orden.ubicaciones.edificio + (orden.ubicaciones.detalle ? ` · ${orden.ubicaciones.detalle}` : ""), icon: <MapPin size={16} /> },
                 orden.lugar?.nombre && { label: "Lugar específico", value: orden.lugar.nombre, icon: <MapPin size={16} /> },
                 orden.activos?.nombre && { label: "Activo", value: orden.activos.nombre, icon: <Settings2 size={16} /> },
                 orden.fecha_termino && { label: "Fecha de vencimiento", value: fmtFechaLocal(orden.fecha_termino), icon: <Calendar size={16} /> },

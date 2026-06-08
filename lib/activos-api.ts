@@ -8,7 +8,7 @@ export const ACTIVO_SELECT = `
   activo_padre_id, criticidad, numero_serie, año_fabricacion,
   estado, fecha_garantia, archivo_url, archivo_nombre,
   adjuntos, activo, created_at,
-  ubicacion:ubicaciones(id, edificio, piso),
+  ubicacion:ubicaciones(id, edificio, detalle),
   sociedad:sociedades(id, nombre, imagen_url),
   fabricante:fabricantes(id, nombre),
   modelo:modelos(id, nombre),

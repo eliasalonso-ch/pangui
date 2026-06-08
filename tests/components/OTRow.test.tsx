@@ -28,7 +28,7 @@ const baseOrden: OrdenListItem = {
   solicitante: null,
   hito: null,
   categorias_ot: null,
-  ubicaciones: { id: "u1", edificio: "Edificio Central", piso: null, sociedad_id: null },
+  ubicaciones: { id: "u1", edificio: "Edificio Central", detalle: null, sociedad_id: null },
   activos: null,
 };
 

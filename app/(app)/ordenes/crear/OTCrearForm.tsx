@@ -403,7 +403,7 @@ export default function OTCrearForm({ usuarios, ubicaciones, activos, categorias
 
   const ubicOptions = ubicaciones.map(u => ({
     id: u.id,
-    label: u.edificio + (u.piso ? ` · ${u.piso}` : "") + (u.detalle ? ` · ${u.detalle}` : ""),
+    label: u.edificio + (u.detalle ? ` · ${u.detalle}` : ""),
   }));
 
   const activoOptions = activos.map(a => ({

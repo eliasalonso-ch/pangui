@@ -106,7 +106,6 @@ export interface Sociedad {
 export interface Ubicacion {
   id: string;
   edificio: string;
-  piso: string | null;
   detalle: string | null;
   activa?: boolean;
   sociedad_id?: string | null;
@@ -186,7 +185,7 @@ export interface Activo {
   adjuntos?: AssetAttachment[];
   activo?: boolean;
   created_at?: string;
-  ubicacion?: Pick<Ubicacion, "id" | "edificio" | "piso"> | null;
+  ubicacion?: Pick<Ubicacion, "id" | "edificio" | "detalle"> | null;
   sociedad?: Pick<Sociedad, "id" | "nombre" | "imagen_url"> | null;
   fabricante?: Pick<Fabricante, "id" | "nombre"> | null;
   modelo?: Pick<Modelo, "id" | "nombre"> | null;
@@ -265,7 +264,7 @@ export interface OrdenTrabajo {
   links: OTLink[] | null;
   // Joined relations
   categorias_ot?: CategoriaOT | null;
-  ubicaciones?: (Pick<Ubicacion, "id" | "edificio" | "piso" | "sociedad_id"> & { sociedades?: Pick<Sociedad, "nombre"> | null }) | null;
+  ubicaciones?: (Pick<Ubicacion, "id" | "edificio" | "detalle" | "sociedad_id"> & { sociedades?: Pick<Sociedad, "nombre"> | null }) | null;
   lugar?: Pick<LugarEspecifico, "id" | "nombre" | "imagen_url"> | null;
   sociedad?: Pick<Sociedad, "id" | "nombre" | "imagen_url"> | null;
   activos?: Pick<Activo, "id" | "nombre"> | null;

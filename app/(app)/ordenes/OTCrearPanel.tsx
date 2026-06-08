@@ -819,7 +819,7 @@ function LocationSelect({ value, options, onChange, wsId, onCreated: onUbicCreat
       const { data } = await sb
         .from("ubicaciones")
         .insert({ workspace_id: wsId, edificio: nombre, activa: true })
-        .select("id,edificio,piso,detalle,activa,sociedad_id")
+        .select("id,edificio,detalle,activa,sociedad_id")
         .single();
       if (data) {
         onUbicCreated(data as Ubicacion);
@@ -1061,7 +1061,7 @@ export default function OTCrearPanel({
         sociedades:  sociedades.map(s => ({ id: s.id, name: s.nombre })),
         ubicaciones: ubicaciones.map(u => ({
           id: u.id,
-          name: u.edificio + (u.piso ? ` · ${u.piso}` : ""),
+          name: u.edificio + (u.detalle ? ` · ${u.detalle}` : ""),
         })),
         lugares:     lugares.map(l => ({ id: l.id, name: l.nombre })),
         hitos:       hitosCatalog,
@@ -1224,7 +1224,7 @@ export default function OTCrearPanel({
     } else if (hintKey === "ubicacion") {
       const { data } = await sb.from("ubicaciones")
         .insert({ workspace_id: wsId, edificio: name, activa: true })
-        .select("id, edificio, piso, detalle, activa, sociedad_id").single();
+        .select("id, edificio, detalle, activa, sociedad_id").single();
       if (data) {
         setUbicaciones(prev => [...prev, data as Ubicacion]);
         setForm(prev => ({ ...prev, ubicacion_id: data.id, lugar_id: "" }));
@@ -1260,7 +1260,7 @@ export default function OTCrearPanel({
 
   const ubicOptions = ubicaciones.map(u => ({
     id: u.id,
-    label: u.edificio + (u.piso ? ` · ${u.piso}` : ""),
+    label: u.edificio + (u.detalle ? ` · ${u.detalle}` : ""),
     sub: u.sociedades?.nombre,
   }));
 

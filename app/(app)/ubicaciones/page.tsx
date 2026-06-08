@@ -20,7 +20,6 @@ interface Sociedad {
 interface Ubicacion {
   id: string;
   edificio: string;
-  piso: string | null;
   detalle: string | null;
   direccion: string | null;
   grupo_cargo: string | null;
@@ -241,7 +240,7 @@ export default function UbicacionesPage() {
   async function fetchAll(sb: ReturnType<typeof createClient>, wid: string) {
     const [ubRes, luRes, soRes] = await Promise.all([
       sb.from("ubicaciones")
-        .select("id, edificio, piso, detalle, direccion, grupo_cargo, sociedad_id, imagen_url, sociedades(nombre)")
+        .select("id, edificio, detalle, direccion, grupo_cargo, sociedad_id, imagen_url, sociedades(nombre)")
         .eq("workspace_id", wid).eq("activa", true).order("edificio"),
       sb.from("lugares")
         .select("id, nombre, descripcion, direccion, imagen_url, ubicacion_id, ubicaciones(edificio)")
@@ -270,7 +269,7 @@ export default function UbicacionesPage() {
     if (type === "ubicaciones") {
       setForm({
         edificio:    item.edificio ?? "",
-        piso:        item.piso ?? "",
+        detalle:     item.detalle ?? "",
         direccion:   item.direccion ?? "",
         grupo_cargo: item.grupo_cargo ?? "",
         sociedad_id: item.sociedad_id ?? "",
@@ -305,7 +304,7 @@ export default function UbicacionesPage() {
       } else if (type === "ubicaciones") {
         const payload = {
           edificio:    form.edificio?.trim(),
-          piso:        form.piso?.trim() || null,
+          detalle:     form.detalle?.trim() || null,
           direccion:   form.direccion?.trim() || null,
           grupo_cargo: form.grupo_cargo?.trim() || null,
           sociedad_id: form.sociedad_id || null,
@@ -484,7 +483,7 @@ export default function UbicacionesPage() {
                 key={u.id}
                 img={u.imagen_url}
                 name={u.edificio}
-                sub={[u.piso, u.direccion, u.sociedad_nombre].filter(Boolean).join(" · ")}
+                sub={[u.detalle, u.direccion, u.sociedad_nombre].filter(Boolean).join(" · ")}
                 onEdit={canEdit ? () => openEdit("ubicaciones", u) : undefined}
                 onDelete={canEdit ? () => setConfirmDel({ type: "ubicaciones", id: u.id, name: u.edificio }) : undefined}
               />
@@ -559,7 +558,7 @@ export default function UbicacionesPage() {
                   </div>
                   <div>
                     <FieldLabel>Piso / Nivel</FieldLabel>
-                    <FieldInput value={form.piso ?? ""} onChange={v => setForm(f => ({ ...f, piso: v }))} placeholder="Ej: 3" />
+                    <FieldInput value={form.detalle ?? ""} onChange={v => setForm(f => ({ ...f, detalle: v }))} placeholder="Ej: 3" />
                   </div>
                   <div>
                     <FieldLabel>Grupo a cargo</FieldLabel>

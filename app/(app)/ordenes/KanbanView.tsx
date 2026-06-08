@@ -362,7 +362,7 @@ function KanbanCard({ orden, isReprogramada, isSelected, isDragging, onDragStart
       ? "var(--success)"
       : "var(--brand)";
   const ubicacion = orden.ubicaciones?.edificio
-    ? orden.ubicaciones.edificio + (orden.ubicaciones.piso ? ` · ${orden.ubicaciones.piso}` : "")
+    ? orden.ubicaciones.edificio + (orden.ubicaciones.detalle ? ` · ${orden.ubicaciones.detalle}` : "")
     : null;
   const dueYmd = orden.fecha_termino?.slice(0, 10) ?? null;
   const overdue = !!dueYmd && dueYmd < todayYmd() && orden.estado !== "completado";

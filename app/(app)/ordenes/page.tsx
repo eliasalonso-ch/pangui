@@ -39,7 +39,7 @@ export default async function OrdenesPage({ searchParams }: PageProps) {
       .then(r => (r.data ?? []) as Usuario[]),
 
     sb.from("ubicaciones")
-      .select("id,edificio,piso,detalle,activa,sociedad_id,sociedades(id,nombre)")
+      .select("id,edificio,detalle,activa,sociedad_id,sociedades(id,nombre)")
       .eq("workspace_id", wsId)
       .eq("activa", true)
       .order("edificio")

@@ -160,7 +160,7 @@ export function FilterBar({ filtros, onChange, usuarios, ubicaciones, sociedades
     (filtros.sinAsignar ? 1 : 0);
 
   const filteredUsers = usuarios.filter(u => u.nombre.toLowerCase().includes(userSearch.toLowerCase()));
-  const filteredUbic  = ubicaciones.filter(u => (u.edificio + (u.piso ?? "")).toLowerCase().includes(ubicSearch.toLowerCase()));
+  const filteredUbic  = ubicaciones.filter(u => (u.edificio + (u.detalle ?? "")).toLowerCase().includes(ubicSearch.toLowerCase()));
   const filteredSoc   = sociedades.filter(s => s.nombre.toLowerCase().includes(socSearch.toLowerCase()));
 
   return (
@@ -264,7 +264,7 @@ export function FilterBar({ filtros, onChange, usuarios, ubicaciones, sociedades
         <div style={{ maxHeight: 220, overflowY: "auto", padding: "2px 0 6px" }}>
           {filteredUbic.map(u => {
             const active = filtros.ubicacionIds.includes(u.id);
-            const label = u.edificio + (u.piso ? ` · ${u.piso}` : "");
+            const label = u.edificio + (u.detalle ? ` · ${u.detalle}` : "");
             return (
               <button
                 key={u.id}
@@ -600,7 +600,7 @@ export default function OTFiltrosPanel({ filtros, onChange, onClose, usuarios, u
             <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
               {ubicaciones.map(u => {
                 const active = filtros.ubicacionIds.includes(u.id);
-                const label = u.edificio + (u.piso ? ` · ${u.piso}` : "");
+                const label = u.edificio + (u.detalle ? ` · ${u.detalle}` : "");
                 return (
                   <button key={u.id} type="button" onClick={() => set({ ubicacionIds: toggle(filtros.ubicacionIds, u.id) })} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 8px", border: "none", borderRadius: 4, background: active ? "var(--brand-tint)" : "transparent", cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}>
                     <span style={{ flex: 1, fontSize: 12.5, color: "var(--fg-1)" }}>{label}</span>
