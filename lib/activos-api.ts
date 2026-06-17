@@ -4,11 +4,12 @@ import type { Activo, AssetAttachment, AssetCriticality, AssetStatus, Fabricante
 
 export const ACTIVO_SELECT = `
   id, workspace_id, nombre, descripcion, imagen_url,
-  ubicacion_id, sociedad_id, fabricante_id, modelo_id, proveedor_id, responsable_id,
+  ubicacion_id, lugar_id, sociedad_id, fabricante_id, modelo_id, proveedor_id, responsable_id,
   activo_padre_id, criticidad, numero_serie, año_fabricacion,
   estado, fecha_garantia, archivo_url, archivo_nombre,
   adjuntos, activo, created_at,
   ubicacion:ubicaciones(id, edificio, detalle),
+  lugar:lugares(id, nombre),
   sociedad:sociedades(id, nombre, imagen_url),
   fabricante:fabricantes(id, nombre),
   modelo:modelos(id, nombre),
@@ -22,6 +23,7 @@ export interface ActivoInput {
   descripcion?: string | null;
   imagen_url?: string | null;
   ubicacion_id?: string | null;
+  lugar_id?: string | null;
   sociedad_id?: string | null;
   fabricante_id?: string | null;
   modelo_id?: string | null;
@@ -44,6 +46,7 @@ function cleanInput(input: ActivoInput): Record<string, unknown> {
   if (input.descripcion !== undefined) out.descripcion = input.descripcion?.toString().trim() || null;
   if (input.imagen_url !== undefined) out.imagen_url = input.imagen_url ?? null;
   if (input.ubicacion_id !== undefined) out.ubicacion_id = input.ubicacion_id ?? null;
+  if (input.lugar_id !== undefined) out.lugar_id = input.lugar_id ?? null;
   if (input.sociedad_id !== undefined) out.sociedad_id = input.sociedad_id ?? null;
   if (input.fabricante_id !== undefined) out.fabricante_id = input.fabricante_id ?? null;
   if (input.modelo_id !== undefined) out.modelo_id = input.modelo_id ?? null;
@@ -99,6 +102,98 @@ export async function deleteActivo(id: string): Promise<void> {
   const sb = createClient();
   const { error } = await sb.from("activos").update({ activo: false }).eq("id", id);
   if (error) throw error;
+}
+
+// ── OT history (all OTs linked to an asset) ────────────────────────────────────
+
+const HISTORY_SELECT = `
+  id, titulo, numero, estado, tipo_trabajo,
+  fecha_inicio, fecha_termino, iniciado_at, completado_en,
+  tiempo_total_segundos, parent_id, costo_total, asignados_ids,
+  creado_por, completado_por,
+  creador:usuarios!creado_por(id, nombre),
+  completador:usuarios!completado_por(id, nombre)
+`;
+
+export interface ActivoOTHistoryRow {
+  id: string;
+  titulo: string | null;
+  numero: number | null;
+  estado: string;
+  tipo_trabajo: string | null;
+  fecha_inicio: string | null;
+  fecha_termino: string | null;
+  iniciado_at: string | null;
+  completado_en: string | null;
+  tiempo_total_segundos: number | null;
+  parent_id: string | null;
+  costo_total: number | null;
+  asignados_ids: string[] | null;
+  creado_por: string | null;
+  completado_por: string | null;
+  creador?: { id: string; nombre: string } | null;
+  completador?: { id: string; nombre: string } | null;
+}
+
+/** All OTs (incl. sub-OTs) that touched this activo, newest completion first. */
+export async function fetchActivoOTHistory(activoId: string, limit = 200): Promise<ActivoOTHistoryRow[]> {
+  const sb = createClient();
+  const { data, error } = await sb
+    .from("ordenes_trabajo")
+    .select(HISTORY_SELECT)
+    .eq("activo_id", activoId)
+    .order("completado_en", { ascending: false, nullsFirst: false })
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+  return (data ?? []) as unknown as ActivoOTHistoryRow[];
+}
+
+// ── Asset activity log (actividad_activo) ──────────────────────────────────────
+
+export type ActivoActividadTipo =
+  | "creado"
+  | "editado"
+  | "estado_cambiado"
+  | "eliminado"
+  | "ot_vinculada"
+  | "ot_completada";
+
+export interface ActivoActividadRow {
+  id: string;
+  activo_id: string;
+  usuario_id: string | null;
+  tipo: ActivoActividadTipo;
+  comentario: string | null;
+  meta: Record<string, unknown> | null;
+  created_at: string;
+  usuario?: { id: string; nombre: string } | null;
+}
+
+const ACTIVIDAD_SELECT = `
+  id, activo_id, usuario_id, tipo, comentario, meta, created_at,
+  usuario:usuarios!usuario_id(id, nombre)
+`;
+
+/** One page of an asset's activity log, newest first. */
+export async function fetchActivoActividadPage(
+  activoId: string,
+  page: number,
+  pageSize: number,
+): Promise<{ rows: ActivoActividadRow[]; nextPage: number | null }> {
+  const sb = createClient();
+  const from = page * pageSize;
+  const to = from + pageSize - 1;
+  const { data, error } = await sb
+    .from("actividad_activo")
+    .select(ACTIVIDAD_SELECT)
+    .eq("activo_id", activoId)
+    .order("created_at", { ascending: false })
+    .range(from, to);
+  if (error) throw error;
+  const rows = (data ?? []) as unknown as ActivoActividadRow[];
+  const nextPage = rows.length === pageSize ? page + 1 : null;
+  return { rows, nextPage };
 }
 
 export async function fetchFabricantes(): Promise<Fabricante[]> {

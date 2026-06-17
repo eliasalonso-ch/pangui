@@ -28,6 +28,7 @@ export default async function OrdenesPage({ searchParams }: PageProps) {
       .select(LIST_SELECT)
       .eq("workspace_id", wsId)
       .is("parent_id", null)
+      .is("deleted_at", null)
       .order("created_at", { ascending: false })
       .limit(ORDENES_PAGE_SIZE)
       .then(r => (r.data ?? []) as unknown as OrdenListItem[]),

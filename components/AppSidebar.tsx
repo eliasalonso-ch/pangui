@@ -20,6 +20,7 @@ import {
   PackageSearch,
   ListChecks,
   BellRing,
+  Trash2,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
@@ -544,6 +545,16 @@ export default function AppSidebar() {
                     <Link href="/reglas-alerta" style={{ display: "flex", alignItems: "center", gap: collapsed ? 0 : 10 }}>
                       <BellRing size={16} style={{ flexShrink: 0 }} />
                       {!collapsed && <span>Reglas de alerta</span>}
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )}
+              {isAdmin && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={isActive("/papelera")} tooltip="Papelera">
+                    <Link href="/papelera" style={{ display: "flex", alignItems: "center", gap: collapsed ? 0 : 10 }}>
+                      <Trash2 size={16} style={{ flexShrink: 0 }} />
+                      {!collapsed && <span>Papelera</span>}
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>

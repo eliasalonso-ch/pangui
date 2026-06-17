@@ -343,6 +343,7 @@ export default function AnaliticaPage() {
         sb.from("ordenes_trabajo")
           .select("id, titulo, estado, prioridad, tipo_trabajo, clasificacion, created_at, updated_at, fecha_inicio, fecha_termino, presupuesto, iniciado_at, pausado_at, en_ejecucion, tiempo_total_segundos, asignados_ids, parent_id, activo_id, ubicacion_id, activos(id,nombre), ubicaciones(id,edificio)")
           .eq("workspace_id", wsId)
+          .is("deleted_at", null)
           .order("created_at", { ascending: false })
           .limit(5000),
         sb.from("usuarios")

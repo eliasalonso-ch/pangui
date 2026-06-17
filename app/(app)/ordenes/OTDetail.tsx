@@ -16,6 +16,7 @@ import {
   ClipboardCheck, Info, Hash as HashIcon, Camera, PenLine, Shield, CheckSquare,
   Type, DollarSign, List, ListChecks, AlertCircle, ImagePlus, FolderOpen,
   Lock, LockOpen, Mic, MicOff, Volume2, GitBranch, Wrench, Link as LinkIcon,
+  Phone, Mail,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { LinksDisplay } from "@/components/LinksInput";
@@ -674,9 +675,13 @@ export default function OTDetail({
   const [exportFields, setExportFields] = useState<Record<ExportField, boolean>>(ALL_FIELDS_ON);
 
   // ── PDF export field config ────────────────────────────────────────────────
+  // Keep this field set aligned with the mobile generator's PDF_SECTION_FIELDS
+  // (pangui-native-stable/hooks/useOrdenExport.ts) so both platforms drive the
+  // shared PDF service identically. `fotos_grupos` is web-only (hoja photo
+  // groups); everything else mirrors mobile, including `activo`.
   type PdfField =
     | "solicitante" | "hito" | "fechas"
-    | "descripcion" | "asignados" | "imagenes" | "fotos_grupos" | "ubicacion"
+    | "descripcion" | "asignados" | "imagenes" | "fotos_grupos" | "ubicacion" | "activo"
     | "materiales" | "tiempo" | "procedimientos" | "historial" | "firma";
 
   const PDF_FIELDS: { key: PdfField; label: string; group: string }[] = [
@@ -688,6 +693,7 @@ export default function OTDetail({
     { key: "imagenes",      label: "Imágenes",          group: "Contenido" },
     { key: "fotos_grupos",  label: "Grupos de fotos",   group: "Contenido" },
     { key: "ubicacion",     label: "Ubicación",         group: "Contenido" },
+    { key: "activo",        label: "Activo",            group: "Contenido" },
     { key: "materiales",    label: "Materiales",        group: "Seguimiento" },
     { key: "tiempo",        label: "Tiempo trabajado",  group: "Seguimiento" },
     { key: "procedimientos",label: "Procedimientos",    group: "Seguimiento" },
@@ -1536,18 +1542,55 @@ export default function OTDetail({
           };
         }),
       );
+      // Keep this payload in lockstep with the mobile generator
+      // (pangui-native-stable/lib/generate-orden-pdf.ts) so the shared PDF
+      // service at pdf.getpangui.com renders an identical document on both
+      // platforms. Same keys, same shapes; fields web has no equivalent for are
+      // sent as null (the template ignores unknown/null keys by contract).
+      const parentActivo = (orden as any).activos ?? null;
+      const activosCatalog: any[] = [];
+      {
+        const seen: Record<string, true> = {};
+        if (parentActivo?.id) { activosCatalog.push(parentActivo); seen[parentActivo.id] = true; }
+        for (const sub of (shouldIncludeSubOrdenes ? enrichedSubOrdenes : [])) {
+          const sa = (sub as any).activos;
+          if (sa?.id && !seen[sa.id]) { activosCatalog.push(sa); seen[sa.id] = true; }
+        }
+      }
       const res = await fetch("/api/export-pdf", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          orden, actividad: act, usuarios,
+          orden,
+          activo: parentActivo,
+          activos: activosCatalog,
+          actividad: act, usuarios,
           exportadoPor: exporterName(),
           workspaceNombre: wsInfo.nombre,
           nOT: meta.nOT,
-          partes: [], subOrdenes: shouldIncludeSubOrdenes ? enrichedSubOrdenes : [],
+          subOrdenes: shouldIncludeSubOrdenes ? enrichedSubOrdenes : [],
+          // Send the same price-stripped partes shape mobile sends, so the PDF
+          // service renders the materials block identically. Gated by the
+          // materiales toggle.
+          partes: pdfFields.materiales
+            ? ordenPartes.map(op => ({
+                ...op,
+                parte: op.parte ? { ...op.parte, precio_unitario: undefined } : op.parte,
+              }))
+            : [],
           procedimientos: freshProcs,
           fotoGrupos: hojaGrupos,
           fields: pdfFields,
+          // Mode-aware extras — flat block, same as mobile. Web has no
+          // workspace-mode / client-signature concept yet, so those are null.
+          workspaceMode: undefined,
+          workspaceBrand: { logo_url: wsInfo.logoUrl, nombre: wsInfo.nombre },
+          sociedad: (orden as any).sociedad ?? null,
+          pdfMode: "single",
+          historyRows: undefined,
+          kpis: undefined,
+          clientSignature: null,
+          // Back-compat: keep the flat logoUrl the previous payload sent.
           logoUrl: wsInfo.logoUrl,
         }),
       });
@@ -1642,7 +1685,9 @@ export default function OTDetail({
       if (f.prioridad)       resCols.push({ header: "Prioridad",        value: orden.prioridad,                   width: 12 });
       if (f.tipo_trabajo)    resCols.push({ header: "Tipo de trabajo",  value: orden.tipo_trabajo ?? "—",         width: 16 });
       if (f.categoria)       resCols.push({ header: "Categoría",        value: (orden as any).categorias_ot?.nombre ?? "—", width: 18 });
-      if (f.solicitante)     resCols.push({ header: "Solicitante",      value: meta.solicitante ?? "—",           width: 22 });
+      if (f.solicitante)     resCols.push({ header: "Solicitante",      value: orden.solicitante ?? meta.solicitante ?? "—", width: 22 });
+      if (f.solicitante)     resCols.push({ header: "Tel. solicitante",  value: orden.solicitante_telefono ?? "—", width: 16 });
+      if (f.solicitante)     resCols.push({ header: "Email solicitante", value: orden.solicitante_email ?? "—",    width: 24 });
       if (f.hito)            resCols.push({ header: "Hito",             value: meta.hito ?? "—",                  width: 18 });
       if (f.descripcion)     resCols.push({ header: "Descripción",      value: meta.descripcion ?? "—",           width: 44 });
       if (f.asignados)       resCols.push({ header: "Asignados",        value: asignadosNames || "—",             width: 28 });
@@ -1803,7 +1848,9 @@ export default function OTDetail({
       `Descripción:`,
       `  ${meta.descripcion ?? "—"}`,
       ``,
-      `Solicitante:     ${meta.solicitante ?? "—"}`,
+      `Solicitante:     ${orden.solicitante ?? meta.solicitante ?? "—"}`,
+      `Tel. solicitante:${orden.solicitante_telefono ?? "—"}`,
+      `Email solic.:    ${orden.solicitante_email ?? "—"}`,
       `Hito:            ${meta.hito ?? "—"}`,
       ``,
       `Asignados:       ${asignadosNames || "—"}`,
@@ -2486,7 +2533,9 @@ export default function OTDetail({
               {[
                 orden.tipo_trabajo && { label: "Tipo", value: TIPO_LABEL[orden.tipo_trabajo] ?? orden.tipo_trabajo, icon: <Settings2 size={16} /> },
                 orden.sociedad?.nombre && { label: "Sociedad", value: orden.sociedad.nombre, icon: <Building2 size={16} /> },
-                meta.solicitante && { label: "Solicitante", value: meta.solicitante, icon: <User size={16} /> },
+                (orden.solicitante || meta.solicitante) && { label: "Solicitante", value: orden.solicitante || meta.solicitante, icon: <User size={16} /> },
+                orden.solicitante_telefono && { label: "Teléfono solicitante", value: orden.solicitante_telefono, icon: <Phone size={16} />, href: `tel:${orden.solicitante_telefono.replace(/\s+/g, "")}` },
+                orden.solicitante_email && { label: "Email solicitante", value: orden.solicitante_email, icon: <Mail size={16} />, href: `mailto:${orden.solicitante_email}` },
                 meta.hito && { label: "Hito", value: meta.hito, icon: <Flag size={16} /> },
                 orden.presupuesto && { label: "N° de presupuesto", value: orden.presupuesto, icon: <DollarSign size={16} /> },
                 orden.ubicaciones?.edificio && { label: "Ubicación", value: orden.ubicaciones.edificio + (orden.ubicaciones.detalle ? ` · ${orden.ubicaciones.detalle}` : ""), icon: <MapPin size={16} /> },
@@ -2505,7 +2554,9 @@ export default function OTDetail({
                       display: "inline-flex", alignItems: "center", justifyContent: "center",
                       flexShrink: 0,
                     }}>{field.icon}</span>
-                    {field.value}
+                    {field.href
+                      ? <a href={field.href} style={{ color: "var(--brand-fg)", textDecoration: "none", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{field.value}</a>
+                      : field.value}
                   </p>
                 </div>
               ))}

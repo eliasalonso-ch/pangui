@@ -263,6 +263,7 @@ function AnaliticaMaterialesPageInner() {
         sb.from("ordenes_trabajo")
           .select("id, titulo, created_at, activo_id, activos(nombre)")
           .eq("workspace_id", wsId)
+          .is("deleted_at", null)
           .gte("created_at", cutoffStr)
           .limit(2000),
       ]);

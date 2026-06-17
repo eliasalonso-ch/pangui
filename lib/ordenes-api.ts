@@ -98,7 +98,7 @@ export const ORDEN_SELECT = `
   id, titulo, descripcion, estado, prioridad, tipo, tipo_trabajo, clasificacion,
   fecha_inicio, fecha_termino, created_at, updated_at,
   creado_por, asignados_ids, workspace_id,
-  n_serie, solicitante, hito, presupuesto,
+  n_serie, solicitante, solicitante_telefono, solicitante_email, hito, presupuesto,
   numero, categoria_id, categoria_ids, ubicacion_id, activo_id, lugar_id, sociedad_id,
   iniciado_at, pausado_at, en_ejecucion, tiempo_total_segundos,
   recurrencia, recurrencia_config, proxima_ejecucion, recurrencia_origen_id, recurrencia_iteracion, parent_id,
@@ -135,6 +135,7 @@ export async function fetchOrdenesPage(wsId: string, beforeCreatedAt?: string | 
     .select(LIST_SELECT)
     .eq("workspace_id", wsId)
     .is("parent_id", null)
+    .is("deleted_at", null)
     .order("created_at", { ascending: false })
     .limit(ORDENES_PAGE_SIZE);
 
@@ -166,6 +167,7 @@ export async function fetchSubOrdenes(parentId: string): Promise<OrdenTrabajo[]>
     .from("ordenes_trabajo")
     .select(ORDEN_SELECT)
     .eq("parent_id", parentId)
+    .is("deleted_at", null)
     .order("created_at", { ascending: true });
   if (error) throw error;
   return (data ?? []) as unknown as OrdenTrabajo[];
@@ -191,6 +193,8 @@ export async function createOrden(payload: {
   descripcion?: string;
   n_serie?: string | null;
   solicitante?: string | null;
+  solicitante_telefono?: string | null;
+  solicitante_email?: string | null;
   hito?: string | null;
   presupuesto?: string | null;
   prioridad: Prioridad;
@@ -235,6 +239,8 @@ export async function createOrden(payload: {
       descripcion:        payload.descripcion ?? "",
       ...(payload.n_serie?.trim()      ? { n_serie:      payload.n_serie.trim()      } : {}),
       ...(payload.solicitante?.trim()  ? { solicitante:  payload.solicitante.trim()  } : {}),
+      ...(payload.solicitante_telefono?.trim() ? { solicitante_telefono: payload.solicitante_telefono.trim() } : {}),
+      ...(payload.solicitante_email?.trim()    ? { solicitante_email:    payload.solicitante_email.trim()    } : {}),
       ...(payload.hito?.trim()         ? { hito:         payload.hito.trim()         } : {}),
       ...(payload.presupuesto?.trim()  ? { presupuesto:  payload.presupuesto.trim()  } : {}),
       tipo:               "solicitud",
@@ -389,6 +395,8 @@ export async function updateOrden(
     descripcion?: string;
     n_serie?: string | null;
     solicitante?: string | null;
+    solicitante_telefono?: string | null;
+    solicitante_email?: string | null;
     hito?: string | null;
     presupuesto?: string | null;
     prioridad?: Prioridad;
@@ -578,10 +586,47 @@ export async function completarOrden(
 
 // ── Delete ────────────────────────────────────────────────────────────────────
 
+// Soft-delete: send the OT to the trash (papelera). Row + photos are kept so it
+// can be restored. A 30-day cron permanently purges old trash.
 export async function deleteOrden(id: string): Promise<void> {
+  const sb = createClient();
+  const { data: { user } } = await sb.auth.getUser();
+  const { error } = await sb
+    .from("ordenes_trabajo")
+    .update({ deleted_at: new Date().toISOString(), deleted_by: user?.id ?? null })
+    .eq("id", id);
+  if (error) throw error;
+}
+
+// Restore an OT from the trash back into the active lists.
+export async function restoreOrden(id: string): Promise<void> {
+  const sb = createClient();
+  const { error } = await sb
+    .from("ordenes_trabajo")
+    .update({ deleted_at: null, deleted_by: null })
+    .eq("id", id);
+  if (error) throw error;
+}
+
+// Permanently delete an OT (hard delete). Owner/admin only at the RLS layer.
+export async function purgeOrden(id: string): Promise<void> {
   const sb = createClient();
   const { error } = await sb.from("ordenes_trabajo").delete().eq("id", id);
   if (error) throw error;
+}
+
+// Trash list: OTs in the papelera, most-recently-deleted first.
+export async function fetchTrashedOrdenes(wsId: string): Promise<OrdenListItem[]> {
+  const sb = createClient();
+  const { data, error } = await sb
+    .from("ordenes_trabajo")
+    .select(LIST_SELECT)
+    .eq("workspace_id", wsId)
+    .not("deleted_at", "is", null)
+    .order("deleted_at", { ascending: false })
+    .limit(300);
+  if (error) throw error;
+  return (data ?? []) as unknown as OrdenListItem[];
 }
 
 // ── Photos ────────────────────────────────────────────────────────────────────

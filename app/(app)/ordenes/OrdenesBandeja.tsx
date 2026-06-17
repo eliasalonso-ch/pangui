@@ -114,7 +114,7 @@ export default function OrdenesBandeja({
   );
 
   type TabKey = "pendientes" | "completas";
-  type ScopeKey = "todas" | "sin_asignar" | "reprogramadas" | "levantamientos" | "presupuestos";
+  type ScopeKey = "todas" | "sin_asignar" | "reprogramadas" | "materiales" | "levantamientos" | "presupuestos";
 
   const [tab, setTab]           = useState<TabKey>(() => {
     const f = searchParams?.get("filtro");
@@ -125,6 +125,7 @@ export default function OrdenesBandeja({
     const f = searchParams?.get("filtro");
     if (f === "sin_asignar")     return "sin_asignar";
     if (f === "reprogramadas")   return "reprogramadas";
+    if (f === "materiales")      return "materiales";
     if (f === "levantamientos")  return "levantamientos";
     if (f === "presupuestos")    return "presupuestos";
     return "todas";
@@ -141,6 +142,7 @@ export default function OrdenesBandeja({
     if (f === "abiertas")         return { ...EMPTY_FILTROS, estados: ["pendiente", "en_espera"] };
     if (f === "bloqueadas")       return { ...EMPTY_FILTROS, estados: ["en_espera"] };
     if (f === "reprogramadas")    return { ...EMPTY_FILTROS, estados: ["en_espera"] };
+    if (f === "materiales")       return { ...EMPTY_FILTROS, estados: ["en_espera"] };
     if (f === "sin_asignar")      return { ...EMPTY_FILTROS, sinAsignar: true };
     if (f === "asignado")         return { ...EMPTY_FILTROS, soloAsignados: true };
     if (f === "levantamientos")   return EMPTY_FILTROS;
@@ -422,15 +424,32 @@ export default function OrdenesBandeja({
             return;
           }
 
-          const next = payload.new as Partial<OrdenTrabajo> & Partial<OrdenListItem> & { id?: string };
+          const next = payload.new as Partial<OrdenTrabajo> & Partial<OrdenListItem> & { id?: string; deleted_at?: string | null };
           if (!next.id) return;
+
+          // Soft-delete arrives as an UPDATE (deleted_at set). Treat it like a
+          // removal so trashed OTs drop out of the active list.
+          if (next.deleted_at) {
+            setOrdenes(prev => prev.filter(o => o.id !== next.id));
+            if (selectedId === next.id) setDetail(null);
+            return;
+          }
 
           if (payload.eventType === "INSERT") {
             refreshList().catch(() => { /* transient — next event/poll retries */ });
             return;
           }
 
-          setOrdenes(prev => prev.map(o => o.id === next.id ? { ...o, ...next } : o));
+          // Merge the update in place. If the row isn't in the list (e.g. an
+          // UPDATE that cleared deleted_at — a restore from trash), refetch so
+          // the restored OT reappears.
+          setOrdenes(prev => {
+            if (!prev.some(o => o.id === next.id)) {
+              refreshList().catch(() => { /* transient — next event/poll retries */ });
+              return prev;
+            }
+            return prev.map(o => o.id === next.id ? { ...o, ...next } : o);
+          });
           if (selectedId === next.id) {
             setDetail(prev => prev ? { ...prev, ...next } : prev);
           }
@@ -465,6 +484,13 @@ export default function OrdenesBandeja({
     [waitingAlerts],
   );
 
+  // OTs paused because materials are missing — same derivation as reprogramadas,
+  // mirrors the mobile PauseSheet "Faltan materiales" reason.
+  const faltanMaterialesIds = useMemo(
+    () => new Set(waitingAlerts.filter(a => a.reason === "materiales").map(a => a.id)),
+    [waitingAlerts],
+  );
+
   // Apply filters + search + sort
   const filtered = useMemo(() => {
     // Tab decides active vs. completed; scope narrows further. Kanban shows
@@ -479,6 +505,8 @@ export default function OrdenesBandeja({
       list = list.filter(o => !o.asignados_ids || o.asignados_ids.length === 0);
     } else if (scope === "reprogramadas") {
       list = list.filter(o => reprogramadaIds.has(o.id));
+    } else if (scope === "materiales") {
+      list = list.filter(o => faltanMaterialesIds.has(o.id));
     } else if (scope === "levantamientos") {
       list = list.filter(o => o.clasificacion === "levantamiento");
     } else if (scope === "presupuestos") {
@@ -576,7 +604,7 @@ export default function OrdenesBandeja({
       });
     }
     return list;
-  }, [ordenes, view, tab, scope, search, sort, filtros, ubicaciones, reprogramadaIds]);
+  }, [ordenes, view, tab, scope, search, sort, filtros, ubicaciones, reprogramadaIds, faltanMaterialesIds]);
 
   // Counts reflect the current filters (search + filtros) but not the active/closed tab split
   const filteredCounts = useMemo(() => {
@@ -649,6 +677,7 @@ export default function OrdenesBandeja({
         todas:         applyFilters(active).length,
         sin_asignar:   applyFilters(active.filter(o => !o.asignados_ids || o.asignados_ids.length === 0)).length,
         reprogramadas: applyFilters(active.filter(o => reprogramadaIds.has(o.id))).length,
+        materiales:    applyFilters(active.filter(o => faltanMaterialesIds.has(o.id))).length,
         levantamientos: applyFilters(active.filter(o => o.clasificacion === "levantamiento")).length,
         presupuestos:   applyFilters(active.filter(o => o.tipo_trabajo === "presupuesto")).length,
       },
@@ -658,7 +687,7 @@ export default function OrdenesBandeja({
         presupuestos:   applyFilters(closed.filter(o => o.tipo_trabajo === "presupuesto")).length,
       },
     };
-  }, [ordenes, filtros, search, ubicaciones, reprogramadaIds]);
+  }, [ordenes, filtros, search, ubicaciones, reprogramadaIds, faltanMaterialesIds]);
   const currentSortLabel = SORT_OPTIONS.find(o => o.value === sort)?.label ?? "";
 
   // ── Excel export (all OTs across tabs, respecting filters/search) ─────────
@@ -1065,6 +1094,7 @@ export default function OrdenesBandeja({
                     { value: "todas",          label: "Todas",                       count: filteredCounts.pendientes.todas },
                     { value: "sin_asignar",    label: "Sin asignar",                 count: filteredCounts.pendientes.sin_asignar },
                     { value: "reprogramadas",  label: "Reprogramadas",               count: filteredCounts.pendientes.reprogramadas },
+                    { value: "materiales",     label: "Faltan materiales",           count: filteredCounts.pendientes.materiales },
                     { value: "levantamientos", label: "Levantamientos pendientes",   count: filteredCounts.pendientes.levantamientos },
                     { value: "presupuestos",   label: "Presupuestos pendientes",     count: filteredCounts.pendientes.presupuestos },
                   ]
@@ -1197,6 +1227,7 @@ export default function OrdenesBandeja({
                     ? "Sin resultados para tu búsqueda"
                     : scope === "sin_asignar"   ? "No hay órdenes sin asignar"
                     : scope === "reprogramadas" ? "No hay órdenes reprogramadas"
+                    : scope === "materiales"    ? "No hay órdenes en espera por materiales"
                     : scope === "levantamientos" ? "No hay levantamientos"
                     : scope === "presupuestos"   ? "No hay presupuestos"
                     : tab === "completas"       ? "No hay órdenes completadas"

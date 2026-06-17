@@ -169,6 +169,7 @@ export interface Activo {
   descripcion?: string | null;
   imagen_url?: string | null;
   ubicacion_id?: string | null;
+  lugar_id?: string | null;
   sociedad_id?: string | null;
   fabricante_id?: string | null;
   modelo_id?: string | null;
@@ -186,6 +187,7 @@ export interface Activo {
   activo?: boolean;
   created_at?: string;
   ubicacion?: Pick<Ubicacion, "id" | "edificio" | "detalle"> | null;
+  lugar?: Pick<LugarEspecifico, "id" | "nombre"> | null;
   sociedad?: Pick<Sociedad, "id" | "nombre" | "imagen_url"> | null;
   fabricante?: Pick<Fabricante, "id" | "nombre"> | null;
   modelo?: Pick<Modelo, "id" | "nombre"> | null;
@@ -250,6 +252,8 @@ export interface OrdenTrabajo {
   // Dedicated metadata columns (previously encoded inside descripcion)
   n_serie: string | null;
   solicitante: string | null;
+  solicitante_telefono: string | null;
+  solicitante_email: string | null;
   hito: string | null;
   presupuesto: string | null;
   // Sequential number per workspace

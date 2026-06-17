@@ -251,6 +251,7 @@ export default function InicioDashboard() {
           .select(`id, titulo, descripcion, estado, prioridad, created_at, updated_at, fecha_termino, asignados_ids, numero, iniciado_at, pausado_at, tiempo_total_segundos, clasificacion, ubicaciones(edificio)`)
           .eq("workspace_id", workspaceId)
           .is("parent_id", null)
+          .is("deleted_at", null)
           .neq("estado", "cancelado")
           .order("created_at", { ascending: false })
           .limit(400),
@@ -267,6 +268,7 @@ export default function InicioDashboard() {
         sb.from("ordenes_trabajo")
           .select("id", { count: "exact", head: true })
           .eq("workspace_id", workspaceId)
+          .is("deleted_at", null)
           .neq("estado", "cancelado"),
       ]);
 

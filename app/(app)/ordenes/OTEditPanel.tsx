@@ -7,6 +7,7 @@ import {
   Paperclip, FileText, File,
 } from "lucide-react";
 import { updateOrden, parseDescMeta, buildDescripcion } from "@/lib/ordenes-api";
+import { fetchSolicitantes as fetchSolicitantesCatalog, upsertSolicitante, type Solicitante } from "@/lib/solicitantes-api";
 import { uploadToR2 } from "@/lib/r2";
 import { createClient } from "@/lib/supabase";
 import { buildRecurrenciaConfig, recurrenceDraftFromConfig, RecurrenceControls, RECURRENCIAS } from "./RecurrenceControls";
@@ -37,6 +38,8 @@ interface FormState {
   titulo:        string;
   n_ot:          string;
   solicitante:   string;
+  solicitante_telefono: string;
+  solicitante_email:    string;
   hito:          string;
   presupuesto:   string;
   descripcion:   string;
@@ -445,27 +448,25 @@ function HitoSelect({ value, onChange, wsId }: {
 }
 
 // ── SolicitanteSelect ─────────────────────────────────────────────────────────
-// Searchable picker backed by the `solicitantes` catalog (same pattern as
-// HitoSelect / the mobile solicitante-list). Stores the chosen *name* string,
-// matching how mobile stores it — avoids the free-text duplication problem.
+// Searchable picker backed by the `solicitantes` catalog. Stores the chosen
+// *name* string on the OT (matching mobile), plus an optional phone + email the
+// OT snapshots. Picking a catalog entry auto-fills its phone/email; both stay
+// editable. The catalog row is upserted on save (see panel save handler).
 
-function SolicitanteSelect({ value, onChange, wsId }: {
+function SolicitanteSelect({ value, telefono, email, onChange, wsId }: {
   value: string;
-  onChange: (v: string) => void;
+  telefono: string;
+  email: string;
+  onChange: (nombre: string, telefono: string, email: string) => void;
   wsId: string;
 }) {
   const [open, setOpen]                 = useState(false);
   const [query, setQuery]               = useState("");
-  const [solicitantes, setSolicitantes] = useState<{ id: string; nombre: string }[]>([]);
-  const [creating, setCreating]         = useState(false);
+  const [solicitantes, setSolicitantes] = useState<Solicitante[]>([]);
   const ref = useRef<HTMLDivElement>(null);
 
   const load = useCallback(async () => {
-    const sb = createClient();
-    const { data } = await sb
-      .from("solicitantes").select("id, nombre")
-      .eq("workspace_id", wsId).order("nombre");
-    setSolicitantes(data ?? []);
+    try { setSolicitantes(await fetchSolicitantesCatalog(wsId)); } catch { /* non-fatal */ }
   }, [wsId]);
 
   useEffect(() => {
@@ -484,110 +485,118 @@ function SolicitanteSelect({ value, onChange, wsId }: {
   const exactMatch = solicitantes.some(s => s.nombre.toLowerCase() === query.toLowerCase().trim());
   const canCreate = query.trim().length > 0 && !exactMatch;
 
-  async function handleCreate() {
-    const nombre = query.trim();
-    if (!nombre) return;
-    setCreating(true);
-    try {
-      const sb = createClient();
-      const { data } = await sb
-        .from("solicitantes").insert({ workspace_id: wsId, nombre })
-        .select("id, nombre").single();
-      if (data) {
-        setSolicitantes(prev => [...prev, data].sort((a, b) => a.nombre.localeCompare(b.nombre)));
-        onChange(data.nombre);
-        setQuery("");
-        setOpen(false);
-      }
-    } finally {
-      setCreating(false);
-    }
-  }
-
   return (
-    <div ref={ref} style={{ position: "relative" }}>
-      <button
-        type="button"
-        onClick={() => { setOpen(!open); setQuery(""); }}
-        style={{
-          width: "100%", height: 40, display: "flex", alignItems: "center", gap: 8,
-          padding: "0 12px", border: "1px solid var(--border)", borderRadius: 8,
-          background: "var(--surface-1)", fontSize: 13, color: value ? "var(--fg-1)" : "var(--fg-4)",
-          cursor: "pointer", textAlign: "left", fontFamily: "inherit",
-        }}
-      >
-        <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-          {value || "Seleccionar o crear solicitante…"}
-        </span>
-        <ChevronDown size={13} style={{ flexShrink: 0, color: "var(--fg-4)" }} />
-      </button>
-      {open && (
-        <div style={{
-          position: "absolute", top: "calc(100% + 3px)", left: 0, right: 0, zIndex: 200,
-          background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: 8,
-          boxShadow: "var(--shadow-md)", overflow: "hidden",
-        }}>
-          <div style={{ padding: "8px 8px 4px" }}>
-            <input
-              autoFocus
-              placeholder="Buscar o crear…"
-              value={query}
-              onChange={e => setQuery(e.target.value)}
-              style={{
-                width: "100%", height: 36, padding: "0 10px",
-                border: "1px solid var(--border)", borderRadius: 8,
-                fontSize: 12.5, outline: "none", color: "var(--fg-1)",
-                fontFamily: "inherit", boxSizing: "border-box", background: "var(--surface-1)",
-              }}
-            />
-          </div>
-          <div style={{ maxHeight: 220, overflowY: "auto" }}>
-            {value && (
-              <button
-                type="button"
-                onClick={() => { onChange(""); setOpen(false); }}
-                style={{ display: "block", width: "100%", textAlign: "left", padding: "10px 12px", fontSize: 13, color: "var(--fg-4)", background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}
-              >
-                Quitar solicitante
-              </button>
-            )}
-            {filtered.map(s => (
-              <button
-                key={s.id}
-                type="button"
-                onClick={() => { onChange(s.nombre); setOpen(false); }}
+    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      <div ref={ref} style={{ position: "relative" }}>
+        <button
+          type="button"
+          onClick={() => { setOpen(!open); setQuery(""); }}
+          style={{
+            width: "100%", height: 40, display: "flex", alignItems: "center", gap: 8,
+            padding: "0 12px", border: "1px solid var(--border)", borderRadius: 8,
+            background: "var(--surface-1)", fontSize: 13, color: value ? "var(--fg-1)" : "var(--fg-4)",
+            cursor: "pointer", textAlign: "left", fontFamily: "inherit",
+          }}
+        >
+          <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {value || "Seleccionar o crear solicitante…"}
+          </span>
+          <ChevronDown size={13} style={{ flexShrink: 0, color: "var(--fg-4)" }} />
+        </button>
+        {open && (
+          <div style={{
+            position: "absolute", top: "calc(100% + 3px)", left: 0, right: 0, zIndex: 200,
+            background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: 8,
+            boxShadow: "var(--shadow-md)", overflow: "hidden",
+          }}>
+            <div style={{ padding: "8px 8px 4px" }}>
+              <input
+                autoFocus
+                placeholder="Buscar o crear…"
+                value={query}
+                onChange={e => setQuery(e.target.value)}
                 style={{
-                  display: "flex", alignItems: "center", gap: 6,
-                  width: "100%", padding: "10px 12px", fontSize: 13,
-                  background: value === s.nombre ? "var(--brand-tint)" : "transparent",
-                  border: "none", cursor: "pointer", fontFamily: "inherit", color: "var(--fg-1)",
+                  width: "100%", height: 36, padding: "0 10px",
+                  border: "1px solid var(--border)", borderRadius: 8,
+                  fontSize: 12.5, outline: "none", color: "var(--fg-1)",
+                  fontFamily: "inherit", boxSizing: "border-box", background: "var(--surface-1)",
                 }}
-              >
-                {value === s.nombre && <Check size={11} style={{ color: "var(--brand)", flexShrink: 0 }} />}
-                {s.nombre}
-              </button>
-            ))}
-            {canCreate && (
-              <button
-                type="button"
-                onClick={handleCreate}
-                disabled={creating}
-                style={{
-                  display: "flex", alignItems: "center", gap: 6,
-                  width: "100%", padding: "10px 12px", fontSize: 13, fontWeight: 600,
-                  background: "var(--brand-tint)", color: "var(--brand)",
-                  border: "none", borderTop: "1px solid var(--border)",
-                  cursor: creating ? "default" : "pointer", fontFamily: "inherit",
-                }}
-              >
-                {creating ? <Loader2 size={11} className="animate-spin" /> : <Plus size={11} />}
-                Crear "{query.trim()}"
-              </button>
-            )}
-            {filtered.length === 0 && !canCreate && (
-              <div style={{ padding: "8px 10px", fontSize: 12.5, color: "var(--fg-4)" }}>Sin solicitantes</div>
-            )}
+              />
+            </div>
+            <div style={{ maxHeight: 220, overflowY: "auto" }}>
+              {value && (
+                <button
+                  type="button"
+                  onClick={() => { onChange("", "", ""); setOpen(false); }}
+                  style={{ display: "block", width: "100%", textAlign: "left", padding: "10px 12px", fontSize: 13, color: "var(--fg-4)", background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}
+                >
+                  Quitar solicitante
+                </button>
+              )}
+              {filtered.map(s => (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => { onChange(s.nombre, s.telefono ?? "", s.email ?? ""); setOpen(false); }}
+                  style={{
+                    display: "flex", alignItems: "flex-start", gap: 6,
+                    width: "100%", padding: "10px 12px", fontSize: 13,
+                    background: value === s.nombre ? "var(--brand-tint)" : "transparent",
+                    border: "none", cursor: "pointer", fontFamily: "inherit", color: "var(--fg-1)",
+                  }}
+                >
+                  {value === s.nombre && <Check size={11} style={{ color: "var(--brand)", flexShrink: 0, marginTop: 3 }} />}
+                  <div style={{ flex: 1, minWidth: 0, textAlign: "left" }}>
+                    <div>{s.nombre}</div>
+                    {(s.telefono || s.email) && (
+                      <div style={{ fontSize: 11, color: "var(--fg-4)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {[s.telefono, s.email].filter(Boolean).join(" · ")}
+                      </div>
+                    )}
+                  </div>
+                </button>
+              ))}
+              {canCreate && (
+                <button
+                  type="button"
+                  onClick={() => { onChange(query.trim(), telefono, email); setQuery(""); setOpen(false); }}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 6,
+                    width: "100%", padding: "10px 12px", fontSize: 13, fontWeight: 600,
+                    background: "var(--brand-tint)", color: "var(--brand)",
+                    border: "none", borderTop: "1px solid var(--border)",
+                    cursor: "pointer", fontFamily: "inherit",
+                  }}
+                >
+                  <Plus size={11} />
+                  Crear "{query.trim()}"
+                </button>
+              )}
+              {filtered.length === 0 && !canCreate && (
+                <div style={{ padding: "8px 10px", fontSize: 12.5, color: "var(--fg-4)" }}>Sin solicitantes</div>
+              )}
+            </div>
           </div>
+        )}
+      </div>
+
+      {/* Contact info — snapshotted onto the OT, auto-filled from the catalog. */}
+      {value && (
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+          <input
+            type="tel"
+            placeholder="Teléfono"
+            value={telefono}
+            onChange={e => onChange(value, e.target.value, email)}
+            style={{ height: 38, padding: "0 12px", border: "1px solid var(--border)", borderRadius: 8, fontSize: 13, color: "var(--fg-1)", outline: "none", fontFamily: "inherit", background: "var(--surface-1)" }}
+          />
+          <input
+            type="email"
+            placeholder="Email"
+            value={email}
+            onChange={e => onChange(value, telefono, e.target.value)}
+            style={{ height: 38, padding: "0 12px", border: "1px solid var(--border)", borderRadius: 8, fontSize: 13, color: "var(--fg-1)", outline: "none", fontFamily: "inherit", background: "var(--surface-1)" }}
+          />
         </div>
       )}
     </div>
@@ -605,7 +614,9 @@ export default function OTEditPanel({
   const [form, setForm] = useState<FormState>({
     titulo:        orden.titulo ?? "",
     n_ot:          _meta.nOT          ?? "",
-    solicitante:   _meta.solicitante  ?? "",
+    solicitante:   orden.solicitante ?? _meta.solicitante ?? "",
+    solicitante_telefono: orden.solicitante_telefono ?? "",
+    solicitante_email:    orden.solicitante_email ?? "",
     hito:          _meta.hito         ?? "",
     presupuesto:   orden.presupuesto  ?? "",
     descripcion:   _meta.descripcion  ?? "",
@@ -677,6 +688,12 @@ export default function OTEditPanel({
         ...form.links.filter(l => l.url.trim()),
         ...uploadedLinks,
       ];
+      // Keep the workspace catalog's contact info in sync (best-effort).
+      if (form.solicitante.trim()) {
+        try {
+          await upsertSolicitante(wsId, form.solicitante, form.solicitante_telefono, form.solicitante_email);
+        } catch { /* non-fatal — the OT snapshot is authoritative for this OT */ }
+      }
       const updated = await updateOrden(
         orden.id,
         myId,
@@ -685,6 +702,8 @@ export default function OTEditPanel({
           descripcion:   buildDescripcion({ nOT: form.n_ot, solicitante: form.solicitante, hito: form.hito, body: form.descripcion }),
           n_serie:       form.n_ot.trim()          || null,
           solicitante:   form.solicitante.trim()  || null,
+          solicitante_telefono: form.solicitante_telefono.trim() || null,
+          solicitante_email:    form.solicitante_email.trim()    || null,
           hito:          form.hito.trim()         || null,
           presupuesto:   form.presupuesto.trim()  || null,
           prioridad:     form.prioridad,
@@ -892,7 +911,13 @@ export default function OTEditPanel({
           </FieldRow>
 
           <FieldRow icon={<User size={14} />} label="Solicitante">
-            <SolicitanteSelect value={form.solicitante} onChange={v => setF("solicitante", v)} wsId={wsId} />
+            <SolicitanteSelect
+              value={form.solicitante}
+              telefono={form.solicitante_telefono}
+              email={form.solicitante_email}
+              onChange={(nombre, tel, mail) => setForm(prev => ({ ...prev, solicitante: nombre, solicitante_telefono: tel, solicitante_email: mail }))}
+              wsId={wsId}
+            />
           </FieldRow>
 
           <FieldRow icon={<Tag size={14} />} label="Hito">
