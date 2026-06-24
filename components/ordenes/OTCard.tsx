@@ -97,6 +97,7 @@ export function OTCard({
   onPrefetch,
 }: OTCardProps) {
   const isPending = Boolean(orden._pending);
+  const isCompleted = orden.estado === "completado";
 
   const hasAssignees = (orden.asignados_ids ?? []).length > 0;
   const estadoCfg = orden.estado === "pendiente" && hasAssignees
@@ -112,13 +113,13 @@ export function OTCard({
     .filter((u): u is Usuario => Boolean(u));
 
   const dueInfo =
-    orden.fecha_termino && !isPending
+    orden.fecha_termino && !isPending && !isCompleted
       ? dueDateLabel(orden.fecha_termino)
       : null;
 
   const showDue =
     dueInfo !== null ||
-    (orden.fecha_termino
+    (orden.fecha_termino && !isCompleted
       ? (() => {
           const now = new Date();
           const nowDay = new Date(

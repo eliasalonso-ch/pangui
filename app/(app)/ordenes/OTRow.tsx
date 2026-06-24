@@ -282,7 +282,7 @@ function OTRow({ orden, rowNumber, usuarios, isSelected, onClick, myId, onAssign
     .map(id => usuarios.find(u => u.id === id))
     .filter((u): u is Usuario => Boolean(u));
 
-  const due = mounted && orden.fecha_termino && !isPending ? dueLabel(orden.fecha_termino) : null;
+  const due = mounted && orden.fecha_termino && !isPending && orden.estado !== "completado" ? dueLabel(orden.fecha_termino) : null;
 
   function copyNOT(e: React.MouseEvent) {
     e.stopPropagation();

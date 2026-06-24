@@ -611,7 +611,6 @@ export default function OTDetail({
   const [uploadingFoto, setUploadingFoto] = useState(false);
   const [deletingFoto, setDeletingFoto] = useState<string | null>(null);
   const [confirmDeleteFoto, setConfirmDeleteFoto] = useState<string | null>(null);
-  const [lightboxIdx, setLightboxIdx] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // ── Foto grupos ──────────────────────────────────────────────────────────────
@@ -1958,17 +1957,17 @@ export default function OTDetail({
     }
   };
 
-  // ── Lightbox keyboard navigation
+  // ── Lightbox keyboard navigation (Esc to close, arrows to navigate)
   useEffect(() => {
-    if (lightboxIdx === null) return;
+    if (lightboxGrupo === null) return;
     const handler = (e: KeyboardEvent) => {
-      if (e.key === "ArrowLeft")  setLightboxIdx(i => i !== null ? Math.max(0, i - 1) : null);
-      if (e.key === "ArrowRight") setLightboxIdx(i => i !== null ? Math.min(fotos.length - 1, i + 1) : null);
-      if (e.key === "Escape")     setLightboxIdx(null);
+      if (e.key === "ArrowLeft")  setLightboxGrupo(g => g && { ...g, idx: Math.max(0, g.idx - 1) });
+      if (e.key === "ArrowRight") setLightboxGrupo(g => g && { ...g, idx: Math.min(g.urls.length - 1, g.idx + 1) });
+      if (e.key === "Escape")     setLightboxGrupo(null);
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [lightboxIdx, fotos.length]);
+  }, [lightboxGrupo]);
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
@@ -2892,30 +2891,73 @@ export default function OTDetail({
                     controls absolutely against that container instead of the
                     viewport. */}
                 {lightboxGrupo !== null && (
-                  <div className="fixed inset-0 z-50 bg-black/92 flex items-center justify-center" onClick={() => setLightboxGrupo(null)}>
-                    <div className="relative inline-block max-h-[88vh] max-w-[88vw]" onClick={e => e.stopPropagation()}>
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={lightboxGrupo.urls[lightboxGrupo.idx]} alt="" className="block max-h-[88vh] max-w-[88vw] object-contain select-none rounded-lg shadow-2xl" />
-                      {lightboxGrupo.idx > 0 && (
-                        <button type="button" onClick={e => { e.stopPropagation(); setLightboxGrupo(g => g && { ...g, idx: g.idx - 1 }); }}
-                          className="absolute left-3 top-1/2 -translate-y-1/2 size-10 rounded-full bg-black/45 hover:bg-black/65 text-white flex items-center justify-center transition-colors">
-                          <ChevronDown className="size-5 rotate-90" />
-                        </button>
-                      )}
-                      {lightboxGrupo.idx < lightboxGrupo.urls.length - 1 && (
-                        <button type="button" onClick={e => { e.stopPropagation(); setLightboxGrupo(g => g && { ...g, idx: g.idx + 1 }); }}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 size-10 rounded-full bg-black/45 hover:bg-black/65 text-white flex items-center justify-center transition-colors">
-                          <ChevronDown className="size-5 -rotate-90" />
-                        </button>
-                      )}
-                      <button type="button" onClick={(e) => { e.stopPropagation(); setLightboxGrupo(null); }}
-                        className="absolute top-3 right-3 size-9 rounded-full bg-black/45 hover:bg-black/65 text-white flex items-center justify-center transition-colors">
-                        <X size={15} />
+                  <div
+                    className="fixed inset-0 z-50 flex items-center justify-center"
+                    style={{ background: "var(--surface-0)" }}
+                    onClick={() => setLightboxGrupo(null)}
+                  >
+                    {/* Close — top-right of the viewport */}
+                    <button
+                      type="button"
+                      onClick={e => { e.stopPropagation(); setLightboxGrupo(null); }}
+                      aria-label="Cerrar"
+                      className="absolute top-5 flex items-center justify-center"
+                      style={{
+                        // Horizontally center the X over the right chevron:
+                        // chevron inset md:right-1 (0.25rem), size 150 → center at 0.25rem + 75px.
+                        // X size 64 → center at inset + 32px. Match: inset = 0.25rem + 43px.
+                        right: "calc(0.25rem + 15px)",
+                        color: "var(--fg-1)", background: "transparent", border: "none", padding: 0, cursor: "pointer",
+                      }}
+                    >
+                      <X size={64} strokeWidth={1} />
+                    </button>
+
+                    {/* Prev — left edge of the viewport, vertically centered */}
+                    {lightboxGrupo.idx > 0 && (
+                      <button
+                        type="button"
+                        onClick={e => { e.stopPropagation(); setLightboxGrupo(g => g && { ...g, idx: g.idx - 1 }); }}
+                        aria-label="Anterior"
+                        className="absolute left-0 top-1/2 -translate-y-1/2 flex items-center justify-center md:left-1"
+                        style={{ color: "var(--fg-1)", background: "transparent", border: "none", padding: 0, cursor: "pointer" }}
+                      >
+                        <ChevronDown size={100} strokeWidth={1} className="rotate-90" />
                       </button>
-                      <div className="absolute top-3 left-1/2 -translate-x-1/2 text-white text-xs bg-black/45 px-3 py-1 rounded-full">
+                    )}
+
+                    {/* Next — right edge of the viewport, vertically centered */}
+                    {lightboxGrupo.idx < lightboxGrupo.urls.length - 1 && (
+                      <button
+                        type="button"
+                        onClick={e => { e.stopPropagation(); setLightboxGrupo(g => g && { ...g, idx: g.idx + 1 }); }}
+                        aria-label="Siguiente"
+                        className="absolute right-0 top-1/2 -translate-y-1/2 flex items-center justify-center md:right-1"
+                        style={{ color: "var(--fg-1)", background: "transparent", border: "none", padding: 0, cursor: "pointer" }}
+                      >
+                        <ChevronDown size={100} strokeWidth={1} className="-rotate-90" />
+                      </button>
+                    )}
+
+                    {/* Image */}
+                    <div className="relative inline-block max-h-[82vh] max-w-[78vw]" onClick={e => e.stopPropagation()}>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={lightboxGrupo.urls[lightboxGrupo.idx]}
+                        alt=""
+                        className="block max-h-[82vh] max-w-[78vw] select-none object-contain shadow-2xl"
+                      />
+                    </div>
+
+                    {/* Counter — only when there's more than one image */}
+                    {lightboxGrupo.urls.length > 1 && (
+                      <div
+                        className="absolute bottom-6 left-1/2 -translate-x-1/2 text-sm font-medium"
+                        style={{ color: "var(--fg-1)" }}
+                      >
                         {lightboxGrupo.idx + 1} / {lightboxGrupo.urls.length}
                       </div>
-                    </div>
+                    )}
                   </div>
                 )}
               </>

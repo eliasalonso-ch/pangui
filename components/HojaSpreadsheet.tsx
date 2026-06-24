@@ -45,7 +45,7 @@ function Cell({
   const cellStyle: React.CSSProperties = {
     width: COL_WIDTH,
     height: ROW_HEIGHT,
-    borderRight: "1px solid #E2E8F0",
+    borderRight: "1px solid var(--border)",
     display: "flex",
     alignItems: "center",
     overflow: "hidden",
@@ -65,9 +65,9 @@ function Cell({
           onKeyDown={e => { if (e.key === "Enter") { e.currentTarget.blur(); } }}
           autoFocus
           style={{
-            width: "100%", height: "100%", border: "none", outline: "2px solid #2563EB",
+            width: "100%", height: "100%", border: "none", outline: "2px solid var(--brand)",
             outlineOffset: -2, padding: "0 10px", fontSize: 13, fontFamily: "inherit",
-            background: "#fff", textAlign: tipo === "numero" ? "right" : "left",
+            background: "var(--surface-1)", color: "var(--fg-1)", textAlign: tipo === "numero" ? "right" : "left",
             boxSizing: "border-box",
           }}
         />
@@ -84,14 +84,14 @@ function Cell({
         padding: "0 10px",
         cursor: readOnly ? "default" : "text",
         fontSize: 13,
-        color: "#0F172A",
+        color: "var(--fg-1)",
         justifyContent: tipo === "numero" ? "flex-end" : "flex-start",
         userSelect: "none",
         whiteSpace: "nowrap",
         textOverflow: "ellipsis",
       }}
     >
-      {value || <span style={{ color: "#CBD5E1", fontSize: 12 }}>—</span>}
+      {value || <span style={{ color: "var(--fg-4)", fontSize: 12 }}>—</span>}
     </div>
   );
 }
@@ -203,7 +203,7 @@ function SheetGrid({
   if (loading) {
     return (
       <div style={{ display: "flex", justifyContent: "center", padding: "32px 0" }}>
-        <div style={{ width: 20, height: 20, border: "2px solid #E2E8F0", borderTopColor: "#2563EB", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+        <div style={{ width: 20, height: 20, border: "2px solid var(--border)", borderTopColor: "var(--brand)", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
       </div>
     );
   }
@@ -213,14 +213,14 @@ function SheetGrid({
       <div style={{ width: totalWidth, minWidth: "100%" }}>
 
         {/* Header row */}
-        <div style={{ display: "flex", borderBottom: "2px solid #E2E8F0", background: "#F8FAFC", position: "sticky", top: 0, zIndex: 1 }}>
-          <div style={{ width: ROW_NUM_WIDTH, height: HEADER_HEIGHT, display: "flex", alignItems: "center", justifyContent: "center", borderRight: "1px solid #E2E8F0", flexShrink: 0 }}>
-            <span style={{ fontSize: 11, fontWeight: 600, color: "#94A3B8" }}>#</span>
+        <div style={{ display: "flex", borderBottom: "2px solid var(--border)", background: "var(--surface-0)", position: "sticky", top: 0, zIndex: 1 }}>
+          <div style={{ width: ROW_NUM_WIDTH, height: HEADER_HEIGHT, display: "flex", alignItems: "center", justifyContent: "center", borderRight: "1px solid var(--border)", flexShrink: 0 }}>
+            <span style={{ fontSize: 11, fontWeight: 600, color: "var(--fg-4)" }}>#</span>
           </div>
           {cols.map(col => (
             <div
               key={col.id}
-              style={{ width: COL_WIDTH, height: HEADER_HEIGHT, display: "flex", flexDirection: "column", justifyContent: "center", padding: "0 10px", borderRight: "1px solid #E2E8F0", flexShrink: 0, cursor: readOnly ? "default" : "pointer" }}
+              style={{ width: COL_WIDTH, height: HEADER_HEIGHT, display: "flex", flexDirection: "column", justifyContent: "center", padding: "0 10px", borderRight: "1px solid var(--border)", flexShrink: 0, cursor: readOnly ? "default" : "pointer" }}
               onDoubleClick={() => !readOnly && handleRenameColumn(col)}
               onContextMenu={e => {
                 if (readOnly) return;
@@ -230,18 +230,18 @@ function SheetGrid({
                 else handleDeleteColumn(col);
               }}
             >
-              <span style={{ fontSize: 12, fontWeight: 700, color: "#0F172A", textTransform: "uppercase", letterSpacing: "0.04em", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              <span style={{ fontSize: 12, fontWeight: 700, color: "var(--fg-1)", textTransform: "uppercase", letterSpacing: "0.04em", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                 {col.label}
               </span>
-              <span style={{ fontSize: 10, color: "#94A3B8" }}>{col.tipo === "numero" ? "123" : "Aa"}</span>
+              <span style={{ fontSize: 10, color: "var(--fg-4)" }}>{col.tipo === "numero" ? "123" : "Aa"}</span>
             </div>
           ))}
           {!readOnly && (
             <button
               onClick={handleAddColumn}
-              style={{ width: COL_WIDTH, height: HEADER_HEIGHT, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, border: "none", borderLeft: "1px solid #E2E8F0", background: "#F8FAFC", cursor: "pointer", fontSize: 12, color: "#2563EB", fontFamily: "inherit", flexShrink: 0 }}
-              onMouseEnter={e => { e.currentTarget.style.background = "#EFF6FF"; }}
-              onMouseLeave={e => { e.currentTarget.style.background = "#F8FAFC"; }}
+              style={{ width: COL_WIDTH, height: HEADER_HEIGHT, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, border: "none", borderLeft: "1px solid var(--border)", background: "var(--surface-0)", cursor: "pointer", fontSize: 12, color: "var(--brand-fg)", fontFamily: "inherit", flexShrink: 0 }}
+              onMouseEnter={e => { e.currentTarget.style.background = "var(--surface-hover)"; }}
+              onMouseLeave={e => { e.currentTarget.style.background = "var(--surface-0)"; }}
             >
               <Plus size={14} /> Columna
             </button>
@@ -252,21 +252,21 @@ function SheetGrid({
         {filas.map((fila, rowIdx) => (
           <div
             key={fila.id}
-            style={{ display: "flex", borderBottom: "1px solid #F1F5F9", height: ROW_HEIGHT, background: rowIdx % 2 === 0 ? "#fff" : "#FAFAFA", alignItems: "center" }}
+            style={{ display: "flex", borderBottom: "1px solid var(--divider)", height: ROW_HEIGHT, background: rowIdx % 2 === 0 ? "var(--surface-1)" : "var(--surface-0)", alignItems: "center" }}
           >
-            <div style={{ width: ROW_NUM_WIDTH, height: ROW_HEIGHT, display: "flex", alignItems: "center", justifyContent: "center", borderRight: "1px solid #E2E8F0", flexShrink: 0 }}>
+            <div style={{ width: ROW_NUM_WIDTH, height: ROW_HEIGHT, display: "flex", alignItems: "center", justifyContent: "center", borderRight: "1px solid var(--border)", flexShrink: 0 }}>
               {!readOnly ? (
                 <button
                   onClick={() => handleDeleteRow(fila)}
                   title="Eliminar fila"
-                  style={{ width: 22, height: 22, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", borderRadius: 4, cursor: "pointer", color: "#CBD5E1", padding: 0 }}
-                  onMouseEnter={e => { e.currentTarget.style.color = "#EF4444"; e.currentTarget.style.background = "#FEF2F2"; }}
-                  onMouseLeave={e => { e.currentTarget.style.color = "#CBD5E1"; e.currentTarget.style.background = "none"; }}
+                  style={{ width: 22, height: 22, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", borderRadius: 4, cursor: "pointer", color: "var(--fg-4)", padding: 0 }}
+                  onMouseEnter={e => { e.currentTarget.style.color = "var(--danger)"; e.currentTarget.style.background = "var(--danger-bg)"; }}
+                  onMouseLeave={e => { e.currentTarget.style.color = "var(--fg-4)"; e.currentTarget.style.background = "none"; }}
                 >
                   <Trash2 size={12} />
                 </button>
               ) : (
-                <span style={{ fontSize: 11, color: "#CBD5E1" }}>{rowIdx + 1}</span>
+                <span style={{ fontSize: 11, color: "var(--fg-4)" }}>{rowIdx + 1}</span>
               )}
             </div>
             {cols.map(col => (
@@ -287,9 +287,9 @@ function SheetGrid({
         {!readOnly && (
           <button
             onClick={handleAddRow}
-            style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "10px 14px", background: "#fff", border: "none", borderBottom: "1px solid #F1F5F9", cursor: "pointer", fontSize: 13, color: "#2563EB", fontFamily: "inherit", textAlign: "left" }}
-            onMouseEnter={e => { e.currentTarget.style.background = "#F8FAFC"; }}
-            onMouseLeave={e => { e.currentTarget.style.background = "#fff"; }}
+            style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "10px 14px", background: "var(--surface-1)", border: "none", borderBottom: "1px solid var(--divider)", cursor: "pointer", fontSize: 13, color: "var(--brand-fg)", fontFamily: "inherit", textAlign: "left" }}
+            onMouseEnter={e => { e.currentTarget.style.background = "var(--surface-hover)"; }}
+            onMouseLeave={e => { e.currentTarget.style.background = "var(--surface-1)"; }}
           >
             <Plus size={14} /> Agregar fila
           </button>
@@ -297,7 +297,7 @@ function SheetGrid({
 
         {/* Empty state */}
         {filas.length === 0 && readOnly && (
-          <div style={{ padding: "32px 0", textAlign: "center", color: "#94A3B8", fontSize: 13 }}>Sin filas registradas</div>
+          <div style={{ padding: "32px 0", textAlign: "center", color: "var(--fg-4)", fontSize: 13 }}>Sin filas registradas</div>
         )}
       </div>
     </div>
@@ -360,18 +360,18 @@ export default function HojaSpreadsheet({
   if (loading) {
     return (
       <div style={{ display: "flex", justifyContent: "center", padding: "40px 0" }}>
-        <div style={{ width: 24, height: 24, border: "2px solid #E2E8F0", borderTopColor: "#2563EB", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+        <div style={{ width: 24, height: 24, border: "2px solid var(--border)", borderTopColor: "var(--brand)", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
         <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
       </div>
     );
   }
 
   return (
-    <div style={{ border: "1px solid #E2E8F0", borderRadius: 10, overflow: "hidden", background: "#fff" }}>
+    <div style={{ border: "1px solid var(--border)", borderRadius: 10, overflow: "hidden", background: "var(--surface-1)" }}>
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
 
       {/* Header bar */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", borderBottom: "1px solid #E2E8F0", background: "#F8FAFC", gap: 8 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", borderBottom: "1px solid var(--border)", background: "var(--surface-0)", gap: 8 }}>
         {/* Sheet tabs */}
         <div style={{ display: "flex", alignItems: "center", gap: 6, overflowX: "auto", flex: 1 }}>
           {hojas.map(h => (
@@ -382,9 +382,9 @@ export default function HojaSpreadsheet({
               style={{
                 padding: "4px 12px", border: "1px solid", borderRadius: 6, cursor: "pointer",
                 fontSize: 12, fontWeight: 600, fontFamily: "inherit", whiteSpace: "nowrap",
-                background: h.id === activeId ? "#1E3A8A" : "#fff",
-                borderColor: h.id === activeId ? "#1E3A8A" : "#E2E8F0",
-                color: h.id === activeId ? "#fff" : "#475569",
+                background: h.id === activeId ? "var(--brand)" : "var(--surface-1)",
+                borderColor: h.id === activeId ? "var(--brand)" : "var(--border)",
+                color: h.id === activeId ? "var(--fg-on-brand)" : "var(--fg-2)",
               }}
             >
               {h.nombre}
@@ -400,7 +400,7 @@ export default function HojaSpreadsheet({
           {canEdit && (
             <button
               onClick={handleCreateSheet}
-              style={{ width: 26, height: 26, display: "flex", alignItems: "center", justifyContent: "center", border: "1px solid #E2E8F0", borderRadius: 6, background: "#fff", cursor: "pointer", color: "#2563EB", padding: 0 }}
+              style={{ width: 26, height: 26, display: "flex", alignItems: "center", justifyContent: "center", border: "1px solid var(--border)", borderRadius: 6, background: "var(--surface-1)", cursor: "pointer", color: "var(--brand-fg)", padding: 0 }}
               title="Nueva hoja"
             >
               <Plus size={14} />
@@ -412,9 +412,9 @@ export default function HojaSpreadsheet({
         {canExport && activeHoja && (
           <button
             onClick={() => exportFnRef.current?.()}
-            style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 12px", background: "#ECFDF5", border: "1px solid #A7F3D0", borderRadius: 6, cursor: "pointer", fontSize: 12, color: "#10B981", fontWeight: 600, fontFamily: "inherit", flexShrink: 0 }}
-            onMouseEnter={e => { e.currentTarget.style.background = "#D1FAE5"; }}
-            onMouseLeave={e => { e.currentTarget.style.background = "#ECFDF5"; }}
+            style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 12px", background: "var(--success-bg)", border: "1px solid var(--st-progress-dot)", borderRadius: 6, cursor: "pointer", fontSize: 12, color: "var(--success)", fontWeight: 600, fontFamily: "inherit", flexShrink: 0 }}
+            onMouseEnter={e => { e.currentTarget.style.opacity = "0.85"; }}
+            onMouseLeave={e => { e.currentTarget.style.opacity = "1"; }}
           >
             <Download size={13} /> Exportar .csv
           </button>
@@ -423,8 +423,8 @@ export default function HojaSpreadsheet({
 
       {/* Hint */}
       {canEdit && activeHoja && (
-        <div style={{ padding: "6px 14px", background: "#FAFAFA", borderBottom: "1px solid #F1F5F9" }}>
-          <span style={{ fontSize: 11, color: "#94A3B8" }}>
+        <div style={{ padding: "6px 14px", background: "var(--surface-0)", borderBottom: "1px solid var(--divider)" }}>
+          <span style={{ fontSize: 11, color: "var(--fg-4)" }}>
             Doble clic en encabezado para renombrar · Clic derecho para cambiar tipo o eliminar columna
           </span>
         </div>
@@ -432,13 +432,13 @@ export default function HojaSpreadsheet({
 
       {/* Empty state — no sheets */}
       {hojas.length === 0 && (
-        <div style={{ padding: "40px 0", textAlign: "center", color: "#94A3B8" }}>
+        <div style={{ padding: "40px 0", textAlign: "center", color: "var(--fg-4)" }}>
           <FileSpreadsheet size={36} style={{ margin: "0 auto 12px", opacity: 0.3 }} />
           <p style={{ fontSize: 13, margin: "0 0 12px" }}>Sin hojas de cálculo</p>
           {canEdit && (
             <button
               onClick={handleCreateSheet}
-              style={{ padding: "8px 20px", background: "#1E3A8A", color: "#fff", border: "none", borderRadius: 8, cursor: "pointer", fontSize: 13, fontWeight: 600, fontFamily: "inherit" }}
+              style={{ padding: "8px 20px", background: "var(--brand)", color: "var(--fg-on-brand)", border: "none", borderRadius: 8, cursor: "pointer", fontSize: 13, fontWeight: 600, fontFamily: "inherit" }}
             >
               Crear hoja
             </button>
@@ -459,8 +459,8 @@ export default function HojaSpreadsheet({
 
       {/* Footer */}
       {activeHoja && (
-        <div style={{ padding: "8px 14px", borderTop: "1px solid #F1F5F9", background: "#FAFAFA", display: "flex", justifyContent: "center" }}>
-          <span style={{ fontSize: 11, color: "#94A3B8" }}>
+        <div style={{ padding: "8px 14px", borderTop: "1px solid var(--divider)", background: "var(--surface-0)", display: "flex", justifyContent: "center" }}>
+          <span style={{ fontSize: 11, color: "var(--fg-4)" }}>
             {activeHoja.columnas.length} columna{activeHoja.columnas.length !== 1 ? "s" : ""}
             {" · "}hoja {hojas.findIndex(h => h.id === activeHoja.id) + 1} de {hojas.length}
           </span>
