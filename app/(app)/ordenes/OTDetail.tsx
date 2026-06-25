@@ -27,11 +27,6 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
-  AlertDialog, AlertDialogCancel,
-  AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
-  AlertDialogHeader, AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import {
   updateOrdenEstado, updateOrdenPrioridad,
   iniciarOrden, pausarOrden, reanudarOrden, completarOrden,
   fetchActividad, addComentario,
@@ -515,6 +510,131 @@ function SubOrdenesSection({
   );
 }
 
+// ── ConfirmDeleteModal ────────────────────────────────────────────────────────
+// Shared confirmation popup for any destructive action. MaintainX-style: X in
+// the top-right, a centered question, and stacked full-width buttons — a red
+// "Confirmar" over a borderless "Cancelar". Guards against accidental clicks.
+
+interface ConfirmDelete {
+  /** The thing being deleted, interpolated into the default question (e.g. a
+   *  name). Ignored when `title` is provided. */
+  label?: string;
+  /** Overrides the auto-generated question, e.g. "Eliminar esta orden?". */
+  title?: string;
+  /** Optional secondary warning line under the title. */
+  description?: string;
+  /** Confirm button text. Defaults to "Confirmar". */
+  confirmLabel?: string;
+  /** Runs on confirm. May be async. If it throws, the message is shown in the
+   *  modal and the dialog stays open (so the user can retry). */
+  onConfirm: () => void | Promise<void>;
+}
+
+function ConfirmDeleteModal({ pending, onClose }: {
+  pending: ConfirmDelete | null;
+  onClose: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  // Reset the inline error whenever a new confirmation is opened/closed.
+  useEffect(() => { setError(null); }, [pending]);
+  if (!pending) return null;
+
+  const close = () => { if (!busy) onClose(); };
+
+  const run = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await pending.onConfirm();
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo completar la acción.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const title = pending.title ?? `¿Seguro que quieres eliminar “${pending.label ?? "esto"}”?`;
+
+  return (
+    <div
+      role="presentation"
+      onClick={close}
+      style={{ position: "fixed", inset: 0, zIndex: 500, background: "rgba(15,23,42,0.45)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        onClick={e => e.stopPropagation()}
+        style={{ width: "100%", maxWidth: 420, background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: "var(--r-lg, 12px)", boxShadow: "var(--shadow-lg)", overflow: "hidden" }}
+      >
+        <div style={{ display: "flex", justifyContent: "flex-end", padding: "10px 10px 0" }}>
+          <button
+            type="button"
+            aria-label="Cerrar"
+            disabled={busy}
+            onClick={onClose}
+            style={{ width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", borderRadius: "var(--r-sm)", cursor: busy ? "default" : "pointer", color: "var(--fg-3)" }}
+            onMouseEnter={e => { if (!busy) e.currentTarget.style.background = "var(--surface-hover)"; }}
+            onMouseLeave={e => { e.currentTarget.style.background = "none"; }}
+          >
+            <X size={18} />
+          </button>
+        </div>
+        <div style={{ padding: "4px 24px 24px", display: "flex", flexDirection: "column", gap: 18 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8, textAlign: "center" }}>
+            <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: "var(--fg-1)", lineHeight: 1.4 }}>
+              {title}
+            </h3>
+            {pending.description && (
+              <p style={{ margin: 0, fontSize: 13, color: "var(--fg-3)", lineHeight: 1.5 }}>
+                {pending.description}
+              </p>
+            )}
+          </div>
+          {error && (
+            <div style={{ padding: "10px 12px", border: "1px solid var(--danger)", borderRadius: 8, background: "var(--danger-bg)", color: "var(--danger)", fontSize: 13 }}>
+              {error}
+            </div>
+          )}
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={run}
+              style={{
+                height: 44, width: "100%", border: "none", borderRadius: 8,
+                background: "var(--danger)", color: "#fff", fontSize: 14, fontWeight: 600,
+                cursor: busy ? "default" : "pointer", fontFamily: "inherit",
+                display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8,
+                opacity: busy ? 0.75 : 1,
+              }}
+            >
+              {busy && <Loader2 size={14} className="animate-spin" />}
+              {pending.confirmLabel ?? "Confirmar"}
+            </button>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={onClose}
+              style={{
+                height: 44, width: "100%", border: "none", borderRadius: 8,
+                background: "transparent", color: "var(--brand-fg)", fontSize: 14, fontWeight: 600,
+                cursor: busy ? "default" : "pointer", fontFamily: "inherit",
+              }}
+              onMouseEnter={e => { if (!busy) e.currentTarget.style.background = "var(--surface-hover)"; }}
+              onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 interface Props {
   orden:          OrdenTrabajo;
   usuarios:       Usuario[];
@@ -628,9 +748,6 @@ export default function OTDetail({
 
   const [exporting, setExporting] = useState<"pdf" | "csv" | "txt" | null>(null);
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
-  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
-  const [deletingOrden, setDeletingOrden] = useState(false);
-  const [deleteError, setDeleteError] = useState<string | null>(null);
   const exportMenuRef = useRef<HTMLDivElement>(null);
 
   type ExportField =
@@ -713,6 +830,9 @@ export default function OTDetail({
   const [loadingProcLib, setLoadingProcLib] = useState(false);
   const [attachingProc, setAttachingProc] = useState<string | null>(null);
   const [detachingProc, setDetachingProc] = useState<string | null>(null);
+  // Pending destructive action awaiting confirmation (shared across the tab —
+  // procedures, photo groups, individual photos, materials). Guards accidental clicks.
+  const [confirmDelete, setConfirmDelete] = useState<ConfirmDelete | null>(null);
   const [startingEjec, setStartingEjec] = useState<string | null>(null);
   const [activeEjec, setActiveEjec] = useState<{ ejecucion: ProcedimientoEjecucion; pasos: OTProcedimiento["procedimiento"] | null } | null>(null);
   const [savingResp, setSavingResp] = useState<string | null>(null);
@@ -825,18 +945,6 @@ export default function OTDetail({
   const canUploadFotos = canManageFotos || (orden.asignados_ids ?? []).includes(myId);
   const isActive = orden.estado !== "completado";
 
-  async function handleConfirmDeleteOrden() {
-    setDeletingOrden(true);
-    setDeleteError(null);
-    try {
-      await onDelete();
-      setDeleteConfirmOpen(false);
-      setDeletingOrden(false);
-    } catch (err) {
-      setDeleteError(err instanceof Error ? err.message : "No se pudo eliminar la orden.");
-      setDeletingOrden(false);
-    }
-  }
 
   // Sync fotos when orden prop updates (realtime)
   useEffect(() => {
@@ -1994,78 +2102,31 @@ export default function OTDetail({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden", background: "var(--surface-1)" }}>
-      <AlertDialog open={deleteConfirmOpen} onOpenChange={(open) => {
-        if (!deletingOrden) {
-          setDeleteConfirmOpen(open);
-          if (!open) setDeleteError(null);
-        }
-      }}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Eliminar esta orden?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Esta accion no se puede deshacer. La orden y su informacion asociada dejaran de estar disponibles.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          {deleteError && (
-            <div style={{
-              padding: "10px 12px",
-              border: "1px solid var(--danger)",
-              borderRadius: 8,
-              background: "var(--danger-bg)",
-              color: "var(--danger)",
-              fontSize: 13,
-            }}>
-              {deleteError}
-            </div>
-          )}
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deletingOrden}>Cancelar</AlertDialogCancel>
-            <button
-              type="button"
-              onClick={handleConfirmDeleteOrden}
-              disabled={deletingOrden}
-              style={{
-                height: 40,
-                padding: "0 16px",
-                border: "none",
-                borderRadius: 6,
-                background: "var(--danger)",
-                color: "var(--fg-on-brand)",
-                fontSize: 13,
-                fontWeight: 700,
-                cursor: deletingOrden ? "default" : "pointer",
-                fontFamily: "inherit",
-                display: "inline-flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: 8,
-                opacity: deletingOrden ? 0.75 : 1,
-              }}
-            >
-              {deletingOrden && <Loader2 size={13} className="animate-spin" />}
-              Eliminar
-            </button>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {/* Shared confirmation popup for every destructive action in this view. */}
+      <ConfirmDeleteModal pending={confirmDelete} onClose={() => setConfirmDelete(null)} />
 
       {/* ── Header ── */}
       <div style={{ flexShrink: 0, borderBottom: "1px solid var(--border)", background: "var(--surface-1)" }}>
         {/* Top bar: title + optional close (modal overlays). Timer was moved into the body. */}
         <div style={{ display: "flex", alignItems: "flex-start", padding: "12px 16px", minHeight: 52, gap: 8 }}>
-          <h1
-            style={{
-              flex: 1, minWidth: 0,
-              fontSize: 22, fontWeight: 500, color: "var(--fg-1)",
-              margin: 0, lineHeight: 1.3,
-              overflowWrap: "break-word",
-              wordBreak: "break-word",
-            }}
-          >
-            {orden.titulo || "Sin título"}
-            <CopyOTUrlButton ordenId={orden.id} />
-          </h1>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            {orden.numero != null && (
+              <div style={{ fontSize: 12, fontWeight: 600, color: "var(--fg-4)", letterSpacing: "0.02em", marginBottom: 2 }}>
+                OT #{orden.numero}
+              </div>
+            )}
+            <h1
+              style={{
+                fontSize: 22, fontWeight: 500, color: "var(--fg-1)",
+                margin: 0, lineHeight: 1.3,
+                overflowWrap: "break-word",
+                wordBreak: "break-word",
+              }}
+            >
+              {orden.titulo || "Sin título"}
+              <CopyOTUrlButton ordenId={orden.id} />
+            </h1>
+          </div>
           {showCloseButton && (
             <button
               type="button" onClick={onClose}
@@ -2175,8 +2236,12 @@ export default function OTDetail({
                     type="button"
                     onClick={() => {
                       setExportMenuOpen(false);
-                      setDeleteError(null);
-                      setDeleteConfirmOpen(true);
+                      setConfirmDelete({
+                        title: "¿Eliminar esta orden?",
+                        description: "Esta acción no se puede deshacer. La orden y su información asociada dejarán de estar disponibles.",
+                        confirmLabel: "Eliminar",
+                        onConfirm: onDelete,
+                      });
                     }}
                     style={{
                       width: "100%", display: "flex", alignItems: "center",
@@ -2806,8 +2871,8 @@ export default function OTDetail({
                         uploading={uploadingGrupoId === grupo.id}
                         fileInputRef={el => { grupoFileInputRefs.current[grupo.id] = el; }}
                         onUpload={file => handleUploadToGrupo(grupo.id, file)}
-                        onRemoveItem={(itemId, url) => handleRemoveFromGrupo(grupo.id, itemId, url)}
-                        onDelete={() => handleDeleteGrupo(grupo.id)}
+                        onRemoveItem={(itemId, url) => setConfirmDelete({ label: "esta foto", onConfirm: () => handleRemoveFromGrupo(grupo.id, itemId, url) })}
+                        onDelete={() => setConfirmDelete({ label: grupo.titulo || "este grupo de fotos", onConfirm: () => handleDeleteGrupo(grupo.id) })}
                         onLightbox={(urls, idx) => setLightboxGrupo({ urls, idx })}
                         onSaveEdit={(titulo, desc) => handleSaveGrupoEdit(grupo.id, titulo, desc)}
                         onToggleLocked={locked => handleToggleGrupoLocked(grupo.id, locked)}
@@ -3119,7 +3184,7 @@ export default function OTDetail({
                     {(isActive || canManage) ? (
                       <button
                         type="button"
-                        onClick={() => handleDeleteParte(op.id)}
+                        onClick={() => setConfirmDelete({ label: op.parte?.nombre ?? "este material", onConfirm: () => handleDeleteParte(op.id) })}
                         disabled={deletingParteId === op.id}
                         style={{ width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", borderRadius: "var(--r-sm)", cursor: "pointer", color: "var(--danger)" }}
                         onMouseEnter={e => { e.currentTarget.style.background = "var(--danger-bg)"; }}
@@ -3211,7 +3276,7 @@ export default function OTDetail({
                                 </button>
                               )}
                               <button
-                                onClick={() => handleDetachProc(otp.procedimiento_id)}
+                                onClick={() => setConfirmDelete({ label: proc?.nombre ?? "este procedimiento", onConfirm: () => handleDetachProc(otp.procedimiento_id) })}
                                 disabled={detachingProc === otp.procedimiento_id}
                                 style={{ width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", borderRadius: "var(--r-sm)", cursor: "pointer", color: "var(--fg-4)" }}
                                 onMouseEnter={e => { e.currentTarget.style.color = "var(--danger)"; e.currentTarget.style.background = "var(--danger-bg)"; }}

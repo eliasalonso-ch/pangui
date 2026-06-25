@@ -6,8 +6,11 @@ import type { FiltrosState, Estado, Prioridad, TipoTrabajo, Usuario, Ubicacion, 
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
+// NOTE: `pendiente` is intentionally NOT offered here. It used to be labelled
+// "Sin asignar", but the `pendiente` state covers BOTH unassigned and assigned
+// OTs, so it let assigned OTs through. The real "Sin asignar" filter lives under
+// Otros (`sinAsignar`), which filters by having no assignees.
 const ESTADOS: { value: Estado; label: string; color: string }[] = [
-  { value: "pendiente",   label: "Sin asignar", color: "#3B82F6" },
   { value: "en_espera",   label: "En espera",   color: "#F59E0B" },
   { value: "en_curso",    label: "En curso",    color: "#8B5CF6" },
   { value: "completado",  label: "Completada",  color: "#10B981" },

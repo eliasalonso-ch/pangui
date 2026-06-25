@@ -68,7 +68,9 @@ interface ScanField { extracted: string | null; candidates: ScanCandidate[] }
 interface ScanResult {
   titulo:       string | null;
   n_ot:         string | null;
-  solicitante:  string | null;
+  // `solicitante` is now catalog-matched: `extracted` is the raw name from the
+  // PDF, `candidates` are matching rows from the solicitantes catalog.
+  solicitante:  ScanField;
   solicitante_telefono: string | null;
   solicitante_email:    string | null;
   descripcion:  string | null;
@@ -650,21 +652,23 @@ function HitoSelect({ value, onChange, wsId }: {
 // the OT snapshots. Picking a catalog entry auto-fills its phone/email; both
 // stay editable. The catalog row is upserted on save (see panel save handler).
 
-function SolicitanteSelect({ value, telefono, email, onChange, wsId }: {
+function SolicitanteSelect({ value, telefono, email, onChange, wsId, catalog, onCatalogChange }: {
   value: string;
   telefono: string;
   email: string;
   onChange: (nombre: string, telefono: string, email: string) => void;
   wsId: string;
+  catalog: Solicitante[];
+  onCatalogChange: (next: Solicitante[]) => void;
 }) {
   const [open, setOpen]                 = useState(false);
   const [query, setQuery]               = useState("");
-  const [solicitantes, setSolicitantes] = useState<Solicitante[]>([]);
+  const solicitantes = catalog;
   const ref = useRef<HTMLDivElement>(null);
 
   const load = useCallback(async () => {
-    try { setSolicitantes(await fetchSolicitantesCatalog(wsId)); } catch { /* non-fatal */ }
-  }, [wsId]);
+    try { onCatalogChange(await fetchSolicitantesCatalog(wsId)); } catch { /* non-fatal */ }
+  }, [wsId, onCatalogChange]);
 
   useEffect(() => { if (open) load(); }, [open, load]);
 
@@ -679,6 +683,15 @@ function SolicitanteSelect({ value, telefono, email, onChange, wsId }: {
   const filtered = solicitantes.filter(s => s.nombre.toLowerCase().includes(query.toLowerCase()));
   const exactMatch = solicitantes.some(s => s.nombre.toLowerCase() === query.toLowerCase().trim());
   const canCreate = query.trim().length > 0 && !exactMatch;
+
+  // Catalog entry matching the currently chosen requester (case-insensitive).
+  const known = value.trim()
+    ? solicitantes.find(s => s.nombre.trim().toLowerCase() === value.trim().toLowerCase()) ?? null
+    : null;
+  // When the catalog already stores contact info for this requester, that info is
+  // the source of truth — show it locked so the user can't re-enter / diverge it.
+  const phoneLocked = Boolean(known?.telefono);
+  const emailLocked = Boolean(known?.email);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -775,24 +788,37 @@ function SolicitanteSelect({ value, telefono, email, onChange, wsId }: {
         )}
       </div>
 
-      {/* Contact info — snapshotted onto the OT, auto-filled from the catalog. */}
+      {/* Contact info — snapshotted onto the OT, auto-filled from the catalog.
+          If the requester already has contact info in the catalog, the matching
+          field is shown read-only (the catalog is the source of truth). */}
       {value && (
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-          <input
-            type="tel"
-            placeholder="Teléfono"
-            value={telefono}
-            onChange={e => onChange(value, e.target.value, email)}
-            style={{ height: 38, padding: "0 12px", border: "1px solid var(--border)", borderRadius: 8, fontSize: 13, color: "var(--fg-1)", outline: "none", fontFamily: "inherit", background: "var(--surface-1)" }}
-          />
-          <input
-            type="email"
-            placeholder="Email"
-            value={email}
-            onChange={e => onChange(value, telefono, e.target.value)}
-            style={{ height: 38, padding: "0 12px", border: "1px solid var(--border)", borderRadius: 8, fontSize: 13, color: "var(--fg-1)", outline: "none", fontFamily: "inherit", background: "var(--surface-1)" }}
-          />
-        </div>
+        <>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+            <input
+              type="tel"
+              placeholder="Teléfono"
+              value={telefono}
+              readOnly={phoneLocked}
+              onChange={phoneLocked ? undefined : e => onChange(value, e.target.value, email)}
+              title={phoneLocked ? "Teléfono guardado para este solicitante" : undefined}
+              style={{ height: 38, padding: "0 12px", border: "1px solid var(--border)", borderRadius: 8, fontSize: 13, color: phoneLocked ? "var(--fg-3)" : "var(--fg-1)", outline: "none", fontFamily: "inherit", background: phoneLocked ? "var(--surface-0)" : "var(--surface-1)", cursor: phoneLocked ? "default" : "text" }}
+            />
+            <input
+              type="email"
+              placeholder="Email"
+              value={email}
+              readOnly={emailLocked}
+              onChange={emailLocked ? undefined : e => onChange(value, telefono, e.target.value)}
+              title={emailLocked ? "Email guardado para este solicitante" : undefined}
+              style={{ height: 38, padding: "0 12px", border: "1px solid var(--border)", borderRadius: 8, fontSize: 13, color: emailLocked ? "var(--fg-3)" : "var(--fg-1)", outline: "none", fontFamily: "inherit", background: emailLocked ? "var(--surface-0)" : "var(--surface-1)", cursor: emailLocked ? "default" : "text" }}
+            />
+          </div>
+          {(phoneLocked || emailLocked) && (
+            <span style={{ fontSize: 11, color: "var(--fg-4)" }}>
+              Datos de contacto guardados para este solicitante.
+            </span>
+          )}
+        </>
       )}
     </div>
   );
@@ -1009,6 +1035,25 @@ export default function OTCrearPanel({
   const [ubicaciones, setUbicaciones] = useState<Ubicacion[]>(initialUbicaciones);
   const [lugares, setLugares]         = useState<LugarEspecifico[]>(initialLugares);
 
+  // Solicitante catalog — the single source of truth for reusable contact info.
+  // Loaded once here so both the picker and the AI/PDF scan can reuse it: when a
+  // scanned (or typed) name matches a catalog entry, we fill phone/email FROM the
+  // catalog instead of asking the AI to re-extract it.
+  const [solicitantesCatalog, setSolicitantesCatalog] = useState<Solicitante[]>([]);
+  useEffect(() => {
+    fetchSolicitantesCatalog(wsId).then(setSolicitantesCatalog).catch(() => { /* non-fatal */ });
+  }, [wsId]);
+
+  // Find a catalog entry by name, case-insensitively.
+  const findSolicitante = useCallback(
+    (nombre: string) => {
+      const key = nombre.trim().toLowerCase();
+      if (!key) return null;
+      return solicitantesCatalog.find(s => s.nombre.trim().toLowerCase() === key) ?? null;
+    },
+    [solicitantesCatalog],
+  );
+
   // PDF-suggested values that couldn't be auto-resolved
   const [pdfHints, setPdfHints] = useState<PdfHints | null>(null);
 
@@ -1081,6 +1126,7 @@ export default function OTCrearPanel({
         categorias:  categorias.map(c => ({ id: c.id, name: c.nombre })),
         usuarios:    usuarios.map(u => ({ id: u.id, name: u.nombre })),
         activos:     activos.map(a => ({ id: a.id, name: a.nombre })),
+        solicitantes: solicitantesCatalog.map(s => ({ id: s.id, name: s.nombre })),
       };
 
       // 3. Ask Gemini to extract + resolve.
@@ -1099,9 +1145,33 @@ export default function OTCrearPanel({
       const patch: Partial<FormState> = {};
       if (ai.titulo)       patch.titulo       = ai.titulo;
       if (ai.n_ot)         patch.n_ot         = ai.n_ot;
-      if (ai.solicitante)  patch.solicitante  = ai.solicitante;
-      if (ai.solicitante_telefono) patch.solicitante_telefono = ai.solicitante_telefono;
-      if (ai.solicitante_email)    patch.solicitante_email    = ai.solicitante_email;
+      // Solicitante. The AI fuzzy-matches the PDF's contact name against the
+      // catalog. If it confidently resolves to an existing requester, we use the
+      // catalog name + its stored contact info (the catalog is the source of
+      // truth — no need for the AI to re-extract a phone/email we already have).
+      // Otherwise we keep the raw name and fall back to the AI-extracted contact.
+      {
+        const topReq = ai.solicitante?.candidates?.[0];
+        const matched = topReq && topReq.confidence >= AUTO_FILL_THRESHOLD
+          ? findSolicitante(topReq.name) ?? null
+          : null;
+        if (matched) {
+          patch.solicitante         = matched.nombre;
+          patch.solicitante_telefono = matched.telefono ?? "";
+          patch.solicitante_email    = matched.email ?? "";
+        } else if (ai.solicitante?.extracted) {
+          patch.solicitante = ai.solicitante.extracted;
+          // Maybe the extracted name still matches the catalog exactly.
+          const known = findSolicitante(ai.solicitante.extracted);
+          if (known) {
+            patch.solicitante_telefono = known.telefono ?? "";
+            patch.solicitante_email    = known.email ?? "";
+          } else {
+            if (ai.solicitante_telefono) patch.solicitante_telefono = ai.solicitante_telefono;
+            if (ai.solicitante_email)    patch.solicitante_email    = ai.solicitante_email;
+          }
+        }
+      }
       if (ai.descripcion)  patch.descripcion  = ai.descripcion;
       if (ai.prioridad && ai.prioridad !== "ninguna") patch.prioridad = ai.prioridad;
       if (ai.tipo_trabajo) patch.tipo_trabajo = ai.tipo_trabajo;
@@ -1834,6 +1904,8 @@ export default function OTCrearPanel({
               email={form.solicitante_email}
               onChange={(nombre, tel, mail) => setForm(prev => ({ ...prev, solicitante: nombre, solicitante_telefono: tel, solicitante_email: mail }))}
               wsId={wsId}
+              catalog={solicitantesCatalog}
+              onCatalogChange={setSolicitantesCatalog}
             />
           </FieldRow>
 

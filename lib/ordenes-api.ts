@@ -119,6 +119,7 @@ export const LIST_SELECT = `
   n_serie, solicitante, hito,
   categoria_id, ubicacion_id, activo_id, creado_por, asignados_ids,
   numero, parent_id,
+  iniciado_at, en_ejecucion, tiempo_total_segundos,
   categorias_ot (nombre, icono, color),
   ubicaciones (edificio, detalle),
   activos (nombre)

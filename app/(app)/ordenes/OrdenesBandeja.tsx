@@ -66,6 +66,35 @@ const EMPTY_FILTROS: FiltrosState = {
   soloAsignados: false,
 };
 
+// How many rows to reveal per infinite-scroll step.
+const VISIBLE_CHUNK = 30;
+
+// "Sin progreso": nobody has touched the OT yet — it's still in its initial
+// `pendiente` state AND the timer was never started. Any state change
+// (en_espera / en_curso / completado) or any timer activity counts as progress.
+// Gating on `estado === "pendiente"` is the primary, always-present signal;
+// the timer fields catch a pendiente OT that was started then reset.
+function sinProgreso(o: OrdenListItem): boolean {
+  if (o.estado !== "pendiente") return false;
+  if (o.en_ejecucion) return false;
+  if (o.iniciado_at) return false;
+  if ((o.tiempo_total_segundos ?? 0) > 0) return false;
+  return true;
+}
+
+// "Vencida": has a due date in the past and isn't completed.
+function estaVencida(o: OrdenListItem): boolean {
+  if (o.estado === "completado" || !o.fecha_termino) return false;
+  return o.fecha_termino.slice(0, 10) < new Date().toISOString().slice(0, 10);
+}
+
+// Resizable list/detail split (desktop list view).
+const LIST_WIDTH_KEY = "ordenes:listWidth";
+const DEFAULT_LIST_WIDTH = 400;
+const MIN_LIST_WIDTH = 320;
+// Smallest width the detail panel is allowed to keep, so dragging can't crush it.
+const MIN_DETAIL_WIDTH = 480;
+
 // ── Props ─────────────────────────────────────────────────────────────────────
 
 interface Props {
@@ -95,6 +124,15 @@ export default function OrdenesBandeja({
   const [ordenes, setOrdenes]   = useState<OrdenListItem[]>(initialOrdenes);
   const [hasMoreOrdenes, setHasMoreOrdenes] = useState(initialOrdenes.length >= ORDENES_PAGE_SIZE);
   const [loadingMoreOrdenes, setLoadingMoreOrdenes] = useState(false);
+  // Client-side infinite scroll: we hold the full filtered list in memory but
+  // only render `visibleCount` rows, growing as the user scrolls. This keeps
+  // the DOM light even when a tab has hundreds of OTs.
+  // Lazy initializer keeps the module-level constant out of the synchronous
+  // render path, which avoids a transient TDZ ReferenceError during a partial
+  // Fast Refresh / HMR rebuild in dev.
+  const [visibleCount, setVisibleCount] = useState(() => VISIBLE_CHUNK);
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  const listScrollRef = useRef<HTMLDivElement>(null);
   const [selected, setSelected] = useState<string | null>(initialSelectedId ?? null);
   const [detail, setDetail]     = useState<OrdenTrabajo | null>(null);
   const selectedRef = useRef<string | null>(initialSelectedId ?? null);
@@ -114,7 +152,7 @@ export default function OrdenesBandeja({
   );
 
   type TabKey = "pendientes" | "completas";
-  type ScopeKey = "todas" | "sin_asignar" | "reprogramadas" | "materiales" | "levantamientos" | "presupuestos";
+  type ScopeKey = "todas" | "sin_asignar" | "sin_progreso" | "vencidas" | "reprogramadas" | "materiales" | "levantamientos" | "presupuestos";
 
   const [tab, setTab]           = useState<TabKey>(() => {
     const f = searchParams?.get("filtro");
@@ -124,6 +162,8 @@ export default function OrdenesBandeja({
   const [scope, setScope]       = useState<ScopeKey>(() => {
     const f = searchParams?.get("filtro");
     if (f === "sin_asignar")     return "sin_asignar";
+    if (f === "sin_progreso")    return "sin_progreso";
+    if (f === "vencidas")        return "vencidas";
     if (f === "reprogramadas")   return "reprogramadas";
     if (f === "materiales")      return "materiales";
     if (f === "levantamientos")  return "levantamientos";
@@ -153,6 +193,15 @@ export default function OrdenesBandeja({
     return EMPTY_FILTROS;
   });
   const [isDesktop, setIsDesktop] = useState(false);
+  // Resizable split between the list and the detail panel (desktop list view).
+  // Persisted so the user's chosen width survives reloads. Clamped on read.
+  const [listWidth, setListWidth] = useState<number>(() => {
+    if (typeof window === "undefined") return DEFAULT_LIST_WIDTH;
+    const saved = Number(window.localStorage.getItem(LIST_WIDTH_KEY));
+    return Number.isFinite(saved) && saved >= MIN_LIST_WIDTH ? saved : DEFAULT_LIST_WIDTH;
+  });
+  const [resizing, setResizing] = useState(false);
+  const splitContainerRef = useRef<HTMLDivElement>(null);
   const [sortOpen, setSortOpen]  = useState(false);
   const [exporting, setExporting] = useState(false);
   const [exportConfigOpen, setExportConfigOpen] = useState(false);
@@ -503,6 +552,10 @@ export default function OrdenesBandeja({
 
     if (scope === "sin_asignar") {
       list = list.filter(o => !o.asignados_ids || o.asignados_ids.length === 0);
+    } else if (scope === "sin_progreso") {
+      list = list.filter(sinProgreso);
+    } else if (scope === "vencidas") {
+      list = list.filter(estaVencida);
     } else if (scope === "reprogramadas") {
       list = list.filter(o => reprogramadaIds.has(o.id));
     } else if (scope === "materiales") {
@@ -606,6 +659,78 @@ export default function OrdenesBandeja({
     return list;
   }, [ordenes, view, tab, scope, search, sort, filtros, ubicaciones, reprogramadaIds, faltanMaterialesIds]);
 
+  // The rows actually rendered — a window into `filtered` that grows on scroll.
+  const visibleOrdenes = useMemo(
+    () => filtered.slice(0, visibleCount),
+    [filtered, visibleCount],
+  );
+
+  // Whenever the filtered set changes identity (tab/scope/search/filtros/sort),
+  // reset the window back to the first chunk so we don't keep a stale large
+  // count and so the list scrolls back to a sensible size.
+  useEffect(() => {
+    setVisibleCount(VISIBLE_CHUNK);
+  }, [tab, scope, search, sort, filtros]);
+
+  // True when there's more to show — either more rows already in memory, or
+  // another server page to fetch. Drives both the observer and the fallback.
+  const canShowMore = visibleCount < filtered.length || hasMoreOrdenes;
+
+  // Infinite scroll: when the sentinel enters the viewport, reveal the next
+  // chunk of in-memory rows; if we've exhausted what's loaded but the server
+  // has more, fetch the next page.
+  useEffect(() => {
+    const node = sentinelRef.current;
+    if (!node || !canShowMore) return;
+    const observer = new IntersectionObserver(
+      entries => {
+        if (!entries[0]?.isIntersecting) return;
+        if (visibleCount < filtered.length) {
+          setVisibleCount(c => Math.min(c + VISIBLE_CHUNK, filtered.length));
+        } else if (hasMoreOrdenes && !loadingMoreOrdenes) {
+          loadMoreOrdenes();
+        }
+      },
+      { root: listScrollRef.current, rootMargin: "240px" },
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [canShowMore, visibleCount, filtered.length, hasMoreOrdenes, loadingMoreOrdenes, loadMoreOrdenes]);
+
+  // Drag-to-resize the list/detail split. While `resizing`, follow the mouse and
+  // clamp so neither pane collapses; persist the final width on release.
+  useEffect(() => {
+    if (!resizing) return;
+    const onMove = (e: MouseEvent) => {
+      const rect = splitContainerRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      const raw = e.clientX - rect.left;
+      const max = Math.max(MIN_LIST_WIDTH, rect.width - MIN_DETAIL_WIDTH);
+      setListWidth(Math.round(Math.min(Math.max(raw, MIN_LIST_WIDTH), max)));
+    };
+    const onUp = () => setResizing(false);
+    // Avoid text selection / iframe capture while dragging.
+    const prevUserSelect = document.body.style.userSelect;
+    const prevCursor = document.body.style.cursor;
+    document.body.style.userSelect = "none";
+    document.body.style.cursor = "col-resize";
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    return () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+      document.body.style.userSelect = prevUserSelect;
+      document.body.style.cursor = prevCursor;
+    };
+  }, [resizing]);
+
+  // Persist the chosen width (debounced implicitly by only writing on change).
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(LIST_WIDTH_KEY, String(listWidth));
+    }
+  }, [listWidth]);
+
   // Counts reflect the current filters (search + filtros) but not the active/closed tab split
   const filteredCounts = useMemo(() => {
     const applyFilters = (list: OrdenListItem[]) => {
@@ -676,6 +801,8 @@ export default function OrdenesBandeja({
       pendientes: {
         todas:         applyFilters(active).length,
         sin_asignar:   applyFilters(active.filter(o => !o.asignados_ids || o.asignados_ids.length === 0)).length,
+        sin_progreso:  applyFilters(active.filter(sinProgreso)).length,
+        vencidas:      applyFilters(active.filter(estaVencida)).length,
         reprogramadas: applyFilters(active.filter(o => reprogramadaIds.has(o.id))).length,
         materiales:    applyFilters(active.filter(o => faltanMaterialesIds.has(o.id))).length,
         levantamientos: applyFilters(active.filter(o => o.clasificacion === "levantamiento")).length,
@@ -838,6 +965,10 @@ export default function OrdenesBandeja({
     }
   }
 
+  // Desktop list view shows the list + detail side by side with a draggable
+  // divider; other views (calendar/kanban) or mobile don't get the resizer.
+  const isResizableSplit = isDesktop && view !== "calendario" && view !== "kanban";
+
   return (
     <div style={{ display:"flex", flexDirection:"column", height:"100dvh", overflow:"hidden", background:"var(--c-bg, #F8FAFC)" }}>
 
@@ -991,22 +1122,19 @@ export default function OrdenesBandeja({
       </div>
 
       {/* ── Main split pane ── */}
-      <div style={{ display:"flex", flexGrow:1, flexShrink:1, flexBasis:0, minHeight:0, minWidth:0, overflow:"hidden" }}>
+      <div ref={splitContainerRef} style={{ display:"flex", flexGrow:1, flexShrink:1, flexBasis:0, minHeight:0, minWidth:0, overflow:"hidden" }}>
 
-        {/* LEFT: list column OR calendar. The calendar takes the full remaining
-            width (or shrinks to leave room for the detail panel on the right).
-            In calendar view we explicitly allow this flex item to shrink (the
-            grid relies on `minmax(0, 1fr)` and `minWidth:0` cascading from
-            here) so long event titles can't force horizontal overflow. */}
+        {/* LEFT: list column OR calendar. In desktop list view the width is
+            user-resizable (fixed px, draggable handle on the right). Calendar/
+            kanban take the full remaining width; mobile stays full-width. */}
         <div style={{
           display: (!isDesktop && (selected || rightPanel === "create" || rightPanel === "edit")) ? "none" : "flex",
           flexDirection:"column",
-          width: (view === "calendario" || view === "kanban") ? undefined : (isDesktop ? 400 : "100%"),
+          width: isResizableSplit ? listWidth : ((view === "calendario" || view === "kanban") ? undefined : (isDesktop ? undefined : "100%")),
           minWidth: 0,
-          maxWidth: (view === "calendario" || view === "kanban") ? undefined : (isDesktop ? 400 : undefined),
-          flexGrow: (view === "calendario" || view === "kanban") ? 1 : 0,
-          flexShrink: (view === "calendario" || view === "kanban") ? 1 : 0,
-          flexBasis: "auto",
+          flexGrow:   isResizableSplit ? 0 : 1,
+          flexShrink: isResizableSplit ? 0 : 1,
+          flexBasis:  isResizableSplit ? "auto" : 0,
           borderRight: isDesktop ? "1px solid var(--border)" : "none",
           background:"var(--surface-1)",
           position:"relative",
@@ -1093,6 +1221,8 @@ export default function OrdenesBandeja({
                 ? [
                     { value: "todas",          label: "Todas",                       count: filteredCounts.pendientes.todas },
                     { value: "sin_asignar",    label: "Sin asignar",                 count: filteredCounts.pendientes.sin_asignar },
+                    { value: "sin_progreso",   label: "Sin progreso",                count: filteredCounts.pendientes.sin_progreso },
+                    { value: "vencidas",       label: "Vencidas",                    count: filteredCounts.pendientes.vencidas },
                     { value: "reprogramadas",  label: "Reprogramadas",               count: filteredCounts.pendientes.reprogramadas },
                     { value: "materiales",     label: "Faltan materiales",           count: filteredCounts.pendientes.materiales },
                     { value: "levantamientos", label: "Levantamientos pendientes",   count: filteredCounts.pendientes.levantamientos },
@@ -1212,7 +1342,7 @@ export default function OrdenesBandeja({
           })()}
 
           {/* List */}
-          <div style={{ flex:1, minHeight:0, overflowY:"auto" }}>
+          <div ref={listScrollRef} style={{ flex:1, minHeight:0, overflowY:"auto" }}>
             {filtered.length === 0 ? (
               <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", height:280, gap:12, color:"var(--fg-4)" }}>
                 <svg width="38" height="46" viewBox="0 0 38 46" fill="none">
@@ -1226,6 +1356,8 @@ export default function OrdenesBandeja({
                   {search
                     ? "Sin resultados para tu búsqueda"
                     : scope === "sin_asignar"   ? "No hay órdenes sin asignar"
+                    : scope === "sin_progreso"  ? "No hay órdenes sin progreso"
+                    : scope === "vencidas"      ? "No hay órdenes vencidas"
                     : scope === "reprogramadas" ? "No hay órdenes reprogramadas"
                     : scope === "materiales"    ? "No hay órdenes en espera por materiales"
                     : scope === "levantamientos" ? "No hay levantamientos"
@@ -1245,7 +1377,7 @@ export default function OrdenesBandeja({
               </div>
             ) : (
               <>
-                {filtered.map((o, idx) => (
+                {visibleOrdenes.map((o, idx) => (
                   <OTRow
                     key={o.id}
                     orden={o}
@@ -1258,11 +1390,19 @@ export default function OrdenesBandeja({
                     coordinadaPara={scope === "reprogramadas" ? (o.fecha_inicio ?? null) : null}
                   />
                 ))}
-                {hasMoreOrdenes && (
-                  <div style={{ padding: "14px 16px 18px", display: "flex", justifyContent: "center" }}>
+                {canShowMore && (
+                  // Sentinel — the IntersectionObserver watches this to auto-load
+                  // the next chunk. The button is a fallback (and shows progress).
+                  <div ref={sentinelRef} style={{ padding: "14px 16px 18px", display: "flex", justifyContent: "center" }}>
                     <button
                       type="button"
-                      onClick={loadMoreOrdenes}
+                      onClick={() => {
+                        if (visibleCount < filtered.length) {
+                          setVisibleCount(c => Math.min(c + VISIBLE_CHUNK, filtered.length));
+                        } else {
+                          loadMoreOrdenes();
+                        }
+                      }}
                       disabled={loadingMoreOrdenes}
                       style={{
                         height: 34, padding: "0 14px", border: "1px solid var(--border)",
@@ -1281,6 +1421,35 @@ export default function OrdenesBandeja({
           </div>
           </>)}
         </div>
+
+        {/* Drag handle — sits on the divider between list and detail. Grab and
+            drag horizontally to resize. Double-click resets to the default. */}
+        {isResizableSplit && (
+          <div
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Ajustar ancho de la lista"
+            onMouseDown={() => setResizing(true)}
+            onDoubleClick={() => setListWidth(DEFAULT_LIST_WIDTH)}
+            style={{
+              width: 7, flexShrink: 0, cursor: "col-resize",
+              marginLeft: -4, marginRight: -3, zIndex: 5,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              background: "transparent",
+            }}
+          >
+            {/* Thin visual grip; thickens/colors on hover or while dragging. */}
+            <div
+              style={{
+                width: resizing ? 3 : 1, height: "100%",
+                background: resizing ? "var(--brand)" : "transparent",
+                transition: "background 0.12s, width 0.12s",
+              }}
+              onMouseEnter={e => { if (!resizing) { e.currentTarget.style.background = "var(--border-strong)"; e.currentTarget.style.width = "3px"; } }}
+              onMouseLeave={e => { if (!resizing) { e.currentTarget.style.background = "transparent"; e.currentTarget.style.width = "1px"; } }}
+            />
+          </div>
+        )}
 
         {/* RIGHT: create panel or detail. Hidden in canvas views because the
             detail opens in a modal there. */}

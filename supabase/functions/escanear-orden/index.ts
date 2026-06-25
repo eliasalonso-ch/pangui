@@ -20,13 +20,14 @@ const CORS = {
 
 interface CatalogItem { id: string; name: string }
 interface Catalog {
-  sociedades:  CatalogItem[];
-  ubicaciones: CatalogItem[];
-  lugares:     CatalogItem[];
-  hitos:       CatalogItem[];
-  categorias:  CatalogItem[];
-  usuarios:    CatalogItem[];
-  activos:     CatalogItem[];
+  sociedades:   CatalogItem[];
+  ubicaciones:  CatalogItem[];
+  lugares:      CatalogItem[];
+  hitos:        CatalogItem[];
+  categorias:   CatalogItem[];
+  usuarios:     CatalogItem[];
+  activos:      CatalogItem[];
+  solicitantes: CatalogItem[];
 }
 
 function renderCatalog(c: Catalog): string {
@@ -39,13 +40,14 @@ function renderCatalog(c: Catalog): string {
     return `${label}:\n${lines}${note}`;
   };
   return [
-    section("SOCIEDADES",  c.sociedades),
-    section("UBICACIONES", c.ubicaciones),
-    section("LUGARES",     c.lugares),
-    section("HITOS",       c.hitos),
-    section("CATEGORIAS",  c.categorias),
-    section("USUARIOS",    c.usuarios),
-    section("ACTIVOS",     c.activos),
+    section("SOCIEDADES",   c.sociedades),
+    section("UBICACIONES",  c.ubicaciones),
+    section("LUGARES",      c.lugares),
+    section("HITOS",        c.hitos),
+    section("CATEGORIAS",   c.categorias),
+    section("USUARIOS",     c.usuarios),
+    section("ACTIVOS",      c.activos),
+    section("SOLICITANTES", c.solicitantes),
   ].join("\n\n");
 }
 
@@ -57,7 +59,11 @@ Recibes:
 
 Tu trabajo es:
 A. Extraer los campos del documento.
-B. Para los campos que se relacionen con el catálogo (sociedad, ubicación, lugar, hito, categoría, asignados, activo), proponer hasta 3 candidatos del catálogo ordenados por confianza.
+B. Para los campos que se relacionen con el catálogo (sociedad, ubicación, lugar, hito, categoría, asignados, activo, solicitante), proponer hasta 3 candidatos del catálogo ordenados por confianza.
+
+SOLICITANTE (PERSONA DE CONTACTO):
+- El solicitante es la "Persona de contacto" del documento. Usa su Nombre. El "Anexo" es su teléfono y el "Email" su correo.
+- Haz fuzzy-match del nombre contra el catálogo SOLICITANTES: el documento suele traer el nombre abreviado (ej: "Cristian Quijada") y el catálogo el nombre completo (ej: "Cristian Gonzalo Quijada González"). Trátalos como la misma persona (confianza alta) cuando nombre y apellido coinciden, aunque falten segundos nombres/apellidos.
 
 REGLAS DE MATCHING:
 - La confianza va de 0.0 a 1.0.
@@ -74,9 +80,9 @@ Devuelve SOLO un JSON válido con esta forma exacta (sin markdown, sin explicaci
 {
   "titulo":      "título conciso del trabajo, máx 80 chars o null",
   "n_ot":        "folio/número de referencia o null",
-  "solicitante": "nombre completo del solicitante o null",
-  "solicitante_telefono": "teléfono o celular de contacto del solicitante o null",
-  "solicitante_email": "correo electrónico de contacto del solicitante o null",
+  "solicitante": { "extracted": "nombre de la persona de contacto tal cual aparece en el PDF o null", "candidates": [{ "id": "...", "name": "...", "confidence": 0.0 }] },
+  "solicitante_telefono": "Anexo/teléfono de la persona de contacto o null",
+  "solicitante_email": "Email de la persona de contacto o null",
   "descripcion": "detalle completo del trabajo o null",
   "prioridad":   "urgente | alta | media | baja | ninguna",
   "tipo_trabajo": "reactiva | preventiva | emergencia | levantamiento | ''",
@@ -137,7 +143,7 @@ Deno.serve(async (req: Request) => {
 
     // Build a set of every legitimate id so we can drop any hallucinated ones.
     const catalogIds = new Set<string>();
-    for (const list of [catalog.sociedades, catalog.ubicaciones, catalog.lugares, catalog.hitos, catalog.categorias, catalog.usuarios, catalog.activos]) {
+    for (const list of [catalog.sociedades, catalog.ubicaciones, catalog.lugares, catalog.hitos, catalog.categorias, catalog.usuarios, catalog.activos, catalog.solicitantes]) {
       for (const item of list ?? []) catalogIds.add(item.id);
     }
 
@@ -185,7 +191,11 @@ Deno.serve(async (req: Request) => {
     const result = {
       titulo:        typeof parsed.titulo === "string" ? parsed.titulo : null,
       n_ot:          typeof parsed.n_ot === "string" ? parsed.n_ot : null,
-      solicitante:   typeof parsed.solicitante === "string" ? parsed.solicitante : null,
+      // `solicitante` is now a catalog-matched field (extracted name + candidates).
+      // Back-compat: tolerate an old-style plain string by wrapping it.
+      solicitante:   typeof parsed.solicitante === "string"
+        ? { extracted: parsed.solicitante.trim() || null, candidates: [] }
+        : sanitizeFieldResult(parsed.solicitante, catalogIds),
       solicitante_telefono: typeof parsed.solicitante_telefono === "string" && parsed.solicitante_telefono.trim() ? parsed.solicitante_telefono.trim() : null,
       solicitante_email:    typeof parsed.solicitante_email === "string" && parsed.solicitante_email.trim() ? parsed.solicitante_email.trim() : null,
       descripcion:   typeof parsed.descripcion === "string" ? parsed.descripcion : null,
