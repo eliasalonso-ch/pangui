@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Plus, Search, X, ChevronDown, Loader2, FileText, ArrowUpDown, Download, AlertTriangle, Calendar, List, CalendarDays, Columns3, Check } from "lucide-react";
 import { createClient, logRealtimeChannel } from "@/lib/supabase";
-import { fetchOrden, fetchOrdenesPage, deleteOrden, ORDENES_PAGE_SIZE, parseDescMeta } from "@/lib/ordenes-api";
+import { fetchOrden, fetchOrdenesPage, fetchAllOrdenesForExport, fetchOrdenListItem, deleteOrden, ORDENES_PAGE_SIZE, parseDescMeta } from "@/lib/ordenes-api";
 import { buildOrdenesWorkbook, type ExportCols as SharedExportCols, type OrdenInput, type HojaInput, type FilaInput, type FotoItemInput, type MaterialUsadoInput } from "@/lib/excel-export-shared";
 import { ExportScheduler } from "./ExportScheduler";
 import OTRow from "./OTRow";
@@ -205,6 +205,24 @@ export default function OrdenesBandeja({
   const [sortOpen, setSortOpen]  = useState(false);
   const [exporting, setExporting] = useState(false);
   const [exportConfigOpen, setExportConfigOpen] = useState(false);
+  // True total of parent OTs in the workspace (not just the loaded pages), so
+  // the export modal's "X de Y" reflects what will actually export.
+  const [totalOrdenesCount, setTotalOrdenesCount] = useState<number | null>(null);
+  useEffect(() => {
+    if (!exportConfigOpen) return;
+    let cancelled = false;
+    (async () => {
+      const sb = createClient();
+      const { count } = await sb
+        .from("ordenes_trabajo")
+        .select("id", { count: "exact", head: true })
+        .eq("workspace_id", wsId)
+        .is("parent_id", null)
+        .is("deleted_at", null);
+      if (!cancelled) setTotalOrdenesCount(count ?? null);
+    })();
+    return () => { cancelled = true; };
+  }, [exportConfigOpen, wsId]);
   // waitingAlerts is still loaded so we can derive `reprogramadaIds` for the
   // filter chips, even though the visible "En espera" banner/pill was removed.
   const [waitingAlerts, setWaitingAlerts] = useState<WaitingAlert[]>([]);
@@ -218,7 +236,7 @@ export default function OrdenesBandeja({
   const EXPORT_COLS: { key: ExportCol; label: string; group: string }[] = [
     { key: "numero",       label: "ID (N° interno)",     group: "Información general" },
     { key: "n_serie",      label: "N° OT (SF folio)",    group: "Información general" },
-    { key: "hito",         label: "Hito",                group: "Información general" },
+    { key: "hito",         label: "ITO",                 group: "Información general" },
     { key: "titulo",       label: "Título",              group: "Información general" },
     { key: "estado",       label: "Estado",              group: "Información general" },
     { key: "fecha_limite", label: "Fecha término",       group: "Información general" },
@@ -259,14 +277,6 @@ export default function OrdenesBandeja({
     { value: "presupuesto",  label: "Presupuesto" },
     { value: "levantamiento",label: "Levantamiento" },
   ];
-
-  // Live count of OTs that match the export-modal filters (estado/tipo only),
-  // so the header sub can show "X de Y" and the export button stays in sync.
-  const exportPreviewCount = ordenes.filter(o => {
-    if (exportFilterEstados.length && !exportFilterEstados.includes(o.estado)) return false;
-    if (exportFilterTipos.length && (o.tipo_trabajo == null || !exportFilterTipos.includes(o.tipo_trabajo))) return false;
-    return true;
-  }).length;
 
   const [rightPanel, setRightPanel] = useState<"none" | "create" | "edit">(initialPanel === "create" ? "create" : "none");
 
@@ -489,16 +499,29 @@ export default function OrdenesBandeja({
             return;
           }
 
-          // Merge the update in place. If the row isn't in the list (e.g. an
-          // UPDATE that cleared deleted_at — a restore from trash), refetch so
-          // the restored OT reappears.
+          // On UPDATE, DON'T blind-merge payload.new: realtime only sends the
+          // OT's own columns, so `{ ...o, ...next }` would wipe the joined
+          // relations (categorias_ot / ubicaciones / activos) and, if the
+          // update flipped a filtered field (estado, clasificacion, asignados),
+          // leave a mis-shaped row that drops out of the filtered view. Refetch
+          // the full list-row instead so the row stays correct and its filter
+          // membership is accurate. If it's not in the list (restore from trash),
+          // the same refetch reveals it via a full refresh.
+          if (!next.id) return;
+          const idToRefresh = next.id;
           setOrdenes(prev => {
-            if (!prev.some(o => o.id === next.id)) {
+            if (!prev.some(o => o.id === idToRefresh)) {
               refreshList().catch(() => { /* transient — next event/poll retries */ });
               return prev;
             }
-            return prev.map(o => o.id === next.id ? { ...o, ...next } : o);
+            return prev;
           });
+          fetchOrdenListItem(idToRefresh)
+            .then(row => {
+              if (!row) return; // became deleted/filtered-out server-side
+              setOrdenes(prev => prev.map(o => o.id === idToRefresh ? row : o));
+            })
+            .catch(() => { /* transient — next event/poll retries */ });
           if (selectedId === next.id) {
             setDetail(prev => prev ? { ...prev, ...next } : prev);
           }
@@ -832,11 +855,14 @@ export default function OrdenesBandeja({
       const f = exportCols;
 
       // Export ALL ordenes (ignore tab split), but keep filters + search applied.
+      // Fetch the COMPLETE server set — not the in-memory paginated `ordenes`,
+      // which only holds the pages the user scrolled into and would silently
+      // drop unloaded orders (e.g. older completadas past the first 300).
       // In-modal export filters (estado / tipo) layer on top of the bandeja's
-      // global filtros so the user can narrow further at export time without
-      // touching the main filter panel.
+      // global filtros so the user can narrow further at export time.
+      const allOrdenes = await fetchAllOrdenesForExport(wsId);
       const allFiltered = (() => {
-        let list = [...ordenes];
+        let list = [...allOrdenes];
         if (exportFilterEstados.length)  list = list.filter(o => exportFilterEstados.includes(o.estado));
         if (exportFilterTipos.length)    list = list.filter(o => o.tipo_trabajo != null && exportFilterTipos.includes(o.tipo_trabajo));
         if (filtros.estados.length)      list = list.filter(o => filtros.estados.includes(o.estado));
@@ -1643,8 +1669,8 @@ export default function OrdenesBandeja({
                 <div style={{ fontSize:15, fontWeight:700, color:"var(--fg-1)" }}>Exportar Excel</div>
                 <div style={{ fontSize:12, color:"var(--fg-4)", marginTop:2 }}>
                   {(exportFilterEstados.length > 0 || exportFilterTipos.length > 0)
-                    ? `${exportPreviewCount} de ${ordenes.length} órdenes coinciden con los filtros`
-                    : `${ordenes.length} órdenes en total · selecciona las columnas a incluir`}
+                    ? `Coinciden con los filtros de ${totalOrdenesCount ?? ordenes.length} órdenes`
+                    : `${totalOrdenesCount ?? ordenes.length} órdenes en total · selecciona las columnas a incluir`}
                 </div>
               </div>
               <button

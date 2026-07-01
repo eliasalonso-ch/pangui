@@ -10,6 +10,12 @@ import {
   notifyOTEstadoCambiado,
 } from "@/lib/notificar";
 
+// ITOs (inspector milestones) is an Electrilam-exclusive feature — the ITO field
+// is shown only for this workspace. Mirrors the mobile gate in constants/index.ts.
+// ponytail: single-tenant gate, promote to a workspaces feature-flag column if a
+// second workspace ever needs it.
+export const ELECTRILAM_WORKSPACE_ID = "f1b64714-6de2-4d49-b6e4-5959553e94d7";
+
 // ── Desc-meta helpers ─────────────────────────────────────────────────────────
 
 export interface DescMeta {
@@ -149,6 +155,44 @@ export async function fetchOrdenesPage(wsId: string, beforeCreatedAt?: string | 
 
 export async function fetchOrdenes(wsId: string): Promise<OrdenListItem[]> {
   return fetchOrdenesPage(wsId);
+}
+
+// Fetches EVERY parent OT for the workspace by paging through with the same
+// keyset (created_at) the bandeja uses. Exports must serialize the full server
+// set — not the in-memory paginated list — or they silently drop orders the
+// user never scrolled far enough to load (e.g. older completadas).
+export async function fetchAllOrdenesForExport(wsId: string): Promise<OrdenListItem[]> {
+  const all: OrdenListItem[] = [];
+  const seen = new Set<string>();
+  let before: string | null = null;
+  // Hard ceiling so a bad cursor can never loop forever.
+  for (let page = 0; page < 100; page++) {
+    const rows: OrdenListItem[] = await fetchOrdenesPage(wsId, before);
+    for (const r of rows) {
+      if (!seen.has(r.id)) { seen.add(r.id); all.push(r); }
+    }
+    if (rows.length < ORDENES_PAGE_SIZE) break; // last page
+    before = rows[rows.length - 1]?.created_at ?? null;
+    if (!before) break;
+  }
+  return all;
+}
+
+// Fetches a SINGLE OT in the list-row shape (LIST_SELECT, joins intact). Used
+// when a realtime UPDATE arrives: the raw payload.new only carries the OT's own
+// columns, so blind-merging it would wipe the joined relations (categorias_ot,
+// ubicaciones, activos) and could flip a filtered field with a stale shape.
+// Refetching keeps the row correct so it stays / leaves the filter accurately.
+export async function fetchOrdenListItem(id: string): Promise<OrdenListItem | null> {
+  const sb = createClient();
+  const { data, error } = await sb
+    .from("ordenes_trabajo")
+    .select(LIST_SELECT)
+    .eq("id", id)
+    .is("deleted_at", null)
+    .maybeSingle();
+  if (error) throw error;
+  return (data ?? null) as unknown as OrdenListItem | null;
 }
 
 export async function fetchOrden(id: string): Promise<OrdenTrabajo | null> {
