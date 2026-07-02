@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Plus, Search, X, ChevronDown, Loader2, FileText, ArrowUpDown, Download, AlertTriangle, Calendar, List, CalendarDays, Columns3, Check } from "lucide-react";
 import { createClient, logRealtimeChannel } from "@/lib/supabase";
-import { fetchOrden, fetchOrdenesPage, fetchAllOrdenesForExport, fetchOrdenListItem, deleteOrden, ORDENES_PAGE_SIZE, parseDescMeta } from "@/lib/ordenes-api";
+import { fetchOrden, fetchOrdenesPage, fetchAllOrdenesForExport, fetchOrdenListItem, searchOrdenes, ORDENES_SEARCH_LIMIT, deleteOrden, ORDENES_PAGE_SIZE, parseDescMeta } from "@/lib/ordenes-api";
 import { buildOrdenesWorkbook, type ExportCols as SharedExportCols, type OrdenInput, type HojaInput, type FilaInput, type FotoItemInput, type MaterialUsadoInput } from "@/lib/excel-export-shared";
 import { ExportScheduler } from "./ExportScheduler";
 import OTRow from "./OTRow";
@@ -429,6 +429,9 @@ export default function OrdenesBandeja({
 
   const loadMoreOrdenes = useCallback(async () => {
     if (loadingMoreOrdenes || !hasMoreOrdenes) return;
+    // While a text search is active the list is server-search results (a
+    // complete set), not the paginated loaded list — don't paginate then.
+    if (search.trim()) return;
     const lastCreatedAt = ordenes[ordenes.length - 1]?.created_at ?? null;
     if (!lastCreatedAt) return;
 
@@ -444,7 +447,7 @@ export default function OrdenesBandeja({
     } finally {
       setLoadingMoreOrdenes(false);
     }
-  }, [hasMoreOrdenes, loadingMoreOrdenes, ordenes, wsId]);
+  }, [hasMoreOrdenes, loadingMoreOrdenes, ordenes, wsId, search]);
 
   // Poll list every 60s — no realtime channel for ordenes_trabajo.
   // Swallow transient network errors (e.g. the user's connection drops): the
@@ -563,13 +566,44 @@ export default function OrdenesBandeja({
     [waitingAlerts],
   );
 
+  // Server-side text search: the infinite-scroll list only holds loaded pages,
+  // so an in-memory search can't find OTs the user hasn't scrolled to. When
+  // there's a query we fetch matches from the server (debounced) and use those
+  // as the base for the filter pipeline instead of the loaded list. Empty query
+  // → back to the loaded list. `searchResults === null` means "not searching".
+  const [searchResults, setSearchResults] = useState<OrdenListItem[] | null>(null);
+  const [searching, setSearching] = useState(false);
+  useEffect(() => {
+    const q = search.trim();
+    if (!q) { setSearchResults(null); setSearching(false); return; }
+    let cancelled = false;
+    setSearching(true);
+    const t = setTimeout(async () => {
+      try {
+        const rows = await searchOrdenes(wsId, q);
+        if (!cancelled) setSearchResults(rows);
+      } catch {
+        if (!cancelled) setSearchResults([]); // query failed → show no results, not stale
+      } finally {
+        if (!cancelled) setSearching(false);
+      }
+    }, 300);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [search, wsId]);
+
+  const searchHitCap = searchResults !== null && searchResults.length >= ORDENES_SEARCH_LIMIT;
+
   // Apply filters + search + sort
   const filtered = useMemo(() => {
+    // When searching, the base is the server results (all matches, loaded or
+    // not); otherwise the loaded infinite-scroll list. The tab/scope/filtros
+    // pipeline below still applies on top, so search respects the current view.
+    const baseSource = searchResults ?? ordenes;
     // Tab decides active vs. completed; scope narrows further. Kanban shows
     // all states side-by-side, so the tab gate is bypassed in that view.
     let list = view === "kanban"
-      ? ordenes.slice()
-      : ordenes.filter(o =>
+      ? baseSource.slice()
+      : baseSource.filter(o =>
           tab === "pendientes" ? ACTIVE_ESTADOS.has(o.estado) : CLOSED_ESTADOS.has(o.estado)
         );
 
@@ -680,7 +714,7 @@ export default function OrdenesBandeja({
       });
     }
     return list;
-  }, [ordenes, view, tab, scope, search, sort, filtros, ubicaciones, reprogramadaIds, faltanMaterialesIds]);
+  }, [ordenes, searchResults, view, tab, scope, search, sort, filtros, ubicaciones, reprogramadaIds, faltanMaterialesIds]);
 
   // The rows actually rendered — a window into `filtered` that grows on scroll.
   const visibleOrdenes = useMemo(
@@ -1073,6 +1107,11 @@ export default function OrdenesBandeja({
                 >
                   <X size={12} />
                 </button>
+              )}
+              {(searching || searchHitCap) && (
+                <div style={{ position:"absolute", left:0, top:"calc(100% + 4px)", fontSize:11, color:"var(--fg-4)", whiteSpace:"nowrap" }}>
+                  {searching ? "Buscando…" : `Más de ${ORDENES_SEARCH_LIMIT} resultados · refina la búsqueda`}
+                </div>
               )}
             </div>
 

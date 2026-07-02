@@ -153,6 +153,35 @@ export async function fetchOrdenesPage(wsId: string, beforeCreatedAt?: string | 
   return (data ?? []) as unknown as OrdenListItem[];
 }
 
+// Max rows a text search returns. A query matching more than this is too broad;
+// the UI nudges the user to refine rather than paginating search results.
+export const ORDENES_SEARCH_LIMIT = 300;
+
+// Server-side text search across the workspace's parent OTs — so search finds
+// any matching OT regardless of what the infinite-scroll list has loaded.
+// Matches titulo, descripcion (which embeds "N° OT:"/"Solicitante:" meta), and
+// the solicitante column — the same fields the old in-memory search covered.
+export async function searchOrdenes(wsId: string, rawQuery: string): Promise<OrdenListItem[]> {
+  const q = rawQuery.trim();
+  if (!q) return [];
+  // Escape PostgREST `or`/`ilike` metacharacters so a literal %, _, comma, or
+  // parenthesis in the query can't break the filter syntax or inject terms.
+  const safe = q.replace(/[\\%_,()]/g, (c) => `\\${c}`);
+  const pattern = `%${safe}%`;
+  const sb = createClient();
+  const { data, error } = await sb
+    .from("ordenes_trabajo")
+    .select(LIST_SELECT)
+    .eq("workspace_id", wsId)
+    .is("parent_id", null)
+    .is("deleted_at", null)
+    .or(`titulo.ilike.${pattern},descripcion.ilike.${pattern},solicitante.ilike.${pattern}`)
+    .order("created_at", { ascending: false })
+    .limit(ORDENES_SEARCH_LIMIT);
+  if (error) throw error;
+  return (data ?? []) as unknown as OrdenListItem[];
+}
+
 export async function fetchOrdenes(wsId: string): Promise<OrdenListItem[]> {
   return fetchOrdenesPage(wsId);
 }
