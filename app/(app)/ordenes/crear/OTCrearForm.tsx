@@ -12,8 +12,8 @@ import { createClient } from "@/lib/supabase";
 import { uploadFotoGrupo, createFotoGrupo, addFotoToGrupo } from "@/lib/foto-grupos-api";
 import { uploadToR2 } from "@/lib/r2";
 import LinksInput from "@/components/LinksInput";
-import { buildRecurrenciaConfig, RecurrenceControls, RECURRENCIAS } from "../RecurrenceControls";
-import type { Usuario, Ubicacion, Activo, CategoriaOT, Prioridad, TipoTrabajo, Recurrencia, OTLink } from "@/types/ordenes";
+import { buildRecurrenciaConfig, RecurrenceControls } from "../RecurrenceControls";
+import type { Usuario, Ubicacion, Activo, CategoriaOT, Prioridad, TipoTrabajo, Recurrencia, RecurrenciaConfig, OTLink } from "@/types/ordenes";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -48,11 +48,8 @@ interface FormState {
   tiempo_m:         string;
   fecha_termino:    string;
   fecha_inicio:     string;
-  recurrencia_fin:  string;
-  recurrencia_intervalo: string;
-  recurrencia_dias: number[];
-  recurrencia_mes_dia: string;
   recurrencia:      Recurrencia;
+  recurrencia_config: RecurrenciaConfig | null;
   tipo_trabajo:     TipoTrabajo | "";
   prioridad:        Prioridad;
   categoria_id:     string;
@@ -63,9 +60,8 @@ const BLANK: FormState = {
   ubicacion_id: "", activo_id: "",
   asignados_ids: [],
   tiempo_h: "", tiempo_m: "",
-  fecha_termino: "", fecha_inicio: "", recurrencia_fin: "",
-  recurrencia_intervalo: "1", recurrencia_dias: [], recurrencia_mes_dia: "1",
-  recurrencia: "ninguna", tipo_trabajo: "",
+  fecha_termino: "", fecha_inicio: "",
+  recurrencia: "ninguna", recurrencia_config: null, tipo_trabajo: "",
   prioridad: "ninguna", categoria_id: "",
 };
 
@@ -103,7 +99,9 @@ function calcProximaEjecucion(recurrencia: Recurrencia, fechaBase?: string | nul
       if (weekdays.length) while (!weekdays.includes(d.getDay())) d.setDate(d.getDate() + 1);
       break;
     case "quincenal": d.setDate(d.getDate() + 15); break;
-    case "mensual": {
+    case "mensual":
+    case "mensual_fecha":
+    case "mensual_dia": {
       const day = Math.min(31, Math.max(1, Number(config?.month_day ?? d.getDate())));
       d.setMonth(d.getMonth() + interval, 1);
       const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
@@ -111,6 +109,15 @@ function calcProximaEjecucion(recurrencia: Recurrencia, fechaBase?: string | nul
       break;
     }
     case "anual": d.setFullYear(d.getFullYear() + interval); break;
+    // Mirrors the DB advancer (recurrente_advance_date) for mobile-style presets.
+    case "personalizada":
+      switch (config?.unit) {
+        case "week":  d.setDate(d.getDate() + interval * 7); break;
+        case "month": d.setMonth(d.getMonth() + interval); break;
+        case "year":  d.setFullYear(d.getFullYear() + interval); break;
+        default:      d.setDate(d.getDate() + interval); break;
+      }
+      break;
   }
   return d.toISOString();
 }
@@ -847,55 +854,41 @@ export default function OTCrearForm({ usuarios, ubicaciones, activos, categorias
             />
           </FieldRow>
 
-          {/* Recurrence + Work type — side by side */}
-          <div style={{ display: "flex", gap: 12, padding: "14px 0", borderBottom: "1px solid var(--border)" }}>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 11, fontWeight: 600, color: "var(--fg-3)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>
-                Recurrencia
-              </div>
-              <select
-                value={form.recurrencia}
-                onChange={e => setF("recurrencia", e.target.value as Recurrencia)}
-                style={{
-                  width: "100%", height: 36, padding: "0 8px",
-                  border: "1px solid var(--border)", borderRadius: 6,
-                  fontSize: 13.5, color: "var(--fg-1)", outline: "none",
-                  background: "var(--surface-1)", fontFamily: "inherit",
-                }}
-              >
-                {RECURRENCIAS.map(r => (
-                  <option key={r.value} value={r.value}>{r.label}</option>
-                ))}
-              </select>
+          {/* Work type */}
+          <div style={{ padding: "14px 0", borderBottom: "1px solid var(--border)" }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: "var(--fg-3)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>
+              Tipo de trabajo
             </div>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 11, fontWeight: 600, color: "var(--fg-3)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>
-                Tipo de trabajo
-              </div>
-              <select
-                value={form.tipo_trabajo}
-                onChange={e => setF("tipo_trabajo", e.target.value as TipoTrabajo | "")}
-                style={{
-                  width: "100%", height: 36, padding: "0 8px",
-                  border: "1px solid var(--border)", borderRadius: 6,
-                  fontSize: 13.5, color: "var(--fg-1)", outline: "none",
-                  background: "var(--surface-1)", fontFamily: "inherit",
-                }}
-              >
-                <option value="">Sin tipo</option>
-                {TIPOS.map(t => (
-                  <option key={t.value} value={t.value}>{t.label}</option>
-                ))}
-              </select>
+            <select
+              value={form.tipo_trabajo}
+              onChange={e => setF("tipo_trabajo", e.target.value as TipoTrabajo | "")}
+              style={{
+                width: "100%", height: 36, padding: "0 8px",
+                border: "1px solid var(--border)", borderRadius: 6,
+                fontSize: 13.5, color: "var(--fg-1)", outline: "none",
+                background: "var(--surface-1)", fontFamily: "inherit",
+              }}
+            >
+              <option value="">Sin tipo</option>
+              {TIPOS.map(t => (
+                <option key={t.value} value={t.value}>{t.label}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Recurrence — Repetir + Terminar repetición (mirrors the mobile app) */}
+          <div style={{ padding: "14px 0", borderBottom: "1px solid var(--border)" }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: "var(--fg-3)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>
+              Recurrencia
             </div>
+            <RecurrenceControls
+              value={form}
+              onChange={next => setForm(prev => ({ ...prev, ...next }))}
+              compact
+            />
           </div>
 
           {/* Priority — segmented buttons */}
-          {form.recurrencia !== "ninguna" && (
-            <div style={{ padding: "0 0 14px", borderBottom: "1px solid var(--border)" }}>
-              <RecurrenceControls value={form} onChange={setF} compact />
-            </div>
-          )}
 
           <div style={{ padding: "14px 0", borderBottom: "1px solid var(--border)" }}>
             <div style={{ fontSize: 11, fontWeight: 600, color: "var(--fg-3)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 10 }}>

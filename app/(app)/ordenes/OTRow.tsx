@@ -376,7 +376,7 @@ function OTRow({ orden, rowNumber, usuarios, isSelected, onClick, myId, onAssign
       {/* Hito */}
       {meta.hito && (
         <p style={{ fontSize: "var(--fs-xs)", color: "var(--fg-2)", margin: "0 0 7px", display: "flex", alignItems: "center", gap: 4 }}>
-          <span style={{ color: "var(--fg-4)" }}>Hito:</span> {meta.hito}
+          <span style={{ color: "var(--fg-4)" }}>ITO:</span> {meta.hito}
         </p>
       )}
 

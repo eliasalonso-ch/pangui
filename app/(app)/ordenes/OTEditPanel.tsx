@@ -6,14 +6,14 @@ import {
   CalendarDays, Tag, Check, ChevronDown, Building2, Hash, Plus, DollarSign,
   Paperclip, FileText, File,
 } from "lucide-react";
-import { updateOrden, parseDescMeta, buildDescripcion } from "@/lib/ordenes-api";
+import { updateOrden, parseDescMeta, buildDescripcion, ELECTRILAM_WORKSPACE_ID } from "@/lib/ordenes-api";
 import { fetchSolicitantes as fetchSolicitantesCatalog, upsertSolicitante, type Solicitante } from "@/lib/solicitantes-api";
 import { uploadToR2 } from "@/lib/r2";
 import { createClient } from "@/lib/supabase";
-import { buildRecurrenciaConfig, recurrenceDraftFromConfig, RecurrenceControls, RECURRENCIAS } from "./RecurrenceControls";
+import { buildRecurrenciaConfig, RecurrenceControls } from "./RecurrenceControls";
 import type {
   OrdenTrabajo, Usuario, Ubicacion, LugarEspecifico, Sociedad, Activo, CategoriaOT,
-  Prioridad, TipoTrabajo, Recurrencia, OTLink,
+  Prioridad, TipoTrabajo, Recurrencia, RecurrenciaConfig, OTLink,
 } from "@/types/ordenes";
 import LinksInput from "@/components/LinksInput";
 import CategoriaMultiSelect from "@/components/ordenes/CategoriaMultiSelect";
@@ -50,11 +50,8 @@ interface FormState {
   asignados_ids: string[];
   fecha_termino: string;
   fecha_inicio:  string;
-  recurrencia_fin: string;
-  recurrencia_intervalo: string;
-  recurrencia_dias: number[];
-  recurrencia_mes_dia: string;
   recurrencia:   Recurrencia;
+  recurrencia_config: RecurrenciaConfig | null;
   tipo_trabajo:  TipoTrabajo | "";
   prioridad:     Prioridad;
   categoria_id:  string;
@@ -370,7 +367,7 @@ function HitoSelect({ value, onChange, wsId }: {
         }}
       >
         <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-          {value || "Seleccionar o crear hito…"}
+          {value || "Seleccionar o crear ITO…"}
         </span>
         <ChevronDown size={13} style={{ flexShrink: 0, color: "var(--fg-4)" }} />
       </button>
@@ -438,7 +435,7 @@ function HitoSelect({ value, onChange, wsId }: {
               </button>
             )}
             {filtered.length === 0 && !canCreate && (
-              <div style={{ padding: "8px 10px", fontSize: 12.5, color: "var(--fg-4)" }}>Sin hitos</div>
+              <div style={{ padding: "8px 10px", fontSize: 12.5, color: "var(--fg-4)" }}>Sin ITOs</div>
             )}
           </div>
         </div>
@@ -610,7 +607,6 @@ export default function OTEditPanel({
   myId, wsId, onClose, onSaved,
 }: Props) {
   const _meta = parseDescMeta(orden.descripcion ?? null);
-  const recurrenciaDraft = recurrenceDraftFromConfig(orden.recurrencia ?? "ninguna", orden.recurrencia_config, orden.fecha_inicio ? orden.fecha_inicio.slice(0, 10) : "");
   const [form, setForm] = useState<FormState>({
     titulo:        orden.titulo ?? "",
     n_ot:          _meta.nOT          ?? "",
@@ -627,11 +623,8 @@ export default function OTEditPanel({
     asignados_ids: orden.asignados_ids ?? [],
     fecha_termino: orden.fecha_termino ? orden.fecha_termino.slice(0, 10) : "",
     fecha_inicio:  orden.fecha_inicio  ? orden.fecha_inicio.slice(0, 10)  : "",
-    recurrencia_fin: recurrenciaDraft.recurrencia_fin,
-    recurrencia_intervalo: recurrenciaDraft.recurrencia_intervalo,
-    recurrencia_dias: recurrenciaDraft.recurrencia_dias,
-    recurrencia_mes_dia: recurrenciaDraft.recurrencia_mes_dia,
     recurrencia:   orden.recurrencia   ?? "ninguna",
+    recurrencia_config: orden.recurrencia_config ?? null,
     tipo_trabajo:  orden.tipo_trabajo  ?? "reactiva",
     prioridad:     orden.prioridad,
     categoria_id:  orden.categoria_id  ?? "",
@@ -920,9 +913,12 @@ export default function OTEditPanel({
             />
           </FieldRow>
 
-          <FieldRow icon={<Tag size={14} />} label="Hito">
-            <HitoSelect value={form.hito} onChange={v => setF("hito", v)} wsId={wsId} />
-          </FieldRow>
+          {/* ITOs — Electrilam-exclusive feature. */}
+          {wsId === ELECTRILAM_WORKSPACE_ID && (
+            <FieldRow icon={<Tag size={14} />} label="ITO">
+              <HitoSelect value={form.hito} onChange={v => setF("hito", v)} wsId={wsId} />
+            </FieldRow>
+          )}
 
           <FieldRow icon={<DollarSign size={14} />} label="N° de presupuesto">
             <input
@@ -967,19 +963,14 @@ export default function OTEditPanel({
           </FieldRow>
 
           {/* Recurrence */}
+          {/* Recurrence — Repetir + Terminar repetición (mirrors the mobile app) */}
           <div style={{ padding: "24px 0", borderBottom: "1px solid var(--border)" }}>
             <div style={{ fontSize: 12, fontWeight: 700, color: "var(--fg-3)", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.06em" }}>Recurrencia</div>
-            <select value={form.recurrencia} onChange={e => setF("recurrencia", e.target.value as Recurrencia)}
-              style={{ width: "100%", height: 40, padding: "0 12px", border: "1px solid var(--border)", borderRadius: 8, fontSize: 13, color: "var(--fg-1)", outline: "none", background: "var(--surface-1)", fontFamily: "inherit" }}>
-              {RECURRENCIAS.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
-            </select>
+            <RecurrenceControls
+              value={form}
+              onChange={next => setForm(prev => ({ ...prev, ...next }))}
+            />
           </div>
-
-          {form.recurrencia !== "ninguna" && (
-            <div style={{ padding: "0 0 24px", borderBottom: "1px solid var(--border)" }}>
-              <RecurrenceControls value={form} onChange={setF} />
-            </div>
-          )}
 
           {/* Priority */}
           <div style={{ padding: "24px 0", borderBottom: "1px solid var(--border)" }}>

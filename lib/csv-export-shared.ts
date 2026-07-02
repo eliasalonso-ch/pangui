@@ -63,7 +63,7 @@ export function buildOrdenesCsv(opts: BuildCsvOptions): Uint8Array {
   const allCols: ColRow[] = [
     { key: "numero",       header: "ID",            get: o => o.numero ?? "" },
     { key: "n_serie",      header: "N° OT",         get: o => o.n_serie ?? "" },
-    { key: "hito",         header: "Hito",          get: o => o.hito ?? "" },
+    { key: "hito",         header: "ITO",           get: o => o.hito ?? "" },
     { key: "titulo",       header: "Título",        get: o => o.titulo ?? "" },
     { key: "estado",       header: "Estado",        get: o => ESTADO_LABEL[o.estado] ?? o.estado },
     { key: "fecha_limite", header: "Fecha término", get: o => fmtDate(o.fecha_termino) },

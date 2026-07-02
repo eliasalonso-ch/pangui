@@ -118,7 +118,7 @@ export async function POST(request) {
         "Authorization": `Bearer ${process.env.RESEND_API_KEY}`,
       },
       body: JSON.stringify({
-        from: process.env.RESEND_FROM ?? "Pangui <noreply@pangui.cl>",
+        from: process.env.RESEND_FROM ?? "Pangui <noreply@getpangui.com>",
         to: [to],
         subject: `Orden de trabajo ${otId} registrada — ${planta}`,
         html,

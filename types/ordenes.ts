@@ -19,7 +19,19 @@ export type TipoTrabajo = "reactiva" | "preventiva" | "emergencia" | "levantamie
 
 export type ClasificacionOT = "levantamiento" | "ejecucion";
 
-export type Recurrencia = "ninguna" | "diaria" | "semanal" | "quincenal" | "mensual" | "anual";
+// Union of the web + mobile recurrence vocabularies. The DB advancer
+// (recurrente_advance_date) handles all of these, so the web client can now
+// emit the mobile presets too (e.g. "personalizada" for "entre semana").
+export type Recurrencia =
+  | "ninguna"
+  | "diaria"
+  | "semanal"
+  | "quincenal"
+  | "mensual"
+  | "mensual_fecha"
+  | "mensual_dia"
+  | "anual"
+  | "personalizada";
 
 export interface RecurrenciaConfig {
   interval?: number | null;

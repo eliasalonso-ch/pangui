@@ -320,7 +320,7 @@ export default function LoginForm() {
 
             <div style={{ marginTop: 28, paddingTop: 20, borderTop: "1px solid #F1F5F9", fontSize: 13, color: "#64748B", textAlign: "center" }}>
               ¿Aún no tienes cuenta?{" "}
-              <a href="mailto:hola@pangui.cl" style={{ color: "#2563EB", fontWeight: 600, textDecoration: "none" }}>
+              <a href="mailto:contacto@getpangui.com" style={{ color: "#2563EB", fontWeight: 600, textDecoration: "none" }}>
                 Contáctanos →
               </a>
             </div>

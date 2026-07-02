@@ -769,7 +769,7 @@ export default function OTDetail({
     { key: "tipo_trabajo",    label: "Tipo de trabajo",      group: "Información general" },
     { key: "categoria",       label: "Categoría",            group: "Información general" },
     { key: "solicitante",     label: "Solicitante",          group: "Información general" },
-    { key: "hito",            label: "Hito",                 group: "Información general" },
+    { key: "hito",            label: "ITO",                  group: "Información general" },
     { key: "descripcion",     label: "Descripción",          group: "Información general" },
     { key: "asignados",       label: "Asignados",            group: "Personas y ubicación" },
     { key: "empresa",         label: "Empresa",              group: "Personas y ubicación" },
@@ -802,7 +802,7 @@ export default function OTDetail({
 
   const PDF_FIELDS: { key: PdfField; label: string; group: string }[] = [
     { key: "solicitante",   label: "Solicitante",       group: "Información general" },
-    { key: "hito",          label: "Hito",              group: "Información general" },
+    { key: "hito",          label: "ITO",               group: "Información general" },
     { key: "fechas",        label: "Fechas (inicio/límite)", group: "Información general" },
     { key: "descripcion",   label: "Descripción",       group: "Contenido" },
     { key: "asignados",     label: "Asignados",         group: "Contenido" },
@@ -1795,7 +1795,7 @@ export default function OTDetail({
       if (f.solicitante)     resCols.push({ header: "Solicitante",      value: orden.solicitante ?? meta.solicitante ?? "—", width: 22 });
       if (f.solicitante)     resCols.push({ header: "Tel. solicitante",  value: orden.solicitante_telefono ?? "—", width: 16 });
       if (f.solicitante)     resCols.push({ header: "Email solicitante", value: orden.solicitante_email ?? "—",    width: 24 });
-      if (f.hito)            resCols.push({ header: "Hito",             value: meta.hito ?? "—",                  width: 18 });
+      if (f.hito)            resCols.push({ header: "ITO",              value: meta.hito ?? "—",                  width: 18 });
       if (f.descripcion)     resCols.push({ header: "Descripción",      value: meta.descripcion ?? "—",           width: 44 });
       if (f.asignados)       resCols.push({ header: "Asignados",        value: asignadosNames || "—",             width: 28 });
       if (f.empresa)         resCols.push({ header: "Empresa",          value: (orden as any).sociedad?.nombre ?? "—", width: 20 });
@@ -1958,7 +1958,7 @@ export default function OTDetail({
       `Solicitante:     ${orden.solicitante ?? meta.solicitante ?? "—"}`,
       `Tel. solicitante:${orden.solicitante_telefono ?? "—"}`,
       `Email solic.:    ${orden.solicitante_email ?? "—"}`,
-      `Hito:            ${meta.hito ?? "—"}`,
+      `ITO:             ${meta.hito ?? "—"}`,
       ``,
       `Asignados:       ${asignadosNames || "—"}`,
       `Empresa:         ${(orden as any).sociedad?.nombre ?? "—"}`,
@@ -2600,7 +2600,7 @@ export default function OTDetail({
                 (orden.solicitante || meta.solicitante) && { label: "Solicitante", value: orden.solicitante || meta.solicitante, icon: <User size={16} /> },
                 orden.solicitante_telefono && { label: "Teléfono solicitante", value: orden.solicitante_telefono, icon: <Phone size={16} />, href: `tel:${orden.solicitante_telefono.replace(/\s+/g, "")}` },
                 orden.solicitante_email && { label: "Email solicitante", value: orden.solicitante_email, icon: <Mail size={16} />, href: `mailto:${orden.solicitante_email}` },
-                meta.hito && { label: "Hito", value: meta.hito, icon: <Flag size={16} /> },
+                meta.hito && { label: "ITO", value: meta.hito, icon: <Flag size={16} /> },
                 orden.presupuesto && { label: "N° de presupuesto", value: orden.presupuesto, icon: <DollarSign size={16} /> },
                 orden.ubicaciones?.edificio && { label: "Ubicación", value: orden.ubicaciones.edificio + (orden.ubicaciones.detalle ? ` · ${orden.ubicaciones.detalle}` : ""), icon: <MapPin size={16} /> },
                 orden.lugar?.nombre && { label: "Lugar específico", value: orden.lugar.nombre, icon: <MapPin size={16} /> },

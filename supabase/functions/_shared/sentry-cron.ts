@@ -68,6 +68,11 @@ export async function withCronMonitor<T>(
   try {
     const result = await job();
     Sentry.captureCheckIn({ checkInId, monitorSlug, status: "ok" }, monitorConfig);
+    // Must flush before returning: when the edge handler returns, the Deno
+    // isolate can be frozen/recycled before the async check-in request is sent,
+    // so the "ok" never reaches Sentry and the monitor reports a false "missed
+    // check-in". Flushing guarantees delivery (mirrors the error path below).
+    await Sentry.flush(2000);
     return result;
   } catch (err) {
     Sentry.captureCheckIn({ checkInId, monitorSlug, status: "error" }, monitorConfig);

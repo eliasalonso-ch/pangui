@@ -405,7 +405,7 @@ export default function PrivacidadPage() {
 
       {/* 8. Cookies y almacenamiento local */}
       <LegalSection icon={Cookie} title="9. Cookies y almacenamiento local">
-        <p><strong>Sitio web (pangui.cl):</strong></p>
+        <p><strong>Sitio web (getpangui.com):</strong></p>
         <Ul
           items={[
             "Cookie de sesión de Supabase Auth: identifica tu sesión autenticada. Se elimina al cerrar sesión.",
@@ -457,7 +457,7 @@ export default function PrivacidadPage() {
         <p>
           Siempre podrás consultar la versión vigente en{" "}
           <Link href="/privacidad" style={{ color: "var(--accent-1)" }}>
-            pangui.cl/privacidad
+            getpangui.com/privacidad
           </Link>
           .
         </p>

@@ -302,7 +302,7 @@ interface ColDef {
 const COL_DEFS: ColDef[] = [
   { key: "numero",       header: "ID",            width: 8,  getValue: o => o.numero ?? "—" },
   { key: "n_serie",      header: "N° OT",         width: 22, getValue: (o, m) => o.n_serie || m.nOT || "—" },
-  { key: "hito",         header: "Hito",          width: 20, getValue: (o, m) => o.hito || m.hito || "—" },
+  { key: "hito",         header: "ITO",           width: 20, getValue: (o, m) => o.hito || m.hito || "—" },
   { key: "titulo",       header: "Título",        width: 40, getValue: o => o.titulo ?? "—" },
   { key: "estado",       header: "Estado",        width: 14, getValue: o => ESTADO_LABEL[o.estado] ?? o.estado, estadoBadge: true },
   { key: "fecha_limite", header: "Fecha término", width: 14, getValue: o => fmtDate(o.fecha_termino), mutableIfEmpty: o => !o.fecha_termino },

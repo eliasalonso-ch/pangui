@@ -217,7 +217,7 @@ export default function TerminosPage() {
         />
         <DefItem
           term="Sitio Web"
-          definition="La aplicación web Pangui accesible en pangui.cl desde cualquier navegador moderno en computadores, tablets o smartphones. Es el canal principal para administradores: gestión de equipo, configuración del espacio de trabajo, exportación de reportes y administración de usuarios."
+          definition="La aplicación web Pangui accesible en getpangui.com desde cualquier navegador moderno en computadores, tablets o smartphones. Es el canal principal para administradores: gestión de equipo, configuración del espacio de trabajo, exportación de reportes y administración de usuarios."
         />
         <DefItem
           term="Aplicación Móvil"
@@ -257,13 +257,13 @@ export default function TerminosPage() {
         </p>
 
         <p style={{ marginTop: 12, marginBottom: 6 }}>
-          <strong>Sitio Web (pangui.cl)</strong> — orientado a administradores y
+          <strong>Sitio Web (getpangui.com)</strong> — orientado a administradores y
           jefes de mantención:
         </p>
         <Ul
           items={[
             "Crear y asignar Órdenes de Trabajo, plantillas y procedimientos.",
-            "Configurar el espacio de trabajo: usuarios, ubicaciones, sociedades, categorías, hitos.",
+            "Configurar el espacio de trabajo: usuarios, ubicaciones, sociedades, categorías, ITOs.",
             "Gestionar inventario de materiales con alertas de stock mínimo.",
             "Exportar reportes en PDF y Excel.",
             "Administrar usuarios invitados y configuración del workspace.",
