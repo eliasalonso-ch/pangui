@@ -138,7 +138,11 @@ const TIPO_LABEL: Record<string, string> = {
 };
 
 function fmtDate(s: string | null | undefined): string {
-  return s ? new Date(s).toLocaleDateString("es-CL") : "—";
+  if (!s) return "—";
+  // Date-only strings ("2026-07-02") parse as UTC midnight; rendering them in a
+  // negative-offset TZ (Chile UTC-4) rolls back a day. Parse the Y-M-D as local.
+  const [y, m, d] = s.slice(0, 10).split("-").map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString("es-CL");
 }
 function fmtDateTime(s: string | null | undefined): string {
   return s
@@ -305,7 +309,7 @@ const COL_DEFS: ColDef[] = [
   { key: "hito",         header: "ITO",           width: 20, getValue: (o, m) => o.hito || m.hito || "—" },
   { key: "titulo",       header: "Título",        width: 40, getValue: o => o.titulo ?? "—" },
   { key: "estado",       header: "Estado",        width: 14, getValue: o => ESTADO_LABEL[o.estado] ?? o.estado, estadoBadge: true },
-  { key: "fecha_limite", header: "Fecha término", width: 14, getValue: o => fmtDate(o.fecha_termino), mutableIfEmpty: o => !o.fecha_termino },
+  { key: "fecha_limite", header: "Fecha vencimiento", width: 16, getValue: o => fmtDate(o.fecha_termino), mutableIfEmpty: o => !o.fecha_termino },
   { key: "ubicacion",    header: "Ubicación",     width: 34, getValue: o => o.ubicaciones?.edificio ?? "—" },
   { key: "descripcion",  header: "Descripción",   width: 52, getValue: (_o, m) => m.descripcion || "—" },
   { key: "solicitante",  header: "Solicitante",   width: 26, getValue: (o, m) => o.solicitante || m.solicitante || "—" },

@@ -29,7 +29,11 @@ const TIPO_LABEL: Record<string, string> = {
 };
 
 function fmtDate(s: string | null | undefined): string {
-  return s ? new Date(s).toLocaleDateString("es-CL") : "";
+  if (!s) return "";
+  // Date-only strings ("2026-07-02") parse as UTC midnight; rendering them in a
+  // negative-offset TZ (Chile UTC-4) rolls back a day. Parse the Y-M-D as local.
+  const [y, m, d] = s.slice(0, 10).split("-").map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString("es-CL");
 }
 
 // Escape a field for RFC-4180 CSV: wrap in quotes if it contains comma,
@@ -66,7 +70,7 @@ export function buildOrdenesCsv(opts: BuildCsvOptions): Uint8Array {
     { key: "hito",         header: "ITO",           get: o => o.hito ?? "" },
     { key: "titulo",       header: "Título",        get: o => o.titulo ?? "" },
     { key: "estado",       header: "Estado",        get: o => ESTADO_LABEL[o.estado] ?? o.estado },
-    { key: "fecha_limite", header: "Fecha término", get: o => fmtDate(o.fecha_termino) },
+    { key: "fecha_limite", header: "Fecha vencimiento", get: o => fmtDate(o.fecha_termino) },
     { key: "ubicacion",    header: "Ubicación",     get: o => o.ubicaciones?.edificio ?? "" },
     { key: "descripcion",  header: "Descripción",   get: o => (o.descripcion ?? "").replace(/\s+/g, " ").trim() },
     { key: "solicitante",  header: "Solicitante",   get: o => o.solicitante ?? "" },

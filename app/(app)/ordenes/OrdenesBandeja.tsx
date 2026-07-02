@@ -239,7 +239,7 @@ export default function OrdenesBandeja({
     { key: "hito",         label: "ITO",                 group: "Información general" },
     { key: "titulo",       label: "Título",              group: "Información general" },
     { key: "estado",       label: "Estado",              group: "Información general" },
-    { key: "fecha_limite", label: "Fecha término",       group: "Información general" },
+    { key: "fecha_limite", label: "Fecha vencimiento",   group: "Información general" },
     { key: "ubicacion",    label: "Ubicación",           group: "Información general" },
     { key: "descripcion",  label: "Descripción",         group: "Información general" },
     { key: "solicitante",  label: "Solicitante",         group: "Información general" },
