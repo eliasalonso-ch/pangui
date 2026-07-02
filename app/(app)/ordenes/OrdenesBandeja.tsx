@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Plus, Search, X, ChevronDown, Loader2, FileText, ArrowUpDown, Download, AlertTriangle, Calendar, List, CalendarDays, Columns3, Check } from "lucide-react";
 import { createClient, logRealtimeChannel } from "@/lib/supabase";
-import { fetchOrden, fetchOrdenesPage, fetchAllOrdenesForExport, fetchOrdenListItem, searchOrdenes, ORDENES_SEARCH_LIMIT, deleteOrden, ORDENES_PAGE_SIZE, parseDescMeta } from "@/lib/ordenes-api";
+import { fetchOrden, fetchOrdenesPage, fetchAllOrdenesForExport, fetchOrdenListItem, searchOrdenes, ORDENES_SEARCH_LIMIT, deleteOrden, ORDENES_PAGE_SIZE, parseDescMeta, fetchMarcadasIds, toggleMarcada } from "@/lib/ordenes-api";
 import { buildOrdenesWorkbook, type ExportCols as SharedExportCols, type OrdenInput, type HojaInput, type FilaInput, type FotoItemInput, type MaterialUsadoInput } from "@/lib/excel-export-shared";
 import { ExportScheduler } from "./ExportScheduler";
 import OTRow from "./OTRow";
@@ -138,6 +138,30 @@ export default function OrdenesBandeja({
   const selectedRef = useRef<string | null>(initialSelectedId ?? null);
   const [loadingDetail, setLoadingDetail] = useState(false);
 
+  // Per-user "marcar como leída/vista": ids the current user has marked. Loaded
+  // once for the workspace; toggles update optimistically.
+  const [marcadas, setMarcadas] = useState<Set<string>>(new Set());
+  const [ocultarMarcadas, setOcultarMarcadas] = useState(false);
+  useEffect(() => {
+    fetchMarcadasIds().then(setMarcadas).catch(() => { /* non-fatal: feature just stays empty */ });
+  }, []);
+
+  const handleToggleMarcada = useCallback((id: string, next: boolean) => {
+    // Optimistic: flip locally, revert on error.
+    setMarcadas(prev => {
+      const s = new Set(prev);
+      if (next) s.add(id); else s.delete(id);
+      return s;
+    });
+    toggleMarcada(id, next).catch(() => {
+      setMarcadas(prev => {
+        const s = new Set(prev);
+        if (next) s.delete(id); else s.add(id);
+        return s;
+      });
+    });
+  }, []);
+
   // Two top-level tabs only; the previous sub-tabs (Sin asignar, Reprogramadas,
   // Levantamientos) are now scope filters inside the merged Mostrar/Ordenar
   // dropdown so the supervisor can drill in without losing the rest of the list.
@@ -230,7 +254,7 @@ export default function OrdenesBandeja({
   type ExportCol =
     | "numero" | "n_serie" | "hito" | "titulo" | "estado" | "prioridad" | "tipo_trabajo"
     | "descripcion" | "solicitante"
-    | "categoria" | "ubicacion" | "activo" | "asignados" | "creado" | "fecha_limite" | "fecha_completacion" | "resumen"
+    | "categoria" | "ubicacion" | "activo" | "asignados" | "creado" | "fecha_limite" | "fecha_completacion" | "marcada" | "resumen"
     | "hoja_calculo" | "materiales_inventario";
 
   const EXPORT_COLS: { key: ExportCol; label: string; group: string }[] = [
@@ -250,6 +274,7 @@ export default function OrdenesBandeja({
     { key: "fecha_limite",       label: "Fecha vencimiento",   group: "Fechas" },
     { key: "fecha_completacion", label: "Fecha completación",  group: "Fechas" },
     { key: "creado",             label: "Creado el",           group: "Fechas" },
+    { key: "marcada",            label: "Marcada (leída)",     group: "Otros" },
     { key: "resumen",               label: "Hoja de resumen KPIs",    group: "Otros" },
     { key: "hoja_calculo",          label: "Hoja de cálculo + Fotos",  group: "Materiales" },
     { key: "materiales_inventario", label: "Materiales de inventario", group: "Materiales" },
@@ -685,6 +710,9 @@ export default function OrdenesBandeja({
       });
     }
 
+    // Hide the current user's marked ("leídas") OTs when the toggle is on.
+    if (ocultarMarcadas) list = list.filter(o => !marcadas.has(o.id));
+
     // Sort. The reprogramadas scope forces ascending fecha_inicio so the soonest
     // coordinated date floats to the top — the supervisor's primary need here.
     if (scope === "reprogramadas") {
@@ -715,7 +743,7 @@ export default function OrdenesBandeja({
       });
     }
     return list;
-  }, [ordenes, searchResults, view, tab, scope, search, sort, filtros, ubicaciones, reprogramadaIds, faltanMaterialesIds]);
+  }, [ordenes, searchResults, view, tab, scope, search, sort, filtros, ubicaciones, reprogramadaIds, faltanMaterialesIds, ocultarMarcadas, marcadas]);
 
   // The rows actually rendered — a window into `filtered` that grows on scroll.
   const visibleOrdenes = useMemo(
@@ -986,6 +1014,7 @@ export default function OrdenesBandeja({
         fecha_termino: o.fecha_termino ?? null,
         created_at: o.created_at,
         updated_at: (o as OrdenListItem & { updated_at?: string | null }).updated_at ?? null,
+        marcada: marcadas.has(o.id),
         asignados_ids: o.asignados_ids ?? null,
         n_serie: (o as OrdenListItem & { n_serie?: string | null }).n_serie ?? null,
         hito:    (o as OrdenListItem & { hito?: string | null }).hito ?? null,
@@ -1157,6 +1186,27 @@ export default function OrdenesBandeja({
 
           {/* Right side: export + sort */}
           <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+
+          {/* Ocultar leídas/marcadas (per-user) */}
+          <button
+            type="button"
+            onClick={() => setOcultarMarcadas(v => !v)}
+            title={ocultarMarcadas ? "Mostrar las OTs que marcaste" : "Ocultar las OTs que marcaste"}
+            aria-pressed={ocultarMarcadas}
+            style={{
+              display:"flex", alignItems:"center", gap:5,
+              height:28, padding:"0 10px",
+              border:"1px solid " + (ocultarMarcadas ? "var(--brand)" : "var(--border)"),
+              borderRadius:6,
+              background: ocultarMarcadas ? "var(--brand-tint)" : "var(--surface-1)",
+              color: ocultarMarcadas ? "var(--brand-fg)" : "var(--fg-2)",
+              fontSize:12, fontWeight:500, cursor:"pointer",
+              fontFamily:"inherit", whiteSpace:"nowrap", transition:"all 0.12s",
+            }}
+          >
+            <Check size={12} />
+            Ocultar leídas
+          </button>
 
           {/* Export Excel */}
           <button
@@ -1455,6 +1505,8 @@ export default function OrdenesBandeja({
                     myId={myId}
                     onAssigned={handleRowAssigned}
                     coordinadaPara={scope === "reprogramadas" ? (o.fecha_inicio ?? null) : null}
+                    isMarcada={marcadas.has(o.id)}
+                    onToggleMarcada={handleToggleMarcada}
                   />
                 ))}
                 {canShowMore && (
@@ -1576,6 +1628,8 @@ export default function OrdenesBandeja({
                   onDelete={() => deleteOT(detail.id)}
                   onClose={() => { setSelected(null); setDetail(null); router.push("/ordenes", { scroll: false }); }}
                   onOpenOrden={(id) => openOT(id, true)}
+                  isMarcada={marcadas.has(detail.id)}
+                  onToggleMarcada={handleToggleMarcada}
                   onOrdenUpdated={(patch) => {
                     setDetail(prev => prev ? { ...prev, ...patch } : prev);
                     setOrdenes(prev => prev.map(o =>
@@ -1673,6 +1727,8 @@ export default function OrdenesBandeja({
                 onClose={() => { setSelected(null); setDetail(null); setRightPanel("none"); router.push(`/ordenes?vista=${view}`, { scroll: false }); }}
                 showCloseButton
                 onOpenOrden={(id) => openOT(id, true)}
+                isMarcada={marcadas.has(detail.id)}
+                onToggleMarcada={handleToggleMarcada}
                 onOrdenUpdated={(patch) => {
                   setDetail(prev => prev ? { ...prev, ...patch } : prev);
                   setOrdenes(prev => prev.map(o =>

@@ -16,7 +16,7 @@ import {
   ClipboardCheck, Info, Hash as HashIcon, Camera, PenLine, Shield, CheckSquare,
   Type, DollarSign, List, ListChecks, AlertCircle, ImagePlus, FolderOpen,
   Lock, LockOpen, Mic, MicOff, Volume2, GitBranch, Wrench, Link as LinkIcon,
-  Phone, Mail,
+  Phone, Mail, Circle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { LinksDisplay } from "@/components/LinksInput";
@@ -649,6 +649,9 @@ interface Props {
   // Show an X button in the sticky header. Off by default (list view has its
   // own close affordances); on for calendar/kanban modal overlays.
   showCloseButton?: boolean;
+  // Per-user "marcar como leída/vista" state + toggle (owned by the parent list).
+  isMarcada?:       boolean;
+  onToggleMarcada?: (id: string, next: boolean) => void;
 }
 
 type Tab = "detalle" | "actividad" | "fotos" | "materiales" | "procedimientos" | "hoja";
@@ -702,6 +705,7 @@ export default function OTDetail({
   orden, usuarios, myId, myRol, wsId,
   onEdit, onDelete, onClose, onOrdenUpdated, onOpenOrden,
   showCloseButton = false,
+  isMarcada, onToggleMarcada,
 }: Props) {
   const router = useRouter();
   const [tab, setTab] = useState<Tab>("detalle");
@@ -2203,10 +2207,29 @@ export default function OTDetail({
             </button>
             {exportMenuOpen && (
               <div style={{
-                position: "absolute", top: "calc(100% + 6px)", left: 0, zIndex: 300,
+                position: "absolute", top: "calc(100% + 6px)", right: 0, zIndex: 300,
                 background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: "var(--r-sm)",
-                boxShadow: "var(--shadow-sm)", width: 170, overflow: "hidden",
+                boxShadow: "var(--shadow-sm)", width: 190, overflow: "hidden",
               }}>
+                {onToggleMarcada && (
+                  <button
+                    type="button"
+                    onClick={() => { onToggleMarcada(orden.id, !isMarcada); setExportMenuOpen(false); }}
+                    aria-pressed={isMarcada}
+                    style={{
+                      width: "100%", display: "flex", alignItems: "center", gap: 8,
+                      padding: "10px 12px", background: "var(--surface-1)", border: "none",
+                      borderBottom: "1px solid var(--border)", cursor: "pointer", fontSize: 13,
+                      color: isMarcada ? "var(--brand-fg)" : "var(--fg-1)", fontFamily: "inherit", textAlign: "left",
+                      fontWeight: isMarcada ? 700 : 400,
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.background = "var(--surface-hover)"; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = "var(--surface-1)"; }}
+                  >
+                    {isMarcada ? <CheckCircle2 size={14} /> : <Circle size={14} />}
+                    {isMarcada ? "Marcar como no leída" : "Marcar como leída"}
+                  </button>
+                )}
                 {[
                   { key: "pdf",  label: "Exportar PDF",   action: handleExportPDF },
                   { key: "csv",  label: "Exportar Excel", action: () => { setExportMenuOpen(false); setExportConfigOpen(true); } },

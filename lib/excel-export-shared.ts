@@ -37,6 +37,9 @@ export interface OrdenInput {
   fecha_termino: string | null;
   created_at: string;
   updated_at?: string | null;
+  // Per-user "marcar como leída/vista" state for the exporting user. Optional so
+  // callers that don't track it (e.g. the scheduled cron) can omit it.
+  marcada?: boolean;
   asignados_ids: string[] | null;
   n_serie?: string | null;
   hito?: string | null;
@@ -74,7 +77,7 @@ export interface UsuarioInput {
 export type ExportColKey =
   | "numero" | "n_serie" | "hito" | "titulo" | "estado" | "prioridad" | "tipo_trabajo"
   | "descripcion" | "solicitante"
-  | "categoria" | "ubicacion" | "activo" | "asignados" | "creado" | "fecha_limite" | "fecha_completacion" | "resumen"
+  | "categoria" | "ubicacion" | "activo" | "asignados" | "creado" | "fecha_limite" | "fecha_completacion" | "marcada" | "resumen"
   | "hoja_calculo" | "materiales_inventario";
 
 export type ExportCols = Partial<Record<ExportColKey, boolean>>;
@@ -318,6 +321,7 @@ const COL_DEFS: ColDef[] = [
   { key: "fecha_limite",       header: "Fecha vencimiento",  width: 16, getValue: o => fmtDate(o.fecha_termino), mutableIfEmpty: o => !o.fecha_termino },
   { key: "fecha_completacion", header: "Fecha completación", width: 16, getValue: o => fmtCompletadoDate(o), mutableIfEmpty: o => o.estado !== "completado" },
   { key: "creado",             header: "Creado",             width: 13, getValue: o => fmtDate(o.created_at) },
+  { key: "marcada",            header: "Marcada",            width: 10, getValue: o => o.marcada ? "Sí" : "—", mutableIfEmpty: o => !o.marcada },
   { key: "ubicacion",    header: "Ubicación",     width: 34, getValue: o => o.ubicaciones?.edificio ?? "—" },
   { key: "descripcion",  header: "Descripción",   width: 52, getValue: (_o, m) => m.descripcion || "—" },
   { key: "solicitante",  header: "Solicitante",   width: 26, getValue: (o, m) => o.solicitante || m.solicitante || "—" },

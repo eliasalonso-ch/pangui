@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useMemo, memo } from "react";
 import { createPortal } from "react-dom";
-import { Clock, MapPin, Copy, Check as CheckIcon, AlertCircle, UserPlus, X as XIcon } from "lucide-react";
+import { Clock, MapPin, Copy, Check as CheckIcon, AlertCircle, UserPlus, X as XIcon, CheckCircle2, Circle } from "lucide-react";
 import { parseDescMeta, updateOrden } from "@/lib/ordenes-api";
 import type { OrdenListItem, Usuario, Estado, Prioridad } from "@/types/ordenes";
 import { CategoriaIcon } from "@/components/ordenes/categoria-icon";
@@ -258,9 +258,12 @@ interface Props {
   // When set (only in the "Reprogramadas" tab), render a pill with the
   // coordinated date so the supervisor sees it without opening the OT.
   coordinadaPara?: string | null;
+  // Per-user "marcar como leída/vista" state + toggle.
+  isMarcada?:       boolean;
+  onToggleMarcada?: (id: string, next: boolean) => void;
 }
 
-function OTRow({ orden, rowNumber, usuarios, isSelected, onClick, myId, onAssigned, coordinadaPara }: Props) {
+function OTRow({ orden, rowNumber, usuarios, isSelected, onClick, myId, onAssigned, coordinadaPara, isMarcada, onToggleMarcada }: Props) {
   const isPending = Boolean(orden._pending);
   const hasAssignees = (orden.asignados_ids ?? []).length > 0;
   const estado = orden.estado === "pendiente"
@@ -310,8 +313,8 @@ function OTRow({ orden, rowNumber, usuarios, isSelected, onClick, myId, onAssign
         borderBottom: "1px solid var(--divider)",
         borderLeft: isSelected ? "3px solid var(--brand)" : "3px solid transparent",
         cursor: isPending ? "default" : "pointer",
-        opacity: isPending ? 0.55 : 1,
-        transition: "background var(--dur-fast) var(--ease)",
+        opacity: isPending ? 0.55 : isMarcada ? 0.62 : 1,
+        transition: "background var(--dur-fast) var(--ease), opacity var(--dur-fast) var(--ease)",
       }}
       onMouseEnter={e => { if (!isSelected) e.currentTarget.style.background = "var(--surface-hover)"; }}
       onMouseLeave={e => { if (!isSelected) e.currentTarget.style.background = "var(--surface-1)"; }}
@@ -340,13 +343,33 @@ function OTRow({ orden, rowNumber, usuarios, isSelected, onClick, myId, onAssign
             </span>
           )}
         </span>
-        {due && (
-          <span style={{ display: "flex", alignItems: "center", gap: 3, fontSize: "var(--fs-xs)", fontWeight: 600, color: due.overdue ? "var(--danger)" : "var(--warning)" }}>
-            {due.overdue && <AlertCircle size={11} />}
-            <Clock size={10} />
-            {due.text}
-          </span>
-        )}
+        <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {due && (
+            <span style={{ display: "flex", alignItems: "center", gap: 3, fontSize: "var(--fs-xs)", fontWeight: 600, color: due.overdue ? "var(--danger)" : "var(--warning)" }}>
+              {due.overdue && <AlertCircle size={11} />}
+              <Clock size={10} />
+              {due.text}
+            </span>
+          )}
+          {onToggleMarcada && !isPending && (
+            <button
+              type="button"
+              onClick={e => { e.stopPropagation(); onToggleMarcada(orden.id, !isMarcada); }}
+              title={isMarcada ? "Marcada como leída — clic para desmarcar" : "Marcar como leída"}
+              aria-pressed={isMarcada}
+              style={{
+                display: "flex", alignItems: "center", background: "none", border: "none",
+                cursor: "pointer", padding: 2,
+                color: isMarcada ? "var(--brand-fg)" : "var(--fg-4)",
+                transition: "color var(--dur-fast) var(--ease)",
+              }}
+              onMouseEnter={e => { if (!isMarcada) e.currentTarget.style.color = "var(--fg-2)"; }}
+              onMouseLeave={e => { if (!isMarcada) e.currentTarget.style.color = "var(--fg-4)"; }}
+            >
+              {isMarcada ? <CheckCircle2 size={16} /> : <Circle size={16} />}
+            </button>
+          )}
+        </span>
       </div>
 
       {/* Title */}

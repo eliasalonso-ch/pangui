@@ -121,7 +121,7 @@ export const ORDEN_SELECT = `
 export const LIST_SELECT = `
   id, titulo, descripcion, estado, prioridad, tipo, tipo_trabajo, clasificacion,
   fecha_inicio, fecha_termino, recurrencia, recurrencia_config, proxima_ejecucion,
-  recurrencia_origen_id, recurrencia_iteracion, created_at,
+  recurrencia_origen_id, recurrencia_iteracion, created_at, updated_at,
   n_serie, solicitante, hito,
   categoria_id, ubicacion_id, activo_id, creado_por, asignados_ids,
   numero, parent_id,
@@ -680,6 +680,37 @@ export async function restoreOrden(id: string): Promise<void> {
     .update({ deleted_at: null, deleted_by: null })
     .eq("id", id);
   if (error) throw error;
+}
+
+// ── Marcar como leída/vista (per-user marker) ────────────────────────────────
+// Row exists in ordenes_marcadas => marked for the current user. RLS scopes
+// every query to auth.uid(), so we never pass user_id on reads.
+
+// Returns the set of OT ids the current user has marked. One query for the whole
+// workspace list — the caller intersects with what it's showing.
+export async function fetchMarcadasIds(): Promise<Set<string>> {
+  const sb = createClient();
+  const { data, error } = await sb.from("ordenes_marcadas").select("orden_id");
+  if (error) throw error;
+  return new Set((data ?? []).map(r => r.orden_id as string));
+}
+
+// Toggle the current user's marker for one OT. Returns the new state (true = marked).
+export async function toggleMarcada(ordenId: string, marcada: boolean): Promise<boolean> {
+  const sb = createClient();
+  if (marcada) {
+    const { data: { user } } = await sb.auth.getUser();
+    if (!user) throw new Error("No autenticado");
+    // upsert: idempotent if the row somehow already exists (double-tap).
+    const { error } = await sb
+      .from("ordenes_marcadas")
+      .upsert({ orden_id: ordenId, user_id: user.id }, { onConflict: "orden_id,user_id" });
+    if (error) throw error;
+    return true;
+  }
+  const { error } = await sb.from("ordenes_marcadas").delete().eq("orden_id", ordenId);
+  if (error) throw error;
+  return false;
 }
 
 // Permanently delete an OT (hard delete). Owner/admin only at the RLS layer.

@@ -78,6 +78,7 @@ export function buildOrdenesCsv(opts: BuildCsvOptions): Uint8Array {
     { key: "fecha_limite",       header: "Fecha vencimiento",  get: o => fmtDate(o.fecha_termino) },
     { key: "fecha_completacion", header: "Fecha completación", get: o => fmtCompletadoDate(o) },
     { key: "creado",             header: "Creado",             get: o => fmtDate(o.created_at) },
+    { key: "marcada",            header: "Marcada",            get: o => o.marcada ? "Sí" : "" },
     { key: "ubicacion",    header: "Ubicación",     get: o => o.ubicaciones?.edificio ?? "" },
     { key: "descripcion",  header: "Descripción",   get: o => (o.descripcion ?? "").replace(/\s+/g, " ").trim() },
     { key: "solicitante",  header: "Solicitante",   get: o => o.solicitante ?? "" },
