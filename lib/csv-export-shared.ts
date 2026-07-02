@@ -35,6 +35,11 @@ function fmtDate(s: string | null | undefined): string {
   const [y, m, d] = s.slice(0, 10).split("-").map(Number);
   return new Date(y, m - 1, d).toLocaleDateString("es-CL");
 }
+// ponytail: no dedicated completed-at column exists; app convention is
+// updated_at when estado === "completado" (see lib/ot-metrics.ts).
+function fmtCompletadoDate(o: { estado: string; updated_at?: string | null }): string {
+  return o.estado === "completado" ? fmtDate(o.updated_at) : "";
+}
 
 // Escape a field for RFC-4180 CSV: wrap in quotes if it contains comma,
 // quote, or newline; double any internal quotes.
@@ -70,7 +75,9 @@ export function buildOrdenesCsv(opts: BuildCsvOptions): Uint8Array {
     { key: "hito",         header: "ITO",           get: o => o.hito ?? "" },
     { key: "titulo",       header: "Título",        get: o => o.titulo ?? "" },
     { key: "estado",       header: "Estado",        get: o => ESTADO_LABEL[o.estado] ?? o.estado },
-    { key: "fecha_limite", header: "Fecha vencimiento", get: o => fmtDate(o.fecha_termino) },
+    { key: "fecha_limite",       header: "Fecha vencimiento",  get: o => fmtDate(o.fecha_termino) },
+    { key: "fecha_completacion", header: "Fecha completación", get: o => fmtCompletadoDate(o) },
+    { key: "creado",             header: "Creado",             get: o => fmtDate(o.created_at) },
     { key: "ubicacion",    header: "Ubicación",     get: o => o.ubicaciones?.edificio ?? "" },
     { key: "descripcion",  header: "Descripción",   get: o => (o.descripcion ?? "").replace(/\s+/g, " ").trim() },
     { key: "solicitante",  header: "Solicitante",   get: o => o.solicitante ?? "" },
@@ -80,7 +87,6 @@ export function buildOrdenesCsv(opts: BuildCsvOptions): Uint8Array {
     { key: "activo",       header: "Activo",        get: o => o.activos?.nombre ?? "" },
     { key: "asignados",    header: "Asignados",
       get: o => (o.asignados_ids ?? []).map(id => usuariosById.get(id) ?? id).join("; ") },
-    { key: "creado",       header: "Creado",        get: o => fmtDate(o.created_at) },
   ];
 
   const activeCols = allCols.filter(c => cols[c.key as keyof ExportCols]);

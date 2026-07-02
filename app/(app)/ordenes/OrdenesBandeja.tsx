@@ -230,7 +230,7 @@ export default function OrdenesBandeja({
   type ExportCol =
     | "numero" | "n_serie" | "hito" | "titulo" | "estado" | "prioridad" | "tipo_trabajo"
     | "descripcion" | "solicitante"
-    | "categoria" | "ubicacion" | "activo" | "asignados" | "creado" | "fecha_limite" | "resumen"
+    | "categoria" | "ubicacion" | "activo" | "asignados" | "creado" | "fecha_limite" | "fecha_completacion" | "resumen"
     | "hoja_calculo" | "materiales_inventario";
 
   const EXPORT_COLS: { key: ExportCol; label: string; group: string }[] = [
@@ -239,7 +239,6 @@ export default function OrdenesBandeja({
     { key: "hito",         label: "ITO",                 group: "Información general" },
     { key: "titulo",       label: "Título",              group: "Información general" },
     { key: "estado",       label: "Estado",              group: "Información general" },
-    { key: "fecha_limite", label: "Fecha vencimiento",   group: "Información general" },
     { key: "ubicacion",    label: "Ubicación",           group: "Información general" },
     { key: "descripcion",  label: "Descripción",         group: "Información general" },
     { key: "solicitante",  label: "Solicitante",         group: "Información general" },
@@ -248,7 +247,9 @@ export default function OrdenesBandeja({
     { key: "categoria",    label: "Categoría",           group: "Información general" },
     { key: "activo",       label: "Activo / Equipo",     group: "Información general" },
     { key: "asignados",    label: "Asignados",           group: "Información general" },
-    { key: "creado",       label: "Creado el",           group: "Fechas" },
+    { key: "fecha_limite",       label: "Fecha vencimiento",   group: "Fechas" },
+    { key: "fecha_completacion", label: "Fecha completación",  group: "Fechas" },
+    { key: "creado",             label: "Creado el",           group: "Fechas" },
     { key: "resumen",               label: "Hoja de resumen KPIs",    group: "Otros" },
     { key: "hoja_calculo",          label: "Hoja de cálculo + Fotos",  group: "Materiales" },
     { key: "materiales_inventario", label: "Materiales de inventario", group: "Materiales" },
@@ -984,6 +985,7 @@ export default function OrdenesBandeja({
         tipo_trabajo: o.tipo_trabajo ?? null,
         fecha_termino: o.fecha_termino ?? null,
         created_at: o.created_at,
+        updated_at: (o as OrdenListItem & { updated_at?: string | null }).updated_at ?? null,
         asignados_ids: o.asignados_ids ?? null,
         n_serie: (o as OrdenListItem & { n_serie?: string | null }).n_serie ?? null,
         hito:    (o as OrdenListItem & { hito?: string | null }).hito ?? null,

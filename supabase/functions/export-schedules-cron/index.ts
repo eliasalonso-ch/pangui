@@ -134,7 +134,7 @@ async function runSchedule(
     .from("ordenes_trabajo")
     .select(`
       id, numero, titulo, descripcion, estado, prioridad, tipo_trabajo,
-      fecha_termino, created_at, asignados_ids, n_serie, hito, solicitante,
+      fecha_termino, created_at, updated_at, asignados_ids, n_serie, hito, solicitante,
       fotos_urls,
       ubicaciones (edificio),
       activos (nombre),

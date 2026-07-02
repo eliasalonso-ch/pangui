@@ -36,6 +36,7 @@ export interface OrdenInput {
   tipo_trabajo: string | null;
   fecha_termino: string | null;
   created_at: string;
+  updated_at?: string | null;
   asignados_ids: string[] | null;
   n_serie?: string | null;
   hito?: string | null;
@@ -73,7 +74,7 @@ export interface UsuarioInput {
 export type ExportColKey =
   | "numero" | "n_serie" | "hito" | "titulo" | "estado" | "prioridad" | "tipo_trabajo"
   | "descripcion" | "solicitante"
-  | "categoria" | "ubicacion" | "activo" | "asignados" | "creado" | "fecha_limite" | "resumen"
+  | "categoria" | "ubicacion" | "activo" | "asignados" | "creado" | "fecha_limite" | "fecha_completacion" | "resumen"
   | "hoja_calculo" | "materiales_inventario";
 
 export type ExportCols = Partial<Record<ExportColKey, boolean>>;
@@ -143,6 +144,11 @@ function fmtDate(s: string | null | undefined): string {
   // negative-offset TZ (Chile UTC-4) rolls back a day. Parse the Y-M-D as local.
   const [y, m, d] = s.slice(0, 10).split("-").map(Number);
   return new Date(y, m - 1, d).toLocaleDateString("es-CL");
+}
+// ponytail: no dedicated completed-at column exists; app convention is
+// updated_at when estado === "completado" (see lib/ot-metrics.ts).
+function fmtCompletadoDate(o: { estado: string; updated_at?: string | null }): string {
+  return o.estado === "completado" ? fmtDate(o.updated_at) : "—";
 }
 function fmtDateTime(s: string | null | undefined): string {
   return s
@@ -309,7 +315,9 @@ const COL_DEFS: ColDef[] = [
   { key: "hito",         header: "ITO",           width: 20, getValue: (o, m) => o.hito || m.hito || "—" },
   { key: "titulo",       header: "Título",        width: 40, getValue: o => o.titulo ?? "—" },
   { key: "estado",       header: "Estado",        width: 14, getValue: o => ESTADO_LABEL[o.estado] ?? o.estado, estadoBadge: true },
-  { key: "fecha_limite", header: "Fecha vencimiento", width: 16, getValue: o => fmtDate(o.fecha_termino), mutableIfEmpty: o => !o.fecha_termino },
+  { key: "fecha_limite",       header: "Fecha vencimiento",  width: 16, getValue: o => fmtDate(o.fecha_termino), mutableIfEmpty: o => !o.fecha_termino },
+  { key: "fecha_completacion", header: "Fecha completación", width: 16, getValue: o => fmtCompletadoDate(o), mutableIfEmpty: o => o.estado !== "completado" },
+  { key: "creado",             header: "Creado",             width: 13, getValue: o => fmtDate(o.created_at) },
   { key: "ubicacion",    header: "Ubicación",     width: 34, getValue: o => o.ubicaciones?.edificio ?? "—" },
   { key: "descripcion",  header: "Descripción",   width: 52, getValue: (_o, m) => m.descripcion || "—" },
   { key: "solicitante",  header: "Solicitante",   width: 26, getValue: (o, m) => o.solicitante || m.solicitante || "—" },
@@ -322,7 +330,6 @@ const COL_DEFS: ColDef[] = [
       ? o.asignados_ids.map(id => u.get(id) ?? id).join(", ")
       : "Sin asignar",
     mutableIfEmpty: o => !o.asignados_ids?.length },
-  { key: "creado",       header: "Creado",        width: 13, getValue: o => fmtDate(o.created_at) },
 ];
 
 // ── Main entry point ─────────────────────────────────────────────────────────
