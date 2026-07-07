@@ -6,6 +6,7 @@ import { Clock, MapPin, Copy, Check as CheckIcon, AlertCircle, UserPlus, X as XI
 import { parseDescMeta, updateOrden } from "@/lib/ordenes-api";
 import type { OrdenListItem, Usuario, Estado, Prioridad } from "@/types/ordenes";
 import { CategoriaIcon } from "@/components/ordenes/categoria-icon";
+import { chileDateKey, dateKey, daysBetweenKeys } from "./date-utils";
 
 // Status and priority now use CSS custom properties from v2 token system
 const ESTADO: Record<Estado, { label: string; bg: string; color: string; dot: string }> = {
@@ -42,10 +43,12 @@ function timeAgo(dateStr: string): string {
 }
 
 function dueLabel(fecha: string): { text: string; overdue: boolean } | null {
-  const diff = Math.round((new Date(fecha).setHours(0,0,0,0) - new Date().setHours(0,0,0,0)) / 86400000);
-  if (diff < 0)   return { text: `Venció hace ${Math.abs(diff)}d`, overdue: true };
-  if (diff === 0) return { text: "Vence hoy", overdue: true };
-  if (diff === 1) return { text: "Mañana", overdue: false };
+  const dueKey = dateKey(fecha);
+  if (!dueKey) return null;
+  const diff = daysBetweenKeys(chileDateKey(), dueKey);
+  if (diff < 0)   return { text: `Vencio hace ${Math.abs(diff)}d`, overdue: true };
+  if (diff === 0) return { text: "Vence hoy", overdue: false };
+  if (diff === 1) return { text: "Manana", overdue: false };
   if (diff <= 7)  return { text: `${diff}d`, overdue: false };
   return null;
 }
@@ -55,7 +58,7 @@ function initials(n: string) {
   return p.length === 1 ? p[0].slice(0, 2).toUpperCase() : (p[0][0] + p[p.length - 1][0]).toUpperCase();
 }
 
-// ── HoverTooltip ──────────────────────────────────────────────────────────────
+// â”€â”€ HoverTooltip â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function HoverTooltip({ label, body, children, triggerStyle }: {
   label: string;
@@ -125,7 +128,7 @@ function HoverTooltip({ label, body, children, triggerStyle }: {
   );
 }
 
-// ── AssignDropdown ────────────────────────────────────────────────────────────
+// â”€â”€ AssignDropdown â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function AssignDropdown({ orden, usuarios, myId, onAssigned, onClose, anchorRect }: {
   orden:       OrdenListItem;
@@ -245,7 +248,7 @@ function AssignDropdown({ orden, usuarios, myId, onAssigned, onClose, anchorRect
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 interface Props {
   orden:        OrdenListItem;
@@ -258,7 +261,7 @@ interface Props {
   // When set (only in the "Reprogramadas" tab), render a pill with the
   // coordinated date so the supervisor sees it without opening the OT.
   coordinadaPara?: string | null;
-  // Per-user "marcar como leída/vista" state + toggle.
+  // Per-user "marcar como leÃ­da/vista" state + toggle.
   isMarcada?:       boolean;
   onToggleMarcada?: (id: string, next: boolean) => void;
 }
@@ -273,7 +276,7 @@ function OTRow({ orden, rowNumber, usuarios, isSelected, onClick, myId, onAssign
   // Parsing the description is non-trivial; memoize so it only re-runs when the
   // description text actually changes, not on every parent re-render.
   const meta      = useMemo(() => parseDescMeta(orden.descripcion ?? null), [orden.descripcion]);
-  const titulo    = orden.titulo || meta.descripcion?.slice(0, 80) || "Sin título";
+  const titulo    = orden.titulo || meta.descripcion?.slice(0, 80) || "Sin tÃ­tulo";
   const [copied, setCopied] = useState(false);
   const [dropOpen, setDropOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -319,7 +322,7 @@ function OTRow({ orden, rowNumber, usuarios, isSelected, onClick, myId, onAssign
       onMouseEnter={e => { if (!isSelected) e.currentTarget.style.background = "var(--surface-hover)"; }}
       onMouseLeave={e => { if (!isSelected) e.currentTarget.style.background = "var(--surface-1)"; }}
     >
-      {/* Top: row number + N°OT + due date */}
+      {/* Top: row number + NÂ°OT + due date */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 5 }}>
         <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <span style={{ fontSize: "var(--fs-2xs)", fontWeight: 700, color: "var(--fg-4)", minWidth: 16, textAlign: "right", flexShrink: 0 }}>
@@ -333,7 +336,7 @@ function OTRow({ orden, rowNumber, usuarios, isSelected, onClick, myId, onAssign
               <button
                 type="button"
                 onClick={copyNOT}
-                title="Copiar N° OT"
+                title="Copiar NÂ° OT"
                 style={{ display: "flex", alignItems: "center", background: "none", border: "none", cursor: "pointer", padding: 2, color: copied ? "var(--success)" : "var(--fg-4)", transition: "color var(--dur-fast) var(--ease)" }}
                 onMouseEnter={e => { if (!copied) e.currentTarget.style.color = "var(--fg-3)"; }}
                 onMouseLeave={e => { if (!copied) e.currentTarget.style.color = "var(--fg-4)"; }}
@@ -355,7 +358,7 @@ function OTRow({ orden, rowNumber, usuarios, isSelected, onClick, myId, onAssign
             <button
               type="button"
               onClick={e => { e.stopPropagation(); onToggleMarcada(orden.id, !isMarcada); }}
-              title={isMarcada ? "Marcada como leída — clic para desmarcar" : "Marcar como leída"}
+              title={isMarcada ? "Marcada como leÃ­da â€” clic para desmarcar" : "Marcar como leÃ­da"}
               aria-pressed={isMarcada}
               style={{
                 display: "flex", alignItems: "center", background: "none", border: "none",
@@ -373,7 +376,7 @@ function OTRow({ orden, rowNumber, usuarios, isSelected, onClick, myId, onAssign
       </div>
 
       {/* Title */}
-      <HoverTooltip label="Título" body={titulo} triggerStyle={{ margin: "0 0 6px" }}>
+      <HoverTooltip label="TÃ­tulo" body={titulo} triggerStyle={{ margin: "0 0 6px" }}>
         <p style={{
           fontSize: "var(--fs-base)", fontWeight: 600, color: "var(--fg-1)",
           lineHeight: 1.4, margin: 0,
@@ -385,7 +388,7 @@ function OTRow({ orden, rowNumber, usuarios, isSelected, onClick, myId, onAssign
 
       {/* Description */}
       {meta.descripcion && (
-        <HoverTooltip label="Descripción" body={meta.descripcion} triggerStyle={{ margin: "0 0 6px" }}>
+        <HoverTooltip label="DescripciÃ³n" body={meta.descripcion} triggerStyle={{ margin: "0 0 6px" }}>
           <p style={{
             fontSize: "var(--fs-sm)", color: "var(--fg-2)", margin: 0,
             display: "-webkit-box", WebkitLineClamp: 1, WebkitBoxOrient: "vertical",
@@ -417,7 +420,7 @@ function OTRow({ orden, rowNumber, usuarios, isSelected, onClick, myId, onAssign
             {estado.label}
           </span>
 
-          {/* Coordinated date — only shown inside the Reprogramadas tab. */}
+          {/* Coordinated date â€” only shown inside the Reprogramadas tab. */}
           {coordinadaPara && (
             <span style={{
               display: "inline-flex", alignItems: "center", gap: 4,
@@ -442,7 +445,7 @@ function OTRow({ orden, rowNumber, usuarios, isSelected, onClick, myId, onAssign
 
           {/* Location */}
           {orden.ubicaciones?.edificio && (
-            <HoverTooltip label="Ubicación" body={orden.ubicaciones.edificio}>
+            <HoverTooltip label="UbicaciÃ³n" body={orden.ubicaciones.edificio}>
               <span style={{ display: "flex", alignItems: "center", gap: 3, fontSize: "var(--fs-xs)", color: "var(--fg-3)" }}>
                 <MapPin size={11} />
                 <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 120 }}>
@@ -470,7 +473,7 @@ function OTRow({ orden, rowNumber, usuarios, isSelected, onClick, myId, onAssign
         <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
           <span suppressHydrationWarning style={{ fontSize: "var(--fs-xs)", color: "var(--fg-4)" }}>{mounted ? timeAgo(orden.created_at) : ""}</span>
 
-          {/* Avatar trigger — always shown as a button when onAssigned is wired */}
+          {/* Avatar trigger â€” always shown as a button when onAssigned is wired */}
           <button
             ref={avatarRef}
             type="button"
@@ -541,7 +544,7 @@ function OTRow({ orden, rowNumber, usuarios, isSelected, onClick, myId, onAssign
 }
 
 // Memoized so a parent re-render (e.g. selecting another row, the 60s list
-// poll) only re-renders rows whose props actually changed — not all 70+. This
+// poll) only re-renders rows whose props actually changed â€” not all 70+. This
 // is the main lever for INP on the orders list. Requires the parent to pass
 // stable onClick/onAssigned callbacks (see OrdenesBandeja).
 export default memo(OTRow);

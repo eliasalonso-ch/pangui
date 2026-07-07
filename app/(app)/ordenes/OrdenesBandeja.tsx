@@ -15,6 +15,7 @@ import OTCrearPanel from "./OTCrearPanel";
 import OTEditPanel from "./OTEditPanel";
 import OTFiltrosPanel from "./OTFiltrosPanel";
 import { FilterBar } from "./OTFiltrosPanel";
+import { addDaysKey, chileDateKey, dateKey, monthEndKey, monthStartKey } from "./date-utils";
 import type {
   OrdenListItem, OrdenTrabajo,
   Usuario, Ubicacion, LugarEspecifico, Sociedad, Activo, CategoriaOT,
@@ -46,6 +47,8 @@ type WaitingAlert = {
   comment: string | null;
   pausedAt: string | null;
 };
+
+type PendingScopeKey = "sin_asignar" | "sin_progreso" | "vencidas" | "reprogramadas" | "materiales" | "levantamientos" | "presupuestos" | "otras";
 
 function classifyWaitingReason(comment: string | null | undefined): { key: WaitingReasonKey; label: string } {
   const c = (comment ?? "").toLowerCase();
@@ -85,7 +88,31 @@ function sinProgreso(o: OrdenListItem): boolean {
 // "Vencida": has a due date in the past and isn't completed.
 function estaVencida(o: OrdenListItem): boolean {
   if (o.estado === "completado" || !o.fecha_termino) return false;
-  return o.fecha_termino.slice(0, 10) < new Date().toISOString().slice(0, 10);
+  const dueKey = dateKey(o.fecha_termino);
+  return !!dueKey && dueKey < chileDateKey();
+}
+
+function esLevantamiento(o: OrdenListItem): boolean {
+  return o.clasificacion === "levantamiento" || o.tipo_trabajo === "levantamiento";
+}
+
+function esPresupuesto(o: OrdenListItem): boolean {
+  return o.tipo_trabajo === "presupuesto";
+}
+
+function pendingScopeFor(
+  o: OrdenListItem,
+  reprogramadaIds: Set<string>,
+  faltanMaterialesIds: Set<string>,
+): PendingScopeKey {
+  if (esLevantamiento(o)) return "levantamientos";
+  if (esPresupuesto(o)) return "presupuestos";
+  if (estaVencida(o)) return "vencidas";
+  if (sinProgreso(o)) return "sin_progreso";
+  if (!o.asignados_ids || o.asignados_ids.length === 0) return "sin_asignar";
+  if (faltanMaterialesIds.has(o.id)) return "materiales";
+  if (reprogramadaIds.has(o.id)) return "reprogramadas";
+  return "otras";
 }
 
 // Resizable list/detail split (desktop list view).
@@ -122,6 +149,9 @@ export default function OrdenesBandeja({
   const searchParams = useSearchParams();
 
   const [ordenes, setOrdenes]   = useState<OrdenListItem[]>(initialOrdenes);
+  const [allOrdenesForCounts, setAllOrdenesForCounts] = useState<OrdenListItem[] | null>(
+    () => initialOrdenes.length < ORDENES_PAGE_SIZE ? initialOrdenes : null,
+  );
   const [hasMoreOrdenes, setHasMoreOrdenes] = useState(initialOrdenes.length >= ORDENES_PAGE_SIZE);
   const [loadingMoreOrdenes, setLoadingMoreOrdenes] = useState(false);
   // Client-side infinite scroll: we hold the full filtered list in memory but
@@ -176,7 +206,7 @@ export default function OrdenesBandeja({
   );
 
   type TabKey = "pendientes" | "completas";
-  type ScopeKey = "todas" | "sin_asignar" | "sin_progreso" | "vencidas" | "reprogramadas" | "materiales" | "levantamientos" | "presupuestos";
+  type ScopeKey = "todas" | PendingScopeKey;
 
   const [tab, setTab]           = useState<TabKey>(() => {
     const f = searchParams?.get("filtro");
@@ -192,6 +222,7 @@ export default function OrdenesBandeja({
     if (f === "materiales")      return "materiales";
     if (f === "levantamientos")  return "levantamientos";
     if (f === "presupuestos")    return "presupuestos";
+    if (f === "otras")           return "otras";
     return "todas";
   });
   const [search, setSearch]     = useState("");
@@ -205,13 +236,13 @@ export default function OrdenesBandeja({
     if (f === "en_curso")         return { ...EMPTY_FILTROS, estados: ["en_curso"] };
     if (f === "abiertas")         return { ...EMPTY_FILTROS, estados: ["pendiente", "en_espera"] };
     if (f === "bloqueadas")       return { ...EMPTY_FILTROS, estados: ["en_espera"] };
-    if (f === "reprogramadas")    return { ...EMPTY_FILTROS, estados: ["en_espera"] };
-    if (f === "materiales")       return { ...EMPTY_FILTROS, estados: ["en_espera"] };
-    if (f === "sin_asignar")      return { ...EMPTY_FILTROS, sinAsignar: true };
+    if (f === "reprogramadas")    return EMPTY_FILTROS;
+    if (f === "materiales")       return EMPTY_FILTROS;
+    if (f === "sin_asignar")      return EMPTY_FILTROS;
     if (f === "asignado")         return { ...EMPTY_FILTROS, soloAsignados: true };
     if (f === "levantamientos")   return EMPTY_FILTROS;
     if (f === "presupuestos")     return EMPTY_FILTROS;
-    if (f === "vencidas")         return { ...EMPTY_FILTROS, fechaVencimiento: "vencidas" as const };
+    if (f === "vencidas")         return EMPTY_FILTROS;
     if (f === "vence_hoy")        return { ...EMPTY_FILTROS, fechaVencimiento: "hoy" as const };
     if (f === "completadas_hoy")  return { ...EMPTY_FILTROS, estados: ["completado"] };
     return EMPTY_FILTROS;
@@ -308,10 +339,11 @@ export default function OrdenesBandeja({
 
   // Keep left-panel visible when right panel is open (desktop only hides list on mobile)
   const sortRef = useRef<HTMLDivElement>(null);
+  const countOrdenes = allOrdenesForCounts ?? ordenes;
 
   const waitingOrderIds = useMemo(
-    () => ordenes.filter(o => o.estado === "en_espera").map(o => o.id).sort().join(","),
-    [ordenes],
+    () => countOrdenes.filter(o => o.estado === "en_espera").map(o => o.id).sort().join(","),
+    [countOrdenes],
   );
 
   // Load initial order from ?id= (SSR-provided via the page component).
@@ -342,7 +374,7 @@ export default function OrdenesBandeja({
   }, [sortOpen]);
 
   useEffect(() => {
-    const waiting = ordenes.filter(o => o.estado === "en_espera");
+    const waiting = countOrdenes.filter(o => o.estado === "en_espera");
     if (waiting.length === 0) {
       setWaitingAlerts([]);
       return;
@@ -350,7 +382,6 @@ export default function OrdenesBandeja({
 
     let cancelled = false;
     const ids = waiting.map(o => o.id);
-    const byId = new Map(waiting.map(o => [o.id, o]));
 
     async function loadWaitingReasons() {
       const sb = createClient();
@@ -446,11 +477,24 @@ export default function OrdenesBandeja({
     selectedRef.current = selected;
   }, [selected]);
 
-  // Refresh list from DB
+  // Refresh list from DB. The visible list stays paginated, but counts use a
+  // complete workspace snapshot so they do not change as the user scrolls.
   const refreshList = useCallback(async () => {
-    const data = await fetchOrdenesPage(wsId);
+    const [data, allForCounts] = await Promise.all([
+      fetchOrdenesPage(wsId),
+      fetchAllOrdenesForExport(wsId),
+    ]);
     setOrdenes(data);
+    setAllOrdenesForCounts(allForCounts);
     setHasMoreOrdenes(data.length >= ORDENES_PAGE_SIZE);
+  }, [wsId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchAllOrdenesForExport(wsId)
+      .then(data => { if (!cancelled) setAllOrdenesForCounts(data); })
+      .catch(() => { /* counts fall back to the loaded page until the next refresh */ });
+    return () => { cancelled = true; };
   }, [wsId]);
 
   const loadMoreOrdenes = useCallback(async () => {
@@ -633,20 +677,8 @@ export default function OrdenesBandeja({
           tab === "pendientes" ? ACTIVE_ESTADOS.has(o.estado) : CLOSED_ESTADOS.has(o.estado)
         );
 
-    if (scope === "sin_asignar") {
-      list = list.filter(o => !o.asignados_ids || o.asignados_ids.length === 0);
-    } else if (scope === "sin_progreso") {
-      list = list.filter(sinProgreso);
-    } else if (scope === "vencidas") {
-      list = list.filter(estaVencida);
-    } else if (scope === "reprogramadas") {
-      list = list.filter(o => reprogramadaIds.has(o.id));
-    } else if (scope === "materiales") {
-      list = list.filter(o => faltanMaterialesIds.has(o.id));
-    } else if (scope === "levantamientos") {
-      list = list.filter(o => o.clasificacion === "levantamiento");
-    } else if (scope === "presupuestos") {
-      list = list.filter(o => o.tipo_trabajo === "presupuesto");
+    if (scope !== "todas") {
+      list = list.filter(o => pendingScopeFor(o, reprogramadaIds, faltanMaterialesIds) === scope);
     }
 
     // Filtros
@@ -665,18 +697,14 @@ export default function OrdenesBandeja({
       list = list.filter(o => o.ubicacion_id != null && ubicsBySociedad.has(o.ubicacion_id));
     }
     if (filtros.fechaVencimiento) {
-      const now = new Date();
-      const todayStr = now.toISOString().slice(0, 10);
-      const tomorrow = new Date(now); tomorrow.setDate(now.getDate() + 1);
-      const tomorrowStr = tomorrow.toISOString().slice(0, 10);
-      const in7 = new Date(now); in7.setDate(now.getDate() + 7);
-      const in7Str = in7.toISOString().slice(0, 10);
-      const in30 = new Date(now); in30.setDate(now.getDate() + 30);
-      const in30Str = in30.toISOString().slice(0, 10);
-      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
-      const monthEnd   = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().slice(0, 10);
+      const todayStr = chileDateKey();
+      const tomorrowStr = addDaysKey(todayStr, 1);
+      const in7Str = addDaysKey(todayStr, 7);
+      const in30Str = addDaysKey(todayStr, 30);
+      const monthStart = monthStartKey(todayStr);
+      const monthEnd = monthEndKey(todayStr);
       list = list.filter(o => {
-        const d = o.fecha_termino?.slice(0, 10);
+        const d = dateKey(o.fecha_termino);
         if (!d) return false;
         switch (filtros.fechaVencimiento) {
           case "hoy":       return d === todayStr;
@@ -834,18 +862,14 @@ export default function OrdenesBandeja({
         list = list.filter(o => o.ubicacion_id != null && ubicsBySociedad.has(o.ubicacion_id));
       }
       if (filtros.fechaVencimiento) {
-        const now = new Date();
-        const todayStr = now.toISOString().slice(0, 10);
-        const tomorrow = new Date(now); tomorrow.setDate(now.getDate() + 1);
-        const tomorrowStr = tomorrow.toISOString().slice(0, 10);
-        const in7 = new Date(now); in7.setDate(now.getDate() + 7);
-        const in7Str = in7.toISOString().slice(0, 10);
-        const in30 = new Date(now); in30.setDate(now.getDate() + 30);
-        const in30Str = in30.toISOString().slice(0, 10);
-        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
-        const monthEnd   = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().slice(0, 10);
+        const todayStr = chileDateKey();
+        const tomorrowStr = addDaysKey(todayStr, 1);
+        const in7Str = addDaysKey(todayStr, 7);
+        const in30Str = addDaysKey(todayStr, 30);
+        const monthStart = monthStartKey(todayStr);
+        const monthEnd = monthEndKey(todayStr);
         list = list.filter(o => {
-          const d = o.fecha_termino?.slice(0, 10);
+          const d = dateKey(o.fecha_termino);
           if (!d) return false;
           switch (filtros.fechaVencimiento) {
             case "hoy":       return d === todayStr;
@@ -881,26 +905,43 @@ export default function OrdenesBandeja({
     // Per tab × per scope. Drives the dropdown labels, the red-dot indicators,
     // and the tab pill counts. All respect search + filtros so the count
     // shown matches what the user would actually see if they clicked in.
-    const active = ordenes.filter(o => ACTIVE_ESTADOS.has(o.estado));
-    const closed = ordenes.filter(o => CLOSED_ESTADOS.has(o.estado));
+    const countSource = searchResults ?? countOrdenes;
+    const active = countSource.filter(o => ACTIVE_ESTADOS.has(o.estado));
+    const closed = countSource.filter(o => CLOSED_ESTADOS.has(o.estado));
+    const activeByScope = {
+      sin_asignar: [] as OrdenListItem[],
+      sin_progreso: [] as OrdenListItem[],
+      vencidas: [] as OrdenListItem[],
+      reprogramadas: [] as OrdenListItem[],
+      materiales: [] as OrdenListItem[],
+      levantamientos: [] as OrdenListItem[],
+      presupuestos: [] as OrdenListItem[],
+      otras: [] as OrdenListItem[],
+    } satisfies Record<PendingScopeKey, OrdenListItem[]>;
+
+    for (const o of active) {
+      activeByScope[pendingScopeFor(o, reprogramadaIds, faltanMaterialesIds)].push(o);
+    }
+
     return {
       pendientes: {
         todas:         applyFilters(active).length,
-        sin_asignar:   applyFilters(active.filter(o => !o.asignados_ids || o.asignados_ids.length === 0)).length,
-        sin_progreso:  applyFilters(active.filter(sinProgreso)).length,
-        vencidas:      applyFilters(active.filter(estaVencida)).length,
-        reprogramadas: applyFilters(active.filter(o => reprogramadaIds.has(o.id))).length,
-        materiales:    applyFilters(active.filter(o => faltanMaterialesIds.has(o.id))).length,
-        levantamientos: applyFilters(active.filter(o => o.clasificacion === "levantamiento")).length,
-        presupuestos:   applyFilters(active.filter(o => o.tipo_trabajo === "presupuesto")).length,
+        sin_asignar:    applyFilters(activeByScope.sin_asignar).length,
+        sin_progreso:   applyFilters(activeByScope.sin_progreso).length,
+        vencidas:       applyFilters(activeByScope.vencidas).length,
+        reprogramadas:  applyFilters(activeByScope.reprogramadas).length,
+        materiales:     applyFilters(activeByScope.materiales).length,
+        levantamientos: applyFilters(activeByScope.levantamientos).length,
+        presupuestos:   applyFilters(activeByScope.presupuestos).length,
+        otras:          applyFilters(activeByScope.otras).length,
       },
       completas: {
         todas:          applyFilters(closed).length,
-        levantamientos: applyFilters(closed.filter(o => o.clasificacion === "levantamiento")).length,
-        presupuestos:   applyFilters(closed.filter(o => o.tipo_trabajo === "presupuesto")).length,
+        levantamientos: applyFilters(closed.filter(esLevantamiento)).length,
+        presupuestos:   applyFilters(closed.filter(esPresupuesto)).length,
       },
     };
-  }, [ordenes, filtros, search, ubicaciones, reprogramadaIds, faltanMaterialesIds]);
+  }, [countOrdenes, searchResults, filtros, search, ubicaciones, reprogramadaIds, faltanMaterialesIds]);
   const currentSortLabel = SORT_OPTIONS.find(o => o.value === sort)?.label ?? "";
 
   // ── Excel export (all OTs across tabs, respecting filters/search) ─────────
@@ -1344,6 +1385,7 @@ export default function OrdenesBandeja({
                     { value: "materiales",     label: "Faltan materiales",           count: filteredCounts.pendientes.materiales },
                     { value: "levantamientos", label: "Levantamientos pendientes",   count: filteredCounts.pendientes.levantamientos },
                     { value: "presupuestos",   label: "Presupuestos pendientes",     count: filteredCounts.pendientes.presupuestos },
+                    { value: "otras",          label: "Otras pendientes",            count: filteredCounts.pendientes.otras },
                   ]
                 : [
                     { value: "todas",          label: "Todas",                       count: filteredCounts.completas.todas },
@@ -1479,6 +1521,7 @@ export default function OrdenesBandeja({
                     : scope === "materiales"    ? "No hay órdenes en espera por materiales"
                     : scope === "levantamientos" ? "No hay levantamientos"
                     : scope === "presupuestos"   ? "No hay presupuestos"
+                    : scope === "otras"          ? "No hay otras órdenes pendientes"
                     : tab === "completas"       ? "No hay órdenes completadas"
                     : "No tienes ninguna Orden de Trabajo"}
                 </p>

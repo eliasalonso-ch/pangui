@@ -1,24 +1,21 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Clock, Lock, RotateCw, AlertCircle, MapPin, CalendarRange, X } from "lucide-react";
 import { updateOrdenEstado } from "@/lib/ordenes-api";
 import type { Estado, OrdenListItem, Usuario } from "@/types/ordenes";
-
-// Local-time YYYY-MM-DD (toISOString would shift by UTC offset).
-function toYmd(d: Date): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${dd}`;
-}
-function todayYmd(): string { return toYmd(new Date()); }
+import { addDaysKey, chileDateKey, dateKey, monthEndKey, monthStartKey } from "./date-utils";
 
 function formatShortYmd(value: string | null | undefined): string {
   if (!value) return "Sin venc.";
   const [y, m, d] = value.slice(0, 10).split("-");
   if (!y || !m || !d) return "Sin venc.";
   return `${d}-${m}-${y}`;
+}
+
+function weekdayFromKey(key: string): number {
+  const [year, month, day] = key.split("-").map(Number);
+  return new Date(Date.UTC(year, month - 1, day)).getUTCDay();
 }
 
 interface Props {
@@ -121,23 +118,18 @@ export default function KanbanView({ ordenes, reprogramadaIds, selectedId, myId,
   }, [rangeFiltered]);
 
   function applyPreset(preset: "hoy" | "semana" | "mes") {
-    const t = todayYmd();
+    const t = chileDateKey();
     if (preset === "hoy") { setRangeFrom(t); setRangeTo(t); return; }
-    const now = new Date();
     if (preset === "semana") {
-      // Monday → Sunday of the current week (locale-independent ISO week).
-      const dow = (now.getDay() + 6) % 7; // 0 = Monday
-      const start = new Date(now); start.setDate(now.getDate() - dow);
-      const end   = new Date(start); end.setDate(start.getDate() + 6);
-      setRangeFrom(toYmd(start));
-      setRangeTo(toYmd(end));
+      // Monday to Sunday of the current Chile week.
+      const dow = (weekdayFromKey(t) + 6) % 7; // 0 = Monday
+      setRangeFrom(addDaysKey(t, -dow));
+      setRangeTo(addDaysKey(t, 6 - dow));
       return;
     }
     if (preset === "mes") {
-      const start = new Date(now.getFullYear(), now.getMonth(), 1);
-      const end   = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-      setRangeFrom(toYmd(start));
-      setRangeTo(toYmd(end));
+      setRangeFrom(monthStartKey(t));
+      setRangeTo(monthEndKey(t));
     }
   }
   function clearRange() { setRangeFrom(""); setRangeTo(""); }
@@ -164,7 +156,7 @@ export default function KanbanView({ ordenes, reprogramadaIds, selectedId, myId,
       await updateOrdenEstado(orden.id, targetEstado, myId);
     } catch {
       onPatchOrden(orden.id, { estado: prevEstado });
-      alert("No se pudo cambiar el estado de la orden. Verifica tu conexión e intenta de nuevo.");
+      alert("No se pudo cambiar el estado de la orden. Verifica tu conexiÃ³n e intenta de nuevo.");
     }
   }
 
@@ -193,7 +185,7 @@ export default function KanbanView({ ordenes, reprogramadaIds, selectedId, myId,
             background: "var(--surface-1)", color: "var(--fg-1)", fontSize: 12, fontFamily: "inherit",
           }}
         />
-        <span style={{ color: "var(--fg-4)", fontSize: 12 }}>→</span>
+        <span style={{ color: "var(--fg-4)", fontSize: 12 }}>â†’</span>
         <input
           type="date"
           value={rangeTo}
@@ -267,7 +259,7 @@ export default function KanbanView({ ordenes, reprogramadaIds, selectedId, myId,
           onCardDragStart={(o, e) => {
             e.dataTransfer.setData("text/plain", o.id);
             e.dataTransfer.effectAllowed = "move";
-            setDragPreview(e, o.titulo || "Sin título");
+            setDragPreview(e, o.titulo || "Sin tÃ­tulo");
             setDragId(o.id);
           }}
           onCardDragEnd={() => { setDragId(null); setDropTarget(null); }}
@@ -279,7 +271,7 @@ export default function KanbanView({ ordenes, reprogramadaIds, selectedId, myId,
   );
 }
 
-// ── Column ──────────────────────────────────────────────────────────────────
+// â”€â”€ Column â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 interface KanbanColumnProps {
   col:               ColumnDef;
@@ -420,7 +412,7 @@ function KanbanColumn({
                   cursor: "pointer", fontFamily: "inherit",
                 }}
               >
-                Mostrar {Math.min(KANBAN_PAGE, remaining)} más ({remaining} restantes)
+                Mostrar {Math.min(KANBAN_PAGE, remaining)} mÃ¡s ({remaining} restantes)
               </button>
             )}
           </>
@@ -430,7 +422,7 @@ function KanbanColumn({
   );
 }
 
-// ── Card ──────────────────────────────────────────────────────────────────
+// â”€â”€ Card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 interface KanbanCardProps {
   orden:           OrdenListItem;
@@ -443,7 +435,7 @@ interface KanbanCardProps {
 }
 
 function KanbanCard({ orden, isReprogramada, isSelected, isDragging, onDragStart, onDragEnd, onClick }: KanbanCardProps) {
-  const title       = orden.titulo || "Sin título";
+  const title       = orden.titulo || "Sin tÃ­tulo";
   const isRecurrent = orden.recurrencia && orden.recurrencia !== "ninguna";
   const LeadingIcon = isReprogramada
     ? Clock
@@ -458,10 +450,10 @@ function KanbanCard({ orden, isReprogramada, isSelected, isDragging, onDragStart
       ? "var(--success)"
       : "var(--brand)";
   const ubicacion = orden.ubicaciones?.edificio
-    ? orden.ubicaciones.edificio + (orden.ubicaciones.detalle ? ` · ${orden.ubicaciones.detalle}` : "")
+    ? orden.ubicaciones.edificio + (orden.ubicaciones.detalle ? ` Â· ${orden.ubicaciones.detalle}` : "")
     : null;
-  const dueYmd = orden.fecha_termino?.slice(0, 10) ?? null;
-  const overdue = !!dueYmd && dueYmd < todayYmd() && orden.estado !== "completado";
+  const dueYmd = dateKey(orden.fecha_termino);
+  const overdue = !!dueYmd && dueYmd < chileDateKey() && orden.estado !== "completado";
 
   return (
     <div
