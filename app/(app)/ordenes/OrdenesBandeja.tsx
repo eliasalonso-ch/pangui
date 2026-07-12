@@ -108,8 +108,8 @@ function pendingScopeFor(
   if (esLevantamiento(o)) return "levantamientos";
   if (esPresupuesto(o)) return "presupuestos";
   if (estaVencida(o)) return "vencidas";
-  if (sinProgreso(o)) return "sin_progreso";
   if (!o.asignados_ids || o.asignados_ids.length === 0) return "sin_asignar";
+  if (sinProgreso(o)) return "sin_progreso";
   if (faltanMaterialesIds.has(o.id)) return "materiales";
   if (reprogramadaIds.has(o.id)) return "reprogramadas";
   return "otras";
