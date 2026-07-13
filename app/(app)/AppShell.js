@@ -1,17 +1,34 @@
 "use client";
 import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import { createClient } from "@/lib/supabase";
 import AppSidebar from "@/components/AppSidebar";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
+
+function applyStoredTheme() {
+  const stored = localStorage.getItem("pangui_theme");
+  const preference = stored === "light" || stored === "dark" || stored === "auto" ? stored : "auto";
+  const resolved = preference === "auto"
+    ? (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light")
+    : preference;
+  const root = document.documentElement;
+  root.setAttribute("data-theme", resolved);
+  root.setAttribute("data-theme-pref", preference);
+  root.style.colorScheme = resolved;
+  root.style.backgroundColor = resolved === "dark" ? "#0B1220" : "#F7F8FA";
+}
 
 function useTooNarrow(breakpoint = 1024) {
   const [narrow, setNarrow] = useState(false);
   useEffect(() => {
     const mq = window.matchMedia(`(max-width: ${breakpoint - 1}px)`);
-    setNarrow(mq.matches);
+    const initialUpdate = window.setTimeout(() => setNarrow(mq.matches), 0);
     const handler = (e) => setNarrow(e.matches);
     mq.addEventListener("change", handler);
-    return () => mq.removeEventListener("change", handler);
+    return () => {
+      window.clearTimeout(initialUpdate);
+      mq.removeEventListener("change", handler);
+    };
   }, [breakpoint]);
   return narrow;
 }
@@ -76,16 +93,32 @@ function MobileWall() {
 
 export default function AppShell({ children }) {
   const tooNarrow = useTooNarrow(1024);
+  const pathname = usePathname();
+
+  // Reassert the stored theme after app navigation. This keeps the root
+  // attribute and its inline browser chrome/background in sync even when a
+  // route transition or an older screen modifies root-level presentation.
+  useEffect(() => {
+    applyStoredTheme();
+  }, [pathname]);
 
   // Live-update data-theme when OS theme changes and user preference is "auto"
   useEffect(() => {
     const mql = window.matchMedia("(prefers-color-scheme: dark)");
-    const handler = (e) => {
-      if (localStorage.getItem("pangui_theme") !== "auto") return;
-      document.documentElement.setAttribute("data-theme", e.matches ? "dark" : "light");
+    const handler = () => {
+      const stored = localStorage.getItem("pangui_theme") ?? "auto";
+      if (stored !== "auto") return;
+      applyStoredTheme();
+    };
+    const storageHandler = (event) => {
+      if (event.key === "pangui_theme") applyStoredTheme();
     };
     mql.addEventListener("change", handler);
-    return () => mql.removeEventListener("change", handler);
+    window.addEventListener("storage", storageHandler);
+    return () => {
+      mql.removeEventListener("change", handler);
+      window.removeEventListener("storage", storageHandler);
+    };
   }, []);
 
   useEffect(() => {

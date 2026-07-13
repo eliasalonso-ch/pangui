@@ -54,8 +54,17 @@ function dueLabel(fecha: string, todayKey: string): { text: string; overdue: boo
 }
 
 function initials(n: string) {
-  const p = n.trim().split(/\s+/);
-  return p.length === 1 ? p[0].slice(0, 2).toUpperCase() : (p[0][0] + p[p.length - 1][0]).toUpperCase();
+  // Only use letters/numbers for initials. Indexing a string with `[0]`
+  // can return half of an emoji surrogate pair (for example a trailing
+  // "🏎️💨"), which serializes differently between SSR and the browser and
+  // causes a hydration mismatch.
+  const words = n.trim().split(/\s+/).filter((word) => /[\p{L}\p{N}]/u.test(word));
+  const glyph = (word: string) => word.match(/[\p{L}\p{N}]/u)?.[0] ?? "";
+  if (words.length === 0) return "?";
+  if (words.length === 1) {
+    return Array.from(words[0]).filter((character) => /[\p{L}\p{N}]/u.test(character)).slice(0, 2).join("").toLocaleUpperCase("es");
+  }
+  return `${glyph(words[0])}${glyph(words[words.length - 1])}`.toLocaleUpperCase("es");
 }
 
 // â”€â”€ HoverTooltip â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€

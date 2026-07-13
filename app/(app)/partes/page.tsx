@@ -1,862 +1,312 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
-import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Image from "next/image";
 import {
-  Boxes, Plus, Search, X, ChevronRight, Loader2,
-  Package, Minus, Pencil, Trash2, Upload,
-  MapPin, Tag, AlertTriangle,
+  AlertTriangle, Box, Boxes, Check, ChevronRight, CircleAlert, ImagePlus,
+  Filter, Loader2, MapPin, Minus, Package, Pencil, Plus, RotateCcw, Search, Trash2, X,
 } from "lucide-react";
+import { createClient } from "@/lib/supabase";
 import { useSuscripcion } from "@/hooks/useSuscripcion";
 import { UpgradePrompt } from "@/components/UpgradePrompt";
+import styles from "./partes.module.css";
 
-// ── Types ──────────────────────────────────────────────────────────────────────
-
-interface Parte {
-  id: string;
-  nombre: string;
-  descripcion?: string;
-  codigo?: string;
-  unidad?: string;
-  precio_unitario?: number;
-  ubicacion_bodega?: string;
-  stock_actual?: number;
-  stock_minimo?: number;
-  imagen_url?: string;
-  workspace_id?: string;
+interface Material {
+  id: string; nombre: string; descripcion: string | null; codigo: string;
+  unidad: string; precio_unitario: number | null; ubicacion_bodega: string | null;
+  stock_actual: number; stock_minimo: number; imagen_url: string | null; workspace_id: string;
 }
-
+interface Ubicacion { id: string; edificio: string; direccion: string | null; }
+interface Lugar { id: string; nombre: string; ubicacion_id: string | null; }
+interface Reservation {
+  id: string; parte_id: string; ubicacion_id: string; lugar_id: string | null; cantidad: number;
+  parte: Pick<Material, "id" | "nombre" | "codigo" | "unidad" | "imagen_url"> | null;
+  lugar: Pick<Lugar, "id" | "nombre"> | null;
+}
+type Segment = "materiales" | "ubicaciones";
 type StockFilter = "todos" | "agotado" | "bajo" | "ok";
-type PanelMode = null | "view" | "edit" | "create";
+type EditorState = { mode: "create" | "edit"; material: Material | null } | null;
 
-// ── Helpers ────────────────────────────────────────────────────────────────────
-function stockEstado(actual?: number, minimo?: number): "critico" | "bajo" | "ok" {
-  const a = actual ?? 0;
-  const m = minimo ?? 0;
-  if (a <= 0) return "critico";
-  if (a < m) return "bajo";
+const emptyForm = {
+  nombre: "", descripcion: "", codigo: "", unidad: "und", precio_unitario: "",
+  ubicacion_bodega: "", stock_actual: "0", stock_minimo: "0", imagen_url: "",
+};
+
+function stockState(material: Material): "agotado" | "bajo" | "ok" {
+  if (Number(material.stock_actual) <= 0) return "agotado";
+  if (Number(material.stock_actual) <= Number(material.stock_minimo)) return "bajo";
   return "ok";
 }
 
-const STOCK_COLOR = { critico: "#EF4444", bajo: "#F59E0B", ok: "#16A34A" } as const;
-const STOCK_BG    = { critico: "#FEF2F2", bajo: "#FFFBEB", ok: "#F0FDF4" } as const;
-const STOCK_LABEL = { critico: "Agotado",  bajo: "Stock bajo", ok: "En stock" } as const;
-
-const labelStyle: React.CSSProperties = {
-  fontSize: 11, fontWeight: 700, textTransform: "uppercase",
-  letterSpacing: "0.06em", color: "#9CA3AF", marginBottom: 5, display: "block",
-};
-const inputStyle: React.CSSProperties = {
-  width: "100%", height: 36, padding: "0 12px",
-  border: "1px solid #E2E8F0", borderRadius: 6,
-  fontSize: 13, fontFamily: "inherit", color: "#111827",
-  background: "#fff", outline: "none", boxSizing: "border-box",
-};
-
-function emptyForm(): Partial<Parte> {
-  return {
-    nombre: "", descripcion: "", codigo: "",
-    unidad: "un", precio_unitario: undefined,
-    ubicacion_bodega: "", stock_actual: 0, stock_minimo: 0,
-  };
+function MaterialImage({ material, large = false }: { material: Pick<Material, "nombre" | "imagen_url">; large?: boolean }) {
+  return (
+    <div className={large ? styles.heroImage : styles.thumbnail}>
+      {material.imagen_url
+        ? <Image src={material.imagen_url} alt={material.nombre} fill sizes={large ? "720px" : "40px"} unoptimized />
+        : <Package size={large ? 40 : 20} />}
+    </div>
+  );
 }
 
-// ── Inline combo with create ───────────────────────────────────────────────────
-function ComboCreate({
-  items, value, onChange, onCreate, placeholder,
-}: {
-  items: { id: string; label: string }[];
-  value: string;
-  onChange: (id: string) => void;
-  onCreate: (nombre: string) => Promise<void>;
-  placeholder?: string;
-}) {
-  const [open, setOpen] = useState(false);
-  const [search, setSearch] = useState("");
-  const [creating, setCreating] = useState(false);
-  const [newName, setNewName] = useState("");
-  const ref = useRef<HTMLDivElement>(null);
+export default function MaterialesPage() {
+  const subscription = useSuscripcion();
+  if (subscription.loading) return <Loading />;
+  if (subscription.data?.plan_features && !subscription.data.plan_features.inventario) {
+    return <UpgradePrompt variant="card" title="Inventario está disponible en Pro" description="Sube tu plan para gestionar materiales, stock disponible y reservas por ubicación." upgradeTo="Pro" />;
+  }
+  return <MaterialesPageInner />;
+}
 
-  useEffect(() => {
-    function close(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+function Loading() {
+  return <div className={styles.loading}><Loader2 size={20} className="animate-spin" /><span>Cargando inventario…</span></div>;
+}
+
+function MaterialesPageInner() {
+  const [workspaceId, setWorkspaceId] = useState<string | null>(null);
+  const [role, setRole] = useState("tecnico");
+  const [materials, setMaterials] = useState<Material[]>([]);
+  const [locations, setLocations] = useState<Ubicacion[]>([]);
+  const [places, setPlaces] = useState<Lugar[]>([]);
+  const [reservations, setReservations] = useState<Reservation[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [reservationWarning, setReservationWarning] = useState(false);
+  const [segment, setSegment] = useState<Segment>("materiales");
+  const [search, setSearch] = useState("");
+  const [stockFilter, setStockFilter] = useState<StockFilter>("todos");
+  const [selectedMaterialId, setSelectedMaterialId] = useState<string | null>(null);
+  const [selectedLocationId, setSelectedLocationId] = useState<string | null>(null);
+  const [editor, setEditor] = useState<EditorState>(null);
+  const [reserveOpen, setReserveOpen] = useState(false);
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [locationFilterId, setLocationFilterId] = useState<string | null>(null);
+  const [materialFilterId, setMaterialFilterId] = useState<string | null>(null);
+  const [requiresMaterials, setRequiresMaterials] = useState(false);
+  const [requiresSheet, setRequiresSheet] = useState(false);
+
+  const loadData = useCallback(async (wsId: string) => {
+    const sb = createClient();
+    const [materialRes, locationRes, placeRes, reservationRes, workspaceRes] = await Promise.all([
+      sb.from("partes").select("id,nombre,descripcion,codigo,unidad,precio_unitario,ubicacion_bodega,stock_actual,stock_minimo,imagen_url,workspace_id").eq("workspace_id", wsId).eq("activo", true).order("nombre"),
+      sb.from("ubicaciones").select("id,edificio,direccion").eq("workspace_id", wsId).eq("activa", true).order("edificio"),
+      sb.from("lugares").select("id,nombre,ubicacion_id").eq("workspace_id", wsId).eq("activo", true).order("nombre"),
+      sb.from("material_reservations").select("id,parte_id,ubicacion_id,lugar_id,cantidad,parte:partes!parte_id(id,nombre,codigo,unidad,imagen_url),lugar:lugares!lugar_id(id,nombre)").eq("workspace_id", wsId).order("created_at", { ascending: false }),
+      sb.from("workspaces").select("requiere_materiales_global,requiere_hoja_global").eq("id", wsId).maybeSingle(),
+    ]);
+    setMaterials((materialRes.data ?? []) as Material[]);
+    setLocations((locationRes.data ?? []) as Ubicacion[]);
+    setPlaces((placeRes.data ?? []) as Lugar[]);
+    if (reservationRes.error) {
+      setReservations([]); setReservationWarning(true);
+    } else {
+      setReservations((reservationRes.data ?? []) as unknown as Reservation[]); setReservationWarning(false);
     }
-    document.addEventListener("mousedown", close);
-    return () => document.removeEventListener("mousedown", close);
+    setRequiresMaterials(workspaceRes.data?.requiere_materiales_global ?? false);
+    setRequiresSheet(workspaceRes.data?.requiere_hoja_global ?? false);
   }, []);
 
-  const filtered = items.filter(i => i.label.toLowerCase().includes(search.toLowerCase()));
-  const selected = items.find(i => i.id === value);
-
-  async function handleCreate() {
-    if (!newName.trim()) return;
-    await onCreate(newName.trim());
-    setNewName("");
-    setCreating(false);
-  }
-
-  return (
-    <div ref={ref} style={{ position: "relative" }}>
-      <button
-        type="button"
-        onClick={() => setOpen(v => !v)}
-        style={{
-          ...inputStyle, display: "flex", alignItems: "center", justifyContent: "space-between",
-          cursor: "pointer", background: "#fff",
-        }}
-      >
-        <span style={{ color: selected ? "#111827" : "#9CA3AF" }}>
-          {selected?.label ?? placeholder ?? "Seleccionar…"}
-        </span>
-        <ChevronRight size={12} style={{ transform: open ? "rotate(90deg)" : "none", color: "#9CA3AF" }} />
-      </button>
-      {open && (
-        <div style={{
-          position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, zIndex: 20,
-          background: "#fff", border: "1px solid #E2E8F0", borderRadius: 8,
-          boxShadow: "0 4px 16px rgba(0,0,0,0.08)", overflow: "hidden",
-        }}>
-          <input
-            autoFocus
-            type="text"
-            placeholder="Buscar…"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            style={{ ...inputStyle, borderRadius: 0, border: "none", borderBottom: "1px solid #F3F4F6" }}
-          />
-          <div style={{ maxHeight: 160, overflowY: "auto" }}>
-            {value && (
-              <button type="button" onClick={() => { onChange(""); setOpen(false); setSearch(""); }}
-                style={{ width: "100%", padding: "8px 12px", background: "none", border: "none", cursor: "pointer", textAlign: "left", fontSize: 12, color: "#9CA3AF", fontFamily: "inherit" }}>
-                — Ninguno
-              </button>
-            )}
-            {filtered.map(i => (
-              <button key={i.id} type="button"
-                onClick={() => { onChange(i.id); setOpen(false); setSearch(""); }}
-                style={{ width: "100%", padding: "8px 12px", background: i.id === value ? "#F8F9FF" : "none", border: "none", cursor: "pointer", textAlign: "left", fontSize: 13, color: "#111827", fontFamily: "inherit" }}>
-                {i.label}
-              </button>
-            ))}
-            {filtered.length === 0 && !creating && (
-              <p style={{ padding: "8px 12px", fontSize: 12, color: "#9CA3AF", margin: 0 }}>Sin resultados</p>
-            )}
-          </div>
-          {creating ? (
-            <div style={{ display: "flex", gap: 4, padding: "6px 8px", borderTop: "1px solid #F3F4F6" }}>
-              <input
-                autoFocus
-                type="text"
-                placeholder="Nombre…"
-                value={newName}
-                onChange={e => setNewName(e.target.value)}
-                onKeyDown={e => e.key === "Enter" && handleCreate()}
-                style={{ ...inputStyle, height: 30, flex: 1, fontSize: 12 }}
-              />
-              <button type="button" onClick={handleCreate}
-                style={{ height: 30, padding: "0 10px", background: "#1E3A8A", border: "none", borderRadius: 6, color: "#fff", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
-                Crear
-              </button>
-              <button type="button" onClick={() => { setCreating(false); setNewName(""); }}
-                style={{ height: 30, width: 30, background: "none", border: "1px solid #E2E8F0", borderRadius: 6, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <X size={12} style={{ color: "#9CA3AF" }} />
-              </button>
-            </div>
-          ) : (
-            <button type="button" onClick={() => setCreating(true)}
-              style={{ width: "100%", padding: "8px 12px", background: "none", border: "none", borderTop: "1px solid #F3F4F6", cursor: "pointer", textAlign: "left", fontSize: 12, color: "#1E3A8A", fontWeight: 600, fontFamily: "inherit" }}>
-              + Crear nuevo
-            </button>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ── Page ──────────────────────────────────────────────────────────────────────
-export default function PartesPage() {
-  const suscripcion = useSuscripcion();
-  // Inventory is gated to Pro+. While loading we show nothing; if denied, an upgrade card.
-  if (suscripcion.loading) {
-    return <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100dvh", color: "var(--fg-4)" }}><Loader2 size={18} className="animate-spin" /></div>;
-  }
-  if (suscripcion.data && suscripcion.data.plan_features && !suscripcion.data.plan_features.inventario) {
-    return (
-      <UpgradePrompt
-        variant="card"
-        title="Inventario está disponible en Pro"
-        description="Sube tu plan para gestionar repuestos, partes y movimientos de bodega."
-        upgradeTo="Pro"
-      />
-    );
-  }
-  return <PartesPageInner />;
-}
-
-function PartesPageInner() {
-  const router = useRouter();
-  const [plantaId, setPlantaId] = useState<string | null>(null);
-  const [partes, setPartes] = useState<Parte[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [myRol, setMyRol] = useState<string>("tecnico");
-  const [requiereMaterialesGlobal, setRequiereMaterialesGlobal] = useState(false);
-  const [requiereHojaGlobal, setRequiereHojaGlobal] = useState(false);
-  const [togglingGlobal, setTogglingGlobal] = useState(false);
-
-  const [busqueda, setBusqueda] = useState("");
-  const [filtroStock, setFiltroStock] = useState<StockFilter>("todos");
-
-  const [panelMode, setPanelMode] = useState<PanelMode>(null);
-  const [parteData, setParteData] = useState<Parte | null>(null);
-  const [form, setForm] = useState<Partial<Parte>>(emptyForm());
-
-  const [imgPreview, setImgPreview] = useState<string | null>(null);
-  const [imgFile, setImgFile] = useState<File | null>(null);
-  const [uploadingImg, setUploadingImg] = useState(false);
-
-  const [saving, setSaving] = useState(false);
-  const [saveErr, setSaveErr] = useState<string | null>(null);
-  const [confirm, setConfirm] = useState<Parte | null>(null);
-
-  const imgInputRef = useRef<HTMLInputElement>(null);
-
   useEffect(() => {
-    async function load() {
+    let active = true;
+    (async () => {
       const sb = createClient();
       const { data: { user } } = await sb.auth.getUser();
-      if (!user) { router.replace("/login"); return; }
+      if (!user) return;
+      const { data: profile } = await sb.from("usuarios").select("workspace_id,rol").eq("id", user.id).maybeSingle();
+      if (!active || !profile?.workspace_id) return;
+      setWorkspaceId(profile.workspace_id); setRole(profile.rol ?? "tecnico");
+      await loadData(profile.workspace_id);
+      if (active) setLoading(false);
+    })();
+    return () => { active = false; };
+  }, [loadData]);
 
-      const { data: perfil } = await sb.from("usuarios")
-        .select("workspace_id, rol").eq("id", user.id).maybeSingle();
-      if (!perfil?.workspace_id) { setLoading(false); return; }
-      const pId = perfil.workspace_id;
-      setPlantaId(pId);
-      setMyRol(perfil.rol ?? "tecnico");
+  const selectedMaterial = materials.find(item => item.id === selectedMaterialId) ?? null;
+  const selectedLocation = locations.find(item => item.id === selectedLocationId) ?? null;
+  const canManage = role === "admin" || role === "owner" || role === "supervisor";
+  const lowCount = materials.filter(item => stockState(item) !== "ok").length;
 
-      const { data: ws } = await sb.from("workspaces")
-        .select("requiere_materiales_global, requiere_hoja_global").eq("id", pId).maybeSingle();
-      setRequiereMaterialesGlobal(ws?.requiere_materiales_global ?? false);
-      setRequiereHojaGlobal(ws?.requiere_hoja_global ?? false);
+  const filteredMaterials = useMemo(() => materials.filter(material => {
+    const q = search.trim().toLowerCase();
+    const matches = !q || [material.nombre, material.codigo, material.ubicacion_bodega].filter(Boolean).some(v => String(v).toLowerCase().includes(q));
+    const reservedAtLocation = !locationFilterId || reservations.some(item => item.ubicacion_id === locationFilterId && item.parte_id === material.id);
+    return matches && reservedAtLocation && (stockFilter === "todos" || stockState(material) === stockFilter);
+  }), [locationFilterId, materials, reservations, search, stockFilter]);
 
-      const { data: p } = await sb.from("partes")
-        .select("id, nombre, descripcion, codigo, unidad, stock_actual, stock_minimo, precio_unitario, ubicacion_bodega, imagen_url, workspace_id")
-        .eq("workspace_id", pId).eq("activo", true).order("nombre");
-      setPartes(p ?? []);
-      setLoading(false);
-    }
-    load();
-  }, [router]);
+  const filteredLocations = useMemo(() => locations.filter(location => {
+    const q = search.trim().toLowerCase();
+    const containsMaterial = !materialFilterId || reservations.some(item => item.parte_id === materialFilterId && item.ubicacion_id === location.id);
+    return containsMaterial && (!q || [location.edificio, location.direccion].filter(Boolean).some(v => String(v).toLowerCase().includes(q)));
+  }), [locations, materialFilterId, reservations, search]);
 
-  async function reloadPartes() {
-    if (!plantaId) return;
+  const chooseSegment = (next: Segment) => {
+    setSegment(next); setSearch(""); setSelectedMaterialId(null); setSelectedLocationId(null); setEditor(null);
+  };
+
+  const refresh = async () => { if (workspaceId) await loadData(workspaceId); };
+
+  const adjustStock = async (material: Material, delta: number) => {
+    const next = Math.max(0, Number(material.stock_actual) + delta);
     const sb = createClient();
-    const { data } = await sb.from("partes")
-      .select("id, nombre, descripcion, codigo, unidad, stock_actual, stock_minimo, precio_unitario, ubicacion_bodega, imagen_url, workspace_id")
-      .eq("workspace_id", plantaId).eq("activo", true).order("nombre");
-    setPartes(data ?? []);
-  }
+    const { error } = await sb.from("partes").update({ stock_actual: next }).eq("id", material.id);
+    if (!error) setMaterials(prev => prev.map(item => item.id === material.id ? { ...item, stock_actual: next } : item));
+  };
 
-  function openView(p: Parte) {
-    setParteData(p);
-    setPanelMode("view");
-    setSaveErr(null);
-  }
-
-  function openEdit(p: Parte) {
-    setParteData(p);
-    setForm({
-      nombre: p.nombre, descripcion: p.descripcion ?? "", codigo: p.codigo ?? "",
-      unidad: p.unidad ?? "un", precio_unitario: p.precio_unitario,
-      ubicacion_bodega: p.ubicacion_bodega ?? "", stock_actual: p.stock_actual ?? 0,
-      stock_minimo: p.stock_minimo ?? 0,
-    });
-    setImgPreview(p.imagen_url ?? null);
-    setImgFile(null);
-    setSaveErr(null);
-    setPanelMode("edit");
-  }
-
-  function openCreate() {
-    setParteData(null);
-    setForm(emptyForm());
-    setImgPreview(null);
-    setImgFile(null);
-    setSaveErr(null);
-    setPanelMode("create");
-  }
-
-  function closePanel() {
-    setPanelMode(null);
-    setParteData(null);
-    setSaveErr(null);
-    setImgPreview(null);
-    setImgFile(null);
-  }
-
-  function setF<K extends keyof Parte>(k: K, v: Parte[K]) {
-    setForm(f => ({ ...f, [k]: v }));
-  }
-
-  async function ajustarStock(p: Parte, delta: number) {
-    const newStock = Math.max(0, (p.stock_actual ?? 0) + delta);
+  const removeMaterial = async (material: Material) => {
+    if (!window.confirm(`¿Eliminar “${material.nombre}” del inventario?`)) return;
     const sb = createClient();
-    await sb.from("partes").update({ stock_actual: newStock }).eq("id", p.id);
-    setPartes(prev => prev.map(x => x.id === p.id ? { ...x, stock_actual: newStock } : x));
-    if (parteData?.id === p.id) setParteData(prev => prev ? { ...prev, stock_actual: newStock } : prev);
-  }
+    const { error } = await sb.from("partes").update({ activo: false }).eq("id", material.id);
+    if (!error) { setMaterials(prev => prev.filter(item => item.id !== material.id)); setSelectedMaterialId(null); }
+  };
 
-  async function guardar() {
-    setSaveErr(null);
-    if (!form.nombre?.trim()) { setSaveErr("El nombre es obligatorio."); return; }
-    setSaving(true);
+  const toggleWorkspaceSetting = async (field: "requiere_materiales_global" | "requiere_hoja_global", value: boolean) => {
+    if (!workspaceId) return;
     const sb = createClient();
+    const { error } = await sb.from("workspaces").update({ [field]: value }).eq("id", workspaceId);
+    if (!error) field === "requiere_materiales_global" ? setRequiresMaterials(value) : setRequiresSheet(value);
+  };
 
-    let imagen_url = parteData?.imagen_url;
-    if (imgFile) {
-      setUploadingImg(true);
-      const ext = imgFile.name.split(".").pop();
-      const path = `${plantaId}/${Date.now()}.${ext}`;
-      const { data: up } = await sb.storage.from("partes-imagenes").upload(path, imgFile, { upsert: true });
-      if (up) {
-        const { data: { publicUrl } } = sb.storage.from("partes-imagenes").getPublicUrl(up.path);
-        imagen_url = publicUrl;
-      }
-      setUploadingImg(false);
-    }
+  if (loading) return <Loading />;
 
-    const payload = {
-      workspace_id: plantaId,
-      nombre: form.nombre!.trim(),
-      descripcion: form.descripcion || null,
-      codigo: form.codigo?.trim() || "",
-      unidad: form.unidad?.trim() || "un",
-      precio_unitario: form.precio_unitario ?? 0,
-      ubicacion_bodega: form.ubicacion_bodega || null,
-      stock_actual: form.stock_actual ?? 0,
-      stock_minimo: form.stock_minimo ?? 0,
-      imagen_url: imagen_url ?? null,
-      activo: true,
-    };
-
-    if (panelMode === "create") {
-      const { error } = await sb.from("partes").insert(payload);
-      if (error) { setSaveErr(`Error al crear parte: ${error.message}`); setSaving(false); console.error("partes insert error", error, payload); return; }
-    } else {
-      const { error } = await sb.from("partes").update(payload).eq("id", parteData!.id);
-      if (error) { setSaveErr(`Error al guardar: ${error.message}`); setSaving(false); console.error("partes update error", error, payload); return; }
-    }
-
-    await reloadPartes();
-    setSaving(false);
-    closePanel();
-  }
-
-  async function eliminar(p: Parte) {
-    const sb = createClient();
-    await sb.from("partes").update({ activo: false }).eq("id", p.id);
-    setPartes(prev => prev.filter(x => x.id !== p.id));
-    setConfirm(null);
-    closePanel();
-  }
-
-  const filtered = partes.filter(p => {
-    const q = busqueda.toLowerCase();
-    const matchSearch = !q || p.nombre?.toLowerCase().includes(q) || p.codigo?.toLowerCase().includes(q);
-    const estado = stockEstado(p.stock_actual, p.stock_minimo);
-    const matchStock =
-      filtroStock === "todos" ? true :
-      filtroStock === "agotado" ? estado === "critico" :
-      filtroStock === "bajo" ? estado === "bajo" :
-      estado === "ok";
-    return matchSearch && matchStock;
-  });
-
-  async function handleToggleMateriales() {
-    if (!plantaId) return;
-    const next = !requiereMaterialesGlobal;
-    setRequiereMaterialesGlobal(next);
-    setTogglingGlobal(true);
-    const sb = createClient();
-    await sb.from("workspaces").update({ requiere_materiales_global: next }).eq("id", plantaId);
-    setTogglingGlobal(false);
-  }
-
-  async function handleToggleHoja() {
-    if (!plantaId) return;
-    const next = !requiereHojaGlobal;
-    setRequiereHojaGlobal(next);
-    setTogglingGlobal(true);
-    const sb = createClient();
-    await sb.from("workspaces").update({ requiere_hoja_global: next }).eq("id", plantaId);
-    setTogglingGlobal(false);
-  }
-
-  const canManage = myRol === "admin" || myRol === "owner";
-
-  if (loading) {
-    return (
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100dvh", gap: 8, color: "#9CA3AF" }}>
-        <Loader2 size={18} className="animate-spin" />
-        <span style={{ fontSize: 13 }}>Cargando partes…</span>
-      </div>
-    );
-  }
-
+  const showRight = !!(editor || selectedMaterial || selectedLocation);
+  const activeRelationFilter = segment === "materiales" ? locationFilterId : materialFilterId;
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100dvh", overflow: "hidden", background: "#fff" }}>
-
-      {/* Header */}
-      <div style={{
-        flexShrink: 0, borderBottom: "1px solid #E2E8F0",
-        padding: "0 24px", height: 56,
-        display: "flex", alignItems: "center", justifyContent: "space-between",
-        gap: 12,
-      }}>
-        <h1 style={{ fontSize: 20, fontWeight: 700, color: "#0F172A", margin: 0, letterSpacing: "-0.3px" }}>Partes</h1>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          {/* Global toggles — admin/owner only */}
-          {canManage && (
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              {/* Materiales toggle */}
-              <div style={{
-                display: "flex", alignItems: "center", gap: 8,
-                padding: "6px 12px", borderRadius: 8,
-                background: requiereMaterialesGlobal ? "#FFF7ED" : "#F8FAFC",
-                border: `1px solid ${requiereMaterialesGlobal ? "#FED7AA" : "#E2E8F0"}`,
-              }}>
-                {requiereMaterialesGlobal && <AlertTriangle size={13} style={{ color: "#D97706", flexShrink: 0 }} />}
-                <span style={{ fontSize: 12, fontWeight: 600, color: requiereMaterialesGlobal ? "#92400E" : "#64748B", whiteSpace: "nowrap" }}>
-                  Materiales en OTs
-                </span>
-                <button
-                  type="button"
-                  onClick={handleToggleMateriales}
-                  disabled={togglingGlobal}
-                  style={{
-                    width: 36, height: 20, borderRadius: 10, border: "none",
-                    background: requiereMaterialesGlobal ? "#D97706" : "#CBD5E1",
-                    position: "relative", cursor: "pointer", flexShrink: 0,
-                    opacity: togglingGlobal ? 0.5 : 1, transition: "background 0.2s",
-                  }}
-                >
-                  <span style={{
-                    position: "absolute", top: 2,
-                    left: requiereMaterialesGlobal ? 18 : 2,
-                    width: 16, height: 16, borderRadius: "50%", background: "#fff",
-                    transition: "left 0.2s", boxShadow: "0 1px 2px rgba(0,0,0,0.2)",
-                  }} />
-                </button>
-              </div>
-              {/* Hoja de cálculo toggle */}
-              <div style={{
-                display: "flex", alignItems: "center", gap: 8,
-                padding: "6px 12px", borderRadius: 8,
-                background: requiereHojaGlobal ? "#EFF6FF" : "#F8FAFC",
-                border: `1px solid ${requiereHojaGlobal ? "#BFDBFE" : "#E2E8F0"}`,
-              }}>
-                {requiereHojaGlobal && <AlertTriangle size={13} style={{ color: "#2563EB", flexShrink: 0 }} />}
-                <span style={{ fontSize: 12, fontWeight: 600, color: requiereHojaGlobal ? "#1E40AF" : "#64748B", whiteSpace: "nowrap" }}>
-                  Hoja de cálculo en OTs
-                </span>
-                <button
-                  type="button"
-                  onClick={handleToggleHoja}
-                  disabled={togglingGlobal}
-                  style={{
-                    width: 36, height: 20, borderRadius: 10, border: "none",
-                    background: requiereHojaGlobal ? "#2563EB" : "#CBD5E1",
-                    position: "relative", cursor: "pointer", flexShrink: 0,
-                    opacity: togglingGlobal ? 0.5 : 1, transition: "background 0.2s",
-                  }}
-                >
-                  <span style={{
-                    position: "absolute", top: 2,
-                    left: requiereHojaGlobal ? 18 : 2,
-                    width: 16, height: 16, borderRadius: "50%", background: "#fff",
-                    transition: "left 0.2s", boxShadow: "0 1px 2px rgba(0,0,0,0.2)",
-                  }} />
-                </button>
-              </div>
-            </div>
-          )}
-          <button
-            type="button"
-            onClick={openCreate}
-            style={{
-              height: 32, padding: "0 14px",
-              display: "flex", alignItems: "center", gap: 6,
-              background: "#1E3A8A", border: "none", borderRadius: 6,
-              fontSize: 13, fontWeight: 600, color: "#fff",
-              cursor: "pointer", fontFamily: "inherit",
-            }}
-          >
-            <Plus size={14} />
-            Nueva parte
+    <div className={styles.page}>
+      <header className={styles.header}>
+        <h1>Inventario</h1>
+        <div className={styles.headerActions}>
+          <div className={styles.searchBox}>
+            <Search size={14} />
+            <input value={search} onChange={e => setSearch(e.target.value)} placeholder={segment === "materiales" ? "Buscar materiales…" : "Buscar ubicaciones…"} />
+            {search && <button onClick={() => setSearch("")} aria-label="Limpiar búsqueda"><X size={13} /></button>}
+          </div>
+          <button className={`${styles.filterButton} ${activeRelationFilter ? styles.filterButtonActive : ""}`} onClick={() => setFilterOpen(true)} aria-label="Filtrar inventario" title="Filtrar">
+            <Filter size={16} />
+            {activeRelationFilter && <span />}
           </button>
+          {segment === "materiales" && canManage && <button className={styles.primaryButton} onClick={() => setEditor({ mode: "create", material: null })}><Plus size={16} />Nuevo material</button>}
         </div>
+      </header>
+
+      <div className={styles.subnav}>
+        <div className={styles.segmented}>
+          <button className={segment === "materiales" ? styles.segmentActive : ""} onClick={() => chooseSegment("materiales")}>Materiales <span>{materials.length}</span></button>
+          <button className={segment === "ubicaciones" ? styles.segmentActive : ""} onClick={() => chooseSegment("ubicaciones")}>Ubicaciones <span>{locations.length}</span></button>
+        </div>
+        {segment === "materiales" && <div className={styles.filters}>{([['todos','Todos'],['agotado','Agotado'],['bajo','Stock bajo'],['ok','En stock']] as [StockFilter,string][]).map(([value,label]) => <button key={value} className={stockFilter === value ? styles.filterActive : ""} onClick={() => setStockFilter(value)}>{label}</button>)}</div>}
       </div>
 
-      {/* Filters */}
-      <div style={{
-        flexShrink: 0, padding: "10px 24px", borderBottom: "1px solid #F3F4F6",
-        display: "flex", alignItems: "center", gap: 10,
-      }}>
-        <div style={{ position: "relative", flex: 1, maxWidth: 280 }}>
-          <Search size={13} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "#9CA3AF" }} />
-          <input
-            type="text"
-            placeholder="Buscar por nombre o código…"
-            value={busqueda}
-            onChange={e => setBusqueda(e.target.value)}
-            style={{ ...inputStyle, paddingLeft: 32, height: 32, fontSize: 12 }}
-          />
-          {busqueda && (
-            <button type="button" onClick={() => setBusqueda("")}
-              style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", display: "flex", color: "#9CA3AF" }}>
-              <X size={12} />
-            </button>
-          )}
-        </div>
-        <div style={{ display: "flex", gap: 4 }}>
-          {([["todos", "Todos"], ["agotado", "Agotado"], ["bajo", "Stock bajo"], ["ok", "En stock"]] as [StockFilter, string][]).map(([k, label]) => (
-            <button
-              key={k}
-              type="button"
-              onClick={() => setFiltroStock(k)}
-              style={{
-                height: 28, padding: "0 10px",
-                background: filtroStock === k ? "#1E3A8A" : "#F3F4F6",
-                border: "none", borderRadius: 20,
-                fontSize: 11, fontWeight: 600,
-                color: filtroStock === k ? "#fff" : "#6B7280",
-                cursor: "pointer", fontFamily: "inherit",
-              }}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-      </div>
+      {reservationWarning && <div className={styles.warning}><CircleAlert size={15} />Las reservas todavía no están habilitadas en la base de datos. Aplica la migración para usar esta sección.</div>}
 
-      {/* Main area */}
-      <div style={{ flex: 1, overflow: "hidden", display: "flex" }}>
-
-        {/* List */}
-        <div style={{ flex: 1, overflowY: "auto", minWidth: 0 }}>
-          {filtered.length === 0 ? (
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: 300, gap: 12, color: "#9CA3AF" }}>
-              <Boxes size={36} style={{ opacity: 0.2 }} />
-              <p style={{ fontSize: 13, margin: 0 }}>{busqueda || filtroStock !== "todos" ? "Sin resultados." : "No hay partes registradas."}</p>
-            </div>
+      <main className={styles.main}>
+        <section className={`${styles.listPane} ${showRight ? styles.mobileHidden : ""}`}>
+          {segment === "materiales" ? (
+            <>
+              <div className={styles.summary}>
+                <Summary icon={<Package size={18} />} value={materials.length} label="Materiales" />
+                <Summary icon={<AlertTriangle size={18} />} value={lowCount} label="Stock bajo" danger={lowCount > 0} />
+              </div>
+              <div className={styles.list}>
+                {filteredMaterials.length ? filteredMaterials.map(material => <MaterialRow key={material.id} material={material} selected={selectedMaterialId === material.id} onClick={() => { setEditor(null); setSelectedMaterialId(material.id); }} />) : <Empty icon={<Boxes size={38} />} title="Sin materiales" subtitle="No hay materiales que coincidan con los filtros." />}
+              </div>
+            </>
           ) : (
-            <div>
-              {filtered.map(p => {
-                const estado = stockEstado(p.stock_actual, p.stock_minimo);
-                const isSelected = panelMode !== null && parteData?.id === p.id;
-                return (
-                  <button
-                    key={p.id}
-                    type="button"
-                    onClick={() => openView(p)}
-                    style={{
-                      width: "100%", display: "flex", alignItems: "center", gap: 12,
-                      padding: "12px 24px",
-                      background: isSelected ? "#F8F9FF" : "none",
-                      border: "none", borderBottom: "1px solid #F3F4F6",
-                      cursor: "pointer", fontFamily: "inherit", textAlign: "left",
-                    }}
-                  >
-                    {/* Thumbnail */}
-                    <div style={{
-                      width: 40, height: 40, borderRadius: 8, flexShrink: 0,
-                      background: "#F3F4F6", overflow: "hidden",
-                      display: "flex", alignItems: "center", justifyContent: "center",
-                    }}>
-                      {p.imagen_url
-                        ? <img src={p.imagen_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                        : <Package size={18} style={{ color: "#D1D5DB" }} />
-                      }
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                        <span style={{ fontSize: 13, fontWeight: 600, color: "#111827" }}>{p.nombre}</span>
-                        {p.codigo && (
-                          <span style={{ fontSize: 11, color: "#9CA3AF", fontFamily: "monospace" }}>{p.codigo}</span>
-                        )}
-                      </div>
-                      <div style={{ fontSize: 11, color: "#6B7280", marginTop: 1 }}>
-                        {p.unidad ?? ""}
-                        {p.ubicacion_bodega && ` · ${p.ubicacion_bodega}`}
-                      </div>
-                    </div>
-                    <div style={{ textAlign: "right", flexShrink: 0 }}>
-                      <div style={{
-                        fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 20,
-                        background: STOCK_BG[estado], color: STOCK_COLOR[estado],
-                      }}>
-                        {p.stock_actual ?? 0} · {STOCK_LABEL[estado]}
-                      </div>
-                    </div>
-                    <ChevronRight size={14} style={{ color: "#D1D5DB", flexShrink: 0 }} />
-                  </button>
-                );
-              })}
+            <div className={styles.list}>
+              {filteredLocations.length ? filteredLocations.map(location => {
+                const assigned = reservations.filter(item => item.ubicacion_id === location.id);
+                const unique = new Set(assigned.map(item => item.parte_id)).size;
+                const total = assigned.reduce((sum, item) => sum + Number(item.cantidad), 0);
+                return <LocationRow key={location.id} location={location} selected={selectedLocationId === location.id} count={unique} total={total} onClick={() => { setEditor(null); setSelectedLocationId(location.id); }} />;
+              }) : <Empty icon={<MapPin size={38} />} title="Sin ubicaciones" subtitle="No hay ubicaciones que coincidan con la búsqueda." />}
             </div>
           )}
-        </div>
+        </section>
 
-        {/* Panel */}
-        {panelMode !== null && (
-          <div style={{
-            width: 380, flexShrink: 0,
-            borderLeft: "1px solid #E2E8F0",
-            display: "flex", flexDirection: "column",
-            overflowY: "auto",
-          }}>
-            {/* Panel header */}
-            <div style={{
-              flexShrink: 0, padding: "0 20px", height: 48,
-              display: "flex", alignItems: "center", justifyContent: "space-between",
-              borderBottom: "1px solid #F3F4F6",
-            }}>
-              <span style={{ fontSize: 13, fontWeight: 600, color: "#111827", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                {panelMode === "create" ? "Nueva parte" : (parteData?.nombre ?? "Parte")}
-              </span>
-              <div style={{ display: "flex", gap: 4, flexShrink: 0, marginLeft: 8 }}>
-                {panelMode === "view" && (
-                  <>
-                    <button type="button" onClick={() => openEdit(parteData!)}
-                      title="Editar"
-                      style={{ width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "1px solid #E2E8F0", borderRadius: 6, cursor: "pointer", color: "#6B7280" }}>
-                      <Pencil size={13} />
-                    </button>
-                    <button type="button" onClick={() => setConfirm(parteData!)}
-                      title="Eliminar"
-                      style={{ width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "1px solid #FECACA", borderRadius: 6, cursor: "pointer", color: "#DC2626" }}>
-                      <Trash2 size={13} />
-                    </button>
-                  </>
-                )}
-                <button type="button" onClick={closePanel}
-                  style={{ width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", cursor: "pointer", color: "#9CA3AF" }}>
-                  <X size={16} />
-                </button>
-              </div>
-            </div>
+        <section className={styles.detailPane}>
+          {editor ? <MaterialEditor state={editor} workspaceId={workspaceId!} onClose={() => setEditor(null)} onSaved={async () => { await refresh(); setEditor(null); }} />
+            : selectedMaterial ? <MaterialDetail material={selectedMaterial} reservations={reservations.filter(item => item.parte_id === selectedMaterial.id)} locations={locations} canManage={canManage} onClose={() => setSelectedMaterialId(null)} onEdit={() => setEditor({ mode: "edit", material: selectedMaterial })} onDelete={() => removeMaterial(selectedMaterial)} onAdjust={delta => adjustStock(selectedMaterial, delta)} onOpenLocation={id => { setSegment("ubicaciones"); setSelectedMaterialId(null); setSelectedLocationId(id); }} />
+            : selectedLocation ? <LocationDetail location={selectedLocation} reservations={reservations.filter(item => item.ubicacion_id === selectedLocation.id)} canManage={canManage} onClose={() => setSelectedLocationId(null)} onReserve={() => setReserveOpen(true)} onRefresh={refresh} onOpenMaterial={id => { setSegment("materiales"); setSelectedLocationId(null); setSelectedMaterialId(id); }} />
+            : <Empty icon={<Package size={32} />} title={segment === "materiales" ? "Selecciona un material" : "Selecciona una ubicación"} subtitle="El detalle aparecerá aquí." />}
+        </section>
+      </main>
 
-            {/* View */}
-            {panelMode === "view" && parteData && (
-              <div style={{ padding: 20, display: "flex", flexDirection: "column", gap: 16 }}>
-                {parteData.imagen_url && (
-                  <img
-                    src={parteData.imagen_url}
-                    alt={parteData.nombre}
-                    style={{ width: "100%", aspectRatio: "16/9", objectFit: "cover", borderRadius: 8 }}
-                  />
-                )}
-                {/* Stock block */}
-                <div style={{ display: "flex", gap: 10 }}>
-                  {(["stock_actual", "stock_minimo"] as const).map(k => {
-                    const estado = k === "stock_actual" ? stockEstado(parteData.stock_actual, parteData.stock_minimo) : "ok";
-                    return (
-                      <div key={k} style={{ flex: 1, padding: "10px 14px", background: k === "stock_actual" ? STOCK_BG[estado] : "#F9FAFB", borderRadius: 8, textAlign: "center" }}>
-                        <p style={{ fontSize: 22, fontWeight: 700, margin: 0, color: k === "stock_actual" ? STOCK_COLOR[estado] : "#374151" }}>
-                          {parteData[k] ?? 0}
-                        </p>
-                        <p style={{ fontSize: 11, color: "#6B7280", margin: "2px 0 0" }}>
-                          {k === "stock_actual" ? "Actual" : "Mínimo"}
-                        </p>
-                      </div>
-                    );
-                  })}
-                </div>
-                {/* Stock adjust */}
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <button type="button" onClick={() => ajustarStock(parteData, -1)}
-                    style={{ width: 32, height: 32, border: "1px solid #E2E8F0", borderRadius: 6, background: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#6B7280" }}>
-                    <Minus size={14} />
-                  </button>
-                  <span style={{ flex: 1, textAlign: "center", fontSize: 13, color: "#374151", fontWeight: 600 }}>Ajustar stock</span>
-                  <button type="button" onClick={() => ajustarStock(parteData, 1)}
-                    style={{ width: 32, height: 32, border: "1px solid #E2E8F0", borderRadius: 6, background: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#6B7280" }}>
-                    <Plus size={14} />
-                  </button>
-                </div>
-                {/* Meta */}
-                {[
-                  { icon: Tag,    label: "Código",     val: parteData.codigo },
-                  { icon: MapPin, label: "Ubicación",  val: parteData.ubicacion_bodega },
-                  { icon: Package, label: "Unidad",    val: parteData.unidad },
-                ].filter(m => m.val).map(m => (
-                  <div key={m.label} style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
-                    <m.icon size={14} style={{ color: "#9CA3AF", marginTop: 2, flexShrink: 0 }} />
-                    <div>
-                      <p style={{ fontSize: 10, color: "#9CA3AF", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", margin: 0 }}>{m.label}</p>
-                      <p style={{ fontSize: 12, color: "#374151", margin: "1px 0 0" }}>{m.val}</p>
-                    </div>
-                  </div>
-                ))}
-                {parteData.descripcion && (
-                  <p style={{ fontSize: 12, color: "#6B7280", margin: 0, lineHeight: 1.6 }}>{parteData.descripcion}</p>
-                )}
-              </div>
-            )}
+      {canManage && <div className={styles.settingsBar}>
+        <span>Configuración de OTs</span>
+        <label><input type="checkbox" checked={requiresMaterials} onChange={e => toggleWorkspaceSetting("requiere_materiales_global", e.target.checked)} />Exigir materiales</label>
+        <label><input type="checkbox" checked={requiresSheet} onChange={e => toggleWorkspaceSetting("requiere_hoja_global", e.target.checked)} />Exigir hoja de cálculo</label>
+      </div>}
 
-            {/* Edit / Create form */}
-            {(panelMode === "edit" || panelMode === "create") && (
-              <div style={{ padding: 20, display: "flex", flexDirection: "column", gap: 14 }}>
-
-                {/* Image upload */}
-                <div>
-                  <label style={labelStyle}>Imagen</label>
-                  <div
-                    onClick={() => imgInputRef.current?.click()}
-                    style={{
-                      width: "100%", aspectRatio: "16/9", borderRadius: 8,
-                      border: "1.5px dashed #E2E8F0", cursor: "pointer",
-                      overflow: "hidden", background: "#F9FAFB",
-                      display: "flex", alignItems: "center", justifyContent: "center",
-                    }}
-                  >
-                    {imgPreview
-                      ? <img src={imgPreview} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                      : <div style={{ textAlign: "center", color: "#9CA3AF" }}>
-                          <Upload size={20} style={{ margin: "0 auto 6px" }} />
-                          <p style={{ fontSize: 11, margin: 0 }}>Subir imagen</p>
-                        </div>
-                    }
-                  </div>
-                  <input ref={imgInputRef} type="file" accept="image/*" style={{ display: "none" }}
-                    onChange={e => {
-                      const f = e.target.files?.[0];
-                      if (f) { setImgFile(f); setImgPreview(URL.createObjectURL(f)); }
-                    }} />
-                </div>
-
-                <div>
-                  <label style={labelStyle}>Nombre *</label>
-                  <input style={inputStyle} value={form.nombre ?? ""} onChange={e => setF("nombre", e.target.value)}
-                    onFocus={e => { e.currentTarget.style.borderColor = "#1E3A8A"; }}
-                    onBlur={e => { e.currentTarget.style.borderColor = "#E2E8F0"; }} />
-                </div>
-
-                <div>
-                  <label style={labelStyle}>Código</label>
-                  <input style={inputStyle} value={form.codigo ?? ""} placeholder="SKU, código interno…"
-                    onChange={e => setF("codigo", e.target.value)}
-                    onFocus={e => { e.currentTarget.style.borderColor = "#1E3A8A"; }}
-                    onBlur={e => { e.currentTarget.style.borderColor = "#E2E8F0"; }} />
-                </div>
-
-                <div>
-                  <label style={labelStyle}>Descripción</label>
-                  <textarea
-                    value={form.descripcion ?? ""} rows={2} placeholder="Descripción opcional…"
-                    onChange={e => setF("descripcion", e.target.value)}
-                    style={{ ...inputStyle, height: "auto", padding: "8px 12px", resize: "vertical" }}
-                  />
-                </div>
-
-                <div>
-                  <label style={labelStyle}>Unidad *</label>
-                  <select
-                    value={form.unidad ?? "und"}
-                    onChange={e => setF("unidad", e.target.value)}
-                    style={{ ...inputStyle, cursor: "pointer" }}
-                  >
-                    {["und", "kg", "lt", "m", "m2", "m3", "caja", "rollo", "par", "juego", "otro"].map(u => (
-                      <option key={u} value={u}>{u}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                  <div>
-                    <label style={labelStyle}>Stock actual</label>
-                    <input type="number" min={0} style={inputStyle}
-                      value={form.stock_actual ?? 0}
-                      onChange={e => setF("stock_actual", Number(e.target.value))}
-                      onFocus={e => { e.currentTarget.style.borderColor = "#1E3A8A"; }}
-                      onBlur={e => { e.currentTarget.style.borderColor = "#E2E8F0"; }} />
-                  </div>
-                  <div>
-                    <label style={labelStyle}>Stock mínimo</label>
-                    <input type="number" min={0} style={inputStyle}
-                      value={form.stock_minimo ?? 0}
-                      onChange={e => setF("stock_minimo", Number(e.target.value))}
-                      onFocus={e => { e.currentTarget.style.borderColor = "#1E3A8A"; }}
-                      onBlur={e => { e.currentTarget.style.borderColor = "#E2E8F0"; }} />
-                  </div>
-                </div>
-
-                <div>
-                  <label style={labelStyle}>Ubicación en bodega</label>
-                  <input style={inputStyle} value={form.ubicacion_bodega ?? ""} placeholder="Ej. Estante A3, Bodega 2…"
-                    onChange={e => setF("ubicacion_bodega", e.target.value)}
-                    onFocus={e => { e.currentTarget.style.borderColor = "#1E3A8A"; }}
-                    onBlur={e => { e.currentTarget.style.borderColor = "#E2E8F0"; }} />
-                </div>
-
-                {saveErr && <p style={{ fontSize: 12, color: "#DC2626", margin: 0 }}>{saveErr}</p>}
-
-                <button
-                  type="button"
-                  onClick={guardar}
-                  disabled={saving}
-                  style={{
-                    height: 38, border: "none", borderRadius: 6,
-                    background: "#1E3A8A", color: "#fff",
-                    fontSize: 13, fontWeight: 600,
-                    cursor: saving ? "default" : "pointer", fontFamily: "inherit",
-                    display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-                    opacity: saving ? 0.7 : 1,
-                  }}
-                >
-                  {saving
-                    ? <><Loader2 size={14} className="animate-spin" /> Guardando…</>
-                    : panelMode === "create" ? "Crear parte" : "Guardar cambios"
-                  }
-                </button>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* Delete confirm modal */}
-      {confirm && (
-        <div style={{
-          position: "fixed", inset: 0, zIndex: 50,
-          background: "rgba(0,0,0,0.3)",
-          display: "flex", alignItems: "center", justifyContent: "center",
-          padding: 24,
-        }}>
-          <div style={{
-            background: "#fff", borderRadius: 12,
-            width: "100%", maxWidth: 360, padding: 24,
-            boxShadow: "0 20px 60px rgba(0,0,0,0.15)",
-          }}>
-            <p style={{ fontSize: 15, fontWeight: 700, color: "#111827", margin: "0 0 8px" }}>
-              ¿Eliminar parte?
-            </p>
-            <p style={{ fontSize: 13, color: "#6B7280", margin: "0 0 20px" }}>
-              <strong>{confirm.nombre}</strong> será eliminada permanentemente.
-            </p>
-            <div style={{ display: "flex", gap: 8 }}>
-              <button type="button" onClick={() => setConfirm(null)}
-                style={{ flex: 1, height: 36, border: "1px solid #E2E8F0", borderRadius: 6, background: "none", fontSize: 13, fontWeight: 600, color: "#374151", cursor: "pointer", fontFamily: "inherit" }}>
-                Cancelar
-              </button>
-              <button type="button" onClick={() => eliminar(confirm)}
-                style={{ flex: 1, height: 36, border: "none", borderRadius: 6, background: "#DC2626", color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
-                Eliminar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {reserveOpen && selectedLocation && <ReservationDialog location={selectedLocation} materials={materials.filter(item => Number(item.stock_actual) > 0)} places={places.filter(item => item.ubicacion_id === selectedLocation.id)} onClose={() => setReserveOpen(false)} onSaved={async () => { await refresh(); setReserveOpen(false); }} />}
+      {filterOpen && <InventoryFilterDialog segment={segment} locations={locations} materials={materials} selectedId={activeRelationFilter} onSelect={id => { if (segment === "materiales") setLocationFilterId(id); else setMaterialFilterId(id); setFilterOpen(false); }} onClose={() => setFilterOpen(false)} />}
     </div>
   );
+}
+
+function Summary({ icon, value, label, danger }: { icon: React.ReactNode; value: number; label: string; danger?: boolean }) {
+  return <div className={styles.summaryItem}><span className={styles.iconTile}>{icon}</span><div><strong className={danger ? styles.dangerText : ""}>{value}</strong><small>{label}</small></div></div>;
+}
+
+function MaterialRow({ material, selected, onClick }: { material: Material; selected: boolean; onClick: () => void }) {
+  const state = stockState(material);
+  return <button className={`${styles.row} ${selected ? styles.selected : ""}`} onClick={onClick}><MaterialImage material={material} /><div className={styles.rowText}><strong>{material.nombre}</strong><span>{[material.codigo, material.ubicacion_bodega].filter(Boolean).join(" · ") || material.unidad}</span></div><div className={styles.stock}><strong className={state !== "ok" ? styles.dangerText : ""}>{material.stock_actual}</strong><span>{material.unidad}</span></div><ChevronRight size={17} /></button>;
+}
+
+function LocationRow({ location, selected, count, total, onClick }: { location: Ubicacion; selected: boolean; count: number; total: number; onClick: () => void }) {
+  return <button className={`${styles.row} ${selected ? styles.selected : ""}`} onClick={onClick}><span className={styles.iconTile}><MapPin size={20} /></span><div className={styles.rowText}><strong>{location.edificio}</strong><span>{count ? `${count} material${count === 1 ? "" : "es"} · ${total.toLocaleString("es-CL")} unidades` : "Sin materiales reservados"}</span></div><ChevronRight size={17} /></button>;
+}
+
+function DetailHeader({ title, onClose, children }: { title: string; onClose: () => void; children?: React.ReactNode }) {
+  return <div className={styles.detailHeader}><button className={styles.mobileBack} onClick={onClose}><ChevronRight size={18} />Volver</button><strong>{title}</strong><div>{children}<button className={styles.iconButton} onClick={onClose} aria-label="Cerrar"><X size={16} /></button></div></div>;
+}
+
+function MaterialDetail({ material, reservations, locations, canManage, onClose, onEdit, onDelete, onAdjust, onOpenLocation }: { material: Material; reservations: Reservation[]; locations: Ubicacion[]; canManage: boolean; onClose: () => void; onEdit: () => void; onDelete: () => void; onAdjust: (delta: number) => void; onOpenLocation: (id: string) => void }) {
+  const state = stockState(material);
+  return <div className={styles.detail}><DetailHeader title="Material" onClose={onClose}>{canManage && <><button className={styles.iconButton} onClick={onEdit} title="Editar"><Pencil size={15} /></button><button className={`${styles.iconButton} ${styles.deleteButton}`} onClick={onDelete} title="Eliminar"><Trash2 size={15} /></button></>}</DetailHeader><div className={styles.detailScroll}><div className={styles.heroCard}><MaterialImage material={material} large /><h2>{material.nombre}</h2><p>{material.codigo}</p><div className={styles.stockHero}><span className={styles.iconTile}>{state === "ok" ? <Check size={18} /> : <AlertTriangle size={18} />}</span><div><strong className={state !== "ok" ? styles.dangerText : ""}>{material.stock_actual} {material.unidad}</strong><small>{state === "ok" ? "Stock disponible" : state === "bajo" ? "Stock bajo el mínimo" : "Material agotado"}</small></div></div></div>{material.descripcion && <InfoCard title="Descripción"><p>{material.descripcion}</p></InfoCard>}<InfoCard title="Inventario"><InfoRow label="Stock actual" value={`${material.stock_actual} ${material.unidad}`} /><InfoRow label="Stock mínimo" value={`${material.stock_minimo} ${material.unidad}`} /><InfoRow label="Unidad" value={material.unidad} /><div className={styles.adjust}><button onClick={() => onAdjust(-1)}><Minus size={15} /></button><span>Ajustar stock disponible</span><button onClick={() => onAdjust(1)}><Plus size={15} /></button></div></InfoCard><InfoCard title="Identificación"><InfoRow label="Código" value={material.codigo || "Sin código"} /><InfoRow label="Ubicación en bodega" value={material.ubicacion_bodega || "Sin ubicación"} /></InfoCard>{reservations.length > 0 && <InfoCard title="Reservado en">{reservations.map(item => { const location = locations.find(value => value.id === item.ubicacion_id); return <button key={item.id} className={styles.linkedRow} onClick={() => onOpenLocation(item.ubicacion_id)}><span className={styles.iconTile}><MapPin size={18} /></span><div><strong>{location?.edificio ?? "Ubicación"}</strong><small>{item.lugar?.nombre ?? "Ubicación general"} · {Number(item.cantidad).toLocaleString("es-CL")} {material.unidad}</small></div><ChevronRight size={17} /></button>; })}</InfoCard>}</div></div>;
+}
+
+function LocationDetail({ location, reservations, canManage, onClose, onReserve, onRefresh, onOpenMaterial }: { location: Ubicacion; reservations: Reservation[]; canManage: boolean; onClose: () => void; onReserve: () => void; onRefresh: () => Promise<void>; onOpenMaterial: (id: string) => void }) {
+  const release = async (reservation: Reservation) => {
+    if (!window.confirm(`¿Devolver ${reservation.cantidad} ${reservation.parte?.unidad ?? "unidades"} al inventario disponible?`)) return;
+    const sb = createClient();
+    const { error } = await sb.rpc("release_material_reservation", { p_reservation_id: reservation.id, p_cantidad: reservation.cantidad });
+    if (error) window.alert(error.message); else await onRefresh();
+  };
+  return <div className={styles.detail}><DetailHeader title={location.edificio} onClose={onClose}>{canManage && <button className={styles.primarySmall} onClick={onReserve}><Plus size={15} />Reservar</button>}</DetailHeader><div className={styles.detailScroll}><InfoCard title="Inventario reservado">{reservations.length ? reservations.map(item => <div className={styles.reservationRow} key={item.id}><MaterialImage material={{ nombre: item.parte?.nombre ?? "Material", imagen_url: item.parte?.imagen_url ?? null }} /><button className={styles.reservationLink} onClick={() => onOpenMaterial(item.parte_id)}><strong>{item.parte?.nombre ?? "Material"}</strong><span>{item.lugar?.nombre ?? "Ubicación general"}</span></button><b>{Number(item.cantidad).toLocaleString("es-CL")} {item.parte?.unidad}</b>{canManage && <button onClick={() => release(item)} title="Devolver"><RotateCcw size={15} /></button>}<ChevronRight size={16} /></div>) : <Empty icon={<Package size={34} />} title="Sin materiales reservados" subtitle="Reserva materiales disponibles para esta ubicación." />}</InfoCard></div></div>;
+}
+
+function InfoCard({ title, children }: { title: string; children: React.ReactNode }) { return <section className={styles.infoSection}><h3>{title}</h3><div className={styles.infoCard}>{children}</div></section>; }
+function InfoRow({ label, value }: { label: string; value: string }) { return <div className={styles.infoRow}><span>{label}</span><strong>{value}</strong></div>; }
+function Empty({ icon, title, subtitle }: { icon: React.ReactNode; title: string; subtitle: string }) { return <div className={styles.empty}>{icon}<strong>{title}</strong><span>{subtitle}</span></div>; }
+
+function MaterialEditor({ state, workspaceId, onClose, onSaved }: { state: NonNullable<EditorState>; workspaceId: string; onClose: () => void; onSaved: () => Promise<void> }) {
+  const material = state.material;
+  const [form, setForm] = useState({ ...emptyForm, ...(material ? { nombre: material.nombre, descripcion: material.descripcion ?? "", codigo: material.codigo, unidad: material.unidad, precio_unitario: material.precio_unitario?.toString() ?? "", ubicacion_bodega: material.ubicacion_bodega ?? "", stock_actual: material.stock_actual.toString(), stock_minimo: material.stock_minimo.toString(), imagen_url: material.imagen_url ?? "" } : {}) });
+  const [file, setFile] = useState<File | null>(null); const [saving, setSaving] = useState(false); const inputRef = useRef<HTMLInputElement>(null);
+  const set = (key: keyof typeof form, value: string) => setForm(prev => ({ ...prev, [key]: value }));
+  const save = async () => {
+    if (!form.nombre.trim()) return;
+    setSaving(true); const sb = createClient(); let imageUrl = form.imagen_url || null;
+    if (file) { const ext = file.name.split(".").pop() ?? "jpg"; const path = `${workspaceId}/${Date.now()}.${ext}`; const upload = await sb.storage.from("partes-imagenes").upload(path, file, { upsert: true }); if (upload.data) imageUrl = sb.storage.from("partes-imagenes").getPublicUrl(upload.data.path).data.publicUrl; }
+    const payload = { workspace_id: workspaceId, nombre: form.nombre.trim(), descripcion: form.descripcion.trim() || null, codigo: form.codigo.trim(), unidad: form.unidad || "und", precio_unitario: form.precio_unitario ? Number(form.precio_unitario) : null, ubicacion_bodega: form.ubicacion_bodega.trim() || null, stock_actual: Number(form.stock_actual) || 0, stock_minimo: Number(form.stock_minimo) || 0, imagen_url: imageUrl, activo: true };
+    const result = state.mode === "create" ? await sb.from("partes").insert(payload) : await sb.from("partes").update(payload).eq("id", material!.id);
+    setSaving(false); if (result.error) window.alert(result.error.message); else await onSaved();
+  };
+  return <div className={styles.detail}><DetailHeader title={state.mode === "create" ? "Nuevo material" : "Editar material"} onClose={onClose}><button className={styles.primarySmall} onClick={save} disabled={saving || !form.nombre.trim()}>{saving && <Loader2 size={14} className="animate-spin" />}Guardar</button></DetailHeader><div className={styles.form}><button className={styles.imagePicker} onClick={() => inputRef.current?.click()}>{form.imagen_url ? <Image src={form.imagen_url} alt="Vista previa" fill sizes="720px" unoptimized /> : <><ImagePlus size={26} /><span>Agregar imagen</span></>}<input ref={inputRef} hidden type="file" accept="image/*" onChange={e => { const next = e.target.files?.[0]; if (next) { setFile(next); set("imagen_url", URL.createObjectURL(next)); } }} /></button><Field label="Nombre" value={form.nombre} onChange={value => set("nombre", value)} required /><Field label="Descripción" value={form.descripcion} onChange={value => set("descripcion", value)} multiline /><div className={styles.formGrid}><Field label="Código" value={form.codigo} onChange={value => set("codigo", value)} /><Field label="Unidad" value={form.unidad} onChange={value => set("unidad", value)} /></div><div className={styles.formGrid}><Field label="Stock actual" value={form.stock_actual} onChange={value => set("stock_actual", value)} type="number" /><Field label="Stock mínimo" value={form.stock_minimo} onChange={value => set("stock_minimo", value)} type="number" /></div><Field label="Ubicación en bodega" value={form.ubicacion_bodega} onChange={value => set("ubicacion_bodega", value)} /><Field label="Precio unitario" value={form.precio_unitario} onChange={value => set("precio_unitario", value)} type="number" /></div></div>;
+}
+
+function Field({ label, value, onChange, type = "text", required, multiline }: { label: string; value: string; onChange: (value: string) => void; type?: string; required?: boolean; multiline?: boolean }) { return <label className={styles.field}><span>{label}{required ? " *" : ""}</span>{multiline ? <textarea value={value} onChange={e => onChange(e.target.value)} rows={3} /> : <input type={type} value={value} onChange={e => onChange(e.target.value)} />}</label>; }
+
+function InventoryFilterDialog({ segment, locations, materials, selectedId, onSelect, onClose }: { segment: Segment; locations: Ubicacion[]; materials: Material[]; selectedId: string | null; onSelect: (id: string | null) => void; onClose: () => void }) {
+  const [query, setQuery] = useState("");
+  const options = segment === "materiales"
+    ? locations.map(item => ({ id: item.id, label: item.edificio }))
+    : materials.map(item => ({ id: item.id, label: item.nombre }));
+  const normalized = query.trim().toLocaleLowerCase("es");
+  const filteredOptions = options.filter(option => option.label.toLocaleLowerCase("es").includes(normalized));
+  return <div className={styles.overlay} onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}><div className={styles.dialog}><div className={styles.dialogHeader}><div><h2>Filtrar inventario</h2><p>{segment === "materiales" ? "Materiales reservados por ubicación" : "Ubicaciones que contienen un material"}</p></div><button className={styles.iconButton} onClick={onClose}><X size={17} /></button></div><div className={styles.filterSearch}><Search size={16} /><input autoFocus value={query} onChange={event => setQuery(event.target.value)} placeholder={segment === "materiales" ? "Buscar ubicaciones" : "Buscar materiales"} />{query && <button onClick={() => setQuery("")} aria-label="Borrar búsqueda"><X size={15} /></button>}</div><div className={styles.filterOptions}>{!query && <button className={!selectedId ? styles.filterOptionActive : ""} onClick={() => onSelect(null)}><span>Todos</span>{!selectedId && <Check size={17} />}</button>}{filteredOptions.map(option => <button key={option.id} className={selectedId === option.id ? styles.filterOptionActive : ""} onClick={() => onSelect(option.id)}><span>{option.label}</span>{selectedId === option.id && <Check size={17} />}</button>)}{filteredOptions.length === 0 && <div className={styles.filterEmpty}>No hay resultados para “{query}”.</div>}</div></div></div>;
+}
+
+function ReservationDialog({ location, materials, places, onClose, onSaved }: { location: Ubicacion; materials: Material[]; places: Lugar[]; onClose: () => void; onSaved: () => Promise<void> }) {
+  const [materialId, setMaterialId] = useState(""); const [placeId, setPlaceId] = useState(""); const [quantity, setQuantity] = useState("1"); const [saving, setSaving] = useState(false);
+  const selected = materials.find(item => item.id === materialId);
+  const save = async () => { const amount = Number(quantity); if (!selected || amount <= 0 || amount > selected.stock_actual) return; setSaving(true); const sb = createClient(); const { error } = await sb.rpc("reserve_material", { p_parte_id: selected.id, p_ubicacion_id: location.id, p_lugar_id: placeId || null, p_cantidad: amount }); setSaving(false); if (error) window.alert(error.message); else await onSaved(); };
+  return <div className={styles.overlay} onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }}><div className={styles.dialog}><div className={styles.dialogHeader}><div><h2>Reservar material</h2><p>{location.edificio}</p></div><button className={styles.iconButton} onClick={onClose}><X size={17} /></button></div><div className={styles.dialogBody}><label className={styles.field}><span>Material disponible</span><select value={materialId} onChange={e => setMaterialId(e.target.value)}><option value="">Seleccionar material…</option>{materials.map(item => <option key={item.id} value={item.id}>{item.nombre} · {item.stock_actual} {item.unidad}</option>)}</select></label><label className={styles.field}><span>Destino</span><select value={placeId} onChange={e => setPlaceId(e.target.value)}><option value="">Ubicación general</option>{places.map(place => <option key={place.id} value={place.id}>{place.nombre}</option>)}</select></label><Field label={`Cantidad${selected ? ` (${selected.unidad})` : ""}`} value={quantity} onChange={setQuantity} type="number" />{selected && Number(quantity) > selected.stock_actual && <p className={styles.error}>Solo hay {selected.stock_actual} {selected.unidad} disponibles.</p>}</div><div className={styles.dialogFooter}><button className={styles.secondaryButton} onClick={onClose}>Cancelar</button><button className={styles.primaryButton} disabled={!selected || Number(quantity) <= 0 || Number(quantity) > (selected?.stock_actual ?? 0) || saving} onClick={save}>{saving && <Loader2 size={14} className="animate-spin" />}Reservar</button></div></div></div>;
 }

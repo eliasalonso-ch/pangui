@@ -17,8 +17,11 @@ function setTheme(pref: ThemePref) {
   const resolved = pref === "auto"
     ? (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light")
     : pref;
-  document.documentElement.setAttribute("data-theme", resolved);
-  document.documentElement.setAttribute("data-theme-pref", pref);
+  const root = document.documentElement;
+  root.setAttribute("data-theme", resolved);
+  root.setAttribute("data-theme-pref", pref);
+  root.style.colorScheme = resolved;
+  root.style.backgroundColor = resolved === "dark" ? "#0B1220" : "#F7F8FA";
 }
 
 const PLAN_LABEL: Record<string, string> = {
