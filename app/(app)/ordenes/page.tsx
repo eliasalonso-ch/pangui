@@ -3,6 +3,7 @@ import { createServerSupabase, getServerUser } from "@/lib/supabase-server";
 import OrdenesBandeja from "./OrdenesBandeja";
 import type { OrdenListItem, Usuario, Ubicacion, Activo, CategoriaOT, LugarEspecifico, Sociedad } from "@/types/ordenes";
 import { LIST_SELECT, ORDENES_PAGE_SIZE } from "@/lib/ordenes-api";
+import { chileDateKey } from "./date-utils";
 
 interface PageProps {
   searchParams: Promise<{ id?: string; panel?: string }>;
@@ -87,6 +88,7 @@ export default async function OrdenesPage({ searchParams }: PageProps) {
       wsId={wsId}
       initialSelectedId={selectedId ?? null}
       initialPanel={panel === "crear" ? "create" : null}
+      todayKey={chileDateKey()}
     />
   );
 }

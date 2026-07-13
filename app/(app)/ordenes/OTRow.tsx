@@ -42,10 +42,10 @@ function timeAgo(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString("es-CL", { day: "numeric", month: "short" });
 }
 
-function dueLabel(fecha: string): { text: string; overdue: boolean } | null {
+function dueLabel(fecha: string, todayKey: string): { text: string; overdue: boolean } | null {
   const dueKey = dateKey(fecha);
   if (!dueKey) return null;
-  const diff = daysBetweenKeys(chileDateKey(), dueKey);
+  const diff = daysBetweenKeys(todayKey, dueKey);
   if (diff < 0)   return { text: `Vencio hace ${Math.abs(diff)}d`, overdue: true };
   if (diff === 0) return { text: "Vence hoy", overdue: false };
   if (diff === 1) return { text: "Manana", overdue: false };
@@ -71,7 +71,10 @@ function HoverTooltip({ label, body, children, triggerStyle }: {
   const triggerRef = useRef<HTMLDivElement>(null);
   const [mounted, setMounted] = useState(false);
 
-  useEffect(() => { setMounted(true); }, []);
+  useEffect(() => {
+    const id = window.setTimeout(() => setMounted(true), 0);
+    return () => window.clearTimeout(id);
+  }, []);
 
   function show() {
     if (!triggerRef.current) return;
@@ -264,9 +267,11 @@ interface Props {
   // Per-user "marcar como leÃ­da/vista" state + toggle.
   isMarcada?:       boolean;
   onToggleMarcada?: (id: string, next: boolean) => void;
+  todayKey?:         string;
 }
 
-function OTRow({ orden, rowNumber, usuarios, isSelected, onClick, myId, onAssigned, coordinadaPara, isMarcada, onToggleMarcada }: Props) {
+function OTRow({ orden, rowNumber, usuarios, isSelected, onClick, myId, onAssigned, coordinadaPara, isMarcada, onToggleMarcada, todayKey }: Props) {
+  const effectiveTodayKey = todayKey ?? chileDateKey();
   const isPending = Boolean(orden._pending);
   const hasAssignees = (orden.asignados_ids ?? []).length > 0;
   const estado = orden.estado === "pendiente"
@@ -280,7 +285,10 @@ function OTRow({ orden, rowNumber, usuarios, isSelected, onClick, myId, onAssign
   const [copied, setCopied] = useState(false);
   const [dropOpen, setDropOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
-  useEffect(() => { setMounted(true); }, []);
+  useEffect(() => {
+    const id = window.setTimeout(() => setMounted(true), 0);
+    return () => window.clearTimeout(id);
+  }, []);
   const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null);
   const avatarRef = useRef<HTMLButtonElement>(null);
 
@@ -288,7 +296,7 @@ function OTRow({ orden, rowNumber, usuarios, isSelected, onClick, myId, onAssign
     .map(id => usuarios.find(u => u.id === id))
     .filter((u): u is Usuario => Boolean(u));
 
-  const due = mounted && orden.fecha_termino && !isPending && orden.estado !== "completado" ? dueLabel(orden.fecha_termino) : null;
+  const due = mounted && orden.fecha_termino && !isPending && orden.estado !== "completado" ? dueLabel(orden.fecha_termino, effectiveTodayKey) : null;
 
   function copyNOT(e: React.MouseEvent) {
     e.stopPropagation();

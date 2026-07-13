@@ -1,15 +1,15 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { X, Check, RotateCcw, User, Clock, MapPin, Flag, Plus, ChevronDown, Search } from "lucide-react";
+import { X, Check, RotateCcw, User, Clock, MapPin, Flag, ChevronDown, Search } from "lucide-react";
 import type { FiltrosState, Estado, Prioridad, TipoTrabajo, Usuario, Ubicacion, Sociedad } from "@/types/ordenes";
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
 // NOTE: `pendiente` is intentionally NOT offered here. It used to be labelled
 // "Sin asignar", but the `pendiente` state covers BOTH unassigned and assigned
-// OTs, so it let assigned OTs through. The real "Sin asignar" filter lives under
-// Otros (`sinAsignar`), which filters by having no assignees.
+// OTs, so it let assigned OTs through. The real "Sin asignar" filter is the
+// top-level `sinAsignar` toggle, which filters by having no assignees.
 const ESTADOS: { value: Estado; label: string; color: string }[] = [
   { value: "en_espera",   label: "En espera",   color: "#F59E0B" },
   { value: "en_curso",    label: "En curso",    color: "#8B5CF6" },
@@ -133,20 +133,9 @@ interface FilterBarProps {
 }
 
 export function FilterBar({ filtros, onChange, usuarios, ubicaciones, sociedades }: FilterBarProps) {
-  const [extraOpen, setExtraOpen] = useState(false);
-  const extraRef = useRef<HTMLDivElement>(null);
-
   const [userSearch, setUserSearch]  = useState("");
   const [ubicSearch, setUbicSearch]  = useState("");
   const [socSearch,  setSocSearch]   = useState("");
-
-  useEffect(() => {
-    function handler(e: MouseEvent) {
-      if (extraRef.current && !extraRef.current.contains(e.target as Node)) setExtraOpen(false);
-    }
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, []);
 
   function set(patch: Partial<FiltrosState>) {
     onChange({ ...filtros, ...patch });
@@ -158,16 +147,13 @@ export function FilterBar({ filtros, onChange, usuarios, ubicaciones, sociedades
     filtros.tipos.length + filtros.sociedadIds.length +
     (filtros.fechaVencimiento ? 1 : 0) + (filtros.sinAsignar ? 1 : 0);
 
-  const extraCount =
-    filtros.estados.length + filtros.tipos.length + filtros.sociedadIds.length +
-    (filtros.sinAsignar ? 1 : 0);
-
   const filteredUsers = usuarios.filter(u => u.nombre.toLowerCase().includes(userSearch.toLowerCase()));
   const filteredUbic  = ubicaciones.filter(u => (u.edificio + (u.detalle ?? "")).toLowerCase().includes(ubicSearch.toLowerCase()));
   const filteredSoc   = sociedades.filter(s => s.nombre.toLowerCase().includes(socSearch.toLowerCase()));
 
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "nowrap" }}>
+    <div style={{ display: "flex", alignItems: "flex-start", gap: 8, width: "100%" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", flex: "1 1 auto", minWidth: 0 }}>
 
       {/* ── Asignado a ── */}
       <FilterDropdown
@@ -210,6 +196,28 @@ export function FilterBar({ filtros, onChange, usuarios, ubicaciones, sociedades
           {filteredUsers.length === 0 && <div style={{ padding: "8px 12px", fontSize: 12, color: "var(--fg-4)" }}>Sin resultados</div>}
         </div>
       </FilterDropdown>
+
+      {/* ── Sin asignar ── */}
+      <button
+        type="button"
+        onClick={() => set({ sinAsignar: !filtros.sinAsignar })}
+        aria-pressed={filtros.sinAsignar}
+        style={{
+          display: "flex", alignItems: "center", gap: 5,
+          height: 28, padding: "0 10px",
+          border: filtros.sinAsignar ? "1.5px solid var(--brand)" : "1px solid var(--border)",
+          borderRadius: 6,
+          background: filtros.sinAsignar ? "var(--brand-tint)" : "var(--surface-1)",
+          color: filtros.sinAsignar ? "var(--brand)" : "var(--fg-2)",
+          fontSize: 12, fontWeight: filtros.sinAsignar ? 600 : 500,
+          cursor: "pointer", fontFamily: "inherit",
+          whiteSpace: "nowrap",
+        }}
+      >
+        <User size={12} />
+        Sin asignar
+        {filtros.sinAsignar && <Check size={11} />}
+      </button>
 
       {/* ── Fecha de vencimiento ── */}
       <FilterDropdown
@@ -311,160 +319,112 @@ export function FilterBar({ filtros, onChange, usuarios, ubicaciones, sociedades
         </div>
       </FilterDropdown>
 
-      {/* ── + Añadir filtro ── */}
-      <div ref={extraRef} style={{ position: "relative" }}>
-        <button
-          type="button"
-          onClick={() => setExtraOpen(v => !v)}
-          style={{
-            display: "flex", alignItems: "center", gap: 5,
-            height: 28, padding: "0 10px",
-            border: extraCount > 0 ? "1.5px solid var(--brand)" : "1px dashed var(--border)",
-            borderRadius: 6,
-            background: extraCount > 0 ? "var(--brand-tint)" : "var(--surface-1)",
-            color: extraCount > 0 ? "var(--brand)" : "var(--fg-3)",
-            fontSize: 12, fontWeight: 500, cursor: "pointer", fontFamily: "inherit",
-          }}
+      {/* ── Estado ── */}
+      <FilterDropdown
+        label="Estado"
+        icon={<Check size={12} />}
+        active={filtros.estados.length > 0}
+        count={filtros.estados.length}
+        onClear={() => set({ estados: [] })}
+      >
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 4, padding: "8px 12px" }}>
+          {ESTADOS.map(e => {
+            const active = filtros.estados.includes(e.value);
+            return (
+              <button
+                key={e.value}
+                type="button"
+                onClick={() => set({ estados: toggle(filtros.estados, e.value) })}
+                style={{ height: 24, padding: "0 8px", border: active ? `1.5px solid ${e.color}` : "1px solid var(--border)", borderRadius: 4, background: active ? e.color + "20" : "var(--surface-1)", color: active ? e.color : "var(--fg-2)", fontSize: 11.5, fontWeight: active ? 600 : 400, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 3 }}
+              >
+                {active && <Check size={9} />}{e.label}
+              </button>
+            );
+          })}
+        </div>
+      </FilterDropdown>
+
+      {/* ── Tipo de trabajo ── */}
+      <FilterDropdown
+        label="Tipo de trabajo"
+        icon={<Flag size={12} />}
+        active={filtros.tipos.length > 0}
+        count={filtros.tipos.length}
+        onClear={() => set({ tipos: [] })}
+      >
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 4, padding: "8px 12px" }}>
+          {TIPOS.map(t => {
+            const active = filtros.tipos.includes(t.value);
+            return (
+              <button
+                key={t.value}
+                type="button"
+                onClick={() => set({ tipos: toggle(filtros.tipos, t.value) })}
+                style={{ height: 24, padding: "0 8px", border: active ? "1.5px solid var(--brand)" : "1px solid var(--border)", borderRadius: 4, background: active ? "var(--brand-tint)" : "var(--surface-1)", color: active ? "var(--brand)" : "var(--fg-2)", fontSize: 11.5, fontWeight: active ? 600 : 400, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 3 }}
+              >
+                {active && <Check size={9} />}{t.label}
+              </button>
+            );
+          })}
+        </div>
+      </FilterDropdown>
+
+      {/* ── Sociedad ── */}
+      {sociedades.length > 0 && (
+        <FilterDropdown
+          label="Sociedad"
+          icon={<MapPin size={12} />}
+          active={filtros.sociedadIds.length > 0}
+          count={filtros.sociedadIds.length}
+          onClear={() => set({ sociedadIds: [] })}
         >
-          <Plus size={12} />
-          Añadir filtro
-          {extraCount > 0 && (
-            <span style={{ fontSize: 10, fontWeight: 700, background: "var(--brand)", color: "var(--fg-on-brand)", borderRadius: "50%", width: 15, height: 15, display: "flex", alignItems: "center", justifyContent: "center" }}>
-              {extraCount}
-            </span>
-          )}
-        </button>
-
-        {extraOpen && (
-          <div style={{
-            position: "absolute", top: "calc(100% + 4px)", left: 0, zIndex: 200,
-            width: 260, background: "var(--surface-1)",
-            border: "1px solid var(--border)", borderRadius: 8,
-            boxShadow: "var(--shadow-md)", overflow: "hidden",
-          }}>
-
-            {/* Estado */}
-            <div style={{ padding: "8px 12px 4px", borderBottom: "1px solid var(--border)" }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
-                <span style={{ fontSize: 11, fontWeight: 700, color: "var(--fg-3)", textTransform: "uppercase", letterSpacing: "0.06em" }}>Estado</span>
-                {filtros.estados.length > 0 && (
-                  <button type="button" onClick={() => set({ estados: [] })} style={{ fontSize: 11, color: "var(--fg-4)", background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", padding: 0 }}>Limpiar</button>
-                )}
-              </div>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 4, paddingBottom: 8 }}>
-                {ESTADOS.map(e => {
-                  const active = filtros.estados.includes(e.value);
-                  return (
-                    <button
-                      key={e.value}
-                      type="button"
-                      onClick={() => set({ estados: toggle(filtros.estados, e.value) })}
-                      style={{ height: 24, padding: "0 8px", border: active ? `1.5px solid ${e.color}` : "1px solid var(--border)", borderRadius: 4, background: active ? e.color + "20" : "var(--surface-1)", color: active ? e.color : "var(--fg-2)", fontSize: 11.5, fontWeight: active ? 600 : 400, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 3 }}
-                    >
-                      {active && <Check size={9} />}{e.label}
-                    </button>
-                  );
-                })}
-              </div>
+          <div style={{ padding: "6px 8px 4px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, height: 30, padding: "0 8px", border: "1px solid var(--border)", borderRadius: 6, background: "var(--surface-0)" }}>
+              <Search size={12} style={{ color: "var(--fg-4)", flexShrink: 0 }} />
+              <input
+                autoFocus
+                placeholder="Buscar sociedad…"
+                value={socSearch}
+                onChange={e => setSocSearch(e.target.value)}
+                style={{ flex: 1, fontSize: 12.5, border: "none", outline: "none", background: "transparent", color: "var(--fg-1)", fontFamily: "inherit" }}
+              />
             </div>
-
-            {/* Tipo de trabajo */}
-            <div style={{ padding: "8px 12px 4px", borderBottom: "1px solid var(--border)" }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
-                <span style={{ fontSize: 11, fontWeight: 700, color: "var(--fg-3)", textTransform: "uppercase", letterSpacing: "0.06em" }}>Tipo de trabajo</span>
-                {filtros.tipos.length > 0 && (
-                  <button type="button" onClick={() => set({ tipos: [] })} style={{ fontSize: 11, color: "var(--fg-4)", background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", padding: 0 }}>Limpiar</button>
-                )}
-              </div>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 4, paddingBottom: 8 }}>
-                {TIPOS.map(t => {
-                  const active = filtros.tipos.includes(t.value);
-                  return (
-                    <button
-                      key={t.value}
-                      type="button"
-                      onClick={() => set({ tipos: toggle(filtros.tipos, t.value) })}
-                      style={{ height: 24, padding: "0 8px", border: active ? "1.5px solid var(--brand)" : "1px solid var(--border)", borderRadius: 4, background: active ? "var(--brand-tint)" : "var(--surface-1)", color: active ? "var(--brand)" : "var(--fg-2)", fontSize: 11.5, fontWeight: active ? 600 : 400, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 3 }}
-                    >
-                      {active && <Check size={9} />}{t.label}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Sociedad */}
-            {sociedades.length > 0 && (
-              <div style={{ padding: "8px 12px 4px", borderBottom: "1px solid var(--border)" }}>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: "var(--fg-3)", textTransform: "uppercase", letterSpacing: "0.06em" }}>Sociedad</span>
-                  {filtros.sociedadIds.length > 0 && (
-                    <button type="button" onClick={() => set({ sociedadIds: [] })} style={{ fontSize: 11, color: "var(--fg-4)", background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", padding: 0 }}>Limpiar</button>
-                  )}
-                </div>
-                <div style={{ padding: "2px 0", marginBottom: 4 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6, height: 28, padding: "0 8px", border: "1px solid var(--border)", borderRadius: 6, background: "var(--surface-0)", marginBottom: 4 }}>
-                    <Search size={11} style={{ color: "var(--fg-4)", flexShrink: 0 }} />
-                    <input
-                      placeholder="Buscar sociedad…"
-                      value={socSearch}
-                      onChange={e => setSocSearch(e.target.value)}
-                      style={{ flex: 1, fontSize: 12, border: "none", outline: "none", background: "transparent", color: "var(--fg-1)", fontFamily: "inherit" }}
-                    />
-                  </div>
-                  {filteredSoc.map(s => {
-                    const active = filtros.sociedadIds.includes(s.id);
-                    return (
-                      <button
-                        key={s.id}
-                        type="button"
-                        onClick={() => set({ sociedadIds: toggle(filtros.sociedadIds, s.id) })}
-                        style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "6px 4px", background: active ? "var(--brand-tint)" : "transparent", border: "none", cursor: "pointer", borderRadius: 4, fontFamily: "inherit" }}
-                      >
-                        <span style={{ flex: 1, fontSize: 12.5, color: "var(--fg-1)", textAlign: "left" }}>{s.nombre}</span>
-                        {active && <Check size={12} style={{ color: "var(--brand)" }} />}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* Otros */}
-            <div style={{ padding: "8px 12px 8px" }}>
-              <span style={{ fontSize: 11, fontWeight: 700, color: "var(--fg-3)", textTransform: "uppercase", letterSpacing: "0.06em", display: "block", marginBottom: 6 }}>Otros</span>
-              {[
-                { key: "sinAsignar", label: "Sin asignar", active: filtros.sinAsignar },
-              ].map(opt => (
-                <button
-                  key={opt.key}
-                  type="button"
-                  onClick={() => set({ [opt.key]: !opt.active } as Partial<FiltrosState>)}
-                  style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "6px 4px", background: opt.active ? "var(--brand-tint)" : "transparent", border: "none", cursor: "pointer", borderRadius: 4, fontFamily: "inherit" }}
-                >
-                  <span style={{ flex: 1, fontSize: 12.5, color: "var(--fg-1)", textAlign: "left" }}>{opt.label}</span>
-                  {opt.active && <Check size={12} style={{ color: "var(--brand)" }} />}
-                </button>
-              ))}
-            </div>
-
           </div>
-        )}
+          <div style={{ maxHeight: 220, overflowY: "auto", padding: "2px 0 6px" }}>
+            {filteredSoc.map(s => {
+              const active = filtros.sociedadIds.includes(s.id);
+              return (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => set({ sociedadIds: toggle(filtros.sociedadIds, s.id) })}
+                  style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "7px 12px", background: active ? "var(--brand-tint)" : "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}
+                >
+                  <span style={{ flex: 1, fontSize: 12.5, color: "var(--fg-1)", textAlign: "left" }}>{s.nombre}</span>
+                  {active && <Check size={12} style={{ color: "var(--brand)", flexShrink: 0 }} />}
+                </button>
+              );
+            })}
+            {filteredSoc.length === 0 && <div style={{ padding: "8px 12px", fontSize: 12, color: "var(--fg-4)" }}>Sin resultados</div>}
+          </div>
+        </FilterDropdown>
+      )}
+
       </div>
 
-      {/* Clear all */}
-      {totalActive > 0 && (
+      <div style={{ flex: "0 0 104px", display: "flex", justifyContent: "flex-end", visibility: totalActive > 0 ? "visible" : "hidden" }}>
         <button
           type="button"
           onClick={() => onChange({ ...EMPTY })}
-          style={{ display: "flex", alignItems: "center", gap: 4, height: 28, padding: "0 8px", border: "none", background: "none", color: "var(--fg-4)", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}
+          disabled={totalActive === 0}
+          style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 4, height: 28, padding: "0 8px", border: "none", background: "none", color: "var(--fg-4)", fontSize: 12, cursor: totalActive > 0 ? "pointer" : "default", fontFamily: "inherit", whiteSpace: "nowrap" }}
           onMouseEnter={e => { e.currentTarget.style.color = "var(--danger)"; }}
           onMouseLeave={e => { e.currentTarget.style.color = "var(--fg-4)"; }}
         >
           <X size={11} />
           Limpiar todo
         </button>
-      )}
+      </div>
 
     </div>
   );

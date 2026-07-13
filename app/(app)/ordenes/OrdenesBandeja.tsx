@@ -15,7 +15,7 @@ import OTCrearPanel from "./OTCrearPanel";
 import OTEditPanel from "./OTEditPanel";
 import OTFiltrosPanel from "./OTFiltrosPanel";
 import { FilterBar } from "./OTFiltrosPanel";
-import { addDaysKey, chileDateKey, dateKey, monthEndKey, monthStartKey } from "./date-utils";
+import { addDaysKey, dateKey, monthEndKey, monthStartKey } from "./date-utils";
 import type {
   OrdenListItem, OrdenTrabajo,
   Usuario, Ubicacion, LugarEspecifico, Sociedad, Activo, CategoriaOT,
@@ -86,10 +86,10 @@ function sinProgreso(o: OrdenListItem): boolean {
 }
 
 // "Vencida": has a due date in the past and isn't completed.
-function estaVencida(o: OrdenListItem): boolean {
+function estaVencida(o: OrdenListItem, todayKey: string): boolean {
   if (o.estado === "completado" || !o.fecha_termino) return false;
   const dueKey = dateKey(o.fecha_termino);
-  return !!dueKey && dueKey < chileDateKey();
+  return !!dueKey && dueKey < todayKey;
 }
 
 function esLevantamiento(o: OrdenListItem): boolean {
@@ -104,10 +104,11 @@ function pendingScopeFor(
   o: OrdenListItem,
   reprogramadaIds: Set<string>,
   faltanMaterialesIds: Set<string>,
+  todayKey: string,
 ): PendingScopeKey {
   if (esLevantamiento(o)) return "levantamientos";
   if (esPresupuesto(o)) return "presupuestos";
-  if (estaVencida(o)) return "vencidas";
+  if (estaVencida(o, todayKey)) return "vencidas";
   if (!o.asignados_ids || o.asignados_ids.length === 0) return "sin_asignar";
   if (sinProgreso(o)) return "sin_progreso";
   if (faltanMaterialesIds.has(o.id)) return "materiales";
@@ -137,6 +138,7 @@ interface Props {
   wsId:            string;
   initialSelectedId?: string | null;
   initialPanel?:   "create" | null;
+  todayKey:        string;
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -144,6 +146,7 @@ interface Props {
 export default function OrdenesBandeja({
   initialOrdenes, usuarios, ubicaciones, lugares, sociedades, activos, categorias,
   myId, myRol, wsId, initialSelectedId, initialPanel,
+  todayKey,
 }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -192,9 +195,10 @@ export default function OrdenesBandeja({
     });
   }, []);
 
-  // Two top-level tabs only; the previous sub-tabs (Sin asignar, Reprogramadas,
-  // Levantamientos) are now scope filters inside the merged Mostrar/Ordenar
-  // dropdown so the supervisor can drill in without losing the rest of the list.
+  // Two top-level tabs only; specialized pending buckets live inside the merged
+  // Mostrar/Ordenar dropdown. "Sin asignar" is intentionally not a bucket there:
+  // it is a universal filter in the top filter bar, so unassigned overdue/sin
+  // progreso OTs still appear when that filter is active.
   type ViewKey = "lista" | "calendario" | "kanban";
   const [view, setView] = useState<ViewKey>(
     () => {
@@ -215,7 +219,6 @@ export default function OrdenesBandeja({
   });
   const [scope, setScope]       = useState<ScopeKey>(() => {
     const f = searchParams?.get("filtro");
-    if (f === "sin_asignar")     return "sin_asignar";
     if (f === "sin_progreso")    return "sin_progreso";
     if (f === "vencidas")        return "vencidas";
     if (f === "reprogramadas")   return "reprogramadas";
@@ -238,7 +241,7 @@ export default function OrdenesBandeja({
     if (f === "bloqueadas")       return { ...EMPTY_FILTROS, estados: ["en_espera"] };
     if (f === "reprogramadas")    return EMPTY_FILTROS;
     if (f === "materiales")       return EMPTY_FILTROS;
-    if (f === "sin_asignar")      return EMPTY_FILTROS;
+    if (f === "sin_asignar")      return { ...EMPTY_FILTROS, sinAsignar: true };
     if (f === "asignado")         return { ...EMPTY_FILTROS, soloAsignados: true };
     if (f === "levantamientos")   return EMPTY_FILTROS;
     if (f === "presupuestos")     return EMPTY_FILTROS;
@@ -678,7 +681,7 @@ export default function OrdenesBandeja({
         );
 
     if (scope !== "todas") {
-      list = list.filter(o => pendingScopeFor(o, reprogramadaIds, faltanMaterialesIds) === scope);
+      list = list.filter(o => pendingScopeFor(o, reprogramadaIds, faltanMaterialesIds, todayKey) === scope);
     }
 
     // Filtros
@@ -697,7 +700,7 @@ export default function OrdenesBandeja({
       list = list.filter(o => o.ubicacion_id != null && ubicsBySociedad.has(o.ubicacion_id));
     }
     if (filtros.fechaVencimiento) {
-      const todayStr = chileDateKey();
+      const todayStr = todayKey;
       const tomorrowStr = addDaysKey(todayStr, 1);
       const in7Str = addDaysKey(todayStr, 7);
       const in30Str = addDaysKey(todayStr, 30);
@@ -771,7 +774,7 @@ export default function OrdenesBandeja({
       });
     }
     return list;
-  }, [ordenes, searchResults, view, tab, scope, search, sort, filtros, ubicaciones, reprogramadaIds, faltanMaterialesIds, ocultarMarcadas, marcadas]);
+  }, [ordenes, searchResults, view, tab, scope, search, sort, filtros, ubicaciones, reprogramadaIds, faltanMaterialesIds, ocultarMarcadas, marcadas, todayKey]);
 
   // The rows actually rendered — a window into `filtered` that grows on scroll.
   const visibleOrdenes = useMemo(
@@ -862,7 +865,7 @@ export default function OrdenesBandeja({
         list = list.filter(o => o.ubicacion_id != null && ubicsBySociedad.has(o.ubicacion_id));
       }
       if (filtros.fechaVencimiento) {
-        const todayStr = chileDateKey();
+        const todayStr = todayKey;
         const tomorrowStr = addDaysKey(todayStr, 1);
         const in7Str = addDaysKey(todayStr, 7);
         const in30Str = addDaysKey(todayStr, 30);
@@ -920,7 +923,7 @@ export default function OrdenesBandeja({
     } satisfies Record<PendingScopeKey, OrdenListItem[]>;
 
     for (const o of active) {
-      activeByScope[pendingScopeFor(o, reprogramadaIds, faltanMaterialesIds)].push(o);
+      activeByScope[pendingScopeFor(o, reprogramadaIds, faltanMaterialesIds, todayKey)].push(o);
     }
 
     return {
@@ -941,7 +944,7 @@ export default function OrdenesBandeja({
         presupuestos:   applyFilters(closed.filter(esPresupuesto)).length,
       },
     };
-  }, [countOrdenes, searchResults, filtros, search, ubicaciones, reprogramadaIds, faltanMaterialesIds]);
+  }, [countOrdenes, searchResults, filtros, search, ubicaciones, reprogramadaIds, faltanMaterialesIds, todayKey]);
   const currentSortLabel = SORT_OPTIONS.find(o => o.value === sort)?.label ?? "";
 
   // ── Excel export (all OTs across tabs, respecting filters/search) ─────────
@@ -1110,7 +1113,7 @@ export default function OrdenesBandeja({
         {/* Top row */}
         <div style={{
           display:"flex", alignItems:"center", justifyContent:"space-between",
-          padding:"0 20px", height:56, gap:12,
+          padding:"9px 20px", minHeight:56, gap:12, flexWrap:"wrap",
         }}>
           <div style={{ display:"flex", alignItems:"center", gap:14, flexShrink:0 }}>
             <h1 style={{ fontSize:20, fontWeight:700, color:"var(--fg-1)", letterSpacing:"-0.3px", lineHeight:1.25, margin:0 }}>
@@ -1153,9 +1156,9 @@ export default function OrdenesBandeja({
             </div>
           </div>
 
-          <div style={{ display:"flex", alignItems:"center", gap:8, flex:1, justifyContent:"flex-end" }}>
+          <div style={{ display:"flex", alignItems:"center", gap:8, flex:"1 1 520px", minWidth:0, justifyContent:"flex-end", flexWrap:"wrap" }}>
             {/* Search */}
-            <div style={{ position:"relative", maxWidth:280, flex:1 }}>
+            <div style={{ position:"relative", maxWidth:280, minWidth:220, flex:"1 1 220px" }}>
               <Search size={14} style={{ position:"absolute", left:10, top:"50%", transform:"translateY(-50%)", color:"var(--fg-4)", pointerEvents:"none" }} />
               <input
                 type="text"
@@ -1208,13 +1211,60 @@ export default function OrdenesBandeja({
               <Plus size={16} strokeWidth={2} />
               Nueva Orden de Trabajo
             </button>
+
+            <button
+              type="button"
+              onClick={() => setOcultarMarcadas(v => !v)}
+              title={ocultarMarcadas ? "Mostrar las OTs que marcaste" : "Ocultar las OTs que marcaste"}
+              aria-pressed={ocultarMarcadas}
+              style={{
+                display:"flex", alignItems:"center", gap:5,
+                height:32, padding:"0 10px",
+                border:"1px solid " + (ocultarMarcadas ? "var(--brand)" : "var(--border)"),
+                borderRadius:6,
+                background: ocultarMarcadas ? "var(--brand-tint)" : "var(--surface-1)",
+                color: ocultarMarcadas ? "var(--brand-fg)" : "var(--fg-2)",
+                fontSize:12, fontWeight:500, cursor:"pointer",
+                fontFamily:"inherit", whiteSpace:"nowrap", transition:"all 0.12s",
+                flexShrink:0,
+              }}
+            >
+              <Check size={12} />
+              Ocultar leídas
+            </button>
+
+            <button
+              type="button"
+              onClick={() => { if (ordenes.length > 0 && !exporting) setExportConfigOpen(true); }}
+              disabled={exporting || ordenes.length === 0}
+              title={ordenes.length === 0 ? "No hay órdenes para exportar" : `Exportar todas las órdenes a Excel (${ordenes.length})`}
+              style={{
+                display:"flex", alignItems:"center", gap:5,
+                height:32, padding:"0 10px",
+                border:"1px solid var(--border)", borderRadius:6,
+                background: exporting ? "var(--surface-0)" : "var(--surface-1)",
+                color: ordenes.length === 0 ? "var(--border-strong)" : "var(--fg-2)",
+                fontSize:12, fontWeight:500, cursor: ordenes.length === 0 ? "not-allowed" : "pointer",
+                fontFamily:"inherit", whiteSpace:"nowrap",
+                transition:"all 0.12s",
+                flexShrink:0,
+              }}
+              onMouseEnter={e => { if (ordenes.length > 0 && !exporting) { e.currentTarget.style.borderColor = "var(--success)"; e.currentTarget.style.color = "var(--success)"; e.currentTarget.style.background = "var(--success-bg)"; } }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.color = ordenes.length === 0 ? "var(--border-strong)" : "var(--fg-2)"; e.currentTarget.style.background = "var(--surface-1)"; }}
+            >
+              {exporting
+                ? <Loader2 size={12} className="animate-spin" style={{ color:"var(--success)" }} />
+                : <Download size={12} />
+              }
+              {exporting ? "Exportando…" : "Excel"}
+            </button>
           </div>
         </div>
 
-        {/* Sub-nav: inline filter buttons + sort */}
+        {/* Sub-nav: inline filter buttons */}
         <div style={{
-          display:"flex", alignItems:"center", justifyContent:"space-between",
-          padding:"0 20px", height:40, gap:8,
+          display:"flex", alignItems:"center",
+          padding:"6px 20px", minHeight:40,
         }}>
           <FilterBar
             filtros={filtros}
@@ -1223,10 +1273,7 @@ export default function OrdenesBandeja({
             ubicaciones={ubicaciones}
             sociedades={sociedades}
           />
-
-
-          {/* Right side: export + sort */}
-          <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+          <div style={{ display:"none" }}>
 
           {/* Ocultar leídas/marcadas (per-user) */}
           <button
@@ -1320,7 +1367,7 @@ export default function OrdenesBandeja({
           ) : (<>
 
 
-          {/* Two-tab strip. Sub-scopes (Sin asignar, Reprogramadas,
+          {/* Two-tab strip. Sub-scopes (Reprogramadas,
               Levantamientos) live inside the merged Mostrar/Ordenar dropdown
               in the header so the tab bar stays focused on the big split. */}
           <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", borderBottom:"1px solid var(--border)", flexShrink:0 }}>
@@ -1336,8 +1383,7 @@ export default function OrdenesBandeja({
                   onClick={() => {
                     setTab(t.key);
                     // Reset scope when switching tabs because some scopes don't
-                    // apply on both sides (e.g. "Sin asignar" is meaningless on
-                    // Completas, "Reprogramadas" requires en_espera).
+                    // apply on both sides (e.g. "Reprogramadas" requires en_espera).
                     setScope("todas");
                   }}
                   style={{
@@ -1378,7 +1424,6 @@ export default function OrdenesBandeja({
               tab === "pendientes"
                 ? [
                     { value: "todas",          label: "Todas",                       count: filteredCounts.pendientes.todas },
-                    { value: "sin_asignar",    label: "Sin asignar",                 count: filteredCounts.pendientes.sin_asignar },
                     { value: "sin_progreso",   label: "Sin progreso",                count: filteredCounts.pendientes.sin_progreso },
                     { value: "vencidas",       label: "Vencidas",                    count: filteredCounts.pendientes.vencidas },
                     { value: "reprogramadas",  label: "Reprogramadas",               count: filteredCounts.pendientes.reprogramadas },
@@ -1514,7 +1559,6 @@ export default function OrdenesBandeja({
                 <p style={{ fontSize:13, color:"var(--fg-2)", fontWeight:500 }}>
                   {search
                     ? "Sin resultados para tu búsqueda"
-                    : scope === "sin_asignar"   ? "No hay órdenes sin asignar"
                     : scope === "sin_progreso"  ? "No hay órdenes sin progreso"
                     : scope === "vencidas"      ? "No hay órdenes vencidas"
                     : scope === "reprogramadas" ? "No hay órdenes reprogramadas"
@@ -1550,6 +1594,7 @@ export default function OrdenesBandeja({
                     coordinadaPara={scope === "reprogramadas" ? (o.fecha_inicio ?? null) : null}
                     isMarcada={marcadas.has(o.id)}
                     onToggleMarcada={handleToggleMarcada}
+                    todayKey={todayKey}
                   />
                 ))}
                 {canShowMore && (

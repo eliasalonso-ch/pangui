@@ -1530,6 +1530,9 @@ export default function OTDetail({
       await addComentario(orden.id, myId, text, audioUrl);
       setCommentText("");
       if (tab !== "actividad") setTab("actividad");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "No se pudo enviar el comentario.";
+      alert(message);
     } finally {
       setSending(false);
     }
