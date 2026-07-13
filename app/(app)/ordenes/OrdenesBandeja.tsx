@@ -645,20 +645,16 @@ export default function OrdenesBandeja({
   // as the base for the filter pipeline instead of the loaded list. Empty query
   // → back to the loaded list. `searchResults === null` means "not searching".
   const [searchResults, setSearchResults] = useState<OrdenListItem[] | null>(null);
-  const [searching, setSearching] = useState(false);
   useEffect(() => {
     const q = search.trim();
-    if (!q) { setSearchResults(null); setSearching(false); return; }
+    if (!q) { setSearchResults(null); return; }
     let cancelled = false;
-    setSearching(true);
     const t = setTimeout(async () => {
       try {
         const rows = await searchOrdenes(wsId, q);
         if (!cancelled) setSearchResults(rows);
       } catch {
         if (!cancelled) setSearchResults([]); // query failed → show no results, not stale
-      } finally {
-        if (!cancelled) setSearching(false);
       }
     }, 300);
     return () => { cancelled = true; clearTimeout(t); };
@@ -1183,9 +1179,9 @@ export default function OrdenesBandeja({
                   <X size={12} />
                 </button>
               )}
-              {(searching || searchHitCap) && (
+              {searchHitCap && (
                 <div style={{ position:"absolute", left:0, top:"calc(100% + 4px)", fontSize:11, color:"var(--fg-4)", whiteSpace:"nowrap" }}>
-                  {searching ? "Buscando…" : `Más de ${ORDENES_SEARCH_LIMIT} resultados · refina la búsqueda`}
+                  {`Más de ${ORDENES_SEARCH_LIMIT} resultados · refina la búsqueda`}
                 </div>
               )}
             </div>

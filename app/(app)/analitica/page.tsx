@@ -706,8 +706,8 @@ export default function AnaliticaPage() {
             <thead>
               <tr style={{ borderBottom: `1px solid ${C.border}` }}>
                 {(peopleMode === "open"
-                  ? ["Tecnico", "Rol", "Abiertas", "Principales", "Sub-OTs", "Vencidas", "Bloqueadas", "Cerradas", "Trabajo prom.", "Carga"]
-                  : ["Tecnico", "Rol", "Cerradas", "Principales", "Sub-OTs", "Abiertas", "Vencidas", "Ciclo prom.", "Trabajo prom.", "Participacion"]
+                  ? ["Tecnico", "Rol", "Pendientes", "Principales", "Sub-OTs", "Vencidas", "En espera", "Cerradas", "Trabajo prom.", "Carga"]
+                  : ["Tecnico", "Rol", "Cerradas", "Principales", "Sub-OTs", "Pendientes", "Vencidas", "Ciclo prom.", "Trabajo prom.", "Participacion"]
                 ).map(h => (
                   <th key={h} style={thStyle}>{h}</th>
                 ))}
