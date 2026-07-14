@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import QRCode from "qrcode";
 import { useRouter } from "next/navigation";
 import {
   MapPin, Building2, Plus, Pencil, Trash2, X, Check,
-  Loader2, Search, ChevronRight, Image as ImageIcon, Upload,
+  Loader2, Search, ChevronRight, Image as ImageIcon, Upload, QrCode, Package, Wrench, Printer, Share2,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase";
 import { uploadToR2, deleteFromR2 } from "@/lib/r2";
@@ -15,6 +16,9 @@ interface Sociedad {
   id: string;
   nombre: string;
   imagen_url: string | null;
+  descripcion: string | null;
+  direccion: string | null;
+  qr_code: string | null;
 }
 
 interface Ubicacion {
@@ -26,6 +30,8 @@ interface Ubicacion {
   sociedad_id: string | null;
   imagen_url: string | null;
   sociedad_nombre: string | null;
+  descripcion: string | null;
+  qr_code: string | null;
 }
 
 interface Lugar {
@@ -36,7 +42,12 @@ interface Lugar {
   imagen_url: string | null;
   ubicacion_id: string | null;
   ubicacion_edificio: string | null;
+  grupo_cargo: string | null;
+  qr_code: string | null;
 }
+
+interface ActivoResumen { id: string; nombre: string; imagen_url: string | null; numero_serie: string | null; ubicacion_id: string | null; lugar_id: string | null }
+interface ReservaResumen { id: string; ubicacion_id: string; lugar_id: string | null; cantidad: number; parte: { nombre: string; unidad: string; imagen_url: string | null } | null }
 
 type Section = "ubicaciones" | "lugares" | "sociedades";
 
@@ -203,11 +214,13 @@ export default function UbicacionesPage() {
   const [ubicaciones, setUbicaciones] = useState<Ubicacion[]>([]);
   const [lugares, setLugares]         = useState<Lugar[]>([]);
   const [sociedades, setSociedades]   = useState<Sociedad[]>([]);
+  const [activos, setActivos]         = useState<ActivoResumen[]>([]);
+  const [reservas, setReservas]       = useState<ReservaResumen[]>([]);
 
   // Panel state
   const [panel, setPanel] = useState<{
     type: Section;
-    mode: "create" | "edit";
+    mode: "create" | "edit" | "view";
     id?: string;
   } | null>(null);
 
@@ -218,6 +231,7 @@ export default function UbicacionesPage() {
   const [saving, setSaving]         = useState(false);
   const [deleting, setDeleting]     = useState<string | null>(null);
   const [confirmDel, setConfirmDel] = useState<{ type: Section; id: string; name: string } | null>(null);
+  const [qrModal, setQrModal] = useState<{ name: string; code: string } | null>(null);
 
   useEffect(() => {
     async function load() {
@@ -238,16 +252,22 @@ export default function UbicacionesPage() {
   }, [router]);
 
   async function fetchAll(sb: ReturnType<typeof createClient>, wid: string) {
-    const [ubRes, luRes, soRes] = await Promise.all([
+    const [ubRes, luRes, soRes, acRes, reRes] = await Promise.all([
       sb.from("ubicaciones")
-        .select("id, edificio, detalle, direccion, grupo_cargo, sociedad_id, imagen_url, sociedades(nombre)")
+        .select("id, edificio, detalle, descripcion, direccion, grupo_cargo, sociedad_id, imagen_url, qr_code, sociedades(nombre)")
         .eq("workspace_id", wid).eq("activa", true).order("edificio"),
       sb.from("lugares")
-        .select("id, nombre, descripcion, direccion, imagen_url, ubicacion_id, ubicaciones(edificio)")
+        .select("id, nombre, descripcion, direccion, grupo_cargo, imagen_url, qr_code, ubicacion_id, ubicaciones(edificio)")
         .eq("workspace_id", wid).eq("activo", true).order("nombre"),
       sb.from("sociedades")
-        .select("id, nombre, imagen_url")
+        .select("id, nombre, descripcion, direccion, imagen_url, qr_code")
         .eq("workspace_id", wid).eq("activa", true).order("nombre"),
+      sb.from("activos")
+        .select("id, nombre, imagen_url, numero_serie, ubicacion_id, lugar_id")
+        .eq("workspace_id", wid).eq("activo", true).order("nombre"),
+      sb.from("material_reservations")
+        .select("id, ubicacion_id, lugar_id, cantidad, parte:partes!parte_id(nombre, unidad, imagen_url)")
+        .eq("workspace_id", wid).order("created_at", { ascending: false }),
     ]);
     setUbicaciones((ubRes.data ?? []).map((u: any) => ({
       ...u, sociedad_nombre: (u.sociedades as any)?.nombre ?? null,
@@ -256,11 +276,19 @@ export default function UbicacionesPage() {
       ...l, ubicacion_edificio: (l.ubicaciones as any)?.edificio ?? null,
     })));
     setSociedades(soRes.data ?? []);
+    setActivos((acRes.data ?? []) as ActivoResumen[]);
+    setReservas((reRes.data ?? []) as unknown as ReservaResumen[]);
+  }
+
+  function openDetail(type: Section, id: string) {
+    setPanel({ type, mode: "view", id });
+    setForm({});
+    setImgUrl(null);
   }
 
   function openCreate(type: Section) {
     setPanel({ type, mode: "create" });
-    setForm({});
+    setForm({ qr_code: "" });
     setImgUrl(null);
   }
 
@@ -273,6 +301,8 @@ export default function UbicacionesPage() {
         direccion:   item.direccion ?? "",
         grupo_cargo: item.grupo_cargo ?? "",
         sociedad_id: item.sociedad_id ?? "",
+        descripcion: item.descripcion ?? "",
+        qr_code: item.qr_code ?? "",
       });
     } else if (type === "lugares") {
       setForm({
@@ -280,9 +310,11 @@ export default function UbicacionesPage() {
         descripcion: item.descripcion ?? "",
         direccion:   item.direccion ?? "",
         ubicacion_id: item.ubicacion_id ?? "",
+        grupo_cargo: item.grupo_cargo ?? "",
+        qr_code: item.qr_code ?? "",
       });
     } else {
-      setForm({ nombre: item.nombre ?? "" });
+      setForm({ nombre: item.nombre ?? "", descripcion: item.descripcion ?? "", direccion: item.direccion ?? "", qr_code: item.qr_code ?? "" });
     }
     setImgUrl(item.imagen_url ?? null);
   }
@@ -295,25 +327,31 @@ export default function UbicacionesPage() {
       const { type, mode, id } = panel!;
 
       if (type === "sociedades") {
-        const payload = { nombre: form.nombre?.trim(), imagen_url: imgUrl ?? null };
+        const payload = { nombre: form.nombre?.trim(), descripcion: form.descripcion?.trim() || null, direccion: form.direccion?.trim() || null, qr_code: form.qr_code?.trim() || null, imagen_url: imgUrl ?? null };
         if (mode === "create") {
-          await sb.from("sociedades").insert({ workspace_id: wsId, ...payload });
+          const { error } = await sb.from("sociedades").insert({ workspace_id: wsId, ...payload });
+          if (error) throw error;
         } else {
-          await sb.from("sociedades").update(payload).eq("id", id!);
+          const { error } = await sb.from("sociedades").update(payload).eq("id", id!);
+          if (error) throw error;
         }
       } else if (type === "ubicaciones") {
         const payload = {
           edificio:    form.edificio?.trim(),
           detalle:     form.detalle?.trim() || null,
+          descripcion: form.descripcion?.trim() || null,
           direccion:   form.direccion?.trim() || null,
           grupo_cargo: form.grupo_cargo?.trim() || null,
           sociedad_id: form.sociedad_id || null,
           imagen_url:  imgUrl ?? null,
+          qr_code:     form.qr_code?.trim() || null,
         };
         if (mode === "create") {
-          await sb.from("ubicaciones").insert({ workspace_id: wsId, activa: true, ...payload });
+          const { error } = await sb.from("ubicaciones").insert({ workspace_id: wsId, activa: true, ...payload });
+          if (error) throw error;
         } else {
-          await sb.from("ubicaciones").update(payload).eq("id", id!);
+          const { error } = await sb.from("ubicaciones").update(payload).eq("id", id!);
+          if (error) throw error;
         }
       } else {
         const payload = {
@@ -322,16 +360,22 @@ export default function UbicacionesPage() {
           direccion:    form.direccion?.trim() || null,
           ubicacion_id: form.ubicacion_id || null,
           imagen_url:   imgUrl ?? null,
+          grupo_cargo:  form.grupo_cargo?.trim() || null,
+          qr_code:      form.qr_code?.trim() || null,
         };
         if (mode === "create") {
-          await sb.from("lugares").insert({ workspace_id: wsId, activo: true, ...payload });
+          const { error } = await sb.from("lugares").insert({ workspace_id: wsId, activo: true, ...payload });
+          if (error) throw error;
         } else {
-          await sb.from("lugares").update(payload).eq("id", id!);
+          const { error } = await sb.from("lugares").update(payload).eq("id", id!);
+          if (error) throw error;
         }
       }
 
       await fetchAll(sb, wsId);
       setPanel(null);
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : "No se pudo guardar. Revisa tus permisos e intenta nuevamente.");
     } finally {
       setSaving(false);
     }
@@ -369,7 +413,7 @@ export default function UbicacionesPage() {
     setImgUrl(null);
   }
 
-  const canEdit = myRol === "admin" || myRol === "jefe";
+  const canEdit = myRol === "owner" || myRol === "admin" || myRol === "jefe";
 
   const filtered = {
     ubicaciones: ubicaciones.filter(u =>
@@ -385,20 +429,28 @@ export default function UbicacionesPage() {
   };
 
   const panelTitle = !panel ? "" :
-    panel.mode === "create" ? (
+    panel.mode === "view" ? (
+      panel.type === "ubicaciones" ? "Detalle de ubicación"
+      : panel.type === "lugares" ? "Detalle del lugar"
+      : "Detalle de asociación"
+    ) : panel.mode === "create" ? (
       panel.type === "ubicaciones" ? "Nueva ubicación"
       : panel.type === "lugares" ? "Nuevo lugar"
-      : "Nueva empresa"
+      : "Nueva asociación"
     ) : (
       panel.type === "ubicaciones" ? "Editar ubicación"
       : panel.type === "lugares" ? "Editar lugar"
-      : "Editar empresa"
+      : "Editar asociación"
     );
 
   const canSave = !saving && !uploadingImg && (
     panel?.type === "ubicaciones" ? !!form.edificio?.trim()
     : !!form.nombre?.trim()
   );
+  const selectedItem = !panel?.id ? null
+    : panel.type === "ubicaciones" ? ubicaciones.find(item => item.id === panel.id) ?? null
+    : panel.type === "lugares" ? lugares.find(item => item.id === panel.id) ?? null
+    : sociedades.find(item => item.id === panel.id) ?? null;
 
   if (loading) {
     return (
@@ -422,14 +474,14 @@ export default function UbicacionesPage() {
               <Plus size={14} />
               {section === "ubicaciones" ? "Nueva ubicación"
                : section === "lugares" ? "Nuevo lugar"
-               : "Nueva empresa"}
+               : "Nueva asociación"}
             </Btn>
           )}
         </div>
 
         {/* Tabs */}
         <div style={{ flexShrink: 0, borderBottom: "1px solid var(--border)", padding: "0 24px", display: "flex", gap: 0 }}>
-          {([["ubicaciones", "Ubicaciones"], ["lugares", "Lugares"], ["sociedades", "Empresas"]] as [Section, string][]).map(([key, label]) => (
+          {([["ubicaciones", "Ubicaciones"], ["lugares", "Lugares específicos"], ["sociedades", "Asociaciones"]] as [Section, string][]).map(([key, label]) => (
             <button
               key={key}
               type="button"
@@ -484,6 +536,7 @@ export default function UbicacionesPage() {
                 img={u.imagen_url}
                 name={u.edificio}
                 sub={[u.detalle, u.direccion, u.sociedad_nombre].filter(Boolean).join(" · ")}
+                onOpen={() => openDetail("ubicaciones", u.id)}
                 onEdit={canEdit ? () => openEdit("ubicaciones", u) : undefined}
                 onDelete={canEdit ? () => setConfirmDel({ type: "ubicaciones", id: u.id, name: u.edificio }) : undefined}
               />
@@ -497,18 +550,20 @@ export default function UbicacionesPage() {
                 img={l.imagen_url}
                 name={l.nombre}
                 sub={[l.ubicacion_edificio, l.descripcion].filter(Boolean).join(" · ")}
+                onOpen={() => openDetail("lugares", l.id)}
                 onEdit={canEdit ? () => openEdit("lugares", l) : undefined}
                 onDelete={canEdit ? () => setConfirmDel({ type: "lugares", id: l.id, name: l.nombre }) : undefined}
               />
             ))
           )}
           {section === "sociedades" && (
-            filtered.sociedades.length === 0 ? <Empty label="Sin empresas" /> :
+            filtered.sociedades.length === 0 ? <Empty label="Sin asociaciones" /> :
             filtered.sociedades.map(s => (
               <ListRow
                 key={s.id}
                 img={s.imagen_url}
                 name={s.nombre}
+                onOpen={() => openDetail("sociedades", s.id)}
                 onEdit={canEdit ? () => openEdit("sociedades", s) : undefined}
                 onDelete={canEdit ? () => setConfirmDel({ type: "sociedades", id: s.id, name: s.nombre }) : undefined}
               />
@@ -523,14 +578,34 @@ export default function UbicacionesPage() {
           {/* Panel header */}
           <div style={{ flexShrink: 0, borderBottom: "1px solid var(--border)", padding: "0 20px", height: 56, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <span style={{ fontSize: 15, fontWeight: 700, color: "var(--fg-1)" }}>{panelTitle}</span>
-            <button type="button" onClick={() => setPanel(null)}
-              style={{ width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", borderRadius: 6, cursor: "pointer", color: "var(--fg-4)" }}>
-              <X size={15} />
-            </button>
+            <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+              {panel.mode === "view" && canEdit && selectedItem && (
+                <button type="button" onClick={() => openEdit(panel.type, selectedItem)} title="Editar"
+                  style={{ width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", borderRadius: 6, cursor: "pointer", color: "var(--fg-3)" }}>
+                  <Pencil size={15} />
+                </button>
+              )}
+              <button type="button" onClick={() => setPanel(null)}
+                style={{ width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", borderRadius: 6, cursor: "pointer", color: "var(--fg-4)" }}>
+                <X size={15} />
+              </button>
+            </div>
           </div>
 
           {/* Panel body */}
           <div style={{ flex: 1, overflowY: "auto", padding: "20px" }}>
+            {panel.mode === "view" && selectedItem ? (
+              <EntityDetail
+                type={panel.type}
+                item={selectedItem}
+                ubicaciones={ubicaciones}
+                lugares={lugares}
+                activos={activos}
+                reservas={reservas}
+                onOpen={(type, id) => openDetail(type, id)}
+                onQr={(name, code) => setQrModal({ name, code })}
+              />
+            ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
 
               {/* Photo upload */}
@@ -555,6 +630,10 @@ export default function UbicacionesPage() {
                   <div>
                     <FieldLabel>Dirección</FieldLabel>
                     <FieldInput value={form.direccion ?? ""} onChange={v => setForm(f => ({ ...f, direccion: v }))} placeholder="Ej: Av. Principal 1234" />
+                  </div>
+                  <div>
+                    <FieldLabel>Descripción</FieldLabel>
+                    <FieldTextarea value={form.descripcion ?? ""} onChange={v => setForm(f => ({ ...f, descripcion: v }))} placeholder="Descripción de la ubicación…" rows={3} />
                   </div>
                   <div>
                     <FieldLabel>Piso / Nivel</FieldLabel>
@@ -600,6 +679,10 @@ export default function UbicacionesPage() {
                     <FieldInput value={form.direccion ?? ""} onChange={v => setForm(f => ({ ...f, direccion: v }))} placeholder="Ej: Subterráneo nivel -2" />
                   </div>
                   <div>
+                    <FieldLabel>Grupo a cargo</FieldLabel>
+                    <FieldInput value={form.grupo_cargo ?? ""} onChange={v => setForm(f => ({ ...f, grupo_cargo: v }))} placeholder="Ej: Mantenimiento eléctrico" />
+                  </div>
+                  <div>
                     <FieldLabel>Edificio / Ubicación</FieldLabel>
                     <select
                       value={form.ubicacion_id ?? ""}
@@ -621,23 +704,34 @@ export default function UbicacionesPage() {
 
               {/* Sociedades fields */}
               {panel.type === "sociedades" && (
-                <div>
-                  <FieldLabel>Nombre de la empresa *</FieldLabel>
-                  <FieldInput value={form.nombre ?? ""} onChange={v => setForm(f => ({ ...f, nombre: v }))} placeholder="Ej: Constructora XYZ SpA" />
-                </div>
+                <>
+                  <div>
+                    <FieldLabel>Nombre de la asociación *</FieldLabel>
+                    <FieldInput value={form.nombre ?? ""} onChange={v => setForm(f => ({ ...f, nombre: v }))} placeholder="Ej: Constructora XYZ SpA" />
+                  </div>
+                  <div><FieldLabel>Dirección</FieldLabel><FieldInput value={form.direccion ?? ""} onChange={v => setForm(f => ({ ...f, direccion: v }))} placeholder="Dirección" /></div>
+                  <div><FieldLabel>Descripción</FieldLabel><FieldTextarea value={form.descripcion ?? ""} onChange={v => setForm(f => ({ ...f, descripcion: v }))} placeholder="Descripción de la asociación…" /></div>
+                </>
               )}
 
+              <div>
+                <FieldLabel>Código QR</FieldLabel>
+                <FieldInput value={form.qr_code ?? ""} onChange={v => setForm(f => ({ ...f, qr_code: v }))} placeholder="Código personalizado (opcional)" />
+                <p style={{ margin: "5px 0 0", fontSize: 11.5, color: "var(--fg-4)" }}>Si lo dejas vacío, Pangui asignará un código automáticamente.</p>
+              </div>
+
             </div>
+            )}
           </div>
 
           {/* Panel footer */}
-          <div style={{ flexShrink: 0, borderTop: "1px solid var(--border)", padding: "14px 20px", display: "flex", justifyContent: "flex-end", gap: 8 }}>
+          {panel.mode !== "view" && <div style={{ flexShrink: 0, borderTop: "1px solid var(--border)", padding: "14px 20px", display: "flex", justifyContent: "flex-end", gap: 8 }}>
             <Btn variant="ghost" onClick={() => setPanel(null)}>Cancelar</Btn>
             <Btn onClick={handleSave} disabled={!canSave}>
               {saving ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
               {panel.mode === "create" ? "Crear" : "Guardar"}
             </Btn>
-          </div>
+          </div>}
         </div>
       )}
 
@@ -661,7 +755,7 @@ export default function UbicacionesPage() {
               <div>
                 <p style={{ fontSize: 15, fontWeight: 700, color: "var(--fg-1)", margin: "0 0 4px" }}>¿Desactivar?</p>
                 <p style={{ fontSize: 13, color: "var(--fg-3)", margin: 0 }}>
-                  Se desactivará <strong>"{confirmDel.name}"</strong>. No se eliminará, pero dejará de aparecer.
+                  Se desactivará <strong>“{confirmDel.name}”</strong>. No se eliminará, pero dejará de aparecer.
                 </p>
               </div>
             </div>
@@ -675,26 +769,155 @@ export default function UbicacionesPage() {
           </div>
         </>
       )}
+
+      {qrModal && <QrModal name={qrModal.name} code={qrModal.code} onClose={() => setQrModal(null)} />}
     </div>
   );
 }
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
+function QrModal({ name, code, onClose }: { name: string; code: string; onClose: () => void }) {
+  const [dataUrl, setDataUrl] = useState("");
+  useEffect(() => {
+    let active = true;
+    QRCode.toDataURL(code, { width: 640, margin: 2, errorCorrectionLevel: "M", color: { dark: "#000000", light: "#FFFFFF" } })
+      .then(url => { if (active) setDataUrl(url); })
+      .catch(() => { if (active) setDataUrl(""); });
+    const onKey = (event: KeyboardEvent) => { if (event.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    return () => { active = false; window.removeEventListener("keydown", onKey); };
+  }, [code, onClose]);
+
+  function printQr() {
+    if (!dataUrl) return;
+    const popup = window.open("", "_blank", "width=720,height=820");
+    if (!popup) return;
+    const safe = (value: string) => value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    popup.document.write(`<!doctype html><html><head><title>${safe(name)} · Código QR</title><style>body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;text-align:center;padding:48px;color:#111}main{display:inline-block;border:1px solid #ddd;border-radius:24px;padding:32px}img{width:360px;height:360px}h1{font-size:24px;margin:20px 0 8px}p{font-size:15px;color:#555;margin:0;word-break:break-all}@media print{body{padding:0}main{border:none}}</style></head><body><main><img src="${dataUrl}"/><h1>${safe(name)}</h1><p>${safe(code)}</p></main><script>window.onload=()=>{window.print()}</script></body></html>`);
+    popup.document.close();
+  }
+
+  async function shareQr() {
+    if (!dataUrl) return;
+    const blob = await fetch(dataUrl).then(response => response.blob());
+    const file = new File([blob], `${name.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}-qr.png`, { type: "image/png" });
+    if (navigator.share && (!navigator.canShare || navigator.canShare({ files: [file] }))) {
+      await navigator.share({ title: `Código QR · ${name}`, text: code, files: [file] });
+      return;
+    }
+    const link = document.createElement("a");
+    link.href = dataUrl;
+    link.download = file.name;
+    link.click();
+  }
+
+  return (
+    <>
+      <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 200, background: "rgba(0,0,0,0.5)", backdropFilter: "blur(3px)" }} />
+      <div role="dialog" aria-modal="true" aria-label={`Código QR de ${name}`} style={{ position: "fixed", zIndex: 201, left: "50%", top: "50%", transform: "translate(-50%, -50%)", width: 430, maxWidth: "calc(100vw - 32px)", borderRadius: 20, overflow: "hidden", background: "var(--surface-1)", boxShadow: "var(--shadow-lg)", border: "1px solid var(--border)" }}>
+        <div style={{ height: 56, padding: "0 18px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid var(--border)" }}>
+          <strong style={{ fontSize: 15, color: "var(--fg-1)" }}>Código QR</strong>
+          <button type="button" onClick={onClose} aria-label="Cerrar" style={{ width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", border: "none", borderRadius: 8, background: "transparent", color: "var(--fg-3)", cursor: "pointer" }}><X size={17} /></button>
+        </div>
+        <div style={{ padding: "28px", display: "flex", flexDirection: "column", alignItems: "center" }}>
+          <div style={{ width: "100%", padding: 24, borderRadius: 18, background: "#fff", display: "flex", flexDirection: "column", alignItems: "center", boxSizing: "border-box" }}>
+            {dataUrl ? <img src={dataUrl} alt={`Código QR de ${name}`} style={{ width: 260, height: 260, maxWidth: "100%" }} /> : <Loader2 size={28} className="animate-spin" style={{ color: "#666", margin: 116 }} />}
+            <h2 style={{ margin: "16px 0 6px", fontSize: 19, color: "#111", textAlign: "center" }}>{name}</h2>
+            <p style={{ margin: 0, fontSize: 13, color: "#555", textAlign: "center", wordBreak: "break-all" }}>{code}</p>
+          </div>
+          <div style={{ width: "100%", display: "flex", gap: 10, marginTop: 18 }}>
+            <Btn variant="ghost" onClick={printQr} disabled={!dataUrl} style={{ flex: 1, justifyContent: "center" }}><Printer size={14} /> Imprimir</Btn>
+            <Btn onClick={() => void shareQr()} disabled={!dataUrl} style={{ flex: 1, justifyContent: "center" }}><Share2 size={14} /> Compartir</Btn>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function EntityDetail({ type, item, ubicaciones, lugares, activos, reservas, onOpen, onQr }: {
+  type: Section;
+  item: any;
+  ubicaciones: Ubicacion[];
+  lugares: Lugar[];
+  activos: ActivoResumen[];
+  reservas: ReservaResumen[];
+  onOpen: (type: Section, id: string) => void;
+  onQr: (name: string, code: string) => void;
+}) {
+  const name = type === "ubicaciones" ? item.edificio : item.nombre;
+  const qrType = type === "ubicaciones" ? "ubicacion" : type === "lugares" ? "lugar" : "sociedad";
+  const qrValue = item.qr_code || `pangui://${qrType}/${item.id}`;
+  const linkedPlaces = type === "ubicaciones" ? lugares.filter(l => l.ubicacion_id === item.id) : [];
+  const linkedLocations = type === "sociedades" ? ubicaciones.filter(u => u.sociedad_id === item.id) : [];
+  const linkedAssets = type === "ubicaciones" ? activos.filter(a => a.ubicacion_id === item.id)
+    : type === "lugares" ? activos.filter(a => a.lugar_id === item.id) : [];
+  const linkedReservations = type === "ubicaciones" ? reservas.filter(r => r.ubicacion_id === item.id)
+    : type === "lugares" ? reservas.filter(r => r.lugar_id === item.id) : [];
+  const fields = type === "ubicaciones" ? [
+    ["Dirección", item.direccion], ["Descripción", item.descripcion ?? item.detalle],
+    ["Grupo a cargo", item.grupo_cargo], ["Asociación", item.sociedad_nombre],
+  ] : type === "lugares" ? [
+    ["Ubicación", item.ubicacion_edificio], ["Dirección", item.direccion],
+    ["Descripción", item.descripcion], ["Grupo a cargo", item.grupo_cargo],
+  ] : [["Dirección", item.direccion], ["Descripción", item.descripcion]];
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+      <div style={{ borderRadius: 16, overflow: "hidden", background: "var(--surface-2)", border: "1px solid var(--border)" }}>
+        {item.imagen_url && <img src={item.imagen_url} alt={name} style={{ width: "100%", height: 190, display: "block", objectFit: "contain", background: "var(--surface-1)" }} />}
+        <div style={{ padding: 16 }}>
+          <h2 style={{ margin: 0, fontSize: 20, color: "var(--fg-1)" }}>{name}</h2>
+          {fields.filter(([, value]) => value).map(([label, value]) => (
+            <div key={label} style={{ display: "flex", justifyContent: "space-between", gap: 16, paddingTop: 12, marginTop: 12, borderTop: "1px solid var(--border)" }}>
+              <span style={{ fontSize: 13, fontWeight: 600, color: "var(--fg-2)" }}>{label}</span>
+              <span style={{ fontSize: 13, color: "var(--fg-3)", textAlign: "right" }}>{value}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <DetailGroup title="Código QR">
+        <button type="button" onClick={() => onQr(name, qrValue)} style={{ width: "100%", minHeight: 58, padding: "10px 12px", display: "flex", alignItems: "center", gap: 12, border: "none", background: "transparent", fontFamily: "inherit", textAlign: "left", cursor: "pointer" }}>
+          <div style={{ width: 38, height: 38, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--brand)", background: "var(--brand-tint)" }}><QrCode size={20} /></div>
+          <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 13.5, fontWeight: 600, color: "var(--fg-1)" }}>Código QR</div><div style={{ fontSize: 12, color: "var(--fg-4)", overflow: "hidden", textOverflow: "ellipsis" }}>{qrValue}</div></div>
+          <ChevronRight size={16} style={{ color: "var(--fg-4)" }} />
+        </button>
+      </DetailGroup>
+
+      {linkedLocations.length > 0 && <DetailGroup title={`Ubicaciones (${linkedLocations.length})`}>{linkedLocations.map(u => <DetailLink key={u.id} name={u.edificio} sub={u.direccion} icon={<MapPin size={17} />} onClick={() => onOpen("ubicaciones", u.id)} />)}</DetailGroup>}
+      {linkedPlaces.length > 0 && <DetailGroup title={`Lugares específicos (${linkedPlaces.length})`}>{linkedPlaces.map(l => <DetailLink key={l.id} name={l.nombre} sub={l.descripcion} icon={<MapPin size={17} />} onClick={() => onOpen("lugares", l.id)} />)}</DetailGroup>}
+      {linkedAssets.length > 0 && <DetailGroup title={`Activos (${linkedAssets.length})`}>{linkedAssets.map(a => <DetailLink key={a.id} name={a.nombre} sub={a.numero_serie} icon={<Wrench size={17} />} />)}</DetailGroup>}
+      {linkedReservations.length > 0 && <DetailGroup title={`Materiales reservados (${linkedReservations.length})`}>{linkedReservations.map(r => <DetailLink key={r.id} name={r.parte?.nombre ?? "Material"} sub={`${Number(r.cantidad).toLocaleString("es-CL")} ${r.parte?.unidad ?? ""}`} icon={<Package size={17} />} />)}</DetailGroup>}
+    </div>
+  );
+}
+
+function DetailGroup({ title, children }: { title: string; children: React.ReactNode }) {
+  return <section><h3 style={{ margin: "0 0 8px 4px", fontSize: 13, fontWeight: 600, color: "var(--fg-3)" }}>{title}</h3><div style={{ border: "1px solid var(--border)", borderRadius: 14, overflow: "hidden", background: "var(--surface-2)" }}>{children}</div></section>;
+}
+
+function DetailLink({ name, sub, icon, onClick }: { name: string; sub?: string | null; icon: React.ReactNode; onClick?: () => void }) {
+  const Tag = onClick ? "button" : "div";
+  return <Tag type={onClick ? "button" : undefined} onClick={onClick} style={{ width: "100%", minHeight: 58, padding: "10px 12px", display: "flex", alignItems: "center", gap: 12, border: "none", borderBottom: "1px solid var(--border)", background: "transparent", color: "var(--fg-2)", fontFamily: "inherit", textAlign: "left", cursor: onClick ? "pointer" : "default" } as React.CSSProperties}><div style={{ width: 36, height: 36, borderRadius: 9, display: "flex", alignItems: "center", justifyContent: "center", background: "var(--brand-tint)", color: "var(--brand)" }}>{icon}</div><div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 13.5, fontWeight: 600, color: "var(--fg-1)" }}>{name}</div>{sub && <div style={{ fontSize: 12, color: "var(--fg-4)", marginTop: 2 }}>{sub}</div>}</div>{onClick && <ChevronRight size={16} style={{ color: "var(--fg-4)" }} />}</Tag>;
+}
+
 function ListRow({
-  img, name, sub, onEdit, onDelete,
+  img, name, sub, onOpen, onEdit, onDelete,
 }: {
   img: string | null;
   name: string;
   sub?: string;
+  onOpen?: () => void;
   onEdit?: () => void;
   onDelete?: () => void;
 }) {
   return (
-    <div style={{
+    <div onClick={onOpen} role={onOpen ? "button" : undefined} tabIndex={onOpen ? 0 : undefined} onKeyDown={e => { if (onOpen && (e.key === "Enter" || e.key === " ")) onOpen(); }} style={{
       display: "flex", alignItems: "center", gap: 12,
       padding: "12px 24px", borderBottom: "1px solid var(--border)",
-      transition: "background 0.1s",
+      transition: "background 0.1s", cursor: onOpen ? "pointer" : "default",
     }}
       onMouseEnter={e => { e.currentTarget.style.background = "var(--surface-hover)"; }}
       onMouseLeave={e => { e.currentTarget.style.background = ""; }}
@@ -705,7 +928,7 @@ function ListRow({
         {sub && <p style={{ fontSize: 12, color: "var(--fg-4)", margin: "2px 0 0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{sub}</p>}
       </div>
       {onEdit && (
-        <button type="button" onClick={onEdit}
+        <button type="button" onClick={e => { e.stopPropagation(); onEdit(); }}
           style={{ width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", borderRadius: 6, cursor: "pointer", color: "var(--fg-4)" }}
           onMouseEnter={e => { e.currentTarget.style.background = "var(--surface-hover)"; e.currentTarget.style.color = "var(--fg-2)"; }}
           onMouseLeave={e => { e.currentTarget.style.background = "none"; e.currentTarget.style.color = "var(--fg-4)"; }}>
@@ -713,7 +936,7 @@ function ListRow({
         </button>
       )}
       {onDelete && (
-        <button type="button" onClick={onDelete}
+        <button type="button" onClick={e => { e.stopPropagation(); onDelete(); }}
           style={{ width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", borderRadius: 6, cursor: "pointer", color: "var(--fg-4)" }}
           onMouseEnter={e => { e.currentTarget.style.background = "var(--danger-bg)"; e.currentTarget.style.color = "var(--danger)"; }}
           onMouseLeave={e => { e.currentTarget.style.background = "none"; e.currentTarget.style.color = "var(--fg-4)"; }}>

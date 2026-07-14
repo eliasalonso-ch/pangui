@@ -4,12 +4,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import {
   AlertTriangle, Box, Boxes, Check, ChevronRight, CircleAlert, ImagePlus,
-  Filter, Loader2, MapPin, Minus, Package, Pencil, Plus, RotateCcw, Search, Trash2, X,
+  Filter, Loader2, MapPin, Minus, Package, PackageCheck, Pencil, Plus, RotateCcw, Search, Trash2, X,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase";
 import { useSuscripcion } from "@/hooks/useSuscripcion";
 import { UpgradePrompt } from "@/components/UpgradePrompt";
 import styles from "./partes.module.css";
+import { InventoryFilterDialog } from "./InventoryFilterDialog";
 
 interface Material {
   id: string; nombre: string; descripcion: string | null; codigo: string;
@@ -20,6 +21,12 @@ interface Ubicacion { id: string; edificio: string; direccion: string | null; }
 interface Lugar { id: string; nombre: string; ubicacion_id: string | null; }
 interface Reservation {
   id: string; parte_id: string; ubicacion_id: string; lugar_id: string | null; cantidad: number;
+  parte: Pick<Material, "id" | "nombre" | "codigo" | "unidad" | "imagen_url"> | null;
+  lugar: Pick<Lugar, "id" | "nombre"> | null;
+}
+interface Withdrawal {
+  id: string; parte_id: string; ubicacion_id: string; lugar_id: string | null;
+  cantidad: number; cantidad_devuelta: number; retirado_at: string; ultima_devolucion_at: string | null;
   parte: Pick<Material, "id" | "nombre" | "codigo" | "unidad" | "imagen_url"> | null;
   lugar: Pick<Lugar, "id" | "nombre"> | null;
 }
@@ -68,6 +75,7 @@ function MaterialesPageInner() {
   const [locations, setLocations] = useState<Ubicacion[]>([]);
   const [places, setPlaces] = useState<Lugar[]>([]);
   const [reservations, setReservations] = useState<Reservation[]>([]);
+  const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([]);
   const [loading, setLoading] = useState(true);
   const [reservationWarning, setReservationWarning] = useState(false);
   const [segment, setSegment] = useState<Segment>("materiales");
@@ -85,11 +93,12 @@ function MaterialesPageInner() {
 
   const loadData = useCallback(async (wsId: string) => {
     const sb = createClient();
-    const [materialRes, locationRes, placeRes, reservationRes, workspaceRes] = await Promise.all([
+    const [materialRes, locationRes, placeRes, reservationRes, withdrawalRes, workspaceRes] = await Promise.all([
       sb.from("partes").select("id,nombre,descripcion,codigo,unidad,precio_unitario,ubicacion_bodega,stock_actual,stock_minimo,imagen_url,workspace_id").eq("workspace_id", wsId).eq("activo", true).order("nombre"),
       sb.from("ubicaciones").select("id,edificio,direccion").eq("workspace_id", wsId).eq("activa", true).order("edificio"),
       sb.from("lugares").select("id,nombre,ubicacion_id").eq("workspace_id", wsId).eq("activo", true).order("nombre"),
       sb.from("material_reservations").select("id,parte_id,ubicacion_id,lugar_id,cantidad,parte:partes!parte_id(id,nombre,codigo,unidad,imagen_url),lugar:lugares!lugar_id(id,nombre)").eq("workspace_id", wsId).order("created_at", { ascending: false }),
+      sb.from("material_withdrawals").select("id,parte_id,ubicacion_id,lugar_id,cantidad,cantidad_devuelta,retirado_at,ultima_devolucion_at,parte:partes!parte_id(id,nombre,codigo,unidad,imagen_url),lugar:lugares!lugar_id(id,nombre)").eq("workspace_id", wsId).order("retirado_at", { ascending: false }),
       sb.from("workspaces").select("requiere_materiales_global,requiere_hoja_global").eq("id", wsId).maybeSingle(),
     ]);
     setMaterials((materialRes.data ?? []) as Material[]);
@@ -100,6 +109,7 @@ function MaterialesPageInner() {
     } else {
       setReservations((reservationRes.data ?? []) as unknown as Reservation[]); setReservationWarning(false);
     }
+    setWithdrawals(withdrawalRes.error ? [] : (withdrawalRes.data ?? []) as unknown as Withdrawal[]);
     setRequiresMaterials(workspaceRes.data?.requiere_materiales_global ?? false);
     setRequiresSheet(workspaceRes.data?.requiere_hoja_global ?? false);
   }, []);
@@ -223,7 +233,7 @@ function MaterialesPageInner() {
         <section className={styles.detailPane}>
           {editor ? <MaterialEditor state={editor} workspaceId={workspaceId!} onClose={() => setEditor(null)} onSaved={async () => { await refresh(); setEditor(null); }} />
             : selectedMaterial ? <MaterialDetail material={selectedMaterial} reservations={reservations.filter(item => item.parte_id === selectedMaterial.id)} locations={locations} canManage={canManage} onClose={() => setSelectedMaterialId(null)} onEdit={() => setEditor({ mode: "edit", material: selectedMaterial })} onDelete={() => removeMaterial(selectedMaterial)} onAdjust={delta => adjustStock(selectedMaterial, delta)} onOpenLocation={id => { setSegment("ubicaciones"); setSelectedMaterialId(null); setSelectedLocationId(id); }} />
-            : selectedLocation ? <LocationDetail location={selectedLocation} reservations={reservations.filter(item => item.ubicacion_id === selectedLocation.id)} canManage={canManage} onClose={() => setSelectedLocationId(null)} onReserve={() => setReserveOpen(true)} onRefresh={refresh} onOpenMaterial={id => { setSegment("materiales"); setSelectedLocationId(null); setSelectedMaterialId(id); }} />
+            : selectedLocation ? <LocationDetail location={selectedLocation} reservations={reservations.filter(item => item.ubicacion_id === selectedLocation.id)} withdrawals={withdrawals.filter(item => item.ubicacion_id === selectedLocation.id)} canManage={canManage} onClose={() => setSelectedLocationId(null)} onReserve={() => setReserveOpen(true)} onRefresh={refresh} onOpenMaterial={id => { setSegment("materiales"); setSelectedLocationId(null); setSelectedMaterialId(id); }} />
             : <Empty icon={<Package size={32} />} title={segment === "materiales" ? "Selecciona un material" : "Selecciona una ubicación"} subtitle="El detalle aparecerá aquí." />}
         </section>
       </main>
@@ -262,14 +272,28 @@ function MaterialDetail({ material, reservations, locations, canManage, onClose,
   return <div className={styles.detail}><DetailHeader title="Material" onClose={onClose}>{canManage && <><button className={styles.iconButton} onClick={onEdit} title="Editar"><Pencil size={15} /></button><button className={`${styles.iconButton} ${styles.deleteButton}`} onClick={onDelete} title="Eliminar"><Trash2 size={15} /></button></>}</DetailHeader><div className={styles.detailScroll}><div className={styles.heroCard}><MaterialImage material={material} large /><h2>{material.nombre}</h2><p>{material.codigo}</p><div className={styles.stockHero}><span className={styles.iconTile}>{state === "ok" ? <Check size={18} /> : <AlertTriangle size={18} />}</span><div><strong className={state !== "ok" ? styles.dangerText : ""}>{material.stock_actual} {material.unidad}</strong><small>{state === "ok" ? "Stock disponible" : state === "bajo" ? "Stock bajo el mínimo" : "Material agotado"}</small></div></div></div>{material.descripcion && <InfoCard title="Descripción"><p>{material.descripcion}</p></InfoCard>}<InfoCard title="Inventario"><InfoRow label="Stock actual" value={`${material.stock_actual} ${material.unidad}`} /><InfoRow label="Stock mínimo" value={`${material.stock_minimo} ${material.unidad}`} /><InfoRow label="Unidad" value={material.unidad} /><div className={styles.adjust}><button onClick={() => onAdjust(-1)}><Minus size={15} /></button><span>Ajustar stock disponible</span><button onClick={() => onAdjust(1)}><Plus size={15} /></button></div></InfoCard><InfoCard title="Identificación"><InfoRow label="Código" value={material.codigo || "Sin código"} /><InfoRow label="Ubicación en bodega" value={material.ubicacion_bodega || "Sin ubicación"} /></InfoCard>{reservations.length > 0 && <InfoCard title="Reservado en">{reservations.map(item => { const location = locations.find(value => value.id === item.ubicacion_id); return <button key={item.id} className={styles.linkedRow} onClick={() => onOpenLocation(item.ubicacion_id)}><span className={styles.iconTile}><MapPin size={18} /></span><div><strong>{location?.edificio ?? "Ubicación"}</strong><small>{item.lugar?.nombre ?? "Ubicación general"} · {Number(item.cantidad).toLocaleString("es-CL")} {material.unidad}</small></div><ChevronRight size={17} /></button>; })}</InfoCard>}</div></div>;
 }
 
-function LocationDetail({ location, reservations, canManage, onClose, onReserve, onRefresh, onOpenMaterial }: { location: Ubicacion; reservations: Reservation[]; canManage: boolean; onClose: () => void; onReserve: () => void; onRefresh: () => Promise<void>; onOpenMaterial: (id: string) => void }) {
+function LocationDetail({ location, reservations, withdrawals, canManage, onClose, onReserve, onRefresh, onOpenMaterial }: { location: Ubicacion; reservations: Reservation[]; withdrawals: Withdrawal[]; canManage: boolean; onClose: () => void; onReserve: () => void; onRefresh: () => Promise<void>; onOpenMaterial: (id: string) => void }) {
   const release = async (reservation: Reservation) => {
     if (!window.confirm(`¿Devolver ${reservation.cantidad} ${reservation.parte?.unidad ?? "unidades"} al inventario disponible?`)) return;
     const sb = createClient();
     const { error } = await sb.rpc("release_material_reservation", { p_reservation_id: reservation.id, p_cantidad: reservation.cantidad });
     if (error) window.alert(error.message); else await onRefresh();
   };
-  return <div className={styles.detail}><DetailHeader title={location.edificio} onClose={onClose}>{canManage && <button className={styles.primarySmall} onClick={onReserve}><Plus size={15} />Reservar</button>}</DetailHeader><div className={styles.detailScroll}><InfoCard title="Inventario reservado">{reservations.length ? reservations.map(item => <div className={styles.reservationRow} key={item.id}><MaterialImage material={{ nombre: item.parte?.nombre ?? "Material", imagen_url: item.parte?.imagen_url ?? null }} /><button className={styles.reservationLink} onClick={() => onOpenMaterial(item.parte_id)}><strong>{item.parte?.nombre ?? "Material"}</strong><span>{item.lugar?.nombre ?? "Ubicación general"}</span></button><b>{Number(item.cantidad).toLocaleString("es-CL")} {item.parte?.unidad}</b>{canManage && <button onClick={() => release(item)} title="Devolver"><RotateCcw size={15} /></button>}<ChevronRight size={16} /></div>) : <Empty icon={<Package size={34} />} title="Sin materiales reservados" subtitle="Reserva materiales disponibles para esta ubicación." />}</InfoCard></div></div>;
+  const consume = async (reservation: Reservation) => {
+    if (!window.confirm(`¿Marcar ${reservation.cantidad} ${reservation.parte?.unidad ?? "unidades"} como retirado? No volverá al stock disponible.`)) return;
+    const sb = createClient();
+    const { error } = await sb.rpc("consume_material_reservation", { p_reservation_id: reservation.id, p_cantidad: reservation.cantidad });
+    if (error) window.alert(error.message); else await onRefresh();
+  };
+  const returnWithdrawal = async (withdrawal: Withdrawal) => {
+    const pending = Number(withdrawal.cantidad) - Number(withdrawal.cantidad_devuelta);
+    if (!window.confirm(`¿Devolver ${pending} ${withdrawal.parte?.unidad ?? "unidades"} al stock disponible? El retiro seguirá en el historial.`)) return;
+    const sb = createClient();
+    const { error } = await sb.rpc("return_material_withdrawal", { p_withdrawal_id: withdrawal.id, p_cantidad: pending });
+    if (error) window.alert(error.message); else await onRefresh();
+  };
+  const date = (value: string) => new Date(value).toLocaleString("es-CL", { dateStyle: "medium", timeStyle: "short" });
+  return <div className={styles.detail}><DetailHeader title={location.edificio} onClose={onClose}>{canManage && <button className={styles.primarySmall} onClick={onReserve}><Plus size={15} />Reservar</button>}</DetailHeader><div className={styles.detailScroll}><InfoCard title="Inventario reservado">{reservations.length ? reservations.map(item => <div className={styles.reservationRow} key={item.id}><MaterialImage material={{ nombre: item.parte?.nombre ?? "Material", imagen_url: item.parte?.imagen_url ?? null }} /><button className={styles.reservationLink} onClick={() => onOpenMaterial(item.parte_id)}><strong>{item.parte?.nombre ?? "Material"}</strong><span>{item.lugar?.nombre ?? "Ubicación general"}</span></button><b>{Number(item.cantidad).toLocaleString("es-CL")} {item.parte?.unidad}</b>{canManage && <div className={styles.reservationActions}><button className={styles.consumeButton} onClick={() => consume(item)}><PackageCheck size={15} />Retirado</button><button className={styles.releaseButton} onClick={() => release(item)}><RotateCcw size={15} />Devolver</button></div>}<ChevronRight size={16} /></div>) : <Empty icon={<Package size={34} />} title="Sin materiales reservados" subtitle="Reserva materiales disponibles para esta ubicación." />}</InfoCard>{withdrawals.length > 0 && <InfoCard title="Historial de retiros">{withdrawals.map(item => { const pending = Number(item.cantidad) - Number(item.cantidad_devuelta); return <div className={styles.withdrawalRow} key={item.id}><MaterialImage material={{ nombre: item.parte?.nombre ?? "Material", imagen_url: item.parte?.imagen_url ?? null }} /><div><strong>{item.parte?.nombre ?? "Material"}</strong><span>Retirado el {date(item.retirado_at)}</span><small>{item.lugar?.nombre ?? "Ubicación general"} · {pending > 0 ? `${pending} ${item.parte?.unidad ?? ""} fuera de inventario` : "Devuelto completamente"}</small>{item.ultima_devolucion_at && <small>Última devolución: {date(item.ultima_devolucion_at)}</small>}</div><b>{Number(item.cantidad).toLocaleString("es-CL")} {item.parte?.unidad}</b>{canManage && pending > 0 && <button onClick={() => returnWithdrawal(item)}><RotateCcw size={15} />Devolver</button>}</div>; })}</InfoCard>}</div></div>;
 }
 
 function InfoCard({ title, children }: { title: string; children: React.ReactNode }) { return <section className={styles.infoSection}><h3>{title}</h3><div className={styles.infoCard}>{children}</div></section>; }
@@ -293,16 +317,6 @@ function MaterialEditor({ state, workspaceId, onClose, onSaved }: { state: NonNu
 }
 
 function Field({ label, value, onChange, type = "text", required, multiline }: { label: string; value: string; onChange: (value: string) => void; type?: string; required?: boolean; multiline?: boolean }) { return <label className={styles.field}><span>{label}{required ? " *" : ""}</span>{multiline ? <textarea value={value} onChange={e => onChange(e.target.value)} rows={3} /> : <input type={type} value={value} onChange={e => onChange(e.target.value)} />}</label>; }
-
-function InventoryFilterDialog({ segment, locations, materials, selectedId, onSelect, onClose }: { segment: Segment; locations: Ubicacion[]; materials: Material[]; selectedId: string | null; onSelect: (id: string | null) => void; onClose: () => void }) {
-  const [query, setQuery] = useState("");
-  const options = segment === "materiales"
-    ? locations.map(item => ({ id: item.id, label: item.edificio }))
-    : materials.map(item => ({ id: item.id, label: item.nombre }));
-  const normalized = query.trim().toLocaleLowerCase("es");
-  const filteredOptions = options.filter(option => option.label.toLocaleLowerCase("es").includes(normalized));
-  return <div className={styles.overlay} onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}><div className={styles.dialog}><div className={styles.dialogHeader}><div><h2>Filtrar inventario</h2><p>{segment === "materiales" ? "Materiales reservados por ubicación" : "Ubicaciones que contienen un material"}</p></div><button className={styles.iconButton} onClick={onClose}><X size={17} /></button></div><div className={styles.filterSearch}><Search size={16} /><input autoFocus value={query} onChange={event => setQuery(event.target.value)} placeholder={segment === "materiales" ? "Buscar ubicaciones" : "Buscar materiales"} />{query && <button onClick={() => setQuery("")} aria-label="Borrar búsqueda"><X size={15} /></button>}</div><div className={styles.filterOptions}>{!query && <button className={!selectedId ? styles.filterOptionActive : ""} onClick={() => onSelect(null)}><span>Todos</span>{!selectedId && <Check size={17} />}</button>}{filteredOptions.map(option => <button key={option.id} className={selectedId === option.id ? styles.filterOptionActive : ""} onClick={() => onSelect(option.id)}><span>{option.label}</span>{selectedId === option.id && <Check size={17} />}</button>)}{filteredOptions.length === 0 && <div className={styles.filterEmpty}>No hay resultados para “{query}”.</div>}</div></div></div>;
-}
 
 function ReservationDialog({ location, materials, places, onClose, onSaved }: { location: Ubicacion; materials: Material[]; places: Lugar[]; onClose: () => void; onSaved: () => Promise<void> }) {
   const [materialId, setMaterialId] = useState(""); const [placeId, setPlaceId] = useState(""); const [quantity, setQuantity] = useState("1"); const [saving, setSaving] = useState(false);
