@@ -93,6 +93,17 @@ function addLocalMonths(d: Date, months: number, dayOfMonth?: number | null): Da
   return base;
 }
 
+function firstWeeklyOccurrence(d: Date, interval: number, targetWeekday: number): Date {
+  const daysUntilTarget = (targetWeekday - d.getDay() + 7) % 7;
+  // Selecting a later day in the current week should show that occurrence
+  // immediately. When the selected day is today, the next occurrence belongs
+  // to the following interval rather than duplicating the source OT.
+  const days = daysUntilTarget === 0
+    ? interval * 7
+    : daysUntilTarget + (interval - 1) * 7;
+  return addLocalDays(d, days);
+}
+
 function advanceOccurrenceDate(d: Date, o: OrdenListItem): Date | null {
   const config = o.recurrencia_config;
   const interval = Math.max(1, Number(config?.interval ?? 1) || 1);
@@ -108,23 +119,51 @@ function advanceOccurrenceDate(d: Date, o: OrdenListItem): Date | null {
       }
       return null;
     }
-    case "semanal":
-      return addLocalDays(d, interval * 7);
+    case "semanal": {
+      const target = weekdays[0] ?? d.getDay();
+      const shifted = addLocalDays(d, interval * 7);
+      return addLocalDays(shifted, (target - shifted.getDay() + 7) % 7);
+    }
     case "quincenal":
       return addLocalDays(d, 15);
     case "mensual":
-      return addLocalMonths(d, interval, config?.month_day);
+    case "mensual_fecha":
+    case "mensual_dia":
+      return addLocalMonths(d, interval, config?.day_of_month ?? config?.month_day);
     case "anual":
+      if (config?.anchor_date) {
+        const anchor = parseOTDate(config.anchor_date);
+        if (anchor) return new Date(d.getFullYear() + interval, anchor.getMonth(), anchor.getDate());
+      }
       return new Date(d.getFullYear() + interval, d.getMonth(), d.getDate());
+    case "personalizada":
+      if (config?.unit === "day") return addLocalDays(d, interval);
+      if (config?.unit === "week") {
+        const target = weekdays[0] ?? d.getDay();
+        const shifted = addLocalDays(d, interval * 7);
+        return addLocalDays(shifted, (target - shifted.getDay() + 7) % 7);
+      }
+      if (config?.unit === "month") return addLocalMonths(d, interval, config?.day_of_month ?? config?.month_day);
+      if (config?.unit === "year") return new Date(d.getFullYear() + interval, d.getMonth(), d.getDate());
+      return null;
     default:
       return null;
   }
 }
 
 function getFirstPreviewDate(o: OrdenListItem): Date | null {
+  const base = getCalendarDate(o);
+  const config = o.recurrencia_config;
+  const interval = Math.max(1, Number(config?.interval ?? 1) || 1);
+  const target = config?.weekdays?.[0];
+  if (base && target != null && (
+    o.recurrencia === "semanal" ||
+    (o.recurrencia === "personalizada" && config?.unit === "week")
+  )) {
+    return firstWeeklyOccurrence(base, interval, target);
+  }
   const explicitNext = parseOTDate(o.proxima_ejecucion ?? null);
   if (explicitNext) return explicitNext;
-  const base = getCalendarDate(o);
   return base ? advanceOccurrenceDate(base, o) : null;
 }
 
@@ -135,7 +174,7 @@ function buildRecurrencePreviewDates(o: OrdenListItem, rangeStart: Date, rangeEn
   const out: Date[] = [];
   let current = getFirstPreviewDate(o);
 
-  for (let guard = 0; current && guard < 80; guard += 1) {
+  for (let guard = 0; current && guard < 600; guard += 1) {
     if (endDate && current > endDate) break;
     if (current > rangeEnd) break;
 

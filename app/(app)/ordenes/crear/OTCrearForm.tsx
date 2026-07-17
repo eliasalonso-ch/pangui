@@ -95,14 +95,16 @@ function calcProximaEjecucion(recurrencia: Recurrencia, fechaBase?: string | nul
       else d.setDate(d.getDate() + interval - 1);
       break;
     case "semanal":
-      d.setDate(d.getDate() + interval * 7);
-      if (weekdays.length) while (!weekdays.includes(d.getDay())) d.setDate(d.getDate() + 1);
+      if (weekdays.length) {
+        const delta = (weekdays[0] - d.getDay() + 7) % 7;
+        d.setDate(d.getDate() + (delta === 0 ? interval * 7 : delta + (interval - 1) * 7));
+      } else d.setDate(d.getDate() + interval * 7);
       break;
     case "quincenal": d.setDate(d.getDate() + 15); break;
     case "mensual":
     case "mensual_fecha":
     case "mensual_dia": {
-      const day = Math.min(31, Math.max(1, Number(config?.month_day ?? d.getDate())));
+      const day = Math.min(31, Math.max(1, Number(config?.day_of_month ?? config?.month_day ?? d.getDate())));
       d.setMonth(d.getMonth() + interval, 1);
       const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
       d.setDate(Math.min(day, lastDay));
@@ -112,8 +114,18 @@ function calcProximaEjecucion(recurrencia: Recurrencia, fechaBase?: string | nul
     // Mirrors the DB advancer (recurrente_advance_date) for mobile-style presets.
     case "personalizada":
       switch (config?.unit) {
-        case "week":  d.setDate(d.getDate() + interval * 7); break;
-        case "month": d.setMonth(d.getMonth() + interval); break;
+        case "week":
+          if (weekdays.length) {
+            const delta = (weekdays[0] - d.getDay() + 7) % 7;
+            d.setDate(d.getDate() + (delta === 0 ? interval * 7 : delta + (interval - 1) * 7));
+          } else d.setDate(d.getDate() + interval * 7);
+          break;
+        case "month": {
+          const day = Math.min(31, Math.max(1, Number(config?.day_of_month ?? config?.month_day ?? d.getDate())));
+          d.setDate(1); d.setMonth(d.getMonth() + interval);
+          d.setDate(Math.min(day, new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate()));
+          break;
+        }
         case "year":  d.setFullYear(d.getFullYear() + interval); break;
         default:      d.setDate(d.getDate() + interval); break;
       }
@@ -624,7 +636,7 @@ export default function OTCrearForm({ usuarios, ubicaciones, activos, categorias
               >
                 <ImagePlus size={22} strokeWidth={1.5} />
                 <span style={{ fontSize: 13 }}>Agrega un grupo de fotos con título y descripción</span>
-                <span style={{ fontSize: 11 }}>Ej: "Antes del trabajo", "Instrucciones", "Durante"</span>
+                <span style={{ fontSize: 11 }}>Ej: “Antes del trabajo”, “Instrucciones”, “Durante”</span>
               </button>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>

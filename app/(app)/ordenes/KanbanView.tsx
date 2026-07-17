@@ -452,7 +452,7 @@ function KanbanCard({ orden, isReprogramada, isSelected, isDragging, onDragStart
   const ubicacion = orden.ubicaciones?.edificio
     ? orden.ubicaciones.edificio + (orden.ubicaciones.detalle ? ` Â· ${orden.ubicaciones.detalle}` : "")
     : null;
-  const dueYmd = dateKey(orden.fecha_termino);
+  const dueYmd = dateKey(orden.fecha_termino ?? orden.fecha_inicio ?? orden.proxima_ejecucion);
   const overdue = !!dueYmd && dueYmd < chileDateKey() && orden.estado !== "completado";
 
   return (

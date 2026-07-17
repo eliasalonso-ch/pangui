@@ -20,7 +20,7 @@ const PASO_SELECT = `
   peso, condicion_paso_id, condicion_operador, condicion_valor,
   requiere_nota_si, requiere_foto_si,
   genera_correctiva, correctiva_plantilla,
-  medidor_id, iso14224_taxonomia, sub_procedimiento_id, multimedia_url
+  medidor_id, sub_procedimiento_id, multimedia_url
 `;
 
 // Disambiguation: procedimiento_pasos has two FKs to procedimientos
@@ -33,7 +33,7 @@ const PASOS_FK = "procedimiento_pasos!procedimiento_pasos_procedimiento_id_fkey"
 const PROCEDIMIENTO_SELECT = `
   id, workspace_id, nombre, descripcion, categoria, activo,
   bloquea_cierre_ot, auto_adjuntar, created_by, created_at, updated_at,
-  version, iso_categoria, puntaje_minimo, puntaje_maximo, hereda_a_hijos,
+  version, iso_categoria, hereda_a_hijos,
   pasos:${PASOS_FK}(${PASO_SELECT})
 `;
 
@@ -133,7 +133,6 @@ export async function createProcedimiento(
       bloquea_cierre_ot: form.bloquea_cierre_ot,
       auto_adjuntar: form.auto_adjuntar,
       hereda_a_hijos: form.hereda_a_hijos ?? false,
-      puntaje_minimo: form.puntaje_minimo ?? null,
       created_by: userId,
     })
     .select("id")
@@ -159,7 +158,6 @@ export async function updateProcedimiento(
       bloquea_cierre_ot: form.bloquea_cierre_ot,
       auto_adjuntar: form.auto_adjuntar,
       hereda_a_hijos: form.hereda_a_hijos ?? false,
-      puntaje_minimo: form.puntaje_minimo ?? null,
       updated_at: new Date().toISOString(),
     })
     .eq("id", id);
@@ -232,7 +230,6 @@ async function upsertPasos(procedimientoId: string, pasos: PasoFormItem[]) {
     genera_correctiva: p.genera_correctiva ?? false,
     correctiva_plantilla: p.correctiva_plantilla ?? null,
     medidor_id: p.medidor_id ?? null,
-    iso14224_taxonomia: p.iso14224_taxonomia ?? null,
     sub_procedimiento_id: p.sub_procedimiento_id ?? null,
     multimedia_url: p.multimedia_url ?? null,
   });
@@ -310,7 +307,7 @@ export async function getOTProcedimientos(ordenId: string): Promise<OTProcedimie
       id, orden_id, procedimiento_id, adjuntado_por, adjuntado_at,
       procedimiento:procedimientos(
         id, nombre, descripcion, bloquea_cierre_ot,
-        version, iso_categoria, puntaje_minimo, hereda_a_hijos,
+        version, iso_categoria, hereda_a_hijos,
         pasos_count:${PASOS_FK}(count),
         pasos:${PASOS_FK}(${PASO_SELECT})
       )

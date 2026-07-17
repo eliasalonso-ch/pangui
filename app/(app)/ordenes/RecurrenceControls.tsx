@@ -38,14 +38,14 @@ function presetToValue(key: PresetKey): { recurrencia: Recurrencia; config: Recu
   switch (key) {
     case "nunca":        return { recurrencia: "ninguna", config: null };
     case "diaria":       return { recurrencia: "diaria", config: null };
-    case "semanal":      return { recurrencia: "semanal", config: null };
-    case "mensual":      return { recurrencia: "mensual_fecha", config: null };
-    case "anual":        return { recurrencia: "anual", config: null };
-    case "entre_semana": return { recurrencia: "personalizada", config: { interval: 1, unit: "week", weekdays: [1, 2, 3, 4, 5] } };
-    case "fines_semana": return { recurrencia: "personalizada", config: { interval: 1, unit: "week", weekdays: [0, 6] } };
-    case "dos_semanas":  return { recurrencia: "personalizada", config: { interval: 2, unit: "week" } };
-    case "tres_meses":   return { recurrencia: "personalizada", config: { interval: 3, unit: "month" } };
-    case "seis_meses":   return { recurrencia: "personalizada", config: { interval: 6, unit: "month" } };
+    case "semanal":      return { recurrencia: "semanal", config: { interval: 1, unit: "week" } };
+    case "mensual":      return { recurrencia: "mensual_fecha", config: { interval: 1, unit: "month" } };
+    case "anual":        return { recurrencia: "anual", config: { interval: 1, unit: "year" } };
+    case "entre_semana": return { recurrencia: "personalizada", config: { interval: 1, unit: "week", weekdays: [1], preset: "entre_semana" } };
+    case "fines_semana": return { recurrencia: "personalizada", config: { interval: 1, unit: "week", weekdays: [6], preset: "fines_semana" } };
+    case "dos_semanas":  return { recurrencia: "personalizada", config: { interval: 2, unit: "week", preset: "dos_semanas" } };
+    case "tres_meses":   return { recurrencia: "personalizada", config: { interval: 3, unit: "month", preset: "tres_meses" } };
+    case "seis_meses":   return { recurrencia: "personalizada", config: { interval: 6, unit: "month", preset: "seis_meses" } };
   }
 }
 
@@ -61,6 +61,7 @@ export function valueToPreset(recurrencia: Recurrencia, config: RecurrenciaConfi
     case "anual":         return "anual";
     case "personalizada": {
       if (!config) return "semanal";
+      if (config.preset) return config.preset;
       const { interval, unit, weekdays } = config;
       if (unit === "week" && interval === 1 && weekdays?.length === 5 && [1, 2, 3, 4, 5].every(d => weekdays.includes(d))) return "entre_semana";
       if (unit === "week" && interval === 1 && weekdays?.length === 2 && [0, 6].every(d => weekdays.includes(d))) return "fines_semana";
@@ -132,14 +133,31 @@ export function RecurrenceControls({
       onChange({ recurrencia: "ninguna", recurrencia_config: null });
       return;
     }
+    const anchor = value.fecha_inicio ? new Date(`${value.fecha_inicio.slice(0, 10)}T12:00:00`) : new Date();
+    const allowed = key === "entre_semana" ? [1, 2, 3, 4, 5] : key === "fines_semana" ? [6, 0] : null;
+    const existingWeekday = value.recurrencia_config?.weekdays?.[0];
+    const weekday = existingWeekday != null && (!allowed || allowed.includes(existingWeekday))
+      ? existingWeekday
+      : allowed?.includes(anchor.getDay()) ? anchor.getDay() : allowed?.[0] ?? anchor.getDay();
+    const dayOfMonth = value.recurrencia_config?.day_of_month ?? value.recurrencia_config?.month_day ?? anchor.getDate();
+    const cfg = base.config ? { ...base.config } : null;
+    if (cfg?.unit === "week") cfg.weekdays = [weekday];
+    if (cfg?.unit === "month") cfg.day_of_month = dayOfMonth;
+    if (cfg?.unit === "year") cfg.anchor_date = value.fecha_inicio || anchor.toISOString().slice(0, 10);
     const keepEnd = value.recurrencia_config?.end_date ?? null;
-    const next = withEndDate(base.recurrencia, base.config, keepEnd);
+    const next = withEndDate(base.recurrencia, cfg, keepEnd);
     onChange({ recurrencia: next.recurrencia, recurrencia_config: next.config });
   }
 
+  const weekdayNames = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
+  const weekdayPresets: PresetKey[] = ["semanal", "entre_semana", "fines_semana", "dos_semanas"];
+  const monthPresets: PresetKey[] = ["mensual", "tres_meses", "seis_meses"];
+  const selectedWeekday = value.recurrencia_config?.weekdays?.[0] ?? (value.fecha_inicio ? new Date(`${value.fecha_inicio.slice(0, 10)}T12:00:00`).getDay() : new Date().getDay());
+  const selectableWeekdays = currentPreset === "entre_semana" ? [1, 2, 3, 4, 5] : currentPreset === "fines_semana" ? [6, 0] : [0, 1, 2, 3, 4, 5, 6];
+  const selectedMonthDay = value.recurrencia_config?.day_of_month ?? value.recurrencia_config?.month_day ?? (value.fecha_inicio ? new Date(`${value.fecha_inicio.slice(0, 10)}T12:00:00`).getDate() : new Date().getDate());
+
   function setEndDate(end: string | null) {
-    const base = presetToValue(currentPreset);
-    const next = withEndDate(base.recurrencia, base.config, end || null);
+    const next = withEndDate(value.recurrencia, value.recurrencia_config, end || null);
     onChange({ recurrencia: next.recurrencia, recurrencia_config: next.config });
   }
 
@@ -166,6 +184,32 @@ export function RecurrenceControls({
           {PRESETS.map(p => <option key={p.key} value={p.key}>{p.label}</option>)}
         </select>
       </div>
+
+      {weekdayPresets.includes(currentPreset) && (
+        <div style={{ display: "grid", gap: 6 }}>
+          <span style={lbl}>Día de la semana</span>
+          <select value={selectedWeekday} onChange={e => {
+            const interval = currentPreset === "dos_semanas" ? 2 : 1;
+            const preset = currentPreset === "semanal" ? null : currentPreset as RecurrenciaConfig["preset"];
+            onChange({ recurrencia: currentPreset === "semanal" ? "semanal" : "personalizada", recurrencia_config: { ...value.recurrencia_config, interval, unit: "week", weekdays: [Number(e.target.value)], preset } });
+          }} style={ctrl}>
+            {selectableWeekdays.map(day => <option key={day} value={day}>{weekdayNames[day]}</option>)}
+          </select>
+        </div>
+      )}
+
+      {monthPresets.includes(currentPreset) && (
+        <div style={{ display: "grid", gap: 6 }}>
+          <span style={lbl}>Día del mes</span>
+          <select value={selectedMonthDay} onChange={e => {
+            const interval = currentPreset === "tres_meses" ? 3 : currentPreset === "seis_meses" ? 6 : 1;
+            const preset = currentPreset === "mensual" ? null : currentPreset as RecurrenciaConfig["preset"];
+            onChange({ recurrencia: currentPreset === "mensual" ? "mensual_fecha" : "personalizada", recurrencia_config: { ...value.recurrencia_config, interval, unit: "month", day_of_month: Number(e.target.value), preset } });
+          }} style={ctrl}>
+            {Array.from({ length: 31 }, (_, index) => <option key={index + 1} value={index + 1}>Día {index + 1}</option>)}
+          </select>
+        </div>
+      )}
 
       {/* Terminar repetición + Fecha de fin (only when it repeats) */}
       {repeats && (

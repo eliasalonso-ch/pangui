@@ -36,8 +36,11 @@ export type Recurrencia =
 export interface RecurrenciaConfig {
   interval?: number | null;
   unit?: "day" | "week" | "month" | "year" | null;
+  preset?: "entre_semana" | "fines_semana" | "dos_semanas" | "tres_meses" | "seis_meses" | null;
   weekdays?: number[] | null;
   month_day?: number | null;
+  day_of_month?: number | null;
+  anchor_date?: string | null;
   end_date?: string | null;
 }
 

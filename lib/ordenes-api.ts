@@ -82,18 +82,35 @@ function calcProximaEjecucion(recurrencia: Recurrencia, fechaBase?: string | nul
       else d.setDate(d.getDate() + interval - 1);
       break;
     case "semanal":
-      d.setDate(d.getDate() + interval * 7);
-      if (weekdays.length) while (!weekdays.includes(d.getDay())) d.setDate(d.getDate() + 1);
+      if (weekdays.length) {
+        const delta = (weekdays[0] - d.getDay() + 7) % 7;
+        d.setDate(d.getDate() + (delta === 0 ? interval * 7 : delta + (interval - 1) * 7));
+      } else d.setDate(d.getDate() + interval * 7);
       break;
     case "quincenal": d.setDate(d.getDate() + 15); break;
-    case "mensual": {
-      const day = Math.min(31, Math.max(1, Number(config?.month_day ?? d.getDate())));
+    case "mensual":
+    case "mensual_fecha":
+    case "mensual_dia": {
+      const day = Math.min(31, Math.max(1, Number(config?.day_of_month ?? config?.month_day ?? d.getDate())));
       d.setMonth(d.getMonth() + interval, 1);
       const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
       d.setDate(Math.min(day, lastDay));
       break;
     }
     case "anual":     d.setFullYear(d.getFullYear() + interval); break;
+    case "personalizada":
+      if (config?.unit === "week") {
+        if (weekdays.length) {
+          const delta = (weekdays[0] - d.getDay() + 7) % 7;
+          d.setDate(d.getDate() + (delta === 0 ? interval * 7 : delta + (interval - 1) * 7));
+        } else d.setDate(d.getDate() + interval * 7);
+      } else if (config?.unit === "month") {
+        const day = Math.min(31, Math.max(1, Number(config?.day_of_month ?? config?.month_day ?? d.getDate())));
+        d.setDate(1); d.setMonth(d.getMonth() + interval);
+        d.setDate(Math.min(day, new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate()));
+      } else if (config?.unit === "year") d.setFullYear(d.getFullYear() + interval);
+      else d.setDate(d.getDate() + interval);
+      break;
   }
   return d.toISOString();
 }

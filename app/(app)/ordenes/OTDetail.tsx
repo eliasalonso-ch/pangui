@@ -9,7 +9,7 @@ import {
   X, Pencil, Trash2, Check, Copy, MapPin, Settings2, User, Flag,
   Calendar, Tag, Send, AlertTriangle, Loader2,
   CircleDot, PauseCircle, PlayCircle, CheckCircle2, XCircle,
-  ChevronDown, Plus, Image, Building2, Hash,
+  ChevronDown, ChevronLeft, ChevronRight, Plus, Image, Building2, Hash,
   Play, Pause, Square, RotateCcw,
   FileText, Sheet, FileDown, MoreVertical,
   Package, Search,
@@ -1158,18 +1158,11 @@ export default function OTDetail({
         archivo_url:        resp.archivo_url ?? null,
         archivo_nombre:     resp.archivo_nombre ?? null,
         archivo_mime:       resp.archivo_mime ?? null,
-        escaneo_valor:      resp.escaneo_valor ?? null,
-        escaneo_asset_id:   resp.escaneo_asset_id ?? null,
-        iso14224_modo:      resp.iso14224_modo ?? null,
-        iso14224_causa:     resp.iso14224_causa ?? null,
-        iso14224_mecanismo: resp.iso14224_mecanismo ?? null,
-        iso14224_accion:    resp.iso14224_accion ?? null,
         lectura_anterior:   resp.lectura_anterior ?? null,
         lectura_delta:      resp.lectura_delta ?? null,
         geo_lat:            resp.geo_lat ?? null,
         geo_lng:            resp.geo_lng ?? null,
         device_id:          resp.device_id ?? null,
-        puntaje_obtenido:   resp.puntaje_obtenido ?? null,
         revision_paso:      resp.revision_paso ?? null,
       });
       // Merge the saved response back into the ejecucion's respuestas
@@ -4030,7 +4023,7 @@ function SignatureCanvas({
 }
 
 function PasoInput({
-  paso, resp, existingResp, isSaving, onUpdate, onSave, ordenId, ejecucionId,
+  paso, resp, existingResp, isSaving, onUpdate, onSave, ordenId, ejecucionId, onPreviewImage,
 }: {
   paso: ProcedimientoPaso;
   resp: PendingResp;
@@ -4040,8 +4033,13 @@ function PasoInput({
   onSave: (extra?: PendingResp) => void;
   ordenId: string;
   ejecucionId: string;
+  onPreviewImage: (urls: string[], index: number) => void;
 }) {
   const val = (k: keyof PendingResp) => (resp as any)[k] ?? (existingResp as any)?.[k];
+  const responseJson = ((val("valor_json") as Record<string, unknown> | null) ?? {});
+  const evidenceUrls = Array.isArray(responseJson.evidence_images)
+    ? responseJson.evidence_images.filter((url): url is string => typeof url === "string" && url.length > 0)
+    : val("foto_url") ? [val("foto_url") as string] : [];
   const inputStyle: React.CSSProperties = {
     width: "100%", height: 32, padding: "0 10px",
     border: "1px solid var(--border)", borderRadius: "var(--r-sm)",
@@ -4084,23 +4082,27 @@ function PasoInput({
   if (paso.tipo === "si_no_na") {
     const cur = val("valor_texto");
     return (
-      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         {["Sí", "No", "N/A"].map(opt => (
           <button
             key={opt}
             onClick={() => onSave({ valor_texto: opt })}
             disabled={isSaving}
             style={{
-              height: 30, padding: "0 16px", borderRadius: "var(--r-sm)", cursor: "pointer",
-              fontSize: 12.5, fontWeight: 600, fontFamily: "inherit",
-              border: cur === opt ? "1px solid #2563EB" : "1px solid var(--border)",
-              background: cur === opt ? "var(--brand-tint)" : "var(--surface-hover)",
-              color: cur === opt ? "var(--brand-fg)" : "var(--fg-2)",
+              minHeight: 42, padding: "0 16px", borderRadius: "var(--r-lg)", cursor: "pointer",
+              fontSize: 14, fontWeight: 400, fontFamily: "inherit",
+              border: `1px solid ${cur === opt ? opt === "Sí" ? "var(--success)" : opt === "No" ? "var(--danger)" : "var(--warning)" : "var(--border)"}`,
+              background: cur === opt ? opt === "Sí" ? "var(--success-bg)" : opt === "No" ? "var(--danger-bg)" : "var(--warning-bg)" : "var(--surface-1)",
+              color: cur === opt ? opt === "Sí" ? "var(--success)" : opt === "No" ? "var(--danger)" : "var(--warning)" : "var(--fg-2)",
             }}
           >
             {isSaving && cur === opt ? <Loader2 size={11} className="animate-spin" /> : opt}
           </button>
         ))}
+        {cur && <>
+          <PasoImagenField pasoId={paso.id} ordenId={ordenId} ejecucionId={ejecucionId} fotoUrls={evidenceUrls} isSaving={isSaving} onPreview={onPreviewImage} onUploaded={(url) => { const next = [...evidenceUrls, url]; onSave({ valor_json: { ...responseJson, evidence_images: next }, foto_url: next[0] ?? null }); }} onClear={(url) => { const next = evidenceUrls.filter(current => current !== url); onSave({ valor_json: { ...responseJson, evidence_images: next }, foto_url: next[0] ?? null }); }} />
+          <input type="text" value={(val("notas") as string | null | undefined) ?? ""} onChange={e => onUpdate({ notas: e.target.value })} onBlur={() => onSave()} placeholder="Añadir nota…" style={inputStyle} />
+        </>}
       </div>
     );
   }
@@ -4169,7 +4171,7 @@ function PasoInput({
   }
 
   if (paso.tipo === "inspeccion") {
-    const items: { item: string; result: "pass" | "fail" | "na" | "" }[] =
+    const items: { item: string; result: "pass" | "fail" | "na" | ""; foto_urls?: string[]; nota?: string }[] =
       (val("valor_json") as any)?.items ?? (paso.opciones ?? []).map(item => ({ item, result: "" as const }));
     function setResult(item: string, result: "pass" | "fail" | "na") {
       const next = items.map(i => i.item === item ? { ...i, result } : i);
@@ -4180,19 +4182,20 @@ function PasoInput({
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
         {items.map(({ item, result }) => (
-          <div key={item} style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <span style={{ flex: 1, fontSize: 12.5, color: "var(--fg-1)" }}>{item}</span>
+          <div key={item} style={{ display: "flex", flexDirection: "column", gap: 8, paddingBottom: 10 }}>
+            <span style={{ fontSize: 14, fontWeight: 600, color: "var(--fg-1)" }}>{item}</span>
+            <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
             {(["pass", "fail", "na"] as const).map(r => {
-              const labels = { pass: "OK", fail: "Falla", na: "N/A" };
-              const colors = { pass: "var(--success)", fail: "var(--danger)", na: "var(--fg-4)" };
+              const labels = { pass: "OK", fail: "NO CUMPLE", na: "OBSERVACIÓN" };
+              const colors = { pass: "var(--success)", fail: "var(--danger)", na: "var(--warning)" };
               return (
                 <button
                   key={r}
                   onClick={() => setResult(item, r)}
                   disabled={isSaving}
                   style={{
-                    height: 26, padding: "0 10px", borderRadius: "var(--r-sm)", cursor: "pointer",
-                    fontSize: 11.5, fontWeight: 600, fontFamily: "inherit",
+                    minHeight: 42, padding: "0 10px", borderRadius: "var(--r-lg)", cursor: "pointer",
+                    fontSize: 14, fontWeight: 400, fontFamily: "inherit",
                     border: result === r ? `1px solid ${colors[r]}` : "1px solid var(--border)",
                     background: result === r ? colors[r] + "15" : "var(--surface-hover)",
                     color: result === r ? colors[r] : "var(--fg-4)",
@@ -4202,6 +4205,9 @@ function PasoInput({
                 </button>
               );
             })}
+            </div>
+            <PasoImagenField pasoId={`${paso.id}-${item}`} ordenId={ordenId} ejecucionId={ejecucionId} fotoUrls={items.find(i => i.item === item)?.foto_urls ?? []} isSaving={isSaving} onPreview={onPreviewImage} onUploaded={(url) => onSave({ valor_json: { items: items.map(i => i.item === item ? { ...i, foto_urls: [...(i.foto_urls ?? []), url] } : i) } })} onClear={(url) => onSave({ valor_json: { items: items.map(i => i.item === item ? { ...i, foto_urls: (i.foto_urls ?? []).filter(current => current !== url) } : i) } })} />
+            <input type="text" value={items.find(i => i.item === item)?.nota ?? ""} onChange={e => onUpdate({ valor_json: { items: items.map(i => i.item === item ? { ...i, nota: e.target.value } : i) } })} onBlur={() => onSave()} placeholder="Añadir nota…" style={inputStyle} />
           </div>
         ))}
       </div>
@@ -4260,6 +4266,7 @@ function PasoInput({
         ejecucionId={ejecucionId}
         fotoUrl={(val("foto_url") as string | null | undefined) ?? null}
         isSaving={isSaving}
+        onPreview={onPreviewImage}
         onUploaded={(url) => onSave({ foto_url: url })}
         onClear={() => onSave({ foto_url: null })}
       />
@@ -4285,16 +4292,10 @@ function PasoInput({
 
   if (paso.tipo === "medidor") {
     return (
-      <NumericInputField
-        value={val("valor_medido")}
-        onChange={(n) => onUpdate({ valor_medido: n })}
-        inputStyle={inputStyle}
-        placeholder="Lectura"
-        width={140}
-        suffix={paso.unidad ?? undefined}
-        rangeHint={paso.valor_min != null && paso.valor_max != null ? `${paso.valor_min} – ${paso.valor_max}` : undefined}
-        renderSaveBtn={(disabled) => saveBtn("OK", disabled)}
-      />
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        <NumericInputField value={val("valor_medido")} onChange={(n) => onUpdate({ valor_medido: n })} inputStyle={inputStyle} placeholder="Lectura" width={140} suffix={paso.unidad ?? undefined} rangeHint={paso.valor_min != null && paso.valor_max != null ? `${paso.valor_min} – ${paso.valor_max}` : undefined} renderSaveBtn={(disabled) => saveBtn("OK", disabled)} />
+        <PasoImagenField pasoId={paso.id} ordenId={ordenId} ejecucionId={ejecucionId} fotoUrls={evidenceUrls} isSaving={isSaving} onPreview={onPreviewImage} onUploaded={(url) => { const next = [...evidenceUrls, url]; onSave({ valor_json: { ...responseJson, evidence_images: next }, foto_url: next[0] ?? null }); }} onClear={(url) => { const next = evidenceUrls.filter(current => current !== url); onSave({ valor_json: { ...responseJson, evidence_images: next }, foto_url: next[0] ?? null }); }} />
+      </div>
     );
   }
 
@@ -4496,15 +4497,17 @@ function NumericInputField({
 // `capture="environment"` opens the device camera on mobile browsers.
 
 function PasoImagenField({
-  pasoId, ordenId, ejecucionId, fotoUrl, isSaving, onUploaded, onClear,
+  pasoId, ordenId, ejecucionId, fotoUrl, fotoUrls, isSaving, onUploaded, onClear, onPreview,
 }: {
   pasoId: string;
   ordenId: string;
   ejecucionId: string;
-  fotoUrl: string | null;
+  fotoUrl?: string | null;
+  fotoUrls?: string[];
   isSaving: boolean;
   onUploaded: (url: string) => void;
-  onClear: () => void;
+  onClear: (url: string) => void;
+  onPreview: (urls: string[], index: number) => void;
 }) {
   const cameraInputRef = useRef<HTMLInputElement | null>(null);
   const libraryInputRef = useRef<HTMLInputElement | null>(null);
@@ -4530,6 +4533,7 @@ function PasoImagenField({
   }
 
   const busy = uploading || isSaving;
+  const urls = fotoUrls ?? (fotoUrl ? [fotoUrl] : []);
   const btn: React.CSSProperties = {
     height: 30, padding: "0 12px", background: "var(--brand-tint)",
     border: "1px solid #2563EB", borderRadius: "var(--r-sm)", cursor: busy ? "default" : "pointer",
@@ -4541,33 +4545,37 @@ function PasoImagenField({
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-      {fotoUrl && (
-        <img
-          src={optimizedProcedureImageUrl(fotoUrl, 640)}
-          alt="Foto del paso"
-          loading="lazy"
-          decoding="async"
-          onError={(e) => {
-            if (e.currentTarget.src !== fotoUrl) e.currentTarget.src = fotoUrl;
-          }}
-          style={{ maxWidth: 320, maxHeight: 240, borderRadius: 8, border: "1px solid var(--border)", objectFit: "cover" }}
-        />
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8, width: "100%" }}>
+      {urls.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "stretch", gap: 10, width: "100%" }}>
+          {urls.map((url, index) => (
+            <div key={url} style={{ position: "relative", width: "100%" }}>
+              <button type="button" onClick={() => onPreview(urls, index)} style={{ display: "block", width: "100%", padding: 0, border: 0, borderRadius: "var(--r-lg)", background: "transparent", cursor: "zoom-in" }} aria-label="Ver imagen">
+                <img
+                  src={optimizedProcedureImageUrl(url, 960)}
+                  alt="Foto del paso"
+                  loading="lazy"
+                  decoding="async"
+                  onError={(e) => { if (e.currentTarget.src !== url) e.currentTarget.src = url; }}
+                  style={{ display: "block", width: "100%", height: 280, borderRadius: "var(--r-lg)", border: "1px solid var(--border)", objectFit: "contain", background: "var(--surface-0)", boxSizing: "border-box" }}
+                />
+              </button>
+              <button type="button" onClick={() => { if (window.confirm("¿Quieres eliminar esta imagen?")) onClear(url); }} disabled={busy} aria-label="Quitar imagen" style={{ position: "absolute", top: 8, right: 8, width: 28, height: 28, display: "grid", placeItems: "center", padding: 0, border: "none", borderRadius: 14, background: "var(--danger)", color: "#fff", cursor: busy ? "default" : "pointer" }}>
+                <Trash2 size={14} />
+              </button>
+            </div>
+          ))}
+        </div>
       )}
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+      <div style={{ display: "flex", justifyContent: "center", gap: 8, flexWrap: "wrap" }}>
         <button type="button" onClick={() => cameraInputRef.current?.click()} disabled={busy} style={btn}>
           {uploading ? <Loader2 size={11} className="animate-spin" /> : <Camera size={11} />}
-          {fotoUrl ? "Reemplazar" : "Tomar foto"}
+          {urls.length ? "Añadir imagen" : "Tomar foto"}
         </button>
         <button type="button" onClick={() => libraryInputRef.current?.click()} disabled={busy} style={btnGhost}>
           {uploading ? <Loader2 size={11} className="animate-spin" /> : <Camera size={11} />}
           Subir archivo
         </button>
-        {fotoUrl && (
-          <button type="button" onClick={onClear} disabled={busy} style={{ ...btnGhost, color: "var(--danger)", borderColor: "var(--danger)" }}>
-            Quitar
-          </button>
-        )}
       </div>
       {err && <div style={{ fontSize: 11, color: "var(--danger)" }}>{err}</div>}
       <input
@@ -4615,7 +4623,7 @@ function ProcEjecucionModal({
   // Lightbox preview for a foto step. Clicking the thumbnail opens it full-
   // screen with a "Reemplazar" button. (PhotoEditor proper is mobile-only;
   // on web we keep it to preview + replace, no in-browser annotation.)
-  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+  const [lightboxImages, setLightboxImages] = useState<{ urls: string[]; idx: number } | null>(null);
 
   const savedResps: Record<string, PendingResp> = {};
   for (const r of ejec.respuestas ?? []) savedResps[r.paso_id] = r as PendingResp;
@@ -4623,44 +4631,18 @@ function ProcEjecucionModal({
   const allRequired = pasos.filter(p => p.requerido && p.tipo !== "instruccion" && p.tipo !== "advertencia");
   const answeredRequired = allRequired.filter(p => isAnsweredForType(p, savedResps[p.id]));
 
-  // Scoring: sum weights for pasos that are answered AND not a fail. Simple
-  // pass-or-not model — finer-grained scoring (partial credit per option,
-  // etc.) lands later. Server-side puntaje_obtenido per respuesta is
-  // authoritative for audit; this is the live UI hint.
-  const puntajeMaximo = pasos.reduce((s, p) => s + (p.peso ?? 0), 0);
-  const puntajeObtenido = pasos.reduce((s, p) => {
-    const w = p.peso ?? 0;
-    if (w <= 0) return s;
-    const r = savedResps[p.id];
-    if (!isAnsweredForType(p, r)) return s;
-    // crude pass detector: treat valor_texto === "no" / inspeccion fail items as fails
-    const txt = (r?.valor_texto ?? "").toLowerCase();
-    if (txt === "no" || txt === "fail") return s;
-    if (p.tipo === "inspeccion") {
-      const items = (r?.valor_json as { items?: { result?: string }[] } | null)?.items ?? [];
-      if (items.some(i => (i.result ?? "").toLowerCase() === "fail")) return s;
-    }
-    return s + w;
-  }, 0);
-  const puntajeMinimo = proc?.puntaje_minimo ?? null;
-  const meetsScore = puntajeMinimo == null || puntajeObtenido >= puntajeMinimo;
-  const canComplete = answeredRequired.length === allRequired.length && meetsScore;
+  const canComplete = answeredRequired.length === allRequired.length;
 
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 70, background: "rgba(15,23,42,0.50)", display: "flex", alignItems: "center", justifyContent: "center", padding: "24px" }}>
       <div style={{ background: "var(--surface-1)", width: "100%", maxWidth: 680, maxHeight: "85vh", borderRadius: 16, display: "flex", flexDirection: "column", boxShadow: "0 24px 64px rgba(0,0,0,0.25)" }}>
 
         {/* Header */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px", borderBottom: "1px solid var(--border)", flexShrink: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px", flexShrink: 0, background: "var(--surface-0)", borderRadius: "16px 16px 0 0" }}>
           <div>
-            <div style={{ fontSize: 15, fontWeight: 700, color: "var(--fg-1)" }}>{proc?.nombre ?? "Procedimiento"}</div>
-            <div style={{ fontSize: 12, color: "var(--fg-4)" }}>{pasos.length} campo{pasos.length !== 1 ? "s" : ""}</div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: "var(--fg-1)" }}>Procedimiento</div>
+            <div style={{ fontSize: 12, color: "var(--fg-4)" }}>{proc?.nombre ?? "Sin título"}</div>
           </div>
-          {isCompleted && (
-            <span style={{ fontSize: 11.5, fontWeight: 600, color: "var(--success)", background: "var(--success-bg)", border: "1px solid #6EE7B7", borderRadius: "var(--r-sm)", padding: "3px 10px" }}>
-              Completado
-            </span>
-          )}
           <button
             onClick={onClose}
             style={{ width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", borderRadius: "var(--r-sm)", cursor: "pointer", color: "var(--fg-4)" }}
@@ -4677,37 +4659,27 @@ function ProcEjecucionModal({
             <div style={{ textAlign: "center", padding: "32px 0", color: "var(--fg-4)", fontSize: 13 }}>Sin campos definidos</div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {pasos.map((paso, idx) => {
-                const meta = EXEC_TIPO_META[paso.tipo];
+              {pasos.map((paso) => {
                 const saved = savedResps[paso.id];
                 const pending = pendingResps[paso.id] ?? {};
                 const isSaving = savingResp === paso.id;
-                const answered = isAnsweredForType(paso, saved);
                 const isInfoOnly = paso.tipo === "instruccion" || paso.tipo === "advertencia";
 
                 return (
                   <div
                     key={paso.id}
                     style={{
-                      border: `1px solid ${answered ? "var(--success-bg)" : "var(--border)"}`,
-                      borderRadius: "var(--r-md)", background: answered ? "var(--success-bg)" : "var(--surface-1)",
+                      border: "1px solid var(--border)",
+                      borderRadius: "var(--r-lg)", background: "var(--surface-1)",
                       overflow: "hidden",
                     }}
                   >
                     <div style={{ padding: "12px 14px" }}>
                       {/* Step header */}
                       <div style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: (paso.descripcion || !isInfoOnly) ? 8 : 0 }}>
-                        <span style={{
-                          width: 26, height: 26, borderRadius: "var(--r-sm)", flexShrink: 0,
-                          background: answered ? "var(--success-bg)" : meta.color + "15",
-                          color: answered ? "var(--success)" : meta.color,
-                          display: "flex", alignItems: "center", justifyContent: "center",
-                        }}>
-                          {answered ? <Check size={13} /> : meta.icon}
-                        </span>
                         <div style={{ flex: 1 }}>
                           <div style={{ fontSize: 13.5, fontWeight: 600, color: "var(--fg-1)", lineHeight: 1.3 }}>
-                            {idx + 1}. {paso.titulo}
+                            {paso.titulo}
                             {!paso.requerido && !isInfoOnly && (
                               <span style={{ fontSize: 11, color: "var(--fg-4)", fontWeight: 400, marginLeft: 6 }}>(opcional)</span>
                             )}
@@ -4727,14 +4699,14 @@ function ProcEjecucionModal({
                       {(() => {
                         const isInfoOnly = paso.tipo === "instruccion" || paso.tipo === "advertencia" || paso.tipo === "seccion";
                         const editing = !!editingPasos[paso.id];
-                        if (isCompleted && saved && !editing) {
+                        if (false && isCompleted && saved && !editing) {
                           return (
                             <div style={{ paddingLeft: 36, display: "flex", alignItems: "flex-start", gap: 10 }}>
                               <div style={{ flex: 1, minWidth: 0 }}>
-                                <ReadonlyAnswer paso={paso} resp={saved} onPhotoClick={(url) => setLightboxUrl(url)} />
+                                <ReadonlyAnswer paso={paso} resp={saved} onPhotoClick={(url) => setLightboxImages({ urls: [url], idx: 0 })} />
                                 {saved.editado_at && (
                                   <div style={{ fontSize: 11, color: "var(--fg-4)", marginTop: 4, fontStyle: "italic" }}>
-                                    Editado {new Date(saved.editado_at).toLocaleString()}
+                                    Editado {new Date(saved.editado_at!).toLocaleString()}
                                   </div>
                                 )}
                               </div>
@@ -4755,9 +4727,9 @@ function ProcEjecucionModal({
                             </div>
                           );
                         }
-                        if (!isCompleted || editing) {
+                        if (true) {
                           return (
-                            <div style={{ paddingLeft: 36 }}>
+                            <div>
                               {editing && (
                                 <button
                                   onClick={() => setEditingPasos(prev => { const n = { ...prev }; delete n[paso.id]; return n; })}
@@ -4784,6 +4756,7 @@ function ProcEjecucionModal({
                                 }}
                                 ordenId={ejec.orden_id}
                                 ejecucionId={ejec.id}
+                                onPreviewImage={(urls, idx) => setLightboxImages({ urls, idx })}
                               />
                             </div>
                           );
@@ -4805,14 +4778,6 @@ function ProcEjecucionModal({
               <div style={{ fontSize: 12, color: "var(--fg-4)" }}>
                 {answeredRequired.length}/{allRequired.length} campos requeridos completados
               </div>
-              {puntajeMaximo > 0 && (
-                <div style={{ fontSize: 11.5, color: meetsScore ? "var(--success)" : "var(--danger)" }}>
-                  Puntaje: <strong>{puntajeObtenido}</strong> / {puntajeMaximo}
-                  {puntajeMinimo != null && (
-                    <span style={{ color: "var(--fg-4)", fontWeight: 400 }}> &nbsp;(mín: {puntajeMinimo}{meetsScore ? " ✓" : ""})</span>
-                  )}
-                </div>
-              )}
             </div>
             <button
               onClick={onComplete}
@@ -4836,9 +4801,9 @@ function ProcEjecucionModal({
           close button. PhotoEditor proper is mobile-only; on web we keep this
           to plain preview (replace + remove go through the existing PasoInput
           path once the user hits "Editar"). */}
-      {lightboxUrl && (
+      {lightboxImages && (
         <div
-          onClick={() => setLightboxUrl(null)}
+          onClick={() => setLightboxImages(null)}
           style={{
             position: "fixed", inset: 0, zIndex: 80,
             background: "rgba(0,0,0,0.85)",
@@ -4847,7 +4812,7 @@ function ProcEjecucionModal({
           }}
         >
           <button
-            onClick={(e) => { e.stopPropagation(); setLightboxUrl(null); }}
+            onClick={(e) => { e.stopPropagation(); setLightboxImages(null); }}
             style={{
               position: "absolute", top: 20, right: 20,
               width: 36, height: 36, borderRadius: 18,
@@ -4859,14 +4824,24 @@ function ProcEjecucionModal({
           >
             <X size={18} />
           </button>
+          {lightboxImages.idx > 0 && (
+            <button type="button" onClick={(e) => { e.stopPropagation(); setLightboxImages(current => current && { ...current, idx: current.idx - 1 }); }} aria-label="Imagen anterior" style={{ position: "absolute", left: 20, top: "50%", transform: "translateY(-50%)", width: 40, height: 40, borderRadius: 20, border: "none", background: "rgba(255,255,255,0.15)", color: "#fff", display: "grid", placeItems: "center", cursor: "pointer" }}>
+              <ChevronLeft size={22} />
+            </button>
+          )}
+          {lightboxImages.idx < lightboxImages.urls.length - 1 && (
+            <button type="button" onClick={(e) => { e.stopPropagation(); setLightboxImages(current => current && { ...current, idx: current.idx + 1 }); }} aria-label="Imagen siguiente" style={{ position: "absolute", right: 20, top: "50%", transform: "translateY(-50%)", width: 40, height: 40, borderRadius: 20, border: "none", background: "rgba(255,255,255,0.15)", color: "#fff", display: "grid", placeItems: "center", cursor: "pointer" }}>
+              <ChevronRight size={22} />
+            </button>
+          )}
           <img
-            src={lightboxUrl}
+            src={lightboxImages.urls[lightboxImages.idx]}
             alt="Vista ampliada"
             onClick={(e) => e.stopPropagation()}
             style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain", borderRadius: "var(--r-md)", cursor: "default" }}
           />
           <a
-            href={lightboxUrl}
+            href={lightboxImages.urls[lightboxImages.idx]}
             target="_blank"
             rel="noreferrer"
             onClick={(e) => e.stopPropagation()}
@@ -4878,7 +4853,7 @@ function ProcEjecucionModal({
               borderRadius: "var(--r-md)", textDecoration: "none",
             }}
           >
-            Abrir en nueva pestaña
+            {lightboxImages.urls.length > 1 ? `${lightboxImages.idx + 1} / ${lightboxImages.urls.length}` : "Abrir en nueva pestaña"}
           </a>
         </div>
       )}
