@@ -18,22 +18,37 @@ export default function InvitePage() {
     async function init() {
       const supabase = createClient();
 
-      // Tokens arrive in the URL fragment: #access_token=...&refresh_token=...
+      // Depending on the Auth flow/version, Supabase returns either implicit
+      // tokens in the fragment or a PKCE code in the query string. Support
+      // both so invitation links work from Gmail and in-app browsers.
       const hash = window.location.hash.slice(1);
-      const params = Object.fromEntries(new URLSearchParams(hash));
-      const access_token = params["access_token"];
-      const refresh_token = params["refresh_token"];
+      const hashParams = Object.fromEntries(new URLSearchParams(hash));
+      const queryParams = new URLSearchParams(window.location.search);
+      const access_token = hashParams["access_token"];
+      const refresh_token = hashParams["refresh_token"];
+      const code = queryParams.get("code");
 
-      if (!access_token || !refresh_token) {
+      let authError = null;
+      if (access_token && refresh_token) {
+        const result = await supabase.auth.setSession({ access_token, refresh_token });
+        authError = result.error;
+      } else if (code) {
+        const result = await supabase.auth.exchangeCodeForSession(code);
+        authError = result.error;
+      } else {
+        // createBrowserClient can consume the callback before this effect runs.
+        const result = await supabase.auth.getSession();
+        authError = result.error || (!result.data.session ? new Error("missing session") : null);
+      }
+
+      if (authError) {
         setStage("error");
         return;
       }
 
-      const { error } = await supabase.auth.setSession({ access_token, refresh_token });
-      if (error) {
-        setStage("error");
-        return;
-      }
+      const { data: userData } = await supabase.auth.getUser();
+      const invitedName = userData.user?.user_metadata?.nombre;
+      if (typeof invitedName === "string") setNombre(invitedName);
 
       setStage("form");
     }

@@ -28,6 +28,11 @@ export async function proxy(request) {
     pathname.startsWith("/privacidad") ||
     pathname.startsWith("/terminos") ||
     pathname.startsWith("/registro") ||
+    // Invitation links arrive before a web session exists. The client page
+    // consumes the Supabase callback tokens/code, creates the password, and
+    // establishes the session; sending it through the auth gate first would
+    // discard the URL fragment and redirect every new member to /login.
+    pathname.startsWith("/invite") ||
     pathname.startsWith("/precios") ||
     pathname.startsWith("/recuperar-contrasena") ||
     pathname.startsWith("/reset-contrasena") ||
