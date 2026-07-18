@@ -34,11 +34,19 @@ export async function POST(request: NextRequest) {
 
   const { data: profile } = await supabase
     .from("usuarios")
-    .select("nombre, rol, workspace_id, workspaces(nombre)")
+    .select("nombre, rol, workspace_id")
     .eq("id", user.id)
     .maybeSingle();
   const name = profile?.nombre || user.user_metadata?.nombre || "Usuario de Pangui";
-  const workspace = Array.isArray(profile?.workspaces) ? profile.workspaces[0]?.nombre : (profile?.workspaces as { nombre?: string } | null)?.nombre;
+  let workspace: string | null = null;
+  if (profile?.workspace_id) {
+    const { data: workspaceRow } = await supabase
+      .from("workspaces")
+      .select("nombre")
+      .eq("id", profile.workspace_id)
+      .maybeSingle();
+    workspace = workspaceRow?.nombre ?? null;
+  }
 
   const resendResponse = await fetch("https://api.resend.com/emails", {
     method: "POST",
