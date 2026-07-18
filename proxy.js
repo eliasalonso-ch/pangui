@@ -42,6 +42,9 @@ export async function proxy(request) {
     // no web session cookie yet, so the route must reach its own token check
     // instead of being redirected to /login by this page-session gate.
     pathname === "/api/onboarding" ||
+    // Mobile support requests authenticate with their Supabase bearer token
+    // inside the route and therefore do not have a web session cookie.
+    pathname === "/api/soporte" ||
     pathname === "/api/catalogos/cargos-oficios" ||
     pathname === "/api/suscripcion/webhook" ||
     pathname === "/api/suscripcion/register/callback" ||
