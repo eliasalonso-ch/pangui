@@ -133,11 +133,47 @@ export interface FlowSubscription {
   period_start?: string;          // current invoice period start
   period_end?: string;            // current invoice period end (= last day they have access if they cancel)
   next_invoice_date?: string;
-  invoices?: unknown[];
+  invoices?: Array<FlowInvoice | { id?: number; invoiceId?: number }>;
   trial_period_days?: number;
   cancel_at_period_end?: number;
   cancel_at?: string | null;
   morose?: number;              // 0 ok, 1 overdue, 2 pending but not overdue
+}
+
+export interface FlowInvoiceItem {
+  id: number;
+  subject: string;
+  type: number;
+  currency: string;
+  amount: number;
+}
+
+export interface FlowInvoice {
+  id: number;
+  invoiceId?: number;
+  subscriptionId: string;
+  customerId: string;
+  created: string;
+  subject: string;
+  currency: string;
+  amount: number;
+  period_start?: string;
+  period_end?: string;
+  due_date?: string;
+  status: 0 | 1 | 2;
+  error?: 0 | 1;
+  errorDate?: string | null;
+  errorDescription?: string | null;
+  items?: FlowInvoiceItem[];
+  payment?: {
+    flowOrder?: number;
+    commerceOrder?: string;
+    requestDate?: string;
+    status?: number;
+    paymentData?: { date?: string; media?: string; amount?: number; currency?: string };
+  } | null;
+  outsidePayment?: { date?: string; comment?: string } | null;
+  paymentLink?: string | null;
 }
 
 export const flow = {
@@ -192,6 +228,8 @@ export const flow = {
   }) => flowPost<FlowSubscription>("/subscription/create", p),
   getSubscription: (subscriptionId: string) =>
     flowGet<FlowSubscription>("/subscription/get", { subscriptionId }),
+  getInvoice: (invoiceId: number) =>
+    flowGet<FlowInvoice>("/invoice/get", { invoiceId }),
   cancelSubscription: (p: { subscriptionId: string; at_period_end?: 0 | 1 }) =>
     flowPost<FlowSubscription>("/subscription/cancel", p),
   changePlan: (p: { subscriptionId: string; newPlanId: string }) =>

@@ -33,6 +33,10 @@ export async function proxy(request) {
     pathname.startsWith("/reset-contrasena") ||
     pathname.startsWith("/confirmar-reset") ||
     pathname === "/api/registro" ||
+    // Mobile onboarding authenticates with its Supabase bearer token. It has
+    // no web session cookie yet, so the route must reach its own token check
+    // instead of being redirected to /login by this page-session gate.
+    pathname === "/api/onboarding" ||
     pathname === "/api/catalogos/cargos-oficios" ||
     pathname === "/api/suscripcion/webhook" ||
     pathname === "/api/suscripcion/register/callback" ||

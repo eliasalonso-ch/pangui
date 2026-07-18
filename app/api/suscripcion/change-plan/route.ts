@@ -48,7 +48,36 @@ export async function POST(req: Request) {
 
   // No Flow subscription yet → caller must go through /register to capture card.
   if (!sub.flow_subscription_id) {
-    return NextResponse.json({ error: "needs_card", redirect: "/configuracion/suscripcion?action=upgrade" }, { status: 402 });
+    const { data: customer } = await admin
+      .from("flow_customers")
+      .select("flow_customer_id, has_card")
+      .eq("workspace_id", workspaceId)
+      .maybeSingle();
+    if (!customer?.flow_customer_id || !customer.has_card) {
+      return NextResponse.json({ error: "needs_card", redirect: "/configuracion/suscripcion?action=upgrade" }, { status: 402 });
+    }
+    try {
+      const created = await flow.createSubscription({ planId: newFlowPlanId, customerId: customer.flow_customer_id });
+      const refreshed = await flow.getSubscription(created.subscriptionId).catch(() => created);
+      await admin.from("subscriptions").update({
+        plan_key: planKey,
+        flow_subscription_id: created.subscriptionId,
+        flow_plan_id: newFlowPlanId,
+        price_per_user_clp: sub.is_early_customer ? sub.price_per_user_clp : plan.pricePerUser,
+        status: "active",
+        trial_end: null,
+        current_period_start: refreshed.period_start ?? null,
+        current_period_end: refreshed.period_end ?? refreshed.next_invoice_date ?? null,
+        updated_at: new Date().toISOString(),
+      }).eq("id", sub.id);
+      await admin.from("usuarios").update({ plan: planKey, plan_status: "active" }).eq("workspace_id", workspaceId);
+      await syncSubscriptionToUserCount(workspaceId);
+      return NextResponse.json({ ok: true, plan_key: planKey });
+    } catch (err) {
+      const fe = err as FlowError;
+      console.error("[suscripcion/change-plan] create with saved card", fe);
+      return NextResponse.json({ error: fe.message ?? "No se pudo activar el plan con la tarjeta guardada." }, { status: 502 });
+    }
   }
 
   try {

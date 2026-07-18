@@ -99,7 +99,8 @@ export async function POST(req) {
 
   const { error: updErr } = await admin
     .from("usuarios")
-    .update({
+    .upsert({
+      id: userId,
       workspace_id: workspace.id,
       nombre: nombre.trim(),
       rol: "owner",
@@ -111,8 +112,7 @@ export async function POST(req) {
       plan_status: "trial",
       trial_end: trialEnd.toISOString(),
       onboarding_done: true,
-    })
-    .eq("id", userId);
+    }, { onConflict: "id" });
 
   if (updErr) {
     // Roll back the orphan workspace so a retry starts clean.

@@ -8,6 +8,8 @@ import { Loader2, Check, CreditCard, AlertCircle, ArrowLeft, X, Sparkles, Shield
 import { SELF_SERVE_PLANS, PLANS, type PlanKey } from "@/lib/flow-plans";
 import { resolveCardBrand } from "@/lib/card-brand";
 import { CardBrandLogo } from "@/components/CardBrandLogo";
+import { InvoicesPanel } from "./InvoicesPanel";
+import { SubscriptionOverview } from "./SubscriptionOverview";
 
 type PendingAction = PlanKey | "cancel" | "card_change" | "card_remove";
 type RedirectAction = PlanKey | "card_change";
@@ -56,6 +58,7 @@ function SuscripcionPageInner() {
   const [flash, setFlash] = useState<{ kind: "ok" | "err"; msg: string } | null>(null);
   const [confirmCancel, setConfirmCancel] = useState(false);
   const [acceptedBilling, setAcceptedBilling] = useState(false);
+  const [activeTab, setActiveTab] = useState<"subscription" | "invoices">("subscription");
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -216,8 +219,15 @@ function SuscripcionPageInner() {
         <h1 style={{ fontSize: 20, fontWeight: 700, color: "var(--fg-1)", margin: 0 }}>Suscripción</h1>
       </div>
 
-      <div style={{ flex: 1, overflowY: "auto", padding: "28px 24px" }}>
-        <div style={{ maxWidth: 960, margin: "0 auto", display: "flex", flexDirection: "column", gap: 20 }}>
+      <div role="tablist" aria-label="Facturación" style={{ flexShrink: 0, padding: "10px 24px", borderBottom: "1px solid var(--border)", background: "var(--surface-1)" }}>
+        <div style={{ width: "fit-content", display: "flex", gap: 3, padding: 3, border: "1px solid var(--border)", borderRadius: "var(--r-md)", background: "var(--surface-0)" }}>
+          <BillingTab selected={activeTab === "subscription"} onClick={() => setActiveTab("subscription")}>Suscripción</BillingTab>
+          <BillingTab selected={activeTab === "invoices"} onClick={() => setActiveTab("invoices")}>Facturas y documentos</BillingTab>
+        </div>
+      </div>
+
+      {activeTab === "invoices" ? <InvoicesPanel /> : <div style={{ flex: 1, overflowY: "auto", padding: "28px 24px" }}>
+        <div style={{ maxWidth: 1240, margin: "0 auto", display: "flex", flexDirection: "column", gap: 20 }}>
           {flash && <Notice kind={flash.kind} onClose={() => setFlash(null)}>{flash.msg}</Notice>}
           {error && <Notice kind="err">{error}</Notice>}
 
@@ -266,67 +276,41 @@ function SuscripcionPageInner() {
             </div>
           )}
 
-          {sub && (
-            <div style={card}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14, gap: 12 }}>
-                <p style={sectionLabel}>Plan actual</p>
-                <span style={statusPill(sub.status)}>{statusLabel(sub.status)}</span>
-              </div>
-              <p style={{ fontSize: 24, fontWeight: 700, margin: 0, color: "var(--fg-1)" }}>
-                {currentPlan?.name ?? sub.plan_key}
-              </p>
-              {currentPrice > 0 && (
-                <p style={{ fontSize: 13, color: "var(--fg-2)", margin: "4px 0 0" }}>
-                  {fmtCLP(currentPrice)} por usuario activo al mes
+          {sub ? (
+            <SubscriptionOverview
+              planName={currentPlan?.name ?? sub.plan_key}
+              status={sub.status}
+              statusLabel={statusLabel(sub.status)}
+              renewalDate={sub.current_period_end}
+              unitPrice={currentPrice}
+              totalPrice={monthlyCost}
+              activeUsers={activeUsers}
+              cardBrand={customer?.card_brand ?? null}
+              cardLast4={customer?.card_last4 ?? null}
+              billingEmail={customer?.email ?? null}
+              payMode={customer?.pay_mode ?? null}
+              canChangeCard
+              changingCard={submitting === "card_change"}
+              removingCard={submitting === "card_remove"}
+              onChangeCard={changeCard}
+              onRemoveCard={removeCard}
+            />
+          ) : null}
+
+          {isPaid && !sub?.canceled_at && (
+            confirmCancel ? (
+              <div style={{ ...card, borderColor: "var(--danger)" }}>
+                <p style={{ fontSize: 13, color: "var(--fg-1)", margin: "0 0 10px" }}>
+                  ¿Cancelar la suscripción? Mantendrás acceso hasta el {fmtDate(sub?.current_period_end ?? null)} y no habrá nuevos cobros.
                 </p>
-              )}
-
-              <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 8 }}>
-                <Row label="Usuarios activos" value={`${activeUsers}`} />
-                {isPaid && <Row label="Costo mensual estimado" value={fmtCLP(monthlyCost)} bold />}
-                {isTrial && sub.trial_end && <Row label="Prueba termina" value={fmtDate(sub.trial_end)} />}
-                {sub.current_period_end && <Row label="Próximo cobro o fin de acceso" value={fmtDate(sub.current_period_end)} />}
-                {customer?.has_card && (customer.card_last4 || customer.card_brand) ? (
-                  <CardRow
-                    brand={customer.card_brand}
-                    last4={customer.card_last4}
-                    email={customer.email}
-                    onChange={changeCard}
-                    onRemove={removeCard}
-                    changing={submitting === "card_change"}
-                    removing={submitting === "card_remove"}
-                  />
-                ) : (
-                  <EmptyCardRow
-                    canAddCard={Boolean(customer)}
-                    payMode={customer?.pay_mode ?? null}
-                    onAddCard={changeCard}
-                    adding={submitting === "card_change"}
-                  />
-                )}
-                {sub.canceled_at && <Row label="Cancelada" value={fmtDate(sub.canceled_at)} />}
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button type="button" onClick={cancelSub} disabled={submitting === "cancel"} style={dangerBtn}>{submitting === "cancel" ? <Loader2 size={13} className="animate-spin" /> : "Sí, cancelar"}</button>
+                  <button type="button" onClick={() => setConfirmCancel(false)} style={ghostBtn}>No</button>
+                </div>
               </div>
-
-              {isPaid && !sub.canceled_at && (
-                confirmCancel ? (
-                  <div style={{ marginTop: 16, padding: 12, background: "var(--surface-0)", border: "1px solid var(--border)", borderRadius: "var(--r-md)" }}>
-                    <p style={{ fontSize: 13, color: "var(--fg-1)", margin: "0 0 10px" }}>
-                      ¿Cancelar la suscripción? Mantendrás acceso hasta el {fmtDate(sub.current_period_end)} y no habrá nuevos cobros de este plan.
-                    </p>
-                    <div style={{ display: "flex", gap: 8 }}>
-                      <button type="button" onClick={cancelSub} disabled={submitting === "cancel"} style={dangerBtn}>
-                        {submitting === "cancel" ? <Loader2 size={13} className="animate-spin" /> : "Sí, cancelar"}
-                      </button>
-                      <button type="button" onClick={() => setConfirmCancel(false)} style={ghostBtn}>No</button>
-                    </div>
-                  </div>
-                ) : (
-                  <button type="button" onClick={() => setConfirmCancel(true)} style={{ ...ghostBtn, marginTop: 16, color: "var(--danger)" }}>
-                    Cancelar suscripción
-                  </button>
-                )
-              )}
-            </div>
+            ) : (
+              <button type="button" onClick={() => setConfirmCancel(true)} style={{ ...ghostBtn, width: "fit-content", color: "var(--danger)" }}>Cancelar suscripción</button>
+            )
           )}
 
           <BillingDisclosure
@@ -383,7 +367,7 @@ function SuscripcionPageInner() {
                     <button
                       type="button"
                       disabled={disabled}
-                      onClick={() => isPaid ? changePlan(p.key) : startCheckout(p.key)}
+                      onClick={() => (isPaid || customer?.has_card) ? changePlan(p.key) : startCheckout(p.key)}
                       style={{
                         ...primaryBtn,
                         marginTop: "auto",
@@ -408,8 +392,34 @@ function SuscripcionPageInner() {
             </p>
           </div>
         </div>
-      </div>
+      </div>}
     </div>
+  );
+}
+
+function BillingTab({ selected, onClick, children }: { selected: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={selected}
+      onClick={onClick}
+      style={{
+        height: 32,
+        padding: "0 12px",
+        border: selected ? "1px solid var(--border)" : "1px solid transparent",
+        borderRadius: "calc(var(--r-md) - 2px)",
+        background: selected ? "var(--surface-1)" : "transparent",
+        color: selected ? "var(--fg-1)" : "var(--fg-3)",
+        boxShadow: selected ? "var(--shadow-sm)" : "none",
+        fontSize: 13,
+        fontWeight: 600,
+        cursor: "pointer",
+        whiteSpace: "nowrap",
+      }}
+    >
+      {children}
+    </button>
   );
 }
 
