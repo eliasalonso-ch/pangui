@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { createClient } from "@/lib/supabase";
 import AppSidebar from "@/components/AppSidebar";
+import GlobalTopBar from "@/components/GlobalTopBar";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 
 function applyStoredTheme() {
@@ -139,7 +140,8 @@ export default function AppShell({ children }) {
       <SidebarProvider>
         <AppSidebar />
         <SidebarInset>
-          {children}
+          <GlobalTopBar />
+          <div style={{ flex: 1, minHeight: 0, overflowY: "auto" }}>{children}</div>
         </SidebarInset>
       </SidebarProvider>
     </>

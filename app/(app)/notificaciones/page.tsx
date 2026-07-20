@@ -105,9 +105,6 @@ export default function NotificacionesPage() {
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <Bell size={20} style={{ color: "var(--brand)" }} />
-          <h1 style={{ fontSize: 20, fontWeight: 700, color: "var(--fg-1)", margin: 0, letterSpacing: "-0.3px" }}>
-            Notificaciones
-          </h1>
           {unread > 0 && (
             <span style={{
               background: "var(--danger)", color: "var(--fg-on-brand)",

@@ -222,7 +222,7 @@ export const PLANS: PlanDef[] = [
 export const SELF_SERVE_PLANS = PLANS.filter(p => p.selfServe);
 
 /**
- * Planes mostrados en /precios y /configuracion/suscripcion. Hoy = self-serve.
+ * Planes mostrados en /precios y /suscripcion. Hoy = self-serve.
  * Enterprise existe en el catálogo pero NO se muestra (decisión de producto:
  * lo activamos cuando tengamos demanda real / un proceso de ventas).
  */

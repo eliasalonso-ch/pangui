@@ -435,7 +435,6 @@ export default function ReglasAlertaPage() {
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <BellRing size={20} style={{ color: "var(--brand)" }} />
-          <h1 style={{ margin: 0, fontSize: 20, fontWeight: 750, color: "var(--fg-1)" }}>Reglas de alerta</h1>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 7, color: saved ? "var(--success)" : "var(--fg-4)", fontSize: 12 }}>
           {savingId ? <Loader2 size={13} className="animate-spin" /> : saved ? <Check size={13} /> : null}

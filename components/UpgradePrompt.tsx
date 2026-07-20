@@ -14,7 +14,7 @@ interface UpgradePromptProps {
   variant?:     "inline" | "card";
   /** Custom CTA label. Defaults to "Sube a <plan>" / "Ver planes". */
   ctaLabel?:    string;
-  /** Override link target. Defaults to /configuracion/suscripcion. */
+  /** Override link target. Defaults to /suscripcion. */
   href?:        string;
 }
 
@@ -24,7 +24,7 @@ export function UpgradePrompt({
   upgradeTo,
   variant = "inline",
   ctaLabel,
-  href = "/configuracion/suscripcion",
+  href = "/suscripcion",
 }: UpgradePromptProps) {
   const cta = ctaLabel ?? (upgradeTo ? `Sube a ${upgradeTo}` : "Ver planes");
 

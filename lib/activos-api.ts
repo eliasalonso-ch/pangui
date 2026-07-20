@@ -198,7 +198,7 @@ export async function fetchActivoActividadPage(
 
 export async function fetchFabricantes(): Promise<Fabricante[]> {
   const sb = createClient();
-  const { data, error } = await sb.from("fabricantes").select("id, nombre, pais, created_at").order("nombre");
+  const { data, error } = await sb.from("fabricantes").select("id, nombre, created_at").order("nombre");
   if (error) throw error;
   return (data ?? []) as Fabricante[];
 }

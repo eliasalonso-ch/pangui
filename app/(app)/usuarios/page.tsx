@@ -362,12 +362,7 @@ export default function UsuariosPage() {
         padding: "0 24px", height: 56,
         display: "flex", alignItems: "center", justifyContent: "space-between",
       }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <h1 style={{ fontSize: 20, fontWeight: 700, color: "var(--fg-1)", margin: 0, letterSpacing: "-0.3px" }}>
-            {activeTab === "equipo" ? "Equipo" : "Cuadrillas"}
-          </h1>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginLeft: "auto" }}>
           {esAdmin(myRol) && activeTab === "equipo" && (
             <button
               type="button"

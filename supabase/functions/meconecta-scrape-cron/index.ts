@@ -35,6 +35,8 @@ const LOGIN_URL   = `${BASE}/response/rmgf_login.php?accion=login`;
 // accion=YXNpZ25hZGFz -> base64 "asignadas"
 const ORDERS_URL  = `${BASE}/index.php?accion=YXNpZ25hZGFz&boton=2&submenu=2`;
 const UA = "Mozilla/5.0 (compatible; PanguiBot/1.0; +https://getpangui.com)";
+const REQUEST_TIMEOUT_MS = 15_000;
+const RETRY_DELAYS_MS = [0, 1_000, 3_000] as const;
 
 interface ScrapedRow {
   idExterno: number;
@@ -44,6 +46,53 @@ interface ScrapedRow {
   detalleHref: string;    // "?accion=...&ids=..." for the notification link
 }
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isRetryableStatus(status: number): boolean {
+  return status === 408 || status === 425 || status === 429 || status >= 500;
+}
+
+// meconecta is an external dependency and its DNS/host occasionally becomes
+// unavailable for a few seconds. Retry only transport failures and transient
+// HTTP statuses. Authentication and other 4xx responses must surface as-is.
+async function fetchMeconecta(
+  url: string,
+  init: RequestInit,
+  operation: string,
+): Promise<Response> {
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt < RETRY_DELAYS_MS.length; attempt += 1) {
+    const delay = RETRY_DELAYS_MS[attempt];
+    if (delay > 0) await sleep(delay);
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+    try {
+      const response = await fetch(url, { ...init, signal: controller.signal });
+      if (!isRetryableStatus(response.status) || attempt === RETRY_DELAYS_MS.length - 1) {
+        return response;
+      }
+
+      await response.body?.cancel().catch(() => undefined);
+      lastError = new Error(`${operation}: transient HTTP ${response.status}`);
+    } catch (error) {
+      lastError = error;
+      if (attempt === RETRY_DELAYS_MS.length - 1) break;
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  throw new Error(
+    `${operation}: meconecta unavailable after ${RETRY_DELAYS_MS.length} attempts`,
+    { cause: lastError },
+  );
+}
+
 // ── Login: returns the PHPSESSID cookie string to reuse, or throws ──
 async function login(): Promise<string> {
   const body = new URLSearchParams({
@@ -51,7 +100,7 @@ async function login(): Promise<string> {
     password: MECONECTA_PASSWORD,
   }).toString();
 
-  const res = await fetch(LOGIN_URL, {
+  const res = await fetchMeconecta(LOGIN_URL, {
     method: "POST",
     headers: {
       "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
@@ -63,7 +112,7 @@ async function login(): Promise<string> {
     },
     body,
     redirect: "manual",
-  });
+  }, "login");
 
   // Collect Set-Cookie (Deno exposes getSetCookie()).
   const setCookies: string[] =
@@ -84,9 +133,9 @@ async function login(): Promise<string> {
 
 // ── Fetch + parse the orders table ──
 async function fetchOrders(cookie: string): Promise<ScrapedRow[]> {
-  const res = await fetch(ORDERS_URL, {
+  const res = await fetchMeconecta(ORDERS_URL, {
     headers: { "Cookie": cookie, "User-Agent": UA, "Accept": "text/html" },
-  });
+  }, "orders fetch");
   if (!res.ok) throw new Error(`orders fetch ${res.status}`);
   const html = await res.text();
 

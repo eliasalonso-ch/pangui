@@ -9,7 +9,7 @@
  *   4. Upsert the workspace's subscriptions row
  *   5. Add subscription_items to match current active user count
  *   6. Mirror plan to usuarios.plan / plan_status (legacy gating)
- *   7. Redirect back to /configuracion/suscripcion
+ *   7. Redirect back to /suscripcion
  */
 import { NextResponse } from "next/server";
 import { adminSupabase } from "../../_helpers";
@@ -51,7 +51,7 @@ async function handle(req: Request) {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? new URL(req.url).origin;
 
   const fail = (reason: string) =>
-    NextResponse.redirect(`${appUrl}/configuracion/suscripcion?status=error&reason=${encodeURIComponent(reason)}`, 303);
+    NextResponse.redirect(`${appUrl}/suscripcion?status=error&reason=${encodeURIComponent(reason)}`, 303);
 
   if (!token)                                   return fail("missing_token");
   if (!planKey || !PLAN_KEYS.includes(planKey)) return fail("invalid_plan");
@@ -188,7 +188,7 @@ async function handle(req: Request) {
     await syncSubscriptionToUserCount(workspaceId);
 
     // Redirect to the dashboard with a welcome flag so /inicio can render a
-    // celebration toast. Going back to /configuracion/suscripcion would dump
+    // celebration toast. Going back to /suscripcion would dump
     // the user on a billing screen — not the productive landing post-upgrade.
     return NextResponse.redirect(`${appUrl}/inicio?welcome=${encodeURIComponent(planKey)}`, 303);
   } catch (err) {

@@ -59,7 +59,7 @@ export default async function ActivosPage({ searchParams }: PageProps) {
 
     // Fabricantes y modelos son catálogos globales (workspace_id null) + privados.
     sb.from("fabricantes")
-      .select("id,nombre,pais,created_at")
+      .select("id,nombre,created_at")
       .order("nombre")
       .then(r => (r.data ?? []) as unknown as Fabricante[]),
 

@@ -63,7 +63,7 @@ export const SidebarInset = ({ children }: { children: React.ReactNode }) => (
   // h-screen + overflow-y-auto makes the main pane the scroll container for page
   // content. The provider clips page-level scroll (overflow-hidden), so this is
   // the element that actually scrolls. min-w-0 prevents flex overflow on the X axis.
-  <main className="flex-1 min-w-0 h-screen overflow-y-auto" style={{ background: "var(--surface-0)" }}>{children}</main>
+  <main className="flex flex-col flex-1 min-w-0 h-screen overflow-hidden" style={{ background: "var(--surface-0)" }}>{children}</main>
 )
 
 export const SidebarHeader = (props: React.HTMLAttributes<HTMLDivElement>) => (

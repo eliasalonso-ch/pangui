@@ -39,7 +39,7 @@ export async function ensureOtCategoria(categoria: CategoriaOT, label: string): 
   const r = await postCheck({ kind: "ot_categoria", categoria });
   if (!r.permitido) {
     throw new QuotaError(
-      `Llegaste al límite de ${r.limite} ${label} este mes. Cambia tu plan en Configuración → Suscripción para crear más.`,
+      `Llegaste al límite de ${r.limite} ${label} este mes. Cambia tu plan en Suscripción para crear más.`,
       `ot_${categoria}`,
       r.usado, r.limite,
     );

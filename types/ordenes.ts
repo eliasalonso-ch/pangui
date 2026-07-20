@@ -155,7 +155,6 @@ export type AssetStatus = "operativo" | "fuera_servicio" | "mantencion" | "baja"
 export interface Fabricante {
   id: string;
   nombre: string;
-  pais: string | null;
   created_at: string;
 }
 

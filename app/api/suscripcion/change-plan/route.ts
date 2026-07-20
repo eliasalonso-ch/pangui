@@ -54,7 +54,7 @@ export async function POST(req: Request) {
       .eq("workspace_id", workspaceId)
       .maybeSingle();
     if (!customer?.flow_customer_id || !customer.has_card) {
-      return NextResponse.json({ error: "needs_card", redirect: "/configuracion/suscripcion?action=upgrade" }, { status: 402 });
+      return NextResponse.json({ error: "needs_card", redirect: "/suscripcion?action=upgrade" }, { status: 402 });
     }
     try {
       const created = await flow.createSubscription({ planId: newFlowPlanId, customerId: customer.flow_customer_id });

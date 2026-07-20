@@ -2,17 +2,42 @@ import { NextRequest, NextResponse } from "next/server";
 import { adminSupabase, requireAdminOfWorkspace } from "../_helpers";
 
 const FIELDS = "billing_email, razon_social, rut, giro, direccion, comuna, ciudad, region, pais, receive_pdf_invoices, invoice_language";
+const LEGACY_FIELDS = "billing_email, razon_social, rut, giro, direccion, comuna, ciudad, region, pais";
+const SCHEMA_MISMATCH_CODES = new Set(["42P01", "42703", "PGRST204", "PGRST205"]);
+
+function emptyProfile(email: string) {
+  return { billing_email: email, pais: "Chile", receive_pdf_invoices: true, invoice_language: "es" };
+}
 
 export async function GET() {
   const auth = await requireAdminOfWorkspace();
   if (auth.error) return auth.error;
-  const { data, error } = await adminSupabase()
+  const admin = adminSupabase();
+  const { data, error } = await admin
     .from("billing_profiles")
     .select(FIELDS)
     .eq("workspace_id", auth.ctx.workspaceId)
     .maybeSingle();
-  if (error) return NextResponse.json({ error: "No se pudieron cargar los datos de facturación." }, { status: 500 });
-  return NextResponse.json(data ?? { billing_email: auth.ctx.email, pais: "Chile", receive_pdf_invoices: true, invoice_language: "es" });
+  if (!error) return NextResponse.json(data ?? emptyProfile(auth.ctx.email));
+
+  if (error.code === "42703" || error.code === "PGRST204") {
+    const legacy = await admin
+      .from("billing_profiles")
+      .select(LEGACY_FIELDS)
+      .eq("workspace_id", auth.ctx.workspaceId)
+      .maybeSingle();
+    if (!legacy.error) {
+      return NextResponse.json({ ...emptyProfile(auth.ctx.email), ...(legacy.data ?? {}) });
+    }
+  }
+
+  if (SCHEMA_MISMATCH_CODES.has(error.code ?? "")) {
+    console.warn("[billing-profile] schema not ready", { code: error.code, message: error.message });
+    return NextResponse.json(emptyProfile(auth.ctx.email));
+  }
+
+  console.error("[billing-profile] GET failed", { code: error.code, message: error.message, details: error.details });
+  return NextResponse.json({ error: "No se pudieron cargar los datos de facturación." }, { status: 500 });
 }
 
 export async function PUT(request: NextRequest) {

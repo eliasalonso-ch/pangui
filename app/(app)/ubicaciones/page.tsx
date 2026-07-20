@@ -467,8 +467,7 @@ export default function UbicacionesPage() {
       <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, borderRight: panel ? "1px solid var(--border)" : "none" }}>
 
         {/* Header */}
-        <div style={{ flexShrink: 0, borderBottom: "1px solid var(--border)", padding: "0 24px", height: 56, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <h1 style={{ fontSize: 18, fontWeight: 700, color: "var(--fg-1)", margin: 0 }}>Ubicaciones</h1>
+        <div style={{ flexShrink: 0, borderBottom: "1px solid var(--border)", padding: "0 24px", height: 56, display: "flex", alignItems: "center", justifyContent: "flex-end" }}>
           {canEdit && (
             <Btn onClick={() => openCreate(section)}>
               <Plus size={14} />

@@ -64,9 +64,6 @@ export default function PapeleraView({ workspaceId }: { workspaceId: string }) {
   return (
     <div style={{ padding: "24px 28px", maxWidth: 880, margin: "0 auto" }}>
       <header style={{ marginBottom: 8 }}>
-        <h1 style={{ fontSize: "var(--fs-xl)", fontWeight: 700, color: "var(--fg-1)", display: "flex", alignItems: "center", gap: 10 }}>
-          <Trash2 size={22} /> Papelera
-        </h1>
         <p style={{ fontSize: "var(--fs-sm)", color: "var(--fg-3)", marginTop: 4 }}>
           Las órdenes eliminadas se conservan aquí 30 días antes de borrarse definitivamente. Puedes restaurarlas en cualquier momento.
         </p>

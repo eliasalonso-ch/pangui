@@ -1344,12 +1344,6 @@ export default function ActivosBandeja({ initialActivos, usuarios, ubicaciones, 
 
         {/* Top row */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 20px", height: 56, gap: 12 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 14, flexShrink: 0 }}>
-            <h1 style={{ fontSize: 20, fontWeight: 700, color: "var(--fg-1)", letterSpacing: "-0.3px", lineHeight: 1.25, margin: 0 }}>
-              Activos
-            </h1>
-          </div>
-
           <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, justifyContent: "flex-end" }}>
             {/* Search */}
             <div style={{ position: "relative", maxWidth: 280, flex: 1 }}>

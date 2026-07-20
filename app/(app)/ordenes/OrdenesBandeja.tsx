@@ -1112,9 +1112,6 @@ export default function OrdenesBandeja({
           padding:"9px 20px", minHeight:56, gap:12, flexWrap:"wrap",
         }}>
           <div style={{ display:"flex", alignItems:"center", gap:14, flexShrink:0 }}>
-            <h1 style={{ fontSize:20, fontWeight:700, color:"var(--fg-1)", letterSpacing:"-0.3px", lineHeight:1.25, margin:0 }}>
-              Órdenes de Trabajo
-            </h1>
             {/* Vista toggle. Same URL, ?vista= param for shareable links. */}
             <div style={{ display:"flex", border:"1px solid var(--border)", borderRadius:8, overflow:"hidden", height:32 }}>
               {([

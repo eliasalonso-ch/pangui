@@ -21,6 +21,10 @@ import {
   ListChecks,
   BellRing,
   Trash2,
+  CircleUserRound,
+  Building2,
+  CreditCard,
+  SlidersHorizontal,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
@@ -125,12 +129,12 @@ function SidebarUserFooter({ user }: { user: UserData | null }) {
             <div style={{ position: "fixed", inset: 0, zIndex: 9998 }} onMouseDown={() => setOpen(false)} />
             <div style={{ position: "fixed", bottom: popupPos.bottom, left: popupPos.left, zIndex: 9999, ...menuPopupStyle }}>
               <button
-                onClick={() => { setOpen(false); router.push("/configuracion"); }}
+                onClick={() => { setOpen(false); router.push("/mi-cuenta"); }}
                 style={menuBtnBase}
                 onMouseEnter={e => { e.currentTarget.style.background = "var(--surface-hover)"; }}
                 onMouseLeave={e => { e.currentTarget.style.background = "none"; }}
               >
-                <Settings size={14} />Configuración
+                <Settings size={14} />Mi cuenta
               </button>
               <div style={{ height: 1, background: "var(--divider)", margin: "0 12px" }} />
               <button
@@ -163,12 +167,12 @@ function SidebarUserFooter({ user }: { user: UserData | null }) {
           <div style={{ position: "fixed", inset: 0, zIndex: 40 }} onClick={() => setOpen(false)} />
           <div style={{ position: "absolute", bottom: "calc(100% + 6px)", left: 0, right: 0, zIndex: 50, ...menuPopupStyle }}>
             <button
-              onClick={() => { setOpen(false); router.push("/configuracion"); }}
+              onClick={() => { setOpen(false); router.push("/mi-cuenta"); }}
               style={menuBtnBase}
               onMouseEnter={e => { e.currentTarget.style.background = "var(--surface-hover)"; }}
               onMouseLeave={e => { e.currentTarget.style.background = "none"; }}
             >
-              <Settings size={14} />Configuración
+              <Settings size={14} />Mi cuenta
             </button>
             <div style={{ height: 1, background: "var(--divider)", margin: "0 12px" }} />
             <button
@@ -228,6 +232,7 @@ export default function AppSidebar() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [modoRegistro, setModoRegistro] = useState<"ambos" | "materiales" | "hoja">("ambos");
   const [workspaceLogo, setWorkspaceLogo] = useState<string | null | undefined>(undefined);
+  const [mounted, setMounted] = useState(false);
 
   const { puedeVer, userRol: permisosRol } = usePermisos();
   const effectiveRol = userRol ?? permisosRol;
@@ -236,7 +241,11 @@ export default function AppSidebar() {
   // While the plan is loading, show items optimistically; once loaded, hide ones the plan blocks.
   const hasInventario   = !planFeatures || planFeatures.inventario;
   const hasAnalyticsPro = !planFeatures || planFeatures.analytics_pro;
-  const isAdmin = effectiveRol === "jefe" || effectiveRol === "admin" || effectiveRol === "owner";
+  const isAdmin = mounted && (effectiveRol === "jefe" || effectiveRol === "admin" || effectiveRol === "owner");
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -330,17 +339,17 @@ export default function AppSidebar() {
       title={collapsed ? "Expandir menú" : "Colapsar menú"}
       style={{
         display: "flex", alignItems: "center", justifyContent: "center",
-        width: "100%", height: 36,
-        border: "1px solid var(--border-strong)",
+        width: 36, height: 36,
+        border: "none",
         background: "none",
         cursor: "pointer",
-        color: "var(--brand-fg)",
-        borderRadius: "var(--r-sm)",
+        color: "var(--fg-3)",
+        borderRadius: 8,
         padding: 0,
-        transition: "background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease)",
+        transition: "background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease)",
       }}
-      onMouseEnter={e => { e.currentTarget.style.background = "var(--brand-tint)"; e.currentTarget.style.borderColor = "var(--brand)"; }}
-      onMouseLeave={e => { e.currentTarget.style.background = "none"; e.currentTarget.style.borderColor = "var(--border-strong)"; }}
+      onMouseEnter={e => { e.currentTarget.style.background = "var(--sidebar-hover)"; e.currentTarget.style.color = "var(--fg-1)"; }}
+      onMouseLeave={e => { e.currentTarget.style.background = "none"; e.currentTarget.style.color = "var(--fg-3)"; }}
     >
       <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
         {collapsed ? (
@@ -365,48 +374,48 @@ export default function AppSidebar() {
       {/* Header: logo */}
       <SidebarHeader>
         <div style={{
-          height: 150,
+          minHeight: collapsed ? 56 : 148,
           display: "flex",
+          flexDirection: collapsed ? "row" : "column",
           alignItems: "center",
           justifyContent: "center",
-          padding: "12px 0",
+          gap: collapsed ? 0 : 10,
+          padding: collapsed ? "8px" : "16px 12px 14px",
           borderBottom: "1px solid var(--border)",
         }}>
           {workspaceLogo !== undefined && (
             <div style={{
-              width: collapsed ? 40 : "calc(100% - 16px)",
-              height: collapsed ? 40 : 118,
+              width: collapsed ? 32 : 88,
+              height: collapsed ? 32 : 88,
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              border: "1px solid var(--border)",
-              borderRadius: 6,
-              background: "var(--surface-1)",
+              borderRadius: collapsed ? 8 : 16,
               overflow: "hidden",
+              flexShrink: 0,
             }}>
               <img
                 src={workspaceLogo ?? "/logo2.svg"}
                 alt="Logo"
                 style={{
-                  width: collapsed ? 32 : "100%",
-                  height: collapsed ? 32 : "100%",
+                  width: "100%",
+                  height: "100%",
                   objectFit: "contain",
-                  padding: collapsed ? 0 : 12,
                 }}
               />
             </div>
+          )}
+          {!collapsed && (
+            <span style={{ width: "100%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textAlign: "center", color: "var(--fg-1)", fontSize: 13, fontWeight: 600 }}>
+              {userData?.nombre || "Pangui"}
+            </span>
           )}
         </div>
       </SidebarHeader>
 
       <SidebarContent>
-        {/* Collapse toggle */}
-        <div style={{ padding: "4px 8px 0" }}>
-          {collapseBtn}
-        </div>
-
         <SidebarGroup>
-          <SidebarGroupLabel>Workspace</SidebarGroupLabel>
+          <SidebarGroupLabel>Operaciones</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {!onboardingDone && (
@@ -498,7 +507,7 @@ export default function AppSidebar() {
         <SidebarSeparator />
 
         <SidebarGroup>
-          <SidebarGroupLabel>Cuenta</SidebarGroupLabel>
+          <SidebarGroupLabel>Gestión</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               <SidebarMenuItem>
@@ -562,11 +571,58 @@ export default function AppSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+
+        <SidebarSeparator />
+
+        <SidebarGroup>
+          <SidebarGroupLabel>Cuenta</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={isActive("/mi-cuenta")} tooltip="Mi cuenta">
+                  <Link href="/mi-cuenta" style={{ display: "flex", alignItems: "center", gap: collapsed ? 0 : 10 }}>
+                    <CircleUserRound size={16} style={{ flexShrink: 0 }} />
+                    {!collapsed && <span>Mi cuenta</span>}
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              {isAdmin && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={isActive("/espacio-trabajo")} tooltip="Espacio de trabajo">
+                    <Link href="/espacio-trabajo" style={{ display: "flex", alignItems: "center", gap: collapsed ? 0 : 10 }}>
+                      <Building2 size={16} style={{ flexShrink: 0 }} />
+                      {!collapsed && <span>Espacio de trabajo</span>}
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )}
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={isActive("/preferencias-notificaciones")} tooltip="Preferencias de notificaciones">
+                  <Link href="/preferencias-notificaciones" style={{ display: "flex", alignItems: "center", gap: collapsed ? 0 : 10 }}>
+                    <SlidersHorizontal size={16} style={{ flexShrink: 0 }} />
+                    {!collapsed && <span>Preferencias de notificaciones</span>}
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              {mounted && userData?.rol === "owner" && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={isActive("/suscripcion")} tooltip="Facturación">
+                    <Link href="/suscripcion" style={{ display: "flex", alignItems: "center", gap: collapsed ? 0 : 10 }}>
+                      <CreditCard size={16} style={{ flexShrink: 0 }} />
+                      {!collapsed && <span>Facturación</span>}
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
       </SidebarContent>
 
-      <SidebarFooter>
-        <SidebarUserFooter user={userData} />
+      <SidebarFooter style={{ display: "flex", justifyContent: collapsed ? "center" : "flex-start", borderTop: "1px solid var(--border)", padding: "8px" }}>
+        {collapseBtn}
       </SidebarFooter>
+
     </Sidebar>
   );
 }

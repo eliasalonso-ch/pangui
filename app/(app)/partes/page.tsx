@@ -181,7 +181,6 @@ function MaterialesPageInner() {
   return (
     <div className={styles.page}>
       <header className={styles.header}>
-        <h1>Inventario</h1>
         <div className={styles.headerActions}>
           <div className={styles.searchBox}>
             <Search size={14} />

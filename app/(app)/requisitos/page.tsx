@@ -262,21 +262,6 @@ export default function RequisitosPage() {
   return (
     <div style={{ height: "100dvh", overflowY: "auto", background: "var(--surface-0)" }}>
       <div style={{ maxWidth: 720, margin: "0 auto", padding: "32px 24px 64px" }}>
-        {/* Header */}
-        <button
-          type="button"
-          onClick={() => router.push("/configuracion")}
-          style={{
-            display: "inline-flex", alignItems: "center", gap: 4, marginBottom: 14,
-            background: "transparent", border: "none", color: "var(--fg-3)",
-            fontSize: 12, fontWeight: 600, cursor: "pointer", padding: 0, fontFamily: "inherit",
-          }}
-        >
-          <ChevronLeft size={14} /> Configuración
-        </button>
-        <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: "var(--fg-1)" }}>
-          Requisitos de OTs
-        </h1>
         <p style={{ margin: "4px 0 0", fontSize: 13, color: "var(--fg-4)" }}>
           Configura los requisitos por defecto y las reglas globales del workspace.
         </p>

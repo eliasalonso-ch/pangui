@@ -34,7 +34,7 @@ async function handle(req: Request) {
 
   const back = (status: string, reason?: string) =>
     NextResponse.redirect(
-      `${appUrl}/configuracion/suscripcion?status=${status}${reason ? `&reason=${encodeURIComponent(reason)}` : ""}`,
+      `${appUrl}/suscripcion?status=${status}${reason ? `&reason=${encodeURIComponent(reason)}` : ""}`,
       303
     );
 

@@ -540,7 +540,6 @@ function AnaliticaMaterialesPageInner() {
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
         <div>
-          <h1 style={{ fontSize: 22, fontWeight: 800, color: C.text1, margin: 0 }}>Analítica de Materiales</h1>
           <p style={{ fontSize: 13, color: C.text3, margin: "4px 0 0" }}>Control de inventario, ABC y recomendaciones de layout</p>
         </div>
         <select

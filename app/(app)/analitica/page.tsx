@@ -554,7 +554,6 @@ export default function AnaliticaPage() {
     <div style={{ padding: "28px 32px 64px", minHeight: "100vh", background: C.bg }}>
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, flexWrap: "wrap", marginBottom: 22 }}>
         <div>
-          <h1 style={{ margin: 0, color: C.text1, fontSize: 24, fontWeight: 850, letterSpacing: 0 }}>Analitica operacional</h1>
           <p style={{ margin: "5px 0 0", color: C.text3, fontSize: 13 }}>
             KPIs basados en OTs reales, sub-OTs, asignacion, vencimientos y ejecucion en terreno.
           </p>

@@ -84,17 +84,11 @@ export default function ProcedimientosPage() {
       {/* Header */}
       <div style={{ padding: "24px 32px 0", flexShrink: 0 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-          <div>
-            <h1 style={{ fontSize: 22, fontWeight: 700, color: "var(--fg-1)", margin: 0 }}>Procedimientos</h1>
-            <p style={{ fontSize: 13, color: "var(--fg-3)", margin: "4px 0 0" }}>
-              Plantillas de pasos reutilizables que puedes adjuntar a órdenes de trabajo.
-            </p>
-          </div>
           {isAdmin && (
             <button
               onClick={() => router.push("/procedimientos/nueva")}
               style={{
-                display: "flex", alignItems: "center", gap: 6,
+                display: "flex", alignItems: "center", gap: 6, marginLeft: "auto",
                 height: 38, padding: "0 16px",
                 background: "linear-gradient(135deg, var(--brand-active), var(--brand))",
                 border: "none", borderRadius: 8, cursor: "pointer",

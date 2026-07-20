@@ -125,7 +125,7 @@ function RegistroPageInner() {
   const router = useRouter();
   const search = useSearchParams();
   // ?plan=esencial when arriving from /precios — used to redirect post-signup
-  // straight to /configuracion/suscripcion so the user can upgrade immediately.
+  // straight to /suscripcion so the user can upgrade immediately.
   const requestedPlan = search.get("plan");
   const requestedPlanDef = PLANS.find(p => p.key === requestedPlan && p.selfServe);
 
@@ -234,7 +234,7 @@ function RegistroPageInner() {
       // on the subscription page so they can activate the card right away.
       // Otherwise go to /inicio with a welcome=trial toast.
       if (requestedPlanDef) {
-        router.push(`/configuracion/suscripcion?intent=${requestedPlanDef.key}`);
+        router.push(`/suscripcion?intent=${requestedPlanDef.key}`);
       } else {
         router.push("/inicio?welcome=trial");
       }

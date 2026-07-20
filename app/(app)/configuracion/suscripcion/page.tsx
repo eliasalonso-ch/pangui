@@ -214,14 +214,9 @@ function SuscripcionPageInner() {
     <div style={{ display: "flex", flexDirection: "column", height: "100dvh", overflow: "hidden", background: "var(--surface-0)" }}>
       {redirecting && <CheckoutRedirectOverlay planKey={redirecting} />}
 
-      <div style={{ flexShrink: 0, borderBottom: "1px solid var(--border)", padding: "0 24px", height: 56, display: "flex", alignItems: "center", gap: 12, background: "var(--surface-1)" }}>
-        <button type="button" onClick={() => router.push("/configuracion")} style={iconBtn} aria-label="Volver a configuración"><ArrowLeft size={16} /></button>
-        <h1 style={{ fontSize: 20, fontWeight: 700, color: "var(--fg-1)", margin: 0 }}>Suscripción</h1>
-      </div>
-
       <div role="tablist" aria-label="Facturación" style={{ flexShrink: 0, padding: "10px 24px", borderBottom: "1px solid var(--border)", background: "var(--surface-1)" }}>
         <div style={{ width: "fit-content", display: "flex", gap: 3, padding: 3, border: "1px solid var(--border)", borderRadius: "var(--r-md)", background: "var(--surface-0)" }}>
-          <BillingTab selected={activeTab === "subscription"} onClick={() => setActiveTab("subscription")}>Suscripción</BillingTab>
+          <BillingTab selected={activeTab === "subscription"} onClick={() => setActiveTab("subscription")}>Plan</BillingTab>
           <BillingTab selected={activeTab === "invoices"} onClick={() => setActiveTab("invoices")}>Facturas y documentos</BillingTab>
         </div>
       </div>

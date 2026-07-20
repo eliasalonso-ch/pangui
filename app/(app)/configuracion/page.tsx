@@ -9,7 +9,8 @@ import {
   Pencil, Building2, Shield, MonitorSmartphone, X, ImagePlus, Trash2,
 } from "lucide-react";
 
-type Tab = "perfil" | "workspace" | "notificaciones" | "apariencia";
+export type ConfiguracionSection = "perfil" | "workspace" | "notificaciones" | "apariencia";
+type Tab = ConfiguracionSection;
 type ThemePref = "light" | "auto" | "dark";
 
 function setTheme(pref: ThemePref) {
@@ -47,9 +48,16 @@ const OFICIOS = [
   "Instrumentista", "Operador", "Supervisor", "Ingeniero", "Otro",
 ];
 
-export default function ConfiguracionPage() {
+const SECTION_TITLES: Record<ConfiguracionSection, string> = {
+  perfil: "Mi cuenta",
+  workspace: "Espacio de trabajo",
+  notificaciones: "Preferencias de notificaciones",
+  apariencia: "Apariencia",
+};
+
+export default function ConfiguracionPage({ section }: { section?: ConfiguracionSection }) {
   const router = useRouter();
-  const [tab, setTab] = useState<Tab>("perfil");
+  const tab: Tab = section ?? "perfil";
   const [themePref, setThemePref] = useState<ThemePref>("auto");
   const [myId, setMyId] = useState("");
   const [myRol, setMyRol] = useState("");
@@ -102,6 +110,10 @@ export default function ConfiguracionPage() {
   const [savingWs, setSavingWs]   = useState(false);
   const [wsSaved, setWsSaved]     = useState(false);
   const [loadingWs, setLoadingWs] = useState(false);
+
+  useEffect(() => {
+    if (!section) router.replace("/mi-cuenta");
+  }, [router, section]);
 
   useEffect(() => {
     async function load() {
@@ -268,42 +280,10 @@ export default function ConfiguracionPage() {
     );
   }
 
-  const tabs: [Tab, string][] = [
-    ["perfil", "Perfil"],
-    ...(esAdmin(myRol) ? [["workspace", "Workspace"] as [Tab, string]] : []),
-    ["notificaciones", "Notificaciones"],
-    ["apariencia", "Apariencia"],
-  ];
+  if (!section) return null;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100dvh", overflow: "hidden", background: "var(--surface-0)" }}>
-
-      {/* Header */}
-      <div style={{ flexShrink: 0, borderBottom: "1px solid var(--border)", padding: "0 24px", height: 56, display: "flex", alignItems: "center", background: "var(--surface-1)" }}>
-        <h1 style={{ fontSize: 20, fontWeight: 700, color: "var(--fg-1)", margin: 0, letterSpacing: "-0.3px" }}>Configuración</h1>
-      </div>
-
-      {/* Tabs */}
-      <div style={{ flexShrink: 0, borderBottom: "1px solid var(--border)", padding: "0 24px", display: "flex", gap: 0, background: "var(--surface-1)" }}>
-        {tabs.map(([key, label]) => (
-          <button
-            key={key}
-            type="button"
-            onClick={() => setTab(key)}
-            style={{
-              height: 40, padding: "0 16px",
-              background: "none", border: "none",
-              borderBottom: tab === key ? "2px solid var(--brand)" : "2px solid transparent",
-              color: tab === key ? "var(--brand-fg)" : "var(--fg-4)",
-              fontSize: 13, fontWeight: tab === key ? 600 : 500,
-              cursor: "pointer", fontFamily: "inherit",
-              marginBottom: -1, transition: "color 0.1s",
-            }}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
 
       {/* Body */}
       <div style={{ flex: 1, overflowY: "auto", padding: "28px 24px" }}>
@@ -716,7 +696,7 @@ export default function ConfiguracionPage() {
                 {esOwner(myRol) && (
                 <button
                   type="button"
-                  onClick={() => router.push("/configuracion/suscripcion")}
+                  onClick={() => router.push("/suscripcion")}
                   style={{
                     background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: 12, padding: 20,
                     boxShadow: "0 1px 3px rgba(15,23,42,0.06)", cursor: "pointer", fontFamily: "inherit",
