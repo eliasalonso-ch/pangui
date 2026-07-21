@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import {
   X, Loader2, User, MapPin, Settings2,
   CalendarDays, Tag, Check, ChevronDown, Building2, Hash, FileUp, Plus, AlertTriangle,
-  Camera, ImagePlus, Trash2, Upload, Paperclip, FileText, File, DollarSign,
+  Camera, ImagePlus, Trash2, Upload, Paperclip, FileText, File, DollarSign, Sparkles,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase";
 import { callEdge } from "@/lib/edge";
@@ -77,6 +77,9 @@ interface ScanResult {
   prioridad:    Prioridad;
   tipo_trabajo: TipoTrabajo | "";
   fecha_inicio: string | null;
+  fecha_termino?: string | null;
+  numero_serie?: string | null;
+  presupuesto?: string | null;
   sociedad:   ScanField;
   ubicacion:  ScanField;
   lugar:      ScanField;
@@ -84,6 +87,11 @@ interface ScanResult {
   categoria:  ScanField;
   activo:     ScanField;
   asignados:  ScanField[];
+  categoria_ids?: string[];
+  procedimiento_ids?: string[];
+  links?: OTLink[];
+  recurrencia?: Recurrencia;
+  recurrencia_config?: RecurrenciaConfig | null;
 }
 
 // Confidence tiers used to decide auto-fill vs. suggest vs. manual.
@@ -1021,6 +1029,9 @@ export default function OTCrearPanel({
   const [dupWarning, setDupWarning] = useState<string | null>(null);
   const [parsing, setParsing] = useState(false);
   const [parseMsg, setParseMsg] = useState<string | null>(null);
+  const [aiOpen, setAiOpen] = useState(false);
+  const [aiMessage, setAiMessage] = useState("");
+  const [aiGenerating, setAiGenerating] = useState(false);
   const [grupos, setGrupos] = useState<DraftGrupo[]>([]);
   const grupoFileRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const pdfInputRef = useRef<HTMLInputElement>(null);
@@ -1066,6 +1077,70 @@ export default function OTCrearPanel({
       setCategoriaIds(prev => [...prev, form.categoria_id]);
     }
   }, [form.categoria_id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function generateFromMessage() {
+    const summary = aiMessage.trim();
+    if (summary.length < 10) return;
+    setAiGenerating(true);
+    setError(null);
+    try {
+      const sb = createClient();
+      const [{ data: hitos }, { data: procedimientos }] = await Promise.all([
+        sb.from("hitos").select("id,nombre").eq("workspace_id", wsId),
+        sb.from("procedimientos").select("id,nombre,descripcion").eq("workspace_id", wsId).eq("activo", true),
+      ]);
+      const catalog = {
+        sociedades: sociedades.map(row => ({ id: row.id, name: row.nombre })),
+        ubicaciones: ubicaciones.map(row => ({ id: row.id, name: row.edificio })),
+        lugares: lugares.map(row => ({ id: row.id, name: row.nombre })),
+        hitos: (hitos ?? []).map(row => ({ id: row.id, name: row.nombre })),
+        categorias: categorias.map(row => ({ id: row.id, name: row.nombre })),
+        usuarios: usuarios.map(row => ({ id: row.id, name: row.nombre })),
+        activos: activos.map(row => ({ id: row.id, name: row.nombre })),
+        solicitantes: solicitantesCatalog.map(row => ({ id: row.id, name: row.nombre })),
+        procedimientos: (procedimientos ?? []).map(row => ({ id: row.id, name: `${row.nombre}${row.descripcion ? ` · ${row.descripcion}` : ""}` })),
+      };
+      const response = await callEdge("escanear-orden", { pdfText: summary, catalog, source: "request_message" });
+      const ai = await response.json() as ScanResult | { error: string; detail?: string };
+      if (!response.ok || "error" in ai) throw new Error("error" in ai ? ai.detail || ai.error : `Error ${response.status}`);
+      const best = (field: ScanField | undefined) => field?.candidates?.find(candidate => candidate.confidence >= 0.55)?.id ?? "";
+      const assignees = (ai.asignados ?? []).map(best).filter(Boolean);
+      const categoryIds = (ai.categoria_ids ?? []).filter(id => categorias.some(category => category.id === id));
+      const categoryId = categoryIds[0] || best(ai.categoria);
+      setForm(previous => ({
+        ...previous,
+        titulo: ai.titulo || previous.titulo,
+        n_ot: ai.n_ot || ai.numero_serie || previous.n_ot,
+        solicitante: ai.solicitante?.extracted || previous.solicitante,
+        solicitante_telefono: ai.solicitante_telefono || previous.solicitante_telefono,
+        solicitante_email: ai.solicitante_email || previous.solicitante_email,
+        descripcion: ai.descripcion || previous.descripcion,
+        prioridad: ai.prioridad !== "ninguna" ? ai.prioridad : previous.prioridad,
+        tipo_trabajo: ai.tipo_trabajo || previous.tipo_trabajo,
+        fecha_inicio: ai.fecha_inicio || previous.fecha_inicio,
+        fecha_termino: ai.fecha_termino || previous.fecha_termino,
+        presupuesto: ai.presupuesto || previous.presupuesto,
+        sociedad_id: best(ai.sociedad) || previous.sociedad_id,
+        ubicacion_id: best(ai.ubicacion) || previous.ubicacion_id,
+        lugar_id: best(ai.lugar) || previous.lugar_id,
+        activo_id: best(ai.activo) || previous.activo_id,
+        hito: ai.hito?.candidates?.find(candidate => candidate.confidence >= 0.55)?.name || previous.hito,
+        categoria_id: categoryId || previous.categoria_id,
+        asignados_ids: assignees.length ? assignees : previous.asignados_ids,
+        links: ai.links?.length ? ai.links : previous.links,
+        recurrencia: ai.recurrencia && ai.recurrencia !== "ninguna" ? ai.recurrencia : previous.recurrencia,
+        recurrencia_config: ai.recurrencia === "personalizada" ? ai.recurrencia_config ?? null : previous.recurrencia_config,
+      }));
+      if (categoryIds.length) setCategoriaIds(categoryIds);
+      setAiOpen(false);
+      setAiMessage("");
+      setParseMsg("Borrador creado con IA. Revisa los datos antes de guardar la orden.");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "No se pudo generar el borrador.");
+    } finally {
+      setAiGenerating(false);
+    }
+  }
 
   // Debounced duplicate N° OT check
   useEffect(() => {
@@ -1436,7 +1511,7 @@ export default function OTCrearPanel({
         for (const a of adjuntos) {
           try {
             const url = await uploadToR2(a.file, `ordenes/${orden.id}/adjuntos`);
-            adjuntoLinks.push({ url, nombre: a.nombre, tipo: "archivo" });
+            adjuntoLinks.push({ url, nombre: a.nombre, tipo: "archivo", origen: "creacion" });
           } catch { /* non-fatal */ }
         }
         if (adjuntoLinks.length > 0) {
@@ -1486,6 +1561,15 @@ export default function OTCrearPanel({
           Nueva Orden de Trabajo
         </h2>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <button
+            type="button"
+            onClick={() => setAiOpen(true)}
+            title="Crear borrador con IA"
+            aria-label="Crear borrador con IA"
+            style={{ width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center", border: "1px solid var(--border)", borderRadius: 8, background: "var(--brand-tint)", color: "var(--brand)", cursor: "pointer" }}
+          >
+            <Sparkles size={18} />
+          </button>
           <input ref={pdfInputRef} type="file" accept=".pdf" className="hidden" onChange={handlePDFImport} />
           <button
             type="button"
@@ -1522,6 +1606,28 @@ export default function OTCrearPanel({
           </button>
         </div>
       </div>
+
+      {aiOpen && (
+        <div role="dialog" aria-modal="true" aria-label="Crear orden con IA" style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(0,0,0,.38)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+          <div style={{ width: "min(560px, 100%)", borderRadius: 14, border: "1px solid var(--border)", background: "var(--surface-1)", boxShadow: "0 24px 70px rgba(0,0,0,.28)", overflow: "hidden" }}>
+            <div style={{ height: 56, padding: "0 18px", display: "flex", alignItems: "center", justifyContent: "space-between", background: "var(--surface-2)", borderBottom: "1px solid var(--border)" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 9 }}><Sparkles size={18} color="var(--brand)" /><strong style={{ fontSize: 16, color: "var(--fg-1)" }}>Crear con IA</strong></div>
+              <button type="button" onClick={() => !aiGenerating && setAiOpen(false)} aria-label="Cerrar" style={{ width: 32, height: 32, display: "grid", placeItems: "center", borderRadius: 8, border: "1px solid var(--border)", background: "var(--surface-1)", color: "var(--fg-2)", cursor: "pointer" }}><X size={16} /></button>
+            </div>
+            <div style={{ padding: 18 }}>
+              <p style={{ margin: "0 0 12px", color: "var(--fg-2)", fontSize: 14, lineHeight: 1.5 }}>Pega el mensaje del solicitante o escribe un resumen. Pangui relacionará la información con los registros reales del espacio de trabajo.</p>
+              <textarea autoFocus value={aiMessage} onChange={event => setAiMessage(event.target.value)} maxLength={6000} placeholder="Ej.: Emergencia en sala de bombas. Ana Pérez solicita revisión hoy y debe asignarse a Juan..." style={{ width: "100%", minHeight: 180, resize: "vertical", border: "1px solid var(--border)", borderRadius: 10, padding: 12, background: "var(--surface-1)", color: "var(--fg-1)", font: "inherit", fontSize: 14, outline: "none" }} />
+              <p style={{ margin: "8px 0 0", color: "var(--fg-3)", fontSize: 12 }}>La orden no se guardará automáticamente. Podrás revisar y corregir todos los campos.</p>
+            </div>
+            <div style={{ padding: "12px 18px", display: "flex", justifyContent: "flex-end", gap: 8, borderTop: "1px solid var(--border)" }}>
+              <button type="button" onClick={() => setAiOpen(false)} disabled={aiGenerating} style={{ height: 36, padding: "0 14px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--surface-1)", color: "var(--fg-1)", cursor: "pointer" }}>Cancelar</button>
+              <button type="button" onClick={generateFromMessage} disabled={aiGenerating || aiMessage.trim().length < 10} style={{ height: 36, padding: "0 15px", borderRadius: 8, border: 0, background: "var(--brand)", color: "white", fontWeight: 600, cursor: "pointer", opacity: aiGenerating || aiMessage.trim().length < 10 ? .55 : 1, display: "flex", alignItems: "center", gap: 7 }}>
+                {aiGenerating ? <Loader2 size={15} style={{ animation: "spin 1s linear infinite" }} /> : <Sparkles size={15} />}{aiGenerating ? "Generando…" : "Crear borrador"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Parse feedback banner */}
       {parseMsg && (

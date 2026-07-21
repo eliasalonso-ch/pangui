@@ -5,7 +5,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Boxes,
-  Bell,
   Users,
   Settings,
   ClipboardList,
@@ -28,7 +27,7 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
-import { createClient, logRealtimeChannel } from "@/lib/supabase";
+import { createClient } from "@/lib/supabase";
 import { usePermisos } from "@/lib/permisos";
 import { ROL_LABEL } from "@/lib/roles";
 import { useSuscripcion } from "@/hooks/useSuscripcion";
@@ -229,7 +228,6 @@ export default function AppSidebar() {
   const [onboardingDone, setOnboardingDone] = useState(true);
   const [userRol, setUserRol] = useState<string | null>(null);
   const [userData, setUserData] = useState<UserData | null>(null);
-  const [unreadCount, setUnreadCount] = useState(0);
   const [modoRegistro, setModoRegistro] = useState<"ambos" | "materiales" | "hoja">("ambos");
   const [workspaceLogo, setWorkspaceLogo] = useState<string | null | undefined>(undefined);
   const [mounted, setMounted] = useState(false);
@@ -249,7 +247,6 @@ export default function AppSidebar() {
 
   useEffect(() => {
     let active = true;
-    let cleanupChannel: (() => void) | null = null;
 
     async function load() {
       const sb = createClient();
@@ -278,53 +275,11 @@ export default function AppSidebar() {
         setWorkspaceLogo(wsData?.logo_url ?? null);
       }
 
-      const { count } = await sb
-        .from("notifications")
-        .select("id", { count: "exact", head: true })
-        .eq("usuario_id", user.id)
-        .eq("leida", false);
-      setUnreadCount(count ?? 0);
-
-      let debounceTimer: ReturnType<typeof setTimeout> | null = null;
-      const channelName = `sidebar-notif:${user.id}`;
-      const channelDetails = {
-        channelName,
-        screen: "AppSidebar",
-        table: "notifications",
-        filter: `usuario_id=eq.${user.id}`,
-      };
-      logRealtimeChannel("create", channelDetails, sb);
-      const channel = sb.channel(`sidebar-notif:${user.id}`)
-        .on("postgres_changes", { event: "*", schema: "public", table: "notifications", filter: `usuario_id=eq.${user.id}` },
-          () => {
-            if (debounceTimer) clearTimeout(debounceTimer);
-            debounceTimer = setTimeout(async () => {
-              const { count: fresh } = await sb
-                .from("notifications")
-                .select("id", { count: "exact", head: true })
-                .eq("usuario_id", user.id)
-                .eq("leida", false);
-              setUnreadCount(fresh ?? 0);
-            }, 300);
-          }
-        )
-        .subscribe((status) => {
-          logRealtimeChannel("status", { ...channelDetails, status }, sb);
-        });
-
-      cleanupChannel = () => {
-        if (debounceTimer) clearTimeout(debounceTimer);
-        logRealtimeChannel("remove:start", channelDetails, sb);
-        void sb.removeChannel(channel).then(() => {
-          logRealtimeChannel("remove:done", channelDetails, sb);
-        });
-      };
     }
     load();
 
     return () => {
       active = false;
-      cleanupChannel?.();
     };
   }, []);
 
@@ -510,24 +465,6 @@ export default function AppSidebar() {
           <SidebarGroupLabel>Gestión</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={pathname === "/notificaciones"} tooltip="Notificaciones">
-                  <Link href="/notificaciones" style={{ display: "flex", alignItems: "center", gap: collapsed ? 0 : 10 }}>
-                    <span style={{ position: "relative", display: "inline-flex", flexShrink: 0 }}>
-                      <Bell size={16} />
-                      {unreadCount > 0 && (
-                        <span style={{
-                          position: "absolute", top: -4, right: -4,
-                          width: 8, height: 8, borderRadius: "50%",
-                          background: "var(--danger)",
-                          border: "1.5px solid var(--sidebar-bg)",
-                        }} />
-                      )}
-                    </span>
-                    {!collapsed && <span>Notificaciones</span>}
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
               {isAdmin && (
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild isActive={isActive("/ubicaciones")} tooltip="Ubicaciones">

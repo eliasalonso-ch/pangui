@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Check, ChevronRight, CircleUserRound, CreditCard, LogOut, Monitor, Moon, Sun } from "lucide-react";
 import { createClient } from "@/lib/supabase";
+import NotificationMenu from "@/components/NotificationMenu";
 
 type ThemePref = "light" | "auto" | "dark";
 
@@ -31,20 +32,20 @@ function pageTrail(pathname: string): string[] {
   if (pathname.startsWith("/mi-cuenta")) return ["Cuenta", "Mi cuenta"];
   if (pathname.startsWith("/espacio-trabajo")) return ["Cuenta", "Espacio de trabajo"];
   if (pathname.startsWith("/preferencias-notificaciones")) return ["Cuenta", "Preferencias de notificaciones"];
-  if (pathname.startsWith("/ordenes/crear")) return ["Órdenes", "Nueva orden"];
-  if (pathname.startsWith("/ordenes")) return ["Órdenes"];
-  if (pathname.startsWith("/activos")) return ["Activos"];
-  if (pathname.startsWith("/partes")) return ["Materiales"];
-  if (pathname.startsWith("/procedimientos")) return ["Procedimientos"];
-  if (pathname.startsWith("/analitica-materiales")) return ["Analítica de materiales"];
-  if (pathname.startsWith("/analitica")) return ["Analítica"];
-  if (pathname.startsWith("/usuarios")) return ["Equipo"];
-  if (pathname.startsWith("/ubicaciones")) return ["Ubicaciones"];
-  if (pathname.startsWith("/notificaciones")) return ["Notificaciones"];
-  if (pathname.startsWith("/requisitos")) return ["Requisitos de OTs"];
-  if (pathname.startsWith("/reglas-alerta")) return ["Reglas de alerta"];
-  if (pathname.startsWith("/papelera")) return ["Papelera"];
-  return ["Inicio"];
+  if (pathname.startsWith("/ordenes/crear")) return ["Operaciones", "Órdenes", "Nueva orden"];
+  if (pathname.startsWith("/ordenes")) return ["Operaciones", "Órdenes"];
+  if (pathname.startsWith("/activos")) return ["Operaciones", "Activos"];
+  if (pathname.startsWith("/partes")) return ["Operaciones", "Materiales"];
+  if (pathname.startsWith("/procedimientos")) return ["Operaciones", "Procedimientos"];
+  if (pathname.startsWith("/analitica-materiales")) return ["Operaciones", "Analítica de materiales"];
+  if (pathname.startsWith("/analitica")) return ["Operaciones", "Analítica"];
+  if (pathname.startsWith("/usuarios")) return ["Operaciones", "Equipo"];
+  if (pathname.startsWith("/ubicaciones")) return ["Gestión", "Ubicaciones"];
+  if (pathname.startsWith("/notificaciones")) return ["Gestión", "Notificaciones"];
+  if (pathname.startsWith("/requisitos")) return ["Gestión", "Requisitos de OTs"];
+  if (pathname.startsWith("/reglas-alerta")) return ["Gestión", "Reglas de alerta"];
+  if (pathname.startsWith("/papelera")) return ["Gestión", "Papelera"];
+  return ["Operaciones", "Inicio"];
 }
 
 export default function GlobalTopBar() {
@@ -94,7 +95,9 @@ export default function GlobalTopBar() {
           </span>
         ))}
       </nav>
-      <div ref={menuRef} style={{ position: "relative" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+        <NotificationMenu />
+        <div ref={menuRef} style={{ position: "relative" }}>
         <button
           type="button"
           onClick={() => setOpen((value) => !value)}
@@ -142,6 +145,7 @@ export default function GlobalTopBar() {
             </button>
           </div>
         )}
+        </div>
       </div>
     </header>
   );

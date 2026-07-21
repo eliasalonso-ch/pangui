@@ -11,7 +11,7 @@ import {
   CircleDot, PauseCircle, PlayCircle, CheckCircle2, XCircle,
   ChevronDown, ChevronLeft, ChevronRight, Plus, Image, Building2, Hash,
   Play, Pause, Square, RotateCcw,
-  FileText, Sheet, FileDown, MoreVertical,
+  FileText, Sheet, FileDown, MoreVertical, Upload, Download,
   Package, Search,
   ClipboardCheck, Info, Hash as HashIcon, Camera, PenLine, Shield, CheckSquare,
   Type, DollarSign, List, ListChecks, AlertCircle, ImagePlus, FolderOpen,
@@ -733,6 +733,8 @@ export default function OTDetail({
     ...(orden.fotos_urls ?? []),
   ]);
   const [uploadingFoto, setUploadingFoto] = useState(false);
+  const [uploadingAdjuntos, setUploadingAdjuntos] = useState(false);
+  const adjuntosInputRef = useRef<HTMLInputElement | null>(null);
   const [deletingFoto, setDeletingFoto] = useState<string | null>(null);
   const [confirmDeleteFoto, setConfirmDeleteFoto] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -2065,6 +2067,65 @@ export default function OTDetail({
     }
   };
 
+  const handleAdjuntosUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selected = Array.from(e.target.files ?? []);
+    e.target.value = "";
+    if (selected.length === 0 || uploadingAdjuntos) return;
+
+    const oversized = selected.find(file => file.size > 20 * 1024 * 1024);
+    if (oversized) {
+      alert(`“${oversized.name}” supera el tamaño máximo de 20 MB.`);
+      return;
+    }
+
+    setUploadingAdjuntos(true);
+    try {
+      const uploaded = [] as NonNullable<OrdenTrabajo["links"]>;
+      for (const file of selected) {
+        const url = await uploadToR2(file, `ordenes/${orden.id}/documentos`);
+        uploaded.push({
+          url,
+          nombre: file.name,
+          label: file.name,
+          tipo: "archivo",
+          origen: "ejecucion",
+        });
+      }
+
+      const links = [...(Array.isArray(orden.links) ? orden.links : []), ...uploaded];
+      const sb = createClient();
+      const { error } = await sb.from("ordenes_trabajo").update({ links }).eq("id", orden.id);
+      if (error) throw error;
+      onOrdenUpdated({ links });
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "No se pudieron subir los archivos.");
+    } finally {
+      setUploadingAdjuntos(false);
+    }
+  };
+
+  const handleAdjuntoDownload = async (url: string, name: string) => {
+    try {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const objectUrl = URL.createObjectURL(await response.blob());
+      const anchor = document.createElement("a");
+      anchor.href = objectUrl;
+      anchor.download = name;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1_000);
+    } catch {
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.target = "_blank";
+      anchor.rel = "noopener noreferrer";
+      anchor.download = name;
+      anchor.click();
+    }
+  };
+
   // ── Lightbox keyboard navigation (Esc to close, arrows to navigate)
   useEffect(() => {
     if (lightboxGrupo === null) return;
@@ -2549,56 +2610,91 @@ export default function OTDetail({
               />
             )}
 
-            {/* Links & Adjuntos */}
-            {Array.isArray(orden.links) && orden.links.length > 0 && (() => {
-              const urlLinks = orden.links.filter((l) => l.tipo !== "archivo");
-              const fileLinks = orden.links.filter((l) => l.tipo === "archivo");
+            {/* Adjuntos de creación, adjuntos de ejecución y links */}
+            {(() => {
+              const allLinks = Array.isArray(orden.links) ? orden.links : [];
+              const urlLinks = allLinks.filter((l) => l.tipo !== "archivo");
+              const creationFiles = allLinks.filter((l) => l.tipo === "archivo" && l.origen !== "ejecucion");
+              const executionFiles = allLinks.filter((l) => l.tipo === "archivo" && l.origen === "ejecucion");
+
+              const renderFiles = (files: typeof creationFiles) => (
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {files.map((file, index) => {
+                    const name = file.nombre?.trim() || file.label?.trim() || file.url.split("/").pop()?.split("?")[0] || "Archivo";
+                    return (
+                      <button
+                        key={`${file.url}-${index}`}
+                        type="button"
+                        onClick={() => { void handleAdjuntoDownload(file.url, name); }}
+                        style={{
+                          minHeight: 48, width: "100%", padding: "8px 12px", boxSizing: "border-box",
+                          display: "flex", alignItems: "center", gap: 10,
+                          border: "1px solid var(--border)", borderRadius: "var(--r-sm)",
+                          background: "var(--surface-1)", color: "var(--fg-1)", cursor: "pointer",
+                          textAlign: "left", fontFamily: "inherit",
+                        }}
+                        onMouseEnter={e => { e.currentTarget.style.background = "var(--surface-hover)"; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = "var(--surface-1)"; }}
+                      >
+                        <span style={{
+                          width: 30, height: 30, borderRadius: "var(--r-sm)", flexShrink: 0,
+                          display: "inline-flex", alignItems: "center", justifyContent: "center",
+                          background: "var(--brand-tint)", color: "var(--brand)",
+                        }}>
+                          <FileText size={16} />
+                        </span>
+                        <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 13, fontWeight: 500 }}>
+                          {name}
+                        </span>
+                        <Download size={15} style={{ color: "var(--fg-4)", flexShrink: 0 }} />
+                      </button>
+                    );
+                  })}
+                </div>
+              );
+
               return (
                 <>
-                  {fileLinks.length > 0 && (
+                  <input
+                    ref={adjuntosInputRef}
+                    type="file"
+                    multiple
+                    hidden
+                    accept=".pdf,.txt,.csv,.doc,.docx,.xls,.xlsx,.zip,.rar,.7z"
+                    onChange={handleAdjuntosUpload}
+                  />
+                  {creationFiles.length > 0 && (
                     <div style={{ marginTop: 12 }}>
                       <div style={{ fontSize: 11, fontWeight: 600, color: "var(--fg-4)", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 6 }}>
-                        Adjuntos
+                        Adjuntos de la OT
                       </div>
-                      <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 5 }}>
-                        {fileLinks.map((l, i) => {
-                          const ext = l.url.split("?")[0].split(".").pop()?.toLowerCase() ?? "";
-                          const isAudio = ["mp3","m4a","wav","ogg","webm","aac"].includes(ext);
-                          const name = l.nombre || l.url.split("/").pop()?.split("?")[0] || "Archivo";
-                          if (isAudio) return (
-                            <div key={i} style={{ display: "flex", flexDirection: "column", gap: 3, padding: "8px 10px", border: "1px solid var(--border)", borderRadius: 8, background: "var(--surface-0)" }}>
-                              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
-                                <span style={{
-                                  width: 28, height: 28, borderRadius: "var(--r-sm)",
-                                  background: "var(--brand-tint)", color: "var(--brand)",
-                                  display: "inline-flex", alignItems: "center", justifyContent: "center",
-                                  flexShrink: 0,
-                                }}>
-                                  <Volume2 size={16} />
-                                </span>
-                                <span style={{ fontSize: 12, color: "var(--fg-2)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{name}</span>
-                              </div>
-                              <audio controls src={l.url} style={{ width: "100%", height: 32 }} />
-                            </div>
-                          );
-                          return (
-                            <a key={i} href={l.url} target="_blank" rel="noopener noreferrer"
-                              style={{ display: "inline-flex", alignItems: "center", gap: 10, padding: "8px 14px 8px 8px", border: "1px solid var(--border)", borderRadius: 8, background: "var(--surface-0)", textDecoration: "none", color: "var(--fg-1)" }}>
-                              <span style={{
-                                width: 28, height: 28, borderRadius: "var(--r-sm)",
-                                background: "var(--brand-tint)", color: "var(--brand)",
-                                display: "inline-flex", alignItems: "center", justifyContent: "center",
-                                flexShrink: 0,
-                              }}>
-                                <FileText size={16} />
-                              </span>
-                              <span style={{ fontSize: 13, color: "var(--fg-1)" }}>{name}</span>
-                            </a>
-                          );
-                        })}
-                      </div>
+                      {renderFiles(creationFiles)}
                     </div>
                   )}
+                  <div style={{ marginTop: 12 }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 6 }}>
+                      <div style={{ fontSize: 11, fontWeight: 600, color: "var(--fg-4)", textTransform: "uppercase", letterSpacing: "0.07em" }}>
+                        Adjuntos subidos
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => adjuntosInputRef.current?.click()}
+                        disabled={uploadingAdjuntos}
+                        style={{
+                          minHeight: 34, padding: "0 12px", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7,
+                          border: "1px solid var(--border)", borderRadius: "var(--r-sm)", background: "var(--surface-1)",
+                          color: "var(--brand-fg)", cursor: uploadingAdjuntos ? "default" : "pointer", fontSize: 12, fontWeight: 600,
+                          opacity: uploadingAdjuntos ? 0.65 : 1, fontFamily: "inherit",
+                        }}
+                      >
+                        {uploadingAdjuntos ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
+                        {uploadingAdjuntos ? "Subiendo…" : "Subir archivos"}
+                      </button>
+                    </div>
+                    {executionFiles.length > 0
+                      ? renderFiles(executionFiles)
+                      : <div style={{ padding: "14px 12px", border: "1px dashed var(--border)", borderRadius: "var(--r-sm)", color: "var(--fg-4)", fontSize: 12 }}>Todavía no se han subido archivos durante la ejecución.</div>}
+                  </div>
                   {urlLinks.length > 0 && (
                     <div style={{ marginTop: 12 }}>
                       <div style={{ fontSize: 11, fontWeight: 600, color: "var(--fg-4)", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 6 }}>

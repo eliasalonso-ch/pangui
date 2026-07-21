@@ -28,6 +28,7 @@ interface Catalog {
   usuarios:     CatalogItem[];
   activos:      CatalogItem[];
   solicitantes: CatalogItem[];
+  procedimientos?: CatalogItem[];
 }
 
 function renderCatalog(c: Catalog): string {
@@ -48,6 +49,7 @@ function renderCatalog(c: Catalog): string {
     section("USUARIOS",     c.usuarios),
     section("ACTIVOS",      c.activos),
     section("SOLICITANTES", c.solicitantes),
+    section("PROCEDIMIENTOS", c.procedimientos ?? []),
   ].join("\n\n");
 }
 
@@ -85,21 +87,30 @@ Devuelve SOLO un JSON válido con esta forma exacta (sin markdown, sin explicaci
   "solicitante_email": "Email de la persona de contacto o null",
   "descripcion": "detalle completo del trabajo o null",
   "prioridad":   "urgente | alta | media | baja | ninguna",
-  "tipo_trabajo": "reactiva | preventiva | emergencia | levantamiento | ''",
+  "tipo_trabajo": "reactiva | preventiva | emergencia | levantamiento | presupuesto | ''",
   "fecha_inicio": "YYYY-MM-DD o null",
+  "fecha_termino": "YYYY-MM-DD o null; no inventes un plazo si no fue indicado",
+  "numero_serie": "serie, folio interno o null",
+  "presupuesto": "monto como texto, sin símbolo, o null",
+  "recurrencia": "ninguna | diaria | semanal | mensual_fecha | mensual_dia | anual | personalizada; usa distinta de ninguna solo si el texto lo pide explícitamente",
+  "recurrencia_config": { "interval": 1, "unit": "day | week | month | year", "weekdays": [0], "day_of_month": 1, "anchor_date": "YYYY-MM-DD", "end_date": null },
   "sociedad":   { "extracted": "texto crudo del PDF o null", "candidates": [{ "id": "...", "name": "...", "confidence": 0.0 }] },
   "ubicacion":  { "extracted": "...", "candidates": [...] },
   "lugar":      { "extracted": "...", "candidates": [...] },
   "hito":       { "extracted": "...", "candidates": [...] },
   "categoria":  { "extracted": "...", "candidates": [...] },
   "activo":     { "extracted": "...", "candidates": [...] },
-  "asignados":  [ { "extracted": "nombre crudo", "candidates": [...] } ]
+  "asignados":  [ { "extracted": "nombre crudo", "candidates": [...] } ],
+  "categoria_ids": ["ids de todas las categorías claramente aplicables"],
+  "procedimiento_ids": ["ids de procedimientos claramente solicitados o aplicables"],
+  "links": [{ "url": "https://...", "label": "nombre opcional" }]
 }
 
 Si un campo no aparece en el documento, "extracted" debe ser null y "candidates" debe ser []. "asignados" puede ser [] si no hay personas mencionadas.`;
 
 const VALID_PRIOS = new Set(["urgente", "alta", "media", "baja", "ninguna"]);
-const VALID_TIPOS = new Set(["reactiva", "preventiva", "emergencia", "levantamiento", ""]);
+const VALID_TIPOS = new Set(["reactiva", "preventiva", "emergencia", "levantamiento", "presupuesto", ""]);
+const VALID_RECURRENCIAS = new Set(["ninguna", "diaria", "semanal", "mensual_fecha", "mensual_dia", "anual", "personalizada"]);
 
 interface FieldResult {
   extracted: string | null;
@@ -143,11 +154,12 @@ Deno.serve(async (req: Request) => {
 
     // Build a set of every legitimate id so we can drop any hallucinated ones.
     const catalogIds = new Set<string>();
-    for (const list of [catalog.sociedades, catalog.ubicaciones, catalog.lugares, catalog.hitos, catalog.categorias, catalog.usuarios, catalog.activos, catalog.solicitantes]) {
+    for (const list of [catalog.sociedades, catalog.ubicaciones, catalog.lugares, catalog.hitos, catalog.categorias, catalog.usuarios, catalog.activos, catalog.solicitantes, catalog.procedimientos]) {
       for (const item of list ?? []) catalogIds.add(item.id);
     }
 
-    const userPrompt = `CATÁLOGO DEL WORKSPACE:\n\n${renderCatalog(catalog)}\n\n────────────\n\nTEXTO DEL PDF:\n\n${pdfText}`;
+    const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/Santiago" });
+    const userPrompt = `FECHA ACTUAL EN CHILE: ${today}\n\nCATÁLOGO DEL WORKSPACE:\n\n${renderCatalog(catalog)}\n\n────────────\n\nTEXTO DE LA SOLICITUD:\n\n${pdfText.slice(0, 25_000)}`;
 
     const res = await fetch(`${GEMINI_URL}?key=${GEMINI_KEY}`, {
       method: "POST",
@@ -202,6 +214,11 @@ Deno.serve(async (req: Request) => {
       prioridad:     VALID_PRIOS.has(parsed.prioridad) ? parsed.prioridad : "ninguna",
       tipo_trabajo:  VALID_TIPOS.has(parsed.tipo_trabajo) ? parsed.tipo_trabajo : "",
       fecha_inicio:  typeof parsed.fecha_inicio === "string" && /^\d{4}-\d{2}-\d{2}$/.test(parsed.fecha_inicio) ? parsed.fecha_inicio : null,
+      fecha_termino: typeof parsed.fecha_termino === "string" && /^\d{4}-\d{2}-\d{2}$/.test(parsed.fecha_termino) ? parsed.fecha_termino : null,
+      numero_serie: typeof parsed.numero_serie === "string" && parsed.numero_serie.trim() ? parsed.numero_serie.trim() : null,
+      presupuesto: typeof parsed.presupuesto === "string" || typeof parsed.presupuesto === "number" ? String(parsed.presupuesto) : null,
+      recurrencia: VALID_RECURRENCIAS.has(parsed.recurrencia) ? parsed.recurrencia : "ninguna",
+      recurrencia_config: parsed.recurrencia_config && typeof parsed.recurrencia_config === "object" ? parsed.recurrencia_config : null,
       sociedad:   sanitizeFieldResult(parsed.sociedad,  catalogIds),
       ubicacion:  sanitizeFieldResult(parsed.ubicacion, catalogIds),
       lugar:      sanitizeFieldResult(parsed.lugar,     catalogIds),
@@ -210,6 +227,15 @@ Deno.serve(async (req: Request) => {
       activo:     sanitizeFieldResult(parsed.activo,    catalogIds),
       asignados:  Array.isArray(parsed.asignados)
         ? parsed.asignados.map((a: any) => sanitizeFieldResult(a, catalogIds))
+        : [],
+      categoria_ids: Array.isArray(parsed.categoria_ids)
+        ? parsed.categoria_ids.filter((id: unknown) => typeof id === "string" && (catalog.categorias ?? []).some((item) => item.id === id))
+        : [],
+      procedimiento_ids: Array.isArray(parsed.procedimiento_ids)
+        ? parsed.procedimiento_ids.filter((id: unknown) => typeof id === "string" && (catalog.procedimientos ?? []).some((item) => item.id === id))
+        : [],
+      links: Array.isArray(parsed.links)
+        ? parsed.links.filter((link: any) => link && typeof link.url === "string" && /^https?:\/\//i.test(link.url)).slice(0, 10).map((link: any) => ({ url: link.url, label: typeof link.label === "string" ? link.label : undefined }))
         : [],
     };
 

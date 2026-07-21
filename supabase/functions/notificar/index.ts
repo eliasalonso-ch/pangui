@@ -52,6 +52,7 @@ Deno.serve(async (req: Request) => {
     mensaje,
     url,
     urgente,
+    tipo,
   } = await req.json();
 
   // Collect target user IDs
@@ -88,7 +89,7 @@ Deno.serve(async (req: Request) => {
       titulo,
       mensaje,
       url: url || "/",
-      tipo: urgente ? "emergencia" : "orden",
+      tipo: urgente ? "emergencia" : (tipo || "orden"),
     }))
   );
 

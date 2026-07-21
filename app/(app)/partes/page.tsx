@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
+import { useSearchParams } from "next/navigation";
 import {
   AlertTriangle, Box, Boxes, Check, ChevronRight, CircleAlert, ImagePlus,
   Filter, Loader2, MapPin, Minus, Package, PackageCheck, Pencil, Plus, RotateCcw, Search, Trash2, X,
@@ -69,6 +70,8 @@ function Loading() {
 }
 
 function MaterialesPageInner() {
+  const searchParams = useSearchParams();
+  const requestedMaterialId = searchParams.get("material");
   const [workspaceId, setWorkspaceId] = useState<string | null>(null);
   const [role, setRole] = useState("tecnico");
   const [materials, setMaterials] = useState<Material[]>([]);
@@ -90,6 +93,14 @@ function MaterialesPageInner() {
   const [materialFilterId, setMaterialFilterId] = useState<string | null>(null);
   const [requiresMaterials, setRequiresMaterials] = useState(false);
   const [requiresSheet, setRequiresSheet] = useState(false);
+
+  useEffect(() => {
+    if (!requestedMaterialId || !materials.some((material) => material.id === requestedMaterialId)) return;
+    setSegment("materiales");
+    setSelectedLocationId(null);
+    setEditor(null);
+    setSelectedMaterialId(requestedMaterialId);
+  }, [materials, requestedMaterialId]);
 
   const loadData = useCallback(async (wsId: string) => {
     const sb = createClient();

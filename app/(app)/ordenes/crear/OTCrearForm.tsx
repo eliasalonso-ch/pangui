@@ -6,9 +6,10 @@ import {
   ChevronLeft, Loader2, Upload, User, MapPin, Settings2,
   Clock, CalendarDays, Tag, X, Check, ChevronDown,
   Camera, Plus, Trash2, ImagePlus, GripVertical,
-  Paperclip, FileText, File, Link2,
+  Paperclip, FileText, File, Link2, Sparkles,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase";
+import { callEdge } from "@/lib/edge";
 import { uploadFotoGrupo, createFotoGrupo, addFotoToGrupo } from "@/lib/foto-grupos-api";
 import { uploadToR2 } from "@/lib/r2";
 import LinksInput from "@/components/LinksInput";
@@ -405,6 +406,9 @@ export default function OTCrearForm({ usuarios, ubicaciones, activos, categorias
   const [form, setForm] = useState<FormState>(BLANK);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [aiOpen, setAiOpen] = useState(false);
+  const [aiMessage, setAiMessage] = useState("");
+  const [aiGenerating, setAiGenerating] = useState(false);
   const [grupos, setGrupos] = useState<DraftGrupo[]>([]);
   const grupoFileRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
@@ -418,6 +422,48 @@ export default function OTCrearForm({ usuarios, ubicaciones, activos, categorias
 
   function setF<K extends keyof FormState>(key: K, val: FormState[K]) {
     setForm(prev => ({ ...prev, [key]: val }));
+  }
+
+  async function generateFromMessage() {
+    if (aiMessage.trim().length < 10) return;
+    setAiGenerating(true);
+    setError(null);
+    try {
+      const catalog = {
+        sociedades: [],
+        ubicaciones: ubicaciones.map(row => ({ id: row.id, name: row.edificio })),
+        lugares: [], hitos: [],
+        categorias: categorias.map(row => ({ id: row.id, name: row.nombre })),
+        usuarios: usuarios.map(row => ({ id: row.id, name: row.nombre })),
+        activos: activos.map(row => ({ id: row.id, name: row.nombre })),
+        solicitantes: [], procedimientos: [],
+      };
+      const response = await callEdge("escanear-orden", { pdfText: aiMessage.trim(), catalog, source: "request_message" });
+      const ai = await response.json();
+      if (!response.ok || ai.error) throw new Error(ai.detail || ai.error || `Error ${response.status}`);
+      const best = (field: any) => field?.candidates?.find((candidate: any) => candidate.confidence >= 0.55)?.id ?? "";
+      setForm(previous => ({
+        ...previous,
+        titulo: ai.titulo || previous.titulo,
+        descripcion: ai.descripcion || previous.descripcion,
+        ubicacion_id: best(ai.ubicacion) || previous.ubicacion_id,
+        activo_id: best(ai.activo) || previous.activo_id,
+        asignados_ids: (ai.asignados ?? []).map(best).filter(Boolean).length ? (ai.asignados ?? []).map(best).filter(Boolean) : previous.asignados_ids,
+        fecha_inicio: ai.fecha_inicio || previous.fecha_inicio,
+        fecha_termino: ai.fecha_termino || previous.fecha_termino,
+        tipo_trabajo: ai.tipo_trabajo || previous.tipo_trabajo,
+        prioridad: ai.prioridad !== "ninguna" ? ai.prioridad : previous.prioridad,
+        categoria_id: (ai.categoria_ids ?? [])[0] || best(ai.categoria) || previous.categoria_id,
+        recurrencia: ai.recurrencia && ai.recurrencia !== "ninguna" ? ai.recurrencia : previous.recurrencia,
+        recurrencia_config: ai.recurrencia === "personalizada" ? ai.recurrencia_config ?? null : previous.recurrencia_config,
+      }));
+      setAiOpen(false);
+      setAiMessage("");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "No se pudo generar el borrador.");
+    } finally {
+      setAiGenerating(false);
+    }
   }
 
   const ubicOptions = ubicaciones.map(u => ({
@@ -485,7 +531,7 @@ export default function OTCrearForm({ usuarios, ubicaciones, activos, categorias
     for (const a of adjuntos) {
       try {
         const url = await uploadToR2(a.file, `ordenes/${ordenId}/adjuntos`);
-        adjuntoLinks.push({ url, nombre: a.nombre, tipo: "archivo" });
+        adjuntoLinks.push({ url, nombre: a.nombre, tipo: "archivo", origen: "creacion" });
       } catch { /* non-fatal */ }
     }
     const allLinks = [...urlLinks, ...adjuntoLinks];
@@ -574,7 +620,29 @@ export default function OTCrearForm({ usuarios, ubicaciones, activos, categorias
         <h1 style={{ fontSize: 17, fontWeight: 600, color: "var(--fg-1)", margin: 0 }}>
           Nueva Orden de Trabajo
         </h1>
+        <button type="button" onClick={() => setAiOpen(true)} title="Crear borrador con IA" aria-label="Crear borrador con IA" style={{ marginLeft: "auto", width: 34, height: 34, display: "grid", placeItems: "center", borderRadius: 8, border: "1px solid var(--border)", background: "var(--brand-tint)", color: "var(--brand)", cursor: "pointer" }}>
+          <Sparkles size={18} />
+        </button>
       </div>
+
+      {aiOpen && (
+        <div role="dialog" aria-modal="true" style={{ position: "fixed", inset: 0, zIndex: 100, background: "rgba(0,0,0,.38)", display: "grid", placeItems: "center", padding: 20 }}>
+          <div style={{ width: "min(560px,100%)", borderRadius: 14, overflow: "hidden", border: "1px solid var(--border)", background: "var(--surface-1)", boxShadow: "0 24px 70px rgba(0,0,0,.28)" }}>
+            <div style={{ height: 56, padding: "0 18px", display: "flex", alignItems: "center", justifyContent: "space-between", background: "var(--surface-2)", borderBottom: "1px solid var(--border)" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 9 }}><Sparkles size={18} color="var(--brand)" /><strong>Crear con IA</strong></div>
+              <button type="button" onClick={() => setAiOpen(false)} aria-label="Cerrar" style={{ width: 32, height: 32, display: "grid", placeItems: "center", borderRadius: 8, border: "1px solid var(--border)", background: "var(--surface-1)", color: "var(--fg-2)", cursor: "pointer" }}><X size={16} /></button>
+            </div>
+            <div style={{ padding: 18 }}>
+              <p style={{ margin: "0 0 12px", color: "var(--fg-2)", fontSize: 14 }}>Pega el mensaje del solicitante o resume el trabajo. La IA completará un borrador editable.</p>
+              <textarea autoFocus value={aiMessage} onChange={event => setAiMessage(event.target.value)} maxLength={6000} placeholder="Describe la emergencia o pega el mensaje recibido…" style={{ width: "100%", minHeight: 180, resize: "vertical", border: "1px solid var(--border)", borderRadius: 10, padding: 12, background: "var(--surface-1)", color: "var(--fg-1)", font: "inherit", outline: "none" }} />
+            </div>
+            <div style={{ padding: "12px 18px", display: "flex", justifyContent: "flex-end", gap: 8, borderTop: "1px solid var(--border)" }}>
+              <button type="button" onClick={() => setAiOpen(false)} disabled={aiGenerating} style={{ height: 36, padding: "0 14px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--surface-1)", color: "var(--fg-1)" }}>Cancelar</button>
+              <button type="button" onClick={generateFromMessage} disabled={aiGenerating || aiMessage.trim().length < 10} style={{ height: 36, padding: "0 15px", borderRadius: 8, border: 0, background: "var(--brand)", color: "white", fontWeight: 600, opacity: aiGenerating || aiMessage.trim().length < 10 ? .55 : 1, display: "flex", alignItems: "center", gap: 7 }}>{aiGenerating ? <Loader2 size={15} /> : <Sparkles size={15} />}{aiGenerating ? "Generando…" : "Crear borrador"}</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Body ── */}
       <div>

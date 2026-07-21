@@ -43,3 +43,8 @@ verify_jwt = false
 
 [functions.export-schedules-cron]
 verify_jwt = false
+
+# Invoked by the notifications database webhook, not by an end-user session.
+# The handler validates the notification against the authoritative database row.
+[functions.send-push-notification]
+verify_jwt = false

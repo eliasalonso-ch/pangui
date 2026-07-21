@@ -674,7 +674,7 @@ export default function OTEditPanel({
       for (const a of adjuntos) {
         try {
           const url = await uploadToR2(a.file, `ordenes/${orden.id}/adjuntos`);
-          uploadedLinks.push({ url, nombre: a.nombre, tipo: "archivo" });
+          uploadedLinks.push({ url, nombre: a.nombre, tipo: "archivo", origen: "creacion" });
         } catch { /* non-fatal */ }
       }
       const allLinks = [

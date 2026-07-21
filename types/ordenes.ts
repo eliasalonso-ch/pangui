@@ -5,6 +5,7 @@ export interface OTLink {
   label?: string;
   nombre?: string;
   tipo?: "link" | "archivo";
+  origen?: "creacion" | "ejecucion";
 }
 
 export type Estado =
