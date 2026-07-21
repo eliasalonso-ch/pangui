@@ -157,6 +157,10 @@ export default function OrdenesBandeja({
   );
   const [hasMoreOrdenes, setHasMoreOrdenes] = useState(initialOrdenes.length >= ORDENES_PAGE_SIZE);
   const [loadingMoreOrdenes, setLoadingMoreOrdenes] = useState(false);
+  // State updates are asynchronous, so the observer and the fallback button
+  // can otherwise start the same page request before React re-renders.
+  const loadingMoreOrdenesRef = useRef(false);
+  const loadMoreRetryAfterRef = useRef(0);
   // Client-side infinite scroll: we hold the full filtered list in memory but
   // only render `visibleCount` rows, growing as the user scrolls. This keeps
   // the DOM light even when a tab has hundreds of OTs.
@@ -501,13 +505,15 @@ export default function OrdenesBandeja({
   }, [wsId]);
 
   const loadMoreOrdenes = useCallback(async () => {
-    if (loadingMoreOrdenes || !hasMoreOrdenes) return;
+    if (loadingMoreOrdenesRef.current || !hasMoreOrdenes) return;
+    if (Date.now() < loadMoreRetryAfterRef.current) return;
     // While a text search is active the list is server-search results (a
     // complete set), not the paginated loaded list — don't paginate then.
     if (search.trim()) return;
     const lastCreatedAt = ordenes[ordenes.length - 1]?.created_at ?? null;
     if (!lastCreatedAt) return;
 
+    loadingMoreOrdenesRef.current = true;
     setLoadingMoreOrdenes(true);
     try {
       const nextPage = await fetchOrdenesPage(wsId, lastCreatedAt);
@@ -517,10 +523,19 @@ export default function OrdenesBandeja({
         return merged;
       });
       setHasMoreOrdenes(nextPage.length >= ORDENES_PAGE_SIZE);
+      loadMoreRetryAfterRef.current = 0;
+    } catch {
+      // A temporary browser/Supabase fetch failure must not become an
+      // unhandled rejection. Keep the current rows and `hasMoreOrdenes` so a
+      // later observer pass or button press can retry the same page.
+      // Briefly cool down because the sentinel remains visible and its effect
+      // is recreated when the loading state changes.
+      loadMoreRetryAfterRef.current = Date.now() + 3_000;
     } finally {
+      loadingMoreOrdenesRef.current = false;
       setLoadingMoreOrdenes(false);
     }
-  }, [hasMoreOrdenes, loadingMoreOrdenes, ordenes, wsId, search]);
+  }, [hasMoreOrdenes, ordenes, wsId, search]);
 
   // Poll list every 60s — no realtime channel for ordenes_trabajo.
   // Swallow transient network errors (e.g. the user's connection drops): the
