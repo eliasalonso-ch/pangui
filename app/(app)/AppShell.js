@@ -141,7 +141,16 @@ export default function AppShell({ children }) {
         <AppSidebar />
         <SidebarInset>
           <GlobalTopBar />
-          <div style={{ flex: 1, minHeight: 0, overflowY: "auto" }}>{children}</div>
+          <div
+            style={{
+              flex: 1,
+              minHeight: 0,
+              overflowY: pathname === "/ordenes" ? "hidden" : "auto",
+              overflowX: "hidden",
+            }}
+          >
+            {children}
+          </div>
         </SidebarInset>
       </SidebarProvider>
     </>

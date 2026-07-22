@@ -448,7 +448,7 @@ export default function InicioDashboard() {
               <EmptyState label="Sin prioridades críticas" />
             ) : (
               topPriority.map((ot, i) => (
-                <PriorityRow key={ot.id} ot={ot} rank={i + 1} onClick={() => router.push(`/ordenes?id=${ot.id}`)} />
+                <PriorityRow key={ot.id} ot={ot} rank={i + 1} onClick={() => router.push(`/ordenes?id=${encodeURIComponent(ot.id)}`)} />
               ))
             )}
           </Card>
@@ -457,7 +457,7 @@ export default function InicioDashboard() {
           {asignados.length > 0 && (
             <Card title="Asignadas" action="Ver todas" onAction={() => router.push("/ordenes")}>
               <div style={{ padding: "4px 0" }}>
-                <ActionGroup label="Asignadas" count={asignados.length} items={asignados} dotColor="var(--success)" onNavigate={id => router.push(`/ordenes?id=${id}`)} onViewAll={() => router.push("/ordenes")} />
+                <ActionGroup label="Asignadas" count={asignados.length} items={asignados} dotColor="var(--success)" onNavigate={id => router.push(`/ordenes?id=${encodeURIComponent(id)}`)} onViewAll={() => router.push("/ordenes")} />
               </div>
             </Card>
           )}
@@ -466,10 +466,10 @@ export default function InicioDashboard() {
           {(vencidas.length > 0 || paraHoy.length > 0 || sinAsignar.length > 0 || bloqueadas.length > 0) && (
             <Card title="Requieren atención" action="Ver todas" onAction={() => router.push("/ordenes")}>
               <div style={{ padding: "4px 0" }}>
-                <ActionGroup label="Vencidas"    count={vencidas.length}    items={vencidas}    dotColor="var(--danger)"  onNavigate={id => router.push(`/ordenes?id=${id}`)} onViewAll={() => router.push("/ordenes?filtro=vencidas")} />
-                <ActionGroup label="Vencen hoy"  count={paraHoy.length}     items={paraHoy}     dotColor="var(--warning)" onNavigate={id => router.push(`/ordenes?id=${id}`)} onViewAll={() => router.push("/ordenes?filtro=vence_hoy")} />
-                <ActionGroup label="Sin asignar" count={sinAsignar.length}   items={sinAsignar}  dotColor="var(--fg-4)"   onNavigate={id => router.push(`/ordenes?id=${id}`)} onViewAll={() => router.push("/ordenes?filtro=sin_asignar")} />
-                <ActionGroup label="Bloqueadas"  count={bloqueadas.length}   items={bloqueadas}  dotColor="var(--warning)" onNavigate={id => router.push(`/ordenes?id=${id}`)} onViewAll={() => router.push("/ordenes?filtro=bloqueadas")} />
+                <ActionGroup label="Vencidas"    count={vencidas.length}    items={vencidas}    dotColor="var(--danger)"  onNavigate={id => router.push(`/ordenes?id=${encodeURIComponent(id)}`)} onViewAll={() => router.push("/ordenes?filtro=vencidas")} />
+                <ActionGroup label="Vencen hoy"  count={paraHoy.length}     items={paraHoy}     dotColor="var(--warning)" onNavigate={id => router.push(`/ordenes?id=${encodeURIComponent(id)}`)} onViewAll={() => router.push("/ordenes?filtro=vence_hoy")} />
+                <ActionGroup label="Sin asignar" count={sinAsignar.length}   items={sinAsignar}  dotColor="var(--fg-4)"   onNavigate={id => router.push(`/ordenes?id=${encodeURIComponent(id)}`)} onViewAll={() => router.push("/ordenes?filtro=sin_asignar")} />
+                <ActionGroup label="Bloqueadas"  count={bloqueadas.length}   items={bloqueadas}  dotColor="var(--warning)" onNavigate={id => router.push(`/ordenes?id=${encodeURIComponent(id)}`)} onViewAll={() => router.push("/ordenes?filtro=bloqueadas")} />
               </div>
             </Card>
           )}
@@ -520,7 +520,7 @@ export default function InicioDashboard() {
               <EmptyState label="Sin órdenes aún" />
             ) : (
               allOTs.slice(0, 12).map(o => (
-                <OTRow key={o.id} ot={o} onClick={() => router.push(`/ordenes?id=${o.id}`)} />
+                <OTRow key={o.id} ot={o} onClick={() => router.push(`/ordenes?id=${encodeURIComponent(o.id)}`)} />
               ))
             )}
           </Card>
@@ -569,7 +569,7 @@ export default function InicioDashboard() {
                   return (
                     <div
                       key={a.id}
-                      onClick={() => router.push(`/ordenes?id=${a.orden_id}`)}
+                      onClick={() => router.push(`/ordenes?id=${encodeURIComponent(a.orden_id)}`)}
                       style={{
                         display: "flex", gap: 10, padding: "9px 16px",
                         borderBottom: i < Math.min(actividad.length, 8) - 1 ? "1px solid var(--border)" : "none",

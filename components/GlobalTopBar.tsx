@@ -33,6 +33,7 @@ function pageTrail(pathname: string): string[] {
   if (pathname.startsWith("/espacio-trabajo")) return ["Cuenta", "Espacio de trabajo"];
   if (pathname.startsWith("/preferencias-notificaciones")) return ["Cuenta", "Preferencias de notificaciones"];
   if (pathname.startsWith("/ordenes/crear")) return ["Operaciones", "Órdenes", "Nueva orden"];
+  if (/^\/ordenes\/[^/]+$/.test(pathname)) return ["Operaciones", "Órdenes", "Detalle de OT"];
   if (pathname.startsWith("/ordenes")) return ["Operaciones", "Órdenes"];
   if (pathname.startsWith("/activos")) return ["Operaciones", "Activos"];
   if (pathname.startsWith("/partes")) return ["Operaciones", "Materiales"];

@@ -52,20 +52,6 @@ export function notifyOTCreada(opts: {
   });
 }
 
-export function notifyOTAsignada(opts: {
-  asignadosIds: string[];
-  ordenId: string;
-  titulo: string;
-}) {
-  if (!opts.asignadosIds.length) return;
-  notificar({
-    titulo: "Se te asignó una OT",
-    mensaje: opts.titulo,
-    url: `/ordenes?id=${opts.ordenId}`,
-    usuario_ids: opts.asignadosIds,
-  });
-}
-
 export function notifyOTEstadoCambiado(opts: {
   asignadosIds: string[];
   workspaceId: string;

@@ -336,7 +336,7 @@ function initials(n: string) {
 function CopyOTUrlButton({ ordenId }: { ordenId: string }) {
   const [copied, setCopied] = useState(false);
   function copy() {
-    const url = `${window.location.origin}/ordenes?id=${ordenId}`;
+    const url = `${window.location.origin}/ordenes?id=${encodeURIComponent(ordenId)}`;
     navigator.clipboard.writeText(url);
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
@@ -649,6 +649,7 @@ interface Props {
   // Show an X button in the sticky header. Off by default (list view has its
   // own close affordances); on for calendar/kanban modal overlays.
   showCloseButton?: boolean;
+  showBackButton?: boolean;
   // Per-user "marcar como leída/vista" state + toggle (owned by the parent list).
   isMarcada?:       boolean;
   onToggleMarcada?: (id: string, next: boolean) => void;
@@ -704,7 +705,7 @@ function useTimer(orden: OrdenTrabajo) {
 export default function OTDetail({
   orden, usuarios, myId, myRol, wsId,
   onEdit, onDelete, onClose, onOrdenUpdated, onOpenOrden,
-  showCloseButton = false,
+  showCloseButton = false, showBackButton = false,
   isMarcada, onToggleMarcada,
 }: Props) {
   const router = useRouter();
@@ -964,7 +965,7 @@ export default function OTDetail({
 
   const openOrden = useCallback((id: string) => {
     if (onOpenOrden) onOpenOrden(id);
-    else router.push(`/ordenes?id=${id}`);
+    else router.push(`/ordenes?id=${encodeURIComponent(id)}`);
   }, [onOpenOrden, router]);
 
   useEffect(() => {
@@ -1034,15 +1035,16 @@ export default function OTDetail({
     return () => { cancelled = true; };
   }, [orden.id, orden.estado, orden.pausado_at]);
 
-  // Load + poll activity every 30s while the tab is open
+  // Load activity immediately so its dashboard count and timeline are ready
+  // before the user opens the section. Poll only while it is visible.
   useEffect(() => {
-    if (tab !== "actividad") return;
-
     setLoadingAct(true);
     fetchActividad(orden.id)
       .then(setActividad)
       .catch(() => {})
       .finally(() => setLoadingAct(false));
+
+    if (tab !== "actividad") return;
 
     const pollId = setInterval(async () => {
       try {
@@ -1057,16 +1059,16 @@ export default function OTDetail({
   }, [tab, orden.id]);
 
 
-  // Load procedimientos when tab opens
+  // Load attached procedures immediately so counts and content do not wait for
+  // the first click on the section.
   useEffect(() => {
-    if (tab !== "procedimientos") return;
     if (otProcs.length === 0) {
       setLoadingProcs(true);
       getOTProcedimientos(orden.id)
         .then(data => { setOtProcs(data); setLoadingProcs(false); })
         .catch(() => setLoadingProcs(false));
     }
-  }, [tab, orden.id]);
+  }, [orden.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load procedure library (lazy, for attach picker)
   useEffect(() => {
@@ -1213,9 +1215,9 @@ export default function OTDetail({
     }
   }
 
-  // Eagerly load partes count when requiere_materiales is on (so the close gate works from any tab)
+  // Eagerly load materials for the summary and section.
   useEffect(() => {
-    if (!requiereMateriales || ordenPartes.length > 0) return;
+    if (ordenPartes.length > 0) return;
     const sb = createClient();
     sb.from("orden_partes")
       .select("id, parte_id, cantidad, cantidad_utilizada, parte:partes!parte_id(nombre, unidad, stock_actual)")
@@ -1229,17 +1231,16 @@ export default function OTDetail({
         }));
         setOrdenPartes(normalized as OrdenParte[]);
       });
-  }, [requiereMateriales]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [orden.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Load foto grupos when fotos tab opens — or eagerly when foto requirement is active
+  // Load photo groups immediately for the summary and gallery.
   useEffect(() => {
     if (gruposLoaded) return;
-    if (tab !== "fotos" && !requiereFotos) return;
     setLoadingGrupos(true);
     fetchFotoGrupos(orden.id)
       .then(data => { setFotoGrupos(data); setGruposLoaded(true); })
       .finally(() => setLoadingGrupos(false));
-  }, [tab, orden.id, gruposLoaded, requiereFotos]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [orden.id, gruposLoaded]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleCreateGrupo() {
     if (!newGrupoTitulo.trim() || !wsId) return;
@@ -1455,21 +1456,18 @@ export default function OTDetail({
     if (requiereHoja && modoRegistro !== "materiales") {
       return "Esta OT requiere que completes la hoja de cálculo antes de cerrarse. Ve a la pestaña Hoja de cálculo.";
     }
-    // Admins/owners can override the workspace-wide requirement per OT by
-    // flipping requiere_fotos off; only the per-OT flag gates the close.
-    if (requiereFotos) {
-      // Always fetch fresh foto groups so we don't block on stale/unloaded state
-      let currentGrupos = fotoGrupos;
-      if (!gruposLoaded) {
-        try {
-          currentGrupos = await fetchFotoGrupos(orden.id);
-          setFotoGrupos(currentGrupos);
-          setGruposLoaded(true);
-        } catch {
-          currentGrupos = [];
-        }
+    if (requiereFotos || fotosObligatoriasTodas) {
+      // Always verify fresh server data. Local or stale UI state must never
+      // satisfy a mandatory-photo close gate.
+      let currentGrupos: FotoGrupo[];
+      try {
+        currentGrupos = await fetchFotoGrupos(orden.id);
+        setFotoGrupos(currentGrupos);
+        setGruposLoaded(true);
+      } catch {
+        return "No se pudieron verificar las fotos. Revisa tu conexión e inténtalo nuevamente antes de cerrar la OT.";
       }
-      const hasAnyFoto = fotos.length > 0 || currentGrupos.some(g => (g.items?.length ?? 0) > 0);
+      const hasAnyFoto = fotos.length > 0 || currentGrupos.some(g => g.tipo === "evidencia" && (g.items?.length ?? 0) > 0);
       if (!hasAnyFoto) {
         return "Esta OT requiere al menos una foto antes de cerrarse. Ve a la pestaña Fotos y sube las fotos del trabajo.";
       }
@@ -2152,33 +2150,57 @@ export default function OTDetail({
   const estadoStyle = ESTADO_STYLE[orden.estado] ?? ESTADO_STYLE.pendiente;
   const prioColor   = PRIO_COLOR[orden.prioridad] ?? "var(--pr-low)";
   const prioLabel   = PRIORIDADES.find(p => p.value === orden.prioridad)?.label ?? "Sin prioridad";
-  const tabMeta: Record<Tab, { icon: React.ReactNode; label: string }> = {
-    detalle: { icon: <Info size={15} />, label: "Detalle" },
-    actividad: { icon: <CircleDot size={15} />, label: "Actividad" },
-    fotos: { icon: <Camera size={15} />, label: `Fotos${fotos.length > 0 ? ` (${fotos.length})` : ""}` },
-    materiales: { icon: <Package size={15} />, label: `Materiales${ordenPartes.length > 0 ? ` (${ordenPartes.length})` : ""}` },
-    procedimientos: { icon: <ClipboardCheck size={15} />, label: `Procedimientos${otProcs.length > 0 ? ` (${otProcs.length})` : ""}` },
-    hoja: { icon: <Sheet size={15} />, label: "Hoja de cálculo" },
-  };
+  const totalFotos = fotoGrupos.length > 0
+    ? fotoGrupos.reduce((total, grupo) => total + (grupo.items?.length ?? 0), 0)
+    : fotos.length;
+  const completedProcedures = otProcs.filter((otp) => otp.ejecucion?.estado === "completado").length;
+  const dashboardNav = ([
+    { tab: "detalle", label: "Detalles", value: "Ver", caption: "información de la OT", icon: <Info size={19} />, color: "var(--brand-fg)", tint: "var(--brand-tint)" },
+    { tab: "actividad", label: "Actividad", value: String(actividad.length), caption: "eventos", icon: <CircleDot size={19} />, color: "var(--brand-fg)", tint: "var(--brand-tint)" },
+    { tab: "fotos", label: "Fotos", value: String(totalFotos), caption: "fotos", icon: <Camera size={19} />, color: "var(--brand-fg)", tint: "var(--brand-tint)" },
+    { tab: "materiales", label: "Materiales", value: String(ordenPartes.length), caption: "ítems usados", icon: <Package size={19} />, color: "#7C3AED", tint: "rgba(124,58,237,0.10)" },
+    { tab: "procedimientos", label: "Procedimientos", value: otProcs.length > 0 ? `${completedProcedures}/${otProcs.length}` : "0", caption: completedProcedures === otProcs.length && otProcs.length > 0 ? "completados" : "asignados", icon: <ClipboardCheck size={19} />, color: "#EA580C", tint: "rgba(234,88,12,0.10)" },
+    { tab: "hoja", label: "Hoja de cálculo", value: "Abrir", caption: "registros", icon: <Sheet size={19} />, color: "#059669", tint: "rgba(5,150,105,0.10)" },
+  ] as Array<{
+    tab: Tab | null; label: string; value: string; caption: string;
+    icon: React.ReactNode; color: string; tint: string;
+  }>).filter((item) => {
+    if (item.tab === "materiales" && modoRegistro === "hoja") return false;
+    if (item.tab === "hoja" && modoRegistro === "materiales") return false;
+    return true;
+  });
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden", background: "var(--surface-1)" }}>
       {/* Shared confirmation popup for every destructive action in this view. */}
       <ConfirmDeleteModal pending={confirmDelete} onClose={() => setConfirmDelete(null)} />
 
+      <div style={{ flex: 1, minHeight: 0, overflowY: "auto", overflowX: "hidden" }}>
+
       {/* ── Header ── */}
-      <div style={{ flexShrink: 0, borderBottom: "1px solid var(--border)", background: "var(--surface-1)" }}>
+      <div style={{ position: "relative", flexShrink: 0, borderBottom: "1px solid var(--border)", background: "var(--surface-1)" }}>
         {/* Top bar: title + optional close (modal overlays). Timer was moved into the body. */}
-        <div style={{ display: "flex", alignItems: "flex-start", padding: "12px 16px", minHeight: 52, gap: 8 }}>
-          <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: "flex", alignItems: "flex-start", padding: "24px 28px 18px", minHeight: 52, gap: 16 }}>
+          {showBackButton && (
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Volver a órdenes"
+              title="Volver a órdenes"
+              style={{ width: 36, height: 36, marginTop: 1, flexShrink: 0, display: "inline-flex", alignItems: "center", justifyContent: "center", border: "1px solid var(--border)", borderRadius: "var(--r-sm)", background: "var(--surface-1)", color: "var(--fg-2)", cursor: "pointer" }}
+            >
+              <ChevronLeft size={19} />
+            </button>
+          )}
+          <div style={{ flex: 1, minWidth: 0, paddingRight: 190 }}>
             {orden.numero != null && (
-              <div style={{ fontSize: 12, fontWeight: 600, color: "var(--fg-4)", letterSpacing: "0.02em", marginBottom: 2 }}>
+              <div style={{ display: "inline-flex", alignItems: "center", minHeight: 24, padding: "0 9px", borderRadius: 999, background: "var(--brand-tint)", color: "var(--brand-fg)", fontSize: 12, fontWeight: 700, marginBottom: 8 }}>
                 OT #{orden.numero}
               </div>
             )}
             <h1
               style={{
-                fontSize: 22, fontWeight: 500, color: "var(--fg-1)",
+                fontSize: 27, fontWeight: 700, color: "var(--fg-1)",
                 margin: 0, lineHeight: 1.3,
                 overflowWrap: "break-word",
                 wordBreak: "break-word",
@@ -2187,6 +2209,20 @@ export default function OTDetail({
               {orden.titulo || "Sin título"}
               <CopyOTUrlButton ordenId={orden.id} />
             </h1>
+            <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: "7px 12px", marginTop: 12, color: "var(--fg-3)", fontSize: 13 }}>
+              {orden.ubicaciones?.edificio && (
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><MapPin size={15} />{orden.ubicaciones.edificio}</span>
+              )}
+              {orden.sociedad?.nombre && (
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><Building2 size={15} />{orden.sociedad.nombre}</span>
+              )}
+              {orden.fecha_termino && (
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><Calendar size={15} />Vencimiento: {fmtFechaLocal(orden.fecha_termino)}</span>
+              )}
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "3px 9px", borderRadius: 999, background: `${prioColor}18`, color: prioColor, fontWeight: 700 }}>
+                <Circle size={7} fill="currentColor" />{prioLabel}
+              </span>
+            </div>
           </div>
           {showCloseButton && (
             <button
@@ -2200,58 +2236,52 @@ export default function OTDetail({
           )}
         </div>
 
-        {/* Tabs */}
-        <div style={{ display: "flex", alignItems: "center", padding: "14px 20px 16px", gap: 10, flexWrap: "wrap" }}>
-          {(["detalle", "actividad", "fotos", "materiales", "procedimientos", "hoja"] as Tab[]).filter(t => {
-            if (t === "materiales" && modoRegistro === "hoja") return false;
-            if (t === "hoja" && modoRegistro === "materiales") return false;
-            return true;
-          }).map(t => {
-            const active = tab === t;
+        {/* Scrollable tab bar: navigation stays readable in the split view. */}
+        <div style={{ margin: "0 28px 22px", overflowX: "auto", overflowY: "hidden" }}>
+          <div role="tablist" aria-label="Secciones de la orden" style={{ display: "flex", alignItems: "center", gap: 8, width: "max-content", minWidth: "100%" }}>
+          {dashboardNav.map((item) => {
+            const active = item.tab != null && tab === item.tab;
             return (
             <button
-              key={t}
+              key={item.label}
               type="button"
-              onClick={() => setTab(t)}
+              role="tab"
+              aria-selected={active}
+              onClick={() => { if (item.tab) setTab(item.tab); }}
               style={{
-                minHeight: 42,
-                padding: "0 15px",
+                height: 32,
+                padding: "0 14px",
                 display: "inline-flex",
                 alignItems: "center",
                 justifyContent: "center",
-                gap: 8,
-                background: active ? "var(--brand)" : "var(--surface-1)",
-                border: active ? "1px solid var(--brand)" : "1px solid #BFDBFE",
-                borderRadius: "var(--r-sm)",
-                color: active ? "var(--fg-on-brand)" : "var(--brand-fg)",
-                fontSize: 13,
-                fontWeight: 700,
+                gap: 5,
+                background: active ? "var(--surface-hover)" : "transparent",
+                border: "1px solid var(--brand)",
+                borderRadius: "var(--r-xs)",
+                color: "var(--brand-fg)",
                 cursor: "pointer",
                 fontFamily: "inherit",
                 whiteSpace: "nowrap",
-                boxShadow: active ? "0 6px 16px rgba(39, 61, 136, 0.16)" : "none",
-                transition: "background 0.12s, border-color 0.12s, box-shadow 0.12s",
+                flexShrink: 0,
+                fontWeight: 700,
+                transition: "background 0.12s, box-shadow 0.12s",
               }}
-              onMouseEnter={e => {
-                if (!active) {
-                  e.currentTarget.style.background = "var(--brand-tint)";
-                  e.currentTarget.style.borderColor = "var(--brand)";
-                }
-              }}
-              onMouseLeave={e => {
-                if (!active) {
-                  e.currentTarget.style.background = "var(--surface-1)";
-                  e.currentTarget.style.borderColor = "#BFDBFE";
-                }
-              }}
+              onMouseEnter={e => { if (!active) e.currentTarget.style.background = "var(--surface-hover)"; }}
+              onMouseLeave={e => { if (!active) e.currentTarget.style.background = "transparent"; }}
+              onFocus={e => { e.currentTarget.style.outline = "none"; }}
             >
-              {tabMeta[t].icon}
-              {tabMeta[t].label}
+              <span style={{ width: 20, height: 20, flexShrink: 0, display: "inline-flex", alignItems: "center", justifyContent: "center", color: "var(--brand-fg)" }}>
+                {item.icon}
+              </span>
+              <span style={{ color: "var(--brand-fg)", fontSize: 13, fontWeight: 700 }}>
+                {item.label}{item.tab !== "detalle" && item.tab !== "hoja" ? ` (${item.value})` : ""}
+              </span>
             </button>
             );
           })}
+          </div>
 
-          <div ref={exportMenuRef} style={{ position: "relative" }}>
+          <div ref={exportMenuRef} style={{ position: "absolute", top: 24, right: 28, zIndex: 20 }}>
             <button
               type="button"
               onClick={() => setExportMenuOpen(v => !v)}
@@ -2342,9 +2372,9 @@ export default function OTDetail({
           {(canManage || orden.creado_por === myId) && (
             <button
               type="button" onClick={onEdit}
-              style={{ height: 42, marginLeft: "auto", padding: "0 15px", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, background: "var(--surface-1)", border: "1px solid #BFDBFE", borderRadius: "var(--r-sm)", cursor: "pointer", color: "var(--brand-fg)", fontSize: 13, fontWeight: 700, fontFamily: "inherit" }}
-              onMouseEnter={e => { e.currentTarget.style.background = "var(--brand-tint)"; e.currentTarget.style.borderColor = "var(--brand)"; }}
-              onMouseLeave={e => { e.currentTarget.style.background = "var(--surface-1)"; e.currentTarget.style.borderColor = "#BFDBFE"; }}
+              style={{ position: "absolute", top: 24, right: 80, zIndex: 19, height: 42, padding: "0 15px", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, background: "var(--brand)", border: "1px solid var(--brand)", borderRadius: "var(--r-sm)", cursor: "pointer", color: "var(--fg-on-brand)", fontSize: 13, fontWeight: 700, fontFamily: "inherit" }}
+              onMouseEnter={e => { e.currentTarget.style.filter = "brightness(0.96)"; }}
+              onMouseLeave={e => { e.currentTarget.style.filter = "none"; }}
             >
               <Pencil size={14} />
               Editar
@@ -2354,7 +2384,7 @@ export default function OTDetail({
       </div>
 
       {/* ── Body ── */}
-      <div style={{ flex: 1, minHeight: 0, overflowY: "auto" }}>
+      <div style={{ minHeight: 0, overflow: "visible" }}>
 
         {/* ── Detalle ── */}
         {tab === "detalle" && (
@@ -2970,14 +3000,14 @@ export default function OTDetail({
             ) : (
               <>
                 {/* Groups list */}
-                {fotoGrupos.length === 0 && !isActive ? (
+                {(isActive ? fotoGrupos : fotoGrupos.filter(grupo => (grupo.items?.length ?? 0) > 0)).length === 0 && !isActive ? (
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "40px 0", gap: 8, color: "var(--pr-low)" }}>
                     <FolderOpen size={32} style={{ opacity: 0.3 }} />
                     <p style={{ fontSize: 13, margin: 0 }}>Sin grupos de fotos</p>
                   </div>
                 ) : (
                   <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-                    {fotoGrupos.map(grupo => (
+                    {(isActive ? fotoGrupos : fotoGrupos.filter(grupo => (grupo.items?.length ?? 0) > 0)).map(grupo => (
                       <GrupoFotosCard
                         key={grupo.id}
                         grupo={grupo}
@@ -3449,8 +3479,8 @@ export default function OTDetail({
         )}
 
         {/* ── Hoja de cálculo ── */}
-        {tab === "hoja" && wsId && (
-          <div style={{ padding: "24px 28px 120px" }}>
+        {wsId && (
+          <div style={{ display: tab === "hoja" ? "block" : "none", padding: "24px 28px 120px" }}>
             {requiereHoja && isActive && (
               <div style={{
                 display: "flex", alignItems: "center", gap: 8,
@@ -3476,6 +3506,8 @@ export default function OTDetail({
       </div>
 
       {/* ── Execution modal ── */}
+      </div>
+
       {activeEjec && (
         <ProcEjecucionModal
           ejec={activeEjec.ejecucion}

@@ -268,6 +268,7 @@ interface Props {
   usuarios:     Usuario[];
   isSelected:   boolean;
   onClick:      (id: string) => void;
+  onPrefetch?:  (id: string) => void;
   myId?:        string;
   onAssigned?:  (id: string, newIds: string[]) => void;
   // When set (only in the "Reprogramadas" tab), render a pill with the
@@ -279,7 +280,7 @@ interface Props {
   todayKey?:         string;
 }
 
-function OTRow({ orden, rowNumber, usuarios, isSelected, onClick, myId, onAssigned, coordinadaPara, isMarcada, onToggleMarcada, todayKey }: Props) {
+function OTRow({ orden, rowNumber, usuarios, isSelected, onClick, onPrefetch, myId, onAssigned, coordinadaPara, isMarcada, onToggleMarcada, todayKey }: Props) {
   const effectiveTodayKey = todayKey ?? chileDateKey();
   const isPending = Boolean(orden._pending);
   const hasAssignees = (orden.asignados_ids ?? []).length > 0;
@@ -327,6 +328,11 @@ function OTRow({ orden, rowNumber, usuarios, isSelected, onClick, myId, onAssign
       role="option"
       aria-selected={isSelected}
       onClick={isPending ? undefined : () => onClick(orden.id)}
+      onMouseEnter={e => {
+        if (!isPending) onPrefetch?.(orden.id);
+        if (!isSelected) e.currentTarget.style.background = "var(--surface-hover)";
+      }}
+      onFocus={() => { if (!isPending) onPrefetch?.(orden.id); }}
       style={{
         padding: "14px 20px",
         background: isSelected ? "var(--brand-tint)" : "var(--surface-1)",
@@ -336,7 +342,6 @@ function OTRow({ orden, rowNumber, usuarios, isSelected, onClick, myId, onAssign
         opacity: isPending ? 0.55 : isMarcada ? 0.62 : 1,
         transition: "background var(--dur-fast) var(--ease), opacity var(--dur-fast) var(--ease)",
       }}
-      onMouseEnter={e => { if (!isSelected) e.currentTarget.style.background = "var(--surface-hover)"; }}
       onMouseLeave={e => { if (!isSelected) e.currentTarget.style.background = "var(--surface-1)"; }}
     >
       {/* Top: row number + NÂ°OT + due date */}

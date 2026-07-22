@@ -170,7 +170,9 @@ Deno.serve(async (req: Request) => {
           temperature: 0.1,
           maxOutputTokens: 4096,
           responseMimeType: "application/json",
-          thinkingConfig: { thinkingBudget: 0 },
+          // Gemini 3.x uses named thinking levels. A numeric budget of 0 is
+          // rejected by Gemini 3.5 Flash-Lite with a 400 response.
+          thinkingConfig: { thinkingLevel: "minimal" },
         },
       }),
     });

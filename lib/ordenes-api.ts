@@ -6,7 +6,6 @@ import type {
 } from "@/types/ordenes";
 import {
   notifyOTCreada,
-  notifyOTAsignada,
   notifyOTEstadoCambiado,
 } from "@/lib/notificar";
 
@@ -379,14 +378,6 @@ export async function createOrden(payload: {
     urgente: payload.prioridad === "urgente",
   });
 
-  if (payload.asignados_ids?.length) {
-    notifyOTAsignada({
-      asignadosIds: payload.asignados_ids,
-      ordenId: orden.id,
-      titulo: orden.titulo ?? payload.titulo,
-    });
-  }
-
   return orden;
 }
 
@@ -539,12 +530,6 @@ export async function updateOrden(
     const added = [...next].filter((uid) => !prev.has(uid));
     if (added.length > 0) {
       await insertActividad(id, userId, "asignado", added.join(","));
-      const orden = data as unknown as OrdenTrabajo;
-      notifyOTAsignada({
-        asignadosIds: added,
-        ordenId: id,
-        titulo: orden.titulo ?? "",
-      });
     }
   }
   if (payload.titulo !== undefined || payload.descripcion !== undefined || payload.tipo_trabajo !== undefined) {

@@ -428,8 +428,6 @@ export default function OrdenesBandeja({
   // Open order detail
   const openOT = useCallback(async (id: string, pushUrl = true) => {
     if (pushUrl) {
-      // Preserve the calendar-view param so dismissing the modal doesn't
-      // bounce the supervisor back to the list view.
       const params = new URLSearchParams();
       params.set("id", id);
       if (view === "calendario") params.set("vista", "calendario");
@@ -450,12 +448,8 @@ export default function OrdenesBandeja({
   }, [router, view]);
 
   const openCreate = useCallback(() => {
-    const baseQs = view === "calendario" ? "vista=calendario&" : view === "kanban" ? "vista=kanban&" : "";
-    router.push(`/ordenes?${baseQs}panel=crear`, { scroll: false });
-    setSelected(null);
-    setDetail(null);
-    setRightPanel("create");
-  }, [router, view]);
+    router.push("/ordenes/crear");
+  }, [router]);
 
   // Stable per-list callbacks so memoized OTRows don't re-render on every parent
   // update. These take the OT id and avoid per-row inline closures.
@@ -957,6 +951,63 @@ export default function OrdenesBandeja({
     };
   }, [countOrdenes, searchResults, filtros, search, ubicaciones, reprogramadaIds, faltanMaterialesIds, todayKey]);
   const currentSortLabel = SORT_OPTIONS.find(o => o.value === sort)?.label ?? "";
+  const scopeLabel: Record<ScopeKey, string> = {
+    todas: "Todas",
+    sin_asignar: "Sin asignar",
+    sin_progreso: "Sin progreso",
+    vencidas: "Vencidas",
+    reprogramadas: "Reprogramadas",
+    materiales: "Faltan materiales",
+    levantamientos: "Levantamientos",
+    presupuestos: "Presupuestos",
+    otras: "Otras",
+  };
+  const activeFilterLabels = useMemo(() => {
+    const labels: string[] = [];
+    if (filtros.sinAsignar) labels.push("Sin asignar");
+    if (filtros.soloAsignados) labels.push("Asignadas");
+    if (filtros.asignadoIds.length) {
+      const names = filtros.asignadoIds
+        .map(id => usuarios.find(user => user.id === id)?.nombre)
+        .filter((name): name is string => Boolean(name));
+      labels.push(names.length === 1 ? names[0] : `${names.length || filtros.asignadoIds.length} usuarios`);
+    }
+    if (filtros.ubicacionIds.length) {
+      const names = filtros.ubicacionIds
+        .map(id => ubicaciones.find(location => location.id === id)?.edificio)
+        .filter((name): name is string => Boolean(name));
+      labels.push(names.length === 1 ? names[0] : `${names.length || filtros.ubicacionIds.length} ubicaciones`);
+    }
+    if (filtros.sociedadIds.length) {
+      const names = filtros.sociedadIds
+        .map(id => sociedades.find(company => company.id === id)?.nombre)
+        .filter((name): name is string => Boolean(name));
+      labels.push(names.length === 1 ? names[0] : `${names.length || filtros.sociedadIds.length} asociaciones`);
+    }
+    if (filtros.prioridades.length) labels.push(filtros.prioridades.length === 1 ? `Prioridad ${filtros.prioridades[0]}` : `${filtros.prioridades.length} prioridades`);
+    if (filtros.estados.length) labels.push(filtros.estados.length === 1 ? filtros.estados[0].replaceAll("_", " ") : `${filtros.estados.length} estados`);
+    if (filtros.tipos.length) labels.push(filtros.tipos.length === 1 ? filtros.tipos[0] : `${filtros.tipos.length} tipos de trabajo`);
+    if (filtros.fechaVencimiento) {
+      const dueLabels: Record<string, string> = { hoy: "Vence hoy", manana: "Vence mañana", "7dias": "Próximos 7 días", "30dias": "Próximos 30 días", este_mes: "Este mes", vencidas: "Vencidas" };
+      labels.push(dueLabels[filtros.fechaVencimiento] ?? "Fecha de vencimiento");
+    }
+    return labels;
+  }, [filtros, usuarios, ubicaciones, sociedades]);
+  const currentViewLabel = [
+    scope !== "todas" ? scopeLabel[scope] : null,
+    ...activeFilterLabels,
+    search.trim() ? `“${search.trim()}”` : null,
+  ].filter((label): label is string => Boolean(label)).join(" · ") || "Todas";
+  const pendingTabCount = scope === "todas"
+    ? filteredCounts.pendientes.todas
+    : filteredCounts.pendientes[scope];
+  const completedTabCount = scope === "todas"
+    ? filteredCounts.completas.todas
+    : scope === "levantamientos"
+      ? filteredCounts.completas.levantamientos
+      : scope === "presupuestos"
+        ? filteredCounts.completas.presupuestos
+        : 0;
 
   // ── Excel export (all OTs across tabs, respecting filters/search) ─────────
   //
@@ -1116,7 +1167,7 @@ export default function OrdenesBandeja({
   const isResizableSplit = isDesktop && view !== "calendario" && view !== "kanban";
 
   return (
-    <div style={{ display:"flex", flexDirection:"column", height:"100dvh", overflow:"hidden", background:"var(--c-bg, #F8FAFC)" }}>
+    <div style={{ display:"flex", flexDirection:"column", height:"100%", minHeight:0, overflow:"hidden", background:"var(--c-bg, #F8FAFC)" }}>
 
       {/* ── Navigation header ── */}
       <div style={{ flexShrink:0, borderBottom:"1px solid var(--border)", background:"var(--surface-1)" }}>
@@ -1380,8 +1431,8 @@ export default function OrdenesBandeja({
               in the header so the tab bar stays focused on the big split. */}
           <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", borderBottom:"1px solid var(--border)", flexShrink:0 }}>
             {[
-              { key:"pendientes" as const, label:"Pendientes", count:filteredCounts.pendientes.todas },
-              { key:"completas"  as const, label:"Completas",  count:filteredCounts.completas.todas },
+              { key:"pendientes" as const, label:"Pendientes", count:pendingTabCount },
+              { key:"completas"  as const, label:"Completas",  count:completedTabCount },
             ].map((t, i) => {
               const isActive = tab === t.key;
               return (
@@ -1463,8 +1514,11 @@ export default function OrdenesBandeja({
                   onMouseEnter={e => { e.currentTarget.style.background = "var(--surface-hover)"; }}
                   onMouseLeave={e => { e.currentTarget.style.background = "var(--surface-1)"; }}
                 >
-                  <span style={{ color:"var(--fg-3)" }}>Ordenar por:</span>
-                  <span style={{ fontWeight:600, color:"var(--brand-fg)" }}>{currentSortLabel}</span>
+                  <span style={{ color:"var(--fg-3)" }}>Mostrando:</span>
+                  <span style={{ maxWidth:220, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", fontWeight:600, color:"var(--brand-fg)" }} title={currentViewLabel}>{currentViewLabel}</span>
+                  <span aria-hidden="true" style={{ color:"var(--border-strong)", margin:"0 2px" }}>·</span>
+                  <span style={{ color:"var(--fg-3)" }}>Orden:</span>
+                  <span style={{ maxWidth:180, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", fontWeight:600, color:"var(--fg-2)" }} title={currentSortLabel}>{currentSortLabel}</span>
                   <ChevronDown size={14} style={{ color:"var(--brand-fg)", transform: sortOpen ? "rotate(180deg)" : "none", transition:"transform 0.15s" }} />
                   {triggerHasAttention && (
                     <span aria-label="Hay órdenes que requieren atención"
@@ -1480,7 +1534,8 @@ export default function OrdenesBandeja({
                     position:"absolute", left:8, right:8, top:"calc(100% + 4px)", zIndex:50,
                     background:"var(--surface-1)", border:"1px solid var(--border)",
                     borderRadius:8, boxShadow:"0 8px 24px rgba(15,23,42,0.12)",
-                    overflow:"hidden",
+                    maxHeight:"min(480px, calc(100vh - 260px))",
+                    overflowX:"hidden", overflowY:"auto",
                   }}>
                     {/* Mostrar — scope filter */}
                     <div style={{ padding:"8px 14px 4px", fontSize:10, fontWeight:700, color:"var(--fg-4)", textTransform:"uppercase", letterSpacing:"0.06em" }}>

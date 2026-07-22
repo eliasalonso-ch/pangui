@@ -169,7 +169,7 @@ export default function NotificacionesPage() {
                     onClick={() => {
                       if (!n.url) return;
                       const match = n.url.match(/\/orden\/([^/]+)/);
-                      if (match) router.push(`/ordenes?id=${match[1]}`);
+                      if (match) router.push(`/ordenes?id=${encodeURIComponent(match[1])}`);
                       else router.push(n.url);
                     }}
                     style={{

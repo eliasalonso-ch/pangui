@@ -802,7 +802,7 @@ function GeneralTab({ activo, onFullscreen }: { activo: Activo; onFullscreen: ()
             </div>
           ) : (
             preview.map((ot, idx) => (
-              <ActivoOTRow key={ot.id} ot={ot} last={idx === preview.length - 1} onOpen={() => router.push(`/ordenes?id=${ot.id}`)} />
+              <ActivoOTRow key={ot.id} ot={ot} last={idx === preview.length - 1} onOpen={() => router.push(`/ordenes?id=${encodeURIComponent(ot.id)}`)} />
             ))
           )}
         </Card>
@@ -1139,7 +1139,7 @@ function ActivoDetail({
       <div style={{ flex: 1, overflowY: "auto", padding: "28px 28px 80px", background: "var(--surface-1)" }}>
         {tab === "general" && <GeneralTab activo={activo} onFullscreen={() => setFullscreen(true)} />}
         {tab === "detalles" && <DetallesTab activo={activo} hijos={hijos} onOpenActivo={openActivo} />}
-        {tab === "historial" && <HistorialTab activoId={activo.id} onOpenOT={(otId) => router.push(`/ordenes?id=${otId}`)} />}
+        {tab === "historial" && <HistorialTab activoId={activo.id} onOpenOT={(otId) => router.push(`/ordenes?id=${encodeURIComponent(otId)}`)} />}
 
         {/* Delete action (always available) */}
         <div style={{ marginTop: 30, paddingTop: 24, borderTop: "1px solid var(--border)", display: "flex", justifyContent: "flex-end" }}>
