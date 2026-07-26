@@ -11,7 +11,7 @@ import { callEdge } from "@/lib/edge";
 import { createOrden, buildDescripcion, ELECTRILAM_WORKSPACE_ID } from "@/lib/ordenes-api";
 import { fetchSolicitantes as fetchSolicitantesCatalog, upsertSolicitante, type Solicitante } from "@/lib/solicitantes-api";
 import { analytics } from "@/lib/analytics";
-import { uploadFotoGrupo, createFotoGrupo, addFotoToGrupo } from "@/lib/foto-grupos-api";
+import { uploadAndAddFotoToGrupo, createFotoGrupo } from "@/lib/foto-grupos-api";
 import { uploadToR2 } from "@/lib/r2";
 import { buildRecurrenciaConfig, RecurrenceControls } from "./RecurrenceControls";
 import type {
@@ -1527,8 +1527,7 @@ export default function OTCrearPanel({
         try {
           const grupo = await createFotoGrupo(orden.id, wsId, myId, g.titulo.trim() || `Grupo ${gi + 1}`, g.descripcion.trim(), gi, "referencia");
           for (let fi = 0; fi < g.fotos.length; fi++) {
-            const url = await uploadFotoGrupo(orden.id, g.fotos[fi].file);
-            await addFotoToGrupo(grupo.id, url, fi);
+            await uploadAndAddFotoToGrupo(orden.id, grupo.id, g.fotos[fi].file, fi);
           }
         } catch { /* don't block OT creation */ }
       }

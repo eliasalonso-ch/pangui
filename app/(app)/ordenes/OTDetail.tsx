@@ -38,7 +38,7 @@ import {
 import { analytics } from "@/lib/analytics";
 import {
   fetchFotoGrupos, createFotoGrupo, updateFotoGrupo, deleteFotoGrupo,
-  addFotoToGrupo, removeFotoFromGrupo, uploadFotoGrupo, toggleFotoGrupoLocked,
+  uploadAndAddFotoToGrupo, removeFotoFromGrupo, toggleFotoGrupoLocked,
 } from "@/lib/foto-grupos-api";
 import type { FotoGrupo } from "@/lib/foto-grupos-api";
 import {
@@ -1297,8 +1297,12 @@ export default function OTDetail({
   async function handleUploadToGrupo(grupoId: string, file: File) {
     setUploadingGrupoId(grupoId);
     try {
-      const url = await uploadFotoGrupo(orden.id, file);
-      const item = await addFotoToGrupo(grupoId, url, (fotoGrupos.find(g => g.id === grupoId)?.items?.length ?? 0));
+      const item = await uploadAndAddFotoToGrupo(
+        orden.id,
+        grupoId,
+        file,
+        fotoGrupos.find(g => g.id === grupoId)?.items?.length ?? 0,
+      );
       setFotoGrupos(prev => prev.map(g =>
         g.id === grupoId ? { ...g, items: [...(g.items ?? []), item] } : g
       ));

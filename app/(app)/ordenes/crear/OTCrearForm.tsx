@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import { createClient } from "@/lib/supabase";
 import { callEdge } from "@/lib/edge";
-import { uploadFotoGrupo, createFotoGrupo, addFotoToGrupo } from "@/lib/foto-grupos-api";
+import { uploadAndAddFotoToGrupo, createFotoGrupo } from "@/lib/foto-grupos-api";
 import { uploadToR2 } from "@/lib/r2";
 import LinksInput from "@/components/LinksInput";
 import { buildRecurrenciaConfig, RecurrenceControls } from "../RecurrenceControls";
@@ -546,8 +546,7 @@ export default function OTCrearForm({ usuarios, ubicaciones, activos, categorias
       try {
         const grupo = await createFotoGrupo(ordenId, wsId, myId, g.titulo.trim() || `Grupo ${gi + 1}`, g.descripcion.trim(), gi, "referencia");
         for (let fi = 0; fi < g.fotos.length; fi++) {
-          const url = await uploadFotoGrupo(ordenId, g.fotos[fi].file);
-          await addFotoToGrupo(grupo.id, url, fi);
+          await uploadAndAddFotoToGrupo(ordenId, grupo.id, g.fotos[fi].file, fi);
         }
       } catch { /* don't block OT creation */ }
     }
