@@ -5,6 +5,7 @@ import {
   fetchOrdenes,
   fetchOrden,
   createOrden,
+  createSubOrden,
   updateOrdenEstado,
   updateOrdenPrioridad,
   deleteOrden,
@@ -15,6 +16,11 @@ import {
   reanudarOrden,
   completarOrden,
 } from "@/lib/ordenes-api";
+
+const notificationMocks = vi.hoisted(() => ({
+  created: vi.fn(),
+  stateChanged: vi.fn(),
+}));
 
 // ── Supabase mock ─────────────────────────────────────────────────────────────
 
@@ -49,7 +55,23 @@ function chain(final: () => any) {
 const mockFrom = vi.fn();
 
 vi.mock("@/lib/supabase", () => ({
-  createClient: () => ({ from: mockFrom }),
+  createClient: () => ({
+    from: mockFrom,
+    auth: { getUser: vi.fn().mockResolvedValue({ data: { user: null }, error: null }) },
+  }),
+}));
+
+vi.mock("@/lib/supabase-auth-retry", () => ({
+  withSupabaseAuthRetry: (operation: () => PromiseLike<unknown>) => operation(),
+}));
+
+vi.mock("@/lib/notificar", () => ({
+  notifyOTCreada: notificationMocks.created,
+  notifyOTEstadoCambiado: notificationMocks.stateChanged,
+}));
+
+vi.mock("@/lib/cuotas-client", () => ({
+  ensureOtCategoria: vi.fn().mockResolvedValue(undefined),
 }));
 
 beforeEach(() => {
@@ -183,6 +205,110 @@ describe("fetchOrden", () => {
   });
 });
 
+describe("createOrden characterization contract", () => {
+  it("creates the web OT and audit rows as independent writes", async () => {
+    const created = {
+      id: "ot-1",
+      workspace_id: "ws-1",
+      creado_por: "user-1",
+      titulo: "Revisar tablero",
+    };
+    mockFrom.mockImplementation((table: string) => {
+      if (table === "workspaces") {
+        return chain(() => ({
+          data: {
+            requiere_materiales_global: true,
+            requiere_hoja_global: false,
+            requiere_fotos_global: false,
+            fotos_obligatorias_todas: true,
+          },
+          error: null,
+        }));
+      }
+      if (table === "ordenes_trabajo") return chain(() => ({ data: created, error: null }));
+      return chain(() => ({ error: null }));
+    });
+
+    await createOrden({
+      workspaceId: "ws-1",
+      creadoPor: "user-1",
+      titulo: "Revisar tablero",
+      descripcion: "Inspección preventiva",
+      prioridad: "alta",
+      tipo_trabajo: "reactiva",
+      asignados_ids: ["tech-1"],
+    });
+
+    expect(mockFrom.mock.calls.map(([table]) => table)).toEqual([
+      "workspaces",
+      "ordenes_trabajo",
+      "actividad_ot",
+      "actividad_ot",
+    ]);
+    expect(mockInsert).toHaveBeenCalledWith(expect.objectContaining({
+      workspace_id: "ws-1",
+      estado: "pendiente",
+      requiere_materiales: true,
+      requiere_hoja: false,
+      requiere_fotos: true,
+      asignados_ids: ["tech-1"],
+    }));
+    expect(mockFrom).not.toHaveBeenCalledWith("hojas_inventario");
+    expect(notificationMocks.created).toHaveBeenCalledWith(expect.objectContaining({
+      ordenId: "ot-1",
+      workspaceId: "ws-1",
+    }));
+  });
+});
+
+describe("createSubOrden characterization contract", () => {
+  it("characterizes the narrower web sub-OT inheritance", async () => {
+    const parent = {
+      id: "parent-1",
+      workspace_id: "ws-1",
+      creado_por: "user-1",
+      descripcion: "No se copia actualmente",
+      tipo_trabajo: "preventiva",
+      prioridad: "media",
+      asignados_ids: ["tech-1"],
+      ubicacion_id: "ubi-1",
+      lugar_id: "lugar-1",
+      sociedad_id: "soc-1",
+      fecha_inicio: "2026-07-25",
+      fecha_termino: "2026-07-26",
+      requiere_materiales: true,
+      requiere_hoja: true,
+      requiere_fotos: true,
+      categoria_id: "cat-1",
+      activo_id: "activo-1",
+      n_serie: "SERIE-1",
+    };
+    mockFrom.mockImplementation((table: string) => {
+      if (table === "ordenes_trabajo") {
+        return chain(() => ({ data: { ...parent, id: "child-1", parent_id: "parent-1" }, error: null }));
+      }
+      if (table === "ot_procedimientos") return chain(() => ({ data: [], error: null }));
+      return chain(() => ({ error: null }));
+    });
+
+    await createSubOrden("parent-1", "Hija", parent as any);
+
+    const childInsert = mockInsert.mock.calls[0][0];
+    expect(childInsert).toEqual(expect.objectContaining({
+      parent_id: "parent-1",
+      descripcion: "",
+      ubicacion_id: "ubi-1",
+      lugar_id: "lugar-1",
+      sociedad_id: "soc-1",
+      requiere_hoja: true,
+    }));
+    expect(childInsert).not.toHaveProperty("categoria_id");
+    expect(childInsert).not.toHaveProperty("activo_id");
+    expect(childInsert).not.toHaveProperty("n_serie");
+    expect(mockFrom).not.toHaveBeenCalledWith("hojas_inventario");
+  });
+});
+
 // ── updateOrdenEstado ─────────────────────────────────────────────────────────
 
 describe("updateOrdenEstado", () => {
@@ -212,11 +338,14 @@ describe("updateOrdenPrioridad", () => {
 // ── deleteOrden ───────────────────────────────────────────────────────────────
 
 describe("deleteOrden", () => {
-  it("deletes an order", async () => {
+  it("soft-deletes an order", async () => {
     mockFrom.mockReturnValue(chain(() => ({ error: null })));
     await expect(deleteOrden("ot-1")).resolves.toBeUndefined();
     expect(mockFrom).toHaveBeenCalledWith("ordenes_trabajo");
-    expect(mockDelete).toHaveBeenCalled();
+    expect(mockUpdate).toHaveBeenCalledWith(expect.objectContaining({
+      deleted_at: expect.any(String),
+      deleted_by: null,
+    }));
     expect(mockEq).toHaveBeenCalledWith("id", "ot-1");
   });
 
@@ -304,13 +433,17 @@ describe("reanudarOrden", () => {
 });
 
 describe("completarOrden", () => {
-  it("sets estado=completado and stores elapsed time", async () => {
+  it("characterizes the current web terminal payload", async () => {
     mockFrom.mockReturnValue(chain(() => ({ error: null })));
     await completarOrden("ot-1", "user-1", "Trabajo terminado", 3600);
-    expect(mockUpdate).toHaveBeenCalledWith(expect.objectContaining({
+    const terminalPatch = mockUpdate.mock.calls[0][0];
+    expect(terminalPatch).toEqual(expect.objectContaining({
       estado: "completado",
       en_ejecucion: false,
       tiempo_total_segundos: 3600,
+      fecha_termino: expect.any(String),
     }));
+    expect(terminalPatch).not.toHaveProperty("pausado_at");
+    expect(terminalPatch).not.toHaveProperty("completado_por");
   });
 });

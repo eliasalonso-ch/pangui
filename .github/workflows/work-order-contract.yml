@@ -1,0 +1,89 @@
+name: Work Order Contract
+
+on:
+  pull_request:
+    paths:
+      - "supabase/bootstrap/**"
+      - "supabase/migrations/**"
+      - "supabase/tests/**"
+      - "supabase/testing/**"
+      - "supabase/functions/ot-upload-v1/**"
+      - "lib/work-orders/**"
+      - "lib/ordenes-api.ts"
+      - "tests/lib/work-order-*.test.ts"
+      - "tests/lib/ordenes-api.test.ts"
+      - "tests/lib/ot-metrics*.test.ts"
+      - "tests/components/OTRow.test.tsx"
+      - "app/(app)/ordenes/OTRow.tsx"
+      - ".github/workflows/work-order-contract.yml"
+  workflow_dispatch:
+
+jobs:
+  database-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Build isolated migration source
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/pangui-work-order-contract"
+          mkdir -p "$root/supabase/migrations" "$root/supabase/tests"
+          cp supabase/testing/config.toml "$root/supabase/config.toml"
+          cp supabase/bootstrap/20260725_production_public_schema.sql \
+            "$root/supabase/migrations/20260725000000_production_public_schema.sql"
+          cp supabase/migrations/20260725160000_enforce_ot_photo_completion_reconcile.sql "$root/supabase/migrations/"
+          cp supabase/migrations/20260725170000_work_order_create_commands_v1.sql "$root/supabase/migrations/"
+          cp supabase/migrations/20260725180000_ot_upload_intents_v1.sql "$root/supabase/migrations/"
+          cp supabase/migrations/20260725190000_work_order_rollout_v1.sql "$root/supabase/migrations/"
+          cp supabase/tests/*.sql "$root/supabase/tests/"
+          echo "WORK_ORDER_CONTRACT_ROOT=$root" >> "$GITHUB_ENV"
+
+      - name: Start isolated Supabase
+        run: supabase start --workdir "$WORK_ORDER_CONTRACT_ROOT" --exclude studio,imgproxy,mailpit,storage-api,edge-runtime,vector,logflare,realtime,supavisor,postgres-meta
+
+      - name: Run pgTAP contract tests
+        run: supabase test db --workdir "$WORK_ORDER_CONTRACT_ROOT"
+
+      - name: Stop isolated Supabase
+        if: always()
+        run: supabase stop --workdir "$WORK_ORDER_CONTRACT_ROOT" --no-backup
+
+  client-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type-check web client
+        run: npx tsc --noEmit
+
+      - name: Test critical web adapters
+        run: >-
+          npx vitest run
+          tests/lib/ordenes-api.test.ts
+          tests/lib/work-order-commands-v1.test.ts
+          tests/lib/work-order-rollout-v1.test.ts
+          tests/lib/work-order-uploads-v1.test.ts
+          tests/lib/supabase-auth-retry.test.ts
+          tests/lib/ot-metrics.test.ts
+          tests/lib/ot-metrics-extended.test.ts
+          tests/components/OTRow.test.tsx

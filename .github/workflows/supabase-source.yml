@@ -1,0 +1,78 @@
+name: Supabase Source Guard
+
+on:
+  pull_request:
+    paths:
+      - "supabase/migrations/**"
+      - "supabase/functions/**"
+
+jobs:
+  validate-source:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate newly added migration names
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          mapfile -t added < <(git diff --name-only --diff-filter=A "$BASE_SHA" "$GITHUB_SHA" -- supabase/migrations)
+
+          for path in "${added[@]}"; do
+            name="$(basename "$path")"
+            if [[ ! "$name" =~ ^[0-9]{14}_[a-z0-9_]+\.sql$ ]]; then
+              echo "Invalid migration filename: $path"
+              echo "Use a unique UTC timestamp: YYYYMMDDHHMMSS_description.sql"
+              exit 1
+            fi
+
+            version="${name%%_*}"
+            matches="$(find supabase/migrations -maxdepth 1 -type f -name "${version}_*.sql" | wc -l)"
+            if [ "$matches" -ne 1 ]; then
+              echo "Duplicate migration version $version"
+              find supabase/migrations -maxdepth 1 -type f -name "${version}_*.sql"
+              exit 1
+            fi
+          done
+
+      - name: Protect fetched production history
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          mapfile -t historical_changes < <(
+            git diff --name-only --diff-filter=MD "$BASE_SHA" "$GITHUB_SHA" -- supabase/migrations \
+              | awk -F/ '$3 ~ /^[0-9]{14}_/ && substr($3, 1, 14) <= "20260706142925"'
+          )
+          if [ "${#historical_changes[@]}" -gt 0 ]; then
+            echo "Fetched production migrations are immutable:"
+            printf ' - %s\n' "${historical_changes[@]}"
+            exit 1
+          fi
+
+      - name: Validate complete migration inventory
+        shell: bash
+        run: |
+          declare -A seen
+          while IFS= read -r path; do
+            name="$(basename "$path")"
+            if [[ ! "$name" =~ ^[0-9]{14}_[a-z0-9_]+\.sql$ ]]; then
+              echo "Invalid canonical migration filename: $path"
+              exit 1
+            fi
+            version="${name%%_*}"
+            if [[ -n "${seen[$version]:-}" ]]; then
+              echo "Duplicate migration version $version: ${seen[$version]} and $path"
+              exit 1
+            fi
+            seen[$version]="$path"
+          done < <(find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort)
+
+      - name: Remind reviewers that production push is blocked
+        run: |
+          echo "Canonical source: pangui/supabase"
+          echo "Read docs/work-orders/SUPABASE-CANONICALIZATION.md before deployment."

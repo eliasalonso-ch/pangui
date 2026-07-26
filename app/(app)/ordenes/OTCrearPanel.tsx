@@ -1544,7 +1544,13 @@ export default function OTCrearPanel({
 
       onCreated(orden);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Error al crear la orden.");
+      const message =
+        e instanceof Error
+          ? e.message
+          : typeof e === "object" && e !== null && "message" in e && typeof e.message === "string"
+            ? e.message
+            : "Error al crear la orden.";
+      setError(message);
       setSaving(false);
     }
   };

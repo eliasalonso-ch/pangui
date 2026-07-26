@@ -1,0 +1,17 @@
+UPDATE public.categorias_ot SET icono = 'flash-outline'            WHERE nombre = 'Eléctrico'              AND es_default = true;
+UPDATE public.categorias_ot SET icono = 'settings-outline'         WHERE nombre = 'Mecánico'               AND es_default = true;
+UPDATE public.categorias_ot SET icono = 'pulse-outline'            WHERE nombre = 'Instrumentación'        AND es_default = true;
+UPDATE public.categorias_ot SET icono = 'water-outline'            WHERE nombre = 'Gasfitería / Hidráulico' AND es_default = true;
+UPDATE public.categorias_ot SET icono = 'business-outline'         WHERE nombre = 'Estructura / Civil'     AND es_default = true;
+UPDATE public.categorias_ot SET icono = 'thermometer-outline'      WHERE nombre = 'Climatización (HVAC)'   AND es_default = true;
+UPDATE public.categorias_ot SET icono = 'flame-outline'            WHERE nombre = 'Incendio / PCI'         AND es_default = true;
+UPDATE public.categorias_ot SET icono = 'shield-checkmark-outline' WHERE nombre = 'Seguridad'              AND es_default = true;
+UPDATE public.categorias_ot SET icono = 'eye-outline'              WHERE nombre = 'Inspección'             AND es_default = true;
+UPDATE public.categorias_ot SET icono = 'water-outline'            WHERE nombre = 'Lubricación'            AND es_default = true;
+UPDATE public.categorias_ot SET icono = 'color-wand-outline'       WHERE nombre = 'Limpieza / Aseo'        AND es_default = true;
+UPDATE public.categorias_ot SET icono = 'brush-outline'            WHERE nombre = 'Pintura / Revestimiento' AND es_default = true;
+UPDATE public.categorias_ot SET icono = 'wifi-outline'             WHERE nombre = 'TI / Comunicaciones'    AND es_default = true;
+UPDATE public.categorias_ot SET icono = 'warning-outline'          WHERE nombre = 'Daño / Avería'          AND es_default = true;
+UPDATE public.categorias_ot SET icono = 'checkmark-circle-outline' WHERE nombre = 'Certificación / Prueba' AND es_default = true;
+UPDATE public.categorias_ot SET icono = 'leaf-outline'             WHERE nombre = 'Paisajismo'             AND es_default = true;
+;

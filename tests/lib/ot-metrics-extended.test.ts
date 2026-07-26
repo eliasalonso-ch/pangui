@@ -150,10 +150,10 @@ describe("calcFTFR detailed", () => {
 
   it("three assets, one repeated — 2/3 = 66%", () => {
     const list = [
-      make({ id: "1", estado: "completado", activo_id: "a1" }),
-      make({ id: "2", estado: "completado", activo_id: "a1" }), // repeat
-      make({ id: "3", estado: "completado", activo_id: "a2" }),
-      make({ id: "4", estado: "completado", activo_id: "a3" }),
+      make({ id: "1", estado: "completado", activo_id: "a1", tipo_trabajo: "reactiva" }),
+      make({ id: "2", estado: "completado", activo_id: "a1", tipo_trabajo: "reactiva" }), // repeat
+      make({ id: "3", estado: "completado", activo_id: "a2", tipo_trabajo: "reactiva" }),
+      make({ id: "4", estado: "completado", activo_id: "a3", tipo_trabajo: "reactiva" }),
     ];
     // a1 repeated → those 2 are not first-fix. a2,a3 → first-fix. total=4, first-fix=2 → 50%
     expect(calcFTFR(list)).toBe(50);
@@ -161,8 +161,8 @@ describe("calcFTFR detailed", () => {
 
   it("open OTs are not counted in FTFR", () => {
     const list = [
-      make({ id: "1", estado: "completado", activo_id: "a1" }),
-      make({ id: "2", estado: "en_curso",   activo_id: "a1" }), // not completed
+      make({ id: "1", estado: "completado", activo_id: "a1", tipo_trabajo: "reactiva" }),
+      make({ id: "2", estado: "en_curso",   activo_id: "a1", tipo_trabajo: "reactiva" }), // not completed
     ];
     // Only 1 completed, asset-a1 count = 1 in completed set → 100%
     expect(calcFTFR(list)).toBe(100);

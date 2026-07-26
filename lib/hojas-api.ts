@@ -6,10 +6,25 @@ export interface HojaColumna {
   tipo: "texto" | "numero";
 }
 
+export type HojaTipo = "general" | "materiales_usados" | "materiales_solicitados";
+
+export const HOJA_TEMPLATES: Record<HojaTipo, { nombre: string; columnas: Omit<HojaColumna, "id">[] }> = {
+  general: { nombre: "Hoja general", columnas: [
+    { label: "Ítem", tipo: "texto" }, { label: "Valor", tipo: "texto" }, { label: "Observación", tipo: "texto" },
+  ] },
+  materiales_usados: { nombre: "Materiales usados", columnas: [
+    { label: "Material", tipo: "texto" }, { label: "Cantidad", tipo: "numero" }, { label: "Unidad", tipo: "texto" },
+  ] },
+  materiales_solicitados: { nombre: "Solicitud de materiales", columnas: [
+    { label: "Material", tipo: "texto" }, { label: "Cantidad", tipo: "numero" }, { label: "Unidad", tipo: "texto" }, { label: "Observación", tipo: "texto" },
+  ] },
+};
+
 export interface Hoja {
   id: string;
   workspace_id: string;
   nombre: string;
+  tipo: HojaTipo;
   columnas: HojaColumna[];
   created_by: string | null;
   created_at: string;
@@ -38,15 +53,13 @@ export async function fetchHojas(workspaceId: string, ordenId: string): Promise<
   return (data ?? []) as Hoja[];
 }
 
-export async function createHoja(workspaceId: string, nombre: string, userId: string, ordenId: string): Promise<Hoja> {
+export async function createHoja(workspaceId: string, tipo: HojaTipo, userId: string, ordenId: string): Promise<Hoja> {
   const sb = createClient();
+  const template = HOJA_TEMPLATES[tipo];
+  const columnas = template.columnas.map((columna) => ({ ...columna, id: crypto.randomUUID() }));
   const { data, error } = await sb
     .from("hojas_inventario")
-    .insert({ workspace_id: workspaceId, nombre, created_by: userId, orden_id: ordenId, columnas: [
-      { id: crypto.randomUUID(), label: "Ítem",     tipo: "texto"  },
-      { id: crypto.randomUUID(), label: "Cantidad", tipo: "numero" },
-      { id: crypto.randomUUID(), label: "Unidad",   tipo: "texto"  },
-    ] })
+    .insert({ workspace_id: workspaceId, nombre: template.nombre, tipo, created_by: userId, orden_id: ordenId, columnas })
     .select()
     .single();
   if (error) throw error;

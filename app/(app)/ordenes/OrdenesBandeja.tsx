@@ -448,8 +448,15 @@ export default function OrdenesBandeja({
   }, [router, view]);
 
   const openCreate = useCallback(() => {
-    router.push("/ordenes/crear");
-  }, [router]);
+    setSelected(null);
+    setDetail(null);
+    setRightPanel("create");
+    const params = new URLSearchParams();
+    params.set("panel", "crear");
+    if (view === "calendario") params.set("vista", "calendario");
+    else if (view === "kanban") params.set("vista", "kanban");
+    router.push(`/ordenes?${params.toString()}`, { scroll: false });
+  }, [router, view]);
 
   // Stable per-list callbacks so memoized OTRows don't re-render on every parent
   // update. These take the OT id and avoid per-row inline closures.
@@ -465,6 +472,11 @@ export default function OrdenesBandeja({
   // OT detail, and so closing the panel (which strips ?id=) clears it.
   useEffect(() => {
     const urlId = searchParams?.get("id") ?? null;
+    const urlPanel = searchParams?.get("panel") ?? null;
+    setRightPanel(current => {
+      if (urlPanel === "crear") return "create";
+      return current === "create" ? "none" : current;
+    });
     if (urlId && urlId !== selected) {
       openOT(urlId, false);
     } else if (!urlId && selected) {
@@ -480,14 +492,26 @@ export default function OrdenesBandeja({
 
   // Refresh list from DB. The visible list stays paginated, but counts use a
   // complete workspace snapshot so they do not change as the user scrolls.
+  const refreshListPromiseRef = useRef<Promise<void> | null>(null);
   const refreshList = useCallback(async () => {
-    const [data, allForCounts] = await Promise.all([
-      fetchOrdenesPage(wsId),
-      fetchAllOrdenesForExport(wsId),
-    ]);
-    setOrdenes(data);
-    setAllOrdenesForCounts(allForCounts);
-    setHasMoreOrdenes(data.length >= ORDENES_PAGE_SIZE);
+    if (refreshListPromiseRef.current) return refreshListPromiseRef.current;
+
+    const refresh = (async () => {
+      // Reuse the visible first page as the export/count snapshot's first page.
+      // Previously both calls issued the same 300-row request concurrently.
+      const data = await fetchOrdenesPage(wsId);
+      const allForCounts = await fetchAllOrdenesForExport(wsId, data);
+      setOrdenes(data);
+      setAllOrdenesForCounts(allForCounts);
+      setHasMoreOrdenes(data.length >= ORDENES_PAGE_SIZE);
+    })();
+
+    refreshListPromiseRef.current = refresh;
+    try {
+      await refresh;
+    } finally {
+      if (refreshListPromiseRef.current === refresh) refreshListPromiseRef.current = null;
+    }
   }, [wsId]);
 
   useEffect(() => {

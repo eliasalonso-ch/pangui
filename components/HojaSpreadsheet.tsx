@@ -1,12 +1,18 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Download, Plus, Trash2, FileSpreadsheet } from "lucide-react";
+import { Download, Plus, Trash2, FileSpreadsheet, X } from "lucide-react";
 import {
   fetchHojas, fetchFilas, createHoja, updateHoja, deleteHoja,
   createFila, updateFila, deleteFila,
 } from "@/lib/hojas-api";
-import type { Hoja, HojaColumna, HojaFila } from "@/lib/hojas-api";
+import type { Hoja, HojaColumna, HojaFila, HojaTipo } from "@/lib/hojas-api";
+
+const SHEET_TYPES: { tipo: HojaTipo; title: string; description: string }[] = [
+  { tipo: "general", title: "Hoja general", description: "Registra datos libres para trabajos específicos." },
+  { tipo: "materiales_usados", title: "Materiales usados", description: "Registra materiales y cantidades utilizadas en la OT." },
+  { tipo: "materiales_solicitados", title: "Solicitud de materiales", description: "Registra materiales necesarios para continuar el trabajo." },
+];
 
 const COL_WIDTH = 160;
 const ROW_NUM_WIDTH = 44;
@@ -101,11 +107,13 @@ function Cell({
 function SheetGrid({
   hoja, workspaceId, readOnly,
   onExportReady,
+  onContentSaved,
 }: {
   hoja: Hoja;
   workspaceId: string;
   readOnly: boolean;
   onExportReady?: (fn: () => void) => void;
+  onContentSaved?: (hoja: Hoja) => void;
 }) {
   const [filas, setFilas] = useState<HojaFila[]>([]);
   const [loading, setLoading] = useState(true);
@@ -124,12 +132,13 @@ function SheetGrid({
     setLocalCells(prev => ({ ...prev, [filaId]: { ...(prev[filaId] ?? {}), [colId]: value } }));
   }
 
-  function handleCellBlur(fila: HojaFila, colId: string) {
+  async function handleCellBlur(fila: HojaFila, colId: string) {
     const local = localCells[fila.id];
     if (!local) return;
     const merged = { ...fila.celdas, ...local };
-    updateFila(fila.id, merged);
+    await updateFila(fila.id, merged);
     setFilas(prev => prev.map(f => f.id === fila.id ? { ...f, celdas: merged } : f));
+    if (Object.values(merged).some(value => String(value).trim().length > 0)) onContentSaved?.(hoja);
   }
 
   async function handleAddRow() {
@@ -312,16 +321,20 @@ export default function HojaSpreadsheet({
   ordenId,
   canEdit,
   canExport,
+  onSheetContentSaved,
 }: {
   workspaceId: string;
   userId: string;
   ordenId: string;
   canEdit: boolean;
   canExport: boolean;
+  onSheetContentSaved?: (hoja: Hoja) => void;
 }) {
   const [hojas, setHojas] = useState<Hoja[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [creating, setCreating] = useState(false);
   const exportFnRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
@@ -332,12 +345,17 @@ export default function HojaSpreadsheet({
     });
   }, [workspaceId, ordenId]);
 
-  async function handleCreateSheet() {
-    const nombre = prompt("Nombre de la hoja:", `Hoja ${hojas.length + 1}`);
-    if (!nombre?.trim()) return;
-    const hoja = await createHoja(workspaceId, nombre.trim(), userId, ordenId);
-    setHojas(prev => [...prev, hoja]);
-    setActiveId(hoja.id);
+  async function handleCreateSheet(tipo: HojaTipo) {
+    if (creating) return;
+    setCreating(true);
+    try {
+      const hoja = await createHoja(workspaceId, tipo, userId, ordenId);
+      setHojas(prev => [...prev, hoja]);
+      setActiveId(hoja.id);
+      setCreateOpen(false);
+    } finally {
+      setCreating(false);
+    }
   }
 
   async function handleDeleteSheet(hoja: Hoja) {
@@ -399,7 +417,7 @@ export default function HojaSpreadsheet({
           ))}
           {canEdit && (
             <button
-              onClick={handleCreateSheet}
+              onClick={() => setCreateOpen(true)}
               style={{ width: 26, height: 26, display: "flex", alignItems: "center", justifyContent: "center", border: "1px solid var(--border)", borderRadius: 6, background: "var(--surface-1)", cursor: "pointer", color: "var(--brand-fg)", padding: 0 }}
               title="Nueva hoja"
             >
@@ -437,7 +455,7 @@ export default function HojaSpreadsheet({
           <p style={{ fontSize: 13, margin: "0 0 12px" }}>Sin hojas de cálculo</p>
           {canEdit && (
             <button
-              onClick={handleCreateSheet}
+              onClick={() => setCreateOpen(true)}
               style={{ padding: "8px 20px", background: "var(--brand)", color: "var(--fg-on-brand)", border: "none", borderRadius: 8, cursor: "pointer", fontSize: 13, fontWeight: 600, fontFamily: "inherit" }}
             >
               Crear hoja
@@ -454,6 +472,7 @@ export default function HojaSpreadsheet({
           workspaceId={workspaceId}
           readOnly={!canEdit}
           onExportReady={fn => { exportFnRef.current = fn; }}
+          onContentSaved={onSheetContentSaved}
         />
       )}
 
@@ -464,6 +483,26 @@ export default function HojaSpreadsheet({
             {activeHoja.columnas.length} columna{activeHoja.columnas.length !== 1 ? "s" : ""}
             {" · "}hoja {hojas.findIndex(h => h.id === activeHoja.id) + 1} de {hojas.length}
           </span>
+        </div>
+      )}
+
+      {createOpen && (
+        <div role="presentation" onMouseDown={e => { if (e.target === e.currentTarget && !creating) setCreateOpen(false); }} style={{ position: "fixed", inset: 0, zIndex: 800, display: "grid", placeItems: "center", padding: 24, background: "rgba(15,23,42,.45)" }}>
+          <div role="dialog" aria-modal="true" aria-label="Crear hoja" style={{ width: "min(480px, 100%)", overflow: "hidden", border: "1px solid var(--border)", borderRadius: "var(--r-xl)", background: "var(--surface-1)", boxShadow: "var(--shadow-lg)" }}>
+            <div style={{ height: 58, padding: "0 14px 0 20px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid var(--border)" }}>
+              <strong style={{ fontSize: 16, color: "var(--fg-1)" }}>Nueva hoja de cálculo</strong>
+              <button type="button" aria-label="Cerrar" disabled={creating} onClick={() => setCreateOpen(false)} style={{ width: 34, height: 34, borderRadius: "50%", border: "1px solid var(--border)", background: "var(--surface-0)", color: "var(--fg-1)", display: "grid", placeItems: "center", cursor: "pointer" }}><X size={18} /></button>
+            </div>
+            <div style={{ padding: 18, display: "grid", gap: 10 }}>
+              <p style={{ margin: "0 0 2px", fontSize: 13, color: "var(--fg-3)" }}>Selecciona la plantilla que necesitas. Podrás renombrarla después.</p>
+              {SHEET_TYPES.map(option => (
+                <button key={option.tipo} type="button" disabled={creating} onClick={() => handleCreateSheet(option.tipo)} style={{ padding: "14px 16px", border: "1px solid var(--border)", borderRadius: "var(--r-lg)", background: "var(--surface-1)", textAlign: "left", cursor: "pointer", fontFamily: "inherit" }}>
+                  <span style={{ display: "block", fontSize: 14, fontWeight: 650, color: "var(--fg-1)" }}>{option.title}</span>
+                  <span style={{ display: "block", marginTop: 3, fontSize: 12.5, color: "var(--fg-3)" }}>{option.description}</span>
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
       )}
     </div>

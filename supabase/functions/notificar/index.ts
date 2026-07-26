@@ -17,6 +17,17 @@ const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
   auth: { autoRefreshToken: false, persistSession: false },
 });
 
+async function deterministicNotificationId(userId: string, dedupeKey: string): Promise<string> {
+  const digest = new Uint8Array(
+    await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`${userId}:${dedupeKey}`)),
+  );
+  // RFC 4122-compatible UUID derived from the stable event identity.
+  digest[6] = (digest[6] & 0x0f) | 0x50;
+  digest[8] = (digest[8] & 0x3f) | 0x80;
+  const hex = [...digest.slice(0, 16)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, {
@@ -53,6 +64,7 @@ Deno.serve(async (req: Request) => {
     url,
     urgente,
     tipo,
+    dedupe_key,
   } = await req.json();
 
   // Collect target user IDs
@@ -78,26 +90,51 @@ Deno.serve(async (req: Request) => {
     userIds = (data ?? []).map((u: { id: string }) => u.id);
   }
 
+  userIds = [...new Set(userIds)];
   if (!userIds.length) {
     return json({ ok: true, enviados: 0 });
   }
 
+  // Older mobile builds do not send an event key yet. Give material requests
+  // a short server-side idempotency window so a repeated focus callback is
+  // contained immediately, while a genuinely new request later still alerts.
+  const effectiveDedupeKey = dedupe_key || (
+    tipo === "solicitud_materiales"
+      ? `legacy:${tipo}:${url || "/"}:${Math.floor(Date.now() / 30_000)}`
+      : null
+  );
+
   // Always create in-app notifications
-  await admin.from("notifications").insert(
-    userIds.map((uid) => ({
+  const notificationRows = await Promise.all(userIds.map(async (uid) => ({
+      ...(effectiveDedupeKey ? { id: await deterministicNotificationId(uid, effectiveDedupeKey) } : {}),
       usuario_id: uid,
       titulo,
       mensaje,
       url: url || "/",
       tipo: urgente ? "emergencia" : (tipo || "orden"),
-    }))
-  );
+    })));
+
+  const insertQuery = effectiveDedupeKey
+    ? admin.from("notifications").upsert(notificationRows, {
+        onConflict: "id",
+        ignoreDuplicates: true,
+      })
+    : admin.from("notifications").insert(notificationRows);
+  const { data: insertedRows, error: insertError } = await insertQuery.select("usuario_id");
+  if (insertError) return json({ error: insertError.message }, 500);
+
+  // Only deliver pushes for rows actually inserted. A retried idempotent
+  // request therefore cannot create a duplicate system notification either.
+  const insertedUserIds = (insertedRows ?? []).map((row: { usuario_id: string }) => row.usuario_id);
+  if (!insertedUserIds.length) {
+    return json({ ok: true, enviados: 0, duplicada: true });
+  }
 
   // Then try push notifications — best effort
   const { data: subs } = await admin
     .from("push_subscriptions")
     .select("subscription")
-    .in("usuario_id", userIds);
+    .in("usuario_id", insertedUserIds);
 
   if (!subs?.length) {
     return json({ ok: true, enviados: 0 });

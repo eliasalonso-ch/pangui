@@ -11,7 +11,6 @@ interface PageProps {
 
 export default async function OrdenesPage({ searchParams }: PageProps) {
   const { id: selectedId, panel } = await searchParams;
-  if (panel === "crear") redirect("/ordenes/crear");
   const [sb, user] = await Promise.all([createServerSupabase(), getServerUser()]);
 
   if (!user) redirect("/login");
@@ -88,7 +87,7 @@ export default async function OrdenesPage({ searchParams }: PageProps) {
       myRol={perfil.rol}
       wsId={wsId}
       initialSelectedId={selectedId ?? null}
-      initialPanel={null}
+      initialPanel={panel === "crear" ? "create" : null}
       todayKey={chileDateKey()}
     />
   );

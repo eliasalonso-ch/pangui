@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase";
+import { withSupabaseAuthRetry } from "@/lib/supabase-auth-retry";
 import { ensureOtCategoria } from "@/lib/cuotas-client";
 import type {
   OrdenTrabajo, OrdenListItem, ActividadOT, ActividadTipo,
@@ -8,6 +9,14 @@ import {
   notifyOTCreada,
   notifyOTEstadoCambiado,
 } from "@/lib/notificar";
+import {
+  WORK_ORDER_COMMANDS_V1_ENABLED,
+  createWorkOrderV1,
+  editWorkOrderV1,
+  transitionWorkOrderV1,
+  type WorkOrderActionV1,
+} from "@/lib/work-orders/commands-v1";
+import { getWorkOrderRolloutV1 } from "@/lib/work-orders/rollout-v1";
 
 // ITOs (inspector milestones) is an Electrilam-exclusive feature — the ITO field
 // is shown only for this workspace. Mirrors the mobile gate in constants/index.ts.
@@ -152,19 +161,22 @@ export const LIST_SELECT = `
 export const ORDENES_PAGE_SIZE = 300;
 
 export async function fetchOrdenesPage(wsId: string, beforeCreatedAt?: string | null): Promise<OrdenListItem[]> {
-  const sb = createClient();
-  let query = sb
-    .from("ordenes_trabajo")
-    .select(LIST_SELECT)
-    .eq("workspace_id", wsId)
-    .is("parent_id", null)
-    .is("deleted_at", null)
-    .order("created_at", { ascending: false })
-    .limit(ORDENES_PAGE_SIZE);
+  const runQuery = () => {
+    const sb = createClient();
+    let query = sb
+      .from("ordenes_trabajo")
+      .select(LIST_SELECT)
+      .eq("workspace_id", wsId)
+      .is("parent_id", null)
+      .is("deleted_at", null)
+      .order("created_at", { ascending: false })
+      .limit(ORDENES_PAGE_SIZE);
 
-  if (beforeCreatedAt) query = query.lt("created_at", beforeCreatedAt);
+    if (beforeCreatedAt) query = query.lt("created_at", beforeCreatedAt);
+    return query;
+  };
 
-  const { data, error } = await query;
+  const { data, error } = await withSupabaseAuthRetry(runQuery);
   if (error) throw error;
   return (data ?? []) as unknown as OrdenListItem[];
 }
@@ -206,10 +218,20 @@ export async function fetchOrdenes(wsId: string): Promise<OrdenListItem[]> {
 // keyset (created_at) the bandeja uses. Exports must serialize the full server
 // set — not the in-memory paginated list — or they silently drop orders the
 // user never scrolled far enough to load (e.g. older completadas).
-export async function fetchAllOrdenesForExport(wsId: string): Promise<OrdenListItem[]> {
+export async function fetchAllOrdenesForExport(
+  wsId: string,
+  firstPage?: OrdenListItem[],
+): Promise<OrdenListItem[]> {
   const all: OrdenListItem[] = [];
   const seen = new Set<string>();
   let before: string | null = null;
+  if (firstPage) {
+    for (const row of firstPage) {
+      if (!seen.has(row.id)) { seen.add(row.id); all.push(row); }
+    }
+    if (firstPage.length < ORDENES_PAGE_SIZE) return all;
+    before = firstPage.at(-1)?.created_at ?? null;
+  }
   // Hard ceiling so a bad cursor can never loop forever.
   for (let page = 0; page < 100; page++) {
     const rows: OrdenListItem[] = await fetchOrdenesPage(wsId, before);
@@ -312,6 +334,44 @@ export async function createOrden(payload: {
   const esRepetitiva = recurrencia !== "ninguna" || payload.tipo_trabajo === "preventiva";
   if (esRepetitiva) {
     await ensureOtCategoria("repetitivas", "OT repetitivas");
+  }
+
+  if (WORK_ORDER_COMMANDS_V1_ENABLED) {
+    const rollout = await getWorkOrderRolloutV1();
+    if (rollout.create_enabled && !rollout.kill_switch) {
+      const result = await createWorkOrderV1({
+        contract_version: 1,
+        command_id: crypto.randomUUID(),
+        workspace_id: payload.workspaceId,
+        actor_id: payload.creadoPor,
+        payload: {
+          titulo: payload.titulo,
+          descripcion: payload.descripcion,
+          n_serie: payload.n_serie,
+          solicitante: payload.solicitante,
+          solicitante_telefono: payload.solicitante_telefono,
+          solicitante_email: payload.solicitante_email,
+          hito: payload.hito,
+          presupuesto: payload.presupuesto,
+          prioridad: payload.prioridad,
+          tipo_trabajo: payload.tipo_trabajo || "reactiva",
+          clasificacion: payload.clasificacion,
+          categoria_id: payload.categoria_id,
+          categoria_ids: payload.categoria_ids,
+          recurrencia,
+          recurrencia_config,
+          ubicacion_id: payload.ubicacion_id,
+          lugar_id: payload.lugar_id,
+          sociedad_id: payload.sociedad_id,
+          activo_id: payload.activo_id,
+          asignados_ids: payload.asignados_ids,
+          fecha_inicio: payload.fecha_inicio,
+          fecha_termino: payload.fecha_termino,
+          links: payload.links?.filter((link) => link.url.trim()) ?? [],
+        },
+      });
+      return result.data.work_order;
+    }
   }
 
   const { data: ws } = await sb
@@ -506,6 +566,35 @@ export async function updateOrden(
     patch.recurrencia_config = patch.recurrencia === "ninguna" ? null : (patch.recurrencia_config ?? null);
     patch.proxima_ejecucion = calcProximaEjecucion(patch.recurrencia, patch.fecha_inicio, patch.recurrencia_config);
   }
+
+  if (WORK_ORDER_COMMANDS_V1_ENABLED) {
+    const rollout = await getWorkOrderRolloutV1();
+    if (rollout.edit_enabled && !rollout.kill_switch) {
+      const { data: current, error: currentError } = await sb
+        .from("ordenes_trabajo")
+        .select("workspace_id,updated_at")
+        .eq("id", id)
+        .single();
+      if (currentError) throw currentError;
+
+      // The canonical command derives proxima_ejecucion itself from the
+      // recurrence fields, keeping web, mobile and database behavior aligned.
+      const { proxima_ejecucion: _derivedNextDate, ...changes } = patch;
+      const result = await editWorkOrderV1({
+        contract_version: 1,
+        command_id: crypto.randomUUID(),
+        workspace_id: current.workspace_id,
+        actor_id: userId,
+        payload: {
+          ot_id: id,
+          expected_updated_at: current.updated_at,
+          changes,
+        },
+      });
+      return result.data.work_order;
+    }
+  }
+
   const { data, error } = await sb
     .from("ordenes_trabajo")
     .update(patch)
@@ -538,6 +627,39 @@ export async function updateOrden(
   return data as unknown as OrdenTrabajo;
 }
 
+async function runCanonicalTransition(
+  id: string,
+  userId: string,
+  action: WorkOrderActionV1,
+  comment?: string,
+): Promise<boolean> {
+  if (!WORK_ORDER_COMMANDS_V1_ENABLED) return false;
+  const rollout = await getWorkOrderRolloutV1();
+  if (!rollout.transition_enabled || rollout.kill_switch) return false;
+
+  const sb = createClient();
+  const { data: current, error } = await sb
+    .from("ordenes_trabajo")
+    .select("workspace_id,updated_at")
+    .eq("id", id)
+    .single();
+  if (error) throw error;
+
+  await transitionWorkOrderV1({
+    contract_version: 1,
+    command_id: crypto.randomUUID(),
+    workspace_id: current.workspace_id,
+    actor_id: userId,
+    payload: {
+      ot_id: id,
+      expected_updated_at: current.updated_at,
+      action,
+      ...(comment?.trim() ? { comment: comment.trim() } : {}),
+    },
+  });
+  return true;
+}
+
 export async function updateOrdenEstado(
   id: string,
   estado: Estado,
@@ -551,6 +673,34 @@ export async function updateOrdenEstado(
     completado:  "Completada",
   };
   const sb = createClient();
+  if (WORK_ORDER_COMMANDS_V1_ENABLED) {
+    const rollout = await getWorkOrderRolloutV1();
+    if (rollout.transition_enabled && !rollout.kill_switch) {
+      const { data: current, error: currentError } = await sb
+        .from("ordenes_trabajo")
+        .select("workspace_id,updated_at,estado,en_ejecucion,iniciado_at")
+        .eq("id", id)
+        .single();
+      if (currentError) throw currentError;
+      let action: WorkOrderActionV1 | null = null;
+      if (estado === "en_espera") action = "wait";
+      if (estado === "en_curso") {
+        action = current.estado === "en_espera" && current.iniciado_at ? "resume" : "start";
+      }
+      if (estado === "completado") action = "complete";
+      if (estado === "pendiente") action = "reopen";
+      if (action) {
+        await transitionWorkOrderV1({
+          contract_version: 1,
+          command_id: crypto.randomUUID(),
+          workspace_id: current.workspace_id,
+          actor_id: userId,
+          payload: { ot_id: id, expected_updated_at: current.updated_at, action },
+        });
+        return;
+      }
+    }
+  }
   const { error } = await sb.from("ordenes_trabajo").update({ estado }).eq("id", id);
   if (error) throw error;
   await insertActividad(id, userId, "estado_cambiado", ESTADO_LABELS[estado]);
@@ -585,6 +735,7 @@ export async function updateOrdenPrioridad(id: string, prioridad: Prioridad, use
 
 export async function iniciarOrden(id: string, userId: string): Promise<void> {
   const sb = createClient();
+  if (await runCanonicalTransition(id, userId, "start")) return;
   const { error } = await sb
     .from("ordenes_trabajo")
     .update({ en_ejecucion: true, iniciado_at: new Date().toISOString(), estado: "en_curso" })
@@ -600,6 +751,7 @@ export async function pausarOrden(
   segundosAcumulados: number,
 ): Promise<void> {
   const sb = createClient();
+  if (await runCanonicalTransition(id, userId, "pause", comentario)) return;
   const { error } = await sb
     .from("ordenes_trabajo")
     .update({
@@ -615,6 +767,7 @@ export async function pausarOrden(
 
 export async function reanudarOrden(id: string, userId: string): Promise<void> {
   const sb = createClient();
+  if (await runCanonicalTransition(id, userId, "resume")) return;
   const { error } = await sb
     .from("ordenes_trabajo")
     .update({
@@ -636,6 +789,7 @@ export async function completarOrden(
   ordenCtx?: { titulo: string; workspaceId: string; asignadosIds: string[] },
 ): Promise<void> {
   const sb = createClient();
+  if (await runCanonicalTransition(id, userId, "complete", comentario)) return;
   const { error } = await sb
     .from("ordenes_trabajo")
     .update({

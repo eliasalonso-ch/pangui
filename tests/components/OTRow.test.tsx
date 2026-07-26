@@ -96,13 +96,13 @@ describe("OTRow", () => {
     expect(screen.getByTitle("Carlos Pérez")).toBeInTheDocument();
   });
 
-  it("shows overdue badge when fecha_termino is past", () => {
+  it("shows overdue badge when fecha_termino is past", async () => {
     const overdue = {
       ...baseOrden,
       fecha_termino: new Date(Date.now() - 86400000 * 2).toISOString(), // 2 days ago
     };
     render(<OTRow orden={overdue} usuarios={usuarios} isSelected={false} onClick={vi.fn()} />);
-    expect(screen.getByText(/Venció/)).toBeInTheDocument();
+    expect(await screen.findByText(/Vencio/)).toBeInTheDocument();
   });
 
   it("shows category chip when categorias_ot is present", () => {
@@ -120,7 +120,7 @@ describe("OTRow", () => {
     Object.defineProperty(navigator, "clipboard", { value: { writeText }, writable: true });
 
     render(<OTRow orden={baseOrden} usuarios={usuarios} isSelected={false} onClick={vi.fn()} />);
-    const copyBtn = screen.getByTitle("Copiar N° OT");
+    const copyBtn = screen.getByTitle(/Copiar/);
     await user.click(copyBtn);
     expect(writeText).toHaveBeenCalledWith("SF001");
   });

@@ -48,3 +48,8 @@ verify_jwt = false
 # The handler validates the notification against the authoritative database row.
 [functions.send-push-notification]
 verify_jwt = false
+
+# User actions validate their bearer token inside the handler, while the
+# reconciliation job authenticates with OT_UPLOAD_CRON_SECRET.
+[functions.ot-upload-v1]
+verify_jwt = false

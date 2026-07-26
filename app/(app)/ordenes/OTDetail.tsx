@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase";
 import { uploadToR2 } from "@/lib/r2";
 import HojaSpreadsheet from "@/components/HojaSpreadsheet";
+import { createHoja } from "@/lib/hojas-api";
+import { notifySolicitudMateriales } from "@/lib/notificar";
 import {
   X, Pencil, Trash2, Check, Copy, MapPin, Settings2, User, Flag,
   Calendar, Tag, Send, AlertTriangle, Loader2,
@@ -27,7 +29,7 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
-  updateOrdenEstado, updateOrdenPrioridad,
+  updateOrdenEstado, updateOrdenPrioridad, updateOrden,
   iniciarOrden, pausarOrden, reanudarOrden, completarOrden,
   fetchActividad, addComentario,
   uploadOrdenFoto, addOrdenFoto, removeOrdenFoto,
@@ -55,6 +57,7 @@ import type {
 } from "@/types/procedimientos";
 
 type PendingResp = Omit<Partial<PasoRespuesta>, "firmado_nombre"> & { firmado_nombre?: string | null };
+type PauseReason = "acceso" | "materiales" | "reprogramar" | "otro";
 
 // ── GrupoFotosCard ────────────────────────────────────────────────────────────
 
@@ -728,6 +731,12 @@ export default function OTDetail({
   const [timerAction, setTimerAction] = useState<"pausar" | "completar" | null>(null);
   const [timerComment, setTimerComment] = useState("");
   const [timerBusy, setTimerBusy] = useState(false);
+  const [pauseOpen, setPauseOpen] = useState(false);
+  const [pauseReason, setPauseReason] = useState<PauseReason | null>(null);
+  const [pauseComment, setPauseComment] = useState("");
+  const [pauseDate, setPauseDate] = useState("");
+  const [pendingMaterialRequestSheetId, setPendingMaterialRequestSheetId] = useState<string | null>(null);
+  const materialRequestPauseBusyRef = useRef(false);
 
   const [fotos, setFotos] = useState<string[]>([
     ...(orden.imagen_url ? [orden.imagen_url] : []),
@@ -1475,17 +1484,19 @@ export default function OTDetail({
     return null;
   };
 
-  const changeStatus = async (newEstado: Estado) => {
-    if (newEstado === "completado") {
-      const err = await checkCompletionRequirements();
-      if (err) { alert(err); return; }
+  const changeStatus = async (newEstado: Estado): Promise<boolean> => {
+    try {
+      await updateOrdenEstado(orden.id, newEstado, myId, wsId && orden.titulo ? {
+        titulo: orden.titulo,
+        workspaceId: wsId,
+        asignadosIds: orden.asignados_ids ?? [],
+      } : undefined);
+      onOrdenUpdated({ estado: newEstado });
+      return true;
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "No se pudo cambiar el estado de la OT.");
+      return false;
     }
-    await updateOrdenEstado(orden.id, newEstado, myId, wsId && orden.titulo ? {
-      titulo: orden.titulo,
-      workspaceId: wsId,
-      asignadosIds: orden.asignados_ids ?? [],
-    } : undefined);
-    onOrdenUpdated({ estado: newEstado });
   };
 
   const changePrioridad = async (p: Prioridad) => {
@@ -1981,16 +1992,89 @@ export default function OTDetail({
     try {
       await iniciarOrden(orden.id, myId);
       onOrdenUpdated({ en_ejecucion: true, iniciado_at: new Date().toISOString(), estado: "en_curso" });
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "No se pudo iniciar la OT.");
     } finally {
       setTimerBusy(false);
     }
   };
+
+  const closePause = () => {
+    if (timerBusy) return;
+    setPauseOpen(false);
+    setPauseReason(null);
+    setPauseComment("");
+    setPauseDate("");
+  };
+
+  const confirmPause = async () => {
+    if (!pauseReason) return;
+    const trimmed = pauseComment.trim();
+    if ((pauseReason === "acceso" || pauseReason === "otro") && !trimmed) return;
+    if (pauseReason === "reprogramar" && !pauseDate) return;
+
+    const comment = pauseReason === "materiales"
+      ? "Faltan materiales"
+      : pauseReason === "reprogramar"
+        ? `Reprogramar: ${pauseDate}${trimmed ? ` - ${trimmed}` : ""}`
+        : trimmed;
+
+    setTimerBusy(true);
+    try {
+      if (pauseReason === "reprogramar") {
+        await updateOrden(orden.id, myId, { fecha_inicio: pauseDate, fecha_termino: pauseDate });
+        onOrdenUpdated({ fecha_inicio: pauseDate, fecha_termino: pauseDate });
+      }
+      if (pauseReason === "materiales") {
+        const hoja = await createHoja(wsId, "materiales_solicitados", myId, orden.id);
+        setPendingMaterialRequestSheetId(hoja.id);
+        setPauseOpen(false);
+        setPauseReason(null);
+        setPauseComment("");
+        setPauseDate("");
+        setTab("hoja");
+        return;
+      }
+      await pausarOrden(orden.id, myId, comment, elapsed);
+      onOrdenUpdated({
+        en_ejecucion: false,
+        pausado_at: new Date().toISOString(),
+        tiempo_total_segundos: elapsed,
+        estado: "en_espera",
+      });
+      setPauseOpen(false);
+      setPauseReason(null);
+      setPauseComment("");
+      setPauseDate("");
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "No se pudo pausar la OT.");
+    } finally {
+      setTimerBusy(false);
+    }
+  };
+
+  const handleSheetContentSaved = useCallback(async (hoja: { id: string }) => {
+    if (hoja.id !== pendingMaterialRequestSheetId || materialRequestPauseBusyRef.current) return;
+    materialRequestPauseBusyRef.current = true;
+    try {
+      await pausarOrden(orden.id, myId, "Faltan materiales", elapsed);
+      onOrdenUpdated({ en_ejecucion: false, pausado_at: new Date().toISOString(), tiempo_total_segundos: elapsed, estado: "en_espera" });
+      notifySolicitudMateriales({ workspaceId: wsId, ordenId: orden.id, titulo: orden.titulo ?? `OT ${orden.numero ?? orden.id}` });
+      setPendingMaterialRequestSheetId(null);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "No se pudo registrar la solicitud de materiales.");
+    } finally {
+      materialRequestPauseBusyRef.current = false;
+    }
+  }, [elapsed, myId, onOrdenUpdated, orden.id, orden.numero, orden.titulo, pendingMaterialRequestSheetId, wsId]);
 
   const handleReanudar = async () => {
     setTimerBusy(true);
     try {
       await reanudarOrden(orden.id, myId);
       onOrdenUpdated({ en_ejecucion: true, pausado_at: null, iniciado_at: new Date().toISOString(), estado: "en_curso" });
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "No se pudo reanudar la OT.");
     } finally {
       setTimerBusy(false);
     }
@@ -1998,10 +2082,6 @@ export default function OTDetail({
 
   const confirmTimerAction = async () => {
     if (!timerAction) return;
-    if (timerAction === "completar") {
-      const err = await checkCompletionRequirements();
-      if (err) { alert(err); return; }
-    }
     setTimerBusy(true);
     try {
       if (timerAction === "pausar") {
@@ -2031,6 +2111,8 @@ export default function OTDetail({
       }
       setTimerAction(null);
       setTimerComment("");
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "No se pudo completar la acción.");
     } finally {
       setTimerBusy(false);
     }
@@ -2448,9 +2530,12 @@ export default function OTDetail({
                       const label = e.value === "pendiente" && hasAssignees ? "Asignada" : e.label;
                       const s = STATUS_STYLE[e.value];
                       const handleClick = async () => {
+                        if (e.value === "en_espera" && orden.en_ejecucion) {
+                          setPauseOpen(true);
+                          return;
+                        }
                         if (e.value === "en_curso") {
                           if (orden.en_ejecucion) return; // already running
-                          await changeStatus("en_curso");
                           if (orden.pausado_at) {
                             await handleReanudar();
                           } else {
@@ -2458,12 +2543,23 @@ export default function OTDetail({
                           }
                         } else {
                           if (orden.en_ejecucion) {
-                            // pause before switching away
+                            if (e.value === "completado") {
+                              // Completion validates requirements first and the
+                              // canonical command closes the running timer.
+                              await changeStatus("completado");
+                              return;
+                            }
+                            // Pausing already transitions the OT to en_espera.
+                            // Do not issue a second status command for that same state.
                             setTimerBusy(true);
                             try {
                               await pausarOrden(orden.id, myId, "", elapsed);
-                              onOrdenUpdated({ en_ejecucion: false, pausado_at: new Date().toISOString(), estado: e.value as Estado });
-                              await updateOrdenEstado(orden.id, e.value as Estado, myId);
+                              onOrdenUpdated({ en_ejecucion: false, pausado_at: new Date().toISOString(), estado: "en_espera" });
+                              if (e.value !== "en_espera") {
+                                await changeStatus(e.value);
+                              }
+                            } catch (err) {
+                              alert(err instanceof Error ? err.message : "No se pudo cambiar el estado de la OT.");
                             } finally {
                               setTimerBusy(false);
                             }
@@ -3178,59 +3274,6 @@ export default function OTDetail({
         {tab === "materiales" && (
           <div style={{ padding: "24px 28px 120px" }}>
 
-            {/* Completed notice */}
-            {!isActive && (
-              <div style={{
-                display: "flex", alignItems: "center", gap: 8,
-                padding: "10px 14px", marginBottom: 14,
-                background: "var(--st-progress-bg)", border: "1px solid #BBF7D0", borderRadius: "var(--r-md)",
-              }}>
-                <CheckCircle2 size={14} style={{ color: "var(--success)", flexShrink: 0 }} />
-                <span style={{ fontSize: 12, color: "var(--success)" }}>
-                  Esta orden está completada. Puedes seguir consultando los materiales registrados.
-                </span>
-              </div>
-            )}
-
-            {/* Warning banners — visible to everyone when active */}
-            {requiereMateriales && isActive && (
-              <div style={{
-                display: "flex", alignItems: "center", gap: 8,
-                padding: "10px 14px", marginBottom: 10,
-                background: "var(--st-wait-bg)", border: "1px solid var(--border-strong)", borderRadius: "var(--r-md)",
-              }}>
-                <AlertTriangle size={14} style={{ color: "var(--warning)", flexShrink: 0 }} />
-                <span style={{ fontSize: 12, color: "var(--st-wait-fg)" }}>
-                  Esta OT requiere al menos un material registrado para poder cerrarse.
-                </span>
-              </div>
-            )}
-            {requiereHoja && isActive && (
-              <div style={{
-                display: "flex", alignItems: "center", gap: 8,
-                padding: "10px 14px", marginBottom: 10,
-                background: "var(--st-wait-bg)", border: "1px solid var(--border-strong)", borderRadius: "var(--r-md)",
-              }}>
-                <AlertTriangle size={14} style={{ color: "var(--warning)", flexShrink: 0 }} />
-                <span style={{ fontSize: 12, color: "var(--st-wait-fg)" }}>
-                  Esta OT requiere completar la hoja de cálculo antes de poder cerrarse.
-                </span>
-              </div>
-            )}
-            {requiereFotos && isActive && (
-              <div style={{
-                display: "flex", alignItems: "center", gap: 8,
-                padding: "10px 14px", marginBottom: 10,
-                background: "var(--st-wait-bg)", border: "1px solid var(--border-strong)", borderRadius: "var(--r-md)",
-              }}>
-                <AlertTriangle size={14} style={{ color: "var(--warning)", flexShrink: 0 }} />
-                <span style={{ fontSize: 12, color: "var(--st-wait-fg)" }}>
-                  Esta OT requiere al menos una foto antes de poder cerrarse.
-                </span>
-              </div>
-            )}
-
-
             {/* Search catalogue */}
             {(isActive || canManage) && (
               <div style={{ marginBottom: 14 }}>
@@ -3499,6 +3542,7 @@ export default function OTDetail({
               ordenId={orden.id}
               canEdit={canManage}
               canExport={canManage}
+              onSheetContentSaved={handleSheetContentSaved}
             />
           </div>
         )}
@@ -3507,6 +3551,47 @@ export default function OTDetail({
 
       {/* ── Execution modal ── */}
       </div>
+
+      {pauseOpen && (
+        <div role="presentation" onMouseDown={e => { if (e.target === e.currentTarget) closePause(); }} style={{ position: "fixed", inset: 0, zIndex: 650, background: "rgba(15,23,42,0.45)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+          <div role="dialog" aria-modal="true" aria-label="Pausar trabajo" style={{ width: "min(520px, 100%)", maxHeight: "min(720px, calc(100vh - 48px))", overflowY: "auto", background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: "var(--r-xl)", boxShadow: "var(--shadow-lg)" }}>
+            <div style={{ height: 58, padding: "0 16px 0 20px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid var(--border)" }}>
+              <div style={{ fontSize: 16, fontWeight: 700, color: "var(--fg-1)" }}>{pauseReason ? ({ acceso: "Sin acceso", materiales: "Faltan materiales", reprogramar: "Reprogramar", otro: "Otro motivo" } as const)[pauseReason] : "Pausar trabajo"}</div>
+              <button type="button" onClick={closePause} disabled={timerBusy} aria-label="Cerrar" style={{ width: 34, height: 34, borderRadius: "50%", border: "1px solid var(--border)", background: "var(--surface-0)", color: "var(--fg-1)", display: "grid", placeItems: "center", cursor: "pointer" }}><X size={18} /></button>
+            </div>
+            {!pauseReason ? (
+              <div style={{ padding: 20 }}>
+                <p style={{ margin: "0 0 14px", fontSize: 13, color: "var(--fg-3)" }}>¿Por qué se detiene el trabajo?</p>
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  {([
+                    { id: "acceso" as const, label: "Sin acceso", description: "No se pudo ingresar al lugar de trabajo", icon: XCircle },
+                    { id: "materiales" as const, label: "Faltan materiales", description: "Registra la solicitud en la hoja de cálculo", icon: Package },
+                    { id: "reprogramar" as const, label: "Reprogramar", description: "El solicitante coordinó otra fecha", icon: Calendar },
+                    { id: "otro" as const, label: "Otro motivo", description: "Describe brevemente la razón", icon: MoreVertical },
+                  ]).map(reason => {
+                    const ReasonIcon = reason.icon;
+                    return <button key={reason.id} type="button" onClick={() => setPauseReason(reason.id)} style={{ width: "100%", padding: "14px 16px", display: "flex", alignItems: "center", gap: 14, textAlign: "left", border: "1px solid var(--border)", borderRadius: "var(--r-lg)", background: "var(--surface-1)", cursor: "pointer", fontFamily: "inherit" }}>
+                      <span style={{ width: 40, height: 40, borderRadius: "50%", display: "grid", placeItems: "center", color: "var(--brand-fg)", background: "var(--brand-tint)", flexShrink: 0 }}><ReasonIcon size={19} /></span>
+                      <span style={{ flex: 1, minWidth: 0 }}><span style={{ display: "block", fontSize: 14, fontWeight: 650, color: "var(--fg-1)" }}>{reason.label}</span><span style={{ display: "block", marginTop: 2, fontSize: 12.5, color: "var(--fg-3)" }}>{reason.description}</span></span>
+                      <ChevronRight size={17} style={{ color: "var(--fg-4)" }} />
+                    </button>;
+                  })}
+                </div>
+              </div>
+            ) : (
+              <div style={{ padding: 20, display: "flex", flexDirection: "column", gap: 16 }}>
+                {pauseReason === "reprogramar" && <label style={{ display: "flex", flexDirection: "column", gap: 7, fontSize: 12, fontWeight: 650, color: "var(--fg-3)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Nueva fecha programada<input type="date" min={new Date().toISOString().slice(0, 10)} value={pauseDate} onChange={e => setPauseDate(e.target.value)} style={{ height: 42, padding: "0 12px", border: "1px solid var(--border)", borderRadius: "var(--r-md)", background: "var(--surface-0)", color: "var(--fg-1)", font: "inherit", textTransform: "none", letterSpacing: 0 }} /></label>}
+                {(pauseReason === "acceso" || pauseReason === "otro" || pauseReason === "reprogramar") && <label style={{ display: "flex", flexDirection: "column", gap: 7, fontSize: 12, fontWeight: 650, color: "var(--fg-3)", textTransform: "uppercase", letterSpacing: "0.05em" }}>{pauseReason === "reprogramar" ? "Comentario opcional" : "Motivo"}<textarea autoFocus value={pauseComment} onChange={e => setPauseComment(e.target.value)} placeholder={pauseReason === "acceso" ? "Ej: No había nadie en las instalaciones…" : "Describe el motivo…"} rows={4} style={{ resize: "vertical", minHeight: 96, padding: 12, border: "1px solid var(--border)", borderRadius: "var(--r-md)", background: "var(--surface-0)", color: "var(--fg-1)", font: "inherit", fontSize: 14, lineHeight: 1.45, textTransform: "none", letterSpacing: 0 }} /></label>}
+                {pauseReason === "materiales" && <p style={{ margin: 0, fontSize: 13.5, lineHeight: 1.5, color: "var(--fg-2)" }}>La OT quedará en espera y se abrirá la hoja de cálculo para registrar los materiales necesarios.</p>}
+                <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 4 }}>
+                  <button type="button" onClick={() => { setPauseReason(null); setPauseComment(""); setPauseDate(""); }} disabled={timerBusy} style={{ height: 40, padding: "0 16px", border: "1px solid var(--border)", borderRadius: "var(--r-md)", background: "var(--surface-1)", color: "var(--fg-2)", font: "inherit", fontWeight: 600, cursor: "pointer" }}>Atrás</button>
+                  <button type="button" onClick={confirmPause} disabled={timerBusy || ((pauseReason === "acceso" || pauseReason === "otro") && !pauseComment.trim()) || (pauseReason === "reprogramar" && !pauseDate)} style={{ height: 40, padding: "0 18px", border: "none", borderRadius: "var(--r-md)", background: "var(--brand)", color: "var(--fg-on-brand)", font: "inherit", fontWeight: 700, cursor: "pointer", opacity: timerBusy || ((pauseReason === "acceso" || pauseReason === "otro") && !pauseComment.trim()) || (pauseReason === "reprogramar" && !pauseDate) ? 0.5 : 1 }}>{timerBusy ? "Guardando…" : "Confirmar pausa"}</button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {activeEjec && (
         <ProcEjecucionModal

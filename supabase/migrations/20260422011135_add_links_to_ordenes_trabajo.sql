@@ -1,0 +1,1 @@
+ALTER TABLE ordenes_trabajo ADD COLUMN IF NOT EXISTS links JSONB DEFAULT '[]'::jsonb NOT NULL;;
