@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Plus, Search, X, ChevronDown, Loader2, FileText, ArrowUpDown, Download, AlertTriangle, Calendar, List, CalendarDays, Columns3, Check } from "lucide-react";
+import { Plus, Search, X, ChevronDown, Loader2, FileText, ArrowUpDown, Download, AlertTriangle, Calendar, List, CalendarDays, Columns3, Check, Copy } from "lucide-react";
 import { createClient, logRealtimeChannel } from "@/lib/supabase";
 import { fetchOrden, fetchOrdenesPage, fetchAllOrdenesForExport, fetchOrdenListItem, searchOrdenes, ORDENES_SEARCH_LIMIT, deleteOrden, ORDENES_PAGE_SIZE, parseDescMeta, fetchMarcadasIds, toggleMarcada } from "@/lib/ordenes-api";
 import { buildOrdenesWorkbook, type ExportCols as SharedExportCols, type OrdenInput, type HojaInput, type FilaInput, type FotoItemInput, type MaterialUsadoInput } from "@/lib/excel-export-shared";
@@ -16,6 +16,8 @@ import OTEditPanel from "./OTEditPanel";
 import OTFiltrosPanel from "./OTFiltrosPanel";
 import { FilterBar } from "./OTFiltrosPanel";
 import { addDaysKey, dateKey, monthEndKey, monthStartKey } from "./date-utils";
+import { copyHojaToOrden } from "@/lib/hojas-api";
+import { clearPendingHojaCopy, getPendingHojaCopy, type PendingHojaCopy } from "@/lib/hoja-copy-store";
 import type {
   OrdenListItem, OrdenTrabajo,
   Usuario, Ubicacion, LugarEspecifico, Sociedad, Activo, CategoriaOT,
@@ -460,7 +462,58 @@ export default function OrdenesBandeja({
 
   // Stable per-list callbacks so memoized OTRows don't re-render on every parent
   // update. These take the OT id and avoid per-row inline closures.
-  const handleRowClick = useCallback((id: string) => openOT(id, true), [openOT]);
+  // ── "Copiar hoja a otra OT" mode ──────────────────────────────────────────
+  // Entered from a sheet (?copiarHoja=1). The bandeja keeps all of its normal
+  // filtering; the only change is that clicking an OT confirms the copy instead
+  // of opening the detail panel.
+  const [pendingCopy, setPendingCopy] = useState<PendingHojaCopy | null>(null);
+  const [copyingSheet, setCopyingSheet] = useState(false);
+  const copyInFlightRef = useRef(false);
+
+  useEffect(() => {
+    if (searchParams?.get("copiarHoja") !== "1") return;
+    const pending = getPendingHojaCopy();
+    if (pending) setPendingCopy(pending);
+    else router.replace("/ordenes", { scroll: false });
+  }, [searchParams, router]);
+
+  const cancelCopy = useCallback(() => {
+    clearPendingHojaCopy();
+    setPendingCopy(null);
+    router.replace("/ordenes", { scroll: false });
+  }, [router]);
+
+  const confirmCopyTo = useCallback(async (target: OrdenListItem) => {
+    if (!pendingCopy || copyInFlightRef.current) return;
+    const label = `${target.numero != null ? `OT-${target.numero} · ` : ""}${target.titulo ?? "Orden sin título"}`;
+    const { hoja } = pendingCopy;
+    if (!confirm(
+      `¿Copiar “${hoja.nombre}” con sus ${hoja.columnas.length} columna${hoja.columnas.length !== 1 ? "s" : ""} y todas sus filas a ${label}?`
+    )) return;
+
+    copyInFlightRef.current = true;
+    setCopyingSheet(true);
+    try {
+      await copyHojaToOrden(hoja, target.id, wsId, myId);
+      clearPendingHojaCopy();
+      setPendingCopy(null);
+      // Land on the destination OT so the user can verify the copy.
+      openOT(target.id, true);
+    } catch (err) {
+      alert(err instanceof Error ? `No se pudo copiar la hoja: ${err.message}` : "No se pudo copiar la hoja.");
+    } finally {
+      copyInFlightRef.current = false;
+      setCopyingSheet(false);
+    }
+  }, [pendingCopy, wsId, myId, openOT]);
+
+  const handleRowClick = useCallback((id: string) => {
+    if (pendingCopy) {
+      const target = ordenes.find(o => o.id === id);
+      if (target) { void confirmCopyTo(target); return; }
+    }
+    openOT(id, true);
+  }, [openOT, pendingCopy, ordenes, confirmCopyTo]);
 
   const handleRowAssigned = useCallback((id: string, newIds: string[]) => {
     setOrdenes(prev =>
@@ -1343,6 +1396,35 @@ export default function OrdenesBandeja({
             </button>
           </div>
         </div>
+
+        {/* Copy-sheet mode banner — the list keeps all its normal filtering;
+            clicking any OT copies the sheet there instead of opening it. */}
+        {pendingCopy && (
+          <div style={{
+            display: "flex", alignItems: "center", gap: 10,
+            padding: "10px 20px", background: "var(--st-wait-bg)",
+            borderTop: "1px solid var(--border-strong)", borderBottom: "1px solid var(--border-strong)",
+          }}>
+            <Copy size={14} style={{ color: "var(--st-wait-fg)", flexShrink: 0 }} />
+            <span style={{ fontSize: 13, color: "var(--st-wait-fg)", flex: 1 }}>
+              {copyingSheet
+                ? <>Copiando <strong>{pendingCopy.hoja.nombre}</strong>…</>
+                : <>Selecciona la OT donde copiar <strong>{pendingCopy.hoja.nombre}</strong>. Puedes filtrar y buscar normalmente.</>}
+            </span>
+            <button
+              type="button"
+              onClick={cancelCopy}
+              disabled={copyingSheet}
+              style={{
+                padding: "5px 12px", border: "1px solid var(--border-strong)", borderRadius: 6,
+                background: "var(--surface-1)", color: "var(--fg-2)", cursor: copyingSheet ? "default" : "pointer",
+                fontSize: 12, fontWeight: 600, fontFamily: "inherit", flexShrink: 0, opacity: copyingSheet ? 0.6 : 1,
+              }}
+            >
+              Cancelar
+            </button>
+          </div>
+        )}
 
         {/* Sub-nav: inline filter buttons */}
         <div style={{

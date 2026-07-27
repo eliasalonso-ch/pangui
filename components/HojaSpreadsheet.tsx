@@ -1,12 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { Download, Plus, Trash2, FileSpreadsheet, X } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { Download, Plus, Trash2, FileSpreadsheet, X, Copy } from "lucide-react";
 import {
   fetchHojas, fetchFilas, createHoja, updateHoja, deleteHoja,
   createFila, updateFila, deleteFila,
 } from "@/lib/hojas-api";
 import type { Hoja, HojaColumna, HojaFila, HojaTipo } from "@/lib/hojas-api";
+import { setPendingHojaCopy } from "@/lib/hoja-copy-store";
 
 const SHEET_TYPES: { tipo: HojaTipo; title: string; description: string }[] = [
   { tipo: "general", title: "Hoja general", description: "Registra datos libres para trabajos específicos." },
@@ -108,20 +110,41 @@ function SheetGrid({
   hoja, workspaceId, readOnly,
   onExportReady,
   onContentSaved,
+  onColumnsChanged,
 }: {
   hoja: Hoja;
   workspaceId: string;
   readOnly: boolean;
   onExportReady?: (fn: () => void) => void;
   onContentSaved?: (hoja: Hoja) => void;
+  // The parent owns the hojas array, so column edits have to be lifted to it.
+  // Previously add-column mutated the `hoja` prop in place (and rename/delete/
+  // tipo didn't update the UI at all until the sheet was switched).
+  onColumnsChanged: (hojaId: string, columnas: HojaColumna[]) => void;
 }) {
-  const [filas, setFilas] = useState<HojaFila[]>([]);
-  const [loading, setLoading] = useState(true);
+  // Keyed by sheet id so switching sheets resets rows without a setState-in-
+  // effect: a response for a previous sheet is ignored rather than overwriting
+  // the current one (the old version could race when switching quickly).
+  const [rows, setRows] = useState<{ hojaId: string; filas: HojaFila[] } | null>(null);
   const [localCells, setLocalCells] = useState<Record<string, Record<string, string>>>({});
+  const loading = rows?.hojaId !== hoja.id;
+  // useMemo so the empty-array identity is stable while loading — otherwise
+  // every render hands downstream hooks a new [].
+  const filas = useMemo(() => (rows?.hojaId === hoja.id ? rows.filas : []), [rows, hoja.id]);
+
+  const setFilas = useCallback((update: HojaFila[] | ((prev: HojaFila[]) => HojaFila[])) => {
+    setRows(prev => ({
+      hojaId: hoja.id,
+      filas: typeof update === "function" ? update(prev?.filas ?? []) : update,
+    }));
+  }, [hoja.id]);
 
   useEffect(() => {
-    setLoading(true);
-    fetchFilas(hoja.id).then(data => { setFilas(data); setLoading(false); });
+    let cancelled = false;
+    fetchFilas(hoja.id).then(data => {
+      if (!cancelled) setRows({ hojaId: hoja.id, filas: data });
+    });
+    return () => { cancelled = true; };
   }, [hoja.id]);
 
   const getCellValue = useCallback((fila: HojaFila, colId: string) => {
@@ -153,37 +176,40 @@ function SheetGrid({
     setFilas(prev => prev.filter(f => f.id !== fila.id));
   }
 
+  // All four column edits follow the same shape: persist, then lift the new
+  // columns to the parent so the grid re-renders from state.
+  async function saveColumns(newCols: HojaColumna[]) {
+    await updateHoja(hoja.id, { columnas: newCols });
+    onColumnsChanged(hoja.id, newCols);
+  }
+
   async function handleAddColumn() {
     const label = prompt("Nombre de la columna:");
     if (!label?.trim()) return;
     const newCol: HojaColumna = { id: genId(), label: label.trim(), tipo: "texto" };
-    const newCols = [...hoja.columnas, newCol];
-    await updateHoja(hoja.id, { columnas: newCols });
-    hoja.columnas = newCols; // mutate for immediate render — parent refetch handles sync
+    await saveColumns([...hoja.columnas, newCol]);
   }
 
   async function handleRenameColumn(col: HojaColumna) {
     const label = prompt("Nuevo nombre:", col.label);
     if (!label?.trim()) return;
-    const newCols = hoja.columnas.map(c => c.id === col.id ? { ...c, label: label.trim() } : c);
-    await updateHoja(hoja.id, { columnas: newCols });
+    await saveColumns(hoja.columnas.map(c => c.id === col.id ? { ...c, label: label.trim() } : c));
   }
 
   async function handleDeleteColumn(col: HojaColumna) {
     if (!confirm(`¿Eliminar columna "${col.label}"? Los datos se perderán.`)) return;
-    const newCols = hoja.columnas.filter(c => c.id !== col.id);
-    await updateHoja(hoja.id, { columnas: newCols });
+    await saveColumns(hoja.columnas.filter(c => c.id !== col.id));
   }
 
   async function handleToggleTipo(col: HojaColumna) {
-    const newCols = hoja.columnas.map(c =>
+    await saveColumns(hoja.columnas.map(c =>
       c.id === col.id ? { ...c, tipo: (c.tipo === "texto" ? "numero" : "texto") as "texto" | "numero" } : c
-    );
-    await updateHoja(hoja.id, { columnas: newCols });
+    ));
   }
 
-  // Export to CSV
-  function handleExport() {
+  // Export to CSV. useCallback so the effect below can depend on it honestly
+  // instead of suppressing the lint rule — it changes only when the data does.
+  const handleExport = useCallback(() => {
     const cols = hoja.columnas;
     const header = cols.map(c => `"${c.label}"`).join(",");
     const rows = filas.map(fila =>
@@ -200,11 +226,11 @@ function SheetGrid({
     a.download = `${hoja.nombre.replace(/[^a-zA-Z0-9]/g, "_")}_${Date.now()}.csv`;
     a.click();
     URL.revokeObjectURL(url);
-  }
+  }, [filas, hoja]);
 
   useEffect(() => {
     onExportReady?.(handleExport);
-  }, [filas, hoja]);
+  }, [handleExport, onExportReady]);
 
   const cols = hoja.columnas;
   const totalWidth = ROW_NUM_WIDTH + cols.length * COL_WIDTH + (readOnly ? 0 : COL_WIDTH);
@@ -336,6 +362,7 @@ export default function HojaSpreadsheet({
   const [createOpen, setCreateOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const exportFnRef = useRef<(() => void) | null>(null);
+  const router = useRouter();
 
   useEffect(() => {
     fetchHojas(workspaceId, ordenId).then(data => {
@@ -374,6 +401,22 @@ export default function HojaSpreadsheet({
   }
 
   const activeHoja = hojas.find(h => h.id === activeId) ?? null;
+
+  // Stable identities — SheetGrid's export effect depends on onExportReady, so
+  // an inline arrow here would re-run it on every parent render.
+  const handleExportReady = useCallback((fn: () => void) => { exportFnRef.current = fn; }, []);
+  const handleColumnsChanged = useCallback((hojaId: string, columnas: HojaColumna[]) => {
+    setHojas(prev => prev.map(h => h.id === hojaId ? { ...h, columnas } : h));
+  }, []);
+
+  // Hand the sheet to the Órdenes bandeja and let the user pick the destination
+  // there, using the filters/views/search they already know. The bandeja shows a
+  // copy banner and performs the copy on the next OT they open.
+  function startCopySheet() {
+    if (!activeHoja) return;
+    setPendingHojaCopy({ hoja: activeHoja, sourceOrdenId: ordenId });
+    router.push("/ordenes?copiarHoja=1");
+  }
 
   if (loading) {
     return (
@@ -426,6 +469,19 @@ export default function HojaSpreadsheet({
           )}
         </div>
 
+        {/* Copy to another OT — the mobile-equivalent of retyping rows by hand */}
+        {canEdit && activeHoja && (
+          <button
+            onClick={startCopySheet}
+            style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 12px", background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: 6, cursor: "pointer", fontSize: 12, color: "var(--fg-2)", fontWeight: 600, fontFamily: "inherit", flexShrink: 0 }}
+            onMouseEnter={e => { e.currentTarget.style.opacity = "0.85"; }}
+            onMouseLeave={e => { e.currentTarget.style.opacity = "1"; }}
+            title="Copiar esta hoja a otra OT"
+          >
+            <Copy size={13} /> Copiar a otra OT
+          </button>
+        )}
+
         {/* Export button */}
         {canExport && activeHoja && (
           <button
@@ -471,8 +527,9 @@ export default function HojaSpreadsheet({
           hoja={activeHoja}
           workspaceId={workspaceId}
           readOnly={!canEdit}
-          onExportReady={fn => { exportFnRef.current = fn; }}
+          onExportReady={handleExportReady}
           onContentSaved={onSheetContentSaved}
+          onColumnsChanged={handleColumnsChanged}
         />
       )}
 

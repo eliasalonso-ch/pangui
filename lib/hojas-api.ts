@@ -78,6 +78,56 @@ export async function deleteHoja(id: string): Promise<void> {
   if (error) throw error;
 }
 
+// Duplicates a sheet (name, tipo, columnas) and all of its rows into another
+// work order. Mirrors copyHojaToOrden in the mobile app (features/hojas/api.ts +
+// features/hojas/copy-plan.ts); no RPC or migration needed — hojas_inventario
+// RLS is plain workspace scoping, so the same insert the user could do by hand
+// covers it.
+//
+// Same two rules as mobile's planHojaCopy: the *source's* columns win (not the
+// tipo template, so renamed/added columns survive) and rows are renumbered
+// 0..n-1 (source `orden` goes sparse after deletions). Rows go in one batch
+// here; mobile splits create/update because its outbox carries them separately.
+export async function copyHojaToOrden(
+  source: Hoja,
+  targetOrdenId: string,
+  workspaceId: string,
+  userId: string,
+): Promise<Hoja> {
+  const sb = createClient();
+  const filas = await fetchFilas(source.id);
+
+  const { data: copia, error: hojaError } = await sb
+    .from("hojas_inventario")
+    .insert({
+      workspace_id: workspaceId,
+      nombre: source.nombre,
+      tipo: source.tipo,
+      columnas: source.columnas,
+      created_by: userId,
+      orden_id: targetOrdenId,
+    })
+    .select()
+    .single();
+  if (hojaError) throw hojaError;
+
+  if (filas.length > 0) {
+    const { error: filasError } = await sb.from("hojas_inventario_filas").insert(
+      filas.map((fila, index) => ({
+        hoja_id: (copia as Hoja).id,
+        workspace_id: workspaceId,
+        orden: index,
+        celdas: fila.celdas ?? {},
+      })),
+    );
+    // The sheet exists but is empty — leave it rather than orphan a half-copy
+    // silently, so the caller can surface the failure.
+    if (filasError) throw filasError;
+  }
+
+  return copia as Hoja;
+}
+
 export async function fetchFilas(hojaId: string): Promise<HojaFila[]> {
   const sb = createClient();
   const { data, error } = await sb
