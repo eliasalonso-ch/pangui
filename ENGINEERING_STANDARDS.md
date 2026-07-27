@@ -49,24 +49,37 @@ client first is a rule the other client is already violating.
 
 ## 2. Migrations — single canonical directory
 
-**This is the most dangerous open problem. Read this section before touching the DB.**
-
-Today (verified 2026-07-27):
+Status (verified against production 2026-07-27):
 - `pangui/supabase/migrations` — 141 files
-- `pangui-native-stable/supabase/migrations` — 61 files
-- **41 mobile migrations do not exist in the web repo**, including schema-defining ones:
-  `multi_tenant_isolation`, `orden_partes`, `orden_numero`, `rls_fixes`,
-  `requiere_hoja`, `requiere_materiales`, `enforce_ot_photo_completion`.
-- Production contains migrations absent from both clones, so `supabase db push` fails.
+- `supabase migration list` — 141 rows, **every one matched local ↔ remote**
+- `supabase db push --dry-run` — *"Remote database is up to date"*
+- `pangui-native-stable/supabase/migrations` — 61 files, **frozen**; see the README
+  there. They are hand-named duplicates of history that reached production through
+  the web ledger. Every table and column they describe exists in production today.
+
+**This was previously recorded here as an unresolved P0 ("41 orphaned migrations,
+`db push` fails"). That was wrong** — it was inferred from diffing two directory
+listings rather than querying the ledger. Do not re-derive schema state from file
+names; ask the database.
+
+```bash
+cd C:\dev\pangui
+npx supabase migration list            # ledger drift
+npx supabase db push --dry-run         # is anything actually pending
+npx supabase db query --linked "..."   # does this object really exist
+```
+
+Beware that several mobile filenames use English for objects that are Spanish in the
+schema (`alert_rule_users` → `reglas_alerta_usuarios`). Grep is not evidence.
 
 **Rule 2.1 — `pangui/supabase/migrations` is the only canonical directory.**
-Mobile's directory is frozen: no new files there. It stays only until reconciliation
-is done, then it is deleted.
+Mobile's directory is frozen: no new files there, ever.
 
-**Rule 2.2 — Until reconciliation lands, no destructive DDL.**
-No `DROP`, no `ALTER ... DROP COLUMN`, no type narrowing, no new `NOT NULL` on an
-existing column. Additive only (`ADD COLUMN ... NULL`, `CREATE TABLE IF NOT EXISTS`,
-`CREATE OR REPLACE FUNCTION`). We cannot safely reason about a schema we cannot rebuild.
+**Rule 2.2 — Prefer additive DDL.**
+`ADD COLUMN ... NULL`, `CREATE TABLE IF NOT EXISTS`, `CREATE OR REPLACE FUNCTION`.
+Destructive changes (`DROP`, `DROP COLUMN`, type narrowing, new `NOT NULL` on an
+existing column) are permitted but require a stated rollback plan in the PR, because
+the restore path has never been exercised (§7).
 
 **Rule 2.3 — Every migration is idempotent and re-runnable.**
 `IF NOT EXISTS` / `CREATE OR REPLACE` / guarded `DO $$` blocks. Given the split
@@ -146,9 +159,30 @@ flag over shipping a build. **Never OTA-push automatically — the user pushes w
 
 ## 6. Offline and source of truth
 
-**Rule 6.1 — The server is the source of truth. SQLite is a cache and a queue.**
-SQLite may hold copies and pending work. It must never be what decides whether an OT is
-complete.
+**Rule 6.1 — The server is the source of truth. SQLite is a queue, not a cache.**
+As of 2026-07-27 the mobile app is **server-first for every read**: catalogs, OT list,
+OT detail, sub-OTs and actividad all fetch from Supabase, and a failed fetch surfaces
+as an error instead of silently serving stale local rows. TanStack Query owns read
+caching. SQLite's remaining job is the **write** path — the outbox for hojas,
+foto-grupos and procedimientos, plus the filesystem photo queue.
+
+Do not reintroduce a read fallback. The two paths drift, and nothing catches it: the
+removed `usuarios` fallback hardcoded `solo_asignadas: false` because the flag was
+never cached, so any network blip showed a restricted user *more* work orders than they
+were permitted to see.
+
+**Rule 6.1a — `onlineManager` must stay wired to NetInfo, with `networkMode: 'always'`.**
+See `lib/query-client.ts`. Without the NetInfo binding, TanStack assumes "always
+online" and `refetchOnReconnect` never fires. With it wired but the default
+`networkMode: 'online'`, queries *pause* instead of failing — an endless spinner with
+no error — and local-first mutations stall before ever reaching their SQLite insert.
+Both halves are required; neither is correct alone.
+
+**Rule 6.1b — Explicit offline mode is deliberate groundwork, not dead code.**
+`features/work-orders/sync-ahead.ts` and `lib/db/repositories/catalogos.ts` have no
+production caller and are marked `UNWIRED`. They are the substrate for "download an OT,
+work offline, sync later". Delete them only alongside a decision to abandon that
+feature — and delete them together.
 
 **Rule 6.2 — All SQLite access goes through `getDb()`.**
 `lib/db/client.ts` serializes every read and write. A raw connection reintroduces the
@@ -251,7 +285,7 @@ fact built; the real work is finishing the migration and deleting legacy paths.
 
 | # | Item | Status | Priority |
 |---|---|---|---|
-| 1 | **Reconcile migrations into one directory** | **Open — 41 mobile files missing from web; prod ahead of both** | **P0 — blocks safe DDL** |
+| 1 | Reconcile migrations into one directory | **Done** — ledger verified clean 2026-07-27 (141/141 matched, `db push` up to date); mobile dir frozen with a README | Closed |
 | 2 | Transactional create/transition commands | **Built** (`create_work_order_v1`, `transition_work_order_v1`) | Finish rollout |
 | 3 | Closure rules server-side | **Built** (procedures, materials, sheets, photos in `transition_work_order_v1`) | Verify parity, delete client duplicates |
 | 4 | Idempotency | **Built** for OT commands (`work_order_commands`) | Extend to remaining mutations |
@@ -265,8 +299,10 @@ fact built; the real work is finishing the migration and deleting legacy paths.
 | 12 | Canonical read contracts | Open | P2 |
 | 13 | Verified backup/restore drill | **Never tested** | P2 — an untested backup is a guess |
 
-**The most valuable next step is #1.** Until the migration history is reconciled, every
-other fix is being built on a schema no one can reproduce.
+**The most valuable next step is #9.** Dual-path code means the bug you fix in the v1
+path may still be live for workspaces on the legacy path — and it doubles the surface
+of every change. It is also the cheapest, because finishing it is a deletion.
 
-**The second is #9.** Dual-path code means the bug you fix in the v1 path may still be
-live for workspaces on the legacy path — and it doubles the surface of every change.
+**Then #13.** With #1 closed, the untested restore is the largest remaining unknown:
+it is the only item on this list whose failure mode is losing the database rather than
+shipping a bug. It also gates the destructive-DDL caveat in §2.2.
