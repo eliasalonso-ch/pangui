@@ -13,7 +13,7 @@
 import { NextResponse } from "next/server";
 import { adminSupabase, requireAdminOfWorkspace } from "../_helpers";
 import { flow, FlowError } from "@/lib/flow";
-import { planByKey, type PlanKey } from "@/lib/flow-plans";
+import { flowPlanId, planByKey, type PlanKey } from "@/lib/flow-plans";
 
 export async function POST(req: Request) {
   const auth = await requireAdminOfWorkspace();
@@ -88,18 +88,55 @@ export async function POST(req: Request) {
       });
     }
 
-    const urlReturn = `${appUrl}/api/suscripcion/register/callback?plan_key=${encodeURIComponent(planKey)}`;
-    const reg = await flow.registerCard({
+    // Cobro por link de pago mensual, no por cargo automático.
+    //
+    // El medio de pago "Cargo automático" (producto 148 de Flow) solo está
+    // disponible para empresas con cuenta corriente a nombre de un RUT de
+    // primera categoría. Pangui factura hoy como persona natural de segunda
+    // categoría, así que /customer/register responde
+    //   code 7001: "Commerce has not automatic charge contract"
+    //
+    // Flow soporta suscripciones igual en ese escenario: crea el ciclo y envía
+    // un link de pago por email en cada renovación. Por eso acá se crea la
+    // suscripción directamente en vez de inscribir una tarjeta.
+    //
+    // Si más adelante se contrata cargo automático, este bloque vuelve a
+    // registerCard y el resto del flujo (callback, webhook) ya lo soporta.
+    const created = await flow.createSubscription({
+      planId:     flowPlanId(planKey),
       customerId: flowCustomerId,
-      url_return: urlReturn,
     });
 
-    return NextResponse.json({ url: `${reg.url}?token=${reg.token}` });
+    const refreshed = await flow.getSubscription(created.subscriptionId).catch(() => created);
+
+    // La suscripción queda pendiente hasta que el webhook confirme el pago del
+    // primer link: nadie usa funciones pagadas antes de pagarlas.
+    await admin.from("subscriptions").upsert({
+      workspace_id:         workspaceId,
+      plan_key:             planKey,
+      flow_subscription_id: created.subscriptionId,
+      flow_plan_id:         flowPlanId(planKey),
+      price_per_user_clp:   plan.pricePerUser,
+      status:               "past_due",
+      canceled_at:          null,
+      scheduled_plan_key:   null,
+      scheduled_plan_at:    null,
+      current_period_start: refreshed.period_start ?? null,
+      current_period_end:   refreshed.period_end ?? refreshed.next_invoice_date ?? null,
+      updated_at:           new Date().toISOString(),
+    }, { onConflict: "workspace_id" });
+
+    return NextResponse.json({
+      ok: true,
+      pending_payment: true,
+      plan_key: planKey,
+      email,
+    });
   } catch (err) {
     const fe = err as FlowError;
     console.error("[suscripcion/register]", fe);
     return NextResponse.json(
-      { error: fe.message ?? "Error registrando tarjeta en Flow." },
+      { error: fe.message ?? "Error creando la suscripción en Flow." },
       { status: 502 }
     );
   }

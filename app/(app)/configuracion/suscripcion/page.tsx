@@ -116,8 +116,23 @@ function SuscripcionPageInner() {
         body: JSON.stringify({ plan_key: planKey }),
       });
       const json = await res.json();
-      if (!res.ok || !json.url) throw new Error(json.error ?? "No se pudo iniciar el checkout.");
-      setTimeout(() => window.location.assign(json.url), 600);
+      if (!res.ok) throw new Error(json.error ?? "No se pudo crear la suscripción.");
+
+      // Con cargo automático Flow devolvía una URL para inscribir la tarjeta.
+      // Hoy el cobro va por link de pago: la suscripción queda creada y Flow
+      // envía el link por email, así que no hay a dónde redirigir.
+      if (json.url) {
+        setTimeout(() => window.location.assign(json.url), 600);
+        return;
+      }
+
+      setRedirecting(null);
+      setSubmitting(null);
+      setFlash({
+        kind: "ok",
+        msg: `Suscripción creada. Flow.cl envió el link de pago a ${json.email ?? "tu email de cobros"}. El plan se activa al confirmarse el pago.`,
+      });
+      await reload();
     } catch (e) {
       setError((e as Error).message);
       setSubmitting(null);
@@ -500,7 +515,7 @@ function BillingDisclosure({
         <MiniStat label={canceled ? "Acceso hasta" : "Renovación"} value={periodEnd ? fmtDate(periodEnd) : "Mensual"} />
       </div>
       <p style={{ fontSize: 12.5, lineHeight: 1.55, color: "var(--fg-2)", margin: 0 }}>
-        Al activar o cambiar un plan autorizas cargos recurrentes mensuales en CLP según el plan elegido y la cantidad de usuarios activos del workspace. Puedes desactivar usuarios antes del siguiente ciclo para ajustar el cobro, y puedes cancelar la suscripción desde esta pantalla manteniendo acceso hasta el fin del periodo pagado.
+        Al activar o cambiar un plan aceptas el cobro mensual en CLP según el plan elegido y la cantidad de usuarios activos del workspace. <strong>Cada mes Flow.cl envía un link de pago al email de cobros</strong>; el acceso se mantiene mientras el pago esté al día. Puedes desactivar usuarios antes del siguiente ciclo para ajustar el cobro, y cancelar la suscripción desde esta pantalla manteniendo acceso hasta el fin del periodo pagado.
       </p>
       <p style={{ fontSize: 12.5, lineHeight: 1.55, color: "var(--fg-2)", margin: 0 }}>
         Los pagos se procesan a través de Flow.cl. Por cada cobro emitimos una <strong>boleta de honorarios electrónica</strong> ante el SII, que enviamos al email de cobros del workspace. No emitimos facturas, por lo que estos montos no dan derecho a crédito fiscal de IVA. Los precios indicados son el monto bruto de la boleta; si tu empresa está obligada a retener el impuesto de segunda categoría, la retención se aplica sobre ese monto.
@@ -509,7 +524,7 @@ function BillingDisclosure({
           vista y contratar es el acto de aceptación, que es como opera el resto
           del checkout. */}
       <p style={{ fontSize: 12.5, lineHeight: 1.5, color: "var(--fg-3)", margin: 0 }}>
-        Al elegir un plan aceptas los <Link href="/terminos" target="_blank" style={linkStyle}>Términos y Condiciones</Link> y la <Link href="/privacidad" target="_blank" style={linkStyle}>Política de Privacidad</Link>, y autorizas el cobro mensual recurrente por usuarios activos mediante Flow.cl.
+        Al elegir un plan aceptas los <Link href="/terminos" target="_blank" style={linkStyle}>Términos y Condiciones</Link> y la <Link href="/privacidad" target="_blank" style={linkStyle}>Política de Privacidad</Link>, y el cobro mensual por usuarios activos mediante Flow.cl, que se paga con el link que Flow envía cada mes al email de cobros.
       </p>
     </div>
   );

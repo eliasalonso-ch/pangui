@@ -62,7 +62,9 @@ export async function POST(req: Request) {
       .select("flow_customer_id, has_card")
       .eq("workspace_id", workspaceId)
       .maybeSingle();
-    if (!customer?.flow_customer_id || !customer.has_card) {
+    // Sin cliente en Flow hay que pasar por /register, que lo crea. La tarjeta
+    // no se exige: con link de pago no existe medio guardado.
+    if (!customer?.flow_customer_id) {
       return NextResponse.json({ error: "needs_card", redirect: "/suscripcion?action=upgrade" }, { status: 402 });
     }
     try {
@@ -94,21 +96,10 @@ export async function POST(req: Request) {
     }
   }
 
-  // Sin tarjeta vigente no hay con qué cobrar el plan nuevo: el cambio dejaría
-  // una suscripción "activa" que nunca genera un cobro. Se captura tarjeta por
-  // /register, igual que en el alta.
-  const { data: customer } = await admin
-    .from("flow_customers")
-    .select("has_card")
-    .eq("workspace_id", workspaceId)
-    .maybeSingle();
-
-  if (!customer?.has_card) {
-    return NextResponse.json(
-      { error: "needs_card", redirect: "/suscripcion?action=upgrade" },
-      { status: 402 },
-    );
-  }
+  // Sin cargo automático no hay tarjeta que verificar: el cobro va por link de
+  // pago que Flow emite contra la suscripción, no contra un medio guardado.
+  // Cuando se contrate cargo automático (ver /register) vuelve a exigirse
+  // has_card antes de permitir el cambio.
 
   // Bajada de plan → se agenda para el fin del período en curso.
   //

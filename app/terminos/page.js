@@ -374,7 +374,7 @@ export default function TerminosPage() {
         </p>
         <p>
           El cobro solo aplica cuando el owner activa una suscripción pagada,
-          acepta los términos y autoriza el cargo recurrente mediante Flow.cl.
+          acepta los términos y el cobro mensual mediante Flow.cl.
         </p>
       </LegalSection>
 

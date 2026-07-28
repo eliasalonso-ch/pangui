@@ -180,15 +180,19 @@ export function SubscriptionOverview(props: Props) {
           </SideCard>
         </div>
 
-        {/* Método de pago en su propia fila: la tarjeta necesita ancho para
-            leerse, y apretada en un tercio del grid competía con dos tarjetas
-            que son solo texto.
+        {/* Método de pago — inactivo mientras el cobro sea por link de pago.
+            Flow solo ofrece "Cargo automático" a empresas (ver el comentario en
+            /api/suscripcion/register), así que hoy no hay tarjeta que guardar y
+            esta sección no se renderiza.
 
-            Visible si hay tarjeta (para actualizarla o quitarla) o si hay
-            suscripción vigente (para agregar una y que el próximo cobro no
-            falle). Se oculta solo en el alta sin suscripción: ahí el checkout
-            de /register captura tarjeta y plan de una vez. */}
-        {(hasCard || props.showPlanSummary) && (
+            El bloque se conserva íntegro a propósito: cuando se contrate cargo
+            automático basta con volver a mostrarlo. `hasCard` sigue siendo la
+            condición correcta — un workspace con tarjeta inscrita la ve.
+
+            Método de pago en su propia fila: la tarjeta necesita ancho para
+            leerse, y apretada en un tercio del grid competía con dos tarjetas
+            que son solo texto. */}
+        {hasCard && (
           <SideCard title="Método de pago" icon={CreditCard}>
             {hasCard ? (
               <div style={{ padding: 16, display: "grid", gap: 14 }}>
