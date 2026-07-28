@@ -53,9 +53,16 @@ Status (verified against production 2026-07-27):
 - `pangui/supabase/migrations` — 141 files
 - `supabase migration list` — 141 rows, **every one matched local ↔ remote**
 - `supabase db push --dry-run` — *"Remote database is up to date"*
-- `pangui-native-stable/supabase/migrations` — 61 files, **frozen**; see the README
-  there. They are hand-named duplicates of history that reached production through
-  the web ledger. Every table and column they describe exists in production today.
+- `pangui-native-stable/supabase/migrations` — 61 files, **frozen**; see
+  `pangui-native-stable/supabase/MIGRATIONS-ARE-FROZEN.md`. They are hand-named
+  duplicates of history that reached production through the web ledger. Every table
+  and column they describe exists in production today.
+
+Mobile CI enforces this: the "Reject Supabase source changes outside the canonical
+repository" step in `.github/workflows/test.yml` fails on any diff under
+`supabase/migrations` or `supabase/functions`. There is deliberately **no docs
+exemption** — an extension-based carve-out is a hole a real migration can slip
+through, which is why the note above sits at `supabase/` root instead.
 
 **This was previously recorded here as an unresolved P0 ("41 orphaned migrations,
 `db push` fails"). That was wrong** — it was inferred from diffing two directory
@@ -285,7 +292,7 @@ fact built; the real work is finishing the migration and deleting legacy paths.
 
 | # | Item | Status | Priority |
 |---|---|---|---|
-| 1 | Reconcile migrations into one directory | **Done** — ledger verified clean 2026-07-27 (141/141 matched, `db push` up to date); mobile dir frozen with a README | Closed |
+| 1 | Reconcile migrations into one directory | **Done** — ledger verified clean 2026-07-27 (141/141 matched, `db push` up to date); mobile dir frozen, CI-enforced | Closed |
 | 2 | Transactional create/transition commands | **Built** (`create_work_order_v1`, `transition_work_order_v1`) | Finish rollout |
 | 3 | Closure rules server-side | **Built** (procedures, materials, sheets, photos in `transition_work_order_v1`) | Verify parity, delete client duplicates |
 | 4 | Idempotency | **Built** for OT commands (`work_order_commands`) | Extend to remaining mutations |

@@ -6,7 +6,11 @@ Sentry.init({
 
   tracesSampleRate: process.env.NODE_ENV === "production" ? 0.2 : 1.0,
 
-  enabled: Boolean(process.env.NEXT_PUBLIC_SENTRY_DSN),
+  // See sentry.server.config.ts — NODE_ENV guard keeps `next dev` noise out of
+  // the production issue stream.
+  enabled:
+    Boolean(process.env.NEXT_PUBLIC_SENTRY_DSN) &&
+    process.env.NODE_ENV !== "development",
 
   environment: process.env.NEXT_PUBLIC_SENTRY_ENV || process.env.NODE_ENV,
 
