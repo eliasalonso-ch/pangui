@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { ChevronLeft, ChevronRight, Download, FileText, Loader2, ReceiptText } from "lucide-react";
+import { ChevronLeft, ChevronRight, FileText, Loader2, ReceiptText } from "lucide-react";
 
 interface InvoiceRow {
   id: number;
@@ -36,7 +36,6 @@ export function InvoicesPanel() {
   const [result, setResult] = useState<InvoiceResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [downloading, setDownloading] = useState<number | null>(null);
 
   const load = useCallback(async (nextPage: number) => {
     setLoading(true);
@@ -56,42 +55,21 @@ export function InvoicesPanel() {
 
   useEffect(() => { void load(page); }, [load, page]);
 
-  async function download(invoice: InvoiceRow) {
-    setDownloading(invoice.id);
-    setError(null);
-    try {
-      const response = await fetch(`/api/suscripcion/invoices/${invoice.id}/download`, { cache: "no-store" });
-      if (!response.ok) {
-        const json = await response.json().catch(() => null) as { error?: string } | null;
-        throw new Error(json?.error || "No se pudo descargar el documento.");
-      }
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
-      const anchor = document.createElement("a");
-      anchor.href = url;
-      anchor.download = `pangui-flow-${invoice.id}.pdf`;
-      document.body.appendChild(anchor);
-      anchor.click();
-      anchor.remove();
-      URL.revokeObjectURL(url);
-    } catch (downloadError) {
-      setError((downloadError as Error).message);
-    } finally {
-      setDownloading(null);
-    }
-  }
-
   const invoices = result?.data ?? [];
 
   return (
-    <div style={{ flex: 1, overflowY: "auto", padding: "28px 24px" }}>
-      <div style={{ maxWidth: 1080, margin: "0 auto", display: "grid", gap: 16 }}>
+    // Sin scroll ni padding propios: va embebido en la página de suscripción,
+    // que ya aporta el contenedor y el scroll.
+    <div>
+      <div style={{ display: "grid", gap: 16 }}>
         <div style={{ padding: "16px 18px", border: "1px solid var(--border)", borderRadius: "var(--r-lg)", background: "var(--surface-1)" }}>
           <p style={{ margin: 0, color: "var(--fg-1)", fontSize: 14, lineHeight: 1.55 }}>
-            Aquí encontrarás los cobros generados por tu suscripción mediante Flow.cl. Puedes descargar un comprobante PDF de cada período.
+            Aquí encontrarás los cobros generados por tu suscripción mediante Flow.cl.
           </p>
           <p style={{ margin: "6px 0 0", color: "var(--fg-3)", fontSize: 12.5, lineHeight: 1.5 }}>
-            Los comprobantes son informativos y no reemplazan un documento tributario electrónico (DTE).
+            Flow.cl envía el comprobante de cada cobro al correo del pagador. El documento
+            tributario es la boleta de honorarios electrónica, que enviamos por separado al
+            email de cobros del espacio de trabajo.
           </p>
         </div>
 
@@ -119,8 +97,8 @@ export function InvoicesPanel() {
               <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 760, color: "var(--fg-1)", fontSize: 13 }}>
                 <thead>
                   <tr style={{ background: "var(--surface-2)" }}>
-                    {['Fecha', 'Tipo', 'Número', 'Monto', 'Estado', ''].map((heading, index) => (
-                      <th key={`${heading}-${index}`} style={{ height: 46, padding: "0 16px", textAlign: index === 5 ? "right" : "left", fontWeight: 600, borderBottom: "1px solid var(--border)", whiteSpace: "nowrap" }}>{heading}</th>
+                    {['Fecha', 'Tipo', 'Número', 'Monto', 'Estado'].map((heading, index) => (
+                      <th key={`${heading}-${index}`} style={{ height: 46, padding: "0 16px", textAlign: "left", fontWeight: 600, borderBottom: "1px solid var(--border)", whiteSpace: "nowrap" }}>{heading}</th>
                     ))}
                   </tr>
                 </thead>
@@ -132,18 +110,6 @@ export function InvoicesPanel() {
                       <td style={{ ...cell(index === invoices.length - 1), fontVariantNumeric: "tabular-nums" }}>FL-{invoice.id}</td>
                       <td style={{ ...cell(index === invoices.length - 1), fontVariantNumeric: "tabular-nums", fontWeight: 600 }}>{money(invoice.amount, invoice.currency)}</td>
                       <td style={cell(index === invoices.length - 1)}><Status status={invoice.status} /></td>
-                      <td style={{ ...cell(index === invoices.length - 1), textAlign: "right" }}>
-                        <button
-                          type="button"
-                          onClick={() => void download(invoice)}
-                          disabled={downloading === invoice.id}
-                          aria-label={`Descargar documento FL-${invoice.id}`}
-                          title="Descargar PDF"
-                          style={{ width: 34, height: 34, display: "inline-grid", placeItems: "center", border: "1px solid var(--border)", borderRadius: "var(--r-md)", background: "var(--surface-1)", color: "var(--fg-1)", cursor: "pointer" }}
-                        >
-                          {downloading === invoice.id ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />}
-                        </button>
-                      </td>
                     </tr>
                   ))}
                 </tbody>

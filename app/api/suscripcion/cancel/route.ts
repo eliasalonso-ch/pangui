@@ -43,6 +43,10 @@ export async function POST(req: Request) {
     .update({
       canceled_at: new Date().toISOString(),
       status:      atPeriodEnd ? sub.status : "canceled",
+      // Cancelar descarta una bajada de plan agendada: no tiene sentido
+      // aplicarla sobre una suscripción que ya no va a renovar.
+      scheduled_plan_key: null,
+      scheduled_plan_at:  null,
       updated_at:  new Date().toISOString(),
     })
     .eq("id", sub.id);

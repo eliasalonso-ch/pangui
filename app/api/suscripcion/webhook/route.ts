@@ -13,6 +13,7 @@
 import { NextResponse } from "next/server";
 import { adminSupabase } from "../_helpers";
 import { flow } from "@/lib/flow";
+import { flowPlanId, planByKey } from "@/lib/flow-plans";
 
 export async function POST(req: Request) {
   try {
@@ -68,7 +69,7 @@ export async function POST(req: Request) {
 
     const { data: existing } = await admin
       .from("subscriptions")
-      .select("id, workspace_id, status")
+      .select("id, workspace_id, status, plan_key, is_early_customer, price_per_user_clp, scheduled_plan_key, scheduled_plan_at")
       .eq("flow_subscription_id", sub.subscriptionId)
       .maybeSingle();
 
@@ -85,6 +86,37 @@ export async function POST(req: Request) {
     if (sub.next_invoice_date) updates.current_period_end   = sub.next_invoice_date;
     if (sub.subscription_start) updates.current_period_start = sub.subscription_start;
     if (newStatus === "canceled") updates.canceled_at = new Date().toISOString();
+
+    // Bajada de plan agendada que ya venció: este webhook marca el inicio de un
+    // período nuevo, así que es el momento de materializarla. Hasta aquí el
+    // usuario conservó el plan caro que ya había pagado.
+    const scheduledAt = existing.scheduled_plan_key && existing.scheduled_plan_at
+      ? new Date(existing.scheduled_plan_at).getTime()
+      : null;
+
+    if (existing.scheduled_plan_key && scheduledAt !== null && scheduledAt <= Date.now() && newStatus !== "canceled") {
+      const scheduledPlan = planByKey(existing.scheduled_plan_key);
+      try {
+        await flow.changePlan({
+          subscriptionId: sub.subscriptionId,
+          newPlanId:      flowPlanId(scheduledPlan.key),
+        });
+        updates.plan_key           = scheduledPlan.key;
+        updates.flow_plan_id       = flowPlanId(scheduledPlan.key);
+        updates.price_per_user_clp = existing.is_early_customer
+          ? existing.price_per_user_clp
+          : scheduledPlan.pricePerUser;
+        updates.scheduled_plan_key = null;
+        updates.scheduled_plan_at  = null;
+
+        await admin.from("usuarios")
+          .update({ plan: scheduledPlan.key, plan_status: "active" })
+          .eq("workspace_id", existing.workspace_id);
+      } catch (err) {
+        // No se limpia lo agendado: se reintenta en el próximo webhook.
+        console.error("[flow webhook] no se pudo aplicar el cambio de plan agendado:", err);
+      }
+    }
 
     await admin.from("subscriptions").update(updates).eq("id", existing.id);
 

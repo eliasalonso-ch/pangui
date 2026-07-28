@@ -543,10 +543,10 @@ export default function AppSidebar() {
               </SidebarMenuItem>
               {mounted && userData?.rol === "owner" && (
                 <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={isActive("/suscripcion")} tooltip="Facturación">
+                  <SidebarMenuButton asChild isActive={isActive("/suscripcion")} tooltip="Suscripción">
                     <Link href="/suscripcion" style={{ display: "flex", alignItems: "center", gap: collapsed ? 0 : 10 }}>
                       <CreditCard size={16} style={{ flexShrink: 0 }} />
-                      {!collapsed && <span>Facturación</span>}
+                      {!collapsed && <span>Suscripción</span>}
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>

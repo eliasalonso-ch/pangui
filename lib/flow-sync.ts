@@ -39,7 +39,16 @@ export async function syncSubscriptionToUserCount(workspaceId: string): Promise<
   const extras = Math.max(0, (activeUsers ?? 0) - 1); // plan covers user #1
 
   try {
-    const items = await flow.listSubscriptionItems(sub.flow_subscription_id);
+    // Flow responde "No services available" (HTTP 400) al listar los items de
+    // una suscripción que no tiene ninguno — el caso normal de un workspace con
+    // un solo usuario. Es una respuesta esperable, no un fallo, así que la
+    // tratamos como lista vacía en vez de dejar que ensucie los logs.
+    const items = await flow
+      .listSubscriptionItems(sub.flow_subscription_id)
+      .catch((err: unknown) => {
+        if ((err as { status?: number })?.status === 400) return { data: [] };
+        throw err;
+      });
     const existing = items.data?.filter(i => i.name?.startsWith("Usuario extra")) ?? [];
 
     // Add missing

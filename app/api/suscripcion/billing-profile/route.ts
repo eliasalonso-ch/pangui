@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminSupabase, requireAdminOfWorkspace } from "../_helpers";
 
-const FIELDS = "billing_email, razon_social, rut, giro, direccion, comuna, ciudad, region, pais, receive_pdf_invoices, invoice_language";
-const LEGACY_FIELDS = "billing_email, razon_social, rut, giro, direccion, comuna, ciudad, region, pais";
+// Una BHE identifica al receptor por RUT y nombre; no lleva giro ni dirección
+// (eso es formato de factura / boleta en papel). Ver la migración
+// 20260728180754_billing_profiles.sql.
+const FIELDS = "billing_email, razon_social, rut";
 const SCHEMA_MISMATCH_CODES = new Set(["42P01", "42703", "PGRST204", "PGRST205"]);
 
 function emptyProfile(email: string) {
-  return { billing_email: email, pais: "Chile", receive_pdf_invoices: true, invoice_language: "es" };
+  return { billing_email: email };
 }
 
 export async function GET() {
@@ -19,17 +21,6 @@ export async function GET() {
     .eq("workspace_id", auth.ctx.workspaceId)
     .maybeSingle();
   if (!error) return NextResponse.json(data ?? emptyProfile(auth.ctx.email));
-
-  if (error.code === "42703" || error.code === "PGRST204") {
-    const legacy = await admin
-      .from("billing_profiles")
-      .select(LEGACY_FIELDS)
-      .eq("workspace_id", auth.ctx.workspaceId)
-      .maybeSingle();
-    if (!legacy.error) {
-      return NextResponse.json({ ...emptyProfile(auth.ctx.email), ...(legacy.data ?? {}) });
-    }
-  }
 
   if (SCHEMA_MISMATCH_CODES.has(error.code ?? "")) {
     console.warn("[billing-profile] schema not ready", { code: error.code, message: error.message });
@@ -56,14 +47,6 @@ export async function PUT(request: NextRequest) {
       billing_email: value("billing_email", true),
       razon_social: value("razon_social"),
       rut: value("rut"),
-      giro: value("giro"),
-      direccion: value("direccion"),
-      comuna: value("comuna"),
-      ciudad: value("ciudad"),
-      region: value("region"),
-      pais: value("pais") ?? "Chile",
-      receive_pdf_invoices: body.receive_pdf_invoices !== false,
-      invoice_language: body.invoice_language === "en" ? "en" : "es",
       updated_at: new Date().toISOString(),
     };
     const { data, error } = await adminSupabase()

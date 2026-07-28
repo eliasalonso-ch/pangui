@@ -28,6 +28,9 @@ interface SubStatus {
     flow_subscription_id: string | null;
     is_early_customer?: boolean;
     custom_price_note?: string | null;
+    // Bajada de plan agendada para el fin del período vigente.
+    scheduled_plan_key?: PlanKey | null;
+    scheduled_plan_at?: string | null;
   } | null;
   customer: { has_card: boolean; card_last4: string | null; card_brand: string | null; email: string; pay_mode?: string | null } | null;
   active_users: number;
@@ -36,7 +39,11 @@ interface SubStatus {
 }
 
 const fmtCLP = (n: number) => n.toLocaleString("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 });
-const fmtDate = (iso: string | null) => iso ? new Date(iso).toLocaleDateString("es-CL", { day: "2-digit", month: "long", year: "numeric" }) : "-";
+// timeZone UTC a propósito: los períodos de facturación se guardan a medianoche
+// UTC y representan un día calendario, no un instante. Formatearlos en hora de
+// Chile (UTC−4) los corre al día anterior — "2026-08-27 00:00+00" se mostraba
+// como 26 de agosto.
+const fmtDate = (iso: string | null) => iso ? new Date(iso).toLocaleDateString("es-CL", { day: "2-digit", month: "long", year: "numeric", timeZone: "UTC" }) : "-";
 const daysUntil = (iso: string | null) => iso ? Math.max(0, Math.ceil((new Date(iso).getTime() - Date.now()) / 86_400_000)) : 0;
 
 export default function SuscripcionPage() {
@@ -57,8 +64,9 @@ function SuscripcionPageInner() {
   const [error, setError] = useState<string | null>(null);
   const [flash, setFlash] = useState<{ kind: "ok" | "err"; msg: string } | null>(null);
   const [confirmCancel, setConfirmCancel] = useState(false);
-  const [acceptedBilling, setAcceptedBilling] = useState(false);
-  const [activeTab, setActiveTab] = useState<"subscription" | "invoices">("subscription");
+  // Reemplaza al antiguo checkbox de aceptación: en vez de pedir un clic extra,
+  // exigimos los datos que realmente hacen falta para cobrar y emitir la boleta.
+  const [profileReady, setProfileReady] = useState(false);
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -90,14 +98,14 @@ function SuscripcionPageInner() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  function ensureBillingAccepted() {
-    if (acceptedBilling) return true;
-    setError("Antes de continuar debes aceptar los términos, la política de privacidad y el cobro mensual recurrente.");
+  function ensureBillingReady() {
+    if (profileReady) return true;
+    setError("Completa el email de cobros y los datos de la boleta antes de elegir un plan.");
     return false;
   }
 
   async function startCheckout(planKey: PlanKey) {
-    if (!ensureBillingAccepted()) return;
+    if (!ensureBillingReady()) return;
     setSubmitting(planKey);
     setRedirecting(planKey);
     setError(null);
@@ -118,7 +126,7 @@ function SuscripcionPageInner() {
   }
 
   async function changePlan(planKey: PlanKey) {
-    if (!ensureBillingAccepted()) return;
+    if (!ensureBillingReady()) return;
     setSubmitting(planKey);
     setError(null);
     try {
@@ -211,17 +219,12 @@ function SuscripcionPageInner() {
   const currentPrice = sub?.price_per_user_clp ?? currentPlan?.pricePerUser ?? 0;
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100dvh", overflow: "hidden", background: "var(--surface-0)" }}>
+    // Sin height:100dvh ni overflow propios: eso creaba un segundo viewport
+    // dentro del scroll del layout. La página fluye y scrollea una sola vez.
+    <div style={{ background: "var(--surface-0)" }}>
       {redirecting && <CheckoutRedirectOverlay planKey={redirecting} />}
 
-      <div role="tablist" aria-label="Facturación" style={{ flexShrink: 0, padding: "10px 24px", borderBottom: "1px solid var(--border)", background: "var(--surface-1)" }}>
-        <div style={{ width: "fit-content", display: "flex", gap: 3, padding: 3, border: "1px solid var(--border)", borderRadius: "var(--r-md)", background: "var(--surface-0)" }}>
-          <BillingTab selected={activeTab === "subscription"} onClick={() => setActiveTab("subscription")}>Plan</BillingTab>
-          <BillingTab selected={activeTab === "invoices"} onClick={() => setActiveTab("invoices")}>Facturas y documentos</BillingTab>
-        </div>
-      </div>
-
-      {activeTab === "invoices" ? <InvoicesPanel /> : <div style={{ flex: 1, overflowY: "auto", padding: "28px 24px" }}>
+      <div style={{ padding: "28px 24px" }}>
         <div style={{ maxWidth: 1240, margin: "0 auto", display: "flex", flexDirection: "column", gap: 20 }}>
           {flash && <Notice kind={flash.kind} onClose={() => setFlash(null)}>{flash.msg}</Notice>}
           {error && <Notice kind="err">{error}</Notice>}
@@ -271,60 +274,59 @@ function SuscripcionPageInner() {
             </div>
           )}
 
-          {sub ? (
+          {/* Paso 1: los datos de cobro son del workspace, no de la suscripción.
+              Se muestran siempre — sin ellos no se puede contratar, y quien
+              canceló (o aún no contrata) no tiene fila en subscriptions pero sí
+              necesita completarlos para volver a suscribirse. */}
+          <div>
+            {!isPaid && <p style={{ ...sectionLabel, marginBottom: 12 }}>1 · Tus datos de cobro</p>}
             <SubscriptionOverview
-              planName={currentPlan?.name ?? sub.plan_key}
-              status={sub.status}
-              statusLabel={statusLabel(sub.status)}
-              renewalDate={sub.current_period_end}
+              planName={currentPlan?.name ?? sub?.plan_key ?? ""}
+              status={sub?.status ?? "canceled"}
+              statusLabel={statusLabel(sub?.status ?? "canceled")}
+              renewalDate={sub?.current_period_end ?? null}
               unitPrice={currentPrice}
               totalPrice={monthlyCost}
               activeUsers={activeUsers}
               cardBrand={customer?.card_brand ?? null}
               cardLast4={customer?.card_last4 ?? null}
               billingEmail={customer?.email ?? null}
-              payMode={customer?.pay_mode ?? null}
-              canChangeCard
+              showPlanSummary={isPaid}
+              canceledAt={sub?.canceled_at ?? null}
               changingCard={submitting === "card_change"}
               removingCard={submitting === "card_remove"}
               onChangeCard={changeCard}
               onRemoveCard={removeCard}
+              onProfileReadyChange={setProfileReady}
             />
-          ) : null}
-
-          {isPaid && !sub?.canceled_at && (
-            confirmCancel ? (
-              <div style={{ ...card, borderColor: "var(--danger)" }}>
-                <p style={{ fontSize: 13, color: "var(--fg-1)", margin: "0 0 10px" }}>
-                  ¿Cancelar la suscripción? Mantendrás acceso hasta el {fmtDate(sub?.current_period_end ?? null)} y no habrá nuevos cobros.
-                </p>
-                <div style={{ display: "flex", gap: 8 }}>
-                  <button type="button" onClick={cancelSub} disabled={submitting === "cancel"} style={dangerBtn}>{submitting === "cancel" ? <Loader2 size={13} className="animate-spin" /> : "Sí, cancelar"}</button>
-                  <button type="button" onClick={() => setConfirmCancel(false)} style={ghostBtn}>No</button>
-                </div>
-              </div>
-            ) : (
-              <button type="button" onClick={() => setConfirmCancel(true)} style={{ ...ghostBtn, width: "fit-content", color: "var(--danger)" }}>Cancelar suscripción</button>
-            )
-          )}
-
-          <BillingDisclosure
-            activeUsers={activeUsers}
-            currentPrice={currentPrice}
-            monthlyCost={monthlyCost}
-            periodEnd={sub?.current_period_end ?? null}
-            accepted={acceptedBilling}
-            onAcceptedChange={setAcceptedBilling}
-          />
+          </div>
 
           <div>
             <p style={{ ...sectionLabel, marginBottom: 12 }}>
-              {isPaid ? "Cambiar plan" : isTrial ? "Elige tu plan para después de la prueba" : "Elige un plan"}
+              {sub?.canceled_at ? "Reactivar con un plan" : isPaid ? "Cambiar plan" : isTrial ? "2 · Elige tu plan para después de la prueba" : "2 · Elige un plan"}
             </p>
+            {!profileReady && (
+              <div style={{ display: "flex", alignItems: "flex-start", gap: 9, marginBottom: 12, padding: "11px 13px", border: "1px solid var(--border-strong)", borderRadius: "var(--r-md)", background: "var(--surface-2)" }}>
+                <AlertCircle size={15} style={{ color: "var(--fg-3)", flexShrink: 0, marginTop: 1 }} />
+                <p style={{ margin: 0, fontSize: 12.5, lineHeight: 1.5, color: "var(--fg-2)" }}>
+                  Completa el <strong>email de cobros</strong> y los <strong>datos de la boleta</strong> para poder elegir un plan. Los necesitamos para emitir la boleta de honorarios de cada cobro.
+                </p>
+              </div>
+            )}
+            {sub?.scheduled_plan_key && (
+              <div style={{ display: "flex", alignItems: "flex-start", gap: 9, marginBottom: 12, padding: "11px 13px", border: "1px solid var(--border-strong)", borderRadius: "var(--r-md)", background: "var(--surface-2)" }}>
+                <AlertCircle size={15} style={{ color: "var(--fg-3)", flexShrink: 0, marginTop: 1 }} />
+                <p style={{ margin: 0, fontSize: 12.5, lineHeight: 1.5, color: "var(--fg-2)" }}>
+                  Cambio agendado a <strong>{PLANS.find(p => p.key === sub.scheduled_plan_key)?.name ?? sub.scheduled_plan_key}</strong> el {fmtDate(sub.scheduled_plan_at ?? sub.current_period_end)}. Hasta entonces conservas {currentPlan?.name ?? sub.plan_key} y no habrá cobros adicionales. Elige otro plan para reemplazar este cambio.
+                </p>
+              </div>
+            )}
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
               {SELF_SERVE_PLANS.map(p => {
-                const isCurrent = sub?.plan_key === p.key && isPaid;
-                const disabled = isCurrent || submitting !== null || !acceptedBilling;
+                // Cancelada: ningún plan cuenta como "actual", así el usuario
+                // puede reactivar el mismo que tenía sin quedar bloqueado.
+                const isCurrent = sub?.plan_key === p.key && isPaid && !sub?.canceled_at;
+                const disabled = isCurrent || submitting !== null || !profileReady;
                 const preview = p.pricePerUser * activeUsers;
                 return (
                   <div
@@ -369,7 +371,7 @@ function SuscripcionPageInner() {
                         background: isCurrent ? "var(--surface-hover)" : "var(--brand)",
                         color: isCurrent ? "var(--fg-2)" : "var(--surface-1)",
                         cursor: disabled ? "default" : "pointer",
-                        opacity: !isCurrent && !acceptedBilling ? 0.55 : 1,
+                        opacity: !isCurrent && !profileReady ? 0.55 : 1,
                       }}
                     >
                       {submitting === p.key
@@ -386,8 +388,44 @@ function SuscripcionPageInner() {
               <CreditCard size={12} /> Pagos y tarjetas procesados por Flow.cl. Pangui no almacena los datos completos de tarjeta.
             </p>
           </div>
+
+          <BillingDisclosure
+            activeUsers={activeUsers}
+            currentPrice={currentPrice}
+            monthlyCost={monthlyCost}
+            periodEnd={sub?.current_period_end ?? null}
+            canceled={Boolean(sub?.canceled_at)}
+          />
+
+          {/* El historial solo aparece cuando ya hubo cobros: a un usuario en
+              prueba una tabla vacía no le dice nada. */}
+          {isPaid && (
+            <div>
+              <p style={{ ...sectionLabel, marginBottom: 12 }}>Cobros</p>
+              <InvoicesPanel />
+            </div>
+          )}
+
+          {/* Acción destructiva: siempre al final, nunca entre información. */}
+          {isPaid && !sub?.canceled_at && (
+            <div style={{ paddingTop: 4, borderTop: "1px solid var(--border)" }}>
+              {confirmCancel ? (
+                <div style={{ ...card, borderColor: "var(--danger)", marginTop: 16 }}>
+                  <p style={{ fontSize: 13, color: "var(--fg-1)", margin: "0 0 10px" }}>
+                    ¿Cancelar la suscripción? Mantendrás acceso hasta el {fmtDate(sub?.current_period_end ?? null)} y no habrá nuevos cobros.
+                  </p>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button type="button" onClick={cancelSub} disabled={submitting === "cancel"} style={dangerBtn}>{submitting === "cancel" ? <Loader2 size={13} className="animate-spin" /> : "Sí, cancelar"}</button>
+                    <button type="button" onClick={() => setConfirmCancel(false)} style={ghostBtn}>No</button>
+                  </div>
+                </div>
+              ) : (
+                <button type="button" onClick={() => setConfirmCancel(true)} style={{ ...ghostBtn, width: "fit-content", marginTop: 16, color: "var(--fg-3)" }}>Cancelar suscripción</button>
+              )}
+            </div>
+          )}
         </div>
-      </div>}
+      </div>
     </div>
   );
 }
@@ -440,14 +478,13 @@ function Notice({ kind, onClose, children }: { kind: "ok" | "err"; onClose?: () 
 }
 
 function BillingDisclosure({
-  activeUsers, currentPrice, monthlyCost, periodEnd, accepted, onAcceptedChange,
+  activeUsers, currentPrice, monthlyCost, periodEnd, canceled,
 }: {
   activeUsers: number;
   currentPrice: number;
   monthlyCost: number;
   periodEnd: string | null;
-  accepted: boolean;
-  onAcceptedChange: (accepted: boolean) => void;
+  canceled: boolean;
 }) {
   const estimatedCost = monthlyCost || currentPrice * activeUsers;
   return (
@@ -460,22 +497,20 @@ function BillingDisclosure({
         <MiniStat label="Modelo" value="Mensual por usuario activo" />
         <MiniStat label="Usuarios activos hoy" value={`${activeUsers}`} />
         <MiniStat label="Total estimado hoy" value={estimatedCost > 0 ? fmtCLP(estimatedCost) : "-"} />
-        <MiniStat label="Renovación" value={periodEnd ? fmtDate(periodEnd) : "Mensual"} />
+        <MiniStat label={canceled ? "Acceso hasta" : "Renovación"} value={periodEnd ? fmtDate(periodEnd) : "Mensual"} />
       </div>
       <p style={{ fontSize: 12.5, lineHeight: 1.55, color: "var(--fg-2)", margin: 0 }}>
         Al activar o cambiar un plan autorizas cargos recurrentes mensuales en CLP según el plan elegido y la cantidad de usuarios activos del workspace. Puedes desactivar usuarios antes del siguiente ciclo para ajustar el cobro, y puedes cancelar la suscripción desde esta pantalla manteniendo acceso hasta el fin del periodo pagado.
       </p>
-      <label style={{ display: "flex", alignItems: "flex-start", gap: 10, fontSize: 12.5, lineHeight: 1.5, color: "var(--fg-1)", cursor: "pointer" }}>
-        <input
-          type="checkbox"
-          checked={accepted}
-          onChange={e => onAcceptedChange(e.target.checked)}
-          style={{ marginTop: 3, flexShrink: 0 }}
-        />
-        <span>
-          Acepto los <Link href="/terminos" target="_blank" style={linkStyle}>Términos y Condiciones</Link>, la <Link href="/privacidad" target="_blank" style={linkStyle}>Política de Privacidad</Link> y autorizo el cobro mensual recurrente por usuarios activos mediante Flow.cl.
-        </span>
-      </label>
+      <p style={{ fontSize: 12.5, lineHeight: 1.55, color: "var(--fg-2)", margin: 0 }}>
+        Los pagos se procesan a través de Flow.cl. Por cada cobro emitimos una <strong>boleta de honorarios electrónica</strong> ante el SII, que enviamos al email de cobros del workspace. No emitimos facturas, por lo que estos montos no dan derecho a crédito fiscal de IVA. Los precios indicados son el monto bruto de la boleta; si tu empresa está obligada a retener el impuesto de segunda categoría, la retención se aplica sobre ese monto.
+      </p>
+      {/* Sin checkbox: el consentimiento queda por acción. El aviso está a la
+          vista y contratar es el acto de aceptación, que es como opera el resto
+          del checkout. */}
+      <p style={{ fontSize: 12.5, lineHeight: 1.5, color: "var(--fg-3)", margin: 0 }}>
+        Al elegir un plan aceptas los <Link href="/terminos" target="_blank" style={linkStyle}>Términos y Condiciones</Link> y la <Link href="/privacidad" target="_blank" style={linkStyle}>Política de Privacidad</Link>, y autorizas el cobro mensual recurrente por usuarios activos mediante Flow.cl.
+      </p>
     </div>
   );
 }

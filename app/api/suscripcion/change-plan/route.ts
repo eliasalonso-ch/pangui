@@ -35,19 +35,28 @@ export async function POST(req: Request) {
   const admin = adminSupabase();
   const { data: sub } = await admin
     .from("subscriptions")
-    .select("id, flow_subscription_id, plan_key, status, is_early_customer, price_per_user_clp")
+    .select("id, flow_subscription_id, plan_key, status, canceled_at, is_early_customer, price_per_user_clp, current_period_end")
     .eq("workspace_id", workspaceId)
     .neq("status", "canceled")
     .maybeSingle();
 
   if (!sub) return NextResponse.json({ error: "No hay suscripción." }, { status: 404 });
 
-  if (sub.plan_key === planKey && sub.status === "active") {
+  if (sub.plan_key === planKey && sub.status === "active" && !sub.canceled_at) {
     return NextResponse.json({ ok: true, unchanged: true });
   }
 
-  // No Flow subscription yet → caller must go through /register to capture card.
-  if (!sub.flow_subscription_id) {
+  // Reactivación tras cancelar, o alta sin mandato previo.
+  //
+  // Una suscripción cancelada al final del período sigue con status "active"
+  // (el usuario conserva acceso), pero su mandato en Flow ya no cobra: hay que
+  // crear uno nuevo, no cambiarle el plan al viejo. El filtro por status no
+  // basta para detectarlo — hay que mirar canceled_at.
+  //
+  // Si ya hay tarjeta registrada se crea la suscripción directo, sin mandar al
+  // usuario a Flow: la tarjeta sobrevive a la cancelación y volver a pedirla
+  // sería un viaje redundante. Sin tarjeta sí se pasa por /register.
+  if (sub.canceled_at || !sub.flow_subscription_id) {
     const { data: customer } = await admin
       .from("flow_customers")
       .select("flow_customer_id, has_card")
@@ -65,7 +74,12 @@ export async function POST(req: Request) {
         flow_plan_id: newFlowPlanId,
         price_per_user_clp: sub.is_early_customer ? sub.price_per_user_clp : plan.pricePerUser,
         status: "active",
+        canceled_at: null,
         trial_end: null,
+        // Una bajada agendada pertenece al mandato anterior: al crear uno nuevo
+        // deja de aplicar.
+        scheduled_plan_key: null,
+        scheduled_plan_at: null,
         current_period_start: refreshed.period_start ?? null,
         current_period_end: refreshed.period_end ?? refreshed.next_invoice_date ?? null,
         updated_at: new Date().toISOString(),
@@ -78,6 +92,49 @@ export async function POST(req: Request) {
       console.error("[suscripcion/change-plan] create with saved card", fe);
       return NextResponse.json({ error: fe.message ?? "No se pudo activar el plan con la tarjeta guardada." }, { status: 502 });
     }
+  }
+
+  // Sin tarjeta vigente no hay con qué cobrar el plan nuevo: el cambio dejaría
+  // una suscripción "activa" que nunca genera un cobro. Se captura tarjeta por
+  // /register, igual que en el alta.
+  const { data: customer } = await admin
+    .from("flow_customers")
+    .select("has_card")
+    .eq("workspace_id", workspaceId)
+    .maybeSingle();
+
+  if (!customer?.has_card) {
+    return NextResponse.json(
+      { error: "needs_card", redirect: "/suscripcion?action=upgrade" },
+      { status: 402 },
+    );
+  }
+
+  // Bajada de plan → se agenda para el fin del período en curso.
+  //
+  // El usuario ya pagó el plan caro por este ciclo, así que lo conserva hasta
+  // que termine; el plan barato (y su precio) empiezan en el ciclo siguiente.
+  // Sin esto, cambiar Pro→Basic el día 1 daba funciones Pro por precio Basic.
+  //
+  // No se toca Flow todavía: la suscripción sigue cobrando el plan actual hasta
+  // la renovación, que es exactamente lo que queremos. El cambio se materializa
+  // cuando llega el webhook del período siguiente.
+  const currentPlanPrice = planByKey(sub.plan_key).pricePerUser;
+  const isDowngrade = plan.pricePerUser < currentPlanPrice;
+
+  if (isDowngrade) {
+    await admin.from("subscriptions").update({
+      scheduled_plan_key: planKey,
+      scheduled_plan_at:  sub.current_period_end,
+      updated_at:         new Date().toISOString(),
+    }).eq("id", sub.id);
+
+    return NextResponse.json({
+      ok: true,
+      scheduled: true,
+      plan_key: planKey,
+      effective_at: sub.current_period_end,
+    });
   }
 
   try {
@@ -103,6 +160,12 @@ export async function POST(req: Request) {
     flow_plan_id:         newFlowPlanId,
     price_per_user_clp:   newPrice,
     status:               "active",
+    // Un cambio de plan efectivo reactiva la suscripción: dejar canceled_at
+    // haría que la UI siguiera mostrándola como cancelada para siempre.
+    canceled_at:          null,
+    // Subir de plan cancela una bajada pendiente: manda el cambio más reciente.
+    scheduled_plan_key:   null,
+    scheduled_plan_at:    null,
     current_period_start: refreshed?.period_start ?? null,
     current_period_end:   refreshed?.period_end ?? refreshed?.next_invoice_date ?? null,
     updated_at:           new Date().toISOString(),

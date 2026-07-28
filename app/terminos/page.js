@@ -388,7 +388,7 @@ export default function TerminosPage() {
             "Los cargos se hacen en CLP, con la frecuencia mensual indicada para el plan elegido.",
             "El cobro se calcula según el precio del plan por la cantidad de usuarios activos del workspace.",
             "El owner puede cambiar de plan, actualizar tarjeta o cancelar la suscripción desde Configuración > Suscripción.",
-            "El documento tributario de la suscripción, cuando corresponda, se gestiona fuera de las órdenes de trabajo.",
+            "Por cada cobro se emite una boleta de honorarios electrónica ante el SII, enviada al email de cobros del espacio de trabajo. Pangui no emite facturas, por lo que los montos pagados no dan derecho a crédito fiscal de IVA. Los precios publicados corresponden al monto bruto de la boleta; cuando el cliente sea un contribuyente obligado a retener el impuesto de segunda categoría, dicha retención se aplica sobre ese monto.",
             "En caso de no pago, Pangui puede limitar o suspender funciones pagadas hasta regularizar el saldo.",
             "Pangui no almacena los datos completos de tarjetas de crédito; el procesamiento lo realiza Flow.cl.",
           ]}
@@ -607,7 +607,7 @@ export default function TerminosPage() {
           lineHeight: 1.65,
         }}
       >
-        <strong>Última actualización: mayo de 2026.</strong> Este documento
+        <strong>Última actualización: julio de 2026.</strong> Este documento
         tiene carácter informativo y no reemplaza asesoría legal profesional.
         Recomendamos consultar con un abogado especialista en derecho
         tecnológico y protección al consumidor para situaciones específicas de

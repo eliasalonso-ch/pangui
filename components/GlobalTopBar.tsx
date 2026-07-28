@@ -28,7 +28,7 @@ const THEMES: { value: ThemePref; label: string; icon: typeof Sun }[] = [
 ];
 
 function pageTrail(pathname: string): string[] {
-  if (pathname.startsWith("/suscripcion")) return ["Cuenta", "Facturación"];
+  if (pathname.startsWith("/suscripcion")) return ["Cuenta", "Suscripción"];
   if (pathname.startsWith("/mi-cuenta")) return ["Cuenta", "Mi cuenta"];
   if (pathname.startsWith("/espacio-trabajo")) return ["Cuenta", "Espacio de trabajo"];
   if (pathname.startsWith("/preferencias-notificaciones")) return ["Cuenta", "Preferencias de notificaciones"];
@@ -122,7 +122,7 @@ export default function GlobalTopBar() {
             {role === "owner" && (
               <button type="button" onClick={() => { setOpen(false); router.push("/suscripcion"); }} style={{ width: "100%", minHeight: 38, display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", border: 0, borderRadius: 8, background: "transparent", color: "var(--fg-1)", cursor: "pointer", fontFamily: "inherit", fontSize: 13, textAlign: "left" }}>
                 <CreditCard size={16} color="var(--fg-3)" />
-                Facturación
+                Suscripción
               </button>
             )}
 
