@@ -237,7 +237,7 @@
      hace que un panel se vea como cualquier dashboard genérico. Aquí el color
      está concentrado en una marca pequeña y el texto se lee como texto. */
   --st-open-bg:     #F1F3F7; --st-open-fg:     #000000; --st-open-dot:    #8A94A6;
-  --st-wait-bg:     #F1F3F7; --st-wait-fg:     #000000; --st-wait-dot:    #B26A00;
+  --st-wait-bg:     #F1F3F7; --st-wait-fg:     #000000; --st-wait-dot:    #F08C00;
   --st-progress-bg: #F1F3F7; --st-progress-fg: #000000; --st-progress-dot:#0067DD;
   --st-running-bg:  #F1F3F7; --st-running-fg:  #000000;
   --st-review-bg:   #F1F3F7; --st-review-fg:   #000000; --st-review-dot:  #8A94A6;
@@ -245,12 +245,12 @@
   --st-cancel-bg:   #F1F3F7; --st-cancel-fg:   #6B7689; --st-cancel-dot:  #C2C9D6;
 
   /* Prioridad — color saturado, aplicado en marcas pequeñas (íconos, puntos),
-     nunca como fondo. Baja y media son grises porque no son señales; alta y
-     urgente sí lo son y se ven de inmediato. Un rojo lavado no comunica
-     urgencia: si algo es urgente, tiene que verse rojo de verdad. */
-  --pr-low:    #6B7689;
-  --pr-medium: #6B7689;
-  --pr-high:   #E8590C;
+     nunca como fondo. La escala sube en temperatura — verde, azul, naranja,
+     rojo — así la prioridad se lee de un vistazo. Los tonos son saturados a
+     propósito: un naranja o un rojo lavados no comunican urgencia. */
+  --pr-low:    #0B8A4B;
+  --pr-medium: #007AFF;
+  --pr-high:   #F97316;
   --pr-urgent: #D6231C;
 
   /* Semantic — saturados y densos, no pasteles. El color va en el ícono o el

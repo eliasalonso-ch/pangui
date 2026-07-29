@@ -5,93 +5,47 @@ import { createPortal } from "react-dom";
 import {
   Clock, MapPin, Copy, Check as CheckIcon, AlertCircle, UserPlus, X as XIcon,
   CheckCircle2, Circle,
-  Minus, Pause, Check, User as UserIcon,
-  ArrowUp, ArrowDown,
+  Minus, Pause, Check, RotateCw, UserRoundX, UserRoundCheck,
+  ArrowUp, ArrowDown, AlertTriangle,
   type LucideIcon,
 } from "lucide-react";
 import { parseDescMeta, updateOrden } from "@/lib/ordenes-api";
 import type { OrdenListItem, Usuario, Estado, Prioridad } from "@/types/ordenes";
 import { chileDateKey, dateKey, daysBetweenKeys } from "./date-utils";
 
-/** Punto lleno perfectamente simétrico, para estados que no tienen un glifo
- *  direccional natural. */
-const FilledDot: LucideIcon = ((props: { size?: number; color?: string }) => (
-  <svg width={props.size} height={props.size} viewBox="0 0 24 24" style={{ display: "block" }}>
-    <circle cx="12" cy="12" r="6" fill={props.color ?? "currentColor"} />
-  </svg>
-)) as unknown as LucideIcon;
-
-/** Triángulo de alerta sólido con el signo en blanco. A diferencia del resto
- *  de los estados no va sobre un disco: la forma misma es la señal, que es
- *  justo lo que distingue a "urgente" del resto. Dibujado a medida porque el
- *  `AlertTriangle` de lucide es de trazo, no relleno. */
-const AlertTriangleSolid: LucideIcon = ((props: { size?: number; color?: string }) => (
-  <svg width={props.size} height={props.size} viewBox="0 0 24 24" style={{ display: "block" }}>
-    {/* Triángulo redondeado, ópticamente centrado en el viewBox. */}
-    <path
-      d="M12 3.2c-.62 0-1.19.33-1.5.86L2.6 18.05a1.73 1.73 0 0 0 1.5 2.6h15.8a1.73 1.73 0 0 0 1.5-2.6L13.5 4.06A1.73 1.73 0 0 0 12 3.2Z"
-      fill={props.color ?? "currentColor"}
-    />
-    {/* Signo de exclamación calado en blanco. */}
-    <rect x="10.75" y="8.6" width="2.5" height="6.2" rx="1.25" fill="#FFFFFF" />
-    <circle cx="12" cy="17.5" r="1.35" fill="#FFFFFF" />
-  </svg>
-)) as unknown as LucideIcon;
-
-
 // Estado y prioridad se muestran como etiquetas sin relleno: borde de 1px,
 // texto casi negro en peso normal y el ícono como único portador del color.
 const ESTADO: Record<Estado, { label: string; icon: LucideIcon; color: string }> = {
-  pendiente:   { label: "Sin asignar", icon: Minus, color: "var(--st-open-dot)"     },
-  en_espera:   { label: "En espera",   icon: Pause, color: "var(--st-wait-dot)"     },
-  // `Play` no sirve aquí: su triángulo está desplazado a la derecha dentro del
-  // viewBox y se ve descentrado en el disco. Un punto lleno es simétrico.
-  en_curso:    { label: "En curso",    icon: FilledDot, color: "var(--st-progress-dot)" },
-  completado:  { label: "Completada",  icon: Check, color: "var(--st-done-dot)"     },
+  pendiente:   { label: "Sin asignar", icon: UserRoundX,  color: "var(--st-open-dot)"     },
+  en_espera:   { label: "En espera",   icon: Pause,       color: "var(--st-wait-dot)"     },
+  en_curso:    { label: "En curso",    icon: RotateCw,    color: "var(--st-progress-dot)" },
+  completado:  { label: "Completada",  icon: Check,       color: "var(--st-done-dot)"     },
 };
 
 const ESTADO_ASIGNADA = {
   label: "Asignada",
-  icon:  UserIcon,
+  icon:  UserRoundCheck,
   color: "var(--st-progress-dot)",
 };
 
 // La dirección de la flecha comunica la intensidad y el color la refuerza:
 // verde → azul → naranja → rojo.
-const PRIORIDAD: Record<Prioridad, { label: string; icon: LucideIcon; color: string; bare?: boolean }> = {
+const PRIORIDAD: Record<Prioridad, { label: string; icon: LucideIcon; color: string }> = {
   ninguna: { label: "",        icon: Minus,     color: "transparent"      },
-  baja:    { label: "Baja",    icon: ArrowDown, color: "var(--success)"   },
-  media:   { label: "Media",   icon: Minus,     color: "var(--brand)"     },
+  baja:    { label: "Baja",    icon: ArrowDown, color: "var(--pr-low)"    },
+  media:   { label: "Media",   icon: Minus,     color: "var(--pr-medium)" },
   alta:    { label: "Alta",    icon: ArrowUp,   color: "var(--pr-high)"   },
-  urgente: { label: "Urgente", icon: AlertTriangleSolid, color: "var(--pr-urgent)", bare: true },
+  urgente: { label: "Urgente", icon: AlertTriangle, color: "var(--pr-urgent)" },
 };
 
-/** Ícono sólido: disco de color con el glifo en blanco. Concentra el color en
- *  una marca pequeña y densa, sin teñir el fondo de la etiqueta.
+/** Ícono de la etiqueta: glifo de contorno en el color del estado, sin disco
+ *  ni relleno. El color queda en el trazo, que es suficiente para distinguir
+ *  el estado sin agregar una mancha de color a cada fila.
  *
- *  `bare` omite el disco para los íconos que ya traen su propia forma sólida
- *  (el triángulo de urgente): meterlos en un círculo los encogería y perdería
- *  la silueta que los hace reconocibles. */
-function SolidIcon({ icon: Icon, color, size = 16, bare }: { icon: LucideIcon; color: string; size?: number; bare?: boolean }) {
-  if (bare) {
-    return <Icon size={size} color={color} style={{ display: "block", flexShrink: 0 }} />;
-  }
-  return (
-    <span style={{
-      display: "inline-flex", alignItems: "center", justifyContent: "center",
-      // `minWidth`/`minHeight` además de width/height: el disco es hijo de un
-      // flex y sin el mínimo el algoritmo lo comprime cuando falta espacio.
-      width: size, height: size, minWidth: size, minHeight: size,
-      borderRadius: "50%",
-      background: color, flexShrink: 0,
-      // `lineHeight: 0` evita que el SVG se apoye en la línea base del texto.
-      lineHeight: 0,
-    }}>
-      {/* El SVG también es un flex item y también se encoge: sin flexShrink:0
-          se deforma bajo presión horizontal y deja de verse centrado. */}
-      <Icon size={size - 5} strokeWidth={3} color="#FFFFFF" style={{ display: "block", flexShrink: 0 }} />
-    </span>
-  );
+ *  `display: block` + `flexShrink: 0` evitan que el SVG se apoye en la línea
+ *  base del texto o se comprima cuando falta espacio horizontal. */
+function SolidIcon({ icon: Icon, color, size = 14 }: { icon: LucideIcon; color: string; size?: number }) {
+  return <Icon size={size} color={color} strokeWidth={2.25} style={{ display: "block", flexShrink: 0 }} />;
 }
 
 /** Etiqueta sin relleno: borde de 1px, texto casi negro en peso normal y el
@@ -99,12 +53,10 @@ function SolidIcon({ icon: Icon, color, size = 16, bare }: { icon: LucideIcon; c
 function RowBadge({
   icon: Icon,
   iconColor,
-  bareIcon,
   children,
 }: {
   icon?: LucideIcon;
   iconColor?: string;
-  bareIcon?: boolean;
   children: React.ReactNode;
 }) {
   return (
@@ -118,7 +70,7 @@ function RowBadge({
       background: "transparent",
       whiteSpace: "nowrap",
     }}>
-      {Icon && <SolidIcon icon={Icon} color={iconColor ?? "var(--fg-3)"} bare={bareIcon} />}
+      {Icon && <SolidIcon icon={Icon} color={iconColor ?? "var(--fg-3)"} />}
       {children}
     </span>
   );
@@ -545,7 +497,7 @@ function OTRow({ orden, usuarios, isSelected, onClick, onPrefetch, myId, onAssig
 
           {/* Priority */}
           {orden.prioridad !== "ninguna" && (
-            <RowBadge icon={prio.icon} iconColor={prio.color} bareIcon={prio.bare}>
+            <RowBadge icon={prio.icon} iconColor={prio.color}>
               {prio.label}
             </RowBadge>
           )}
