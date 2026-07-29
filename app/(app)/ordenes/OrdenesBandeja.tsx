@@ -748,12 +748,33 @@ export default function OrdenesBandeja({
 
   const searchHitCap = searchResults !== null && searchResults.length >= ORDENES_SEARCH_LIMIT;
 
+  // ¿Hay algún filtro activo? Con filtros, la lista tiene que mirar el set
+  // completo y no solo las páginas cargadas por el scroll infinito.
+  const hasActiveFilters =
+    filtros.estados.length > 0 ||
+    filtros.prioridades.length > 0 ||
+    filtros.tipos.length > 0 ||
+    filtros.asignadoIds.length > 0 ||
+    filtros.ubicacionIds.length > 0 ||
+    filtros.sociedadIds.length > 0 ||
+    filtros.fechaVencimiento != null ||
+    filtros.sinAsignar ||
+    filtros.soloAsignados;
+
   // Apply filters + search + sort
   const filtered = useMemo(() => {
-    // When searching, the base is the server results (all matches, loaded or
-    // not); otherwise the loaded infinite-scroll list. The tab/scope/filtros
-    // pipeline below still applies on top, so search respects the current view.
-    const baseSource = searchResults ?? ordenes;
+    // Prioridad de fuentes:
+    //   1. búsqueda  -> resultados del servidor (todas las coincidencias)
+    //   2. filtros   -> `allOrdenesForCounts`, el set completo que ya se trae
+    //                   para los contadores de las pestañas
+    //   3. sin nada  -> la lista paginada del scroll infinito
+    //
+    // Sin el caso 2, filtrar solo miraba las páginas ya cargadas: en un
+    // workspace con más de 300 OTs, filtrar por un usuario cuyas órdenes están
+    // en la página 2 devolvía una lista vacía mientras el contador de la
+    // pestaña — que sí usa el set completo — mostraba "2". El dato ya estaba
+    // en memoria; solo la lista no lo miraba.
+    const baseSource = searchResults ?? (hasActiveFilters ? countOrdenes : ordenes);
     // Tab decides active vs. completed; scope narrows further. Kanban shows
     // all states side-by-side, so the tab gate is bypassed in that view.
     let list = view === "kanban"
@@ -856,7 +877,7 @@ export default function OrdenesBandeja({
       });
     }
     return list;
-  }, [ordenes, searchResults, view, tab, scope, search, sort, filtros, ubicaciones, reprogramadaIds, faltanMaterialesIds, ocultarMarcadas, marcadas, todayKey]);
+  }, [ordenes, countOrdenes, hasActiveFilters, searchResults, view, tab, scope, search, sort, filtros, ubicaciones, reprogramadaIds, faltanMaterialesIds, ocultarMarcadas, marcadas, todayKey]);
 
   // The rows actually rendered — a window into `filtered` that grows on scroll.
   const visibleOrdenes = useMemo(
