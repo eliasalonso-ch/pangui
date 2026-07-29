@@ -81,11 +81,14 @@ export async function GET() {
     }
   }
 
+  // Mismo filtro que lib/flow-sync.ts: lo que muestra la UI tiene que ser
+  // exactamente lo que Flow cobra.
   const { count: usersActivos } = await admin
     .from("usuarios")
     .select("id", { count: "exact", head: true })
     .eq("workspace_id", perfil.workspace_id)
-    .eq("activo", true);
+    .eq("activo", true)
+    .eq("excluir_de_facturacion", false);
 
   const activeUsers = usersActivos ?? 0;
 

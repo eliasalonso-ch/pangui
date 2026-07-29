@@ -30,11 +30,15 @@ export async function syncSubscriptionToUserCount(workspaceId: string): Promise<
   if (sub.plan_key === "enterprise")           return; // off-platform billing
   if (!sub.price_per_user_clp || sub.price_per_user_clp <= 0) return;
 
+  // `excluir_de_facturacion` deja fuera a las cuentas de staff de Pangui que
+  // viven dentro del workspace de un cliente: acceso completo, sin sumar al
+  // cobro. Ver 20260729180000_usuarios_excluir_de_facturacion.sql.
   const { count: activeUsers } = await admin
     .from("usuarios")
     .select("id", { count: "exact", head: true })
     .eq("workspace_id", workspaceId)
-    .eq("activo", true);
+    .eq("activo", true)
+    .eq("excluir_de_facturacion", false);
 
   const extras = Math.max(0, (activeUsers ?? 0) - 1); // plan covers user #1
 
