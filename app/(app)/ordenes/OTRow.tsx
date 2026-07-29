@@ -269,7 +269,10 @@ function AssignDropdown({ orden, usuarios, myId, onAssigned, onClose, anchorRect
     setSaving(userId);
     try {
       await updateOrden(orden.id, myId, {
-        asignados_ids: newIds.length > 0 ? newIds : null,
+        // Array vacio, no null: la validacion del comando exige un array
+        // cuando la clave viene presente (400 "asignados_ids must be an
+        // array" al desasignar al ultimo usuario).
+        asignados_ids: newIds,
       }, currentIds);
       onAssigned(newIds);
     } finally {
