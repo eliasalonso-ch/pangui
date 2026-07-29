@@ -712,7 +712,11 @@ export default function OTEditPanel({
           lugar_id:      form.lugar_id      || null,
           sociedad_id:   form.sociedad_id   || null,
           activo_id:     form.activo_id     || null,
-          asignados_ids: form.asignados_ids.length > 0 ? form.asignados_ids : null,
+          // Array vacio, no null: `assert_work_order_references_v1` exige que
+          // la clave, si viene, sea un array — un null JSON la hace fallar con
+          // 400 "asignados_ids must be an array". El vacio es justamente la
+          // forma de decir "sin asignados".
+          asignados_ids: form.asignados_ids,
           links:         allLinks,
         },
         orden.asignados_ids,
