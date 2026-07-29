@@ -52,6 +52,19 @@ export async function POST(req: Request) {
 
   let flowCustomerId = existing?.flow_customer_id;
 
+  // Clientes fundadores: precio especial vitalicio. `change-plan` ya respeta
+  // `price_per_user_clp` cuando `is_early_customer`, pero acá se estaba
+  // pisando con el precio de catálogo, así que suscribirse volvía a dejar la
+  // fila en el precio de lista.
+  const { data: prevSub } = await admin
+    .from("subscriptions")
+    .select("is_early_customer, price_per_user_clp")
+    .eq("workspace_id", workspaceId)
+    .maybeSingle();
+
+  const isEarly = prevSub?.is_early_customer === true && (prevSub.price_per_user_clp ?? 0) > 0;
+  const effectivePrice = isEarly ? prevSub!.price_per_user_clp! : plan.pricePerUser;
+
   try {
     if (!flowCustomerId) {
       try {
@@ -102,9 +115,27 @@ export async function POST(req: Request) {
     //
     // Si más adelante se contrata cargo automático, este bloque vuelve a
     // registerCard y el resto del flujo (callback, webhook) ya lo soporta.
+    // El plan de Flow cobra el precio de lista por el usuario #1; los usuarios
+    // extra se agregan como items al precio real (ver lib/flow-sync.ts). Para
+    // un cliente fundador eso dejaría el primer usuario a precio de lista, así
+    // que se adjunta un cupón de Flow que cubre la diferencia.
+    //
+    // El cupón se aplica solo si la suscripción ya está marcada
+    // `is_early_customer` en la base: no hay workspaces hardcodeados, y un
+    // cliente nuevo no puede recibirlo sin que alguien marque esa fila a mano.
+    const couponId = isEarly ? process.env.FLOW_COUPON_EARLY_CUSTOMER : undefined;
+    if (isEarly && !couponId) {
+      console.warn(
+        "[suscripcion/register] workspace %s es cliente fundador pero FLOW_COUPON_EARLY_CUSTOMER no está configurado: " +
+        "Flow cobrará el usuario #1 a precio de lista.",
+        workspaceId,
+      );
+    }
+
     const created = await flow.createSubscription({
       planId:     flowPlanId(planKey),
       customerId: flowCustomerId,
+      ...(couponId ? { couponId } : {}),
     });
 
     const refreshed = await flow.getSubscription(created.subscriptionId).catch(() => created);
@@ -116,7 +147,8 @@ export async function POST(req: Request) {
       plan_key:             planKey,
       flow_subscription_id: created.subscriptionId,
       flow_plan_id:         flowPlanId(planKey),
-      price_per_user_clp:   plan.pricePerUser,
+      price_per_user_clp:   effectivePrice,
+      is_early_customer:    isEarly,
       status:               "past_due",
       canceled_at:          null,
       scheduled_plan_key:   null,

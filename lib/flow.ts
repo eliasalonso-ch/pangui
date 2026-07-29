@@ -122,6 +122,24 @@ export interface FlowRegisterStatus {
   card?: { type?: string; last4Digits?: string; issuerBank?: string };
 }
 
+/** Cupón de descuento de Flow. Un cupón de monto tiene `amount` + `currency`
+ *  y `percent_off` vacío; uno de porcentaje, al revés. */
+export interface FlowCoupon {
+  id:               number;
+  name:             string;
+  percent_off:      number | null;
+  currency:         string | null;
+  amount:           number | null;
+  created:          string;
+  /** 0 = indefinida, 1 = definida (ver `times`). */
+  duration:         number;
+  times:            number | null;
+  max_redemptions:  number | null;
+  expires:          string | null;
+  status?:          number;
+  deleted?:         number;
+}
+
 export interface FlowSubscription {
   subscriptionId: string;
   planId: string;
@@ -228,6 +246,30 @@ export const flow = {
   }) => flowPost<FlowSubscription>("/subscription/create", p),
   getSubscription: (subscriptionId: string) =>
     flowGet<FlowSubscription>("/subscription/get", { subscriptionId }),
+
+  // Coupons — descuentos aplicados a una suscripción.
+  //
+  // El plan de Flow cobra el precio de lista por el usuario #1 (los usuarios
+  // extra van como items al precio real, ver flow-sync.ts). Un cupón de monto
+  // fijo cubre esa diferencia para clientes con precio especial.
+  //
+  //   duration: 0        -> indefinida (para siempre)
+  //   amount + currency  -> descuento de monto fijo (sin `percent_off`)
+  //   max_redemptions: 1 -> un solo uso, así el cupón no puede filtrarse a
+  //                         otro cliente
+  //   sin `expires`      -> no caduca
+  createCoupon: (p: {
+    name:             string;
+    amount?:          number;
+    currency?:        string;
+    percent_off?:     number;
+    duration?:        0 | 1;
+    times?:           number;
+    max_redemptions?: number;
+    expires?:         string;
+  }) => flowPost<FlowCoupon>("/coupon/create", p),
+  getCoupon: (couponId: string | number) =>
+    flowGet<FlowCoupon>("/coupon/get", { couponId }),
   getInvoice: (invoiceId: number) =>
     flowGet<FlowInvoice>("/invoice/get", { invoiceId }),
   cancelSubscription: (p: { subscriptionId: string; at_period_end?: 0 | 1 }) =>
