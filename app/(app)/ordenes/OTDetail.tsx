@@ -19,7 +19,7 @@ import {
   Type, DollarSign, List, ListChecks, AlertCircle, ImagePlus, FolderOpen,
   Lock, LockOpen, Mic, MicOff, Volume2, GitBranch, Wrench, Link as LinkIcon,
   Phone, Mail, Circle,
-  Minus, ArrowUp, ArrowDown,
+  Minus, ArrowUp, ArrowDown, RotateCw, UserRoundX, UserRoundCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { LinksDisplay } from "@/components/LinksInput";
@@ -239,11 +239,11 @@ function GrupoFotosCard({ grupo, canManage, canUpload, uploading, fileInputRef, 
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
-const ESTADOS: { value: Estado; label: string; icon: React.ComponentType<{ className?: string; size?: number }>; className: string }[] = [
-  { value: "pendiente",   label: "Sin asignar", icon: CircleDot,    className: "text-blue-600" },
-  { value: "en_espera",   label: "En espera",   icon: PauseCircle,  className: "text-amber-600" },
-  { value: "en_curso",    label: "En curso",    icon: PlayCircle,   className: "text-purple-600" },
-  { value: "completado",  label: "Completada",  icon: CheckCircle2, className: "text-green-600" },
+const ESTADOS: { value: Estado; label: string; icon: React.ComponentType<{ className?: string; size?: number; style?: React.CSSProperties }>; className: string }[] = [
+  { value: "pendiente",   label: "Sin asignar", icon: UserRoundX, className: "text-blue-600" },
+  { value: "en_espera",   label: "En espera",   icon: Pause,      className: "text-amber-600" },
+  { value: "en_curso",    label: "En curso",    icon: RotateCw,   className: "text-purple-600" },
+  { value: "completado",  label: "Completada",  icon: Check,      className: "text-green-600" },
 ];
 
 const PRIORIDADES: { value: Prioridad; label: string; color: string }[] = [
@@ -258,30 +258,21 @@ const PRIORIDADES: { value: Prioridad; label: string; color: string }[] = [
 // verde → azul → naranja → rojo.
 type BadgeIcon = React.ComponentType<{ size?: number; color?: string; strokeWidth?: number; style?: React.CSSProperties }>;
 
-/** Triángulo de alerta sólido con el signo en blanco. A diferencia del resto
- *  de los estados no va sobre un disco: la forma misma es la señal. Dibujado a
- *  medida porque el `AlertTriangle` de lucide es de trazo, no relleno. */
-const AlertTriangleSolid: BadgeIcon = (props: { size?: number; color?: string }) => (
-  <svg width={props.size} height={props.size} viewBox="0 0 24 24" style={{ display: "block" }}>
-    <path
-      d="M12 3.2c-.62 0-1.19.33-1.5.86L2.6 18.05a1.73 1.73 0 0 0 1.5 2.6h15.8a1.73 1.73 0 0 0 1.5-2.6L13.5 4.06A1.73 1.73 0 0 0 12 3.2Z"
-      fill={props.color ?? "currentColor"}
-    />
-    <rect x="10.75" y="8.6" width="2.5" height="6.2" rx="1.25" fill="#FFFFFF" />
-    <circle cx="12" cy="17.5" r="1.35" fill="#FFFFFF" />
-  </svg>
-);
+// Color por estado, usado en los botones del selector. `pendiente` no está
+// acá: sin asignados es neutro y con asignados toma el azul de "En curso".
+const ESTADO_ACCENT: Record<string, string> = {
+  en_espera:  "var(--st-wait-dot)",
+  en_curso:   "var(--st-progress-dot)",
+  completado: "var(--st-done-dot)",
+};
 
 const PRIO_ICON: Record<string, BadgeIcon> = {
   ninguna: Minus,
   baja:    ArrowDown,
   media:   Minus,
   alta:    ArrowUp,
-  urgente: AlertTriangleSolid,
+  urgente: AlertTriangle,
 };
-
-/** Los íconos que ya traen su propia forma sólida no van dentro del disco. */
-const PRIO_BARE: Record<string, boolean> = { urgente: true };
 
 const PRIO_COLOR_SOLID: Record<string, string> = {
   ninguna: "var(--fg-3)",
@@ -291,27 +282,10 @@ const PRIO_COLOR_SOLID: Record<string, string> = {
   urgente: "var(--pr-urgent)",
 };
 
-/** Ícono sólido: disco de color con el glifo en blanco. */
-function SolidIcon({ icon: Icon, color, size = 16, bare }: { icon: BadgeIcon; color: string; size?: number; bare?: boolean }) {
-  if (bare) {
-    return <Icon size={size} color={color} style={{ display: "block", flexShrink: 0 }} />;
-  }
-  return (
-    <span style={{
-      display: "inline-flex", alignItems: "center", justifyContent: "center",
-      // `minWidth`/`minHeight` además de width/height: el disco es hijo de un
-      // flex y sin el mínimo el algoritmo lo comprime cuando falta espacio.
-      width: size, height: size, minWidth: size, minHeight: size,
-      borderRadius: "50%",
-      background: color, flexShrink: 0,
-      // `lineHeight: 0` evita que el SVG se apoye en la línea base del texto.
-      lineHeight: 0,
-    }}>
-      {/* El SVG también es un flex item y también se encoge: sin flexShrink:0
-          se deforma bajo presión horizontal y deja de verse centrado. */}
-      <Icon size={size - 6} strokeWidth={3} color="#FFFFFF" style={{ display: "block", flexShrink: 0 }} />
-    </span>
-  );
+/** Ícono de la etiqueta: glifo de contorno en el color del estado, sin
+ *  disco ni relleno. Mismo tratamiento que en OTRow. */
+function SolidIcon({ icon: Icon, color, size = 15 }: { icon: BadgeIcon; color: string; size?: number }) {
+  return <Icon size={size} color={color} strokeWidth={2.25} style={{ display: "block", flexShrink: 0 }} />;
 }
 
 /** Etiqueta sin relleno: borde de 1px, texto casi negro en peso normal y el
@@ -319,10 +293,8 @@ function SolidIcon({ icon: Icon, color, size = 16, bare }: { icon: BadgeIcon; co
 function DetailBadge({
   icon: Icon,
   iconColor,
-  bareIcon,
   children,
 }: {
-  bareIcon?: boolean;
   icon?: BadgeIcon;
   iconColor?: string;
   children: React.ReactNode;
@@ -338,7 +310,7 @@ function DetailBadge({
       fontWeight: 400,
       whiteSpace: "nowrap",
     }}>
-      {Icon && <SolidIcon icon={Icon} color={iconColor ?? "var(--fg-3)"} bare={bareIcon} />}
+      {Icon && <SolidIcon icon={Icon} color={iconColor ?? "var(--fg-3)"} />}
       {children}
     </span>
   );
@@ -750,6 +722,16 @@ interface Props {
 }
 
 type Tab = "detalle" | "actividad" | "fotos" | "materiales" | "procedimientos" | "hoja";
+
+/** Título de la barra compacta dentro de cada pestaña. */
+const TAB_TITLE: Record<Tab, string> = {
+  detalle:        "Detalle",
+  actividad:      "Actividad",
+  fotos:          "Fotos",
+  materiales:     "Materiales",
+  procedimientos: "Procedimientos",
+  hoja:           "Hoja de cálculo",
+};
 
 // ── Parts types ───────────────────────────────────────────────────────────────
 
@@ -2358,7 +2340,11 @@ export default function OTDetail({
 
       {/* ── Header ── */}
       <div style={{ position: "relative", flexShrink: 0, borderBottom: "1px solid var(--border)", background: "var(--surface-1)" }}>
-        {/* Top bar: title + optional close (modal overlays). Timer was moved into the body. */}
+        {/* Top bar: title + optional close (modal overlays). Timer was moved into the body.
+            Solo se muestra en la pestaña principal: dentro de una pestaña el
+            título ya no aporta y ocupaba una franja alta de la pantalla. Las
+            otras pestañas usan la barra compacta de más abajo. */}
+        {tab === "detalle" && (
         <div style={{ display: "flex", alignItems: "flex-start", padding: "24px 28px 18px", minHeight: 52, gap: 16 }}>
           {showBackButton && (
             <button
@@ -2398,7 +2384,9 @@ export default function OTDetail({
               {orden.fecha_termino && (
                 <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><Calendar size={15} />Vencimiento: {fmtFechaLocal(orden.fecha_termino)}</span>
               )}
-              <DetailBadge icon={prioIcon} iconColor={prioSolid} bareIcon={PRIO_BARE[orden.prioridad]}>{prioLabel}</DetailBadge>
+              {orden.prioridad !== "ninguna" && (
+                <DetailBadge icon={prioIcon} iconColor={prioSolid}>{prioLabel}</DetailBadge>
+              )}
             </div>
           </div>
           {showCloseButton && (
@@ -2412,8 +2400,51 @@ export default function OTDetail({
             </button>
           )}
         </div>
+        )}
 
-        {/* Scrollable tab bar: navigation stays readable in the split view. */}
+        {/* Barra compacta para las pestañas que no son la principal: solo el
+            botón de volver y el nombre de la sección, al estilo del panel de
+            edición. Volver lleva a la pestaña principal, no cierra la OT. */}
+        {tab !== "detalle" && (
+          <div style={{
+            display: "flex", alignItems: "center", gap: 12,
+            padding: "0 28px", height: 64, flexShrink: 0,
+          }}>
+            <button
+              type="button"
+              onClick={() => setTab("detalle")}
+              aria-label="Volver al detalle"
+              title="Volver al detalle"
+              style={{ width: 32, height: 32, flexShrink: 0, display: "inline-flex", alignItems: "center", justifyContent: "center", border: "1px solid var(--border)", borderRadius: "var(--r-sm)", background: "var(--surface-1)", color: "var(--fg-2)", cursor: "pointer" }}
+              onMouseEnter={e => { e.currentTarget.style.background = "var(--surface-hover)"; }}
+              onMouseLeave={e => { e.currentTarget.style.background = "var(--surface-1)"; }}
+            >
+              <ChevronLeft size={17} />
+            </button>
+            <h2 style={{ flex: 1, fontSize: 17, fontWeight: 700, color: "var(--fg-1)", margin: 0, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {TAB_TITLE[tab] ?? "Detalle"}
+            </h2>
+            {/* El cierre del modal vive en la cabecera grande, que acá está
+                oculta: sin esto, una OT abierta en modal quedaría sin forma de
+                cerrarse desde una pestaña interna. */}
+            {showCloseButton && (
+              <button
+                type="button" onClick={onClose}
+                aria-label="Cerrar"
+                style={{ width: 32, height: 32, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", borderRadius: "var(--r-sm)", cursor: "pointer", color: "var(--fg-4)" }}
+                onMouseEnter={e => { e.currentTarget.style.background = "var(--surface-hover)"; }}
+                onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}
+              >
+                <X size={15} />
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Scrollable tab bar: navigation stays readable in the split view.
+            Solo en la pestaña principal — dentro de una sección se navega con
+            el botón de volver, que es justamente para lo que está. */}
+        {tab === "detalle" && (
         <div style={{ margin: "0 28px 22px", overflowX: "auto", overflowY: "hidden" }}>
           <div role="tablist" aria-label="Secciones de la orden" style={{ display: "flex", alignItems: "center", gap: 8, width: "max-content", minWidth: "100%" }}>
           {dashboardNav.map((item) => {
@@ -2458,7 +2489,7 @@ export default function OTDetail({
           })}
           </div>
 
-          <div ref={exportMenuRef} style={{ position: "absolute", top: 24, right: 28, zIndex: 20 }}>
+                    <div ref={exportMenuRef} style={{ position: "absolute", top: 24, right: 28, zIndex: 20 }}>
             <button
               type="button"
               onClick={() => setExportMenuOpen(v => !v)}
@@ -2558,6 +2589,7 @@ export default function OTDetail({
             </button>
           )}
         </div>
+        )}
       </div>
 
       {/* ── Body ── */}
@@ -2606,24 +2638,27 @@ export default function OTDetail({
             {(() => {
               // Solid per-status fill when selected; the unselected state always
               // shows the brand blue (see button styles below).
-              const STATUS_STYLE: Record<string, { bg: string }> = {
-                pendiente:  { bg: "var(--brand)" },
-                en_espera:  { bg: "var(--st-wait-dot)" },
-                en_curso:   { bg: "var(--st-progress-dot)" },
-                completado: { bg: "var(--st-done-dot)" },
-              };
               return (
                 <div style={{ marginTop: 28 }}>
                   <p style={{ fontSize: 11, fontWeight: 700, color: "var(--fg-4)", textTransform: "uppercase", letterSpacing: "0.07em", margin: "0 0 12px" }}>Estado</p>
                   <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
                     {ESTADOS.map(e => {
-                      const Icon = e.icon;
-                      const isSelected = orden.estado === e.value;
-                      // "pendiente" label flips to "Asignada" once someone is assigned,
+                      // "pendiente" flips to "Asignada" once someone is assigned,
                       // mirroring the OT list badge so the two views never disagree.
+                      // El icono acompana a la etiqueta: usuario con X sin
+                      // asignados, usuario con check cuando los hay.
                       const hasAssignees = (orden.asignados_ids ?? []).length > 0;
+                      const Icon = e.value === "pendiente" && hasAssignees
+                        ? UserRoundCheck
+                        : e.icon;
                       const label = e.value === "pendiente" && hasAssignees ? "Asignada" : e.label;
-                      const s = STATUS_STYLE[e.value];
+                      const isSelected = orden.estado === e.value;
+                      // "Sin asignar" no tiene color propio: queda neutro hasta
+                      // que alguien toma la OT, y ahí pasa a ser "Asignada" con
+                      // el mismo azul que "En curso".
+                      const accent = e.value === "pendiente"
+                        ? (hasAssignees ? "var(--st-progress-dot)" : null)
+                        : ESTADO_ACCENT[e.value];
                       const handleClick = async () => {
                         if (e.value === "en_espera" && orden.en_ejecucion) {
                           setPauseOpen(true);
@@ -2669,25 +2704,29 @@ export default function OTDetail({
                           type="button"
                           onClick={handleClick}
                           disabled={timerBusy}
+                          // Sin seleccionar: todos iguales — borde e ícono
+                          // azules sobre fondo transparente. Seleccionado: se
+                          // rellena con el color del estado y el ícono y el
+                          // texto pasan a blanco. "Sin asignar" no tiene color
+                          // propio hasta que la OT tiene asignados.
                           style={{
                             display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
                             gap: 7, padding: "10px 16px", minWidth: 86, minHeight: 62,
-                            border: "none",
+                            border: `1px solid ${isSelected && accent ? accent : "var(--brand)"}`,
                             borderRadius: "var(--r-md)",
-                            background: isSelected ? s.bg : "var(--brand)",
-                            color: "var(--fg-on-brand)",
+                            background: isSelected ? (accent ?? "transparent") : "transparent",
+                            color: isSelected && accent ? "#FFFFFF" : "var(--fg-1)",
                             cursor: timerBusy ? "default" : "pointer",
-                            transition: "all 0.15s",
-                            opacity: isSelected ? 1 : 0.85,
+                            transition: "background var(--dur-fast) var(--ease)",
                           }}
                           onMouseEnter={ev => {
-                            if (!timerBusy) ev.currentTarget.style.opacity = "1";
+                            if (!timerBusy && !isSelected) ev.currentTarget.style.background = "var(--brand-tint)";
                           }}
                           onMouseLeave={ev => {
-                            ev.currentTarget.style.opacity = isSelected ? "1" : "0.85";
+                            if (!isSelected) ev.currentTarget.style.background = "transparent";
                           }}
                         >
-                          <Icon size={18} />
+                          <Icon size={18} style={{ color: isSelected && accent ? "#FFFFFF" : "var(--brand)" }} />
                           {e.value === "en_curso" && orden.en_ejecucion ? (
                             <span style={{ fontSize: 12, fontWeight: 700, fontFamily: "monospace", textAlign: "center", lineHeight: 1.2 }}>
                               {fmtSecs(elapsed)}
