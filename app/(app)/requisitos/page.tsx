@@ -6,10 +6,9 @@ import { createClient } from "@/lib/supabase";
 import { esAdmin } from "@/lib/roles";
 import {
   Loader2, Camera, Zap, Box, FileSpreadsheet, Lock, HelpCircle,
-  ChevronLeft, Building2, User, Briefcase,
+  ChevronLeft,
 } from "lucide-react";
 
-type WorkspaceTipo = "subcontratista" | "propietario" | "hibrido";
 type ModoRegistro = "ambos" | "materiales" | "hoja";
 
 const MODO_OPTIONS: { value: ModoRegistro; label: string; description: string }[] = [
@@ -35,27 +34,6 @@ const DEFAULTS: WorkspaceReqs = {
   crear_ot_solo_admins: false,
   pedir_clasificacion: false,
 };
-
-const TIPO_OPTIONS: { value: WorkspaceTipo; label: string; description: string; icon: React.ReactNode }[] = [
-  {
-    value: "subcontratista",
-    label: "Subcontratista",
-    description: "Mantengo activos de clientes. Los reportes se entregan con el logo del cliente.",
-    icon: <Briefcase size={16} />,
-  },
-  {
-    value: "propietario",
-    label: "Propietario",
-    description: "Soy dueño de los activos que mantengo. Reportes internos con mi logo.",
-    icon: <Building2 size={16} />,
-  },
-  {
-    value: "hibrido",
-    label: "Híbrido",
-    description: "Ambos: tengo activos propios y también atiendo clientes externos.",
-    icon: <User size={16} />,
-  },
-];
 
 function SectionHeader({ title, children }: { title: string; children?: React.ReactNode }) {
   return (
@@ -127,7 +105,7 @@ function RowSwitch({
 const CARD: React.CSSProperties = {
   background: "var(--surface-1)",
   border: "1px solid var(--border)",
-  borderRadius: 12,
+  borderRadius: "var(--r-md)",
   overflow: "hidden",
   boxShadow: "0 1px 3px rgba(15,23,42,0.06)",
 };
@@ -141,7 +119,6 @@ export default function RequisitosPage() {
   const [rol, setRol] = useState<string>("");
   const [workspaceId, setWorkspaceId] = useState<string | null>(null);
   const [reqs, setReqs] = useState<WorkspaceReqs>(DEFAULTS);
-  const [tipo, setTipo] = useState<WorkspaceTipo>("subcontratista");
   const [modoRegistro, setModoRegistro] = useState<ModoRegistro>("ambos");
   const [loading, setLoading] = useState(true);
   const [savingKey, setSavingKey] = useState<string | null>(null);
@@ -165,7 +142,7 @@ export default function RequisitosPage() {
 
       const { data: ws } = await sb
         .from("workspaces")
-        .select("requiere_materiales_global, requiere_hoja_global, requiere_fotos_global, fotos_obligatorias_todas, crear_ot_solo_admins, pedir_clasificacion, tipo, modo_registro")
+        .select("requiere_materiales_global, requiere_hoja_global, requiere_fotos_global, fotos_obligatorias_todas, crear_ot_solo_admins, pedir_clasificacion, modo_registro")
         .eq("id", perfil.workspace_id)
         .maybeSingle();
 
@@ -178,8 +155,6 @@ export default function RequisitosPage() {
           crear_ot_solo_admins:       ws.crear_ot_solo_admins ?? false,
           pedir_clasificacion:        ws.pedir_clasificacion ?? false,
         });
-        const t = (ws as { tipo?: string }).tipo;
-        if (t === "propietario" || t === "subcontratista" || t === "hibrido") setTipo(t);
         const m = (ws as { modo_registro?: string }).modo_registro;
         if (m === "ambos" || m === "materiales" || m === "hoja") setModoRegistro(m);
       }
@@ -199,21 +174,6 @@ export default function RequisitosPage() {
     setSavingKey(null);
     if (error) {
       setReqs(prev => ({ ...prev, [key]: previous }));
-      setErr("No se pudo guardar el cambio.");
-    }
-  }
-
-  async function updateTipo(next: WorkspaceTipo) {
-    if (!workspaceId || next === tipo) return;
-    const previous = tipo;
-    setTipo(next);
-    setSavingKey("tipo");
-    setErr(null);
-    const sb = createClient();
-    const { error } = await sb.from("workspaces").update({ tipo: next }).eq("id", workspaceId);
-    setSavingKey(null);
-    if (error) {
-      setTipo(previous);
       setErr("No se pudo guardar el cambio.");
     }
   }
@@ -243,7 +203,7 @@ export default function RequisitosPage() {
 
   if (loading) {
     return (
-      <div style={{ height: "100dvh", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--fg-4)", gap: 8 }}>
+      <div style={{ height: "60dvh", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--fg-4)", gap: 8 }}>
         <Loader2 size={16} className="animate-spin" />
         <span style={{ fontSize: 13 }}>Cargando…</span>
       </div>
@@ -252,7 +212,7 @@ export default function RequisitosPage() {
 
   if (!esAdmin(rol)) {
     return (
-      <div style={{ height: "100dvh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10, color: "var(--fg-4)" }}>
+      <div style={{ height: "60dvh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10, color: "var(--fg-4)" }}>
         <Lock size={32} />
         <span style={{ fontSize: 14 }}>No tienes acceso a esta sección.</span>
       </div>
@@ -260,64 +220,20 @@ export default function RequisitosPage() {
   }
 
   return (
-    <div style={{ height: "100dvh", overflowY: "auto", background: "var(--surface-0)" }}>
-      <div style={{ maxWidth: 720, margin: "0 auto", padding: "32px 24px 64px" }}>
-        <p style={{ margin: "4px 0 0", fontSize: 13, color: "var(--fg-4)" }}>
+    // Sin height:100dvh ni overflow propios: eso creaba un segundo viewport
+    // dentro del scroll del layout. Ver configuracion/suscripcion.
+    <div style={{ background: "var(--surface-0)" }}>
+      <div style={{ padding: "28px 24px" }}>
+        <div style={{ maxWidth: 720, margin: "0 auto" }}>
+        <p style={{ margin: 0, fontSize: 13, color: "var(--fg-4)" }}>
           Configura los requisitos por defecto y las reglas globales del workspace.
         </p>
 
         {err && (
-          <div style={{ marginTop: 16, padding: "10px 14px", borderRadius: 10, border: "1px solid var(--danger)", background: "var(--danger-bg, rgba(239,68,68,0.08))", color: "var(--danger)", fontSize: 13 }}>
+          <div style={{ marginTop: 16, padding: "10px 14px", borderRadius: "var(--r-md)", border: "1px solid var(--danger)", background: "var(--danger-bg, rgba(239,68,68,0.08))", color: "var(--danger)", fontSize: 13 }}>
             {err}
           </div>
         )}
-
-        {/* Tipo de cuenta */}
-        <SectionHeader title="Tipo de cuenta" />
-        <div style={CARD}>
-          {TIPO_OPTIONS.map((opt, idx) => {
-            const selected = tipo === opt.value;
-            return (
-              <button
-                key={opt.value}
-                type="button"
-                onClick={() => updateTipo(opt.value)}
-                disabled={savingKey === "tipo"}
-                style={{
-                  display: "flex", alignItems: "flex-start", gap: 12,
-                  width: "100%", textAlign: "left",
-                  padding: "14px 16px",
-                  background: selected ? "var(--brand-tint)" : "var(--surface-1)",
-                  border: "none",
-                  borderBottom: idx === TIPO_OPTIONS.length - 1 ? "none" : "1px solid var(--border)",
-                  cursor: savingKey === "tipo" ? "not-allowed" : "pointer",
-                  fontFamily: "inherit",
-                }}
-              >
-                <span style={{
-                  width: 32, height: 32, borderRadius: 8,
-                  background: selected ? "var(--brand)" : "var(--surface-0)",
-                  color: selected ? "var(--fg-on-brand, white)" : "var(--fg-3)",
-                  display: "inline-flex", alignItems: "center", justifyContent: "center",
-                  border: selected ? "none" : "1px solid var(--border)", flexShrink: 0,
-                }}>
-                  {opt.icon}
-                </span>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: selected ? "var(--brand-fg)" : "var(--fg-1)" }}>
-                    {opt.label}
-                  </p>
-                  <p style={{ margin: "2px 0 0", fontSize: 12, color: "var(--fg-4)", lineHeight: 1.5 }}>
-                    {opt.description}
-                  </p>
-                </div>
-              </button>
-            );
-          })}
-        </div>
-        <p style={HELP_TEXT}>
-          Cambiar el tipo no migra datos. Solo modifica qué partes de la app se muestran. Los clientes (sociedades) quedan guardados aunque pases a modo propietario.
-        </p>
 
         {/* Fotos */}
         <SectionHeader title="Fotos" />
@@ -434,13 +350,14 @@ export default function RequisitosPage() {
           />
           <RowSwitch
             icon={<HelpCircle size={16} />}
-            label="Pedir clasificación al abrir OT"
-            sub="Muestra el prompt de levantamiento/ejecución a los miembros al abrir una OT sin clasificar"
+            label="Pedir clasificación al iniciar OT"
+            sub="Al presionar Iniciar trabajo, pregunta si es levantamiento o ejecución. Aplica a todos los roles."
             value={reqs.pedir_clasificacion}
             onChange={v => update("pedir_clasificacion", v)}
             disabled={savingKey === "pedir_clasificacion"}
             last
           />
+        </div>
         </div>
       </div>
     </div>

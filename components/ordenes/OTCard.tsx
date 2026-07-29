@@ -1,7 +1,12 @@
 "use client";
 
 import React from "react";
-import { Settings2, MapPin, Clock, MessageSquare } from "lucide-react";
+import {
+  Settings2, MapPin, Clock, MessageSquare,
+  CircleDashed, PauseCircle, PlayCircle, CheckCircle2, UserCheck,
+  ArrowUpCircle, ArrowDownCircle, MinusCircle, AlertCircle,
+  type LucideIcon,
+} from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import type { OrdenListItem, Usuario, Estado, Prioridad } from "@/types/ordenes";
 import { CategoriaIcon } from "@/components/ordenes/categoria-icon";
@@ -22,7 +27,7 @@ function timeAgo(dateStr: string): string {
 
 function dueDateLabel(
   fechaTermino: string
-): { label: string; className: string } | null {
+): { label: string; color: string } | null {
   const now = new Date();
   const nowDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const due = new Date(fechaTermino);
@@ -32,13 +37,13 @@ function dueDateLabel(
   if (diffDays < 0) {
     return {
       label: `vencida hace ${Math.abs(diffDays)} día${Math.abs(diffDays) !== 1 ? "s" : ""}`,
-      className: "text-red-500",
+      color: "var(--danger)",
     };
   }
-  if (diffDays === 0) return { label: "vence hoy", className: "text-red-500" };
-  if (diffDays === 1) return { label: "vence mañana", className: "text-red-500" };
+  if (diffDays === 0) return { label: "vence hoy", color: "var(--danger)" };
+  if (diffDays === 1) return { label: "vence mañana", color: "var(--danger)" };
   if (diffDays <= 7) {
-    return { label: `vence en ${diffDays} días`, className: "text-amber-500" };
+    return { label: `vence en ${diffDays} días`, color: "var(--warning)" };
   }
   return null;
 }
@@ -47,26 +52,60 @@ function dueDateLabel(
 
 const ESTADO_CONFIG: Record<
   Estado,
-  { label: string; bg: string; color: string }
+  { label: string; icon: LucideIcon; color: string }
 > = {
-  pendiente:   { label: "Sin asignar",  bg: "#EEF1FB", color: "#273D88" },
-  en_espera:   { label: "En espera",    bg: "#fffbeb", color: "#b45309" },
-  en_curso:    { label: "En curso",     bg: "#f0f3ff", color: "#3D52A0" },
-  completado:  { label: "Completada",   bg: "#ECFDF5", color: "#059669" },
+  pendiente:   { label: "Sin asignar", icon: CircleDashed, color: "var(--st-open-dot)" },
+  en_espera:   { label: "En espera",   icon: PauseCircle,  color: "var(--st-wait-dot)" },
+  en_curso:    { label: "En curso",    icon: PlayCircle,   color: "var(--st-progress-dot)" },
+  completado:  { label: "Completada",  icon: CheckCircle2, color: "var(--st-done-dot)" },
 };
 
 // ─── Priority config ──────────────────────────────────────────────────────────
 
+// Las flechas siguen el patrón de MaintainX: el ícono lleva el color saturado y
+// la dirección comunica la intensidad. Baja y media no son señales, así que van
+// en gris; alta y urgente sí, y se ven de inmediato.
 const PRIORIDAD_CONFIG: Record<
   Prioridad,
-  { label: string; textClass: string }
+  { label: string; icon: LucideIcon; color: string }
 > = {
-  ninguna:  { label: "—",       textClass: "text-zinc-400" },
-  baja:     { label: "Baja",    textClass: "text-zinc-400" },
-  media:    { label: "Media",   textClass: "text-blue-500" },
-  alta:     { label: "Alta",    textClass: "text-orange-500" },
-  urgente:  { label: "Urgente", textClass: "text-red-500" },
+  ninguna:  { label: "Sin prioridad", icon: MinusCircle, color: "var(--pr-low)" },
+  baja:     { label: "Baja",          icon: ArrowDownCircle, color: "var(--pr-low)" },
+  media:    { label: "Media",         icon: MinusCircle, color: "var(--pr-medium)" },
+  alta:     { label: "Alta",          icon: ArrowUpCircle, color: "var(--pr-high)" },
+  urgente:  { label: "Urgente",       icon: AlertCircle, color: "var(--pr-urgent)" },
 };
+
+// ─── Badge ────────────────────────────────────────────────────────────────────
+
+/** Etiqueta sin relleno: borde de 1px, texto casi negro en peso normal y el
+ *  ícono como único portador del color. Al no teñir el fondo, el color queda
+ *  concentrado en una marca pequeña y varias etiquetas pueden convivir en la
+ *  misma fila sin competir entre sí. */
+function CardBadge({
+  icon: Icon,
+  iconColor,
+  children,
+}: {
+  icon?: LucideIcon;
+  iconColor?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <span
+      className="inline-flex items-center gap-1 px-1.5 py-0.5 text-xs font-normal border shrink-0"
+      style={{
+        borderColor: "var(--border-strong)",
+        borderRadius: "var(--r-sm)",
+        color: "var(--fg-1)",
+        background: "transparent",
+      }}
+    >
+      {Icon && <Icon className="size-3 shrink-0" style={{ color: iconColor }} />}
+      {children}
+    </span>
+  );
+}
 
 // ─── Initials helper ──────────────────────────────────────────────────────────
 
@@ -101,7 +140,7 @@ export function OTCard({
 
   const hasAssignees = (orden.asignados_ids ?? []).length > 0;
   const estadoCfg = orden.estado === "pendiente" && hasAssignees
-    ? { label: "Asignada", bg: "#F0FDF4", color: "#15803D" }
+    ? { label: "Asignada", icon: UserCheck, color: "var(--st-progress-dot)" }
     : ESTADO_CONFIG[orden.estado];
   const titulo =
     orden.titulo ||
@@ -169,8 +208,8 @@ export function OTCard({
         "w-full flex flex-col gap-2 px-4 py-3.5 cursor-pointer select-none outline-none transition-colors",
         "focus-visible:ring-1 focus-visible:ring-primary",
         isSelected
-          ? "border-l-[3px] border-l-[#273D88] bg-[#EEF1FB] border-b border-border"
-          : "border-b border-border bg-background hover:bg-[#F8F9FF]",
+          ? "border-l-[3px] border-l-[var(--brand)] bg-[var(--brand-tint)] border-b border-border"
+          : "border-b border-border bg-background hover:bg-[var(--surface-hover)]",
         isPending ? "opacity-60 pointer-events-none" : "",
       ]
         .filter(Boolean)
@@ -183,12 +222,9 @@ export function OTCard({
             Guardando…
           </Badge>
         ) : (
-          <span
-            className="inline-flex items-center px-2 py-0.5 text-xs font-semibold rounded-full"
-            style={{ backgroundColor: estadoCfg.bg, color: estadoCfg.color }}
-          >
+          <CardBadge icon={estadoCfg.icon} iconColor={estadoCfg.color}>
             {estadoCfg.label}
-          </span>
+          </CardBadge>
         )}
         <span className="text-xs text-muted-foreground shrink-0">
           {timeAgo(orden.created_at)}
@@ -218,22 +254,22 @@ export function OTCard({
           </span>
         )}
 
-        {/* Due date */}
+        {/* Due date — una fecha próxima o vencida sí es una señal, así que va
+            en etiqueta con el reloj en color; una fecha normal es solo dato. */}
         {showDue && orden.fecha_termino && (
-          <span
-            className={[
-              "inline-flex items-center gap-1 text-xs",
-              dueInfo ? dueInfo.className : "text-muted-foreground",
-            ].join(" ")}
-          >
-            <Clock className="size-3 shrink-0" />
-            {dueInfo
-              ? dueInfo.label
-              : new Date(orden.fecha_termino).toLocaleDateString("es-CL", {
-                  day: "numeric",
-                  month: "short",
-                })}
-          </span>
+          dueInfo ? (
+            <CardBadge icon={Clock} iconColor={dueInfo.color}>
+              {dueInfo.label}
+            </CardBadge>
+          ) : (
+            <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+              <Clock className="size-3 shrink-0" />
+              {new Date(orden.fecha_termino).toLocaleDateString("es-CL", {
+                day: "numeric",
+                month: "short",
+              })}
+            </span>
+          )
         )}
 
         {/* Comment count */}
@@ -246,30 +282,27 @@ export function OTCard({
 
         {/* Priority chip */}
         {showPriority && (
-          <span
-            className={[
-              "inline-flex items-center text-xs font-medium",
-              prioridadCfg.textClass,
-            ].join(" ")}
-          >
+          <CardBadge icon={prioridadCfg.icon} iconColor={prioridadCfg.color}>
             {prioridadCfg.label}
-          </span>
+          </CardBadge>
         )}
 
-        {/* Category badge */}
+        {/* Category badge — el color de la categoría (definido por el usuario)
+            se aplica solo al ícono, nunca como fondo teñido. */}
         {orden.categorias_ot?.nombre && (
           <span
-            className="inline-flex items-center px-1.5 py-0.5 text-xs font-medium rounded-md"
-            style={
-              orden.categorias_ot.color
-                ? {
-                    backgroundColor: orden.categorias_ot.color + "22",
-                    color: orden.categorias_ot.color,
-                  }
-                : undefined
-            }
+            className="inline-flex items-center gap-1 px-1.5 py-0.5 text-xs font-normal border shrink-0"
+            style={{
+              borderColor: "var(--border-strong)",
+              borderRadius: "var(--r-sm)",
+              color: "var(--fg-1)",
+              background: "transparent",
+            }}
           >
-            <span className="mr-1 inline-flex items-center">
+            <span
+              className="inline-flex items-center shrink-0"
+              style={{ color: orden.categorias_ot.color ?? "var(--fg-3)" }}
+            >
               <CategoriaIcon icono={orden.categorias_ot.icono} size={11} />
             </span>
             {orden.categorias_ot.nombre}

@@ -105,13 +105,16 @@ describe("OTRow", () => {
     expect(await screen.findByText(/Vencio/)).toBeInTheDocument();
   });
 
-  it("shows category chip when categorias_ot is present", () => {
+  // La categoría ya no se muestra en la tarjeta: se quitó junto con la
+  // descripción para que todas las filas tengan la misma altura. Sigue estando
+  // en el detalle de la OT.
+  it("does not show a category chip on the card", () => {
     const ordenWithCat = {
       ...baseOrden,
       categorias_ot: { id: "c1", nombre: "Eléctrica", icono: "⚡", color: "#F59E0B" },
     };
     render(<OTRow orden={ordenWithCat} usuarios={usuarios} isSelected={false} onClick={vi.fn()} />);
-    expect(screen.getByText("Eléctrica")).toBeInTheDocument();
+    expect(screen.queryByText("Eléctrica")).not.toBeInTheDocument();
   });
 
   it("copies N° OT to clipboard on copy button click", async () => {

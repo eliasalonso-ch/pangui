@@ -1,21 +1,29 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   AlertCircle,
   BellRing,
+  Boxes,
   Check,
+  ClipboardCheck,
   Flame,
   Loader2,
   PauseCircle,
+  Search,
   Timer,
   UserPlus,
+  Users,
+  X,
   Zap,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase";
+import { esAdmin } from "@/lib/roles";
 
-type UnitKey = "minutos" | "horas" | "dias";
+// Las unidades espejan las de la app móvil (regla-alerta/[id].tsx) para que el
+// mismo umbral se lea igual en los dos clientes.
+type UnitKey = "horas" | "diaria" | "semanal" | "mensual" | "anual";
 
 interface ReglaAlerta {
   id: string;
@@ -30,146 +38,158 @@ interface UsuarioWorkspace {
   rol: string | null;
 }
 
-const UNITS: Record<UnitKey, { label: string; toMinutes: (n: number) => number; fromMinutes: (m: number) => number }> = {
-  minutos: { label: "min",   toMinutes: n => n,        fromMinutes: m => m },
-  horas:   { label: "horas", toMinutes: n => n * 60,   fromMinutes: m => m / 60 },
-  dias:    { label: "días",  toMinutes: n => n * 1440, fromMinutes: m => m / 1440 },
+interface UsuarioOption {
+  id: string;
+  nombre: string | null;
+  cargo: string | null;
+}
+
+const UNITS: { key: UnitKey; label: string; singular: string; plural: string; multiplier: number }[] = [
+  { key: "horas",   label: "Horas",   singular: "hora",   plural: "horas",   multiplier: 60 },
+  { key: "diaria",  label: "Diaria",  singular: "día",    plural: "días",    multiplier: 1440 },
+  { key: "semanal", label: "Semanal", singular: "semana", plural: "semanas", multiplier: 10080 },
+  { key: "mensual", label: "Mensual", singular: "mes",    plural: "meses",   multiplier: 43200 },
+  { key: "anual",   label: "Anual",   singular: "año",    plural: "años",    multiplier: 525600 },
+];
+
+const unitByKey = (key: UnitKey) => UNITS.find(u => u.key === key)!;
+
+// Espejo de features/notifications/alert-rules.ts en la app móvil. Los dos
+// clientes muestran las mismas reglas con el mismo texto.
+//
+// `condicion` marca las reglas por evento: se disparan cuando ocurre algo, no
+// después de un plazo, así que no tienen umbral configurable. Móvil las trata
+// igual (regla-alerta/[id].tsx no escribe umbral_minutos para estos tipos).
+type RuleMeta = {
+  label: string;
+  description: string;
+  icon: React.ElementType;
+  color: string;
+  preferredUnit: UnitKey;
+  /** Solo en reglas por evento: resumen corto, espejo de thresholdLabel() en móvil. */
+  resumen?: string;
+  condicion?: { titulo: string; nota: string };
 };
 
-const RULE_META: Record<string, { label: string; description: string; icon: React.ElementType; color: string; preferredUnit: UnitKey }> = {
-  ot_sin_asignar: {
-    label: "OT sin asignar",
-    description: "Alerta cuando una OT abierta sigue sin técnico asignado.",
-    icon: UserPlus,
+const RULE_META: Record<string, RuleMeta> = {
+  procedimiento_completado: {
+    label: "Procedimiento completado",
+    description: "Avisa cuando un usuario completa un procedimiento que tiene activada esta notificación.",
+    icon: ClipboardCheck,
+    color: "var(--brand)",
+    preferredUnit: "horas",
+    resumen: "Al completar",
+    condicion: {
+      titulo: "Un usuario completa el procedimiento",
+      nota: "Se activa solamente en los procedimientos que tengan habilitado Avisar al completar.",
+    },
+  },
+  inventario_stock_bajo: {
+    label: "Stock bajo en inventario",
+    description: "Avisa cuando un material alcanza o baja de su stock mínimo configurado.",
+    icon: Boxes,
+    color: "var(--warning)",
+    preferredUnit: "diaria",
+    resumen: "Según stock mínimo",
+    condicion: {
+      titulo: "Stock actual igual o menor al mínimo",
+      nota: "El límite se configura individualmente en la información de cada material.",
+    },
+  },
+  ot_abierta_sin_progreso: {
+    label: "OT abierta sin progreso",
+    description: "Avisa cuando una OT asignada no registra cambios después del umbral.",
+    icon: Timer,
     color: "var(--warning)",
     preferredUnit: "horas",
-  },
-  ot_abierta_sin_asignar: {
-    label: "OT sin asignar",
-    description: "Alerta cuando una OT abierta sigue sin técnico asignado.",
-    icon: UserPlus,
-    color: "var(--warning)",
-    preferredUnit: "horas",
-  },
-  ot_urgente_sin_asignar: {
-    label: "OT urgente sin asignar",
-    description: "Escala OTs urgentes que siguen sin responsable.",
-    icon: Flame,
-    color: "var(--danger)",
-    preferredUnit: "horas",
-  },
-  ot_alta_prioridad_abierta: {
-    label: "OT urgente sin asignar",
-    description: "Escala OTs urgentes que siguen sin responsable.",
-    icon: Flame,
-    color: "var(--danger)",
-    preferredUnit: "horas",
-  },
-  ot_vencida: {
-    label: "OT vencida sin cerrar",
-    description: "Alerta cuando la fecha de vencimiento ya pasó y la OT no está completada.",
-    icon: AlertCircle,
-    color: "var(--danger)",
-    preferredUnit: "dias",
   },
   ot_bloqueada: {
-    label: "OT bloqueada demasiado",
-    description: "Detecta órdenes en espera por más tiempo del permitido.",
-    icon: PauseCircle,
-    color: "var(--warning)",
-    preferredUnit: "horas",
-  },
-  ot_en_espera_prolongada: {
-    label: "OT bloqueada demasiado",
-    description: "Detecta órdenes en espera por más tiempo del permitido.",
+    label: "OT en espera demasiado",
+    description: "Avisa cuando una OT permanece en espera más tiempo del permitido.",
     icon: PauseCircle,
     color: "var(--warning)",
     preferredUnit: "horas",
   },
   ot_en_curso_inactiva: {
     label: "OT en curso sin avance",
-    description: "Alerta cuando una OT queda en ejecución demasiado tiempo.",
+    description: "Avisa cuando una OT en ejecución no registra actividad reciente.",
     icon: Zap,
     color: "var(--danger)",
     preferredUnit: "horas",
   },
-  ot_en_curso_detenida: {
-    label: "OT en curso sin avance",
-    description: "Alerta cuando una OT queda en ejecución demasiado tiempo.",
-    icon: Zap,
+  ot_sin_asignar: {
+    label: "OT sin asignar",
+    description: "Avisa cuando una OT abierta sigue sin responsable.",
+    icon: UserPlus,
+    color: "var(--warning)",
+    preferredUnit: "horas",
+  },
+  ot_urgente_sin_asignar: {
+    label: "OT urgente sin asignar",
+    description: "Escala una OT urgente que todavía no tiene responsable.",
+    icon: Flame,
     color: "var(--danger)",
     preferredUnit: "horas",
   },
-  ot_abierta_sin_progreso: {
-    label: "OT abierta sin progreso",
-    description: "Alerta cuando una OT abierta no registra avance después del umbral.",
-    icon: Timer,
-    color: "var(--warning)",
-    preferredUnit: "horas",
-  },
-  timer_sin_iniciar: {
-    label: "Timer no iniciado",
-    description: "Recuerda iniciar el timer cuando una OT sigue sin ejecución.",
-    icon: Timer,
-    color: "var(--warning)",
-    preferredUnit: "minutos",
+  ot_vencida: {
+    label: "OT vencida sin cerrar",
+    description: "Avisa cuando pasó la fecha de término y la OT continúa abierta.",
+    icon: AlertCircle,
+    color: "var(--danger)",
+    preferredUnit: "diaria",
   },
   timer_inactivo_tecnico: {
     label: "Timer inactivo técnico",
-    description: "Alerta operacional por timer inactivo a nivel técnico.",
+    description: "Recuerda al técnico iniciar el timer de una OT asignada.",
     icon: Timer,
     color: "var(--warning)",
-    preferredUnit: "minutos",
+    preferredUnit: "horas",
   },
   timer_inactivo_supervisor: {
     label: "Timer inactivo supervisor",
     description: "Escala timers inactivos hacia supervisión.",
     icon: Timer,
     color: "var(--warning)",
-    preferredUnit: "minutos",
+    preferredUnit: "horas",
   },
   timer_inactivo_manager: {
     label: "Timer inactivo manager",
     description: "Escala timers inactivos hacia administración.",
     icon: Timer,
     color: "var(--danger)",
-    preferredUnit: "minutos",
+    preferredUnit: "horas",
   },
 };
 
-const SUPPORTED_RULE_TYPES = new Set([
-  "ot_vencida",
-  "ot_sin_asignar",
-  "ot_abierta_sin_asignar",
-  "ot_urgente_sin_asignar",
-  "ot_alta_prioridad_abierta",
-  "ot_abierta_sin_progreso",
-]);
+function ruleMeta(tipo: string): RuleMeta {
+  return RULE_META[tipo] ?? {
+    label: tipo,
+    description: "Configura el momento en que se enviará esta alerta.",
+    icon: BellRing,
+    color: "var(--brand)",
+    preferredUnit: "horas" as UnitKey,
+  };
+}
 
-function bestUnit(minutes: number | null, preferred: UnitKey): UnitKey {
+// Misma heurística que initialFrequency() en móvil: elige la unidad más grande
+// que divida exacto, para que 1440 se lea "1 día" y no "24 horas".
+function initialUnit(minutes: number | null, preferred: UnitKey): UnitKey {
   const value = minutes ?? 0;
   if (value <= 0) return preferred;
-  if (value >= 1440 && value % 1440 === 0) return "dias";
-  if (value >= 60 && value % 60 === 0) return "horas";
-  return "minutos";
+  for (const unit of [...UNITS].reverse()) {
+    if (value >= unit.multiplier && value % unit.multiplier === 0) return unit.key;
+  }
+  return "horas";
 }
 
 function displayThreshold(minutes: number | null, preferred: UnitKey) {
   if (!minutes || minutes <= 0) return "Inmediata";
-  const unit = bestUnit(minutes, preferred);
-  const value = UNITS[unit].fromMinutes(minutes);
-  return `${value} ${UNITS[unit].label}`;
+  const unit = unitByKey(initialUnit(minutes, preferred));
+  const value = Math.round(minutes / unit.multiplier);
+  return `${value} ${value === 1 ? unit.singular : unit.plural}`;
 }
 
-function Toggle({
-  checked,
-  onChange,
-  disabled,
-}: {
-  checked: boolean;
-  onChange: (checked: boolean) => void;
-  disabled?: boolean;
-}) {
+function Toggle({ checked, onChange, disabled }: { checked: boolean; onChange: (checked: boolean) => void; disabled?: boolean }) {
   return (
     <button
       type="button"
@@ -189,6 +209,7 @@ function Toggle({
         display: "inline-flex",
         alignItems: "center",
         justifyContent: checked ? "flex-end" : "flex-start",
+        flexShrink: 0,
       }}
     >
       <span style={{ width: 20, height: 20, borderRadius: "50%", background: "var(--surface-1)", boxShadow: "0 1px 3px rgba(15,23,42,.22)" }} />
@@ -196,48 +217,254 @@ function Toggle({
   );
 }
 
+function Notice({ kind, onClose, children }: { kind: "ok" | "err"; onClose?: () => void; children: React.ReactNode }) {
+  return (
+    <div style={{
+      padding: "10px 14px",
+      borderRadius: "var(--r-md)",
+      background: kind === "ok" ? "var(--success-bg)" : "var(--danger-bg)",
+      border: `1px solid ${kind === "ok" ? "var(--success)" : "var(--danger)"}`,
+      color: kind === "ok" ? "var(--st-done-fg)" : "var(--danger)",
+      fontSize: 13,
+      fontWeight: 500,
+      display: "flex",
+      alignItems: "center",
+      gap: 8,
+    }}>
+      {kind === "ok" ? <Check size={14} /> : <AlertCircle size={14} />}
+      {children}
+      {onClose && (
+        <button type="button" onClick={onClose} style={{ marginLeft: "auto", background: "none", border: "none", color: "inherit", cursor: "pointer", display: "flex" }}>
+          <X size={14} />
+        </button>
+      )}
+    </div>
+  );
+}
+
+/** Selector de destinatarios. Sin filas en reglas_alerta_usuarios la alerta va a
+ *  todo el equipo; con filas, solo a los usuarios elegidos. Misma semántica que
+ *  la pantalla `regla-alerta/usuarios` en móvil. */
+function RecipientsPicker({
+  reglaId,
+  workspaceId,
+  usuarios,
+  selected,
+  onChange,
+  onError,
+}: {
+  reglaId: string;
+  workspaceId: string;
+  usuarios: UsuarioOption[];
+  selected: Set<string>;
+  onChange: (next: Set<string>) => void;
+  onError: (message: string) => void;
+}) {
+  const [query, setQuery] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const filtered = useMemo(() => {
+    const needle = query.trim().toLocaleLowerCase("es");
+    if (!needle) return usuarios;
+    return usuarios.filter(u =>
+      (u.nombre ?? "").toLocaleLowerCase("es").includes(needle) ||
+      (u.cargo ?? "").toLocaleLowerCase("es").includes(needle)
+    );
+  }, [query, usuarios]);
+
+  async function selectAll() {
+    const previous = new Set(selected);
+    setBusy(true);
+    onChange(new Set());
+    const sb = createClient();
+    const { error } = await sb.from("reglas_alerta_usuarios").delete().eq("regla_id", reglaId);
+    setBusy(false);
+    if (error) {
+      onChange(previous);
+      onError("No se pudo guardar el cambio de destinatarios.");
+    }
+  }
+
+  async function toggle(usuarioId: string) {
+    const previous = new Set(selected);
+    const next = new Set(selected);
+    const removing = next.has(usuarioId);
+    if (removing) next.delete(usuarioId);
+    else next.add(usuarioId);
+
+    setBusy(true);
+    onChange(next);
+    const sb = createClient();
+    const { error } = removing
+      ? await sb.from("reglas_alerta_usuarios").delete().eq("regla_id", reglaId).eq("usuario_id", usuarioId)
+      : await sb.from("reglas_alerta_usuarios").insert({ regla_id: reglaId, usuario_id: usuarioId, workspace_id: workspaceId });
+    setBusy(false);
+    if (error) {
+      onChange(previous);
+      onError("No se pudo guardar el cambio de destinatarios.");
+    }
+  }
+
+  const todos = selected.size === 0;
+
+  return (
+    <div style={{ display: "grid", gap: 10 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+        <Users size={13} style={{ color: "var(--fg-3)" }} />
+        <span style={{ fontSize: 12, color: "var(--fg-3)", fontWeight: 650 }}>Destinatarios</span>
+        <span style={{ fontSize: 12, color: "var(--fg-4)" }}>
+          {todos ? "Todo el equipo" : `${selected.size} ${selected.size === 1 ? "usuario" : "usuarios"}`}
+        </span>
+        {!todos && (
+          <button
+            type="button"
+            onClick={selectAll}
+            disabled={busy}
+            style={{
+              marginLeft: "auto",
+              height: 26,
+              padding: "0 8px",
+              fontSize: 11,
+              fontWeight: 600,
+              color: "var(--fg-2)",
+              background: "var(--surface-1)",
+              border: "1px solid var(--border)",
+              borderRadius: "var(--r-sm)",
+              cursor: busy ? "default" : "pointer",
+              fontFamily: "inherit",
+            }}
+          >
+            Enviar a todos
+          </button>
+        )}
+      </div>
+
+      <div style={{ position: "relative" }}>
+        <Search size={13} style={{ position: "absolute", left: 9, top: "50%", transform: "translateY(-50%)", color: "var(--fg-4)" }} />
+        <input
+          type="text"
+          value={query}
+          onChange={e => setQuery(e.target.value)}
+          placeholder="Buscar usuarios"
+          style={{
+            width: "100%",
+            height: 32,
+            border: "1px solid var(--border)",
+            borderRadius: "var(--r-sm)",
+            background: "var(--surface-1)",
+            color: "var(--fg-1)",
+            fontSize: 12.5,
+            padding: "0 9px 0 26px",
+            fontFamily: "inherit",
+            boxSizing: "border-box",
+          }}
+        />
+      </div>
+
+      <div style={{ maxHeight: 168, overflowY: "auto", border: "1px solid var(--border)", borderRadius: "var(--r-sm)", background: "var(--surface-1)" }}>
+        {filtered.length === 0 ? (
+          <p style={{ margin: 0, padding: "12px 11px", fontSize: 12, color: "var(--fg-4)" }}>Sin resultados.</p>
+        ) : filtered.map((u, idx) => {
+          const checked = selected.has(u.id);
+          return (
+            <button
+              key={u.id}
+              type="button"
+              onClick={() => toggle(u.id)}
+              disabled={busy}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 9,
+                width: "100%",
+                textAlign: "left",
+                padding: "8px 11px",
+                background: "transparent",
+                border: "none",
+                borderBottom: idx === filtered.length - 1 ? "none" : "1px solid var(--border)",
+                cursor: busy ? "default" : "pointer",
+                fontFamily: "inherit",
+              }}
+            >
+              <span style={{
+                width: 16,
+                height: 16,
+                borderRadius: 4,
+                border: checked ? "none" : "1px solid var(--border-strong)",
+                background: checked ? "var(--brand)" : "transparent",
+                color: "var(--surface-1)",
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexShrink: 0,
+              }}>
+                {checked && <Check size={11} />}
+              </span>
+              <span style={{ flex: 1, minWidth: 0, fontSize: 12.5, color: "var(--fg-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {u.nombre ?? "Sin nombre"}
+                {u.cargo && <span style={{ color: "var(--fg-4)" }}> · {u.cargo}</span>}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      <p style={{ margin: 0, fontSize: 11.5, color: "var(--fg-4)", lineHeight: 1.45 }}>
+        Sin usuarios seleccionados la alerta llega a todo el equipo.
+      </p>
+    </div>
+  );
+}
+
 function RuleCard({
   regla,
   saving,
+  usuarios,
+  workspaceId,
+  recipients,
+  onRecipientsChange,
   onPatch,
+  onError,
 }: {
   regla: ReglaAlerta;
   saving: boolean;
+  usuarios: UsuarioOption[];
+  workspaceId: string;
+  recipients: Set<string>;
+  onRecipientsChange: (reglaId: string, next: Set<string>) => void;
   onPatch: (id: string, patch: Partial<ReglaAlerta>) => void;
+  onError: (message: string) => void;
 }) {
-  const meta = RULE_META[regla.tipo] ?? {
-    label: regla.tipo,
-    description: "Regla operacional configurada para este workspace.",
-    icon: BellRing,
-    color: "var(--brand)",
-    preferredUnit: "horas" as UnitKey,
-  };
+  const meta = ruleMeta(regla.tipo);
   const Icon = meta.icon;
-  const currentUnit = bestUnit(regla.umbral_minutos, meta.preferredUnit);
-  const [draftValue, setDraftValue] = useState(() => String(UNITS[currentUnit].fromMinutes(regla.umbral_minutos ?? 0)));
+  const currentUnit = initialUnit(regla.umbral_minutos, meta.preferredUnit);
+  const [draftValue, setDraftValue] = useState(() =>
+    String(Math.max(1, Math.round((regla.umbral_minutos ?? 0) / unitByKey(currentUnit).multiplier)))
+  );
   const [draftUnit, setDraftUnit] = useState<UnitKey>(currentUnit);
 
   function commitThreshold() {
     const n = Number.parseInt(draftValue, 10);
     if (!Number.isFinite(n) || n < 0) return;
-    onPatch(regla.id, { umbral_minutos: UNITS[draftUnit].toMinutes(n) });
+    onPatch(regla.id, { umbral_minutos: n * unitByKey(draftUnit).multiplier });
   }
 
   return (
     <div style={{
-      border: "1px solid var(--border)",
-      borderRadius: 8,
       background: "var(--surface-1)",
+      border: "1px solid var(--border)",
+      borderRadius: "var(--r-md)",
+      boxShadow: "0 1px 3px rgba(15,23,42,0.06)",
       opacity: regla.activa ? 1 : 0.62,
       overflow: "hidden",
     }}>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 14, padding: 16 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 14, padding: 20 }}>
         <div style={{ display: "flex", gap: 12, minWidth: 0 }}>
           <span style={{
             width: 38,
             height: 38,
-            borderRadius: 8,
-            background: `${meta.color}18`,
+            borderRadius: "var(--r-sm)",
+            background: `color-mix(in srgb, ${meta.color} 14%, transparent)`,
             color: meta.color,
             display: "flex",
             alignItems: "center",
@@ -247,22 +474,20 @@ function RuleCard({
             <Icon size={18} />
           </span>
           <div style={{ minWidth: 0 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-              <h2 style={{ margin: 0, color: "var(--fg-1)", fontSize: 14, fontWeight: 750 }}>{meta.label}</h2>
-              {regla.es_obligatoria && (
-                <span style={{ padding: "2px 7px", borderRadius: 999, background: "var(--danger-bg)", color: "var(--danger)", fontSize: 10.5, fontWeight: 750 }}>
-                  Obligatoria
-                </span>
-              )}
-            </div>
-            <p style={{ margin: "4px 0 0", color: "var(--fg-3)", fontSize: 12.5, lineHeight: 1.4 }}>{meta.description}</p>
+            <h2 style={{ margin: 0, color: "var(--fg-1)", fontSize: 14, fontWeight: 700 }}>{meta.label}</h2>
+            <p style={{ margin: "4px 0 0", color: "var(--fg-3)", fontSize: 12.5, lineHeight: 1.45 }}>{meta.description}</p>
             <p style={{ margin: "8px 0 0", color: "var(--fg-4)", fontSize: 11.5 }}>
-              Umbral actual: <strong style={{ color: "var(--fg-2)" }}>{displayThreshold(regla.umbral_minutos, meta.preferredUnit)}</strong>
+              {meta.condicion ? (
+                // Reglas por evento: mismo resumen que la lista en móvil.
+                <>Se activa: <strong style={{ color: "var(--fg-2)" }}>{meta.resumen}</strong></>
+              ) : (
+                <>Umbral actual: <strong style={{ color: "var(--fg-2)" }}>{displayThreshold(regla.umbral_minutos, meta.preferredUnit)}</strong></>
+              )}
             </p>
           </div>
         </div>
         <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
-          <span style={{ fontSize: 12, color: regla.activa ? "var(--success)" : "var(--fg-4)", fontWeight: 700, paddingTop: 4 }}>
+          <span style={{ fontSize: 12, color: regla.activa ? "var(--success)" : "var(--fg-4)", fontWeight: 650, paddingTop: 4 }}>
             {regla.activa ? "Activa" : "Inactiva"}
           </span>
           <Toggle checked={regla.activa} disabled={saving} onChange={activa => onPatch(regla.id, { activa })} />
@@ -270,62 +495,76 @@ function RuleCard({
       </div>
 
       {regla.activa && (
-        <div style={{
-          borderTop: "1px solid var(--border)",
-          padding: "12px 16px",
-          display: "flex",
-          alignItems: "center",
-          gap: 8,
-          flexWrap: "wrap",
-          background: "var(--surface-2)",
-        }}>
-          <span style={{ fontSize: 12, color: "var(--fg-3)", fontWeight: 650 }}>Alertar después de</span>
-          <input
-            type="number"
-            min={0}
-            value={draftValue}
-            onChange={e => setDraftValue(e.target.value)}
-            onBlur={commitThreshold}
-            onKeyDown={e => {
-              if (e.key === "Enter") (e.currentTarget as HTMLInputElement).blur();
-            }}
-            style={{
-              width: 76,
-              height: 32,
-              border: "1px solid var(--border)",
-              borderRadius: 7,
-              background: "var(--surface-1)",
-              color: "var(--fg-1)",
-              fontSize: 13,
-              fontWeight: 700,
-              padding: "0 9px",
-              fontFamily: "inherit",
-            }}
+        <div style={{ borderTop: "1px solid var(--border)", padding: "14px 20px", background: "var(--surface-0)", display: "grid", gap: 14 }}>
+          {meta.condicion ? (
+            // Regla por evento: no hay umbral que configurar. Igual que en móvil,
+            // se muestra la condición en solo lectura.
+            <div style={{ display: "grid", gap: 6 }}>
+              <span style={{ fontSize: 12, color: "var(--fg-3)", fontWeight: 650 }}>Condición</span>
+              <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
+                <Check size={15} style={{ color: "var(--success)", flexShrink: 0 }} />
+                <span style={{ fontSize: 12.5, color: "var(--fg-1)" }}>{meta.condicion.titulo}</span>
+              </div>
+              <p style={{ margin: 0, fontSize: 11.5, color: "var(--fg-4)", lineHeight: 1.45 }}>{meta.condicion.nota}</p>
+            </div>
+          ) : (
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+              <span style={{ fontSize: 12, color: "var(--fg-3)", fontWeight: 650 }}>Alertar después de</span>
+              <input
+                type="number"
+                min={1}
+                value={draftValue}
+                onChange={e => setDraftValue(e.target.value)}
+                onBlur={commitThreshold}
+                onKeyDown={e => { if (e.key === "Enter") (e.currentTarget as HTMLInputElement).blur(); }}
+                style={{
+                  width: 76,
+                  height: 32,
+                  border: "1px solid var(--border)",
+                  borderRadius: "var(--r-sm)",
+                  background: "var(--surface-1)",
+                  color: "var(--fg-1)",
+                  fontSize: 13,
+                  fontWeight: 650,
+                  padding: "0 9px",
+                  fontFamily: "inherit",
+                }}
+              />
+              <select
+                value={draftUnit}
+                onChange={e => {
+                  const nextUnit = e.target.value as UnitKey;
+                  setDraftUnit(nextUnit);
+                  const n = Number.parseInt(draftValue, 10);
+                  if (Number.isFinite(n) && n >= 0) onPatch(regla.id, { umbral_minutos: n * unitByKey(nextUnit).multiplier });
+                }}
+                style={{
+                  height: 32,
+                  border: "1px solid var(--border)",
+                  borderRadius: "var(--r-sm)",
+                  background: "var(--surface-1)",
+                  color: "var(--fg-1)",
+                  fontSize: 13,
+                  fontWeight: 600,
+                  padding: "0 9px",
+                  fontFamily: "inherit",
+                }}
+              >
+                {UNITS.map(unit => (
+                  <option key={unit.key} value={unit.key}>{unit.label}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          <RecipientsPicker
+            reglaId={regla.id}
+            workspaceId={workspaceId}
+            usuarios={usuarios}
+            selected={recipients}
+            onChange={next => onRecipientsChange(regla.id, next)}
+            onError={onError}
           />
-          <select
-            value={draftUnit}
-            onChange={e => {
-              const nextUnit = e.target.value as UnitKey;
-              setDraftUnit(nextUnit);
-              const n = Number.parseInt(draftValue, 10);
-              if (Number.isFinite(n) && n >= 0) onPatch(regla.id, { umbral_minutos: UNITS[nextUnit].toMinutes(n) });
-            }}
-            style={{
-              height: 32,
-              border: "1px solid var(--border)",
-              borderRadius: 7,
-              background: "var(--surface-1)",
-              color: "var(--fg-1)",
-              fontSize: 13,
-              fontWeight: 650,
-              padding: "0 9px",
-              fontFamily: "inherit",
-            }}
-          >
-            {(Object.keys(UNITS) as UnitKey[]).map(unit => (
-              <option key={unit} value={unit}>{UNITS[unit].label}</option>
-            ))}
-          </select>
         </div>
       )}
     </div>
@@ -337,6 +576,8 @@ export default function ReglasAlertaPage() {
   const [workspaceId, setWorkspaceId] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [reglas, setReglas] = useState<ReglaAlerta[]>([]);
+  const [usuarios, setUsuarios] = useState<UsuarioOption[]>([]);
+  const [recipients, setRecipients] = useState<Record<string, Set<string>>>({});
   const [loading, setLoading] = useState(true);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -357,7 +598,7 @@ export default function ReglasAlertaPage() {
         .eq("id", user.id)
         .maybeSingle<UsuarioWorkspace>();
 
-      const canManage = ["admin", "jefe", "owner"].includes(profile?.rol ?? "");
+      const canManage = esAdmin(profile?.rol ?? "");
       setIsAdmin(canManage);
       setWorkspaceId(profile?.workspace_id ?? null);
 
@@ -366,19 +607,44 @@ export default function ReglasAlertaPage() {
         return;
       }
 
-      const { data, error: fetchError } = await sb
-        .from("reglas_alerta_workspace")
-        .select("id, tipo, activa, umbral_minutos, es_obligatoria")
-        .eq("workspace_id", profile.workspace_id)
-        .order("tipo");
+      const [reglasRes, usuariosRes] = await Promise.all([
+        sb.from("reglas_alerta_workspace")
+          .select("id, tipo, activa, umbral_minutos, es_obligatoria")
+          .eq("workspace_id", profile.workspace_id)
+          .order("tipo"),
+        sb.from("usuarios")
+          .select("id, nombre, cargo")
+          .eq("workspace_id", profile.workspace_id)
+          .order("nombre"),
+      ]);
 
-      if (fetchError) setError("No se pudieron cargar las reglas de alerta.");
-      setReglas(((data ?? []) as ReglaAlerta[]).filter(r => SUPPORTED_RULE_TYPES.has(r.tipo)));
+      if (reglasRes.error) setError("No se pudieron cargar las reglas de alerta.");
+      const rules = (reglasRes.data ?? []) as ReglaAlerta[];
+      setReglas(rules);
+      setUsuarios((usuariosRes.data ?? []) as UsuarioOption[]);
+
+      // Destinatarios por regla. Una regla sin filas notifica a todo el equipo.
+      if (rules.length > 0) {
+        const { data: links } = await sb
+          .from("reglas_alerta_usuarios")
+          .select("regla_id, usuario_id")
+          .in("regla_id", rules.map(r => r.id));
+        const grouped: Record<string, Set<string>> = {};
+        for (const row of (links ?? []) as { regla_id: string; usuario_id: string }[]) {
+          (grouped[row.regla_id] ??= new Set()).add(row.usuario_id);
+        }
+        setRecipients(grouped);
+      }
+
       setLoading(false);
     }
 
     load();
   }, [router]);
+
+  const handleRecipientsChange = useCallback((reglaId: string, next: Set<string>) => {
+    setRecipients(prev => ({ ...prev, [reglaId]: next }));
+  }, []);
 
   async function patchRegla(id: string, patch: Partial<ReglaAlerta>) {
     if (!workspaceId) return;
@@ -412,82 +678,96 @@ export default function ReglasAlertaPage() {
 
   if (loading) {
     return (
-      <div style={{ height: "100dvh", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, color: "var(--fg-4)" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "60dvh", gap: 8, color: "var(--fg-4)", fontSize: 13 }}>
         <Loader2 size={16} className="animate-spin" />
-        <span style={{ fontSize: 13 }}>Cargando reglas...</span>
+        <span>Cargando reglas...</span>
       </div>
     );
   }
 
+  // Sin height:100dvh ni overflow propios, y sin header local: el layout ya
+  // renderiza GlobalTopBar y su propio scroll. Ver configuracion/suscripcion.
   return (
-    <div style={{ height: "100dvh", overflowY: "auto", background: "var(--surface-0)" }}>
-      <header style={{
-        height: 56,
-        padding: "0 24px",
-        borderBottom: "1px solid var(--border)",
-        background: "var(--surface-1)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        position: "sticky",
-        top: 0,
-        zIndex: 2,
-      }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <BellRing size={20} style={{ color: "var(--brand)" }} />
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 7, color: saved ? "var(--success)" : "var(--fg-4)", fontSize: 12 }}>
-          {savingId ? <Loader2 size={13} className="animate-spin" /> : saved ? <Check size={13} /> : null}
-          {savingId ? "Guardando..." : saved ? "Guardado" : "Se evalúan cada hora"}
-        </div>
-      </header>
-
-      <main style={{ maxWidth: 1060, padding: "20px 24px 44px" }}>
-        {!isAdmin ? (
-          <div style={{ border: "1px solid var(--border)", borderRadius: 8, background: "var(--surface-1)", padding: 18, color: "var(--fg-2)", fontSize: 14 }}>
-            Solo administradores y jefes pueden configurar reglas de alerta.
-          </div>
-        ) : (
-          <>
-            <p style={{ margin: "0 0 16px", maxWidth: 760, color: "var(--fg-3)", fontSize: 13, lineHeight: 1.55 }}>
-              Configura cuándo se crean alertas operacionales automáticas para tu equipo.
-              Los cambios se aplican en la próxima ejecución del cron horario.
-            </p>
-
-            {error && (
-              <div style={{ marginBottom: 14, padding: "10px 12px", border: "1px solid var(--danger)", borderRadius: 8, background: "var(--danger-bg)", color: "var(--danger)", fontSize: 13, fontWeight: 650 }}>
-                {error}
+    <div style={{ background: "var(--surface-0)" }}>
+      <div style={{ padding: "28px 24px" }}>
+        <div style={{ maxWidth: 1240, margin: "0 auto", display: "flex", flexDirection: "column", gap: 20 }}>
+          {!isAdmin ? (
+            <div style={{
+              background: "var(--surface-1)",
+              border: "1px solid var(--border)",
+              borderRadius: "var(--r-md)",
+              padding: 20,
+              color: "var(--fg-2)",
+              fontSize: 14,
+            }}>
+              Solo administradores y propietarios pueden configurar reglas de alerta.
+            </div>
+          ) : (
+            <>
+              <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
+                <p style={{ margin: 0, maxWidth: 760, color: "var(--fg-3)", fontSize: 13, lineHeight: 1.55 }}>
+                  Configura cuándo se crean alertas operacionales automáticas para tu equipo y quién las recibe.
+                  Los cambios se aplican en la próxima ejecución del cron horario.
+                </p>
+                <span style={{ display: "flex", alignItems: "center", gap: 7, color: saved ? "var(--success)" : "var(--fg-4)", fontSize: 12, whiteSpace: "nowrap" }}>
+                  {savingId ? <Loader2 size={13} className="animate-spin" /> : saved ? <Check size={13} /> : null}
+                  {savingId ? "Guardando..." : saved ? "Guardado" : "Se evalúan cada hora"}
+                </span>
               </div>
-            )}
 
-            <section>
-              <h2 style={{ margin: "0 0 10px", color: "var(--fg-3)", fontSize: 11, fontWeight: 750, textTransform: "uppercase", letterSpacing: 0 }}>
-                Activas ({activas.length})
-              </h2>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(360px, 1fr))", gap: 12 }}>
-                {activas.length === 0 ? (
-                  <div style={{ border: "1px dashed var(--border)", borderRadius: 8, padding: 18, color: "var(--fg-4)", fontSize: 13 }}>No hay reglas activas.</div>
-                ) : activas.map(regla => (
-                  <RuleCard key={regla.id} regla={regla} saving={savingId === regla.id} onPatch={patchRegla} />
-                ))}
-              </div>
-            </section>
+              {error && <Notice kind="err" onClose={() => setError(null)}>{error}</Notice>}
 
-            {inactivas.length > 0 && (
-              <section style={{ marginTop: 26 }}>
-                <h2 style={{ margin: "0 0 10px", color: "var(--fg-3)", fontSize: 11, fontWeight: 750, textTransform: "uppercase", letterSpacing: 0 }}>
-                  Inactivas ({inactivas.length})
-                </h2>
+              <div>
+                <p style={{ fontSize: 12, fontWeight: 700, color: "var(--fg-2)", margin: "0 0 12px", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                  Activas ({activas.length})
+                </p>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(360px, 1fr))", gap: 12 }}>
-                  {inactivas.map(regla => (
-                    <RuleCard key={regla.id} regla={regla} saving={savingId === regla.id} onPatch={patchRegla} />
+                  {activas.length === 0 ? (
+                    <div style={{ border: "1px dashed var(--border)", borderRadius: "var(--r-md)", padding: 20, color: "var(--fg-4)", fontSize: 13 }}>
+                      No hay reglas activas.
+                    </div>
+                  ) : activas.map(regla => (
+                    <RuleCard
+                      key={regla.id}
+                      regla={regla}
+                      saving={savingId === regla.id}
+                      usuarios={usuarios}
+                      workspaceId={workspaceId ?? ""}
+                      recipients={recipients[regla.id] ?? new Set()}
+                      onRecipientsChange={handleRecipientsChange}
+                      onPatch={patchRegla}
+                      onError={setError}
+                    />
                   ))}
                 </div>
-              </section>
-            )}
-          </>
-        )}
-      </main>
+              </div>
+
+              {inactivas.length > 0 && (
+                <div>
+                  <p style={{ fontSize: 12, fontWeight: 700, color: "var(--fg-2)", margin: "0 0 12px", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                    Inactivas ({inactivas.length})
+                  </p>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(360px, 1fr))", gap: 12 }}>
+                    {inactivas.map(regla => (
+                      <RuleCard
+                        key={regla.id}
+                        regla={regla}
+                        saving={savingId === regla.id}
+                        usuarios={usuarios}
+                        workspaceId={workspaceId ?? ""}
+                        recipients={recipients[regla.id] ?? new Set()}
+                        onRecipientsChange={handleRecipientsChange}
+                        onPatch={patchRegla}
+                        onError={setError}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

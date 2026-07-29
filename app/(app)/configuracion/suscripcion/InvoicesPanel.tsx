@@ -67,9 +67,9 @@ export function InvoicesPanel() {
             Aquí encontrarás los cobros generados por tu suscripción mediante Flow.cl.
           </p>
           <p style={{ margin: "6px 0 0", color: "var(--fg-3)", fontSize: 12.5, lineHeight: 1.5 }}>
-            Flow.cl envía el comprobante de cada cobro al correo del pagador. El documento
-            tributario es la boleta de honorarios electrónica, que enviamos por separado al
-            email de cobros del espacio de trabajo.
+            Cada mes Flow.cl envía el link de pago al email de cobros, y el comprobante una vez
+            pagado. El documento tributario es la boleta de honorarios electrónica, que
+            enviamos por separado al mismo correo.
           </p>
         </div>
 
@@ -89,7 +89,7 @@ export function InvoicesPanel() {
               <ReceiptText size={42} style={{ color: "var(--fg-4)", marginBottom: 14 }} />
               <p style={{ margin: 0, color: "var(--fg-1)", fontSize: 16, fontWeight: 600 }}>Aún no hay documentos</p>
               <p style={{ margin: "6px 0 0", maxWidth: 390, color: "var(--fg-3)", fontSize: 13, lineHeight: 1.5 }}>
-                Los cobros aparecerán aquí cuando Flow.cl genere el primer importe de tu suscripción.
+                Aparecerán aquí una vez que pagues el primer link que Flow.cl envía al email de cobros.
               </p>
             </div>
           ) : (

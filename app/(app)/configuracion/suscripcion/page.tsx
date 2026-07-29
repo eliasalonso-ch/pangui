@@ -265,6 +265,24 @@ function SuscripcionPageInner() {
             </div>
           )}
 
+          {/* Suscripción creada esperando el pago del link. Sin este aviso el
+              usuario solo ve "Pago atrasado" en rojo, que no le dice qué hacer
+              ni que el link ya está en su correo. */}
+          {sub?.status === "past_due" && (
+            <div style={{ ...card, border: "1px solid var(--warning)", background: "var(--st-wait-bg)" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
+                <AlertCircle size={16} style={{ color: "var(--warning)" }} />
+                <p style={{ ...sectionLabel, color: "var(--warning)" }}>Esperando el pago</p>
+              </div>
+              <p style={{ fontSize: 14, color: "var(--fg-1)", margin: 0, lineHeight: 1.5 }}>
+                Flow.cl envió el link de pago de <strong>{currentPlan?.name ?? sub.plan_key}</strong> a {customer?.email ?? "tu email de cobros"}. El plan se activa apenas se confirme el pago.
+              </p>
+              <p style={{ fontSize: 13, color: "var(--fg-2)", margin: "6px 0 0", lineHeight: 1.5 }}>
+                Si no lo encuentras, revisa la carpeta de spam. Mientras tanto conservas tu plan anterior.
+              </p>
+            </div>
+          )}
+
           {isTrial && (
             <div style={{ ...card, background: "linear-gradient(135deg, var(--brand-tint), var(--surface-1))" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
@@ -400,7 +418,7 @@ function SuscripcionPageInner() {
               })}
             </div>
             <p style={{ fontSize: 12, color: "var(--fg-4)", margin: "12px 0 0", display: "flex", alignItems: "center", gap: 6 }}>
-              <CreditCard size={12} /> Pagos y tarjetas procesados por Flow.cl. Pangui no almacena los datos completos de tarjeta.
+              <CreditCard size={12} /> Al elegir un plan, Flow.cl envía un link de pago al email de cobros. El plan se activa al confirmarse el pago.
             </p>
           </div>
 
@@ -848,10 +866,12 @@ function Centered({ children }: { children: React.ReactNode }) {
 
 function CheckoutRedirectOverlay({ planKey }: { planKey: RedirectAction }) {
   const plan = planKey === "card_change" ? null : PLANS.find(p => p.key === planKey);
-  const title = planKey === "card_change" ? "Te llevamos a Flow.cl" : "Te llevamos a pagos seguros";
+  // Elegir plan ya no redirige a Flow: se crea la suscripción y Flow envía el
+  // link de pago por email. El overlay solo cubre la espera mientras se crea.
+  const title = planKey === "card_change" ? "Te llevamos a Flow.cl" : "Creando tu suscripción";
   const body = planKey === "card_change"
     ? "En unos segundos verás la pantalla de Flow.cl para actualizar tu tarjeta de forma segura."
-    : `Estamos preparando tu suscripción a ${plan?.name ?? "tu plan"}. En unos segundos verás la pantalla de Flow.cl para ingresar tu tarjeta.`;
+    : `Estamos activando tu suscripción a ${plan?.name ?? "tu plan"}. Flow.cl te enviará el link de pago por correo en unos minutos.`;
 
   return (
     <div style={{
@@ -919,14 +939,19 @@ function CheckoutRedirectOverlay({ planKey }: { planKey: RedirectAction }) {
 }
 
 function statusLabel(s: string) {
-  return ({ trialing: "En prueba", active: "Activa", past_due: "Pago atrasado", unpaid: "Sin pagar", canceled: "Cancelada", basic_free: "Basic (gratis)" } as Record<string, string>)[s] ?? s;
+  // past_due = "Pendiente de pago": con link de pago mensual este estado cubre
+  // tanto una suscripción recién creada como una renovación sin pagar. "Pago
+  // atrasado" alarmaba a quien acababa de suscribirse.
+  return ({ trialing: "En prueba", active: "Activa", past_due: "Pendiente de pago", unpaid: "Sin pagar", canceled: "Cancelada", basic_free: "Basic (gratis)" } as Record<string, string>)[s] ?? s;
 }
 
 function statusPill(s: string): React.CSSProperties {
   const palette: Record<string, { bg: string; fg: string }> = {
     trialing: { bg: "var(--brand-tint)", fg: "var(--brand-fg)" },
     active: { bg: "var(--success-bg)", fg: "var(--st-done-fg)" },
-    past_due: { bg: "var(--danger-bg)", fg: "var(--danger)" },
+    // Ámbar, no rojo: con link de pago este estado es la espera normal entre
+    // suscribirse y pagar, no una falla.
+    past_due: { bg: "var(--st-wait-bg)", fg: "var(--warning)" },
     unpaid: { bg: "var(--danger-bg)", fg: "var(--danger)" },
     canceled: { bg: "var(--surface-hover)", fg: "var(--fg-2)" },
     basic_free: { bg: "var(--st-wait-bg)", fg: "var(--st-wait-fg)" },

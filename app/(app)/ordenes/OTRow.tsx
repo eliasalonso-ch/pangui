@@ -2,34 +2,127 @@
 
 import { useState, useRef, useEffect, useMemo, memo } from "react";
 import { createPortal } from "react-dom";
-import { Clock, MapPin, Copy, Check as CheckIcon, AlertCircle, UserPlus, X as XIcon, CheckCircle2, Circle } from "lucide-react";
+import {
+  Clock, MapPin, Copy, Check as CheckIcon, AlertCircle, UserPlus, X as XIcon,
+  CheckCircle2, Circle,
+  Minus, Pause, Check, User as UserIcon,
+  ArrowUp, ArrowDown,
+  type LucideIcon,
+} from "lucide-react";
 import { parseDescMeta, updateOrden } from "@/lib/ordenes-api";
 import type { OrdenListItem, Usuario, Estado, Prioridad } from "@/types/ordenes";
-import { CategoriaIcon } from "@/components/ordenes/categoria-icon";
 import { chileDateKey, dateKey, daysBetweenKeys } from "./date-utils";
 
-// Status and priority now use CSS custom properties from v2 token system
-const ESTADO: Record<Estado, { label: string; bg: string; color: string; dot: string }> = {
-  pendiente:   { label: "Sin asignar", bg: "var(--st-open-bg)",     color: "var(--st-open-fg)",     dot: "var(--st-open-dot)"     },
-  en_espera:   { label: "En espera",   bg: "var(--st-wait-bg)",     color: "var(--st-wait-fg)",     dot: "var(--st-wait-dot)"     },
-  en_curso:    { label: "En curso",    bg: "var(--st-progress-bg)", color: "var(--st-progress-fg)", dot: "var(--st-progress-dot)" },
-  completado:  { label: "Completada",  bg: "var(--st-done-bg)",     color: "var(--st-done-fg)",     dot: "var(--st-done-dot)"     },
+/** Punto lleno perfectamente simétrico, para estados que no tienen un glifo
+ *  direccional natural. */
+const FilledDot: LucideIcon = ((props: { size?: number; color?: string }) => (
+  <svg width={props.size} height={props.size} viewBox="0 0 24 24" style={{ display: "block" }}>
+    <circle cx="12" cy="12" r="6" fill={props.color ?? "currentColor"} />
+  </svg>
+)) as unknown as LucideIcon;
+
+/** Triángulo de alerta sólido con el signo en blanco. A diferencia del resto
+ *  de los estados no va sobre un disco: la forma misma es la señal, que es
+ *  justo lo que distingue a "urgente" del resto. Dibujado a medida porque el
+ *  `AlertTriangle` de lucide es de trazo, no relleno. */
+const AlertTriangleSolid: LucideIcon = ((props: { size?: number; color?: string }) => (
+  <svg width={props.size} height={props.size} viewBox="0 0 24 24" style={{ display: "block" }}>
+    {/* Triángulo redondeado, ópticamente centrado en el viewBox. */}
+    <path
+      d="M12 3.2c-.62 0-1.19.33-1.5.86L2.6 18.05a1.73 1.73 0 0 0 1.5 2.6h15.8a1.73 1.73 0 0 0 1.5-2.6L13.5 4.06A1.73 1.73 0 0 0 12 3.2Z"
+      fill={props.color ?? "currentColor"}
+    />
+    {/* Signo de exclamación calado en blanco. */}
+    <rect x="10.75" y="8.6" width="2.5" height="6.2" rx="1.25" fill="#FFFFFF" />
+    <circle cx="12" cy="17.5" r="1.35" fill="#FFFFFF" />
+  </svg>
+)) as unknown as LucideIcon;
+
+
+// Estado y prioridad se muestran como etiquetas sin relleno: borde de 1px,
+// texto casi negro en peso normal y el ícono como único portador del color.
+const ESTADO: Record<Estado, { label: string; icon: LucideIcon; color: string }> = {
+  pendiente:   { label: "Sin asignar", icon: Minus, color: "var(--st-open-dot)"     },
+  en_espera:   { label: "En espera",   icon: Pause, color: "var(--st-wait-dot)"     },
+  // `Play` no sirve aquí: su triángulo está desplazado a la derecha dentro del
+  // viewBox y se ve descentrado en el disco. Un punto lleno es simétrico.
+  en_curso:    { label: "En curso",    icon: FilledDot, color: "var(--st-progress-dot)" },
+  completado:  { label: "Completada",  icon: Check, color: "var(--st-done-dot)"     },
 };
 
 const ESTADO_ASIGNADA = {
   label: "Asignada",
-  bg:    "var(--st-progress-bg)",
-  color: "var(--st-progress-fg)",
-  dot:   "var(--st-progress-dot)",
+  icon:  UserIcon,
+  color: "var(--st-progress-dot)",
 };
 
-const PRIORIDAD: Record<Prioridad, { label: string; bg: string; color: string }> = {
-  ninguna: { label: "",        bg: "transparent",          color: "transparent"       },
-  baja:    { label: "Baja",    bg: "var(--surface-hover)", color: "var(--pr-low)"     },
-  media:   { label: "Media",   bg: "var(--brand-tint)",    color: "var(--pr-medium)"  },
-  alta:    { label: "Alta",    bg: "var(--st-wait-bg)",    color: "var(--pr-high)"    },
-  urgente: { label: "Urgente", bg: "var(--danger-bg)",     color: "var(--pr-urgent)"  },
+// La dirección de la flecha comunica la intensidad y el color la refuerza:
+// verde → azul → naranja → rojo.
+const PRIORIDAD: Record<Prioridad, { label: string; icon: LucideIcon; color: string; bare?: boolean }> = {
+  ninguna: { label: "",        icon: Minus,     color: "transparent"      },
+  baja:    { label: "Baja",    icon: ArrowDown, color: "var(--success)"   },
+  media:   { label: "Media",   icon: Minus,     color: "var(--brand)"     },
+  alta:    { label: "Alta",    icon: ArrowUp,   color: "var(--pr-high)"   },
+  urgente: { label: "Urgente", icon: AlertTriangleSolid, color: "var(--pr-urgent)", bare: true },
 };
+
+/** Ícono sólido: disco de color con el glifo en blanco. Concentra el color en
+ *  una marca pequeña y densa, sin teñir el fondo de la etiqueta.
+ *
+ *  `bare` omite el disco para los íconos que ya traen su propia forma sólida
+ *  (el triángulo de urgente): meterlos en un círculo los encogería y perdería
+ *  la silueta que los hace reconocibles. */
+function SolidIcon({ icon: Icon, color, size = 16, bare }: { icon: LucideIcon; color: string; size?: number; bare?: boolean }) {
+  if (bare) {
+    return <Icon size={size} color={color} style={{ display: "block", flexShrink: 0 }} />;
+  }
+  return (
+    <span style={{
+      display: "inline-flex", alignItems: "center", justifyContent: "center",
+      // `minWidth`/`minHeight` además de width/height: el disco es hijo de un
+      // flex y sin el mínimo el algoritmo lo comprime cuando falta espacio.
+      width: size, height: size, minWidth: size, minHeight: size,
+      borderRadius: "50%",
+      background: color, flexShrink: 0,
+      // `lineHeight: 0` evita que el SVG se apoye en la línea base del texto.
+      lineHeight: 0,
+    }}>
+      {/* El SVG también es un flex item y también se encoge: sin flexShrink:0
+          se deforma bajo presión horizontal y deja de verse centrado. */}
+      <Icon size={size - 5} strokeWidth={3} color="#FFFFFF" style={{ display: "block", flexShrink: 0 }} />
+    </span>
+  );
+}
+
+/** Etiqueta sin relleno: borde de 1px, texto casi negro en peso normal y el
+ *  ícono sólido como único portador del color. */
+function RowBadge({
+  icon: Icon,
+  iconColor,
+  bareIcon,
+  children,
+}: {
+  icon?: LucideIcon;
+  iconColor?: string;
+  bareIcon?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <span style={{
+      display: "inline-flex", alignItems: "center", gap: 5,
+      fontSize: "var(--fs-xs)", fontWeight: 400,
+      padding: "2px 7px",
+      border: "1px solid var(--border-strong)",
+      borderRadius: "var(--r-sm)",
+      color: "var(--fg-1)",
+      background: "transparent",
+      whiteSpace: "nowrap",
+    }}>
+      {Icon && <SolidIcon icon={Icon} color={iconColor ?? "var(--fg-3)"} bare={bareIcon} />}
+      {children}
+    </span>
+  );
+}
 
 function timeAgo(dateStr: string): string {
   const diff = Math.floor((Date.now() - new Date(dateStr).getTime()) / 60000);
@@ -280,7 +373,9 @@ interface Props {
   todayKey?:         string;
 }
 
-function OTRow({ orden, rowNumber, usuarios, isSelected, onClick, onPrefetch, myId, onAssigned, coordinadaPara, isMarcada, onToggleMarcada, todayKey }: Props) {
+// `rowNumber` sigue en Props porque el contenedor lo pasa, pero ya no se
+// muestra: el nÃºmero correlativo no aportaba y competÃ­a con el NÂ° de OT real.
+function OTRow({ orden, usuarios, isSelected, onClick, onPrefetch, myId, onAssigned, coordinadaPara, isMarcada, onToggleMarcada, todayKey }: Props) {
   const effectiveTodayKey = todayKey ?? chileDateKey();
   const isPending = Boolean(orden._pending);
   const hasAssignees = (orden.asignados_ids ?? []).length > 0;
@@ -334,7 +429,17 @@ function OTRow({ orden, rowNumber, usuarios, isSelected, onClick, onPrefetch, my
       }}
       onFocus={() => { if (!isPending) onPrefetch?.(orden.id); }}
       style={{
-        padding: "14px 20px",
+        padding: "16px 20px",
+        // Altura fija: todas las tarjetas miden lo mismo aunque el tÃ­tulo, la
+        // ubicaciÃ³n o el nÃºmero de etiquetas cambien.
+        height: 124,
+        boxSizing: "border-box",
+        display: "flex",
+        flexDirection: "column",
+        justifyContent: "center",
+        // El `gap` reemplaza a los mÃ¡rgenes sueltos de cada fila: separaciÃ³n
+        // uniforme entre cabecera, tÃ­tulo, ITO y etiquetas.
+        gap: 6,
         background: isSelected ? "var(--brand-tint)" : "var(--surface-1)",
         borderBottom: "1px solid var(--divider)",
         borderLeft: isSelected ? "3px solid var(--brand)" : "3px solid transparent",
@@ -345,11 +450,8 @@ function OTRow({ orden, rowNumber, usuarios, isSelected, onClick, onPrefetch, my
       onMouseLeave={e => { if (!isSelected) e.currentTarget.style.background = "var(--surface-1)"; }}
     >
       {/* Top: row number + NÂ°OT + due date */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 5 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", }}>
         <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <span style={{ fontSize: "var(--fs-2xs)", fontWeight: 700, color: "var(--fg-4)", minWidth: 16, textAlign: "right", flexShrink: 0 }}>
-            {rowNumber}
-          </span>
           {meta.nOT && (
             <span style={{ display: "flex", alignItems: "center", gap: 3 }}>
               <span style={{ fontSize: "var(--fs-xs)", fontWeight: 600, color: "var(--brand-fg)", fontFamily: "var(--font-mono)", letterSpacing: "0.02em" }}>
@@ -370,9 +472,10 @@ function OTRow({ orden, rowNumber, usuarios, isSelected, onClick, onPrefetch, my
         </span>
         <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
           {due && (
-            <span style={{ display: "flex", alignItems: "center", gap: 3, fontSize: "var(--fs-xs)", fontWeight: 600, color: due.overdue ? "var(--danger)" : "var(--warning)" }}>
-              {due.overdue && <AlertCircle size={11} />}
-              <Clock size={10} />
+            <span style={{ display: "flex", alignItems: "center", gap: 3, fontSize: "var(--fs-xs)", fontWeight: 400, color: "var(--fg-1)" }}>
+              {due.overdue
+                ? <AlertCircle size={11} style={{ color: "var(--danger)", flexShrink: 0 }} />
+                : <Clock size={10} style={{ color: "var(--warning)", flexShrink: 0 }} />}
               {due.text}
             </span>
           )}
@@ -397,72 +500,51 @@ function OTRow({ orden, rowNumber, usuarios, isSelected, onClick, onPrefetch, my
         </span>
       </div>
 
-      {/* Title */}
-      <HoverTooltip label="TÃ­tulo" body={titulo} triggerStyle={{ margin: "0 0 6px" }}>
+      {/* Title â€” una sola lÃ­nea con elipsis. La descripciÃ³n se quitÃ³ a propÃ³sito:
+          era la fila de alto variable. El detalle completo estÃ¡ a un clic. */}
+      <HoverTooltip label="TÃ­tulo" body={titulo} triggerStyle={{ margin: 0 }}>
         <p style={{
           fontSize: "var(--fs-base)", fontWeight: 600, color: "var(--fg-1)",
           lineHeight: 1.4, margin: 0,
-          display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden",
+          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
         }}>
           {titulo}
         </p>
       </HoverTooltip>
 
-      {/* Description */}
-      {meta.descripcion && (
-        <HoverTooltip label="DescripciÃ³n" body={meta.descripcion} triggerStyle={{ margin: "0 0 6px" }}>
-          <p style={{
-            fontSize: "var(--fs-sm)", color: "var(--fg-2)", margin: 0,
-            display: "-webkit-box", WebkitLineClamp: 1, WebkitBoxOrient: "vertical",
-            overflow: "hidden", lineHeight: 1.5,
-          }}>
-            {meta.descripcion}
-          </p>
-        </HoverTooltip>
-      )}
-
-      {/* Hito */}
-      {meta.hito && (
-        <p style={{ fontSize: "var(--fs-xs)", color: "var(--fg-2)", margin: "0 0 7px", display: "flex", alignItems: "center", gap: 4 }}>
-          <span style={{ color: "var(--fg-4)" }}>ITO:</span> {meta.hito}
-        </p>
-      )}
+      {/* ITO â€” altura reservada siempre, con o sin valor, para que las tarjetas
+          con y sin ITO midan exactamente lo mismo. */}
+      <p style={{
+        fontSize: "var(--fs-sm)", color: "var(--fg-3)", margin: 0,
+        height: 18, lineHeight: "18px",
+        overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+      }}>
+        {meta.hito && <><span style={{ color: "var(--fg-4)" }}>ITO:</span> {meta.hito}</>}
+      </p>
 
       {/* Bottom row */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 5, flexWrap: "wrap", flex: 1, minWidth: 0 }}>
+        {/* `nowrap` + `overflow: hidden`: si las etiquetas se envolvieran a una
+            segunda lÃ­nea la tarjeta crecerÃ­a y se romperÃ­a la altura uniforme. */}
+        <div style={{ display: "flex", alignItems: "center", gap: 5, flexWrap: "nowrap", flex: 1, minWidth: 0, overflow: "hidden" }}>
 
           {/* Status pill */}
-          <span style={{
-            display: "inline-flex", alignItems: "center", gap: 4,
-            fontSize: "var(--fs-xs)", fontWeight: 600, padding: "3px 8px",
-            background: estado.bg, color: estado.color, borderRadius: "var(--r-sm)",
-          }}>
-            <span style={{ width: 5, height: 5, borderRadius: "50%", background: estado.dot, flexShrink: 0 }} />
+          <RowBadge icon={estado.icon} iconColor={estado.color}>
             {estado.label}
-          </span>
+          </RowBadge>
 
           {/* Coordinated date â€” only shown inside the Reprogramadas tab. */}
           {coordinadaPara && (
-            <span style={{
-              display: "inline-flex", alignItems: "center", gap: 4,
-              fontSize: "var(--fs-xs)", fontWeight: 600, padding: "3px 8px",
-              background: "var(--success-bg)", color: "var(--success)",
-              borderRadius: "var(--r-sm)",
-            }}>
-              <Clock size={11} />
+            <RowBadge icon={Clock} iconColor="var(--success)">
               Coordinada para {new Date(coordinadaPara + "T00:00:00").toLocaleDateString("es-CL", { day: "numeric", month: "short" })}
-            </span>
+            </RowBadge>
           )}
 
           {/* Priority */}
           {orden.prioridad !== "ninguna" && (
-            <span style={{
-              fontSize: "var(--fs-xs)", fontWeight: 600, padding: "3px 8px",
-              background: prio.bg, color: prio.color, borderRadius: "var(--r-sm)",
-            }}>
+            <RowBadge icon={prio.icon} iconColor={prio.color} bareIcon={prio.bare}>
               {prio.label}
-            </span>
+            </RowBadge>
           )}
 
           {/* Location */}
@@ -477,18 +559,6 @@ function OTRow({ orden, rowNumber, usuarios, isSelected, onClick, onPrefetch, my
             </HoverTooltip>
           )}
 
-          {/* Category */}
-          {orden.categorias_ot?.nombre && (
-            <span style={{
-              display: "inline-flex", alignItems: "center", gap: 3,
-              fontSize: "var(--fs-xs)", fontWeight: 500, padding: "2px 7px", borderRadius: "var(--r-sm)",
-              background: (orden.categorias_ot.color ?? "var(--fg-3)") + "20",
-              color: orden.categorias_ot.color ?? "var(--fg-3)",
-            }}>
-              <CategoriaIcon icono={orden.categorias_ot.icono} size={11} />
-              {orden.categorias_ot.nombre}
-            </span>
-          )}
         </div>
 
         {/* Right: time + avatars */}

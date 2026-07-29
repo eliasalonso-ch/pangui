@@ -19,6 +19,7 @@ import {
   Type, DollarSign, List, ListChecks, AlertCircle, ImagePlus, FolderOpen,
   Lock, LockOpen, Mic, MicOff, Volume2, GitBranch, Wrench, Link as LinkIcon,
   Phone, Mail, Circle,
+  Minus, ArrowUp, ArrowDown,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { LinksDisplay } from "@/components/LinksInput";
@@ -96,7 +97,7 @@ function GrupoFotosCard({ grupo, canManage, canUpload, uploading, fileInputRef, 
               autoFocus
               value={titulo}
               onChange={e => setTitulo(e.target.value)}
-              style={{ height: 32, padding: "0 8px", border: "1px solid #2563EB", borderRadius: "var(--r-sm)", fontSize: 13, fontWeight: 600, outline: "none", fontFamily: "inherit" }}
+              style={{ height: 32, padding: "0 8px", border: "1px solid var(--brand)", borderRadius: "var(--r-sm)", fontSize: 13, fontWeight: 600, outline: "none", fontFamily: "inherit" }}
             />
             <input
               value={desc}
@@ -213,7 +214,7 @@ function GrupoFotosCard({ grupo, canManage, canUpload, uploading, fileInputRef, 
                   onClick={() => localFileRef.current?.click()}
                   disabled={uploading}
                   style={{
-                    aspectRatio: "1", border: "1.5px dashed #CBD5E1", borderRadius: "var(--r-sm)",
+                    aspectRatio: "1", border: "1.5px dashed var(--border-strong)", borderRadius: "var(--r-sm)",
                     background: "var(--surface-0)", display: "flex", flexDirection: "column",
                     alignItems: "center", justifyContent: "center", gap: 3,
                     cursor: uploading ? "default" : "pointer", color: "var(--fg-4)",
@@ -252,6 +253,96 @@ const PRIORIDADES: { value: Prioridad; label: string; color: string }[] = [
   { value: "alta",    label: "Alta",          color: "text-orange-500" },
   { value: "urgente", label: "Urgente",       color: "text-red-600" },
 ];
+
+// La dirección de la flecha comunica la intensidad y el color la refuerza:
+// verde → azul → naranja → rojo.
+type BadgeIcon = React.ComponentType<{ size?: number; color?: string; strokeWidth?: number; style?: React.CSSProperties }>;
+
+/** Triángulo de alerta sólido con el signo en blanco. A diferencia del resto
+ *  de los estados no va sobre un disco: la forma misma es la señal. Dibujado a
+ *  medida porque el `AlertTriangle` de lucide es de trazo, no relleno. */
+const AlertTriangleSolid: BadgeIcon = (props: { size?: number; color?: string }) => (
+  <svg width={props.size} height={props.size} viewBox="0 0 24 24" style={{ display: "block" }}>
+    <path
+      d="M12 3.2c-.62 0-1.19.33-1.5.86L2.6 18.05a1.73 1.73 0 0 0 1.5 2.6h15.8a1.73 1.73 0 0 0 1.5-2.6L13.5 4.06A1.73 1.73 0 0 0 12 3.2Z"
+      fill={props.color ?? "currentColor"}
+    />
+    <rect x="10.75" y="8.6" width="2.5" height="6.2" rx="1.25" fill="#FFFFFF" />
+    <circle cx="12" cy="17.5" r="1.35" fill="#FFFFFF" />
+  </svg>
+);
+
+const PRIO_ICON: Record<string, BadgeIcon> = {
+  ninguna: Minus,
+  baja:    ArrowDown,
+  media:   Minus,
+  alta:    ArrowUp,
+  urgente: AlertTriangleSolid,
+};
+
+/** Los íconos que ya traen su propia forma sólida no van dentro del disco. */
+const PRIO_BARE: Record<string, boolean> = { urgente: true };
+
+const PRIO_COLOR_SOLID: Record<string, string> = {
+  ninguna: "var(--fg-3)",
+  baja:    "var(--success)",
+  media:   "var(--brand)",
+  alta:    "var(--pr-high)",
+  urgente: "var(--pr-urgent)",
+};
+
+/** Ícono sólido: disco de color con el glifo en blanco. */
+function SolidIcon({ icon: Icon, color, size = 16, bare }: { icon: BadgeIcon; color: string; size?: number; bare?: boolean }) {
+  if (bare) {
+    return <Icon size={size} color={color} style={{ display: "block", flexShrink: 0 }} />;
+  }
+  return (
+    <span style={{
+      display: "inline-flex", alignItems: "center", justifyContent: "center",
+      // `minWidth`/`minHeight` además de width/height: el disco es hijo de un
+      // flex y sin el mínimo el algoritmo lo comprime cuando falta espacio.
+      width: size, height: size, minWidth: size, minHeight: size,
+      borderRadius: "50%",
+      background: color, flexShrink: 0,
+      // `lineHeight: 0` evita que el SVG se apoye en la línea base del texto.
+      lineHeight: 0,
+    }}>
+      {/* El SVG también es un flex item y también se encoge: sin flexShrink:0
+          se deforma bajo presión horizontal y deja de verse centrado. */}
+      <Icon size={size - 6} strokeWidth={3} color="#FFFFFF" style={{ display: "block", flexShrink: 0 }} />
+    </span>
+  );
+}
+
+/** Etiqueta sin relleno: borde de 1px, texto casi negro en peso normal y el
+ *  ícono sólido como único portador del color. Mismo patrón que OTRow. */
+function DetailBadge({
+  icon: Icon,
+  iconColor,
+  bareIcon,
+  children,
+}: {
+  bareIcon?: boolean;
+  icon?: BadgeIcon;
+  iconColor?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <span style={{
+      display: "inline-flex", alignItems: "center", gap: 6,
+      padding: "3px 9px",
+      border: "1px solid var(--border-strong)",
+      borderRadius: "var(--r-sm)",
+      background: "transparent",
+      color: "var(--fg-1)",
+      fontWeight: 400,
+      whiteSpace: "nowrap",
+    }}>
+      {Icon && <SolidIcon icon={Icon} color={iconColor ?? "var(--fg-3)"} bare={bareIcon} />}
+      {children}
+    </span>
+  );
+}
 
 const TIPO_LABEL: Record<string, string> = {
   reactiva: "Reactiva", preventiva: "Preventiva",
@@ -485,7 +576,7 @@ function SubOrdenesSection({
                 style={{
                   width: "100%", display: "flex", alignItems: "center", gap: 10,
                   padding: "14px 16px", borderRadius: "var(--r-md)",
-                  border: `1px solid ${done ? "#BBF7D0" : "var(--border)"}`,
+                  border: `1px solid ${done ? "var(--success)" : "var(--border)"}`,
                   background: done ? "var(--success-bg)" : "var(--surface-0)",
                   cursor: "pointer", textAlign: "left", fontFamily: "inherit",
                 }}
@@ -2236,6 +2327,8 @@ export default function OTDetail({
   const estadoStyle = ESTADO_STYLE[orden.estado] ?? ESTADO_STYLE.pendiente;
   const prioColor   = PRIO_COLOR[orden.prioridad] ?? "var(--pr-low)";
   const prioLabel   = PRIORIDADES.find(p => p.value === orden.prioridad)?.label ?? "Sin prioridad";
+  const prioIcon    = PRIO_ICON[orden.prioridad] ?? Minus;
+  const prioSolid   = PRIO_COLOR_SOLID[orden.prioridad] ?? "var(--fg-3)";
   const totalFotos = fotoGrupos.length > 0
     ? fotoGrupos.reduce((total, grupo) => total + (grupo.items?.length ?? 0), 0)
     : fotos.length;
@@ -2244,9 +2337,9 @@ export default function OTDetail({
     { tab: "detalle", label: "Detalles", value: "Ver", caption: "información de la OT", icon: <Info size={19} />, color: "var(--brand-fg)", tint: "var(--brand-tint)" },
     { tab: "actividad", label: "Actividad", value: String(actividad.length), caption: "eventos", icon: <CircleDot size={19} />, color: "var(--brand-fg)", tint: "var(--brand-tint)" },
     { tab: "fotos", label: "Fotos", value: String(totalFotos), caption: "fotos", icon: <Camera size={19} />, color: "var(--brand-fg)", tint: "var(--brand-tint)" },
-    { tab: "materiales", label: "Materiales", value: String(ordenPartes.length), caption: "ítems usados", icon: <Package size={19} />, color: "#7C3AED", tint: "rgba(124,58,237,0.10)" },
-    { tab: "procedimientos", label: "Procedimientos", value: otProcs.length > 0 ? `${completedProcedures}/${otProcs.length}` : "0", caption: completedProcedures === otProcs.length && otProcs.length > 0 ? "completados" : "asignados", icon: <ClipboardCheck size={19} />, color: "#EA580C", tint: "rgba(234,88,12,0.10)" },
-    { tab: "hoja", label: "Hoja de cálculo", value: "Abrir", caption: "registros", icon: <Sheet size={19} />, color: "#059669", tint: "rgba(5,150,105,0.10)" },
+    { tab: "materiales", label: "Materiales", value: String(ordenPartes.length), caption: "ítems usados", icon: <Package size={19} />, color: "var(--fg-2)", tint: "var(--surface-hover)" },
+    { tab: "procedimientos", label: "Procedimientos", value: otProcs.length > 0 ? `${completedProcedures}/${otProcs.length}` : "0", caption: completedProcedures === otProcs.length && otProcs.length > 0 ? "completados" : "asignados", icon: <ClipboardCheck size={19} />, color: "var(--fg-2)", tint: "var(--surface-hover)" },
+    { tab: "hoja", label: "Hoja de cálculo", value: "Abrir", caption: "registros", icon: <Sheet size={19} />, color: "var(--success)", tint: "var(--success-bg)" },
   ] as Array<{
     tab: Tab | null; label: string; value: string; caption: string;
     icon: React.ReactNode; color: string; tint: string;
@@ -2280,7 +2373,7 @@ export default function OTDetail({
           )}
           <div style={{ flex: 1, minWidth: 0, paddingRight: 190 }}>
             {orden.numero != null && (
-              <div style={{ display: "inline-flex", alignItems: "center", minHeight: 24, padding: "0 9px", borderRadius: 999, background: "var(--brand-tint)", color: "var(--brand-fg)", fontSize: 12, fontWeight: 700, marginBottom: 8 }}>
+              <div style={{ display: "inline-flex", alignItems: "center", minHeight: 24, padding: "0 9px", border: "1px solid var(--border-strong)", borderRadius: "var(--r-sm)", background: "transparent", color: "var(--fg-1)", fontSize: 12, fontWeight: 500, marginBottom: 8 }}>
                 OT #{orden.numero}
               </div>
             )}
@@ -2305,9 +2398,7 @@ export default function OTDetail({
               {orden.fecha_termino && (
                 <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><Calendar size={15} />Vencimiento: {fmtFechaLocal(orden.fecha_termino)}</span>
               )}
-              <span style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "3px 9px", borderRadius: 999, background: `${prioColor}18`, color: prioColor, fontWeight: 700 }}>
-                <Circle size={7} fill="currentColor" />{prioLabel}
-              </span>
+              <DetailBadge icon={prioIcon} iconColor={prioSolid} bareIcon={PRIO_BARE[orden.prioridad]}>{prioLabel}</DetailBadge>
             </div>
           </div>
           {showCloseButton && (
@@ -2482,7 +2573,7 @@ export default function OTDetail({
                 style={{
                   width: "100%", display: "flex", alignItems: "center", gap: 10,
                   marginBottom: 14, padding: "10px 12px",
-                  border: "1px solid #BFDBFE", borderRadius: "var(--r-md)",
+                  border: "1px solid var(--brand-tint-2)", borderRadius: "var(--r-md)",
                   background: "var(--brand-tint)", color: "var(--brand-fg)",
                   cursor: "pointer", textAlign: "left", fontFamily: "inherit",
                 }}
@@ -2517,9 +2608,9 @@ export default function OTDetail({
               // shows the brand blue (see button styles below).
               const STATUS_STYLE: Record<string, { bg: string }> = {
                 pendiente:  { bg: "var(--brand)" },
-                en_espera:  { bg: "#F59E0B" },        // orange
-                en_curso:   { bg: "#7C3AED" },        // purple (matches --st-running-fg family)
-                completado: { bg: "#10B981" },        // green
+                en_espera:  { bg: "var(--st-wait-dot)" },
+                en_curso:   { bg: "var(--st-progress-dot)" },
+                completado: { bg: "var(--st-done-dot)" },
               };
               return (
                 <div style={{ marginTop: 28 }}>
@@ -2671,7 +2762,7 @@ export default function OTDetail({
                 padding: "16px 18px",
                 borderRadius: "var(--r-md)",
                 background: "var(--brand-tint)",
-                border: "1px solid #BFDBFE",
+                border: "1px solid var(--brand-tint-2)",
                 display: "flex", alignItems: "flex-start", gap: 10,
               }}>
                 <Search size={16} style={{ color: "var(--brand-fg)", flexShrink: 0, marginTop: 1 }} />
@@ -2874,13 +2965,18 @@ export default function OTDetail({
             {/* Category */}
             {orden.categorias_ot?.nombre && (
               <div style={{ marginTop: 30, paddingTop: 24, borderTop: "1px solid var(--border)" }}>
+                {/* El color de la categoría solo tiñe el ícono. */}
                 <span style={{
                   display: "inline-flex", alignItems: "center", gap: 5,
-                  fontSize: 12, fontWeight: 600, padding: "4px 10px", borderRadius: "var(--r-sm)",
-                  background: (orden.categorias_ot.color ?? "var(--fg-2)") + "18",
-                  color: orden.categorias_ot.color ?? "var(--fg-2)",
+                  fontSize: 12, fontWeight: 400, padding: "4px 10px",
+                  border: "1px solid var(--border-strong)",
+                  borderRadius: "var(--r-sm)",
+                  background: "transparent",
+                  color: "var(--fg-1)",
                 }}>
-                  <CategoriaIcon icono={orden.categorias_ot.icono} size={13} />
+                  <span style={{ display: "inline-flex", flexShrink: 0, color: orden.categorias_ot.color ?? "var(--fg-3)" }}>
+                    <CategoriaIcon icono={orden.categorias_ot.icono} size={13} />
+                  </span>
                   {orden.categorias_ot.nombre}
                 </span>
               </div>
@@ -3060,7 +3156,7 @@ export default function OTDetail({
                             background: isComment ? "var(--surface-hover)" : "transparent",
                             padding: isComment ? "8px 10px" : "0",
                             borderRadius: isComment ? 6 : 0,
-                            borderLeft: isComment ? "2px solid #2563EB" : "none",
+                            borderLeft: isComment ? "2px solid var(--brand)" : "none",
                           }}>
                             {resolvedComentario}
                           </div>
@@ -3076,7 +3172,7 @@ export default function OTDetail({
                         )}
                         {act.audio_url && (
                           <div style={{ marginTop: 6, display: "flex", alignItems: "center", gap: 6 }}>
-                            <Volume2 size={13} style={{ color: "#2563EB", flexShrink: 0 }} />
+                            <Volume2 size={13} style={{ color: "var(--brand)", flexShrink: 0 }} />
                             <audio controls src={act.audio_url} style={{ height: 28 }} />
                           </div>
                         )}
@@ -3140,7 +3236,7 @@ export default function OTDetail({
                         placeholder="Título (ej. Antes del trabajo, Instrucciones...)"
                         value={newGrupoTitulo}
                         onChange={e => setNewGrupoTitulo(e.target.value)}
-                        style={{ height: 34, padding: "0 10px", border: "1px solid #E5E7EB", borderRadius: "var(--r-sm)", fontSize: 13, fontWeight: 600, color: "var(--fg-1)", outline: "none", fontFamily: "inherit", background: "var(--surface-1)" }}
+                        style={{ height: 34, padding: "0 10px", border: "1px solid var(--border)", borderRadius: "var(--r-sm)", fontSize: 13, fontWeight: 600, color: "var(--fg-1)", outline: "none", fontFamily: "inherit", background: "var(--surface-1)" }}
                         onFocus={e => { e.currentTarget.style.borderColor = "var(--brand)"; }}
                         onBlur={e => { e.currentTarget.style.borderColor = "var(--border)"; }}
                         onKeyDown={e => { if (e.key === "Enter" && newGrupoTitulo.trim()) handleCreateGrupo(); }}
@@ -3150,7 +3246,7 @@ export default function OTDetail({
                         placeholder="Descripción o instrucciones (opcional)"
                         value={newGrupoDesc}
                         onChange={e => setNewGrupoDesc(e.target.value)}
-                        style={{ height: 30, padding: "0 10px", border: "1px solid #E5E7EB", borderRadius: "var(--r-sm)", fontSize: 12, color: "var(--fg-2)", outline: "none", fontFamily: "inherit", background: "var(--surface-1)" }}
+                        style={{ height: 30, padding: "0 10px", border: "1px solid var(--border)", borderRadius: "var(--r-sm)", fontSize: 12, color: "var(--fg-2)", outline: "none", fontFamily: "inherit", background: "var(--surface-1)" }}
                         onFocus={e => { e.currentTarget.style.borderColor = "var(--brand)"; }}
                         onBlur={e => { e.currentTarget.style.borderColor = "var(--border)"; }}
                       />
@@ -3486,7 +3582,7 @@ export default function OTDetail({
 
                 {/* Attach picker */}
                 {isActive && (
-                  <div style={{ borderTop: otProcs.length > 0 ? "1px solid #F1F5F9" : "none", paddingTop: otProcs.length > 0 ? 16 : 0 }}>
+                  <div style={{ borderTop: otProcs.length > 0 ? "1px solid var(--divider)" : "none", paddingTop: otProcs.length > 0 ? 16 : 0 }}>
                     <div style={{ fontSize: 12, fontWeight: 600, color: "var(--fg-4)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 10 }}>
                       Agregar procedimiento
                     </div>
@@ -3509,7 +3605,7 @@ export default function OTDetail({
                             <button
                               onClick={() => handleAttachProc(p.id)}
                               disabled={attachingProc === p.id}
-                              style={{ height: 28, padding: "0 10px", background: "var(--brand-tint)", border: "1px solid #2563EB", borderRadius: "var(--r-sm)", cursor: "pointer", fontSize: 12, fontWeight: 600, color: "var(--brand-fg)", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 4 }}
+                              style={{ height: 28, padding: "0 10px", background: "var(--brand-tint)", border: "1px solid var(--brand)", borderRadius: "var(--r-sm)", cursor: "pointer", fontSize: 12, fontWeight: 600, color: "var(--brand-fg)", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 4 }}
                             >
                               {attachingProc === p.id ? <Loader2 size={11} className="animate-spin" /> : <Plus size={11} />}
                               Adjuntar
@@ -3615,16 +3711,16 @@ export default function OTDetail({
       {tab === "actividad" && <div style={{ flexShrink: 0, borderTop: "1px solid var(--border)", padding: "12px 16px", background: "var(--surface-1)" }}>
         {/* Recording indicator */}
         {recording && (
-          <div style={{ display: "flex", alignItems: "center", gap: 8, background: "#FEE2E2", borderRadius: 8, padding: "6px 10px", marginBottom: 8 }}>
-            <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#EF4444", display: "inline-block", animation: "pulse 1s ease-in-out infinite" }} />
-            <span style={{ fontSize: 13, color: "#B91C1C", flex: 1 }}>Grabando… {fmtRecDuration(recordingElapsed)}</span>
-            <button type="button" onClick={stopRecording} style={{ fontSize: 12, fontWeight: 600, color: "#fff", background: "#EF4444", border: "none", borderRadius: 6, padding: "3px 10px", cursor: "pointer" }}>Detener</button>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, background: "var(--danger-bg)", borderRadius: 8, padding: "6px 10px", marginBottom: 8 }}>
+            <span style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--danger)", display: "inline-block", animation: "pulse 1s ease-in-out infinite" }} />
+            <span style={{ fontSize: 13, color: "var(--danger)", flex: 1 }}>Grabando… {fmtRecDuration(recordingElapsed)}</span>
+            <button type="button" onClick={stopRecording} style={{ fontSize: 12, fontWeight: 600, color: "#fff", background: "var(--danger)", border: "none", borderRadius: 6, padding: "3px 10px", cursor: "pointer" }}>Detener</button>
           </div>
         )}
         {/* Pending audio preview */}
         {pendingAudio && !recording && (
           <div style={{ display: "flex", alignItems: "center", gap: 8, background: "var(--surface-hover)", borderRadius: 8, padding: "6px 10px", marginBottom: 8 }}>
-            <Volume2 size={14} style={{ color: "#2563EB", flexShrink: 0 }} />
+            <Volume2 size={14} style={{ color: "var(--brand)", flexShrink: 0 }} />
             <audio controls src={pendingAudio.url} preload="metadata" style={{ height: 28, flex: 1, minWidth: 0 }} />
             <button type="button" onClick={() => { URL.revokeObjectURL(pendingAudio.url); setPendingAudio(null); }} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--fg-4)", display: "flex", alignItems: "center" }}>
               <X size={14} />
@@ -3640,13 +3736,13 @@ export default function OTDetail({
             title={recording ? "Detener grabación" : "Grabar audio"}
             style={{
               width: 38, height: 38, flexShrink: 0,
-              background: recording ? "#FEE2E2" : "var(--surface-hover)",
-              border: `1px solid ${recording ? "#FCA5A5" : "var(--border)"}`,
+              background: recording ? "var(--danger-bg)" : "var(--surface-hover)",
+              border: `1px solid ${recording ? "var(--danger)" : "var(--border)"}`,
               borderRadius: "var(--r-md)", cursor: "pointer",
               display: "flex", alignItems: "center", justifyContent: "center",
             }}
           >
-            {recording ? <MicOff size={15} style={{ color: "#EF4444" }} /> : <Mic size={15} style={{ color: pendingAudio ? "#2563EB" : "var(--fg-4)" }} />}
+            {recording ? <MicOff size={15} style={{ color: "var(--danger)" }} /> : <Mic size={15} style={{ color: pendingAudio ? "var(--brand)" : "var(--fg-4)" }} />}
           </button>
           <textarea
             style={{
@@ -3740,7 +3836,7 @@ export default function OTDetail({
             </div>
 
             {/* Select all / none */}
-            <div style={{ padding: "0 20px 10px", display: "flex", gap: 8, borderTop: "1px solid #F1F5F9", paddingTop: 8 }}>
+            <div style={{ padding: "0 20px 10px", display: "flex", gap: 8, borderTop: "1px solid var(--divider)", paddingTop: 8 }}>
               <button type="button" onClick={() => setExportFields(ALL_FIELDS_ON)}
                 style={{ fontSize: 12, color: "var(--brand-fg)", background: "none", border: "none", cursor: "pointer", padding: "2px 0", fontFamily: "inherit" }}>
                 Seleccionar todo
@@ -3840,7 +3936,7 @@ export default function OTDetail({
             </div>
 
             {/* Select all / none */}
-            <div style={{ padding: "0 20px 10px", display: "flex", gap: 8, borderTop: "1px solid #F1F5F9", paddingTop: 8 }}>
+            <div style={{ padding: "0 20px 10px", display: "flex", gap: 8, borderTop: "1px solid var(--divider)", paddingTop: 8 }}>
               <button type="button" onClick={() => setPdfFields(ALL_PDF_ON)}
                 style={{ fontSize: 12, color: "var(--brand-fg)", background: "none", border: "none", cursor: "pointer", padding: "2px 0", fontFamily: "inherit" }}>
                 Seleccionar todo
@@ -4105,6 +4201,9 @@ function SignatureCanvas({
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d")!;
+    // Tinta fija a propósito: la firma se guarda como imagen y se imprime en el
+    // PDF, así que no puede seguir el tema (en oscuro quedaría blanca sobre
+    // blanco en el reporte).
     ctx.strokeStyle = "#0F172A";
     ctx.lineWidth = 2;
     ctx.lineCap = "round";
@@ -4269,7 +4368,7 @@ function PasoInput({
       disabled={isSaving || disabled}
       style={{
         height: 30, padding: "0 14px", background: "var(--brand-tint)",
-        border: "1px solid #2563EB", borderRadius: "var(--r-sm)", cursor: disabled || isSaving ? "default" : "pointer",
+        border: "1px solid var(--brand)", borderRadius: "var(--r-sm)", cursor: disabled || isSaving ? "default" : "pointer",
         fontSize: 12, fontWeight: 600, color: "var(--brand-fg)", fontFamily: "inherit",
         display: "flex", alignItems: "center", gap: 4, opacity: disabled ? 0.5 : 1,
       }}
@@ -4337,7 +4436,7 @@ function PasoInput({
             style={{
               height: 32, padding: "0 12px", borderRadius: "var(--r-sm)", cursor: "pointer",
               fontSize: 12.5, fontWeight: 500, fontFamily: "inherit", textAlign: "left",
-              border: cur === opt ? "1px solid #2563EB" : "1px solid var(--border)",
+              border: cur === opt ? "1px solid var(--brand)" : "1px solid var(--border)",
               background: cur === opt ? "var(--brand-tint)" : "var(--surface-hover)",
               color: cur === opt ? "var(--brand-fg)" : "var(--fg-1)",
               display: "flex", alignItems: "center", gap: 8,
@@ -4370,7 +4469,7 @@ function PasoInput({
               style={{
                 height: 32, padding: "0 12px", borderRadius: "var(--r-sm)", cursor: "pointer",
                 fontSize: 12.5, fontWeight: 500, fontFamily: "inherit", textAlign: "left",
-                border: isChecked ? "1px solid #10B981" : "1px solid var(--border)",
+                border: isChecked ? "1px solid var(--success)" : "1px solid var(--border)",
                 background: isChecked ? "var(--success-bg)" : "var(--surface-hover)",
                 color: isChecked ? "var(--success)" : "var(--fg-1)",
                 display: "flex", alignItems: "center", gap: 8,
@@ -4753,7 +4852,7 @@ function PasoImagenField({
   const urls = fotoUrls ?? (fotoUrl ? [fotoUrl] : []);
   const btn: React.CSSProperties = {
     height: 30, padding: "0 12px", background: "var(--brand-tint)",
-    border: "1px solid #2563EB", borderRadius: "var(--r-sm)", cursor: busy ? "default" : "pointer",
+    border: "1px solid var(--brand)", borderRadius: "var(--r-sm)", cursor: busy ? "default" : "pointer",
     fontSize: 12, fontWeight: 600, color: "var(--brand-fg)", fontFamily: "inherit",
     display: "inline-flex", alignItems: "center", gap: 4, opacity: busy ? 0.6 : 1,
   };
@@ -5001,7 +5100,7 @@ function ProcEjecucionModal({
               disabled={!canComplete || completingEjec}
               style={{
                 height: 36, padding: "0 18px",
-                background: canComplete ? "linear-gradient(135deg, #10B981, #059669)" : "var(--border)",
+                background: canComplete ? "var(--success)" : "var(--border)",
                 border: "none", borderRadius: "var(--r-md)", cursor: canComplete ? "pointer" : "default",
                 fontSize: 13, fontWeight: 600, color: canComplete ? "var(--fg-on-brand)" : "var(--fg-4)",
                 fontFamily: "inherit", display: "flex", alignItems: "center", gap: 6,
