@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { X, Check, RotateCcw, User, Clock, MapPin, Flag, ChevronDown, Search } from "lucide-react";
+import { X, Check, RotateCcw, User, UserRoundX, Clock, MapPin, Flag, ChevronDown, Search } from "lucide-react";
 import type { FiltrosState, Estado, Prioridad, TipoTrabajo, Usuario, Ubicacion, Sociedad } from "@/types/ordenes";
 
 // ── Config ────────────────────────────────────────────────────────────────────
@@ -46,6 +46,7 @@ const EMPTY: FiltrosState = {
   estados: [], prioridades: [], tipos: [],
   asignadoIds: [], ubicacionIds: [], sociedadIds: [],
   fechaVencimiento: null, sinAsignar: false, soloAsignados: false,
+  deUsuariosDadosDeBaja: false,
 };
 
 // ── Dropdown wrapper ──────────────────────────────────────────────────────────
@@ -218,6 +219,34 @@ export function FilterBar({ filtros, onChange, usuarios, ubicaciones, sociedades
         Sin asignar
         {filtros.sinAsignar && <Check size={11} />}
       </button>
+
+      {/* ── De usuarios dados de baja ──
+          Solo aparece si el workspace tiene alguno: en la mayoria el boton
+          seria ruido permanente. Sirve para encontrar de una vez el trabajo
+          que quedo asignado a alguien que ya no esta. */}
+      {usuarios.some(u => u.deleted_at) && (
+        <button
+          type="button"
+          onClick={() => set({ deUsuariosDadosDeBaja: !filtros.deUsuariosDadosDeBaja })}
+          aria-pressed={filtros.deUsuariosDadosDeBaja}
+          title="OTs asignadas a usuarios que fueron dados de baja"
+          style={{
+            display: "flex", alignItems: "center", gap: 5,
+            height: 28, padding: "0 10px",
+            border: filtros.deUsuariosDadosDeBaja ? "1.5px solid var(--brand)" : "1px solid var(--border)",
+            borderRadius: 6,
+            background: filtros.deUsuariosDadosDeBaja ? "var(--brand-tint)" : "var(--surface-1)",
+            color: filtros.deUsuariosDadosDeBaja ? "var(--brand)" : "var(--fg-2)",
+            fontSize: 12, fontWeight: filtros.deUsuariosDadosDeBaja ? 600 : 500,
+            cursor: "pointer", fontFamily: "inherit",
+            whiteSpace: "nowrap",
+          }}
+        >
+          <UserRoundX size={12} />
+          Dados de baja
+          {filtros.deUsuariosDadosDeBaja && <Check size={11} />}
+        </button>
+      )}
 
       {/* ── Fecha de vencimiento ── */}
       <FilterDropdown

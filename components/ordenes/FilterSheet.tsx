@@ -73,6 +73,7 @@ export default function FilterSheet({ filtros, setFiltros }: Props) {
       fechaVencimiento: null,
       sinAsignar: false,
       soloAsignados: false,
+      deUsuariosDadosDeBaja: false,
     })
   }
 

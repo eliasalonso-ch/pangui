@@ -322,6 +322,9 @@ export interface FiltrosState {
   fechaVencimiento: "hoy" | "manana" | "7dias" | "30dias" | "este_mes" | "vencidas" | null;
   sinAsignar: boolean;
   soloAsignados: boolean;
+  /** OTs cuyo responsable fue dado de baja: trabajo que quedo sin duenio real
+   *  cuando alguien dejo el equipo. */
+  deUsuariosDadosDeBaja: boolean;
 }
 
 export type SortOption =

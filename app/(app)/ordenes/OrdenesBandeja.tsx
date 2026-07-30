@@ -72,6 +72,7 @@ const EMPTY_FILTROS: FiltrosState = {
   fechaVencimiento: null,
   sinAsignar: false,
   soloAsignados: false,
+  deUsuariosDadosDeBaja: false,
 };
 
 // How many rows to reveal per infinite-scroll step.
@@ -670,6 +671,13 @@ export default function OrdenesBandeja({
     }
   };
 
+  // Ids de usuarios dados de baja: su trabajo asignado quedo sin duenio real
+  // cuando dejaron el equipo, y es lo que busca el filtro homonimo.
+  const dadosDeBajaIds = useMemo(
+    () => new Set(usuarios.filter(u => u.deleted_at).map(u => u.id)),
+    [usuarios],
+  );
+
   // Cache the set of OT ids whose latest pausado reason is "reprogramar",
   // so the "Solo reprogramadas" toggle is O(1) per OT.
   const reprogramadaIds = useMemo(
@@ -718,6 +726,7 @@ export default function OrdenesBandeja({
     filtros.sociedadIds.length > 0 ||
     filtros.fechaVencimiento != null ||
     filtros.sinAsignar ||
+    filtros.deUsuariosDadosDeBaja ||
     filtros.soloAsignados;
 
   // Apply filters + search + sort
@@ -784,6 +793,9 @@ export default function OrdenesBandeja({
     }
     if (filtros.sinAsignar) {
       list = list.filter(o => !o.asignados_ids || o.asignados_ids.length === 0);
+    }
+    if (filtros.deUsuariosDadosDeBaja) {
+      list = list.filter(o => (o.asignados_ids ?? []).some(id => dadosDeBajaIds.has(id)));
     }
     if (filtros.soloAsignados) {
       list = list.filter(o => o.asignados_ids && o.asignados_ids.length > 0);
@@ -950,6 +962,9 @@ export default function OrdenesBandeja({
       if (filtros.sinAsignar) {
         list = list.filter(o => !o.asignados_ids || o.asignados_ids.length === 0);
       }
+      if (filtros.deUsuariosDadosDeBaja) {
+        list = list.filter(o => (o.asignados_ids ?? []).some(id => dadosDeBajaIds.has(id)));
+      }
       if (filtros.soloAsignados) {
         list = list.filter(o => o.asignados_ids && o.asignados_ids.length > 0);
       }
@@ -1022,6 +1037,7 @@ export default function OrdenesBandeja({
   const activeFilterLabels = useMemo(() => {
     const labels: string[] = [];
     if (filtros.sinAsignar) labels.push("Sin asignar");
+    if (filtros.deUsuariosDadosDeBaja) labels.push("De usuarios dados de baja");
     if (filtros.soloAsignados) labels.push("Asignadas");
     if (filtros.asignadoIds.length) {
       const names = filtros.asignadoIds
@@ -1097,6 +1113,7 @@ export default function OrdenesBandeja({
         if (filtros.asignadoIds.length)  list = list.filter(o => filtros.asignadoIds.some(id => o.asignados_ids?.includes(id)));
         if (filtros.ubicacionIds.length) list = list.filter(o => o.ubicacion_id != null && filtros.ubicacionIds.includes(o.ubicacion_id));
         if (filtros.sinAsignar)          list = list.filter(o => !o.asignados_ids || o.asignados_ids.length === 0);
+        if (filtros.deUsuariosDadosDeBaja) list = list.filter(o => (o.asignados_ids ?? []).some(id => dadosDeBajaIds.has(id)));
         if (filtros.soloAsignados)       list = list.filter(o => o.asignados_ids && o.asignados_ids.length > 0);
         if (search.trim()) {
           const q = search.trim().replace(/\s+/g, " ").toLowerCase();
