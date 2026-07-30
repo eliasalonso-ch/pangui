@@ -16,6 +16,10 @@ import OTEditPanel from "./OTEditPanel";
 import OTFiltrosPanel from "./OTFiltrosPanel";
 import { FilterBar } from "./OTFiltrosPanel";
 import { addDaysKey, dateKey, monthEndKey, monthStartKey } from "./date-utils";
+import {
+  pendingScopeFor, esLevantamiento, esPresupuesto, estaVencida, sinProgreso,
+  type PendingScopeKey,
+} from "./pending-scope";
 import { copyHojaToOrden } from "@/lib/hojas-api";
 import { clearPendingHojaCopy, getPendingHojaCopy, type PendingHojaCopy } from "@/lib/hoja-copy-store";
 import type {
@@ -50,7 +54,6 @@ type WaitingAlert = {
   pausedAt: string | null;
 };
 
-type PendingScopeKey = "sin_asignar" | "sin_progreso" | "vencidas" | "reprogramadas" | "materiales" | "levantamientos" | "presupuestos" | "otras";
 
 function classifyWaitingReason(comment: string | null | undefined): { key: WaitingReasonKey; label: string } {
   const c = (comment ?? "").toLowerCase();
@@ -73,50 +76,6 @@ const EMPTY_FILTROS: FiltrosState = {
 
 // How many rows to reveal per infinite-scroll step.
 const VISIBLE_CHUNK = 30;
-
-// "Sin progreso": nobody has touched the OT yet — it's still in its initial
-// `pendiente` state AND the timer was never started. Any state change
-// (en_espera / en_curso / completado) or any timer activity counts as progress.
-// Gating on `estado === "pendiente"` is the primary, always-present signal;
-// the timer fields catch a pendiente OT that was started then reset.
-function sinProgreso(o: OrdenListItem): boolean {
-  if (o.estado !== "pendiente") return false;
-  if (o.en_ejecucion) return false;
-  if (o.iniciado_at) return false;
-  if ((o.tiempo_total_segundos ?? 0) > 0) return false;
-  return true;
-}
-
-// "Vencida": has a due date in the past and isn't completed.
-function estaVencida(o: OrdenListItem, todayKey: string): boolean {
-  if (o.estado === "completado" || !o.fecha_termino) return false;
-  const dueKey = dateKey(o.fecha_termino);
-  return !!dueKey && dueKey < todayKey;
-}
-
-function esLevantamiento(o: OrdenListItem): boolean {
-  return o.clasificacion === "levantamiento" || o.tipo_trabajo === "levantamiento";
-}
-
-function esPresupuesto(o: OrdenListItem): boolean {
-  return o.tipo_trabajo === "presupuesto";
-}
-
-function pendingScopeFor(
-  o: OrdenListItem,
-  reprogramadaIds: Set<string>,
-  faltanMaterialesIds: Set<string>,
-  todayKey: string,
-): PendingScopeKey {
-  if (esLevantamiento(o)) return "levantamientos";
-  if (esPresupuesto(o)) return "presupuestos";
-  if (estaVencida(o, todayKey)) return "vencidas";
-  if (!o.asignados_ids || o.asignados_ids.length === 0) return "sin_asignar";
-  if (sinProgreso(o)) return "sin_progreso";
-  if (faltanMaterialesIds.has(o.id)) return "materiales";
-  if (reprogramadaIds.has(o.id)) return "reprogramadas";
-  return "otras";
-}
 
 // Resizable list/detail split (desktop list view).
 const LIST_WIDTH_KEY = "ordenes:listWidth";
