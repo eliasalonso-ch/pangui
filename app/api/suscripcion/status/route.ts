@@ -88,7 +88,9 @@ export async function GET() {
     .select("id", { count: "exact", head: true })
     .eq("workspace_id", perfil.workspace_id)
     .eq("activo", true)
-    .eq("excluir_de_facturacion", false);
+    .eq("excluir_de_facturacion", false)
+    // Un usuario dado de baja conserva su fila para el historial, pero no se cobra.
+    .is("deleted_at", null);
 
   const activeUsers = usersActivos ?? 0;
 

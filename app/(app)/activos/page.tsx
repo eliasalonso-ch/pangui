@@ -33,6 +33,8 @@ export default async function ActivosPage({ searchParams }: PageProps) {
     sb.from("usuarios")
       .select("id,nombre,rol")
       .eq("workspace_id", wsId)
+      // Los dados de baja no pueden recibir trabajo nuevo.
+      .is("deleted_at", null)
       .order("nombre")
       .then(r => (r.data ?? []) as Usuario[]),
 

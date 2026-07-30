@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase";
 import { callEdge } from "@/lib/edge";
 import { ROL_LABEL, esAdmin, esOwner } from "@/lib/roles";
+import { puedeDarDeBaja } from "@/lib/usuarios-baja";
 import {
   Users, UserPlus, Shield, Wrench, Search, X, Loader2,
   ChevronRight, Zap, Settings2, HardHat, Sparkles, Wind,
@@ -21,6 +22,8 @@ interface Usuario {
   oficio?: string;
   created_at?: string;
   last_active?: string;
+  /** Baja definitiva: la fila queda para no romper el historial. */
+  deleted_at?: string | null;
 }
 
 interface Cuadrilla {
@@ -142,6 +145,17 @@ export default function UsuariosPage() {
   const [permSaving, setPermSaving] = useState(false);
   const [permMsg, setPermMsg] = useState<string | null>(null);
 
+  // ── Baja de usuario ───────────────────────────────────────────────────────
+  // El flujo es: reasignar el trabajo abierto -> recien ahi dar de baja. La
+  // funcion `dar_de_baja_usuario` rechaza la baja si quedan OTs abiertas, asi
+  // que la UI no puede dejar una OT sin responsable.
+  const [bajaUser, setBajaUser] = useState<Usuario | null>(null);
+  const [bajaOpen, setBajaOpen] = useState(false);
+  const [bajaAbiertas, setBajaAbiertas] = useState<number | null>(null);
+  const [bajaDestino, setBajaDestino] = useState<string>("");
+  const [bajaBusy, setBajaBusy] = useState(false);
+  const [bajaErr, setBajaErr] = useState<string | null>(null);
+
   useEffect(() => {
     async function load() {
       const sb = createClient();
@@ -157,8 +171,8 @@ export default function UsuariosPage() {
       setMyRol(perfil.rol);
 
       const { data: u1 } = await sb.from("usuarios")
-        .select("id,nombre,rol,activo,oficio,created_at,last_active")
-        .eq("workspace_id", pId).order("nombre");
+        .select("id,nombre,rol,activo,oficio,created_at,last_active,deleted_at")
+        .eq("workspace_id", pId).is("deleted_at", null).order("nombre");
       setUsuarios(u1 ?? []);
 
       const { data: cData } = await sb.from("cuadrillas")
@@ -211,6 +225,58 @@ export default function UsuariosPage() {
     }
   }
 
+  // ── Baja de usuario ───────────────────────────────────────────────────────
+  async function openBaja(usuario: Usuario) {
+    setBajaUser(usuario);
+    setBajaOpen(true);
+    setBajaErr(null);
+    setBajaDestino("");
+    setBajaAbiertas(null);
+    const sb = createClient();
+    const { count } = await sb
+      .from("ordenes_trabajo")
+      .select("id", { count: "exact", head: true })
+      .eq("workspace_id", plantaId)
+      .is("deleted_at", null)
+      .in("estado", ["pendiente", "en_espera", "en_curso", "en_revision"])
+      .contains("asignados_ids", [usuario.id]);
+    setBajaAbiertas(count ?? 0);
+  }
+
+  async function reasignarTrabajo() {
+    if (!bajaUser || !bajaDestino) return;
+    setBajaBusy(true);
+    setBajaErr(null);
+    const sb = createClient();
+    const { data, error } = await sb.rpc("reasignar_trabajo_usuario", {
+      p_desde: bajaUser.id,
+      p_hacia: bajaDestino,
+    });
+    setBajaBusy(false);
+    if (error) { setBajaErr(error.message); return; }
+    setBajaAbiertas(0);
+    setBajaErr(null);
+    setPermMsg(`${data ?? 0} OT(s) reasignadas`);
+    setTimeout(() => setPermMsg(null), 2500);
+  }
+
+  async function darDeBaja() {
+    if (!bajaUser || !myId) return;
+    setBajaBusy(true);
+    setBajaErr(null);
+    const sb = createClient();
+    const { error } = await sb.rpc("dar_de_baja_usuario", {
+      p_usuario: bajaUser.id,
+      p_actor: myId,
+    });
+    setBajaBusy(false);
+    if (error) { setBajaErr(error.message); return; }
+    setUsuarios(prev => prev.filter(u => u.id !== bajaUser.id));
+    setBajaOpen(false);
+    setBajaUser(null);
+    if (panelData && (panelData as Usuario).id === bajaUser.id) setPanelMode(null);
+  }
+
   // ── Invite user ────────────────────────────────────────────────────────────
   async function inviteUser() {
     setSaveErr(null);
@@ -231,8 +297,8 @@ export default function UsuariosPage() {
     setInviteOk({ nombre: userForm.nombre.trim(), email: userForm.email.trim(), password: userForm.password });
     const sb = createClient();
     const { data: u1 } = await sb.from("usuarios")
-      .select("id,nombre,rol,activo,oficio,created_at,last_active")
-      .eq("workspace_id", plantaId).order("nombre");
+      .select("id,nombre,rol,activo,oficio,created_at,last_active,deleted_at")
+      .eq("workspace_id", plantaId).is("deleted_at", null).order("nombre");
     setUsuarios(u1 ?? []);
   }
 
@@ -650,6 +716,20 @@ export default function UsuariosPage() {
                         >
                           {(panelData as Usuario).activo !== false ? "Desactivar" : "Activar"}
                         </button>
+                        {/* Baja definitiva: pide reasignar el trabajo abierto
+                            antes de permitirla, y conserva la fila para que el
+                            historial siga teniendo autor. */}
+                        <button
+                          type="button"
+                          onClick={() => openBaja(panelData as Usuario)}
+                          style={{
+                            flex: 1, height: 34, border: "1px solid var(--danger)", borderRadius: 6,
+                            background: "none", fontSize: 12, fontWeight: 600,
+                            color: "var(--danger)", cursor: "pointer", fontFamily: "inherit",
+                          }}
+                        >
+                          Dar de baja
+                        </button>
                       </div>
                     )}
                   </>
@@ -835,6 +915,116 @@ export default function UsuariosPage() {
       </div>
 
       {/* Permissions modal */}
+      {/* ── Baja de usuario ────────────────────────────────────────────────── */}
+      {bajaOpen && bajaUser && (
+        <div style={{
+          position: "fixed", inset: 0, zIndex: 60,
+          background: "rgba(0,0,0,0.3)",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          padding: 24,
+        }}>
+          <div style={{
+            background: "var(--surface-1)", borderRadius: "var(--r-lg)",
+            width: "100%", maxWidth: 480,
+            display: "flex", flexDirection: "column", overflow: "hidden",
+            boxShadow: "0 20px 60px rgba(0,0,0,0.15)",
+          }}>
+            <div style={{ padding: "18px 20px", borderBottom: "1px solid var(--border)" }}>
+              <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: "var(--fg-1)" }}>
+                Dar de baja a {bajaUser.nombre}
+              </h2>
+            </div>
+
+            <div style={{ padding: 20, display: "grid", gap: 16 }}>
+              {bajaAbiertas === null ? (
+                <p style={{ margin: 0, fontSize: 13, color: "var(--fg-3)" }}>Revisando trabajo asignado…</p>
+              ) : bajaAbiertas > 0 ? (
+                <>
+                  <p style={{ margin: 0, fontSize: 13.5, color: "var(--fg-1)", lineHeight: 1.55 }}>
+                    Tiene <strong>{bajaAbiertas} OT{bajaAbiertas === 1 ? "" : "s"} abierta{bajaAbiertas === 1 ? "" : "s"}</strong>.
+                    Elegí a quién pasarle ese trabajo antes de darlo de baja.
+                  </p>
+                  <div style={{ display: "grid", gap: 6 }}>
+                    <label style={{ fontSize: 12, fontWeight: 600, color: "var(--fg-2)" }}>Reasignar a</label>
+                    <select
+                      value={bajaDestino}
+                      onChange={e => setBajaDestino(e.target.value)}
+                      style={{
+                        height: 36, padding: "0 10px", fontSize: 13.5, fontFamily: "inherit",
+                        border: "1px solid var(--border)", borderRadius: "var(--r-sm)",
+                        background: "var(--surface-1)", color: "var(--fg-1)",
+                      }}
+                    >
+                      <option value="">Elegir usuario…</option>
+                      {usuarios
+                        .filter(u => u.id !== bajaUser.id && (u.activo ?? true))
+                        .map(u => <option key={u.id} value={u.id}>{u.nombre}</option>)}
+                    </select>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={reasignarTrabajo}
+                    disabled={!bajaDestino || bajaBusy}
+                    style={{
+                      height: 36, border: "1px solid var(--brand)", borderRadius: "var(--r-sm)",
+                      background: "var(--brand)", color: "var(--fg-on-brand)",
+                      fontSize: 13, fontWeight: 600, fontFamily: "inherit",
+                      cursor: (!bajaDestino || bajaBusy) ? "default" : "pointer",
+                      opacity: (!bajaDestino || bajaBusy) ? 0.55 : 1,
+                    }}
+                  >
+                    {bajaBusy ? "Reasignando…" : "Reasignar trabajo"}
+                  </button>
+                </>
+              ) : (
+                <p style={{ margin: 0, fontSize: 13.5, color: "var(--fg-1)", lineHeight: 1.55 }}>
+                  No le queda trabajo abierto. Al darlo de baja no va a poder entrar ni aparecer
+                  en los selectores, y deja de contar para la facturación. Su historial —
+                  comentarios, fotos y firmas — se conserva tal cual.
+                </p>
+              )}
+
+              {bajaErr && (
+                <p style={{ margin: 0, fontSize: 12.5, color: "var(--danger)", lineHeight: 1.5 }}>{bajaErr}</p>
+              )}
+            </div>
+
+            <div style={{
+              padding: "14px 20px", borderTop: "1px solid var(--border)",
+              display: "flex", justifyContent: "flex-end", gap: 8,
+            }}>
+              <button
+                type="button"
+                onClick={() => { setBajaOpen(false); setBajaUser(null); setBajaErr(null); }}
+                disabled={bajaBusy}
+                style={{
+                  height: 34, padding: "0 14px", fontSize: 13, fontWeight: 600, fontFamily: "inherit",
+                  border: "1px solid var(--border)", borderRadius: "var(--r-sm)",
+                  background: "var(--surface-1)", color: "var(--fg-2)", cursor: "pointer",
+                }}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={darDeBaja}
+                disabled={bajaBusy || !puedeDarDeBaja(bajaAbiertas)}
+                title={bajaAbiertas ? "Reasigná el trabajo abierto primero" : undefined}
+                style={{
+                  height: 34, padding: "0 14px", fontSize: 13, fontWeight: 600, fontFamily: "inherit",
+                  border: "1px solid var(--danger)", borderRadius: "var(--r-sm)",
+                  background: "var(--danger)", color: "#FFFFFF",
+                  cursor: (bajaBusy || !!bajaAbiertas) ? "default" : "pointer",
+                  opacity: (bajaBusy || !puedeDarDeBaja(bajaAbiertas)) ? 0.5 : 1,
+                }}
+              >
+                {bajaBusy ? "Dando de baja…" : "Dar de baja"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {permisosOpen && (
         <div style={{
           position: "fixed", inset: 0, zIndex: 50,

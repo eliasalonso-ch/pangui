@@ -38,7 +38,9 @@ export async function syncSubscriptionToUserCount(workspaceId: string): Promise<
     .select("id", { count: "exact", head: true })
     .eq("workspace_id", workspaceId)
     .eq("activo", true)
-    .eq("excluir_de_facturacion", false);
+    .eq("excluir_de_facturacion", false)
+    // Un usuario dado de baja conserva su fila para el historial, pero no se cobra.
+    .is("deleted_at", null);
 
   const extras = Math.max(0, (activeUsers ?? 0) - 1); // plan covers user #1
 
