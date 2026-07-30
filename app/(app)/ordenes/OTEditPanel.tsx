@@ -204,7 +204,9 @@ function AssigneeSelect({ usuarios, value, onChange }: {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const ref = useRef<HTMLDivElement>(null);
-  const filtered = usuarios.filter(u => u.nombre.toLowerCase().includes(query.toLowerCase()));
+  // Solo se puede asignar trabajo a usuarios vigentes; la lista completa se
+  // conserva mas abajo para resolver el nombre de los ya asignados.
+  const filtered = usuarios.filter(u => !u.deleted_at && u.nombre.toLowerCase().includes(query.toLowerCase()));
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {

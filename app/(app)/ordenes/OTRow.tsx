@@ -197,6 +197,9 @@ function AssignDropdown({ orden, usuarios, myId, onAssigned, onClose, anchorRect
 }) {
   const [saving, setSaving] = useState<string | null>(null);
   const currentIds = orden.asignados_ids ?? [];
+  // La lista incluye a los dados de baja para poder mostrar su nombre en OTs
+  // viejas; aca se filtran porque no pueden recibir trabajo nuevo.
+  const asignables = usuarios.filter(u => !u.deleted_at);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -259,10 +262,10 @@ function AssignDropdown({ orden, usuarios, myId, onAssigned, onClose, anchorRect
         </button>
       </div>
       <div style={{ maxHeight: 200, overflowY: "auto" }}>
-        {usuarios.length === 0 && (
+        {asignables.length === 0 && (
           <p style={{ padding: "10px 12px", fontSize: "var(--fs-sm)", color: "var(--fg-4)", margin: 0 }}>Sin usuarios</p>
         )}
-        {usuarios.map(u => {
+        {asignables.map(u => {
           const isAssigned = currentIds.includes(u.id);
           const isSaving = saving === u.id;
           return (

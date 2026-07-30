@@ -35,10 +35,12 @@ export default async function OrdenesPage({ searchParams }: PageProps) {
       .then(r => (r.data ?? []) as unknown as OrdenListItem[]),
 
     sb.from("usuarios")
-      .select("id,nombre,rol")
+      // Incluye a los dados de baja a proposito: son necesarios para mostrar el
+      // nombre de quien hizo una OT vieja. Los selectores de asignacion los
+      // filtran por `deleted_at` en la UI; sacarlos de la consulta hacia que el
+      // responsable de una OT completada desapareciera de la tarjeta.
+      .select("id,nombre,rol,deleted_at")
       .eq("workspace_id", wsId)
-      // Los dados de baja no pueden recibir trabajo nuevo.
-      .is("deleted_at", null)
       .order("nombre")
       .then(r => (r.data ?? []) as Usuario[]),
 

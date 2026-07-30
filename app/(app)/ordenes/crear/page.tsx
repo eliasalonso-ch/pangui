@@ -18,10 +18,12 @@ export default async function OrdenesCrearPage() {
 
   const [usuarios, ubicaciones, lugares, sociedades, activos, categorias] = await Promise.all([
     sb.from("usuarios")
-      .select("id,nombre,rol")
+      // Incluye a los dados de baja a proposito: son necesarios para mostrar el
+      // nombre de quien hizo una OT vieja. Los selectores de asignacion los
+      // filtran por `deleted_at` en la UI; sacarlos de la consulta hacia que el
+      // responsable de una OT completada desapareciera de la tarjeta.
+      .select("id,nombre,rol,deleted_at")
       .eq("workspace_id", wsId)
-      // Los dados de baja no pueden recibir trabajo nuevo.
-      .is("deleted_at", null)
       .order("nombre")
       .then(result => (result.data ?? []) as Usuario[]),
     sb.from("ubicaciones")

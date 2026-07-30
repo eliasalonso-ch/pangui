@@ -215,6 +215,9 @@ export interface Usuario {
   id: string;
   nombre: string;
   rol: RolUsuario;
+  /** Dado de baja: sigue en la lista para poder mostrar el nombre de quien hizo
+   *  una OT vieja, pero no puede recibir trabajo nuevo. */
+  deleted_at?: string | null;
 }
 
 export interface ActividadOT {

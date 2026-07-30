@@ -550,7 +550,12 @@ export default function OTFiltrosPanel({ filtros, onChange, onClose, usuarios, u
                 return (
                   <button key={u.id} type="button" onClick={() => set({ asignadoIds: toggle(filtros.asignadoIds, u.id) })} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 8px", border: "none", borderRadius: 4, background: active ? "var(--brand-tint)" : "transparent", cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}>
                     <span style={{ width: 24, height: 24, borderRadius: "50%", background: active ? "var(--brand)" : "var(--surface-hover)", color: active ? "var(--fg-on-brand)" : "var(--fg-3)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 700, flexShrink: 0 }}>{initials(u.nombre)}</span>
-                    <span style={{ flex: 1, fontSize: 12.5, color: "var(--fg-1)" }}>{u.nombre}</span>
+                    <span style={{ flex: 1, fontSize: 12.5, color: u.deleted_at ? "var(--fg-3)" : "var(--fg-1)" }}>
+                      {u.nombre}
+                      {/* Los dados de baja siguen en el filtro: sin esto no habria
+                          forma de encontrar las OTs que hicieron. */}
+                      {u.deleted_at && <span style={{ color: "var(--fg-4)" }}> · dado de baja</span>}
+                    </span>
                     {active && <Check size={12} style={{ color: "var(--brand)", flexShrink: 0 }} />}
                   </button>
                 );
