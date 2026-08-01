@@ -5,7 +5,9 @@ import {
   X, Loader2, User, MapPin, Settings2,
   CalendarDays, Tag, Check, ChevronDown, Building2, Hash, FileUp, Plus, AlertTriangle,
   Camera, ImagePlus, Trash2, Upload, Paperclip, FileText, File, DollarSign, Sparkles,
+  FolderOpen, Image as ImageIcon, ImageUp, Pencil,
 } from "lucide-react";
+import { AlbumModal } from "./AlbumModal";
 import { createClient } from "@/lib/supabase";
 import { callEdge } from "@/lib/edge";
 import { createOrden, buildDescripcion, ELECTRILAM_WORKSPACE_ID } from "@/lib/ordenes-api";
@@ -114,7 +116,7 @@ interface Props {
 }
 
 interface DraftFoto { file: File; preview: string; }
-interface DraftGrupo { id: string; titulo: string; descripcion: string; fotos: DraftFoto[]; }
+interface DraftGrupo { id: string; titulo: string; descripcion: string; tipo: "referencia" | "evidencia"; fotos: DraftFoto[]; }
 function genDraftId() { return Math.random().toString(36).slice(2); }
 
 interface FormState {
@@ -1034,6 +1036,12 @@ export default function OTCrearPanel({
   const [aiGenerating, setAiGenerating] = useState(false);
   const [grupos, setGrupos] = useState<DraftGrupo[]>([]);
   const grupoFileRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  // Mini-gallery state: which draft album the right pane shows, plus the
+  // create/edit album dialog shared with the OT detail gallery.
+  const [albumSel, setAlbumSel] = useState<string | null>(null);
+  const [albumModal, setAlbumModal] = useState<null | { mode: "crear" | "editar"; id?: string }>(null);
+  const [albumTitulo, setAlbumTitulo] = useState("");
+  const [albumTipo, setAlbumTipo] = useState<"referencia" | "evidencia">("referencia");
   const pdfInputRef = useRef<HTMLInputElement>(null);
   const adjuntoInputRef = useRef<HTMLInputElement | null>(null);
   const [adjuntos, setAdjuntos] = useState<{ file: File; nombre: string }[]>([]);
@@ -1438,13 +1446,35 @@ export default function OTCrearPanel({
     label: a.nombre + (a.numero_serie ? ` (${a.numero_serie})` : ""),
   }));
 
-  function addGrupo() {
-    setGrupos(prev => [...prev, { id: genDraftId(), titulo: "", descripcion: "", fotos: [] }]);
+  const activeGrupo = grupos.find(g => g.id === albumSel) ?? null;
+
+  function submitAlbumModal() {
+    const titulo = albumTitulo.trim();
+    if (!titulo || !albumModal) return;
+    if (albumModal.mode === "editar" && albumModal.id) {
+      updateGrupo(albumModal.id, { titulo, tipo: albumTipo });
+    } else {
+      addGrupoFromModal(titulo, albumTipo);
+    }
+    setAlbumModal(null);
+  }
+
+  // Albums are created through the shared AlbumModal (same dialog as the OT
+  // detail gallery), so a draft arrives fully named instead of blank.
+  function addGrupoFromModal(titulo: string, tipo: "referencia" | "evidencia") {
+    const id = genDraftId();
+    setGrupos(prev => [...prev, { id, titulo, descripcion: "", tipo, fotos: [] }]);
+    setAlbumSel(id);
   }
   function removeGrupo(id: string) {
-    setGrupos(prev => prev.filter(g => g.id !== id));
+    setGrupos(prev => {
+      const next = prev.filter(g => g.id !== id);
+      // Keep the sidebar selection valid after a delete.
+      setAlbumSel(cur => (cur === id ? (next[0]?.id ?? null) : cur));
+      return next;
+    });
   }
-  function updateGrupo(id: string, patch: Partial<Pick<DraftGrupo, "titulo" | "descripcion">>) {
+  function updateGrupo(id: string, patch: Partial<Pick<DraftGrupo, "titulo" | "descripcion" | "tipo">>) {
     setGrupos(prev => prev.map(g => g.id === id ? { ...g, ...patch } : g));
   }
   function addFotosToGrupo(id: string, files: FileList) {
@@ -1525,7 +1555,7 @@ export default function OTCrearPanel({
         const g = grupos[gi];
         if (!g.titulo.trim() && g.fotos.length === 0) continue;
         try {
-          const grupo = await createFotoGrupo(orden.id, wsId, myId, g.titulo.trim() || `Grupo ${gi + 1}`, g.descripcion.trim(), gi, "referencia");
+          const grupo = await createFotoGrupo(orden.id, wsId, myId, g.titulo.trim() || `Grupo ${gi + 1}`, g.descripcion.trim(), gi, g.tipo);
           for (let fi = 0; fi < g.fotos.length; fi++) {
             await uploadAndAddFotoToGrupo(orden.id, grupo.id, g.fotos[fi].file, fi);
           }
@@ -1708,166 +1738,240 @@ export default function OTCrearPanel({
             </select>
           </div>
 
-          {/* Photo groups */}
+          {/* Photo albums — same folder-sidebar + grid shape as the OT detail
+              gallery, but backed by in-memory drafts (there is no OT id yet;
+              everything uploads on save). */}
           <div style={{ marginBottom: 24 }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <Camera size={13} style={{ color: "var(--fg-3)" }} />
-                <span style={{ fontSize: 13, fontWeight: 600, color: "var(--fg-2)" }}>
-                  Grupos de fotos
-                </span>
-              </div>
-              <button
-                type="button"
-                onClick={addGrupo}
-                style={{
-                  display: "flex", alignItems: "center", gap: 4,
-                  height: 32, padding: "0 12px",
-                  border: "1px solid var(--brand)", borderRadius: 8,
-                  background: "var(--brand-tint)", color: "var(--brand)",
-                  fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
-                }}
-              >
-                <Plus size={11} />
-                Agregar grupo
-              </button>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 12 }}>
+              <Camera size={13} style={{ color: "var(--fg-3)" }} />
+              <span style={{ fontSize: 13, fontWeight: 600, color: "var(--fg-2)" }}>Álbumes de fotos</span>
             </div>
 
-            {grupos.length === 0 ? (
-              <button
-                type="button"
-                onClick={addGrupo}
-                style={{
-                  width: "100%", border: "1.5px dashed var(--brand)", borderRadius: 8,
-                  padding: "18px", display: "flex", flexDirection: "column",
-                  alignItems: "center", gap: 5, color: "var(--brand)", cursor: "pointer",
-                  background: "var(--brand-tint)", fontFamily: "inherit",
-                }}
-                onMouseEnter={e => { e.currentTarget.style.opacity = "0.85"; }}
-                onMouseLeave={e => { e.currentTarget.style.opacity = "1"; }}
-              >
-                <ImagePlus size={20} strokeWidth={1.5} />
-                <span style={{ fontSize: 12 }}>Agregar fotos con título y descripción</span>
-                <span style={{ fontSize: 11, opacity: 0.7 }}>Ej: "Antes del trabajo", "Instrucciones"</span>
-              </button>
-            ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-                {grupos.map((g, gi) => (
-                  <div key={g.id} style={{ border: "1px solid var(--border)", borderRadius: 8, overflow: "hidden", background: "var(--surface-1)" }}>
-                    {/* Group header */}
-                    <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--border)", background: "var(--surface-0)", display: "flex", alignItems: "flex-start", gap: 10 }}>
-                      <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8 }}>
-                        <input
-                          type="text"
-                          placeholder={`Título del grupo (ej. Fotos del trabajo)`}
-                          value={g.titulo}
-                          onChange={e => updateGrupo(g.id, { titulo: e.target.value })}
-                          style={{
-                            width: "100%", height: 36, padding: "0 10px",
-                            border: "1px solid var(--border)", borderRadius: 8,
-                            fontSize: 12.5, fontWeight: 600, color: "var(--fg-1)",
-                            outline: "none", fontFamily: "inherit", background: "var(--surface-1)",
-                          }}
-                          onFocus={e => { e.currentTarget.style.borderColor = "var(--brand)"; }}
-                          onBlur={e => { e.currentTarget.style.borderColor = "var(--border)"; }}
-                        />
-                        <input
-                          type="text"
-                          placeholder="Descripción o instrucciones (opcional)"
-                          value={g.descripcion}
-                          onChange={e => updateGrupo(g.id, { descripcion: e.target.value })}
-                          style={{
-                            width: "100%", height: 36, padding: "0 10px",
-                            border: "1px solid var(--border)", borderRadius: 8,
-                            fontSize: 12, color: "var(--fg-2)",
-                            outline: "none", fontFamily: "inherit", background: "var(--surface-1)",
-                          }}
-                          onFocus={e => { e.currentTarget.style.borderColor = "var(--brand)"; }}
-                          onBlur={e => { e.currentTarget.style.borderColor = "var(--border)"; }}
-                        />
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => removeGrupo(g.id)}
-                        style={{ width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", borderRadius: 8, cursor: "pointer", color: "var(--danger)", flexShrink: 0 }}
-                        onMouseEnter={e => { e.currentTarget.style.background = "var(--danger-bg)"; }}
-                        onMouseLeave={e => { e.currentTarget.style.background = "none"; }}
-                      >
-                        <Trash2 size={13} />
-                      </button>
-                    </div>
+            <div style={{ display: "flex", minHeight: 260, border: "1px solid var(--border)", borderRadius: "var(--r-md)", overflow: "hidden", background: "var(--surface-1)" }}>
 
-                    {/* Photo grid */}
-                    <div style={{ padding: 14 }}>
-                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(88px, 1fr))", gap: 10 }}>
-                        {g.fotos.map((f, fi) => (
-                          <div key={fi} style={{ position: "relative", aspectRatio: "1", borderRadius: 8, overflow: "hidden", background: "var(--surface-hover)" }}>
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img src={f.preview} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+              {/* Album sidebar */}
+              <aside style={{ width: 190, flexShrink: 0, display: "flex", flexDirection: "column", background: "var(--surface-1)", borderRight: "1px solid var(--border)" }}>
+                <div style={{ padding: "12px 12px 8px", fontSize: 14, fontWeight: 600, color: "var(--fg-4)" }}>
+                  Álbumes
+                </div>
+                <div style={{ flex: 1, overflowY: "auto", padding: "0 8px 8px", display: "flex", flexDirection: "column", gap: 2 }}>
+                  {(["referencia", "evidencia"] as const).map(t => {
+                    const delTipo = grupos.filter(g => g.tipo === t);
+                    if (delTipo.length === 0) return null;
+                    return (
+                      <div key={t} style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                        <div style={{ height: 1, background: "var(--border)", margin: "6px 4px 4px" }} />
+                        <div style={{ padding: "0 8px 2px", fontSize: 14, fontWeight: 600, color: "var(--fg-4)" }}>
+                          {t === "referencia" ? "Referencia" : "Evidencia"}
+                        </div>
+                        {delTipo.map(g => {
+                          const on = albumSel === g.id;
+                          return (
                             <button
+                              key={g.id}
                               type="button"
-                              onClick={() => removeFotoFromDraftGrupo(g.id, fi)}
+                              onClick={() => setAlbumSel(g.id)}
+                              title={g.titulo}
                               style={{
-                                position: "absolute", top: 3, right: 3,
-                                width: 18, height: 18, borderRadius: "50%",
-                                background: "rgba(0,0,0,0.6)", border: "none",
-                                display: "flex", alignItems: "center", justifyContent: "center",
-                                cursor: "pointer", color: "#fff",
+                                display: "flex", alignItems: "center", gap: 8,
+                                width: "100%", height: 32, padding: "0 8px",
+                                border: "none", borderRadius: "var(--r-sm)",
+                                background: on ? "var(--brand-tint)" : "transparent",
+                                color: on ? "var(--brand)" : "var(--fg-2)",
+                                fontSize: 14, fontWeight: on ? 600 : 500,
+                                cursor: "pointer", fontFamily: "inherit", textAlign: "left",
                               }}
+                              onMouseEnter={e => { if (!on) e.currentTarget.style.background = "var(--surface-hover)"; }}
+                              onMouseLeave={e => { if (!on) e.currentTarget.style.background = "transparent"; }}
                             >
-                              <X size={10} />
+                              <span style={{ flexShrink: 0, display: "flex", color: on ? "var(--brand)" : "var(--fg-3)" }}>
+                                <FolderOpen size={14} />
+                              </span>
+                              <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                {g.titulo.charAt(0).toUpperCase() + g.titulo.slice(1)}
+                              </span>
+                              <span style={{ flexShrink: 0, fontSize: 11, color: on ? "var(--brand)" : "var(--fg-4)", fontVariantNumeric: "tabular-nums" }}>
+                                {g.fotos.length}
+                              </span>
                             </button>
-                          </div>
-                        ))}
+                          );
+                        })}
+                      </div>
+                    );
+                  })}
+
+                  {grupos.length === 0 && (
+                    <div style={{ padding: "16px 8px", fontSize: 12, color: "var(--fg-4)", textAlign: "center", lineHeight: 1.5 }}>
+                      Sin álbumes
+                    </div>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={() => { setAlbumTitulo(""); setAlbumTipo("referencia"); setAlbumModal({ mode: "crear" }); }}
+                    style={{
+                      width: "100%", height: 32, marginTop: 4, flexShrink: 0,
+                      display: "flex", alignItems: "center", gap: 8, padding: "0 8px",
+                      border: "none", borderRadius: "var(--r-sm)",
+                      background: "transparent", color: "var(--fg-3)",
+                      fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", textAlign: "left",
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.background = "var(--surface-hover)"; e.currentTarget.style.color = "var(--brand)"; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "var(--fg-3)"; }}
+                  >
+                    <span style={{ flexShrink: 0, display: "flex" }}><Plus size={14} /></span>
+                    Nuevo álbum
+                  </button>
+                </div>
+              </aside>
+
+              {/* Photo pane */}
+              <section style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
+                {activeGrupo ? (
+                  <>
+                    <div style={{ padding: "12px 14px", borderBottom: "1px solid var(--border)", background: "var(--surface-1)", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 14, fontWeight: 700, color: "var(--fg-1)", lineHeight: 1.3 }}>
+                          {activeGrupo.titulo}
+                        </div>
+                        <div style={{ fontSize: 11, color: "var(--fg-4)", marginTop: 4 }}>
+                          {activeGrupo.fotos.length} foto{activeGrupo.fotos.length !== 1 ? "s" : ""} · se subirán al crear la OT
+                        </div>
+                      </div>
+
+                      <div style={{ display: "flex", gap: 6, flexShrink: 0, alignItems: "center" }}>
+                        <div
+                          role="radiogroup"
+                          aria-label="Tipo de álbum"
+                          style={{ display: "flex", padding: 2, gap: 2, border: "1px solid var(--border)", borderRadius: "var(--r-sm)", background: "var(--surface-0)" }}
+                        >
+                          {(["referencia", "evidencia"] as const).map(t => {
+                            const on = activeGrupo.tipo === t;
+                            return (
+                              <button
+                                key={t}
+                                type="button"
+                                role="radio"
+                                aria-checked={on}
+                                onClick={() => { if (!on) updateGrupo(activeGrupo.id, { tipo: t }); }}
+                                style={{
+                                  height: 26, padding: "0 9px", border: "none", borderRadius: 5,
+                                  background: on ? "var(--brand)" : "transparent",
+                                  color: on ? "var(--fg-on-brand)" : "var(--fg-3)",
+                                  fontSize: 11.5, fontWeight: 600,
+                                  cursor: on ? "default" : "pointer", fontFamily: "inherit",
+                                }}
+                              >
+                                {t === "referencia" ? "Referencia" : "Evidencia"}
+                              </button>
+                            );
+                          })}
+                        </div>
+
                         <button
                           type="button"
-                          onClick={() => grupoFileRefs.current[g.id]?.click()}
-                          style={{
-                            aspectRatio: "1", border: "1.5px dashed var(--border)", borderRadius: 8,
-                            background: "var(--surface-0)", display: "flex", flexDirection: "column",
-                            alignItems: "center", justifyContent: "center", gap: 3,
-                            cursor: "pointer", color: "var(--fg-4)",
-                          }}
-                          onMouseEnter={e => { e.currentTarget.style.borderColor = "var(--brand)"; e.currentTarget.style.color = "var(--brand)"; }}
-                          onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.color = "var(--fg-4)"; }}
+                          onClick={() => grupoFileRefs.current[activeGrupo.id]?.click()}
+                          title="Agregar fotos"
+                          style={{ width: 34, height: 34, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", borderRadius: "50%", cursor: "pointer", color: "var(--fg-3)" }}
+                          onMouseEnter={e => { e.currentTarget.style.background = "var(--surface-hover)"; e.currentTarget.style.color = "var(--brand)"; }}
+                          onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "var(--fg-3)"; }}
                         >
-                          <Upload size={14} />
-                          <span style={{ fontSize: 9, fontWeight: 500 }}>Fotos</span>
+                          <ImageUp size={20} />
                         </button>
-                        <input
-                          ref={el => { grupoFileRefs.current[g.id] = el; }}
-                          type="file"
-                          accept="image/*"
-                          multiple
-                          style={{ display: "none" }}
-                          onChange={e => { if (e.target.files?.length) { addFotosToGrupo(g.id, e.target.files); e.target.value = ""; } }}
-                        />
+                        <button
+                          type="button"
+                          onClick={() => { setAlbumTitulo(activeGrupo.titulo); setAlbumTipo(activeGrupo.tipo); setAlbumModal({ mode: "editar", id: activeGrupo.id }); }}
+                          title="Editar álbum"
+                          style={{ width: 34, height: 34, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", borderRadius: "50%", cursor: "pointer", color: "var(--fg-3)" }}
+                          onMouseEnter={e => { e.currentTarget.style.background = "var(--surface-hover)"; e.currentTarget.style.color = "var(--fg-1)"; }}
+                          onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "var(--fg-3)"; }}
+                        >
+                          <Pencil size={20} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => removeGrupo(activeGrupo.id)}
+                          title="Eliminar álbum"
+                          style={{ width: 34, height: 34, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", borderRadius: "50%", cursor: "pointer", color: "var(--danger)" }}
+                          onMouseEnter={e => { e.currentTarget.style.background = "var(--danger-bg)"; }}
+                          onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}
+                        >
+                          <Trash2 size={20} />
+                        </button>
                       </div>
-                      {g.fotos.length > 0 && (
-                        <div style={{ marginTop: 5, fontSize: 10.5, color: "var(--fg-4)" }}>
-                          {g.fotos.length} foto{g.fotos.length !== 1 ? "s" : ""} · Se subirán al crear la OT
+                    </div>
+
+                    <div style={{ flex: 1, padding: 14, overflowY: "auto" }}>
+                      {activeGrupo.fotos.length === 0 ? (
+                        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "36px 0", gap: 8, color: "var(--fg-4)" }}>
+                          <ImageIcon size={30} style={{ opacity: 0.3 }} />
+                          <span style={{ fontSize: 13 }}>Sin fotos en este álbum</span>
+                          <button
+                            type="button"
+                            onClick={() => grupoFileRefs.current[activeGrupo.id]?.click()}
+                            style={{ display: "flex", alignItems: "center", gap: 6, height: 32, padding: "0 12px", marginTop: 2, border: "1px solid var(--border)", borderRadius: "var(--r-sm)", background: "var(--surface-1)", color: "var(--fg-2)", fontSize: 12.5, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
+                          >
+                            <ImageUp size={14} />
+                            Agregar fotos
+                          </button>
+                        </div>
+                      ) : (
+                        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: 10 }}>
+                          {activeGrupo.fotos.map((f, fi) => (
+                            <div key={fi} className="group" style={{ position: "relative", aspectRatio: "1", borderRadius: "var(--r-md)", overflow: "hidden", background: "var(--surface-hover)", border: "1px solid var(--border)" }}>
+                              {/* Local object URL — nothing is uploaded yet. */}
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img src={f.preview} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+                              <button
+                                type="button"
+                                onClick={() => removeFotoFromDraftGrupo(activeGrupo.id, fi)}
+                                aria-label="Quitar foto"
+                                className="opacity-0 group-hover:opacity-100"
+                                style={{
+                                  position: "absolute", top: 6, right: 6,
+                                  width: 24, height: 24, borderRadius: "50%",
+                                  background: "rgba(0,0,0,0.6)", border: "none",
+                                  display: "flex", alignItems: "center", justifyContent: "center",
+                                  cursor: "pointer", color: "#fff", transition: "opacity 0.12s",
+                                }}
+                              >
+                                <X size={12} />
+                              </button>
+                            </div>
+                          ))}
                         </div>
                       )}
                     </div>
+
+                    <input
+                      ref={el => { grupoFileRefs.current[activeGrupo.id] = el; }}
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      style={{ display: "none" }}
+                      onChange={e => { if (e.target.files?.length) { addFotosToGrupo(activeGrupo.id, e.target.files); e.target.value = ""; } }}
+                    />
+                  </>
+                ) : (
+                  <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8, color: "var(--fg-4)", padding: 24 }}>
+                    <ImagePlus size={30} strokeWidth={1.5} style={{ opacity: 0.4 }} />
+                    <span style={{ fontSize: 13 }}>
+                      {grupos.length === 0 ? "Crea un álbum para agregar fotos" : "Selecciona un álbum"}
+                    </span>
+                    {grupos.length === 0 && (
+                      <button
+                        type="button"
+                        onClick={() => { setAlbumTitulo(""); setAlbumTipo("referencia"); setAlbumModal({ mode: "crear" }); }}
+                        style={{ display: "flex", alignItems: "center", gap: 6, height: 32, padding: "0 12px", marginTop: 2, border: "1px solid var(--border)", borderRadius: "var(--r-sm)", background: "var(--surface-1)", color: "var(--fg-2)", fontSize: 12.5, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
+                      >
+                        <Plus size={14} />
+                        Nuevo álbum
+                      </button>
+                    )}
                   </div>
-                ))}
-                <button
-                  type="button"
-                  onClick={addGrupo}
-                  style={{
-                    width: "100%", padding: "12px", border: "1.5px dashed var(--brand)", borderRadius: 8,
-                    background: "var(--brand-tint)", color: "var(--brand)", fontSize: 12, cursor: "pointer",
-                    display: "flex", alignItems: "center", justifyContent: "center", gap: 5,
-                    fontFamily: "inherit",
-                  }}
-                  onMouseEnter={e => { e.currentTarget.style.opacity = "0.85"; }}
-                  onMouseLeave={e => { e.currentTarget.style.opacity = "1"; }}
-                >
-                  <Plus size={12} />
-                  Agregar otro grupo
-                </button>
-              </div>
-            )}
+                )}
+              </section>
+            </div>
           </div>
 
           {/* Adjuntos */}
@@ -2285,6 +2389,19 @@ export default function OTCrearPanel({
           </button>
         </div>
       </div>
+
+      {albumModal && (
+        <AlbumModal
+          mode={albumModal.mode}
+          titulo={albumTitulo}
+          tipo={albumTipo}
+          saving={false}
+          onTitulo={setAlbumTitulo}
+          onTipo={setAlbumTipo}
+          onCancel={() => setAlbumModal(null)}
+          onSubmit={submitAlbumModal}
+        />
+      )}
 
       <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
     </div>

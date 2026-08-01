@@ -1318,13 +1318,13 @@ export default function OrdenesBandeja({
                 onChange={e => setSearch(e.target.value)}
                 style={{
                   paddingLeft:34, paddingRight:search ? 28 : 10,
-                  height:36, width:"100%",
+                  height:38, width:"100%",
                   border:"1px solid var(--border)", borderRadius:8,
-                  fontSize:13, color:"var(--fg-1)", background:"var(--surface-0)",
+                  fontSize:13, color:"var(--fg-1)", background:"var(--surface-1)",
                   outline:"none", fontFamily:"inherit",
                 }}
-                onFocus={e => { e.currentTarget.style.borderColor = "var(--brand)"; e.currentTarget.style.background = "var(--surface-1)"; e.currentTarget.style.boxShadow = "0 0 0 3px rgba(37,99,235,0.10)"; }}
-                onBlur={e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.background = "var(--surface-hover)"; e.currentTarget.style.boxShadow = "none"; }}
+                onFocus={e => { e.currentTarget.style.borderColor = "var(--brand)"; }}
+                onBlur={e => { e.currentTarget.style.borderColor = "var(--border)"; }}
               />
               {search && (
                 <button
@@ -1353,11 +1353,11 @@ export default function OrdenesBandeja({
                 border:"none", borderRadius:8,
                 fontSize:13, fontWeight:600,
                 cursor:"pointer", fontFamily:"inherit",
-                transition:"opacity 0.1s", whiteSpace:"nowrap", flexShrink:0,
-                boxShadow:"0 2px 6px rgba(0,122,255,0.25)",
+                whiteSpace:"nowrap", flexShrink:0,
               }}
-              onMouseEnter={e => (e.currentTarget.style.opacity = "0.9")}
-              onMouseLeave={e => (e.currentTarget.style.opacity = "1")}
+              // Flat colour shift on hover — no shadow, no opacity fade.
+              onMouseEnter={e => { e.currentTarget.style.background = "var(--brand-active)"; }}
+              onMouseLeave={e => { e.currentTarget.style.background = "var(--brand)"; }}
             >
               <Plus size={16} strokeWidth={2} />
               Nueva Orden de Trabajo
