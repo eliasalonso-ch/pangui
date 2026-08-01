@@ -189,9 +189,79 @@ export const ORDENES_SEARCH_LIMIT = 300;
 // any matching OT regardless of what the infinite-scroll list has loaded.
 // Matches titulo, descripcion (which embeds "N° OT:"/"Solicitante:" meta), and
 // the solicitante column — the same fields the old in-memory search covered.
+/**
+ * Parses an OT-number query. The UI shows work orders as "#123", so a search
+ * starting with `#` (or one that is nothing but digits) is an explicit lookup
+ * by `numero` rather than a text match.
+ *
+ * Returns null when the query isn't a number lookup, so callers fall through
+ * to the normal text search.
+ */
+export function parseOrdenNumeroQuery(rawQuery: string): number | null {
+  const q = rawQuery.trim();
+  if (!q) return null;
+  const body = q.startsWith("#") ? q.slice(1).trim() : q;
+  // Bare digits only — "#12a" or "12 bombas" stay text searches.
+  if (!/^\d+$/.test(body)) return null;
+  const n = Number(body);
+  return Number.isSafeInteger(n) && n > 0 ? n : null;
+}
+
+/**
+ * Client-side counterpart to `searchOrdenes`, used to re-filter already-loaded
+ * rows (tab counts, the visible list) with the same rules the server applies.
+ *
+ * Matches on OT number when the query looks like "#123"/"123", otherwise on
+ * título, N° OT text, solicitante and description body.
+ */
+export function matchesSearch(
+  o: { titulo?: string | null; numero?: number | null; descripcion?: string | null },
+  rawQuery: string,
+): boolean {
+  const raw = rawQuery.trim();
+  if (!raw) return true;
+
+  const numero = parseOrdenNumeroQuery(raw);
+  if (numero !== null) {
+    if (o.numero === numero) return true;
+    // "#123" is an explicit number lookup: never fall back to text.
+    if (raw.startsWith("#")) return false;
+  }
+
+  const q = raw.replace(/\s+/g, " ").toLowerCase();
+  if ((o.titulo ?? "").toLowerCase().includes(q)) return true;
+  const meta = parseDescMeta(o.descripcion ?? null);
+  return (
+    (meta.nOT ?? "").toLowerCase().includes(q) ||
+    (meta.solicitante ?? "").toLowerCase().includes(q) ||
+    (meta.descripcion ?? "").toLowerCase().includes(q)
+  );
+}
+
 export async function searchOrdenes(wsId: string, rawQuery: string): Promise<OrdenListItem[]> {
   const q = rawQuery.trim();
   if (!q) return [];
+
+  // "#123" / "123" → exact lookup by OT number.
+  const numero = parseOrdenNumeroQuery(q);
+  if (numero !== null) {
+    const sbNum = createClient();
+    const { data, error } = await sbNum
+      .from("ordenes_trabajo")
+      .select(LIST_SELECT)
+      .eq("workspace_id", wsId)
+      .eq("numero", numero)
+      .is("parent_id", null)
+      .is("deleted_at", null)
+      .limit(ORDENES_SEARCH_LIMIT);
+    if (error) throw error;
+    const rows = (data ?? []) as unknown as OrdenListItem[];
+    // An explicit "#123" that matches nothing should report "no results"
+    // rather than silently falling back to a fuzzy text search for "123".
+    if (q.startsWith("#") || rows.length > 0) return rows;
+    // A bare number with no numero hit may still be text (e.g. "500" in
+    // "Victoria 500"), so continue into the text search below.
+  }
   // Escape PostgREST `or`/`ilike` metacharacters so a literal %, _, comma, or
   // parenthesis in the query can't break the filter syntax or inject terms.
   const safe = q.replace(/[\\%_,()]/g, (c) => `\\${c}`);

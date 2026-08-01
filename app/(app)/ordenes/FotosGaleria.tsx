@@ -295,7 +295,7 @@ export function FotosGaleria({
 
         <div style={{ flex: 1, overflowY: "auto", padding: "0 8px 8px", display: "flex", flexDirection: "column", gap: 2 }}>
           <FolderButton
-            icon={<Images size={14} />}
+            icon={<Images size={20} />}
             label="Todas las fotos"
             count={totalFotos}
             active={activeId === ALL}
@@ -316,7 +316,7 @@ export function FotosGaleria({
                 {delGrupo.map(g => (
                   <FolderButton
                     key={g.id}
-                    icon={g.locked ? <Lock size={14} /> : <FolderOpen size={14} />}
+                    icon={g.locked ? <Lock size={20} /> : <FolderOpen size={20} />}
                     label={g.titulo || "Sin título"}
                     count={g.items?.length ?? 0}
                     active={activeId === g.id}
@@ -340,7 +340,7 @@ export function FotosGaleria({
               type="button"
               onClick={() => setCreating(true)}
               style={{
-                width: "100%", height: 32, marginTop: 4, flexShrink: 0,
+                width: "100%", height: 36, marginTop: 4, flexShrink: 0,
                 display: "flex", alignItems: "center", gap: 8, padding: "0 8px",
                 border: "none", borderRadius: "var(--r-sm)",
                 background: "transparent", color: "var(--fg-3)",
@@ -349,7 +349,7 @@ export function FotosGaleria({
               onMouseEnter={e => { e.currentTarget.style.background = "var(--surface-hover)"; e.currentTarget.style.color = "var(--brand)"; }}
               onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "var(--fg-3)"; }}
             >
-              <span style={{ flexShrink: 0, display: "flex" }}><Plus size={14} /></span>
+              <span style={{ flexShrink: 0, display: "flex" }}><Plus size={20} /></span>
               Nuevo álbum
             </button>
           )}
@@ -844,7 +844,7 @@ function FolderButton({ icon, label, count, active, onClick }: {
       title={label}
       style={{
         display: "flex", alignItems: "center", gap: 8,
-        width: "100%", height: 32, padding: "0 8px",
+        width: "100%", height: 36, padding: "0 8px",
         border: "none", borderRadius: "var(--r-sm)",
         background: active ? "var(--brand-tint)" : "transparent",
         color: active ? "var(--brand)" : "var(--fg-2)",
@@ -861,7 +861,7 @@ function FolderButton({ icon, label, count, active, onClick }: {
       <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
         {label.charAt(0).toUpperCase() + label.slice(1)}
       </span>
-      <span style={{ flexShrink: 0, fontSize: 11, color: active ? "var(--brand)" : "var(--fg-4)", fontVariantNumeric: "tabular-nums" }}>
+      <span style={{ flexShrink: 0, fontSize: 14, color: active ? "var(--brand)" : "var(--fg-4)", fontVariantNumeric: "tabular-nums" }}>
         {count}
       </span>
     </button>

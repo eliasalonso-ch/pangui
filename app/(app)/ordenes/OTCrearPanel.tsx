@@ -1774,7 +1774,7 @@ export default function OTCrearPanel({
                               title={g.titulo}
                               style={{
                                 display: "flex", alignItems: "center", gap: 8,
-                                width: "100%", height: 32, padding: "0 8px",
+                                width: "100%", height: 36, padding: "0 8px",
                                 border: "none", borderRadius: "var(--r-sm)",
                                 background: on ? "var(--brand-tint)" : "transparent",
                                 color: on ? "var(--brand)" : "var(--fg-2)",
@@ -1785,12 +1785,12 @@ export default function OTCrearPanel({
                               onMouseLeave={e => { if (!on) e.currentTarget.style.background = "transparent"; }}
                             >
                               <span style={{ flexShrink: 0, display: "flex", color: on ? "var(--brand)" : "var(--fg-3)" }}>
-                                <FolderOpen size={14} />
+                                <FolderOpen size={20} />
                               </span>
                               <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                                 {g.titulo.charAt(0).toUpperCase() + g.titulo.slice(1)}
                               </span>
-                              <span style={{ flexShrink: 0, fontSize: 11, color: on ? "var(--brand)" : "var(--fg-4)", fontVariantNumeric: "tabular-nums" }}>
+                              <span style={{ flexShrink: 0, fontSize: 14, color: on ? "var(--brand)" : "var(--fg-4)", fontVariantNumeric: "tabular-nums" }}>
                                 {g.fotos.length}
                               </span>
                             </button>
@@ -1810,7 +1810,7 @@ export default function OTCrearPanel({
                     type="button"
                     onClick={() => { setAlbumTitulo(""); setAlbumTipo("referencia"); setAlbumModal({ mode: "crear" }); }}
                     style={{
-                      width: "100%", height: 32, marginTop: 4, flexShrink: 0,
+                      width: "100%", height: 36, marginTop: 4, flexShrink: 0,
                       display: "flex", alignItems: "center", gap: 8, padding: "0 8px",
                       border: "none", borderRadius: "var(--r-sm)",
                       background: "transparent", color: "var(--fg-3)",
@@ -1819,7 +1819,7 @@ export default function OTCrearPanel({
                     onMouseEnter={e => { e.currentTarget.style.background = "var(--surface-hover)"; e.currentTarget.style.color = "var(--brand)"; }}
                     onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "var(--fg-3)"; }}
                   >
-                    <span style={{ flexShrink: 0, display: "flex" }}><Plus size={14} /></span>
+                    <span style={{ flexShrink: 0, display: "flex" }}><Plus size={20} /></span>
                     Nuevo álbum
                   </button>
                 </div>

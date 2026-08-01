@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Plus, Search, X, ChevronDown, Loader2, FileText, ArrowUpDown, Download, AlertTriangle, Calendar, List, CalendarDays, Columns3, Check, Copy, DatabaseArrowDown, Eye, EyeOff } from "lucide-react";
 import { useTopBarAction } from "@/components/TopBarActions";
 import { createClient, logRealtimeChannel } from "@/lib/supabase";
-import { fetchOrden, fetchOrdenesPage, fetchAllOrdenesForExport, fetchOrdenListItem, searchOrdenes, ORDENES_SEARCH_LIMIT, deleteOrden, ORDENES_PAGE_SIZE, parseDescMeta, fetchMarcadasIds, toggleMarcada } from "@/lib/ordenes-api";
+import { fetchOrden, fetchOrdenesPage, fetchAllOrdenesForExport, fetchOrdenListItem, searchOrdenes, ORDENES_SEARCH_LIMIT, deleteOrden, ORDENES_PAGE_SIZE, parseDescMeta, fetchMarcadasIds, toggleMarcada, matchesSearch } from "@/lib/ordenes-api";
 import { buildOrdenesWorkbook, type ExportCols as SharedExportCols, type OrdenInput, type HojaInput, type FilaInput, type FotoItemInput, type MaterialUsadoInput } from "@/lib/excel-export-shared";
 import { ExportScheduler } from "./ExportScheduler";
 import OTRow from "./OTRow";
@@ -804,16 +804,7 @@ export default function OrdenesBandeja({
 
     // Search — checks title, N° OT, solicitante and description body
     if (search.trim()) {
-      const q = search.trim().replace(/\s+/g, " ").toLowerCase();
-      list = list.filter(o => {
-        if ((o.titulo ?? "").toLowerCase().includes(q)) return true;
-        const meta = parseDescMeta(o.descripcion ?? null);
-        return (
-          (meta.nOT        ?? "").toLowerCase().includes(q) ||
-          (meta.solicitante ?? "").toLowerCase().includes(q) ||
-          (meta.descripcion ?? "").toLowerCase().includes(q)
-        );
-      });
+      list = list.filter(o => matchesSearch(o, search));
     }
 
     // Hide the current user's marked ("leídas") OTs when the toggle is on.
@@ -970,16 +961,7 @@ export default function OrdenesBandeja({
         list = list.filter(o => o.asignados_ids && o.asignados_ids.length > 0);
       }
       if (search.trim()) {
-        const q = search.trim().replace(/\s+/g, " ").toLowerCase();
-        list = list.filter(o => {
-          if ((o.titulo ?? "").toLowerCase().includes(q)) return true;
-          const meta = parseDescMeta(o.descripcion ?? null);
-          return (
-            (meta.nOT        ?? "").toLowerCase().includes(q) ||
-            (meta.solicitante ?? "").toLowerCase().includes(q) ||
-            (meta.descripcion ?? "").toLowerCase().includes(q)
-          );
-        });
+        list = list.filter(o => matchesSearch(o, search));
       }
       return list;
     };
@@ -1134,16 +1116,7 @@ export default function OrdenesBandeja({
         if (filtros.deUsuariosDadosDeBaja) list = list.filter(o => (o.asignados_ids ?? []).some(id => dadosDeBajaIds.has(id)));
         if (filtros.soloAsignados)       list = list.filter(o => o.asignados_ids && o.asignados_ids.length > 0);
         if (search.trim()) {
-          const q = search.trim().replace(/\s+/g, " ").toLowerCase();
-          list = list.filter(o => {
-            if ((o.titulo ?? "").toLowerCase().includes(q)) return true;
-            const meta = parseDescMeta(o.descripcion ?? null);
-            return (
-              (meta.nOT ?? "").toLowerCase().includes(q) ||
-              (meta.solicitante ?? "").toLowerCase().includes(q) ||
-              (meta.descripcion ?? "").toLowerCase().includes(q)
-            );
-          });
+          list = list.filter(o => matchesSearch(o, search));
         }
         list.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
         return list;
