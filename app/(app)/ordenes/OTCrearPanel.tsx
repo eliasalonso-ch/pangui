@@ -1744,7 +1744,7 @@ export default function OTCrearPanel({
           <div style={{ marginBottom: 24 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 12 }}>
               <Camera size={13} style={{ color: "var(--fg-3)" }} />
-              <span style={{ fontSize: 13, fontWeight: 600, color: "var(--fg-2)" }}>Álbumes de fotos</span>
+              <span style={{ fontSize: 14, fontWeight: 600, color: "var(--fg-2)" }}>Álbumes de fotos</span>
             </div>
 
             <div style={{ display: "flex", minHeight: 260, border: "1px solid var(--border)", borderRadius: "var(--r-md)", overflow: "hidden", background: "var(--surface-1)" }}>
@@ -1801,7 +1801,7 @@ export default function OTCrearPanel({
                   })}
 
                   {grupos.length === 0 && (
-                    <div style={{ padding: "16px 8px", fontSize: 12, color: "var(--fg-4)", textAlign: "center", lineHeight: 1.5 }}>
+                    <div style={{ padding: "16px 8px", fontSize: 14, color: "var(--fg-4)", textAlign: "center", lineHeight: 1.5 }}>
                       Sin álbumes
                     </div>
                   )}
@@ -1834,7 +1834,7 @@ export default function OTCrearPanel({
                         <div style={{ fontSize: 14, fontWeight: 700, color: "var(--fg-1)", lineHeight: 1.3 }}>
                           {activeGrupo.titulo}
                         </div>
-                        <div style={{ fontSize: 11, color: "var(--fg-4)", marginTop: 4 }}>
+                        <div style={{ fontSize: 14, color: "var(--fg-4)", marginTop: 4 }}>
                           {activeGrupo.fotos.length} foto{activeGrupo.fotos.length !== 1 ? "s" : ""} · se subirán al crear la OT
                         </div>
                       </div>
@@ -1855,10 +1855,10 @@ export default function OTCrearPanel({
                                 aria-checked={on}
                                 onClick={() => { if (!on) updateGrupo(activeGrupo.id, { tipo: t }); }}
                                 style={{
-                                  height: 26, padding: "0 9px", border: "none", borderRadius: 5,
+                                  height: 30, padding: "0 11px", border: "none", borderRadius: 5,
                                   background: on ? "var(--brand)" : "transparent",
                                   color: on ? "var(--fg-on-brand)" : "var(--fg-3)",
-                                  fontSize: 11.5, fontWeight: 600,
+                                  fontSize: 14, fontWeight: 600,
                                   cursor: on ? "default" : "pointer", fontFamily: "inherit",
                                 }}
                               >
@@ -1905,11 +1905,11 @@ export default function OTCrearPanel({
                       {activeGrupo.fotos.length === 0 ? (
                         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "36px 0", gap: 8, color: "var(--fg-4)" }}>
                           <ImageIcon size={30} style={{ opacity: 0.3 }} />
-                          <span style={{ fontSize: 13 }}>Sin fotos en este álbum</span>
+                          <span style={{ fontSize: 14 }}>Sin fotos en este álbum</span>
                           <button
                             type="button"
                             onClick={() => grupoFileRefs.current[activeGrupo.id]?.click()}
-                            style={{ display: "flex", alignItems: "center", gap: 6, height: 32, padding: "0 12px", marginTop: 2, border: "1px solid var(--border)", borderRadius: "var(--r-sm)", background: "var(--surface-1)", color: "var(--fg-2)", fontSize: 12.5, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
+                            style={{ display: "flex", alignItems: "center", gap: 6, height: 32, padding: "0 12px", marginTop: 2, border: "1px solid var(--border)", borderRadius: "var(--r-sm)", background: "var(--surface-1)", color: "var(--fg-2)", fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
                           >
                             <ImageUp size={14} />
                             Agregar fotos
@@ -1955,14 +1955,14 @@ export default function OTCrearPanel({
                 ) : (
                   <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8, color: "var(--fg-4)", padding: 24 }}>
                     <ImagePlus size={30} strokeWidth={1.5} style={{ opacity: 0.4 }} />
-                    <span style={{ fontSize: 13 }}>
+                    <span style={{ fontSize: 14 }}>
                       {grupos.length === 0 ? "Crea un álbum para agregar fotos" : "Selecciona un álbum"}
                     </span>
                     {grupos.length === 0 && (
                       <button
                         type="button"
                         onClick={() => { setAlbumTitulo(""); setAlbumTipo("referencia"); setAlbumModal({ mode: "crear" }); }}
-                        style={{ display: "flex", alignItems: "center", gap: 6, height: 32, padding: "0 12px", marginTop: 2, border: "1px solid var(--border)", borderRadius: "var(--r-sm)", background: "var(--surface-1)", color: "var(--fg-2)", fontSize: 12.5, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
+                        style={{ display: "flex", alignItems: "center", gap: 6, height: 32, padding: "0 12px", marginTop: 2, border: "1px solid var(--border)", borderRadius: "var(--r-sm)", background: "var(--surface-1)", color: "var(--fg-2)", fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
                       >
                         <Plus size={14} />
                         Nuevo álbum

@@ -275,7 +275,7 @@ export function FotosGaleria({
     return (
       <div style={{ display: "flex", flex: 1, minHeight: 0, alignItems: "center", justifyContent: "center", gap: 8, color: "var(--fg-4)" }}>
         <Loader2 size={16} className="animate-spin" />
-        <span style={{ fontSize: 13 }}>Cargando fotos…</span>
+        <span style={{ fontSize: 14 }}>Cargando fotos…</span>
       </div>
     );
   }
@@ -328,7 +328,7 @@ export function FotosGaleria({
           })}
 
           {visibles.length === 0 && (
-            <div style={{ padding: "16px 8px", fontSize: 12, color: "var(--fg-4)", textAlign: "center", lineHeight: 1.5 }}>
+            <div style={{ padding: "16px 8px", fontSize: 14, color: "var(--fg-4)", textAlign: "center", lineHeight: 1.5 }}>
               Sin álbumes
             </div>
           )}
@@ -367,10 +367,10 @@ export function FotosGaleria({
                   {selected ? (selected.titulo || "Sin título") : "Todas las fotos"}
                 </div>
                 {selected?.descripcion && (
-                  <div style={{ fontSize: 12, color: "var(--fg-2)", marginTop: 3, lineHeight: 1.4 }}>{selected.descripcion}</div>
+                  <div style={{ fontSize: 14, color: "var(--fg-2)", marginTop: 3, lineHeight: 1.4 }}>{selected.descripcion}</div>
                 )}
                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
-                  <span style={{ fontSize: 11, color: "var(--fg-4)" }}>
+                  <span style={{ fontSize: 14, color: "var(--fg-4)" }}>
                     {shownItems.length} foto{shownItems.length !== 1 ? "s" : ""}
                     {!selected && visibles.length > 0 && ` · ${visibles.length} álbum${visibles.length !== 1 ? "es" : ""}`}
                   </span>
@@ -392,7 +392,7 @@ export function FotosGaleria({
                       selection exists, so there is only ever one control strip. */}
                   {selectionCount > 0 ? (
                     <>
-                      <span style={{ fontSize: 12.5, fontWeight: 600, color: "var(--brand)", marginRight: 2 }}>
+                      <span style={{ fontSize: 14, fontWeight: 600, color: "var(--brand)", marginRight: 2 }}>
                         {selectionCount} seleccionada{selectionCount !== 1 ? "s" : ""}
                       </span>
 
@@ -457,11 +457,11 @@ export function FotosGaleria({
                           onClick={() => { if (!on) onChangeTipo(selected.id, t); }}
                           style={{
                             display: "flex", alignItems: "center", gap: 5,
-                            height: 26, padding: "0 9px",
+                            height: 30, padding: "0 11px",
                             border: "none", borderRadius: 5,
                             background: on ? "var(--brand)" : "transparent",
                             color: on ? "var(--fg-on-brand)" : "var(--fg-3)",
-                            fontSize: 11.5, fontWeight: 600,
+                            fontSize: 14, fontWeight: 600,
                             cursor: on ? "default" : "pointer", fontFamily: "inherit",
                             transition: "background 0.12s, color 0.12s",
                           }}
@@ -573,7 +573,7 @@ export function FotosGaleria({
           {shownItems.length === 0 ? (
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "48px 0", gap: 8, color: "var(--fg-4)" }}>
               <ImageIcon size={32} style={{ opacity: 0.3 }} />
-              <span style={{ fontSize: 13 }}>
+              <span style={{ fontSize: 14 }}>
                 {isLocked ? "Álbum bloqueado" : selected ? "Sin fotos en este álbum" : "Sin fotos"}
               </span>
               {canEditSelected && (
@@ -581,7 +581,7 @@ export function FotosGaleria({
                   type="button"
                   onClick={() => fileRef.current?.click()}
                   disabled={uploading}
-                  style={{ display: "flex", alignItems: "center", gap: 6, height: 32, padding: "0 12px", marginTop: 2, border: "1px solid var(--border)", borderRadius: "var(--r-sm)", background: "var(--surface-1)", color: "var(--fg-2)", fontSize: 12.5, fontWeight: 600, cursor: uploading ? "default" : "pointer", fontFamily: "inherit" }}
+                  style={{ display: "flex", alignItems: "center", gap: 6, height: 32, padding: "0 12px", marginTop: 2, border: "1px solid var(--border)", borderRadius: "var(--r-sm)", background: "var(--surface-1)", color: "var(--fg-2)", fontSize: 14, fontWeight: 600, cursor: uploading ? "default" : "pointer", fontFamily: "inherit" }}
                   onMouseEnter={e => { if (!uploading) { e.currentTarget.style.borderColor = "var(--brand)"; e.currentTarget.style.color = "var(--brand)"; } }}
                   onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.color = "var(--fg-2)"; }}
                 >
@@ -612,7 +612,7 @@ export function FotosGaleria({
 
           {/* "All photos" can't receive uploads — point at the albums instead. */}
           {!selected && shownItems.length === 0 && (isActive || canManage) && visibles.length > 0 && (
-            <div style={{ marginTop: 12, fontSize: 12, color: "var(--fg-4)", textAlign: "center" }}>
+            <div style={{ marginTop: 12, fontSize: 14, color: "var(--fg-4)", textAlign: "center" }}>
               Selecciona un álbum para agregar fotos.
             </div>
           )}
@@ -739,7 +739,7 @@ function PhotoTile({ itemId, url, albumLabel, canDelete, isSelected, selectionAc
       )}
 
       {albumLabel && (
-        <div style={{ position: "absolute", left: 0, right: 0, bottom: 0, padding: "14px 8px 6px", fontSize: 11, fontWeight: 600, color: "#fff", background: "linear-gradient(to top, rgba(0,0,0,0.7), transparent)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", pointerEvents: "none" }}>
+        <div style={{ position: "absolute", left: 0, right: 0, bottom: 0, padding: "14px 8px 6px", fontSize: 14, fontWeight: 600, color: "#fff", background: "linear-gradient(to top, rgba(0,0,0,0.7), transparent)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", pointerEvents: "none" }}>
           {albumLabel}
         </div>
       )}
@@ -807,7 +807,7 @@ function MenuItem({ icon, label, onClick, danger }: {
         width: "100%", display: "flex", alignItems: "center", gap: 9,
         minHeight: 32, padding: "6px 8px", border: 0, borderRadius: "var(--r-sm)",
         background: "transparent", color: danger ? "var(--danger)" : "var(--fg-1)",
-        fontSize: 12.5, cursor: "pointer", fontFamily: "inherit", textAlign: "left",
+        fontSize: 14, cursor: "pointer", fontFamily: "inherit", textAlign: "left",
       }}
       onMouseEnter={e => { e.currentTarget.style.background = danger ? "var(--danger-bg)" : "var(--surface-hover)"; }}
       onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}
@@ -821,7 +821,7 @@ function MenuItem({ icon, label, onClick, danger }: {
 function tipoChipStyle(tipo: Tipo, clickable: boolean): React.CSSProperties {
   return {
     display: "inline-flex", alignItems: "center", gap: 4,
-    height: 20, padding: "0 8px", borderRadius: "var(--r-xs)", fontSize: 11, fontWeight: 600,
+    height: 24, padding: "0 8px", borderRadius: "var(--r-xs)", fontSize: 14, fontWeight: 600,
     border: "1px solid var(--border-strong)",
     background: tipo === "referencia" ? "var(--brand-tint)" : "var(--st-progress-bg)",
     color: tipo === "referencia" ? "var(--brand-fg)" : "var(--st-progress-fg)",
