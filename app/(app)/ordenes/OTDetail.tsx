@@ -42,6 +42,8 @@ import {
   uploadAndAddFotoToGrupo, removeFotoFromGrupo, toggleFotoGrupoLocked,
 } from "@/lib/foto-grupos-api";
 import type { FotoGrupo } from "@/lib/foto-grupos-api";
+import { FotosGaleria } from "./FotosGaleria";
+import { optimizedImageUrl } from "@/lib/image-cdn";
 import {
   getOTProcedimientos, attachProcedimiento, detachProcedimiento,
   listProcedimientos, startEjecucion, saveRespuesta, completeEjecucion, maybeTriggerCorrectiva,
@@ -59,183 +61,6 @@ import type {
 
 type PendingResp = Omit<Partial<PasoRespuesta>, "firmado_nombre"> & { firmado_nombre?: string | null };
 type PauseReason = "acceso" | "materiales" | "reprogramar" | "otro";
-
-// ── GrupoFotosCard ────────────────────────────────────────────────────────────
-
-function GrupoFotosCard({ grupo, canManage, canUpload, uploading, fileInputRef, onUpload, onRemoveItem, onDelete, onLightbox, onSaveEdit, onToggleLocked, onChangeTipo }: {
-  grupo: import("@/lib/foto-grupos-api").FotoGrupo;
-  canManage: boolean;
-  canUpload: boolean;
-  uploading: boolean;
-  fileInputRef: (el: HTMLInputElement | null) => void;
-  onUpload: (file: File) => void;
-  onRemoveItem: (itemId: string, url: string) => void;
-  onDelete: () => void;
-  onLightbox: (urls: string[], idx: number) => void;
-  onSaveEdit: (titulo: string, desc: string) => void;
-  onToggleLocked: (locked: boolean) => void;
-  onChangeTipo: (tipo: "referencia" | "evidencia") => void;
-}) {
-  const [editing, setEditing] = useState(false);
-  const [titulo, setTitulo] = useState(grupo.titulo);
-  const [desc, setDesc] = useState(grupo.descripcion);
-  const localFileRef = useRef<HTMLInputElement | null>(null);
-  const items = grupo.items ?? [];
-  const urls = items.map(i => i.url);
-  const isLocked = grupo.locked === true;
-  // Admins (canManage) can always edit regardless of lock.
-  // Non-admins are blocked by the lock.
-  const isEditable = canManage || (canUpload && !isLocked);
-
-  return (
-    <div style={{ border: "1px solid var(--border)", borderRadius: "var(--r-md)", overflow: "hidden", background: "var(--surface-1)" }}>
-      {/* Header */}
-      <div style={{ padding: "12px 14px", background: "var(--surface-0)", borderBottom: "1px solid var(--border)" }}>
-        {editing ? (
-          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            <input
-              autoFocus
-              value={titulo}
-              onChange={e => setTitulo(e.target.value)}
-              style={{ height: 32, padding: "0 8px", border: "1px solid var(--brand)", borderRadius: "var(--r-sm)", fontSize: 13, fontWeight: 600, outline: "none", fontFamily: "inherit" }}
-            />
-            <input
-              value={desc}
-              onChange={e => setDesc(e.target.value)}
-              placeholder="Descripción (opcional)"
-              style={{ height: 28, padding: "0 8px", border: "1px solid var(--border)", borderRadius: "var(--r-sm)", fontSize: 12, outline: "none", fontFamily: "inherit" }}
-            />
-            <div style={{ display: "flex", gap: 6 }}>
-              <button type="button" onClick={() => { onSaveEdit(titulo, desc); setEditing(false); }}
-                style={{ height: 26, padding: "0 10px", border: "none", borderRadius: "var(--r-sm)", background: "var(--brand)", color: "var(--fg-on-brand)", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
-                Guardar
-              </button>
-              <button type="button" onClick={() => { setTitulo(grupo.titulo); setDesc(grupo.descripcion); setEditing(false); }}
-                style={{ height: 26, padding: "0 10px", border: "1px solid var(--border)", borderRadius: "var(--r-sm)", background: "var(--surface-1)", fontSize: 11, cursor: "pointer", fontFamily: "inherit" }}>
-                Cancelar
-              </button>
-            </div>
-          </div>
-        ) : (
-          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }}>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 14, fontWeight: 700, color: "var(--fg-1)", lineHeight: 1.3 }}>{grupo.titulo || "Sin título"}</div>
-              {grupo.descripcion && (
-                <div style={{ fontSize: 12, color: "var(--fg-2)", marginTop: 3, lineHeight: 1.4 }}>{grupo.descripcion}</div>
-              )}
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
-                <span style={{ fontSize: 11, color: "var(--fg-4)" }}>{items.length} foto{items.length !== 1 ? "s" : ""}</span>
-                {canManage ? (
-                  <button
-                    type="button"
-                    title="Cambiar tipo: Referencia = guía para el técnico, Evidencia = el técnico debe subir fotos"
-                    onClick={() => onChangeTipo(grupo.tipo === "referencia" ? "evidencia" : "referencia")}
-                    style={{
-                      display: "inline-flex", alignItems: "center", gap: 4,
-                      height: 20, padding: "0 8px", borderRadius: "var(--r-xs)", fontSize: 11, fontWeight: 600,
-                      border: `1px solid ${grupo.tipo === "referencia" ? "var(--border-strong)" : "var(--border-strong)"}`,
-                      background: grupo.tipo === "referencia" ? "var(--brand-tint)" : "var(--st-progress-bg)",
-                      color: grupo.tipo === "referencia" ? "var(--brand-fg)" : "var(--st-progress-fg)",
-                      cursor: "pointer", fontFamily: "inherit",
-                    }}
-                  >
-                    {grupo.tipo === "referencia" ? "📎 Referencia" : "📷 Evidencia"}
-                  </button>
-                ) : (
-                  <span style={{
-                    display: "inline-flex", alignItems: "center", gap: 4,
-                    height: 20, padding: "0 8px", borderRadius: "var(--r-xs)", fontSize: 11, fontWeight: 600,
-                    border: `1px solid ${grupo.tipo === "referencia" ? "var(--border-strong)" : "var(--border-strong)"}`,
-                    background: grupo.tipo === "referencia" ? "var(--brand-tint)" : "var(--st-progress-bg)",
-                    color: grupo.tipo === "referencia" ? "var(--brand-fg)" : "var(--st-progress-fg)",
-                  }}>
-                    {grupo.tipo === "referencia" ? "📎 Referencia" : "📷 Evidencia"}
-                  </span>
-                )}
-              </div>
-            </div>
-            <div style={{ display: "flex", gap: 2, flexShrink: 0, alignItems: "center" }}>
-              {canManage && (
-                <>
-                  <button type="button" onClick={() => setEditing(true)}
-                    title="Editar grupo"
-                    style={{ width: 26, height: 26, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", borderRadius: "var(--r-xs)", cursor: "pointer", color: "var(--fg-2)" }}
-                    onMouseEnter={e => { e.currentTarget.style.background = "var(--surface-hover)"; }}
-                    onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}>
-                    <Pencil size={12} />
-                  </button>
-                  <button type="button" onClick={onDelete}
-                    title="Eliminar grupo"
-                    style={{ width: 26, height: 26, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", borderRadius: "var(--r-xs)", cursor: "pointer", color: "var(--danger)" }}
-                    onMouseEnter={e => { e.currentTarget.style.background = "var(--danger-bg)"; }}
-                    onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}>
-                    <Trash2 size={12} />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => onToggleLocked(!isLocked)}
-                    title={isLocked ? "Desbloquear grupo" : "Bloquear grupo"}
-                    style={{ display: "flex", alignItems: "center", gap: 4, height: 26, padding: "0 8px", border: `1px solid ${isLocked ? "var(--border)" : "var(--brand)"}`, borderRadius: "var(--r-sm)", background: isLocked ? "var(--surface-1)" : "var(--brand-tint)", color: isLocked ? "var(--fg-4)" : "var(--brand-fg)", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
-                  >
-                    {isLocked ? <Lock size={11} /> : <LockOpen size={11} />}
-                    {isLocked ? "Bloqueado" : "Bloquear"}
-                  </button>
-                </>
-              )}
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Photo grid */}
-      <div style={{ padding: 12 }}>
-        {items.length === 0 && !isEditable ? (
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "20px 0", color: "var(--fg-4)", gap: 6 }}>
-            <Image size={16} style={{ opacity: 0.4 }} />
-            <span style={{ fontSize: 12 }}>{isLocked ? "Grupo bloqueado" : "Sin fotos en este grupo"}</span>
-          </div>
-        ) : (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(80px, 1fr))", gap: 6 }}>
-            {items.map((item, idx) => (
-              <div key={item.id} className="group" style={{ position: "relative", aspectRatio: "1", borderRadius: "var(--r-sm)", overflow: "hidden", background: "var(--surface-hover)", cursor: "pointer" }}>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={item.url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} onClick={() => onLightbox(urls, idx)} />
-                {isEditable && (
-                  <button type="button" onClick={e => { e.stopPropagation(); onRemoveItem(item.id, item.url); }}
-                    className="absolute top-1 right-1 size-5 rounded-full bg-black/60 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600">
-                    <X size={10} />
-                  </button>
-                )}
-              </div>
-            ))}
-            {isEditable && (
-              <>
-                <button type="button"
-                  onClick={() => localFileRef.current?.click()}
-                  disabled={uploading}
-                  style={{
-                    aspectRatio: "1", border: "1.5px dashed var(--border-strong)", borderRadius: "var(--r-sm)",
-                    background: "var(--surface-0)", display: "flex", flexDirection: "column",
-                    alignItems: "center", justifyContent: "center", gap: 3,
-                    cursor: uploading ? "default" : "pointer", color: "var(--fg-4)",
-                  }}
-                  onMouseEnter={e => { if (!uploading) { e.currentTarget.style.borderColor = "var(--brand)"; e.currentTarget.style.color = "var(--brand-fg)"; } }}
-                  onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--border-strong)"; e.currentTarget.style.color = "var(--fg-4)"; }}>
-                  {uploading ? <Loader2 size={14} className="animate-spin" /> : <><Camera size={14} /><span style={{ fontSize: 9, fontWeight: 600 }}>AGREGAR</span></>}
-                </button>
-                <input
-                  ref={el => { localFileRef.current = el; fileInputRef(el); }}
-                  type="file" accept="image/*" multiple style={{ display: "none" }}
-                  onChange={e => { Array.from(e.target.files ?? []).forEach(f => onUpload(f)); e.target.value = ""; }}
-                />
-              </>
-            )}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
@@ -828,12 +653,8 @@ export default function OTDetail({
   const [gruposLoaded, setGruposLoaded] = useState(false);
   const [uploadingGrupoId, setUploadingGrupoId] = useState<string | null>(null);
   const [editingGrupoId, setEditingGrupoId] = useState<string | null>(null);
-  const [newGrupoTitulo, setNewGrupoTitulo] = useState("");
-  const [newGrupoDesc, setNewGrupoDesc] = useState("");
-  const [newGrupoTipo, setNewGrupoTipo] = useState<"referencia" | "evidencia">("referencia");
   const [creatingGrupo, setCreatingGrupo] = useState(false);
   const [lightboxGrupo, setLightboxGrupo] = useState<{ urls: string[]; idx: number } | null>(null);
-  const grupoFileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
   const [exporting, setExporting] = useState<"pdf" | "csv" | "txt" | null>(null);
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
@@ -1324,15 +1145,14 @@ export default function OTDetail({
       .finally(() => setLoadingGrupos(false));
   }, [orden.id, gruposLoaded]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  async function handleCreateGrupo() {
-    if (!newGrupoTitulo.trim() || !wsId) return;
+  // The gallery owns the create-album form (title/description/type), so the
+  // values arrive as arguments instead of being read from component state.
+  async function handleCreateGrupoWith(titulo: string, descripcion: string, tipo: "referencia" | "evidencia") {
+    if (!titulo.trim() || !wsId) return;
     setCreatingGrupo(true);
     try {
-      const grupo = await createFotoGrupo(orden.id, wsId, myId, newGrupoTitulo.trim(), newGrupoDesc.trim(), fotoGrupos.length, newGrupoTipo);
+      const grupo = await createFotoGrupo(orden.id, wsId, myId, titulo.trim(), descripcion.trim(), fotoGrupos.length, tipo);
       setFotoGrupos(prev => [...prev, { ...grupo, items: [] }]);
-      setNewGrupoTitulo("");
-      setNewGrupoDesc("");
-      setNewGrupoTipo("referencia");
     } finally {
       setCreatingGrupo(false);
     }
@@ -1389,6 +1209,26 @@ export default function OTDetail({
     setFotoGrupos(prev => prev.map(g =>
       g.id === grupoId ? { ...g, items: (g.items ?? []).filter(i => i.id !== itemId) } : g
     ));
+  }
+
+  // Bulk delete from the gallery's marquee/Ctrl+A selection. Deletions run
+  // sequentially (each is its own row + R2 object) and the local state is
+  // updated once at the end so the grid doesn't reflow per photo.
+  async function handleRemoveManyFromGrupos(items: { grupoId: string; itemId: string; url: string }[]) {
+    const removed: { grupoId: string; itemId: string }[] = [];
+    for (const it of items) {
+      try {
+        await removeFotoFromGrupo(it.itemId, it.url);
+        removed.push({ grupoId: it.grupoId, itemId: it.itemId });
+      } catch {
+        // Keep going: one failure shouldn't strand the rest of the batch.
+      }
+    }
+    if (removed.length === 0) return;
+    setFotoGrupos(prev => prev.map(g => {
+      const ids = new Set(removed.filter(r => r.grupoId === g.id).map(r => r.itemId));
+      return ids.size === 0 ? g : { ...g, items: (g.items ?? []).filter(i => !ids.has(i.id)) };
+    }));
   }
 
   // Load orden_partes when tab opens
@@ -3226,109 +3066,32 @@ export default function OTDetail({
 
         {/* ── Fotos ── */}
         {tab === "fotos" && (
-          <div style={{ padding: "24px 28px 120px" }}>
-            {loadingGrupos ? (
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "40px 0", gap: 8, color: "var(--pr-low)" }}>
-                <Loader2 size={16} className="animate-spin" />
-                <span style={{ fontSize: 13 }}>Cargando fotos…</span>
-              </div>
-            ) : (
+          // minHeight:100% + flex column lets the gallery fill the tab's scroll
+          // area instead of collapsing to its content height.
+          <div style={{ padding: "20px 28px 24px", minHeight: "100%", display: "flex", flexDirection: "column" }}>
+            {(
               <>
-                {/* Groups list */}
-                {(isActive ? fotoGrupos : fotoGrupos.filter(grupo => (grupo.items?.length ?? 0) > 0)).length === 0 && !isActive ? (
-                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "40px 0", gap: 8, color: "var(--pr-low)" }}>
-                    <FolderOpen size={32} style={{ opacity: 0.3 }} />
-                    <p style={{ fontSize: 13, margin: 0 }}>Sin grupos de fotos</p>
-                  </div>
-                ) : (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-                    {(isActive ? fotoGrupos : fotoGrupos.filter(grupo => (grupo.items?.length ?? 0) > 0)).map(grupo => (
-                      <GrupoFotosCard
-                        key={grupo.id}
-                        grupo={grupo}
-                        canManage={canManageFotos}
-                        canUpload={canUploadFotos}
-                        uploading={uploadingGrupoId === grupo.id}
-                        fileInputRef={el => { grupoFileInputRefs.current[grupo.id] = el; }}
-                        onUpload={file => handleUploadToGrupo(grupo.id, file)}
-                        onRemoveItem={(itemId, url) => setConfirmDelete({ label: "esta foto", onConfirm: () => handleRemoveFromGrupo(grupo.id, itemId, url) })}
-                        onDelete={() => setConfirmDelete({ label: grupo.titulo || "este grupo de fotos", onConfirm: () => handleDeleteGrupo(grupo.id) })}
-                        onLightbox={(urls, idx) => setLightboxGrupo({ urls, idx })}
-                        onSaveEdit={(titulo, desc) => handleSaveGrupoEdit(grupo.id, titulo, desc)}
-                        onToggleLocked={locked => handleToggleGrupoLocked(grupo.id, locked)}
-                        onChangeTipo={tipo => handleChangeGrupoTipo(grupo.id, tipo)}
-                      />
-                    ))}
-                  </div>
-                )}
-
-                {/* Add group form */}
-                {(isActive || canManage) && (
-                  <div style={{ marginTop: fotoGrupos.length > 0 ? 16 : 0, border: "1.5px dashed var(--border-strong)", borderRadius: "var(--r-md)", padding: 14, background: "var(--surface-0)" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
-                      <ImagePlus size={14} style={{ color: "var(--fg-3)" }} />
-                      <span style={{ fontSize: 12, fontWeight: 700, color: "var(--fg-3)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Nuevo grupo de fotos</span>
-                    </div>
-                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                      <input
-                        type="text"
-                        placeholder="Título (ej. Antes del trabajo, Instrucciones...)"
-                        value={newGrupoTitulo}
-                        onChange={e => setNewGrupoTitulo(e.target.value)}
-                        style={{ height: 34, padding: "0 10px", border: "1px solid var(--border)", borderRadius: "var(--r-sm)", fontSize: 13, fontWeight: 600, color: "var(--fg-1)", outline: "none", fontFamily: "inherit", background: "var(--surface-1)" }}
-                        onFocus={e => { e.currentTarget.style.borderColor = "var(--brand)"; }}
-                        onBlur={e => { e.currentTarget.style.borderColor = "var(--border)"; }}
-                        onKeyDown={e => { if (e.key === "Enter" && newGrupoTitulo.trim()) handleCreateGrupo(); }}
-                      />
-                      <input
-                        type="text"
-                        placeholder="Descripción o instrucciones (opcional)"
-                        value={newGrupoDesc}
-                        onChange={e => setNewGrupoDesc(e.target.value)}
-                        style={{ height: 30, padding: "0 10px", border: "1px solid var(--border)", borderRadius: "var(--r-sm)", fontSize: 12, color: "var(--fg-2)", outline: "none", fontFamily: "inherit", background: "var(--surface-1)" }}
-                        onFocus={e => { e.currentTarget.style.borderColor = "var(--brand)"; }}
-                        onBlur={e => { e.currentTarget.style.borderColor = "var(--border)"; }}
-                      />
-                      <div style={{ display: "flex", gap: 6 }}>
-                        {(["referencia", "evidencia"] as const).map(t => (
-                          <button
-                            key={t}
-                            type="button"
-                            onClick={() => setNewGrupoTipo(t)}
-                            style={{
-                              height: 28, padding: "0 12px", borderRadius: "var(--r-sm)", fontSize: 12, fontWeight: 600,
-                              border: `1.5px solid ${newGrupoTipo === t ? "var(--brand)" : "var(--border)"}`,
-                              background: newGrupoTipo === t ? "var(--brand-tint)" : "var(--surface-1)",
-                              color: newGrupoTipo === t ? "var(--brand-fg)" : "var(--fg-2)",
-                              cursor: "pointer", fontFamily: "inherit",
-                            }}
-                          >
-                            {t === "referencia" ? "📎 Referencia" : "📷 Evidencia"}
-                          </button>
-                        ))}
-                        <span style={{ fontSize: 11, color: "var(--pr-low)", alignSelf: "center", marginLeft: 4 }}>
-                          {newGrupoTipo === "referencia" ? "Fotos del supervisor para guiar al técnico" : "Fotos que el técnico debe subir en campo"}
-                        </span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={handleCreateGrupo}
-                        disabled={!newGrupoTitulo.trim() || creatingGrupo}
-                        style={{
-                          alignSelf: "flex-start", height: 30, padding: "0 14px",
-                          border: "none", borderRadius: "var(--r-sm)",
-                          background: newGrupoTitulo.trim() ? "var(--brand)" : "var(--border)",
-                          color: newGrupoTitulo.trim() ? "var(--surface-1)" : "var(--pr-low)",
-                          fontSize: 12, fontWeight: 600, cursor: newGrupoTitulo.trim() ? "pointer" : "default",
-                          display: "flex", alignItems: "center", gap: 5, fontFamily: "inherit",
-                        }}
-                      >
-                        {creatingGrupo ? <Loader2 size={11} className="animate-spin" /> : <Plus size={11} />}
-                        Crear grupo
-                      </button>
-                    </div>
-                  </div>
-                )}
+                <FotosGaleria
+                  grupos={fotoGrupos}
+                  loading={loadingGrupos}
+                  canManage={canManageFotos}
+                  canUpload={canUploadFotos}
+                  isActive={isActive || canManage}
+                  uploadingGrupoId={uploadingGrupoId}
+                  creatingGrupo={creatingGrupo}
+                  onUpload={(grupoId, file) => handleUploadToGrupo(grupoId, file)}
+                  onRemoveItem={(grupoId, itemId, url) => setConfirmDelete({ label: "esta foto", onConfirm: () => handleRemoveFromGrupo(grupoId, itemId, url) })}
+                  onRemoveMany={items => setConfirmDelete({
+                    label: `${items.length} foto${items.length !== 1 ? "s" : ""}`,
+                    onConfirm: () => handleRemoveManyFromGrupos(items),
+                  })}
+                  onDeleteGrupo={grupo => setConfirmDelete({ label: grupo.titulo || "este grupo de fotos", onConfirm: () => handleDeleteGrupo(grupo.id) })}
+                  onSaveGrupoEdit={(grupoId, titulo, desc) => handleSaveGrupoEdit(grupoId, titulo, desc)}
+                  onToggleLocked={(grupoId, locked) => handleToggleGrupoLocked(grupoId, locked)}
+                  onChangeTipo={(grupoId, tipo) => handleChangeGrupoTipo(grupoId, tipo)}
+                  onCreateGrupo={(titulo, desc, tipo) => handleCreateGrupoWith(titulo, desc, tipo)}
+                  onLightbox={(urls, idx) => setLightboxGrupo({ urls, idx })}
+                />
 
                 {/* Lightbox. The arrows + close button live inside the image
                     frame: we wrap the <img> in an inline-block container that
@@ -3337,8 +3100,10 @@ export default function OTDetail({
                     viewport. */}
                 {lightboxGrupo !== null && (
                   <div
-                    className="fixed inset-0 z-50 flex items-center justify-center"
-                    style={{ background: "var(--surface-0)" }}
+                    // z-index must beat GlobalTopBar (zIndex 100), otherwise the
+                    // breadcrumb bar shows through the fullscreen lightbox.
+                    style={{ background: "var(--surface-0)", zIndex: 200 }}
+                    className="fixed inset-0 flex items-center justify-center"
                     onClick={() => setLightboxGrupo(null)}
                   >
                     {/* Close — top-right of the viewport */}
@@ -4094,16 +3859,8 @@ function isAnsweredForType(paso: ProcedimientoPaso, resp: PendingResp | undefine
   }
 }
 
-function optimizedProcedureImageUrl(url: string, width: number) {
-  if (!url || url.startsWith("data:") || url.startsWith("blob:")) return url;
-  try {
-    const parsed = new URL(url);
-    if (!/^https?:$/.test(parsed.protocol) || parsed.hostname.endsWith("r2.dev")) return url;
-    return `${parsed.origin}/cdn-cgi/image/width=${width},quality=72,format=auto${parsed.pathname}${parsed.search}`;
-  } catch {
-    return url;
-  }
-}
+// Cloudflare Image Resizing rewrite — see lib/image-cdn.ts.
+const optimizedProcedureImageUrl = optimizedImageUrl;
 
 function signatureImageSrc(value: string | null | undefined) {
   if (!value) return null;

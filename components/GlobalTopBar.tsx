@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { Check, ChevronRight, CircleUserRound, CreditCard, LogOut, Monitor, Moon, Sun } from "lucide-react";
 import { createClient } from "@/lib/supabase";
 import NotificationMenu from "@/components/NotificationMenu";
+import { useTopBarActions } from "@/components/TopBarActions";
 
 type ThemePref = "light" | "auto" | "dark";
 
@@ -59,6 +60,7 @@ export default function GlobalTopBar() {
   const [role, setRole] = useState("");
   const [theme, setTheme] = useState<ThemePref>("auto");
   const trail = pageTrail(pathname);
+  const topBarActions = useTopBarActions();
 
   useEffect(() => {
     setTheme((localStorage.getItem("pangui_theme") as ThemePref | null) ?? "auto");
@@ -97,6 +99,30 @@ export default function GlobalTopBar() {
         ))}
       </nav>
       <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+        {/* Page-contributed icon buttons (see TopBarActions), left of the bell. */}
+        {topBarActions.map((action) => (
+          <button
+            key={action.id}
+            type="button"
+            onClick={action.onClick}
+            disabled={action.disabled}
+            title={action.label}
+            aria-label={action.label}
+            style={{
+              width: 34, height: 34, borderRadius: "50%", border: "none",
+              background: "transparent",
+              color: action.disabled ? "var(--fg-4)" : "var(--fg-3)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              cursor: action.disabled ? "not-allowed" : "pointer",
+              opacity: action.disabled ? 0.5 : 1,
+              transition: "background 0.12s, color 0.12s",
+            }}
+            onMouseEnter={(e) => { if (!action.disabled) { e.currentTarget.style.background = "var(--surface-hover)"; e.currentTarget.style.color = "var(--fg-1)"; } }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = action.disabled ? "var(--fg-4)" : "var(--fg-3)"; }}
+          >
+            {action.icon}
+          </button>
+        ))}
         <NotificationMenu />
         <div ref={menuRef} style={{ position: "relative" }}>
         <button

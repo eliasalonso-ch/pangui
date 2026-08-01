@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Plus, Search, X, ChevronDown, Loader2, FileText, ArrowUpDown, Download, AlertTriangle, Calendar, List, CalendarDays, Columns3, Check, Copy } from "lucide-react";
+import { Plus, Search, X, ChevronDown, Loader2, FileText, ArrowUpDown, Download, AlertTriangle, Calendar, List, CalendarDays, Columns3, Check, Copy, DatabaseArrowDown, Eye, EyeOff } from "lucide-react";
+import { useTopBarAction } from "@/components/TopBarActions";
 import { createClient, logRealtimeChannel } from "@/lib/supabase";
 import { fetchOrden, fetchOrdenesPage, fetchAllOrdenesForExport, fetchOrdenListItem, searchOrdenes, ORDENES_SEARCH_LIMIT, deleteOrden, ORDENES_PAGE_SIZE, parseDescMeta, fetchMarcadasIds, toggleMarcada } from "@/lib/ordenes-api";
 import { buildOrdenesWorkbook, type ExportCols as SharedExportCols, type OrdenInput, type HojaInput, type FilaInput, type FotoItemInput, type MaterialUsadoInput } from "@/lib/excel-export-shared";
@@ -1082,6 +1083,23 @@ export default function OrdenesBandeja({
         ? filteredCounts.completas.presupuestos
         : 0;
 
+  // Excel export lives in the global top bar (left of the bell) rather than in
+  // this page's toolbar, so the search row stays uncluttered.
+  useTopBarAction(
+    {
+      id: "ordenes-export-excel",
+      label: ordenes.length === 0
+        ? "No hay órdenes para exportar"
+        : `Exportar todas las órdenes a Excel (${ordenes.length})`,
+      icon: exporting
+        ? <Loader2 size={18} className="animate-spin" />
+        : <DatabaseArrowDown size={18} />,
+      disabled: exporting || ordenes.length === 0,
+      onClick: () => { if (ordenes.length > 0 && !exporting) setExportConfigOpen(true); },
+    },
+    [ordenes.length, exporting],
+  );
+
   // ── Excel export (all OTs across tabs, respecting filters/search) ─────────
   //
   // Filtering + Supabase queries happen here (browser-side, uses the user's
@@ -1344,53 +1362,6 @@ export default function OrdenesBandeja({
               <Plus size={16} strokeWidth={2} />
               Nueva Orden de Trabajo
             </button>
-
-            <button
-              type="button"
-              onClick={() => setOcultarMarcadas(v => !v)}
-              title={ocultarMarcadas ? "Mostrar las OTs que marcaste" : "Ocultar las OTs que marcaste"}
-              aria-pressed={ocultarMarcadas}
-              style={{
-                display:"flex", alignItems:"center", gap:5,
-                height:32, padding:"0 10px",
-                border:"1px solid " + (ocultarMarcadas ? "var(--brand)" : "var(--border)"),
-                borderRadius:6,
-                background: ocultarMarcadas ? "var(--brand-tint)" : "var(--surface-1)",
-                color: ocultarMarcadas ? "var(--brand-fg)" : "var(--fg-2)",
-                fontSize:12, fontWeight:500, cursor:"pointer",
-                fontFamily:"inherit", whiteSpace:"nowrap", transition:"all 0.12s",
-                flexShrink:0,
-              }}
-            >
-              <Check size={12} />
-              Ocultar leídas
-            </button>
-
-            <button
-              type="button"
-              onClick={() => { if (ordenes.length > 0 && !exporting) setExportConfigOpen(true); }}
-              disabled={exporting || ordenes.length === 0}
-              title={ordenes.length === 0 ? "No hay órdenes para exportar" : `Exportar todas las órdenes a Excel (${ordenes.length})`}
-              style={{
-                display:"flex", alignItems:"center", gap:5,
-                height:32, padding:"0 10px",
-                border:"1px solid var(--border)", borderRadius:6,
-                background: exporting ? "var(--surface-0)" : "var(--surface-1)",
-                color: ordenes.length === 0 ? "var(--border-strong)" : "var(--fg-2)",
-                fontSize:12, fontWeight:500, cursor: ordenes.length === 0 ? "not-allowed" : "pointer",
-                fontFamily:"inherit", whiteSpace:"nowrap",
-                transition:"all 0.12s",
-                flexShrink:0,
-              }}
-              onMouseEnter={e => { if (ordenes.length > 0 && !exporting) { e.currentTarget.style.borderColor = "var(--success)"; e.currentTarget.style.color = "var(--success)"; e.currentTarget.style.background = "var(--success-bg)"; } }}
-              onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.color = ordenes.length === 0 ? "var(--border-strong)" : "var(--fg-2)"; e.currentTarget.style.background = "var(--surface-1)"; }}
-            >
-              {exporting
-                ? <Loader2 size={12} className="animate-spin" style={{ color:"var(--success)" }} />
-                : <Download size={12} />
-              }
-              {exporting ? "Exportando…" : "Excel"}
-            </button>
           </div>
         </div>
 
@@ -1428,6 +1399,27 @@ export default function OrdenesBandeja({
           display:"flex", alignItems:"center",
           padding:"6px 20px", minHeight:40,
         }}>
+          {/* Ocultar leídas — plain icon toggle at the start of the filter row.
+              Eye = leídas visible, EyeOff = leídas ocultas. */}
+          <button
+            type="button"
+            onClick={() => setOcultarMarcadas(v => !v)}
+            title={ocultarMarcadas ? "Mostrar las OTs que marcaste" : "Ocultar las OTs que marcaste"}
+            aria-label={ocultarMarcadas ? "Mostrar las OTs leídas" : "Ocultar las OTs leídas"}
+            aria-pressed={ocultarMarcadas}
+            style={{
+              display:"flex", alignItems:"center", justifyContent:"center",
+              width:30, height:28, marginRight:8, flexShrink:0,
+              border: ocultarMarcadas ? "1.5px solid var(--brand)" : "1px solid var(--border)",
+              borderRadius:6,
+              background: ocultarMarcadas ? "var(--brand-tint)" : "var(--surface-1)",
+              color: ocultarMarcadas ? "var(--brand)" : "var(--fg-2)",
+              cursor:"pointer", fontFamily:"inherit",
+            }}
+          >
+            {ocultarMarcadas ? <EyeOff size={16} /> : <Eye size={16} />}
+          </button>
+
           <FilterBar
             filtros={filtros}
             onChange={setFiltros}
@@ -1435,56 +1427,6 @@ export default function OrdenesBandeja({
             ubicaciones={ubicaciones}
             sociedades={sociedades}
           />
-          <div style={{ display:"none" }}>
-
-          {/* Ocultar leídas/marcadas (per-user) */}
-          <button
-            type="button"
-            onClick={() => setOcultarMarcadas(v => !v)}
-            title={ocultarMarcadas ? "Mostrar las OTs que marcaste" : "Ocultar las OTs que marcaste"}
-            aria-pressed={ocultarMarcadas}
-            style={{
-              display:"flex", alignItems:"center", gap:5,
-              height:28, padding:"0 10px",
-              border:"1px solid " + (ocultarMarcadas ? "var(--brand)" : "var(--border)"),
-              borderRadius:6,
-              background: ocultarMarcadas ? "var(--brand-tint)" : "var(--surface-1)",
-              color: ocultarMarcadas ? "var(--brand-fg)" : "var(--fg-2)",
-              fontSize:12, fontWeight:500, cursor:"pointer",
-              fontFamily:"inherit", whiteSpace:"nowrap", transition:"all 0.12s",
-            }}
-          >
-            <Check size={12} />
-            Ocultar leídas
-          </button>
-
-          {/* Export Excel */}
-          <button
-            type="button"
-            onClick={() => { if (ordenes.length > 0 && !exporting) setExportConfigOpen(true); }}
-            disabled={exporting || ordenes.length === 0}
-            title={ordenes.length === 0 ? "No hay órdenes para exportar" : `Exportar todas las órdenes a Excel (${ordenes.length})`}
-            style={{
-              display:"flex", alignItems:"center", gap:5,
-              height:28, padding:"0 10px",
-              border:"1px solid var(--border)", borderRadius:6,
-              background: exporting ? "var(--surface-0)" : "var(--surface-1)",
-              color: ordenes.length === 0 ? "var(--border-strong)" : "var(--fg-2)",
-              fontSize:12, fontWeight:500, cursor: ordenes.length === 0 ? "not-allowed" : "pointer",
-              fontFamily:"inherit", whiteSpace:"nowrap",
-              transition:"all 0.12s",
-            }}
-            onMouseEnter={e => { if (ordenes.length > 0 && !exporting) { e.currentTarget.style.borderColor = "var(--success)"; e.currentTarget.style.color = "var(--success)"; e.currentTarget.style.background = "var(--success-bg)"; } }}
-            onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.color = ordenes.length === 0 ? "var(--border-strong)" : "var(--fg-2)"; e.currentTarget.style.background = "var(--surface-1)"; }}
-          >
-            {exporting
-              ? <Loader2 size={12} className="animate-spin" style={{ color:"var(--success)" }} />
-              : <Download size={12} />
-            }
-            {exporting ? "Exportando…" : "Excel"}
-          </button>
-
-          </div>{/* end right side */}
         </div>
       </div>
 

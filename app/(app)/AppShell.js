@@ -4,6 +4,7 @@ import { usePathname } from "next/navigation";
 import { createClient } from "@/lib/supabase";
 import AppSidebar from "@/components/AppSidebar";
 import GlobalTopBar from "@/components/GlobalTopBar";
+import { TopBarActionsProvider } from "@/components/TopBarActions";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 
 function applyStoredTheme() {
@@ -140,17 +141,21 @@ export default function AppShell({ children }) {
       <SidebarProvider>
         <AppSidebar />
         <SidebarInset>
-          <GlobalTopBar />
-          <div
-            style={{
-              flex: 1,
-              minHeight: 0,
-              overflowY: pathname === "/ordenes" ? "hidden" : "auto",
-              overflowX: "hidden",
-            }}
-          >
-            {children}
-          </div>
+          {/* Wraps both the bar and the page so pages can register top-bar
+              icon buttons (e.g. Órdenes' Excel export) into the bar above them. */}
+          <TopBarActionsProvider>
+            <GlobalTopBar />
+            <div
+              style={{
+                flex: 1,
+                minHeight: 0,
+                overflowY: pathname === "/ordenes" ? "hidden" : "auto",
+                overflowX: "hidden",
+              }}
+            >
+              {children}
+            </div>
+          </TopBarActionsProvider>
         </SidebarInset>
       </SidebarProvider>
     </>
