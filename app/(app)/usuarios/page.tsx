@@ -86,6 +86,20 @@ function DynamicIcon({ name, size = 16, ...props }: { name?: string; size?: numb
   return <Icon size={size} {...props} />;
 }
 
+/**
+ * Turns an invite-user failure into something an admin can act on. Mirrors
+ * invitationError() in the mobile app so both platforms explain the same
+ * failure the same way — 402 in particular is a billing stop, not an error.
+ */
+function inviteError(status: number, body: { error?: string } | null): string {
+  const raw = body?.error;
+  if (status === 402) return raw || "Tu plan no permite agregar más usuarios. Revisa Suscripción.";
+  if (status === 403) return "No tienes permisos para invitar personas a este espacio de trabajo.";
+  if (status === 409) return "Este correo ya está registrado en un espacio de trabajo.";
+  if (status === 429) return "Se enviaron demasiadas invitaciones. Espera unos minutos e inténtalo otra vez.";
+  return raw || "No se pudo enviar la invitación. Inténtalo nuevamente.";
+}
+
 function formatDate(iso?: string) {
   if (!iso) return "—";
   return new Date(iso).toLocaleDateString("es-CL", { day: "2-digit", month: "short", year: "numeric" });
@@ -139,8 +153,12 @@ export default function UsuariosPage() {
   const [panelData, setPanelData] = useState<Usuario | Cuadrilla | null>(null);
   const [panelMembers, setPanelMembers] = useState<string[]>([]);
 
-  // User form
-  const [userForm, setUserForm] = useState({ nombre: "", email: "", password: "", rol: "tecnico", oficio: "" });
+  // Invite form. No password field: the member sets their own from the emailed
+  // link, exactly like the mobile Equipo invite.
+  const [userForm, setUserForm] = useState({ nombre: "", email: "", rol: "member", cargo_id: "", oficio_id: "" });
+  // Cargo/oficio catalogs, scoped to global rows + this workspace's own.
+  const [cargos, setCargos]   = useState<{ id: string; nombre: string }[]>([]);
+  const [oficios, setOficios] = useState<{ id: string; nombre: string }[]>([]);
   const [saving, setSaving] = useState(false);
   const [saveErr, setSaveErr] = useState<string | null>(null);
   const [inviteOk, setInviteOk] = useState<{ nombre: string; email: string; password: string } | null>(null);
@@ -190,9 +208,18 @@ export default function UsuariosPage() {
         .eq("workspace_id", pId).is("deleted_at", null).order("nombre");
       setUsuarios(u1 ?? []);
 
-      const { data: cData } = await sb.from("cuadrillas")
-        .select("*").eq("workspace_id", pId).eq("activo", true).order("nombre");
-      setCuadrillas(cData ?? []);
+      // Catalogs for the invite form: global rows plus this workspace's own,
+      // same scoping the mobile invite and /usuarios/[id] use.
+      const [{ data: cgs }, { data: ofs }] = await Promise.all([
+        sb.from("cargos").select("id, nombre")
+          .or(`workspace_id.is.null,workspace_id.eq.${pId}`)
+          .eq("activo", true).order("nivel").order("nombre"),
+        sb.from("oficios").select("id, nombre")
+          .or(`workspace_id.is.null,workspace_id.eq.${pId}`)
+          .eq("activo", true).order("nombre"),
+      ]);
+      setCargos(cgs ?? []);
+      setOficios(ofs ?? []);
       setLoading(false);
     }
     load();
@@ -293,26 +320,45 @@ export default function UsuariosPage() {
   }
 
   // ── Invite user ────────────────────────────────────────────────────────────
+  /**
+   * Sends a real invitation email via the `invite-user` edge function — the same
+   * one the mobile Equipo screen uses. The member sets their own password from
+   * the emailed link, so no temporary credentials are typed or shared here.
+   *
+   * The function validates the email is not already registered, checks the
+   * cargo/oficio ids against this workspace's catalogs, and pre-creates the
+   * `usuarios` row so the person is assignable before accepting.
+   */
   async function inviteUser() {
     setSaveErr(null);
-    if (!userForm.nombre.trim()) { setSaveErr("Ingresa el nombre."); return; }
-    if (!userForm.email.trim()) { setSaveErr("Ingresa el email."); return; }
-    if (userForm.password.length < 8) { setSaveErr("La contraseña debe tener al menos 8 caracteres."); return; }
+    const nombre = userForm.nombre.trim();
+    const email = userForm.email.trim().toLowerCase();
+    if (!nombre) { setSaveErr("Ingresa el nombre."); return; }
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { setSaveErr("Ingresa un email valido."); return; }
+
     setSaving(true);
-    const res = await callEdge("invitar", {
-      nombre: userForm.nombre.trim(),
-      email: userForm.email.trim(),
-      password: userForm.password,
+    const res = await callEdge("invite-user", {
+      email,
+      nombre,
       rol: userForm.rol,
-      workspace_id: plantaId,
+      // Dual-write id + text, matching the mobile invite payload.
+      cargo:     cargos.find(c => c.id === userForm.cargo_id)?.nombre ?? null,
+      cargo_id:  userForm.cargo_id || null,
+      oficio:    oficios.find(o => o.id === userForm.oficio_id)?.nombre ?? null,
+      oficio_id: userForm.oficio_id || null,
     });
-    const body = await res.json();
+
+    const body = await res.json().catch(() => null);
     setSaving(false);
-    if (!res.ok) { setSaveErr(body.error ?? "Error al crear el usuario."); return; }
-    setInviteOk({ nombre: userForm.nombre.trim(), email: userForm.email.trim(), password: userForm.password });
+    if (!res.ok) {
+      setSaveErr(inviteError(res.status, body));
+      return;
+    }
+
+    setInviteOk({ nombre, email, password: "" });
     const sb = createClient();
     const { data: u1 } = await sb.from("usuarios")
-      .select("id,nombre,rol,activo,oficio,created_at,last_active,deleted_at")
+      .select("id,nombre,rol,activo,oficio,cargo,solo_asignadas,created_at,last_active,deleted_at")
       .eq("workspace_id", plantaId).is("deleted_at", null).order("nombre");
     setUsuarios(u1 ?? []);
   }
@@ -328,7 +374,7 @@ export default function UsuariosPage() {
   }
 
   function openCreateUser() {
-    setUserForm({ nombre: "", email: "", password: "", rol: "tecnico", oficio: "" });
+    setUserForm({ nombre: "", email: "", rol: "member", cargo_id: "", oficio_id: "" });
     setPanelData(null);
     setPanelMode("create-user");
     setSaveErr(null);
@@ -452,69 +498,45 @@ export default function UsuariosPage() {
   const showPanel = panelMode !== null;
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100dvh", overflow: "hidden", background: "var(--surface-1)" }}>
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", minHeight: 0, background: "var(--surface-canvas)" }}>
 
-      {/* Header */}
+      {/* Toolbar: search on the left, actions on the right. Cuadrillas was
+          removed — the table had no rows in production and nothing else in the
+          app referenced it, so the tab strip is gone with it. */}
       <div style={{
         flexShrink: 0, borderBottom: "1px solid var(--border)",
-        padding: "0 24px", height: 56,
-        display: "flex", alignItems: "center", justifyContent: "space-between",
+        padding: "12px 24px", display: "flex", alignItems: "center",
+        justifyContent: "space-between", gap: 12, flexWrap: "wrap",
       }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginLeft: "auto" }}>
-          {esAdmin(myRol) && activeTab === "equipo" && (
-            <button
-              type="button"
-              onClick={loadPermisos}
-              title="Gestionar permisos"
-              style={{
-                height: 32, width: 32,
-                display: "flex", alignItems: "center", justifyContent: "center",
-                background: "none", border: "1px solid var(--border)", borderRadius: 6,
-                cursor: "pointer", color: "var(--fg-3)",
-              }}
-            >
-              <Lock size={14} />
-            </button>
-          )}
+        <div style={{ position: "relative", flex: "1 1 260px", maxWidth: 320 }}>
+          <Search size={14} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "var(--fg-4)" }} />
+          <input
+            type="text"
+            placeholder="Buscar miembro…"
+            value={busqueda}
+            onChange={e => setBusqueda(e.target.value)}
+            style={{ ...inputStyle, paddingLeft: 32, height: 36 }}
+          />
+        </div>
+
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
           {(esAdmin(myRol) || myRol === "jefe") && (
             <button
               type="button"
-              onClick={activeTab === "equipo" ? openCreateUser : openCreateCuadrilla}
+              onClick={openCreateUser}
               style={{
-                height: 32, padding: "0 14px",
-                display: "flex", alignItems: "center", gap: 6,
-                background: "var(--brand)", border: "none", borderRadius: 6,
-                fontSize: 13, fontWeight: 600, color: "var(--fg-on-brand)",
-                cursor: "pointer", fontFamily: "inherit",
+                height: 36, padding: "0 16px",
+                display: "flex", alignItems: "center", gap: 7,
+                background: "var(--brand)", border: "none", borderRadius: 8,
+                fontSize: 14, fontWeight: 500, color: "var(--fg-on-brand)",
+                cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap",
               }}
             >
-              <UserPlus size={14} />
-              {activeTab === "equipo" ? "Agregar" : "Nueva"}
+              <UserPlus size={15} />
+              Agregar miembro
             </button>
           )}
         </div>
-      </div>
-
-      {/* Tabs */}
-      <div style={{ flexShrink: 0, borderBottom: "1px solid var(--border)", padding: "0 24px", display: "flex" }}>
-        {(["equipo", "cuadrillas"] as const).map(t => (
-          <button
-            key={t}
-            type="button"
-            onClick={() => switchTab(t)}
-            style={{
-              height: 40, padding: "0 16px",
-              background: "none", border: "none",
-              borderBottom: activeTab === t ? "2px solid var(--brand)" : "2px solid transparent",
-              color: activeTab === t ? "var(--brand)" : "var(--fg-4)",
-              fontSize: 13, fontWeight: activeTab === t ? 600 : 500,
-              cursor: "pointer", fontFamily: "inherit",
-              marginBottom: -1, transition: "color 0.1s", textTransform: "capitalize",
-            }}
-          >
-            {t === "equipo" ? "Equipo" : "Cuadrillas"}
-          </button>
-        ))}
       </div>
 
       {/* Main area */}
@@ -522,20 +544,6 @@ export default function UsuariosPage() {
 
         {/* List */}
         <div style={{ flex: 1, overflowY: "auto", minWidth: 0 }}>
-          {/* Search */}
-          <div style={{ padding: "12px 24px", borderBottom: "1px solid var(--border)" }}>
-            <div style={{ position: "relative", maxWidth: 320 }}>
-              <Search size={14} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "var(--fg-4)" }} />
-              <input
-                type="text"
-                placeholder={activeTab === "equipo" ? "Buscar miembro…" : "Buscar cuadrilla…"}
-                value={busqueda}
-                onChange={e => setBusqueda(e.target.value)}
-                style={{ ...inputStyle, paddingLeft: 32, height: 34 }}
-              />
-            </div>
-          </div>
-
           {/* Equipo table. Columns are sortable and each row carries a menu;
               clicking the row opens /usuarios/[id]. */}
           {activeTab === "equipo" && (
@@ -688,53 +696,6 @@ export default function UsuariosPage() {
             )
           )}
 
-          {/* Cuadrillas list */}
-          {activeTab === "cuadrillas" && (
-            filteredCuadrillas.length === 0 ? (
-              <div style={{ padding: 40, textAlign: "center", color: "var(--fg-4)", fontSize: 13 }}>
-                {busqueda ? "Sin resultados." : "No hay cuadrillas aún."}
-              </div>
-            ) : (
-              <div>
-                {filteredCuadrillas.map(c => {
-                  const tipo = TIPOS_CUADRILLA.find(t => t.id === c.tipo);
-                  const color = c.color || tipo?.color || "var(--fg-3)";
-                  const icono = c.icono || tipo?.icono || "Users";
-                  const isSelected = panelMode !== null && (panelData as Cuadrilla)?.id === c.id;
-                  return (
-                    <button
-                      key={c.id}
-                      type="button"
-                      onClick={() => openCuadrilla(c)}
-                      style={{
-                        width: "100%", display: "flex", alignItems: "center", gap: 12,
-                        padding: "12px 24px", background: isSelected ? "var(--brand-tint)" : "none",
-                        border: "none", borderBottom: "1px solid var(--border)",
-                        cursor: "pointer", fontFamily: "inherit", textAlign: "left",
-                      }}
-                    >
-                      <div style={{
-                        width: 36, height: 36, borderRadius: 8, flexShrink: 0,
-                        background: "var(--surface-hover)",
-                        display: "flex", alignItems: "center", justifyContent: "center",
-                      }}>
-                        <DynamicIcon name={icono} size={16} style={{ color }} />
-                      </div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <p style={{ fontSize: 13, fontWeight: 600, color: "var(--fg-1)", margin: 0 }}>{c.nombre}</p>
-                        {c.descripcion && (
-                          <p style={{ fontSize: 11, color: "var(--fg-3)", margin: "1px 0 0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                            {c.descripcion}
-                          </p>
-                        )}
-                      </div>
-                      <ChevronRight size={14} style={{ color: "var(--fg-4)", flexShrink: 0 }} />
-                    </button>
-                  );
-                })}
-              </div>
-            )
-          )}
         </div>
 
         {/* Panel */}
@@ -744,7 +705,9 @@ export default function UsuariosPage() {
             borderLeft: "1px solid var(--border)",
             display: "flex", flexDirection: "column",
             overflowY: "auto",
-            background: "var(--surface-1)",
+            // Canvas, so the white form inputs read as elements on the panel
+            // instead of the whole panel being one flat white sheet.
+            background: "var(--surface-canvas)",
           }}>
             {/* Panel header */}
             <div style={{
@@ -771,15 +734,13 @@ export default function UsuariosPage() {
                   <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                     <div style={{ padding: "12px 16px", background: "var(--success-bg)", border: "1px solid var(--success)", borderRadius: 8 }}>
                       <p style={{ fontSize: 13, fontWeight: 600, color: "var(--success)", margin: "0 0 8px" }}>
-                        ¡Usuario creado!
+                        ¡Invitación enviada!
                       </p>
-                      <p style={{ fontSize: 12, color: "var(--fg-2)", margin: "0 0 4px" }}>
-                        Comparte estas credenciales con <strong>{inviteOk.nombre}</strong>:
+                      <p style={{ fontSize: 12, color: "var(--fg-2)", margin: 0, lineHeight: 1.5 }}>
+                        Le enviamos un correo a <strong>{inviteOk.email}</strong> para que{" "}
+                        <strong>{inviteOk.nombre}</strong> cree su contraseña. Ya aparece en el equipo
+                        y puedes asignarle órdenes.
                       </p>
-                      <div style={{ fontSize: 12, color: "var(--fg-2)", marginTop: 8, display: "flex", flexDirection: "column", gap: 4 }}>
-                        <div><strong>Email:</strong> {inviteOk.email}</div>
-                        <div><strong>Contraseña:</strong> {inviteOk.password}</div>
-                      </div>
                     </div>
                     <button type="button" onClick={closePanel}
                       style={{ height: 36, border: "none", borderRadius: 6, background: "var(--brand)", color: "var(--fg-on-brand)", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
@@ -857,24 +818,33 @@ export default function UsuariosPage() {
                     )}
                   </>
                 ) : (
-                  // Create user form
+                  // Invite form. Mirrors the mobile Equipo invite: no manual
+                  // password — the member receives an email and sets their own.
                   <>
-                    {(["nombre", "email", "password"] as const).map(field => (
-                      <div key={field}>
-                        <label style={labelStyle}>
-                          {field === "nombre" ? "Nombre completo" : field === "email" ? "Email" : "Contraseña temporal"}
-                        </label>
-                        <input
-                          style={inputStyle}
-                          type={field === "email" ? "email" : "text"}
-                          placeholder={field === "nombre" ? "Ej. Juan Pérez" : field === "email" ? "usuario@empresa.cl" : "Mínimo 8 caracteres"}
-                          value={userForm[field]}
-                          onChange={e => setUserForm(f => ({ ...f, [field]: e.target.value }))}
-                          onFocus={e => { e.currentTarget.style.borderColor = "var(--brand)"; }}
-                          onBlur={e => { e.currentTarget.style.borderColor = "var(--border)"; }}
-                        />
-                      </div>
-                    ))}
+                    <div>
+                      <label style={labelStyle}>Nombre completo</label>
+                      <input
+                        style={inputStyle}
+                        type="text"
+                        placeholder="Ej. Juan Perez"
+                        value={userForm.nombre}
+                        onChange={e => setUserForm(f => ({ ...f, nombre: e.target.value }))}
+                        onFocus={e => { e.currentTarget.style.borderColor = "var(--brand)"; }}
+                        onBlur={e => { e.currentTarget.style.borderColor = "var(--border)"; }}
+                      />
+                    </div>
+                    <div>
+                      <label style={labelStyle}>Email</label>
+                      <input
+                        style={inputStyle}
+                        type="email"
+                        placeholder="usuario@empresa.cl"
+                        value={userForm.email}
+                        onChange={e => setUserForm(f => ({ ...f, email: e.target.value }))}
+                        onFocus={e => { e.currentTarget.style.borderColor = "var(--brand)"; }}
+                        onBlur={e => { e.currentTarget.style.borderColor = "var(--border)"; }}
+                      />
+                    </div>
                     <div>
                       <label style={labelStyle}>Rol</label>
                       <select
@@ -885,36 +855,52 @@ export default function UsuariosPage() {
                         <option value="requester">{ROL_LABEL.requester}</option>
                         <option value="member">{ROL_LABEL.member}</option>
                         {esAdmin(myRol) && <option value="admin">{ROL_LABEL.admin}</option>}
-                        {esOwner(myRol) && <option value="owner">{ROL_LABEL.owner}</option>}
+                      </select>
+                    </div>
+                    <div>
+                      <label style={labelStyle}>Cargo</label>
+                      <select
+                        style={inputStyle}
+                        value={userForm.cargo_id}
+                        onChange={e => setUserForm(f => ({ ...f, cargo_id: e.target.value }))}
+                      >
+                        <option value="">Sin especificar</option>
+                        {cargos.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
                       </select>
                     </div>
                     <div>
                       <label style={labelStyle}>Oficio</label>
                       <select
                         style={inputStyle}
-                        value={userForm.oficio}
-                        onChange={e => setUserForm(f => ({ ...f, oficio: e.target.value }))}
+                        value={userForm.oficio_id}
+                        onChange={e => setUserForm(f => ({ ...f, oficio_id: e.target.value }))}
                       >
                         <option value="">Sin especificar</option>
-                        {OFICIOS.map(o => <option key={o} value={o}>{o}</option>)}
+                        {oficios.map(o => <option key={o.id} value={o.id}>{o.nombre}</option>)}
                       </select>
                     </div>
+
+                    <p style={{ fontSize: 12, color: "var(--fg-4)", margin: 0, lineHeight: 1.5 }}>
+                      Le enviaremos un correo para que cree su propia contrasena.
+                      Aparecera en el equipo de inmediato y podras asignarle ordenes.
+                    </p>
+
                     {saveErr && <p style={{ fontSize: 12, color: "var(--danger)", margin: 0 }}>{saveErr}</p>}
                     <button
                       type="button"
                       onClick={inviteUser}
                       disabled={saving}
                       style={{
-                        height: 36, border: "none", borderRadius: 6,
+                        height: 38, border: "none", borderRadius: 8,
                         background: "var(--brand)", color: "var(--fg-on-brand)",
-                        fontSize: 13, fontWeight: 600,
+                        fontSize: 14, fontWeight: 500,
                         cursor: saving ? "default" : "pointer", fontFamily: "inherit",
-                        display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                        display: "flex", alignItems: "center", justifyContent: "center", gap: 7,
                         opacity: saving ? 0.7 : 1,
                       }}
                     >
-                      {saving ? <Loader2 size={14} className="animate-spin" /> : null}
-                      {saving ? "Creando…" : "Crear usuario"}
+                      {saving ? <Loader2 size={15} className="animate-spin" /> : <UserPlus size={15} />}
+                      {saving ? "Enviando invitacion..." : "Enviar invitacion"}
                     </button>
                   </>
                 )}
@@ -1148,90 +1134,6 @@ export default function UsuariosPage() {
         </div>
       )}
 
-      {permisosOpen && (
-        <div style={{
-          position: "fixed", inset: 0, zIndex: 50,
-          background: "rgba(0,0,0,0.3)",
-          display: "flex", alignItems: "center", justifyContent: "center",
-          padding: 24,
-        }}>
-          <div style={{
-            background: "var(--surface-1)", borderRadius: 12,
-            width: "100%", maxWidth: 720, maxHeight: "80dvh",
-            display: "flex", flexDirection: "column", overflow: "hidden",
-            boxShadow: "0 20px 60px rgba(0,0,0,0.15)",
-          }}>
-            <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <span style={{ fontSize: 15, fontWeight: 700, color: "var(--fg-1)" }}>Gestión de permisos</span>
-              <button type="button" onClick={() => setPermisosOpen(false)}
-                style={{ background: "none", border: "none", cursor: "pointer", color: "var(--fg-4)", display: "flex" }}>
-                <X size={16} />
-              </button>
-            </div>
-            <div style={{ flex: 1, overflowY: "auto", padding: 20 }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-                <thead>
-                  <tr>
-                    <th style={{ textAlign: "left", padding: "6px 12px", color: "var(--fg-4)", fontWeight: 600, fontSize: 11 }}>Usuario</th>
-                    {MODULOS.map(m => (
-                      <th key={m.id} style={{ textAlign: "center", padding: "6px 8px", color: "var(--fg-4)", fontWeight: 600, fontSize: 11 }}>
-                        {m.label}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {usuarios.filter(u => u.activo !== false && u.id !== myId).map(u => (
-                    <tr key={u.id} style={{ borderTop: "1px solid var(--border)" }}>
-                      <td style={{ padding: "8px 12px" }}>
-                        <p style={{ fontSize: 12, fontWeight: 600, color: "var(--fg-1)", margin: 0 }}>{u.nombre}</p>
-                        <p style={{ fontSize: 11, color: "var(--fg-4)", margin: 0 }}>{(ROL_LABEL as Record<string, string>)[u.rol] ?? u.rol}</p>
-                      </td>
-                      {MODULOS.map(m => {
-                        const checked = permMatrix[u.id]?.[m.id] !== false;
-                        return (
-                          <td key={m.id} style={{ textAlign: "center", padding: "8px" }}>
-                            <input
-                              type="checkbox"
-                              checked={checked}
-                              onChange={() => setPermMatrix(prev => ({
-                                ...prev,
-                                [u.id]: { ...(prev[u.id] ?? {}), [m.id]: !checked },
-                              }))}
-                              style={{ accentColor: "var(--brand)" }}
-                            />
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <div style={{ padding: "12px 20px", borderTop: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 10 }}>
-              {permMsg && (
-                <span style={{ fontSize: 12, color: "var(--success)", display: "flex", alignItems: "center", gap: 4 }}>
-                  <Check size={12} /> {permMsg}
-                </span>
-              )}
-              <button
-                type="button"
-                onClick={savePermisos}
-                disabled={permSaving}
-                style={{
-                  height: 34, padding: "0 16px", border: "none", borderRadius: 6,
-                  background: "var(--brand)", color: "var(--fg-on-brand)", fontSize: 13, fontWeight: 600,
-                  cursor: permSaving ? "default" : "pointer", fontFamily: "inherit",
-                  display: "flex", alignItems: "center", gap: 6, opacity: permSaving ? 0.7 : 1,
-                }}
-              >
-                {permSaving ? <Loader2 size={13} className="animate-spin" /> : null}
-                {permSaving ? "Guardando…" : "Guardar"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

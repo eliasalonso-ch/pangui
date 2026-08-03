@@ -22,7 +22,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
-  AlertTriangle, ArrowLeft, Check, ChevronRight, Loader2, Shield, UserCog, Wrench,
+  AlertTriangle, ArrowLeft, Check, ChevronRight, Eye, Loader2, Shield, UserCog, Wrench,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase";
 import { ROL_LABEL } from "@/lib/roles";
@@ -251,8 +251,22 @@ export default function MiembroDetallePage() {
         )}
 
         {tab === "perfil" && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-            <Card label="Nombre" hint="Cómo aparece esta persona en las órdenes">
+          // Same shape as /preferencias-notificaciones: one white section with a
+          // header block on top and label/control rows below it.
+          <section style={{ border: "1px solid var(--border)", borderRadius: 12, overflow: "hidden", background: "var(--surface-1)" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "18px 22px", borderBottom: "1px solid var(--border)" }}>
+              <span style={{ width: 34, height: 34, flexShrink: 0, display: "grid", placeItems: "center", borderRadius: "50%", background: "var(--brand-tint)", color: "var(--brand)" }}>
+                <UserCog size={17} />
+              </span>
+              <div style={{ minWidth: 0 }}>
+                <h2 style={{ fontSize: 17, fontWeight: 700, color: "var(--fg-1)", margin: 0 }}>Perfil</h2>
+                <p style={{ fontSize: 13.5, color: "var(--fg-3)", margin: "3px 0 0" }}>
+                  El cargo y el oficio describen la función de esta persona dentro del equipo.
+                </p>
+              </div>
+            </div>
+
+            <Row label="Nombre" hint="Cómo aparece esta persona en las órdenes">
               <input
                 value={nombre}
                 onChange={e => setNombre(e.target.value)}
@@ -260,36 +274,41 @@ export default function MiembroDetallePage() {
                 placeholder="Nombre completo"
                 style={fieldStyle(!canManage)}
               />
-            </Card>
+            </Row>
 
-            <Card label="Cargo" hint="Su rol dentro del equipo">
+            <Row label="Cargo" hint="Su rol dentro del equipo">
               <select value={cargoId ?? ""} onChange={e => setCargoId(e.target.value || null)} disabled={!canManage} style={fieldStyle(!canManage)}>
                 <option value="">Sin especificar</option>
                 {cargos.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
               </select>
-            </Card>
+            </Row>
 
-            <Card label="Oficio" hint="La especialidad con la que trabaja">
+            <Row label="Oficio" hint="La especialidad con la que trabaja" last>
               <select value={oficioId ?? ""} onChange={e => setOficioId(e.target.value || null)} disabled={!canManage} style={fieldStyle(!canManage)}>
                 <option value="">Sin especificar</option>
                 {oficios.map(o => <option key={o.id} value={o.id}>{o.nombre}</option>)}
               </select>
-            </Card>
-          </div>
+            </Row>
+          </section>
         )}
 
         {tab === "acceso" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-            <div style={{ background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: 12, overflow: "hidden" }}>
-              <div style={{ padding: "16px 22px 10px" }}>
-                <p style={{ fontSize: 15, fontWeight: 600, color: "var(--fg-1)", margin: 0 }}>Rol</p>
-                <p style={{ fontSize: 13, color: "var(--fg-3)", margin: "4px 0 0" }}>
-                  {canChangeRole
-                    ? "Define qué puede hacer dentro del espacio de trabajo."
-                    : miembro.rol === "owner"
-                      ? "El propietario no puede cambiar de rol desde aquí."
-                      : "No puedes cambiar el rol de este miembro."}
-                </p>
+            <section style={{ background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: 12, overflow: "hidden" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "18px 22px", borderBottom: "1px solid var(--border)" }}>
+                <span style={{ width: 34, height: 34, flexShrink: 0, display: "grid", placeItems: "center", borderRadius: "50%", background: "var(--brand-tint)", color: "var(--brand)" }}>
+                  <Shield size={17} />
+                </span>
+                <div style={{ minWidth: 0 }}>
+                  <h2 style={{ fontSize: 17, fontWeight: 700, color: "var(--fg-1)", margin: 0 }}>Rol</h2>
+                  <p style={{ fontSize: 13.5, color: "var(--fg-3)", margin: "3px 0 0" }}>
+                    {canChangeRole
+                      ? "Define qué puede hacer dentro del espacio de trabajo."
+                      : miembro.rol === "owner"
+                        ? "El propietario no puede cambiar de rol desde aquí."
+                        : "No puedes cambiar el rol de este miembro."}
+                  </p>
+                </div>
               </div>
               {ROLES.map(({ value, label, description, icon: Icon }) => {
                 const active = rol === value;
@@ -320,18 +339,28 @@ export default function MiembroDetallePage() {
                   </button>
                 );
               })}
-            </div>
+            </section>
 
             {/* Visibility only applies to members: admins and owners always see everything. */}
             {rol === "member" && (
-              <Card
-                label="Solo sus OTs asignadas"
-                hint={soloAsignadas
-                  ? "Solo verá las órdenes que tenga asignadas."
-                  : "Podrá consultar todas las órdenes del espacio de trabajo."}
-              >
-                <Switch checked={soloAsignadas} disabled={!canManage} onChange={setSoloAsignadas} label="Solo sus OTs asignadas" />
-              </Card>
+              <section style={{ background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: 12, overflow: "hidden" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "18px 22px", borderBottom: "1px solid var(--border)" }}>
+                  <span style={{ width: 34, height: 34, flexShrink: 0, display: "grid", placeItems: "center", borderRadius: "50%", background: "var(--brand-tint)", color: "var(--brand)" }}>
+                    <Eye size={17} />
+                  </span>
+                  <div style={{ minWidth: 0 }}>
+                    <h2 style={{ fontSize: 17, fontWeight: 700, color: "var(--fg-1)", margin: 0 }}>Visibilidad</h2>
+                    <p style={{ fontSize: 13.5, color: "var(--fg-3)", margin: "3px 0 0" }}>
+                      {soloAsignadas
+                        ? "Solo verá las órdenes que tenga asignadas."
+                        : "Podrá consultar todas las órdenes del espacio de trabajo."}
+                    </p>
+                  </div>
+                </div>
+                <Row label="Solo sus OTs asignadas" hint="Restringe la bandeja a su propio trabajo" last>
+                  <Switch checked={soloAsignadas} disabled={!canManage} onChange={setSoloAsignadas} label="Solo sus OTs asignadas" />
+                </Row>
+              </section>
             )}
           </div>
         )}
@@ -375,16 +404,23 @@ function fieldStyle(disabled: boolean): React.CSSProperties {
   };
 }
 
-function Card({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
+/**
+ * A row inside a section card: label/hint left, control right. Rows are divided
+ * by a border rather than being separate cards — same as the notification
+ * preferences page.
+ */
+function Row({ label, hint, children, last = false }: {
+  label: string; hint?: string; children: React.ReactNode; last?: boolean;
+}) {
   return (
     <div style={{
       display: "flex", alignItems: "center", justifyContent: "space-between", gap: 20,
-      background: "var(--surface-1)", border: "1px solid var(--border)",
-      borderRadius: 12, padding: "20px 22px",
+      padding: "16px 22px",
+      borderBottom: last ? "none" : "1px solid var(--border)",
     }}>
       <div style={{ minWidth: 0 }}>
-        <p style={{ fontSize: 15, fontWeight: 600, color: "var(--fg-1)", margin: 0 }}>{label}</p>
-        {hint && <p style={{ fontSize: 13, color: "var(--fg-3)", margin: "4px 0 0" }}>{hint}</p>}
+        <p style={{ fontSize: 14.5, fontWeight: 600, color: "var(--fg-1)", margin: 0 }}>{label}</p>
+        {hint && <p style={{ fontSize: 12.5, color: "var(--fg-3)", margin: "3px 0 0" }}>{hint}</p>}
       </div>
       <div style={{ flexShrink: 0 }}>{children}</div>
     </div>

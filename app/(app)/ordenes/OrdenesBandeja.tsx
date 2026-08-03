@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Plus, Search, X, ChevronDown, Loader2, FileText, ArrowUpDown, Download, AlertTriangle, Calendar, List, CalendarDays, Columns3, Check, Copy, DatabaseArrowDown, Eye, EyeOff } from "lucide-react";
 import { useTopBarAction } from "@/components/TopBarActions";
 import { createClient, logRealtimeChannel } from "@/lib/supabase";
+import { esAdmin } from "@/lib/roles";
 import { fetchOrden, fetchOrdenesPage, fetchAllOrdenesForExport, fetchOrdenListItem, searchOrdenes, ORDENES_SEARCH_LIMIT, deleteOrden, ORDENES_PAGE_SIZE, parseDescMeta, fetchMarcadasIds, toggleMarcada, matchesSearch, ELECTRILAM_WORKSPACE_ID } from "@/lib/ordenes-api";
 import { buildOrdenesWorkbook, type ExportCols as SharedExportCols, type OrdenInput, type HojaInput, type FilaInput, type FotoItemInput, type MaterialUsadoInput } from "@/lib/excel-export-shared";
 import { ExportScheduler } from "./ExportScheduler";
@@ -1068,8 +1069,12 @@ export default function OrdenesBandeja({
 
   // Excel export lives in the global top bar (left of the bell) rather than in
   // this page's toolbar, so the search row stays uncluttered.
+  //
+  // Admins/owners only: the workbook serialises the whole workspace's OTs plus
+  // their hojas, fotos and materiales, which is not a member-level capability.
+  // Passing null unregisters the action entirely rather than showing it disabled.
   useTopBarAction(
-    {
+    !esAdmin(myRol) ? null : {
       id: "ordenes-export-excel",
       label: ordenes.length === 0
         ? "No hay órdenes para exportar"
@@ -1080,7 +1085,7 @@ export default function OrdenesBandeja({
       disabled: exporting || ordenes.length === 0,
       onClick: () => { if (ordenes.length > 0 && !exporting) setExportConfigOpen(true); },
     },
-    [ordenes.length, exporting],
+    [ordenes.length, exporting, myRol],
   );
 
   // ── Excel export (all OTs across tabs, respecting filters/search) ─────────
@@ -1318,9 +1323,11 @@ export default function OrdenesBandeja({
             </div>
 
 
-            {/* Revisar meconecta — Electrilam-exclusive, non-requesters only.
-                Same single-tenant gate as ITOs on mobile. */}
-            {wsId === ELECTRILAM_WORKSPACE_ID && myRol !== "requester" && (
+            {/* Revisar MeConecta — Electrilam-exclusive (same single-tenant gate
+                as ITOs on mobile) and restricted to owners/admins: it reconciles
+                the whole workspace against the portal, so it is not a
+                member-level action. The API enforces the same rule. */}
+            {wsId === ELECTRILAM_WORKSPACE_ID && esAdmin(myRol) && (
               <MeconectaCheck onOpenOrden={openOT} />
             )}
 

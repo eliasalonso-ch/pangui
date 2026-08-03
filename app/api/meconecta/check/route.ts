@@ -23,6 +23,7 @@
 import { NextResponse } from "next/server";
 import { createServerSupabase, getServerUser } from "@/lib/supabase-server";
 import { ELECTRILAM_WORKSPACE_ID } from "@/lib/ordenes-api";
+import { esAdmin } from "@/lib/roles";
 
 // Server-side cooldown. The button is throttled in the UI too, but that only
 // protects us from one honest tab — this is what actually stops hammering the
@@ -50,7 +51,10 @@ export async function POST(req: Request) {
   if (!perfil?.workspace_id || perfil.workspace_id !== ELECTRILAM_WORKSPACE_ID) {
     return NextResponse.json({ ok: false, error: "No disponible" }, { status: 403 });
   }
-  if (perfil.rol === "requester") {
+  // Owners and admins only. This reconciles the whole workspace against the
+  // portal — including OTs a member may not be assigned to — so it is not a
+  // member-level action. `esAdmin` covers owner too.
+  if (!esAdmin(perfil.rol)) {
     return NextResponse.json({ ok: false, error: "Sin permiso" }, { status: 403 });
   }
 

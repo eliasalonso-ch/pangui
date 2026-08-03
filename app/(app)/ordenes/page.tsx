@@ -17,22 +17,32 @@ export default async function OrdenesPage({ searchParams }: PageProps) {
 
   const { data: perfil } = await sb
     .from("usuarios")
-    .select("workspace_id, rol, nombre, plan, plan_status")
+    .select("workspace_id, rol, nombre, plan, plan_status, solo_asignadas")
     .eq("id", user.id)
     .maybeSingle();
 
   if (!perfil?.workspace_id) redirect("/login");
   const wsId = perfil.workspace_id;
 
+  // A `member` with solo_asignadas only sees the OTs assigned to them. This
+  // list is server-rendered and handed to the client as `initialOrdenes`, so it
+  // has to apply the filter itself — the client-side helper in ordenes-api runs
+  // only on subsequent fetches and cannot retro-filter this payload.
+  const soloAsignadasId =
+    perfil.rol === "member" && perfil.solo_asignadas === true ? user.id : null;
+
   const [ordenes, usuarios, ubicaciones, lugares, sociedades, activos, categorias] = await Promise.all([
-    sb.from("ordenes_trabajo")
-      .select(LIST_SELECT)
-      .eq("workspace_id", wsId)
-      .is("parent_id", null)
-      .is("deleted_at", null)
-      .order("created_at", { ascending: false })
-      .limit(ORDENES_PAGE_SIZE)
-      .then(r => (r.data ?? []) as unknown as OrdenListItem[]),
+    (() => {
+      const q = sb.from("ordenes_trabajo")
+        .select(LIST_SELECT)
+        .eq("workspace_id", wsId)
+        .is("parent_id", null)
+        .is("deleted_at", null);
+      return (soloAsignadasId ? q.contains("asignados_ids", [soloAsignadasId]) : q)
+        .order("created_at", { ascending: false })
+        .limit(ORDENES_PAGE_SIZE)
+        .then(r => (r.data ?? []) as unknown as OrdenListItem[]);
+    })(),
 
     sb.from("usuarios")
       // Incluye a los dados de baja a proposito: son necesarios para mostrar el

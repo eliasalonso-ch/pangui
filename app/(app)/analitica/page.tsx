@@ -28,7 +28,10 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase";
+import { getSoloAsignadasUserId } from "@/lib/ordenes-api";
+import { esAdmin } from "@/lib/roles";
 import { useSuscripcion } from "@/hooks/useSuscripcion";
 import type { Estado, Prioridad, TipoTrabajo } from "@/types/ordenes";
 
@@ -301,6 +304,7 @@ function buildFlow(ots: OTRow[], months: number) {
 }
 
 export default function AnaliticaPage() {
+  const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [workspaceId, setWorkspaceId] = useState<string | null>(null);
   const [allOTs, setAllOTs] = useState<OTRow[]>([]);
@@ -328,7 +332,7 @@ export default function AnaliticaPage() {
 
       const { data: perfil } = await sb
         .from("usuarios")
-        .select("workspace_id")
+        .select("workspace_id, rol")
         .eq("id", user.id)
         .maybeSingle();
 
@@ -337,13 +341,26 @@ export default function AnaliticaPage() {
         setLoading(false);
         return;
       }
+      // Admins/owners only. Hiding the sidebar link is not enough — the page is
+      // still reachable by URL, and it reports across the whole workspace.
+      if (!esAdmin(perfil?.rol)) {
+        router.replace("/inicio");
+        return;
+      }
       setWorkspaceId(wsId);
 
+      // A member with solo_asignadas only sees their own OTs. RLS scopes by
+      // workspace only, so analytics must apply the same filter or it reports
+      // on work the user is not allowed to see.
+      const soloAsignadas = await getSoloAsignadasUserId();
+      const soloMias = <T extends { contains: (c: string, v: any) => T }>(q: T): T =>
+        soloAsignadas ? q.contains("asignados_ids", [soloAsignadas]) : q;
+
       const [otsRes, usersRes, activosRes, procRes] = await Promise.all([
-        sb.from("ordenes_trabajo")
+        soloMias(sb.from("ordenes_trabajo")
           .select("id, titulo, estado, prioridad, tipo_trabajo, clasificacion, created_at, updated_at, fecha_inicio, fecha_termino, presupuesto, iniciado_at, pausado_at, en_ejecucion, tiempo_total_segundos, asignados_ids, parent_id, activo_id, ubicacion_id, activos(id,nombre), ubicaciones(id,edificio)")
           .eq("workspace_id", wsId)
-          .is("deleted_at", null)
+          .is("deleted_at", null))
           .order("created_at", { ascending: false })
           .limit(5000),
         sb.from("usuarios")

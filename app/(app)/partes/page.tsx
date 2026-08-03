@@ -91,8 +91,6 @@ function MaterialesPageInner() {
   const [filterOpen, setFilterOpen] = useState(false);
   const [locationFilterId, setLocationFilterId] = useState<string | null>(null);
   const [materialFilterId, setMaterialFilterId] = useState<string | null>(null);
-  const [requiresMaterials, setRequiresMaterials] = useState(false);
-  const [requiresSheet, setRequiresSheet] = useState(false);
 
   useEffect(() => {
     if (!requestedMaterialId || !materials.some((material) => material.id === requestedMaterialId)) return;
@@ -104,13 +102,12 @@ function MaterialesPageInner() {
 
   const loadData = useCallback(async (wsId: string) => {
     const sb = createClient();
-    const [materialRes, locationRes, placeRes, reservationRes, withdrawalRes, workspaceRes] = await Promise.all([
+    const [materialRes, locationRes, placeRes, reservationRes, withdrawalRes] = await Promise.all([
       sb.from("partes").select("id,nombre,descripcion,codigo,unidad,precio_unitario,ubicacion_bodega,stock_actual,stock_minimo,imagen_url,workspace_id").eq("workspace_id", wsId).eq("activo", true).order("nombre"),
       sb.from("ubicaciones").select("id,edificio,direccion").eq("workspace_id", wsId).eq("activa", true).order("edificio"),
       sb.from("lugares").select("id,nombre,ubicacion_id").eq("workspace_id", wsId).eq("activo", true).order("nombre"),
       sb.from("material_reservations").select("id,parte_id,ubicacion_id,lugar_id,cantidad,parte:partes!parte_id(id,nombre,codigo,unidad,imagen_url),lugar:lugares!lugar_id(id,nombre)").eq("workspace_id", wsId).order("created_at", { ascending: false }),
       sb.from("material_withdrawals").select("id,parte_id,ubicacion_id,lugar_id,cantidad,cantidad_devuelta,retirado_at,ultima_devolucion_at,parte:partes!parte_id(id,nombre,codigo,unidad,imagen_url),lugar:lugares!lugar_id(id,nombre)").eq("workspace_id", wsId).order("retirado_at", { ascending: false }),
-      sb.from("workspaces").select("requiere_materiales_global,requiere_hoja_global").eq("id", wsId).maybeSingle(),
     ]);
     setMaterials((materialRes.data ?? []) as Material[]);
     setLocations((locationRes.data ?? []) as Ubicacion[]);
@@ -121,8 +118,6 @@ function MaterialesPageInner() {
       setReservations((reservationRes.data ?? []) as unknown as Reservation[]); setReservationWarning(false);
     }
     setWithdrawals(withdrawalRes.error ? [] : (withdrawalRes.data ?? []) as unknown as Withdrawal[]);
-    setRequiresMaterials(workspaceRes.data?.requiere_materiales_global ?? false);
-    setRequiresSheet(workspaceRes.data?.requiere_hoja_global ?? false);
   }, []);
 
   useEffect(() => {
@@ -178,27 +173,26 @@ function MaterialesPageInner() {
     if (!error) { setMaterials(prev => prev.filter(item => item.id !== material.id)); setSelectedMaterialId(null); }
   };
 
-  const toggleWorkspaceSetting = async (field: "requiere_materiales_global" | "requiere_hoja_global", value: boolean) => {
-    if (!workspaceId) return;
-    const sb = createClient();
-    const { error } = await sb.from("workspaces").update({ [field]: value }).eq("id", workspaceId);
-    if (!error) field === "requiere_materiales_global" ? setRequiresMaterials(value) : setRequiresSheet(value);
-  };
-
   if (loading) return <Loading />;
 
   const showRight = !!(editor || selectedMaterial || selectedLocation);
   const activeRelationFilter = segment === "materiales" ? locationFilterId : materialFilterId;
   return (
     <div className={styles.page}>
+      {/* Top row: segment toggle on the left, search + actions on the right —
+          same arrangement as the /ordenes toolbar. */}
       <header className={styles.header}>
+        <div className={styles.segmented}>
+          <button className={segment === "materiales" ? styles.segmentActive : ""} onClick={() => chooseSegment("materiales")}>Materiales <span>{materials.length}</span></button>
+          <button className={segment === "ubicaciones" ? styles.segmentActive : ""} onClick={() => chooseSegment("ubicaciones")}>Ubicaciones <span>{locations.length}</span></button>
+        </div>
         <div className={styles.headerActions}>
           <div className={styles.searchBox}>
             <Search size={14} />
             <input value={search} onChange={e => setSearch(e.target.value)} placeholder={segment === "materiales" ? "Buscar materiales…" : "Buscar ubicaciones…"} />
             {search && <button onClick={() => setSearch("")} aria-label="Limpiar búsqueda"><X size={13} /></button>}
           </div>
-          <button className={`${styles.filterButton} ${activeRelationFilter ? styles.filterButtonActive : ""}`} onClick={() => setFilterOpen(true)} aria-label="Filtrar inventario" title="Filtrar">
+          <button className={`${styles.filterButton} ${activeRelationFilter ? styles.filterButtonActive : ""}`} onClick={() => setFilterOpen(true)} aria-label="Filtrar inventario" title="Filtrar inventario">
             <Filter size={16} />
             {activeRelationFilter && <span />}
           </button>
@@ -206,13 +200,12 @@ function MaterialesPageInner() {
         </div>
       </header>
 
-      <div className={styles.subnav}>
-        <div className={styles.segmented}>
-          <button className={segment === "materiales" ? styles.segmentActive : ""} onClick={() => chooseSegment("materiales")}>Materiales <span>{materials.length}</span></button>
-          <button className={segment === "ubicaciones" ? styles.segmentActive : ""} onClick={() => chooseSegment("ubicaciones")}>Ubicaciones <span>{locations.length}</span></button>
+      {/* Second row: stock filters, like the /ordenes filter strip. */}
+      {segment === "materiales" && (
+        <div className={styles.subnav}>
+          <div className={styles.filters}>{([['todos','Todos'],['agotado','Agotado'],['bajo','Stock bajo'],['ok','En stock']] as [StockFilter,string][]).map(([value,label]) => <button key={value} className={stockFilter === value ? styles.filterActive : ""} onClick={() => setStockFilter(value)}>{label}</button>)}</div>
         </div>
-        {segment === "materiales" && <div className={styles.filters}>{([['todos','Todos'],['agotado','Agotado'],['bajo','Stock bajo'],['ok','En stock']] as [StockFilter,string][]).map(([value,label]) => <button key={value} className={stockFilter === value ? styles.filterActive : ""} onClick={() => setStockFilter(value)}>{label}</button>)}</div>}
-      </div>
+      )}
 
       {reservationWarning && <div className={styles.warning}><CircleAlert size={15} />Las reservas todavía no están habilitadas en la base de datos. Aplica la migración para usar esta sección.</div>}
 
@@ -248,11 +241,10 @@ function MaterialesPageInner() {
         </section>
       </main>
 
-      {canManage && <div className={styles.settingsBar}>
-        <span>Configuración de OTs</span>
-        <label><input type="checkbox" checked={requiresMaterials} onChange={e => toggleWorkspaceSetting("requiere_materiales_global", e.target.checked)} />Exigir materiales</label>
-        <label><input type="checkbox" checked={requiresSheet} onChange={e => toggleWorkspaceSetting("requiere_hoja_global", e.target.checked)} />Exigir hoja de cálculo</label>
-      </div>}
+      {/* La barra "Configuración de OTs" vivía aquí con los mismos toggles
+          (requiere_materiales_global / requiere_hoja_global) que ya expone
+          /requisitos, que además maneja la exclusión mutua entre módulos.
+          Se eliminó para no tener dos lugares editando la misma configuración. */}
 
       {reserveOpen && selectedLocation && <ReservationDialog location={selectedLocation} materials={materials.filter(item => Number(item.stock_actual) > 0)} places={places.filter(item => item.ubicacion_id === selectedLocation.id)} onClose={() => setReserveOpen(false)} onSaved={async () => { await refresh(); setReserveOpen(false); }} />}
       {filterOpen && <InventoryFilterDialog segment={segment} locations={locations} materials={materials} selectedId={activeRelationFilter} onSelect={id => { if (segment === "materiales") setLocationFilterId(id); else setMaterialFilterId(id); setFilterOpen(false); }} onClose={() => setFilterOpen(false)} />}
@@ -323,7 +315,121 @@ function MaterialEditor({ state, workspaceId, onClose, onSaved }: { state: NonNu
     const result = state.mode === "create" ? await sb.from("partes").insert(payload) : await sb.from("partes").update(payload).eq("id", material!.id);
     setSaving(false); if (result.error) window.alert(result.error.message); else await onSaved();
   };
-  return <div className={styles.detail}><DetailHeader title={state.mode === "create" ? "Nuevo material" : "Editar material"} onClose={onClose}><button className={styles.primarySmall} onClick={save} disabled={saving || !form.nombre.trim()}>{saving && <Loader2 size={14} className="animate-spin" />}Guardar</button></DetailHeader><div className={styles.form}><button className={styles.imagePicker} onClick={() => inputRef.current?.click()}>{form.imagen_url ? <Image src={form.imagen_url} alt="Vista previa" fill sizes="720px" unoptimized /> : <><ImagePlus size={26} /><span>Agregar imagen</span></>}<input ref={inputRef} hidden type="file" accept="image/*" onChange={e => { const next = e.target.files?.[0]; if (next) { setFile(next); set("imagen_url", URL.createObjectURL(next)); } }} /></button><Field label="Nombre" value={form.nombre} onChange={value => set("nombre", value)} required /><Field label="Descripción" value={form.descripcion} onChange={value => set("descripcion", value)} multiline /><div className={styles.formGrid}><Field label="Código" value={form.codigo} onChange={value => set("codigo", value)} /><Field label="Unidad" value={form.unidad} onChange={value => set("unidad", value)} /></div><div className={styles.formGrid}><Field label="Stock actual" value={form.stock_actual} onChange={value => set("stock_actual", value)} type="number" /><Field label="Stock mínimo" value={form.stock_minimo} onChange={value => set("stock_minimo", value)} type="number" /></div><Field label="Ubicación en bodega" value={form.ubicacion_bodega} onChange={value => set("ubicacion_bodega", value)} /><Field label="Precio unitario" value={form.precio_unitario} onChange={value => set("precio_unitario", value)} type="number" /></div></div>;
+  // Mirrors the OT create/edit panel (OTCrearPanel): canvas shell, 64px header
+  // with the title + close, a scrolling body, and a sticky action footer.
+  const isCreate = state.mode === "create";
+  return (
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "var(--surface-canvas)" }}>
+
+      {/* Header */}
+      <div style={{
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        padding: "0 28px", height: 64, borderBottom: "1px solid var(--border)", flexShrink: 0,
+      }}>
+        <h2 style={{ fontSize: 18, fontWeight: 700, color: "var(--fg-1)", margin: 0 }}>
+          {isCreate ? "Nuevo material" : "Editar material"}
+        </h2>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Cerrar"
+          style={{
+            width: 34, height: 34, display: "grid", placeItems: "center",
+            border: "1px solid var(--border)", borderRadius: 8,
+            background: "var(--surface-1)", color: "var(--fg-3)", cursor: "pointer",
+          }}
+        >
+          <X size={16} />
+        </button>
+      </div>
+
+      {/* Body */}
+      <div style={{ flex: 1, overflowY: "auto", padding: "24px 28px 32px" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 16, maxWidth: 760 }}>
+
+          <button className={styles.imagePicker} onClick={() => inputRef.current?.click()}>
+            {form.imagen_url
+              ? <Image src={form.imagen_url} alt="Vista previa" fill sizes="340px" unoptimized />
+              : <><ImagePlus size={26} /><span>Agregar imagen</span></>}
+            <input
+              ref={inputRef}
+              hidden
+              type="file"
+              accept="image/*"
+              onChange={e => {
+                const next = e.target.files?.[0];
+                if (next) { setFile(next); set("imagen_url", URL.createObjectURL(next)); }
+              }}
+            />
+          </button>
+
+          {/* Title field: borderless 22px with an underline that turns brand
+              once filled — same treatment as the OT panel's titulo input. */}
+          <input
+            value={form.nombre}
+            onChange={e => set("nombre", e.target.value)}
+            placeholder="Nombre del material"
+            style={{
+              width: "100%", fontSize: 22, fontWeight: 400,
+              color: "var(--fg-1)", border: "none", outline: "none",
+              background: "transparent", padding: "8px 0",
+              borderBottom: "2px solid " + (form.nombre ? "var(--brand)" : "var(--border)"),
+              fontFamily: "inherit", transition: "border-color 0.15s",
+            }}
+          />
+          <Field label="Descripción" value={form.descripcion} onChange={value => set("descripcion", value)} multiline />
+          <div className={styles.formGrid}>
+            <Field label="Código" value={form.codigo} onChange={value => set("codigo", value)} />
+            <Field label="Unidad" value={form.unidad} onChange={value => set("unidad", value)} />
+          </div>
+          <div className={styles.formGrid}>
+            <Field label="Stock actual" value={form.stock_actual} onChange={value => set("stock_actual", value)} type="number" />
+            <Field label="Stock mínimo" value={form.stock_minimo} onChange={value => set("stock_minimo", value)} type="number" />
+          </div>
+          <Field label="Ubicación en bodega" value={form.ubicacion_bodega} onChange={value => set("ubicacion_bodega", value)} />
+          <Field label="Precio unitario" value={form.precio_unitario} onChange={value => set("precio_unitario", value)} type="number" />
+        </div>
+      </div>
+
+      {/* Sticky footer */}
+      <div style={{
+        borderTop: "1px solid var(--border)", padding: "16px 28px",
+        display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 8,
+        background: "var(--surface-1)", flexShrink: 0,
+      }}>
+        <button
+          type="button"
+          onClick={onClose}
+          disabled={saving}
+          style={{
+            height: 40, padding: "0 18px",
+            border: "1px solid var(--border)", borderRadius: 8,
+            background: "var(--surface-1)", color: "var(--fg-2)",
+            fontSize: 13, fontWeight: 500, cursor: saving ? "default" : "pointer", fontFamily: "inherit",
+          }}
+        >
+          Cancelar
+        </button>
+        <button
+          type="button"
+          onClick={save}
+          disabled={saving || !form.nombre.trim()}
+          style={{
+            height: 40, padding: "0 20px",
+            border: 0, borderRadius: 8,
+            background: "var(--brand)", color: "var(--fg-on-brand)",
+            fontSize: 13, fontWeight: 600,
+            cursor: (saving || !form.nombre.trim()) ? "default" : "pointer",
+            opacity: (saving || !form.nombre.trim()) ? 0.6 : 1,
+            fontFamily: "inherit", display: "flex", alignItems: "center", gap: 7,
+          }}
+        >
+          {saving && <Loader2 size={15} className="animate-spin" />}
+          {isCreate ? "Crear" : "Guardar"}
+        </button>
+      </div>
+    </div>
+  );
 }
 
 function Field({ label, value, onChange, type = "text", required, multiline }: { label: string; value: string; onChange: (value: string) => void; type?: string; required?: boolean; multiline?: boolean }) { return <label className={styles.field}><span>{label}{required ? " *" : ""}</span>{multiline ? <textarea value={value} onChange={e => onChange(e.target.value)} rows={3} /> : <input type={type} value={value} onChange={e => onChange(e.target.value)} />}</label>; }

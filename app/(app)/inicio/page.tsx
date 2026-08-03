@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { createClient } from "@/lib/supabase";
 import type { Estado, Prioridad } from "@/types/ordenes";
-import { parseDescMeta } from "@/lib/ordenes-api";
+import { parseDescMeta, getSoloAsignadasUserId } from "@/lib/ordenes-api";
 import { WelcomeToast } from "@/components/WelcomeToast";
 import {
   getOverdueDays as otGetOverdueDays,
@@ -246,13 +246,20 @@ export default function InicioDashboard() {
       const workspaceId = perfil?.workspace_id;
       if (!workspaceId) { setLoading(false); return; }
 
+      // A member with solo_asignadas only sees their own OTs. RLS scopes by
+      // workspace only, so the dashboard has to apply the same filter the
+      // bandeja does or it leaks counts and cards for the whole workspace.
+      const soloAsignadas = await getSoloAsignadasUserId();
+      const soloMias = <T extends { contains: (c: string, v: any) => T }>(q: T): T =>
+        soloAsignadas ? q.contains("asignados_ids", [soloAsignadas]) : q;
+
       const [ordenesRes, actividadRes, partesRes, totalRes] = await Promise.all([
-        sb.from("ordenes_trabajo")
+        soloMias(sb.from("ordenes_trabajo")
           .select(`id, titulo, descripcion, estado, prioridad, created_at, updated_at, fecha_termino, asignados_ids, numero, iniciado_at, pausado_at, tiempo_total_segundos, clasificacion, ubicaciones(edificio)`)
           .eq("workspace_id", workspaceId)
           .is("parent_id", null)
           .is("deleted_at", null)
-          .neq("estado", "cancelado")
+          .neq("estado", "cancelado"))
           .order("created_at", { ascending: false })
           .limit(400),
         sb.from("actividad_ot")
@@ -265,11 +272,11 @@ export default function InicioDashboard() {
           .eq("workspace_id", workspaceId)
           .not("stock_minimo", "is", null)
           .gt("stock_minimo", 0),
-        sb.from("ordenes_trabajo")
+        soloMias(sb.from("ordenes_trabajo")
           .select("id", { count: "exact", head: true })
           .eq("workspace_id", workspaceId)
           .is("deleted_at", null)
-          .neq("estado", "cancelado"),
+          .neq("estado", "cancelado")),
       ]);
 
       const ordenes = ordenesRes.data ?? [];

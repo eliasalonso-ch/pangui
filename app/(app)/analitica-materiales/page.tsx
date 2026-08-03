@@ -12,7 +12,10 @@ import {
   Package, AlertTriangle, TrendingUp, Star,
   ArrowUpRight, Boxes, Zap, LayoutGrid, Loader2,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase";
+import { getSoloAsignadasUserId } from "@/lib/ordenes-api";
+import { esAdmin } from "@/lib/roles";
 import { useSuscripcion } from "@/hooks/useSuscripcion";
 import { UpgradePrompt } from "@/components/UpgradePrompt";
 
@@ -219,6 +222,7 @@ function StockBadge({ actual, minimo }: { actual: number; minimo: number }) {
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 export default function AnaliticaMaterialesPage() {
+  const router = useRouter();
   const suscripcion = useSuscripcion();
   if (suscripcion.loading) {
     return <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100dvh", color: "var(--fg-4)" }}><Loader2 size={18} className="animate-spin" /></div>;
@@ -237,6 +241,7 @@ export default function AnaliticaMaterialesPage() {
 }
 
 function AnaliticaMaterialesPageInner() {
+  const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [partes, setPartes] = useState<ParteRow[]>([]);
   const [hojas, setHojas] = useState<HojaRow[]>([]);
@@ -249,22 +254,31 @@ function AnaliticaMaterialesPageInner() {
       const sb = createClient();
       const { data: { user } } = await sb.auth.getUser();
       if (!user) return;
-      const { data: perfil } = await sb.from("usuarios").select("workspace_id").eq("id", user.id).maybeSingle();
+      const { data: perfil } = await sb.from("usuarios").select("workspace_id, rol").eq("id", user.id).maybeSingle();
       const wsId = perfil?.workspace_id;
       if (!wsId) { setLoading(false); return; }
+      // Admins/owners only — see the note in /analitica.
+      if (!esAdmin(perfil?.rol)) { router.replace("/inicio"); return; }
 
       const cutoff = new Date();
       cutoff.setMonth(cutoff.getMonth() - 12);
       const cutoffStr = cutoff.toISOString().slice(0, 10);
 
+      // A member with solo_asignadas only sees their own OTs. RLS scopes by
+      // workspace only, so analytics must apply the same filter or it reports
+      // on work the user is not allowed to see.
+      const soloAsignadas = await getSoloAsignadasUserId();
+      const soloMias = <T extends { contains: (c: string, v: any) => T }>(q: T): T =>
+        soloAsignadas ? q.contains("asignados_ids", [soloAsignadas]) : q;
+
       const [partesRes, hojasRes, otsRes] = await Promise.all([
         sb.from("partes").select("id, nombre, codigo, unidad, stock_actual, stock_minimo, precio_unitario, categoria, ubicacion_bodega").eq("workspace_id", wsId),
         sb.from("hojas_inventario").select("id, nombre, orden_id, columnas").eq("workspace_id", wsId).gte("created_at", cutoffStr),
-        sb.from("ordenes_trabajo")
+        soloMias(sb.from("ordenes_trabajo")
           .select("id, titulo, created_at, activo_id, activos(nombre)")
           .eq("workspace_id", wsId)
           .is("deleted_at", null)
-          .gte("created_at", cutoffStr)
+          .gte("created_at", cutoffStr))
           .limit(2000),
       ]);
 

@@ -8,7 +8,6 @@ import {
   Users,
   Settings,
   ClipboardList,
-  Rocket,
   LogOut,
   ChevronUp,
   LayoutDashboard,
@@ -210,7 +209,6 @@ function SidebarUserFooter({ user }: { user: UserData | null }) {
 }
 
 const NAV_ITEMS = [
-  { href: "/empezando",          icon: Rocket,         label: "Empezando",               onboarding: true  },
   { href: "/inicio",             icon: LayoutDashboard, label: "Inicio"                                    },
   { href: "/ordenes",            icon: ClipboardList,  label: "Órdenes"                                   },
   { href: "/activos",            icon: Box,            label: "Activos"                                   },
@@ -225,7 +223,6 @@ export default function AppSidebar() {
   const pathname = usePathname();
   const { collapsed, setCollapsed } = useSidebar();
 
-  const [onboardingDone, setOnboardingDone] = useState(true);
   const [userRol, setUserRol] = useState<string | null>(null);
   const [userData, setUserData] = useState<UserData | null>(null);
   const [modoRegistro, setModoRegistro] = useState<"ambos" | "materiales" | "hoja">("ambos");
@@ -255,14 +252,13 @@ export default function AppSidebar() {
 
       const { data } = await sb
         .from("usuarios")
-        .select("workspace_id, rol, onboarding_done, nombre")
+        .select("workspace_id, rol, nombre")
         .eq("id", user.id)
         .maybeSingle();
 
       if (!active) return;
 
       if (data?.rol) setUserRol(data.rol);
-      setOnboardingDone(data?.onboarding_done ?? false);
       if (data?.nombre && data?.rol) setUserData({ nombre: data.nombre, rol: data.rol });
 
       if (data?.workspace_id) {
@@ -373,16 +369,6 @@ export default function AppSidebar() {
           <SidebarGroupLabel>Operaciones</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {!onboardingDone && (
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={isActive("/empezando")} tooltip="Empezando">
-                    <Link href="/empezando" style={{ display: "flex", alignItems: "center", gap: collapsed ? 0 : 10 }}>
-                      <Rocket size={16} style={{ flexShrink: 0 }} />
-                      {!collapsed && <span>Empezando</span>}
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              )}
               <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={isActive("/inicio")} tooltip="Inicio">
                   <Link href="/inicio" style={{ display: "flex", alignItems: "center", gap: collapsed ? 0 : 10 }}>
@@ -407,15 +393,19 @@ export default function AppSidebar() {
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={isActive("/analitica")} tooltip="Analítica">
-                  <Link href="/analitica" style={{ display: "flex", alignItems: "center", gap: collapsed ? 0 : 10 }}>
-                    <BarChart2 size={16} style={{ flexShrink: 0 }} />
-                    {!collapsed && <span>Analítica</span>}
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              {modoRegistro !== "materiales" && hasAnalyticsPro && (
+              {/* Analitica: admins/owners only. It reports across the whole
+                  workspace, so it is not a member-level view. */}
+              {isAdmin && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={isActive("/analitica")} tooltip="Analítica">
+                    <Link href="/analitica" style={{ display: "flex", alignItems: "center", gap: collapsed ? 0 : 10 }}>
+                      <BarChart2 size={16} style={{ flexShrink: 0 }} />
+                      {!collapsed && <span>Analítica</span>}
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )}
+              {isAdmin && modoRegistro !== "materiales" && hasAnalyticsPro && (
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild isActive={isActive("/analitica-materiales")} tooltip="Analítica de Materiales">
                     <Link href="/analitica-materiales" style={{ display: "flex", alignItems: "center", gap: collapsed ? 0 : 10 }}>

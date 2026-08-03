@@ -160,7 +160,61 @@ export const LIST_SELECT = `
 
 export const ORDENES_PAGE_SIZE = 300;
 
+/**
+ * Restricted visibility: which user id (if any) OT queries must be filtered to.
+ *
+ * A `member` with `solo_asignadas = true` only sees the OTs they are assigned
+ * to. RLS does NOT enforce this — `ordenes_select` scopes by workspace only —
+ * so every client-side read has to apply it, exactly as the mobile app does in
+ * features/work-orders/hooks.ts.
+ *
+ * Returns `null` when the caller sees everything (owner, admin, or a member
+ * without the flag). Cached per session because it is consulted on every list
+ * query; call `resetVisibilidadCache()` after changing a user's own flag.
+ */
+let visibilidadCache: { userId: string | null } | null = null;
+
+export function resetVisibilidadCache() {
+  visibilidadCache = null;
+}
+
+export async function getSoloAsignadasUserId(): Promise<string | null> {
+  if (visibilidadCache) return visibilidadCache.userId;
+
+  const sb = createClient();
+  const { data: { user } } = await sb.auth.getUser();
+  if (!user) return null;
+
+  const { data } = await sb
+    .from("usuarios")
+    .select("rol, solo_asignadas")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  // Only `member` is ever restricted. Owners/admins always see everything, and
+  // a missing row must not accidentally hide a user's own work.
+  const restricted = data?.rol === "member" && data?.solo_asignadas === true;
+  visibilidadCache = { userId: restricted ? user.id : null };
+  return visibilidadCache.userId;
+}
+
+/**
+ * Applies the assigned-only filter to an ordenes_trabajo query builder.
+ *
+ * Typed loosely on purpose: PostgREST's builder generics differ per select
+ * shape, and spelling them out here would force every caller to thread its own
+ * row type through for no added safety.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function aplicarVisibilidad<T extends { contains: (col: string, val: any) => T }>(
+  query: T,
+  userId: string | null,
+): T {
+  return userId ? query.contains("asignados_ids", [userId]) : query;
+}
+
 export async function fetchOrdenesPage(wsId: string, beforeCreatedAt?: string | null): Promise<OrdenListItem[]> {
+  const soloAsignadas = await getSoloAsignadasUserId();
   const runQuery = () => {
     const sb = createClient();
     let query = sb
@@ -172,6 +226,7 @@ export async function fetchOrdenesPage(wsId: string, beforeCreatedAt?: string | 
       .order("created_at", { ascending: false })
       .limit(ORDENES_PAGE_SIZE);
 
+    query = aplicarVisibilidad(query, soloAsignadas);
     if (beforeCreatedAt) query = query.lt("created_at", beforeCreatedAt);
     return query;
   };
@@ -241,18 +296,20 @@ export function matchesSearch(
 export async function searchOrdenes(wsId: string, rawQuery: string): Promise<OrdenListItem[]> {
   const q = rawQuery.trim();
   if (!q) return [];
+  const soloAsignadas = await getSoloAsignadasUserId();
 
   // "#123" / "123" → exact lookup by OT number.
   const numero = parseOrdenNumeroQuery(q);
   if (numero !== null) {
     const sbNum = createClient();
-    const { data, error } = await sbNum
+    const numQuery = sbNum
       .from("ordenes_trabajo")
       .select(LIST_SELECT)
       .eq("workspace_id", wsId)
       .eq("numero", numero)
       .is("parent_id", null)
-      .is("deleted_at", null)
+      .is("deleted_at", null);
+    const { data, error } = await aplicarVisibilidad(numQuery, soloAsignadas)
       .limit(ORDENES_SEARCH_LIMIT);
     if (error) throw error;
     const rows = (data ?? []) as unknown as OrdenListItem[];
@@ -267,13 +324,14 @@ export async function searchOrdenes(wsId: string, rawQuery: string): Promise<Ord
   const safe = q.replace(/[\\%_,()]/g, (c) => `\\${c}`);
   const pattern = `%${safe}%`;
   const sb = createClient();
-  const { data, error } = await sb
+  const textQuery = sb
     .from("ordenes_trabajo")
     .select(LIST_SELECT)
     .eq("workspace_id", wsId)
     .is("parent_id", null)
     .is("deleted_at", null)
-    .or(`titulo.ilike.${pattern},descripcion.ilike.${pattern},solicitante.ilike.${pattern}`)
+    .or(`titulo.ilike.${pattern},descripcion.ilike.${pattern},solicitante.ilike.${pattern}`);
+  const { data, error } = await aplicarVisibilidad(textQuery, soloAsignadas)
     .order("created_at", { ascending: false })
     .limit(ORDENES_SEARCH_LIMIT);
   if (error) throw error;
@@ -322,23 +380,31 @@ export async function fetchAllOrdenesForExport(
 // Refetching keeps the row correct so it stays / leaves the filter accurately.
 export async function fetchOrdenListItem(id: string): Promise<OrdenListItem | null> {
   const sb = createClient();
-  const { data, error } = await sb
+  // Realtime INSERT/UPDATE events arrive for the whole workspace, so this is
+  // filtered too — otherwise a restricted member's list would gain rows they
+  // are not assigned to as other people's OTs changed.
+  const soloAsignadas = await getSoloAsignadasUserId();
+  const base = sb
     .from("ordenes_trabajo")
     .select(LIST_SELECT)
     .eq("id", id)
-    .is("deleted_at", null)
-    .maybeSingle();
+    .is("deleted_at", null);
+  const { data, error } = await aplicarVisibilidad(base, soloAsignadas).maybeSingle();
   if (error) throw error;
   return (data ?? null) as unknown as OrdenListItem | null;
 }
 
 export async function fetchOrden(id: string): Promise<OrdenTrabajo | null> {
   const sb = createClient();
-  const { data, error } = await sb
+  // Filtered like the list: otherwise a restricted member could open any OT in
+  // the workspace by pasting its id into the URL, since RLS only scopes by
+  // workspace. Returns null (→ "no encontrada") rather than the row.
+  const soloAsignadas = await getSoloAsignadasUserId();
+  const base = sb
     .from("ordenes_trabajo")
     .select(ORDEN_SELECT)
-    .eq("id", id)
-    .maybeSingle();
+    .eq("id", id);
+  const { data, error } = await aplicarVisibilidad(base, soloAsignadas).maybeSingle();
   if (error) throw error;
   return data as unknown as OrdenTrabajo | null;
 }
