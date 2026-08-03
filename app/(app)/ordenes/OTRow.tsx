@@ -391,6 +391,9 @@ function OTRow({ orden, usuarios, isSelected, onClick, onPrefetch, myId, onAssig
         // Altura fija: todas las tarjetas miden lo mismo aunque el tÃ­tulo, la
         // ubicaciÃ³n o el nÃºmero de etiquetas cambien.
         height: 124,
+        // The list is now a flex column; without this, rows would be squeezed
+        // below their fixed height when the list overflows.
+        flexShrink: 0,
         boxSizing: "border-box",
         display: "flex",
         flexDirection: "column",
@@ -398,9 +401,14 @@ function OTRow({ orden, usuarios, isSelected, onClick, onPrefetch, myId, onAssig
         // El `gap` reemplaza a los mÃ¡rgenes sueltos de cada fila: separaciÃ³n
         // uniforme entre cabecera, tÃ­tulo, ITO y etiquetas.
         gap: 6,
+        // Cards on the canvas, not a continuous white sheet: each row keeps its
+        // own border and the list gaps them, so --surface-canvas shows between.
         background: isSelected ? "var(--brand-tint)" : "var(--surface-1)",
-        borderBottom: "1px solid var(--divider)",
-        borderLeft: isSelected ? "3px solid var(--brand)" : "3px solid transparent",
+        border: `1px solid ${isSelected ? "var(--brand)" : "var(--border)"}`,
+        borderRadius: "var(--r-lg)",
+        // Selection is shown with a 3px accent, but the border width stays 1px
+        // so the card's content never shifts sideways when it is selected.
+        boxShadow: isSelected ? "inset 3px 0 0 0 var(--brand)" : "none",
         cursor: isPending ? "default" : "pointer",
         opacity: isPending ? 0.55 : isMarcada ? 0.62 : 1,
         transition: "background var(--dur-fast) var(--ease), opacity var(--dur-fast) var(--ease)",

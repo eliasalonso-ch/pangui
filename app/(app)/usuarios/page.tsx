@@ -5,12 +5,12 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase";
 import { callEdge } from "@/lib/edge";
 import { ROL_LABEL, esAdmin, esOwner } from "@/lib/roles";
-import { puedeDarDeBaja } from "@/lib/usuarios-baja";
+import { puedeDarDeBaja, puedeGestionarUsuario } from "@/lib/usuarios-baja";
 import {
   Users, UserPlus, Shield, Wrench, Search, X, Loader2,
   ChevronRight, Zap, Settings2, HardHat, Sparkles, Wind,
   Cpu, Droplets, ShieldAlert, Flame, Paintbrush, Leaf, User,
-  Lock, Check,
+  Lock, Check, MoreHorizontal,
 } from "lucide-react";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -20,6 +20,9 @@ interface Usuario {
   rol: string;
   activo: boolean;
   oficio?: string;
+  cargo?: string;
+  /** Un `member` con esto en true solo ve las OTs que tiene asignadas. */
+  solo_asignadas?: boolean | null;
   created_at?: string;
   last_active?: string;
   /** Baja definitiva: la fila queda para no romper el historial. */
@@ -111,6 +114,13 @@ const inputStyle: React.CSSProperties = {
   fontSize: 13, fontFamily: "inherit", color: "var(--fg-1)",
   background: "var(--surface-1)", outline: "none", boxSizing: "border-box",
 };
+/** Item de los menús ⋮ de cada fila de la tabla de miembros. */
+const rowMenuItemStyle: React.CSSProperties = {
+  display: "block", width: "100%", padding: "9px 10px",
+  border: "none", borderRadius: 7, background: "transparent",
+  color: "var(--fg-1)", fontSize: 13, fontFamily: "inherit",
+  textAlign: "left", cursor: "pointer",
+};
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 export default function UsuariosPage() {
@@ -137,6 +147,11 @@ export default function UsuariosPage() {
 
   // Cuadrilla form
   const [cuadrillaForm, setCuadrillaForm] = useState({ nombre: "", descripcion: "", tipo: "", icono: "", color: "" });
+
+  // Members table: sortable columns + per-row ⋮ menu.
+  const [sortKey, setSortKey] = useState<"nombre" | "rol" | "cargo" | "oficio" | "estado">("nombre");
+  const [sortAsc, setSortAsc] = useState(true);
+  const [rowMenu, setRowMenu] = useState<string | null>(null);
 
   // Permissions
   const [permisosOpen, setPermisosOpen] = useState(false);
@@ -171,7 +186,7 @@ export default function UsuariosPage() {
       setMyRol(perfil.rol);
 
       const { data: u1 } = await sb.from("usuarios")
-        .select("id,nombre,rol,activo,oficio,created_at,last_active,deleted_at")
+        .select("id,nombre,rol,activo,oficio,cargo,solo_asignadas,created_at,last_active,deleted_at")
         .eq("workspace_id", pId).is("deleted_at", null).order("nombre");
       setUsuarios(u1 ?? []);
 
@@ -303,11 +318,13 @@ export default function UsuariosPage() {
   }
 
   // ── Open panels ────────────────────────────────────────────────────────────
+  /**
+   * Members open in their own page (/usuarios/[id]) rather than the old side
+   * panel: that screen carries the full mobile parity set — name, cargo, oficio,
+   * role and the `solo_asignadas` visibility switch.
+   */
   function openUser(u: Usuario) {
-    setPanelData(u);
-    setPanelMode("view-user");
-    setSaveErr(null);
-    setInviteOk(null);
+    router.push(`/usuarios/${u.id}`);
   }
 
   function openCreateUser() {
@@ -402,8 +419,23 @@ export default function UsuariosPage() {
 
   const filteredUsers = usuarios.filter(u =>
     !busqueda || u.nombre?.toLowerCase().includes(busqueda.toLowerCase()) ||
-    u.oficio?.toLowerCase().includes(busqueda.toLowerCase())
-  );
+    u.oficio?.toLowerCase().includes(busqueda.toLowerCase()) ||
+    u.cargo?.toLowerCase().includes(busqueda.toLowerCase())
+  ).sort((a, b) => {
+    const value = (u: Usuario) => {
+      switch (sortKey) {
+        case "rol":    return (ROL_LABEL as Record<string, string>)[u.rol] ?? u.rol ?? "";
+        case "cargo":  return u.cargo ?? "";
+        case "oficio": return u.oficio ?? "";
+        case "estado": return u.activo === false ? "Inactivo" : "Activo";
+        default:       return u.nombre ?? "";
+      }
+    };
+    // localeCompare so accented names (Andrés, Matías) sort where a Chilean
+    // reader expects, not after Z.
+    const cmp = value(a).localeCompare(value(b), "es", { sensitivity: "base" });
+    return sortAsc ? cmp : -cmp;
+  });
   const filteredCuadrillas = cuadrillas.filter(c =>
     !busqueda || c.nombre?.toLowerCase().includes(busqueda.toLowerCase())
   );
@@ -504,63 +536,154 @@ export default function UsuariosPage() {
             </div>
           </div>
 
-          {/* Equipo list */}
+          {/* Equipo table. Columns are sortable and each row carries a menu;
+              clicking the row opens /usuarios/[id]. */}
           {activeTab === "equipo" && (
             filteredUsers.length === 0 ? (
               <div style={{ padding: 40, textAlign: "center", color: "var(--fg-4)", fontSize: 13 }}>
-                {busqueda ? "Sin resultados." : "No hay miembros aún."}
+                {busqueda ? "Sin resultados." : "No hay miembros aun."}
               </div>
             ) : (
-              <div>
-                {filteredUsers.map(u => {
-                  const RolIcon = ROL_ICON[u.rol] ?? User;
-                  const isActive = u.activo !== false;
-                  const isSelected = panelMode !== null && (panelData as Usuario)?.id === u.id;
-                  return (
-                    <button
-                      key={u.id}
-                      type="button"
-                      onClick={() => openUser(u)}
-                      style={{
-                        width: "100%", display: "flex", alignItems: "center", gap: 12,
-                        padding: "12px 24px", background: isSelected ? "var(--brand-tint)" : "none",
-                        border: "none", borderBottom: "1px solid var(--border)",
-                        cursor: "pointer", fontFamily: "inherit", textAlign: "left",
-                      }}
-                    >
-                      <div style={{
-                        width: 36, height: 36, borderRadius: "50%", flexShrink: 0,
-                        background: isActive ? "var(--brand)" : "var(--border)",
-                        display: "flex", alignItems: "center", justifyContent: "center",
-                        fontSize: 14, fontWeight: 700,
-                        color: isActive ? "var(--fg-on-brand)" : "var(--fg-4)",
-                      }}>
-                        {u.nombre?.charAt(0)?.toUpperCase() ?? "?"}
-                      </div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                          <span style={{ fontSize: 13, fontWeight: 600, color: "var(--fg-1)" }}>{u.nombre}</span>
-                          {!isActive && (
-                            <span style={{ fontSize: 10, fontWeight: 600, padding: "1px 6px", borderRadius: 10, background: "var(--surface-hover)", color: "var(--fg-4)" }}>
-                              Inactivo
-                            </span>
-                          )}
-                        </div>
-                        <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 2 }}>
-                          <RolIcon size={11} style={{ color: "var(--fg-3)" }} />
-                          <span style={{ fontSize: 11, color: "var(--fg-3)" }}>{(ROL_LABEL as Record<string, string>)[u.rol] ?? u.rol}</span>
-                          {u.oficio && <span style={{ fontSize: 11, color: "var(--fg-4)" }}>· {u.oficio}</span>}
-                        </div>
-                      </div>
-                      <div style={{ textAlign: "right", flexShrink: 0 }}>
-                        {u.last_active && (
-                          <p style={{ fontSize: 11, color: "var(--fg-4)", margin: 0 }}>{timeAgo(u.last_active)}</p>
-                        )}
-                      </div>
-                      <ChevronRight size={14} style={{ color: "var(--fg-4)", flexShrink: 0 }} />
-                    </button>
-                  );
-                })}
+              <div style={{ padding: "14px 24px 32px" }}>
+                <div style={{ border: "1px solid var(--border)", borderRadius: 12, overflow: "hidden", background: "var(--surface-1)" }}>
+                  <div style={{ overflowX: "auto" }}>
+                    <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 720 }}>
+                      <thead>
+                        <tr style={{ background: "var(--surface-2)" }}>
+                          {([
+                            ["nombre", "Nombre"],
+                            ["rol",    "Rol"],
+                            ["cargo",  "Cargo"],
+                            ["oficio", "Oficio"],
+                            ["estado", "Estado"],
+                          ] as const).map(([key, label]) => (
+                            <th key={key} style={{ padding: "10px 16px", textAlign: "left" }}>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (sortKey === key) setSortAsc(v => !v);
+                                  else { setSortKey(key); setSortAsc(true); }
+                                }}
+                                style={{
+                                  display: "inline-flex", alignItems: "center", gap: 4,
+                                  background: "none", border: "none", padding: 0, cursor: "pointer",
+                                  fontFamily: "inherit", fontSize: 11.5, fontWeight: 700,
+                                  color: sortKey === key ? "var(--fg-2)" : "var(--fg-4)",
+                                  textTransform: "uppercase", letterSpacing: "0.05em",
+                                }}
+                              >
+                                {label}
+                                {sortKey === key && <span aria-hidden="true">{sortAsc ? "\u2191" : "\u2193"}</span>}
+                              </button>
+                            </th>
+                          ))}
+                          <th style={{ width: 48 }} />
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredUsers.map(u => {
+                          const isActive = u.activo !== false;
+                          const puedeGestionar = puedeGestionarUsuario({ id: myId ?? "", rol: myRol ?? "" }, { id: u.id, rol: u.rol });
+                          return (
+                            <tr
+                              key={u.id}
+                              onClick={() => openUser(u)}
+                              style={{ borderTop: "1px solid var(--border)", cursor: "pointer" }}
+                            >
+                              <td style={{ padding: "12px 16px" }}>
+                                <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                                  <span style={{
+                                    width: 30, height: 30, borderRadius: "50%", flexShrink: 0,
+                                    display: "grid", placeItems: "center",
+                                    background: isActive ? "var(--brand)" : "var(--border)",
+                                    color: isActive ? "var(--fg-on-brand)" : "var(--fg-4)",
+                                    fontSize: 12, fontWeight: 700,
+                                  }}>
+                                    {u.nombre?.charAt(0)?.toUpperCase() ?? "?"}
+                                  </span>
+                                  <span style={{ fontSize: 13.5, fontWeight: 600, color: "var(--fg-1)" }}>{u.nombre}</span>
+                                </span>
+                              </td>
+                              <td style={{ padding: "12px 16px", fontSize: 13, color: "var(--fg-2)" }}>
+                                {(ROL_LABEL as Record<string, string>)[u.rol] ?? u.rol}
+                              </td>
+                              <td style={{ padding: "12px 16px", fontSize: 13, color: u.cargo ? "var(--fg-2)" : "var(--fg-4)" }}>
+                                {u.cargo || "\u2014"}
+                              </td>
+                              <td style={{ padding: "12px 16px", fontSize: 13, color: u.oficio ? "var(--fg-2)" : "var(--fg-4)" }}>
+                                {u.oficio || "\u2014"}
+                              </td>
+                              <td style={{ padding: "12px 16px" }}>
+                                <span style={{
+                                  display: "inline-flex", alignItems: "center", gap: 6,
+                                  padding: "3px 10px", borderRadius: 999,
+                                  border: "1px solid var(--border)", background: "var(--surface-1)",
+                                  fontSize: 12, fontWeight: 600, color: "var(--fg-2)",
+                                }}>
+                                  <span style={{
+                                    width: 6, height: 6, borderRadius: "50%",
+                                    background: isActive ? "var(--brand)" : "var(--fg-4)",
+                                  }} />
+                                  {isActive ? "Activo" : "Inactivo"}
+                                </span>
+                              </td>
+                              <td style={{ padding: "12px 16px", textAlign: "right", position: "relative" }}>
+                                <button
+                                  type="button"
+                                  aria-label={`Acciones para ${u.nombre}`}
+                                  onClick={e => { e.stopPropagation(); setRowMenu(rowMenu === u.id ? null : u.id); }}
+                                  style={{
+                                    width: 28, height: 28, display: "grid", placeItems: "center",
+                                    border: "none", borderRadius: 6,
+                                    background: rowMenu === u.id ? "var(--surface-hover)" : "transparent",
+                                    color: "var(--fg-3)", cursor: "pointer",
+                                  }}
+                                >
+                                  <MoreHorizontal size={15} />
+                                </button>
+
+                                {rowMenu === u.id && (
+                                  <>
+                                    <div
+                                      onClick={e => { e.stopPropagation(); setRowMenu(null); }}
+                                      style={{ position: "fixed", inset: 0, zIndex: 40 }}
+                                    />
+                                    <div
+                                      onClick={e => e.stopPropagation()}
+                                      style={{
+                                        position: "absolute", top: "calc(100% - 4px)", right: 12, zIndex: 41,
+                                        width: 230, padding: 6, textAlign: "left",
+                                        background: "var(--surface-1)", border: "1px solid var(--border-strong)",
+                                        borderRadius: 10, boxShadow: "var(--shadow-lg)",
+                                      }}
+                                    >
+                                      <button
+                                        type="button"
+                                        onClick={() => { setRowMenu(null); openUser(u); }}
+                                        style={rowMenuItemStyle}
+                                      >
+                                        Ver y editar miembro
+                                      </button>
+                                      {puedeGestionar && (
+                                        <button
+                                          type="button"
+                                          onClick={() => { setRowMenu(null); openBaja(u); }}
+                                          style={{ ...rowMenuItemStyle, color: "var(--danger)" }}
+                                        >
+                                          Dar de baja
+                                        </button>
+                                      )}
+                                    </div>
+                                  </>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
               </div>
             )
           )}

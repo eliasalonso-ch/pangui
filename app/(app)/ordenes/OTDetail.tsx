@@ -2172,14 +2172,16 @@ export default function OTDetail({
   });
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden", background: "var(--surface-1)" }}>
+    // Canvas, so the detail pane reads as a surface with white cards on it
+    // rather than one flat white sheet.
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden", background: "var(--surface-canvas)" }}>
       {/* Shared confirmation popup for every destructive action in this view. */}
       <ConfirmDeleteModal pending={confirmDelete} onClose={() => setConfirmDelete(null)} />
 
       <div style={{ flex: 1, minHeight: 0, overflowY: "auto", overflowX: "hidden" }}>
 
       {/* ── Header ── */}
-      <div style={{ position: "relative", flexShrink: 0, borderBottom: "1px solid var(--border)", background: "var(--surface-1)" }}>
+      <div style={{ position: "relative", flexShrink: 0, borderBottom: "1px solid var(--border)", background: "var(--surface-canvas)" }}>
         {/* Top bar: title + optional close (modal overlays). Timer was moved into the body.
             Solo se muestra en la pestaña principal: dentro de una pestaña el
             título ya no aporta y ocupaba una franja alta de la pantalla. Las

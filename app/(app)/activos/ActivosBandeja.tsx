@@ -1337,7 +1337,7 @@ export default function ActivosBandeja({ initialActivos, usuarios, ubicaciones, 
   ];
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100dvh", overflow: "hidden", background: "var(--c-bg, #F8FAFC)" }}>
+    <div style={{ display: "flex", flexDirection: "column", height: "100dvh", overflow: "hidden", background: "var(--c-bg, var(--surface-canvas))" }}>
 
       {/* ── Navigation header ── */}
       <div style={{ flexShrink: 0, borderBottom: "1px solid var(--border)", background: "var(--surface-1)" }}>
@@ -1548,7 +1548,7 @@ export default function ActivosBandeja({ initialActivos, usuarios, ubicaciones, 
 
         {/* RIGHT: detail or form */}
         {(isDesktop || showRight) && (
-          <div style={{ flex: 1, minWidth: 0, overflow: "hidden", background: "var(--c-bg, #F8FAFC)" }}>
+          <div style={{ flex: 1, minWidth: 0, overflow: "hidden", background: "var(--c-bg, var(--surface-canvas))" }}>
             {editing ? (
               <ActivoForm
                 activo={editing === "new" ? null : editing}

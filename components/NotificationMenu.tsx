@@ -5,13 +5,22 @@ import { useRouter } from "next/navigation";
 import {
   AlertTriangle,
   Bell,
+  BellDot,
   CalendarClock,
+  Check,
   CheckCheck,
+  Circle,
+  Clock,
+  ExternalLink,
+  FileText,
   Info,
+  MessageSquare,
   Package,
   PackageSearch,
   Search,
+  UserPlus,
   Wrench,
+  X,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase";
 import type { RealtimeChannel } from "@supabase/supabase-js";
@@ -29,6 +38,7 @@ interface NotificationRow {
 const TYPE_ICON: Record<string, typeof Info> = {
   emergencia: AlertTriangle,
   ot: Wrench,
+  orden: Wrench,
   asignado: Wrench,
   estado_cambiado: Wrench,
   completado: CheckCheck,
@@ -38,23 +48,52 @@ const TYPE_ICON: Record<string, typeof Info> = {
   inventario_stock_bajo: Package,
   solicitud_materiales: PackageSearch,
   tipo_trabajo_actualizado: Search,
+  // Overdue / stalled / unassigned OTs — these are nags, not news.
+  ot_vencida: AlertTriangle,
+  ot_urgente_sin_asignar: AlertTriangle,
+  ot_abierta_sin_progreso: Clock,
+  ot_sin_asignar: UserPlus,
+  comentario: MessageSquare,
+  archivo_ot: FileText,
+  // MeConecta (UdeC portal) — links out to an external site.
+  meconecta: ExternalLink,
 };
 
 const TYPE_COLOR: Record<string, string> = {
   emergencia: "var(--danger)",
+  ot_vencida: "var(--danger)",
+  ot_urgente_sin_asignar: "var(--danger)",
+  ot_abierta_sin_progreso: "var(--warning)",
+  ot_sin_asignar: "var(--warning)",
   inventario: "var(--warning)",
   inventario_stock_bajo: "var(--warning)",
   solicitud_materiales: "var(--warning)",
 };
 
-function destination(url: string | null): string | null {
+/**
+ * Where a notification should take you.
+ *
+ * `external` links (the MeConecta portal) open in a new tab instead of being
+ * pushed through the router — previously these were returned as null and the
+ * notification was silently unclickable.
+ */
+interface Destination {
+  href: string;
+  external: boolean;
+}
+
+function destination(url: string | null): Destination | null {
   if (!url) return null;
-  if (url.startsWith("/ordenes?")) return url;
+  if (url.startsWith("/ordenes?")) return { href: url, external: false };
   const order = url.match(/(?:^|\/)orden(?:es)?\/([0-9a-f-]{36})/i);
-  if (order?.[1]) return `/ordenes?id=${encodeURIComponent(order[1])}`;
+  if (order?.[1]) return { href: `/ordenes?id=${encodeURIComponent(order[1])}`, external: false };
   const material = url.match(/(?:^|\/)parte(?:s)?\/([0-9a-f-]{36})/i);
-  if (material?.[1]) return `/partes?material=${encodeURIComponent(material[1])}`;
-  return url.startsWith("/") ? url : null;
+  if (material?.[1]) return { href: `/partes?material=${encodeURIComponent(material[1])}`, external: false };
+  if (url.startsWith("/")) return { href: url, external: false };
+  // Absolute http(s) URLs are legitimate destinations (MeConecta). Anything
+  // else — javascript:, data:, mailto: — is refused rather than navigated to.
+  if (/^https?:\/\//i.test(url)) return { href: url, external: true };
+  return null;
 }
 
 function relativeTime(value: string): string {
@@ -76,6 +115,7 @@ export default function NotificationMenu() {
   const [loading, setLoading] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
   const [notifications, setNotifications] = useState<NotificationRow[]>([]);
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -131,6 +171,25 @@ export default function NotificationMenu() {
     return () => document.removeEventListener("mousedown", close);
   }, [open]);
 
+  // Esc closes the menu — it traps focus visually, so it needs a keyboard exit.
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [open]);
+
+  // Relative timestamps ("Hace 3 min") are derived at render time, so an open
+  // menu would freeze them. Re-render once a minute while it is visible.
+  const [, setNow] = useState(0);
+  useEffect(() => {
+    if (!open) return;
+    const id = setInterval(() => setNow((n) => n + 1), 60_000);
+    return () => clearInterval(id);
+  }, [open]);
+
   const unreadCount = notifications.filter((item) => !item.leida).length;
   const visible = useMemo(
     () => onlyUnread ? notifications.filter((item) => !item.leida) : notifications,
@@ -143,6 +202,21 @@ export default function NotificationMenu() {
     await createClient().from("notifications").update({ leida: true }).eq("usuario_id", userId).or("leida.eq.false,leida.is.null");
   }
 
+  /** Per-item read toggle — lets you re-flag something to deal with later. */
+  async function toggleRead(item: NotificationRow) {
+    if (!userId) return;
+    const next = !item.leida;
+    setNotifications((current) => current.map((row) => row.id === item.id ? { ...row, leida: next } : row));
+    await createClient().from("notifications").update({ leida: next }).eq("id", item.id).eq("usuario_id", userId);
+  }
+
+  /** Removes a single notification. The realtime DELETE handler is idempotent. */
+  async function dismiss(item: NotificationRow) {
+    if (!userId) return;
+    setNotifications((current) => current.filter((row) => row.id !== item.id));
+    await createClient().from("notifications").delete().eq("id", item.id).eq("usuario_id", userId);
+  }
+
   async function openNotification(item: NotificationRow) {
     const target = destination(item.url);
     if (!item.leida) {
@@ -150,7 +224,13 @@ export default function NotificationMenu() {
       await createClient().from("notifications").update({ leida: true }).eq("id", item.id).eq("usuario_id", userId ?? "");
     }
     setOpen(false);
-    if (target) router.push(target);
+    if (!target) return;
+    if (target.external) {
+      // noopener/noreferrer: the portal must not get a handle on this window.
+      window.open(target.href, "_blank", "noopener,noreferrer");
+    } else {
+      router.push(target.href);
+    }
   }
 
   return (
@@ -162,8 +242,11 @@ export default function NotificationMenu() {
         aria-expanded={open}
         style={{ position: "relative", width: 34, height: 34, display: "grid", placeItems: "center", border: 0, borderRadius: "50%", background: open ? "var(--surface-hover)" : "transparent", color: "var(--fg-3)", cursor: "pointer" }}
       >
-        <Bell size={19} />
-        {unreadCount > 0 && <span style={{ position: "absolute", top: 4, right: 4, width: 8, height: 8, borderRadius: "50%", background: "var(--danger)", border: "1.5px solid var(--surface-1)" }} />}
+        {/* BellDot draws the dot as part of the glyph. The icon's only <circle>
+            IS the dot (the bell body and clapper are <path>s), so recolouring
+            circles alone paints the dot red and leaves the bell inheriting the
+            surrounding colour — legible in both themes. */}
+        {unreadCount > 0 ? <BellDot size={19} className="notif-bell-dot" /> : <Bell size={19} />}
       </button>
 
       {open && (
@@ -171,10 +254,27 @@ export default function NotificationMenu() {
           <div style={{ minHeight: 58, padding: "0 16px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid var(--border)" }}>
             <strong style={{ fontSize: 17 }}>Notificaciones</strong>
             <label style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--brand)", fontSize: 12, cursor: "pointer" }}>
-              <button type="button" role="switch" aria-checked={onlyUnread} onClick={() => setOnlyUnread((value) => !value)} style={{ width: 30, height: 18, padding: 2, border: 0, borderRadius: 999, background: onlyUnread ? "var(--brand)" : "var(--surface-3)", cursor: "pointer" }}>
-                <span style={{ display: "block", width: 14, height: 14, borderRadius: "50%", background: "white", transform: onlyUnread ? "translateX(12px)" : "translateX(0)", transition: "transform .15s" }} />
+              <span>Solo no leídas</span>
+              {/* The "off" track used var(--surface-3), which is not defined in
+                  either theme — it resolved to transparent and the switch was
+                  invisible until enabled. Real token + border so the control is
+                  always visible, and the knob keeps a shadow to read as raised. */}
+              <button
+                type="button"
+                role="switch"
+                aria-checked={onlyUnread}
+                onClick={() => setOnlyUnread((value) => !value)}
+                style={{
+                  width: 32, height: 19, padding: 2, flexShrink: 0,
+                  border: `1px solid ${onlyUnread ? "var(--brand)" : "var(--border-strong)"}`,
+                  borderRadius: 999,
+                  background: onlyUnread ? "var(--brand)" : "var(--surface-hover)",
+                  cursor: "pointer",
+                  transition: "background .15s, border-color .15s",
+                }}
+              >
+                <span style={{ display: "block", width: 13, height: 13, borderRadius: "50%", background: onlyUnread ? "#fff" : "var(--fg-4)", boxShadow: "0 1px 2px rgba(0,0,0,.2)", transform: onlyUnread ? "translateX(13px)" : "translateX(0)", transition: "transform .15s, background .15s" }} />
               </button>
-              Solo no leídas
             </label>
           </div>
           <div style={{ minHeight: 42, padding: "0 16px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid var(--border)", color: "var(--fg-4)", fontSize: 12 }}>
@@ -193,18 +293,59 @@ export default function NotificationMenu() {
               const Icon = TYPE_ICON[item.tipo] ?? Info;
               const color = TYPE_COLOR[item.tipo] ?? "var(--brand)";
               const target = destination(item.url);
+              const isHovered = hoveredId === item.id;
               return (
-                <button key={item.id} type="button" onClick={() => void openNotification(item)} style={{ position: "relative", width: "100%", display: "flex", alignItems: "flex-start", gap: 12, padding: "13px 16px", border: 0, borderBottom: "1px solid var(--border)", background: item.leida ? "var(--surface-1)" : "var(--brand-tint)", color: "var(--fg-1)", fontFamily: "inherit", textAlign: "left", cursor: target ? "pointer" : "default" }}>
+                // A row, not a <button>: it holds its own action buttons, and
+                // nesting interactive elements inside a button is invalid HTML.
+                <div
+                  key={item.id}
+                  onMouseEnter={() => setHoveredId(item.id)}
+                  onMouseLeave={() => setHoveredId((current) => current === item.id ? null : current)}
+                  style={{ position: "relative", display: "flex", alignItems: "flex-start", gap: 12, padding: "13px 16px", borderBottom: "1px solid var(--border)", background: item.leida ? "var(--surface-1)" : "var(--brand-tint)", color: "var(--fg-1)" }}
+                >
                   <span style={{ width: 36, height: 36, flexShrink: 0, display: "grid", placeItems: "center", borderRadius: "50%", background: `color-mix(in srgb, ${color} 14%, transparent)`, color }}><Icon size={17} /></span>
-                  <span style={{ minWidth: 0, flex: 1 }}>
+
+                  <button
+                    type="button"
+                    onClick={() => void openNotification(item)}
+                    style={{ minWidth: 0, flex: 1, display: "block", padding: 0, border: 0, background: "transparent", color: "inherit", font: "inherit", textAlign: "left", cursor: target ? "pointer" : "default" }}
+                  >
                     <span style={{ display: "flex", alignItems: "baseline", gap: 7 }}>
                       <strong style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 13, fontWeight: item.leida ? 600 : 700 }}>{item.titulo}</strong>
+                      {target?.external && <ExternalLink size={11} style={{ flexShrink: 0, color: "var(--fg-4)" }} />}
                       <span style={{ flexShrink: 0, color: "var(--fg-4)", fontSize: 11 }}>{relativeTime(item.created_at)}</span>
                     </span>
                     {item.mensaje && <span style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", marginTop: 3, color: "var(--fg-3)", fontSize: 12, lineHeight: 1.4 }}>{item.mensaje}</span>}
+                  </button>
+
+                  {/* Row actions. Revealed on hover, but always reachable by
+                      keyboard — hiding them with display:none would drop them
+                      out of the tab order entirely. */}
+                  <span className="notif-row-actions" style={{ display: "flex", alignItems: "center", gap: 2, flexShrink: 0, marginTop: 1, opacity: isHovered ? 1 : 0, transition: "opacity .12s" }}>
+                    <button
+                      type="button"
+                      onClick={() => void toggleRead(item)}
+                      title={item.leida ? "Marcar como no leída" : "Marcar como leída"}
+                      aria-label={item.leida ? "Marcar como no leída" : "Marcar como leída"}
+                      className="notif-row-action"
+                      onFocus={() => setHoveredId(item.id)}
+                    >
+                      {item.leida ? <Circle size={13} /> : <Check size={15} />}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void dismiss(item)}
+                      title="Eliminar notificación"
+                      aria-label="Eliminar notificación"
+                      className="notif-row-action"
+                      onFocus={() => setHoveredId(item.id)}
+                    >
+                      <X size={15} />
+                    </button>
                   </span>
-                  {!item.leida && <span aria-label="Sin leer" style={{ width: 8, height: 8, marginTop: 14, flexShrink: 0, borderRadius: "50%", background: "var(--brand)" }} />}
-                </button>
+
+                  {!item.leida && !isHovered && <span aria-label="Sin leer" style={{ position: "absolute", right: 16, top: 18, width: 8, height: 8, borderRadius: "50%", background: "var(--brand)" }} />}
+                </div>
               );
             })}
           </div>

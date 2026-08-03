@@ -595,7 +595,7 @@ export default function OTCrearForm({ usuarios, ubicaciones, activos, categorias
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", minHeight: "100dvh", background: "var(--surface-0)" }}>
+    <div style={{ display: "flex", flexDirection: "column", minHeight: "100dvh", background: "var(--surface-canvas)" }}>
 
       {/* ── Header ── */}
       <div style={{

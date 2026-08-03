@@ -731,7 +731,7 @@ export default function OTEditPanel({
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "var(--surface-1)" }}>
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "var(--surface-canvas)" }}>
 
       {/* Header */}
       <div style={{
@@ -1005,7 +1005,7 @@ export default function OTEditPanel({
       </div>
 
       {/* Footer */}
-      <div style={{ borderTop: "1px solid var(--border)", padding: "16px 28px", display: "flex", alignItems: "center", justifyContent: "space-between", background: "var(--surface-1)", flexShrink: 0 }}>
+      <div style={{ borderTop: "1px solid var(--border)", padding: "16px 28px", display: "flex", alignItems: "center", justifyContent: "space-between", background: "var(--surface-canvas)", flexShrink: 0 }}>
         <div style={{ flex: 1 }}>
           {error && <span style={{ fontSize: 12.5, color: "var(--danger)" }}>{error}</span>}
         </div>

@@ -94,7 +94,7 @@ export default function NotificacionesPage() {
   const unread = notifs.filter(n => !n.leida).length;
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100dvh", overflow: "hidden", background: "var(--surface-0)" }}>
+    <div style={{ display: "flex", flexDirection: "column", height: "100dvh", overflow: "hidden", background: "var(--surface-canvas)" }}>
 
       {/* Header */}
       <div style={{

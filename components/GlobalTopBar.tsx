@@ -32,7 +32,7 @@ function pageTrail(pathname: string): string[] {
   if (pathname.startsWith("/suscripcion")) return ["Cuenta", "Suscripción"];
   if (pathname.startsWith("/mi-cuenta")) return ["Cuenta", "Mi cuenta"];
   if (pathname.startsWith("/espacio-trabajo")) return ["Cuenta", "Espacio de trabajo"];
-  if (pathname.startsWith("/preferencias-notificaciones")) return ["Cuenta", "Preferencias de notificaciones"];
+  if (pathname.startsWith("/preferencias-notificaciones")) return ["Cuenta", "Notificaciones"];
   if (pathname.startsWith("/ordenes/crear")) return ["Operaciones", "Órdenes", "Nueva orden"];
   if (/^\/ordenes\/[^/]+$/.test(pathname)) return ["Operaciones", "Órdenes", "Detalle de OT"];
   if (pathname.startsWith("/ordenes")) return ["Operaciones", "Órdenes"];
@@ -89,7 +89,10 @@ export default function GlobalTopBar() {
   }
 
   return (
-    <header style={{ height: 56, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 18px", background: "var(--surface-1)", borderBottom: "1px solid var(--border)", position: "relative", zIndex: 100 }}>
+    // Chrome, so it uses --sidebar-bg (the canvas tone) rather than --surface-1.
+    // Cards in the content area stay pure white and remain the elements that
+    // read as sitting on top.
+    <header style={{ height: 56, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 18px", background: "var(--sidebar-bg)", borderBottom: "1px solid var(--border)", position: "relative", zIndex: 100 }}>
       <nav aria-label="Ubicación actual" style={{ minWidth: 0, display: "flex", alignItems: "center", gap: 8, color: "var(--fg-2)" }}>
         {trail.map((label, index) => (
           <span key={`${label}-${index}`} style={{ minWidth: 0, display: "inline-flex", alignItems: "center", gap: 8 }}>

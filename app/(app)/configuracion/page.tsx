@@ -43,17 +43,13 @@ const SECTORES = [
   "Salud", "Transporte", "Educación", "Agricultura", "Otro",
 ];
 
-const OFICIOS = [
-  "Electricista", "Mecánico", "Técnico HVAC", "Plomero", "Soldador",
-  "Instrumentista", "Operador", "Supervisor", "Ingeniero", "Otro",
-];
-
 const SECTION_TITLES: Record<ConfiguracionSection, string> = {
   perfil: "Mi cuenta",
   workspace: "Espacio de trabajo",
   notificaciones: "Preferencias de notificaciones",
   apariencia: "Apariencia",
 };
+
 
 export default function ConfiguracionPage({ section }: { section?: ConfiguracionSection }) {
   const router = useRouter();
@@ -65,11 +61,19 @@ export default function ConfiguracionPage({ section }: { section?: Configuracion
   // Profile
   const [nombre, setNombre]   = useState("");
   const [email, setEmail]     = useState("");
-  const [oficio, setOficio]   = useState("");
-  const [cargo, setCargo]     = useState("");
+  // Oficio/cargo are normalised catalog rows (`oficios` / `cargos`), selected by
+  // id — the same model the mobile app writes. The legacy free-text
+  // usuarios.oficio / usuarios.cargo columns are intentionally NOT written here:
+  // web used to save strings into them, which is how some users ended up with a
+  // cargo text that disagreed with their cargo_id.
+  const [oficioId, setOficioId] = useState<string | null>(null);
+  const [cargoId, setCargoId]   = useState<string | null>(null);
+  const [oficios, setOficios]   = useState<{ id: string; nombre: string }[]>([]);
+  const [cargos, setCargos]     = useState<{ id: string; nombre: string }[]>([]);
   const [plan, setPlan]       = useState("");
   const [planStatus, setPlanStatus] = useState("");
   const [workspaceId, setWorkspaceId] = useState("");
+  const [memberSince, setMemberSince] = useState("");
   const [loadingProfile, setLoadingProfile] = useState(true);
 
   // Inline name edit
@@ -78,9 +82,8 @@ export default function ConfiguracionPage({ section }: { section?: Configuracion
   const [savingNombre, setSavingNombre]   = useState(false);
   const nombreInputRef = useRef<HTMLInputElement>(null);
 
-  // Oficio / cargo edit
-  const [savingOficio, setSavingOficio] = useState(false);
-  const [oficioSaved, setOficioSaved]   = useState(false);
+  // Which profile field is currently being saved (cards save on change).
+  const [savingField, setSavingField] = useState<"oficio" | "cargo" | null>(null);
 
   // Password change
   const [pwOpen, setPwOpen]       = useState(false);
@@ -124,7 +127,7 @@ export default function ConfiguracionPage({ section }: { section?: Configuracion
 
       const { data: perfil } = await sb
         .from("usuarios")
-        .select("nombre, rol, oficio, cargo, plan, plan_status, workspace_id")
+        .select("nombre, rol, oficio_id, cargo_id, plan, plan_status, workspace_id, created_at")
         .eq("id", user.id)
         .maybeSingle();
 
@@ -132,12 +135,39 @@ export default function ConfiguracionPage({ section }: { section?: Configuracion
       setNombre(perfil?.nombre ?? "");
       setNombreDraft(perfil?.nombre ?? "");
       setMyRol(perfil?.rol ?? "");
-      setOficio(perfil?.oficio ?? "");
-      setCargo(perfil?.cargo ?? "");
+      setOficioId(perfil?.oficio_id ?? null);
+      setCargoId(perfil?.cargo_id ?? null);
       setPlan(perfil?.plan ?? "");
       setPlanStatus(perfil?.plan_status ?? "");
       setWorkspaceId(perfil?.workspace_id ?? "");
+      setMemberSince(
+        perfil?.created_at
+          ? new Date(perfil.created_at).toLocaleDateString("es-CL", { day: "numeric", month: "long", year: "numeric" })
+          : "",
+      );
       setLoadingProfile(false);
+
+      // Catalogs: global rows (workspace_id null) plus any this workspace added.
+      // Mirrors fetchOficios/fetchCargos in the mobile app so both clients offer
+      // exactly the same options.
+      const ws = perfil?.workspace_id;
+      if (ws) {
+        const [{ data: ofs }, { data: cgs }] = await Promise.all([
+          sb.from("oficios")
+            .select("id, nombre")
+            .or(`workspace_id.is.null,workspace_id.eq.${ws}`)
+            .eq("activo", true)
+            .order("nombre"),
+          sb.from("cargos")
+            .select("id, nombre")
+            .or(`workspace_id.is.null,workspace_id.eq.${ws}`)
+            .eq("activo", true)
+            .order("nivel")
+            .order("nombre"),
+        ]);
+        setOficios(ofs ?? []);
+        setCargos(cgs ?? []);
+      }
     }
     load();
   }, [router]);
@@ -175,13 +205,31 @@ export default function ConfiguracionPage({ section }: { section?: Configuracion
     setEditingNombre(false);
   }
 
-  async function saveOficio() {
-    setSavingOficio(true);
+  /**
+   * Saves a single profile column immediately, so each card stands on its own
+   * without a shared "Guardar cambios" step.
+   *
+   * IDs only — same as updateUsuarioOficio/updateUsuarioCargo on mobile. The
+   * legacy text columns are deliberately not dual-written; that is what let the
+   * two representations drift apart in the first place.
+   */
+  async function saveProfileField(column: "oficio_id" | "cargo_id", value: string | null) {
+    const isOficio = column === "oficio_id";
+    setSavingField(isOficio ? "oficio" : "cargo");
+
+    // Dual-write id + legacy text, matching the mobile member screen
+    // (app/(stack)/usuario/[id].tsx) and /usuarios/[id] on web. Writing only the
+    // id would leave usuarios.cargo / usuarios.oficio stale for anything still
+    // reading those columns.
+    const list = isOficio ? oficios : cargos;
+    const nombre = list.find(item => item.id === value)?.nombre ?? null;
+    const textColumn = isOficio ? "oficio" : "cargo";
+
     const sb = createClient();
-    await sb.from("usuarios").update({ oficio, cargo }).eq("id", myId);
-    setSavingOficio(false);
-    setOficioSaved(true);
-    setTimeout(() => setOficioSaved(false), 2000);
+    await sb.from("usuarios")
+      .update({ [column]: value, [textColumn]: nombre })
+      .eq("id", myId);
+    setSavingField(null);
   }
 
   async function handleChangePassword() {
@@ -283,127 +331,111 @@ export default function ConfiguracionPage({ section }: { section?: Configuracion
   if (!section) return null;
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100dvh", overflow: "hidden", background: "var(--surface-0)" }}>
+    // No height/overflow here: the app shell already owns the scroll container.
+    // Pinning 100dvh + overflowY:auto created a second scrollbar nested inside
+    // the layout's own.
+    <div style={{ background: "var(--surface-canvas)" }}>
 
       {/* Body */}
-      <div style={{ flex: 1, overflowY: "auto", padding: "28px 24px" }}>
+      <div style={{ padding: "32px 24px 64px" }}>
+
+        {/* ── Page header: title, identity line, section tabs ── */}
+        <div style={{ maxWidth: 720, margin: "0 auto 26px" }}>
+          <h1 style={{ fontSize: 34, fontWeight: 700, color: "var(--fg-1)", margin: 0, letterSpacing: "-0.02em" }}>
+            {SECTION_TITLES[tab]}
+          </h1>
+          <p style={{ fontSize: 13.5, color: "var(--fg-3)", margin: "6px 0 0" }}>
+            {email}{memberSince ? ` · Miembro desde ${memberSince}` : ""}
+          </p>
+        </div>
 
         {/* ── Perfil tab ── */}
         {tab === "perfil" && (
-          <div style={{ maxWidth: 500, display: "flex", flexDirection: "column", gap: 20 }}>
+          <div style={{ maxWidth: 720, margin: "0 auto", display: "flex", flexDirection: "column", gap: 18 }}>
 
-            {/* Avatar + name card */}
-            <div style={{ background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: 12, padding: "20px 20px 16px", boxShadow: "0 1px 3px rgba(15,23,42,0.06)" }}>
-              <div style={{ display: "flex", alignItems: "flex-start", gap: 16 }}>
-                <div style={{
-                  width: 56, height: 56, borderRadius: "50%", flexShrink: 0,
-                  background: "linear-gradient(135deg, var(--brand-active), var(--brand))",
-                  color: "var(--surface-1)", display: "flex", alignItems: "center", justifyContent: "center",
-                  fontSize: 20, fontWeight: 700,
-                }}>
-                  {initials ?? <User size={22} />}
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  {editingNombre ? (
-                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <input
-                        ref={nombreInputRef}
-                        value={nombreDraft}
-                        onChange={e => setNombreDraft(e.target.value)}
-                        onKeyDown={e => { if (e.key === "Enter") saveNombre(); if (e.key === "Escape") { setEditingNombre(false); setNombreDraft(nombre); } }}
-                        style={{
-                          flex: 1, height: 34, padding: "0 10px",
-                          border: "1px solid #2563EB", borderRadius: "var(--r-sm)",
-                          fontSize: 14, fontWeight: 600, color: "var(--fg-1)",
-                          outline: "none", fontFamily: "inherit",
-                          boxShadow: "0 0 0 3px rgba(37,99,235,0.12)",
-                        }}
-                      />
-                      <button type="button" onClick={saveNombre} disabled={savingNombre}
-                        style={{ width: 32, height: 32, border: "none", borderRadius: "var(--r-sm)", background: "var(--brand)", color: "var(--surface-1)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                        {savingNombre ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
-                      </button>
-                      <button type="button" onClick={() => { setEditingNombre(false); setNombreDraft(nombre); }}
-                        style={{ width: 32, height: 32, border: "1px solid var(--border)", borderRadius: "var(--r-sm)", background: "var(--surface-1)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, color: "var(--fg-4)" }}>
-                        <X size={13} />
-                      </button>
-                    </div>
-                  ) : (
-                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <p style={{ fontSize: 15, fontWeight: 700, color: "var(--fg-1)", margin: 0 }}>{nombre || "—"}</p>
-                      <button type="button" onClick={() => { setNombreDraft(nombre); setEditingNombre(true); }}
-                        style={{ background: "none", border: "none", cursor: "pointer", color: "var(--fg-4)", display: "flex", padding: 2 }}>
-                        <Pencil size={13} />
-                      </button>
-                    </div>
-                  )}
-                  <p style={{ fontSize: 12, color: "var(--fg-2)", margin: "3px 0 0" }}>{email}</p>
-                  {myRol && (
-                    <span style={{
-                      display: "inline-block", marginTop: 6, fontSize: 11, fontWeight: 600,
-                      padding: "2px 8px", borderRadius: 20,
-                      background: "var(--brand-tint)", color: "var(--brand-fg)",
-                    }}>
-                      {(ROL_LABEL as Record<string, string>)[myRol] ?? myRol}
-                    </span>
-                  )}
-                </div>
-                {plan && (
-                  <span style={{
-                    flexShrink: 0, fontSize: 11, fontWeight: 700,
-                    padding: "3px 9px", borderRadius: 20,
-                    background: planInfo.bg, color: planInfo.text,
-                    border: `1px solid ${planInfo.border}`,
-                  }}>
-                    {PLAN_LABEL[plan] ?? plan}
-                  </span>
-                )}
-              </div>
-            </div>
-
-            {/* Oficio / cargo card */}
-            <div style={{ background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: 12, padding: 20, boxShadow: "0 1px 3px rgba(15,23,42,0.06)" }}>
-              <p style={{ fontSize: 12, fontWeight: 700, color: "var(--fg-2)", margin: "0 0 14px", textTransform: "uppercase", letterSpacing: "0.06em" }}>Tu perfil profesional</p>
-              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                <div>
-                  <label style={{ fontSize: 12, fontWeight: 600, color: "var(--fg-1)", display: "block", marginBottom: 5 }}>Oficio</label>
-                  <select
-                    value={oficio}
-                    onChange={e => setOficio(e.target.value)}
-                    style={selectStyle}
-                  >
-                    <option value="">Sin especificar</option>
-                    {OFICIOS.map(o => <option key={o} value={o}>{o}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label style={{ fontSize: 12, fontWeight: 600, color: "var(--fg-1)", display: "block", marginBottom: 5 }}>Cargo</label>
+            {/* Nombre — same card shape as every other setting. Inline edit
+                saves on confirm; the avatar/plan/role chips live here too. */}
+            <SettingCard
+              label="Nombre"
+              hint={`${(ROL_LABEL as Record<string, string>)[myRol] ?? myRol ?? ""}${plan ? ` · Plan ${PLAN_LABEL[plan] ?? plan}` : ""}`}
+            >
+              {editingNombre ? (
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   <input
-                    value={cargo}
-                    onChange={e => setCargo(e.target.value)}
-                    placeholder="Ej. Jefe de mantención"
-                    style={inputStyle}
-                    onFocus={e => { e.currentTarget.style.borderColor = "var(--brand)"; e.currentTarget.style.boxShadow = "0 0 0 3px rgba(37,99,235,0.12)"; }}
-                    onBlur={e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.boxShadow = "none"; }}
+                    ref={nombreInputRef}
+                    value={nombreDraft}
+                    onChange={e => setNombreDraft(e.target.value)}
+                    onKeyDown={e => { if (e.key === "Enter") saveNombre(); if (e.key === "Escape") { setEditingNombre(false); setNombreDraft(nombre); } }}
+                    style={{ ...inputStyle, width: 200 }}
                   />
+                  <button type="button" onClick={saveNombre} disabled={savingNombre}
+                    style={{ width: 34, height: 34, border: "none", borderRadius: "var(--r-sm)", background: "var(--brand)", color: "var(--fg-on-brand)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                    {savingNombre ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+                  </button>
+                  <button type="button" onClick={() => { setEditingNombre(false); setNombreDraft(nombre); }}
+                    style={{ width: 34, height: 34, border: "1px solid var(--border)", borderRadius: "var(--r-sm)", background: "var(--surface-1)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, color: "var(--fg-4)" }}>
+                    <X size={14} />
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={saveOficio}
-                  disabled={savingOficio || oficioSaved}
-                  style={{
-                    height: 38, border: "none", borderRadius: "var(--r-md)",
-                    background: oficioSaved ? "var(--success)" : "var(--brand)",
-                    color: "var(--surface-1)", fontSize: 13, fontWeight: 600,
-                    cursor: savingOficio || oficioSaved ? "default" : "pointer",
-                    fontFamily: "inherit", display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-                    transition: "background 0.2s",
-                  }}
-                >
-                  {savingOficio ? <Loader2 size={13} className="animate-spin" /> : oficioSaved ? <><Check size={13} /> Guardado</> : "Guardar cambios"}
-                </button>
-              </div>
-            </div>
+              ) : (
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <span style={{
+                    width: 34, height: 34, borderRadius: "50%", flexShrink: 0,
+                    background: "linear-gradient(135deg, var(--brand-active), var(--brand))",
+                    color: "var(--fg-on-brand)", display: "flex", alignItems: "center", justifyContent: "center",
+                    fontSize: 13, fontWeight: 700,
+                  }}>
+                    {initials ?? <User size={16} />}
+                  </span>
+                  <span style={{ fontSize: 13.5, color: "var(--fg-2)" }}>{nombre || "—"}</span>
+                  <button type="button" onClick={() => { setNombreDraft(nombre); setEditingNombre(true); }}
+                    style={{ background: "none", border: "none", cursor: "pointer", color: "var(--fg-4)", display: "flex", padding: 4 }}>
+                    <Pencil size={14} />
+                  </button>
+                </div>
+              )}
+            </SettingCard>
+
+            {/* One card per setting. Each control saves on change, so there is
+                no "Guardar cambios" step. */}
+
+            <SettingCard label="Correo" hint="Tu correo de acceso, no se puede cambiar aquí">
+              <span style={{ fontSize: 13.5, color: "var(--fg-2)" }}>{email}</span>
+            </SettingCard>
+
+            <SettingCard label="Apariencia" hint="Cómo se ve Pangui en este dispositivo">
+              <select
+                value={themePref}
+                onChange={e => { const p = e.target.value as ThemePref; setTheme(p); setThemePref(p); }}
+                style={{ ...selectStyle, width: 200 }}
+              >
+                {THEME_OPTIONS.map(({ pref, label }) => (
+                  <option key={pref} value={pref}>{label}</option>
+                ))}
+              </select>
+            </SettingCard>
+
+            <SettingCard label="Oficio" hint="La especialidad con la que trabajas" saving={savingField === "oficio"}>
+              <select
+                value={oficioId ?? ""}
+                onChange={e => { const v = e.target.value || null; setOficioId(v); void saveProfileField("oficio_id", v); }}
+                style={{ ...selectStyle, width: 200 }}
+              >
+                <option value="">Sin especificar</option>
+                {oficios.map(o => <option key={o.id} value={o.id}>{o.nombre}</option>)}
+              </select>
+            </SettingCard>
+
+            <SettingCard label="Cargo" hint="Tu rol dentro del equipo" saving={savingField === "cargo"}>
+              <select
+                value={cargoId ?? ""}
+                onChange={e => { const v = e.target.value || null; setCargoId(v); void saveProfileField("cargo_id", v); }}
+                style={{ ...selectStyle, width: 200 }}
+              >
+                <option value="">Sin especificar</option>
+                {cargos.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+              </select>
+            </SettingCard>
 
             {/* Security card */}
             <div style={{ background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: 12, overflow: "hidden", boxShadow: "0 1px 3px rgba(15,23,42,0.06)" }}>
@@ -529,7 +561,7 @@ export default function ConfiguracionPage({ section }: { section?: Configuracion
 
         {/* ── Workspace tab ── */}
         {tab === "workspace" && esAdmin(myRol) && (
-          <div style={{ maxWidth: 500, display: "flex", flexDirection: "column", gap: 20 }}>
+          <div style={{ maxWidth: 720, margin: "0 auto", display: "flex", flexDirection: "column", gap: 18 }}>
             {loadingWs ? (
               <div style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--fg-4)", padding: "20px 0" }}>
                 <Loader2 size={16} className="animate-spin" />
@@ -739,6 +771,37 @@ export default function ConfiguracionPage({ section }: { section?: Configuracion
 }
 
 // ── Shared sub-components ────────────────────────────────────────────────────
+
+/**
+ * One setting per card: bold label (and optional hint) on the left, its control
+ * right-aligned. Cards stack with a gap rather than sharing a bordered box.
+ */
+function SettingCard({
+  label, hint, children, saving,
+}: {
+  label: string;
+  hint?: string;
+  children: React.ReactNode;
+  saving?: boolean;
+}) {
+  return (
+    <div style={{
+      display: "flex", alignItems: "center", justifyContent: "space-between", gap: 20,
+      background: "var(--surface-1)", border: "1px solid var(--border)",
+      borderRadius: 12, padding: "20px 24px",
+      boxShadow: "0 1px 3px rgba(15,23,42,0.06)",
+    }}>
+      <div style={{ minWidth: 0 }}>
+        <p style={{ fontSize: 15, fontWeight: 600, color: "var(--fg-1)", margin: 0 }}>{label}</p>
+        {hint && <p style={{ fontSize: 13, color: "var(--fg-3)", margin: "4px 0 0" }}>{hint}</p>}
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+        {saving && <Loader2 size={14} className="animate-spin" style={{ color: "var(--fg-4)" }} />}
+        {children}
+      </div>
+    </div>
+  );
+}
 
 function InfoRow({ icon, label, value }: { icon?: React.ReactNode; label: string; value: string }) {
   return (

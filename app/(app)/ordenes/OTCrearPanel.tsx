@@ -1585,7 +1585,7 @@ export default function OTCrearPanel({
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "var(--surface-1)" }}>
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "var(--surface-canvas)" }}>
 
       {/* Header */}
       <div style={{
@@ -1645,7 +1645,7 @@ export default function OTCrearPanel({
       {aiOpen && (
         <div role="dialog" aria-modal="true" aria-label="Crear orden con IA" style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(0,0,0,.38)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
           <div style={{ width: "min(560px, 100%)", borderRadius: 14, border: "1px solid var(--border)", background: "var(--surface-1)", boxShadow: "0 24px 70px rgba(0,0,0,.28)", overflow: "hidden" }}>
-            <div style={{ height: 56, padding: "0 18px", display: "flex", alignItems: "center", justifyContent: "space-between", background: "var(--surface-2)", borderBottom: "1px solid var(--border)" }}>
+            <div style={{ height: 56, padding: "0 18px", display: "flex", alignItems: "center", justifyContent: "space-between", background: "var(--surface-canvas)", borderBottom: "1px solid var(--border)" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 9 }}><Sparkles size={18} color="var(--brand)" /><strong style={{ fontSize: 16, color: "var(--fg-1)" }}>Crear con IA</strong></div>
               <button type="button" onClick={() => !aiGenerating && setAiOpen(false)} aria-label="Cerrar" style={{ width: 32, height: 32, display: "grid", placeItems: "center", borderRadius: 8, border: "1px solid var(--border)", background: "var(--surface-1)", color: "var(--fg-2)", cursor: "pointer" }}><X size={16} /></button>
             </div>

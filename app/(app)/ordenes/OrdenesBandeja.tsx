@@ -5,9 +5,10 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Plus, Search, X, ChevronDown, Loader2, FileText, ArrowUpDown, Download, AlertTriangle, Calendar, List, CalendarDays, Columns3, Check, Copy, DatabaseArrowDown, Eye, EyeOff } from "lucide-react";
 import { useTopBarAction } from "@/components/TopBarActions";
 import { createClient, logRealtimeChannel } from "@/lib/supabase";
-import { fetchOrden, fetchOrdenesPage, fetchAllOrdenesForExport, fetchOrdenListItem, searchOrdenes, ORDENES_SEARCH_LIMIT, deleteOrden, ORDENES_PAGE_SIZE, parseDescMeta, fetchMarcadasIds, toggleMarcada, matchesSearch } from "@/lib/ordenes-api";
+import { fetchOrden, fetchOrdenesPage, fetchAllOrdenesForExport, fetchOrdenListItem, searchOrdenes, ORDENES_SEARCH_LIMIT, deleteOrden, ORDENES_PAGE_SIZE, parseDescMeta, fetchMarcadasIds, toggleMarcada, matchesSearch, ELECTRILAM_WORKSPACE_ID } from "@/lib/ordenes-api";
 import { buildOrdenesWorkbook, type ExportCols as SharedExportCols, type OrdenInput, type HojaInput, type FilaInput, type FotoItemInput, type MaterialUsadoInput } from "@/lib/excel-export-shared";
 import { ExportScheduler } from "./ExportScheduler";
+import MeconectaCheck from "./MeconectaCheck";
 import OTRow from "./OTRow";
 import CalendarView from "./CalendarView";
 import KanbanView from "./KanbanView";
@@ -1232,10 +1233,12 @@ export default function OrdenesBandeja({
   const isResizableSplit = isDesktop && view !== "calendario" && view !== "kanban";
 
   return (
-    <div style={{ display:"flex", flexDirection:"column", height:"100%", minHeight:0, overflow:"hidden", background:"var(--c-bg, #F8FAFC)" }}>
+    <div style={{ display:"flex", flexDirection:"column", height:"100%", minHeight:0, overflow:"hidden", background:"var(--c-bg, var(--surface-canvas))" }}>
 
       {/* ── Navigation header ── */}
-      <div style={{ flexShrink:0, borderBottom:"1px solid var(--border)", background:"var(--surface-1)" }}>
+      {/* Toolbar is chrome, so it sits at the canvas tone alongside the sidebar
+          and top bar rather than reading as a white surface. */}
+      <div style={{ flexShrink:0, borderBottom:"1px solid var(--border)", background:"var(--surface-canvas)" }}>
 
         {/* Top row */}
         <div style={{
@@ -1293,7 +1296,7 @@ export default function OrdenesBandeja({
                   paddingLeft:34, paddingRight:search ? 28 : 10,
                   height:38, width:"100%",
                   border:"1px solid var(--border)", borderRadius:8,
-                  fontSize:13, color:"var(--fg-1)", background:"var(--surface-1)",
+                  fontSize:14, fontWeight:500, color:"var(--fg-1)", background:"var(--surface-1)",
                   outline:"none", fontFamily:"inherit",
                 }}
                 onFocus={e => { e.currentTarget.style.borderColor = "var(--brand)"; }}
@@ -1315,6 +1318,12 @@ export default function OrdenesBandeja({
             </div>
 
 
+            {/* Revisar meconecta — Electrilam-exclusive, non-requesters only.
+                Same single-tenant gate as ITOs on mobile. */}
+            {wsId === ELECTRILAM_WORKSPACE_ID && myRol !== "requester" && (
+              <MeconectaCheck onOpenOrden={openOT} />
+            )}
+
             {/* Nueva OT button */}
             <button
               type="button"
@@ -1324,7 +1333,8 @@ export default function OrdenesBandeja({
                 padding:"0 16px", height:38,
                 background:"var(--brand)", color:"var(--fg-on-brand)",
                 border:"none", borderRadius:8,
-                fontSize:13, fontWeight:600,
+                // Matches the search input's type: 14px / 500.
+                fontSize:14, fontWeight:500,
                 cursor:"pointer", fontFamily:"inherit",
                 whiteSpace:"nowrap", flexShrink:0,
               }}
@@ -1418,7 +1428,10 @@ export default function OrdenesBandeja({
           flexShrink: isResizableSplit ? 0 : 1,
           flexBasis:  isResizableSplit ? "auto" : 0,
           borderRight: isDesktop ? "1px solid var(--border)" : "none",
-          background:"var(--surface-1)",
+          // Canvas, not --surface-1: this is a full-height panel, so painting it
+          // pure white made it merge with the toolbar and detail pane into one
+          // flat sheet. The OT rows inside stay white and read as cards on it.
+          background:"var(--surface-canvas)",
           position:"relative",
         }}>
           {view === "calendario" ? (
@@ -1466,7 +1479,9 @@ export default function OrdenesBandeja({
                   style={{
                     display:"flex", alignItems:"center", justifyContent:"space-between",
                     padding:"12px 16px",
-                    background: isActive ? "var(--surface-hover)" : "var(--surface-1)",
+                    // Tabs are chrome: inactive sits on the canvas so the strip
+                    // doesn't read as a white block above the list.
+                    background: isActive ? "var(--surface-1)" : "var(--surface-canvas)",
                     border:"none",
                     borderRight: i === 0 ? "1px solid var(--border)" : "none",
                     borderBottom: isActive ? "2px solid var(--brand)" : "2px solid transparent",
@@ -1474,7 +1489,7 @@ export default function OrdenesBandeja({
                     transition:"background 0.1s",
                   }}
                   onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = "var(--surface-hover)"; }}
-                  onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = "var(--surface-1)"; }}
+                  onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = "var(--surface-canvas)"; }}
                 >
                   <span style={{ fontSize:13, fontWeight: isActive ? 700 : 500, color: isActive ? "var(--brand-fg)" : "var(--fg-2)" }}>
                     {t.label}
@@ -1525,12 +1540,12 @@ export default function OrdenesBandeja({
                   style={{
                     display:"flex", alignItems:"center", gap:6,
                     width:"100%", padding:"10px 16px",
-                    background:"var(--surface-1)", border:"none",
+                    background:"var(--surface-canvas)", border:"none",
                     fontSize:13, color:"var(--fg-2)",
                     cursor:"pointer", fontFamily:"inherit", textAlign:"left",
                   }}
                   onMouseEnter={e => { e.currentTarget.style.background = "var(--surface-hover)"; }}
-                  onMouseLeave={e => { e.currentTarget.style.background = "var(--surface-1)"; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = "var(--surface-canvas)"; }}
                 >
                   <span style={{ color:"var(--fg-3)" }}>Mostrando:</span>
                   <span style={{ maxWidth:220, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", fontWeight:600, color:"var(--brand-fg)" }} title={currentViewLabel}>{currentViewLabel}</span>
@@ -1627,7 +1642,9 @@ export default function OrdenesBandeja({
           })()}
 
           {/* List */}
-          <div ref={listScrollRef} style={{ flex:1, minHeight:0, overflowY:"auto" }}>
+          {/* Gap + padding so each OTRow reads as a card floating on the canvas
+              rather than a band in a continuous white sheet. */}
+          <div ref={listScrollRef} style={{ flex:1, minHeight:0, overflowY:"auto", display:"flex", flexDirection:"column", gap:8, padding:"8px 10px" }}>
             {filtered.length === 0 ? (
               <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", height:280, gap:12, color:"var(--fg-4)" }}>
                 <svg width="38" height="46" viewBox="0 0 38 46" fill="none">
@@ -1742,7 +1759,7 @@ export default function OrdenesBandeja({
         {/* RIGHT: create panel or detail. Hidden in canvas views because the
             detail opens in a modal there. */}
         {isDesktop && view !== "calendario" && view !== "kanban" && (
-          <div style={{ flex:1, minWidth:0, overflow:"hidden", background:"var(--c-bg, #F8FAFC)" }}>
+          <div style={{ flex:1, minWidth:0, overflow:"hidden", background:"var(--c-bg, var(--surface-canvas))" }}>
             {rightPanel === "create" ? (
               <OTCrearPanel
                 usuarios={usuarios}

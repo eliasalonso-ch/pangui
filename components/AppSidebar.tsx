@@ -18,12 +18,12 @@ import {
   Box,
   PackageSearch,
   ListChecks,
+  Bell,
   BellRing,
   Trash2,
   CircleUserRound,
   Building2,
   CreditCard,
-  SlidersHorizontal,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
@@ -534,10 +534,10 @@ export default function AppSidebar() {
                 </SidebarMenuItem>
               )}
               <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={isActive("/preferencias-notificaciones")} tooltip="Preferencias de notificaciones">
+                <SidebarMenuButton asChild isActive={isActive("/preferencias-notificaciones")} tooltip="Notificaciones">
                   <Link href="/preferencias-notificaciones" style={{ display: "flex", alignItems: "center", gap: collapsed ? 0 : 10 }}>
-                    <SlidersHorizontal size={16} style={{ flexShrink: 0 }} />
-                    {!collapsed && <span>Preferencias de notificaciones</span>}
+                    <Bell size={16} style={{ flexShrink: 0 }} />
+                    {!collapsed && <span>Notificaciones</span>}
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>

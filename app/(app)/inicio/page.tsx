@@ -320,7 +320,7 @@ export default function InicioDashboard() {
   }
 
   return (
-    <div style={{ padding: "32px 40px 64px", minHeight: "100vh", background: "var(--surface-0)" }}>
+    <div style={{ padding: "32px 40px 64px", minHeight: "100vh", background: "var(--surface-canvas)" }}>
       <WelcomeToast />
 
       {/* ── Header ── */}

@@ -164,7 +164,7 @@ export default function KanbanView({ ordenes, reprogramadaIds, selectedId, myId,
   const totalShown  = rangeFiltered.length;
 
   return (
-    <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", background: "var(--surface-0)" }}>
+    <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", background: "var(--surface-canvas)" }}>
       {/* Range header */}
       <div style={{
         display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap",

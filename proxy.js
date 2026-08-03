@@ -105,6 +105,9 @@ export async function proxy(request) {
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon\\.ico|icons|.*\\.svg$|.*\\.png$|.*\\.jpg$|.*\\.jpeg$|.*\\.webp$|.*\\.ico$|.*\\.gif$).*)",
+    // `sw.js` must be excluded explicitly: a service worker has to be served
+    // from its own origin path with a 200, and the auth check was redirecting
+    // it to /login (307), which makes registration fail outright.
+    "/((?!_next/static|_next/image|favicon\\.ico|icons|sw\\.js|.*\\.svg$|.*\\.png$|.*\\.jpg$|.*\\.jpeg$|.*\\.webp$|.*\\.ico$|.*\\.gif$).*)",
   ],
 };
