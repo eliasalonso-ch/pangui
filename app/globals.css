@@ -147,7 +147,7 @@
   --sp-16: 64px;
 
   /* ── Layout ─────────────────────────────────────────────── */
-  --sidebar-w:      224px;
+  --sidebar-w:      240px;
   --sidebar-w-mini: 64px;
   --topbar-h:       56px;
   --container-max:  1240px;
@@ -193,6 +193,7 @@
      them exactly the cards would lose their edge and read as one flat sheet.
      A hair off pure white keeps them legible without the old grey. */
   --surface-canvas: #FAFAF9;
+  --color-kumo-recessed: oklch(96% 0 0);
   --surface-hover:  #F1F4F8;
   --surface-active: #E9EEF6;
   /* Chrome (sidebar + top bar) sits at the canvas tone, not pure white, so the
@@ -319,6 +320,7 @@
   /* See the light-theme note. Kept BELOW --surface-1 so the relationship is the
      same in both themes: the canvas recedes and cards sit on top of it. */
   --surface-canvas: #050505;
+  --color-kumo-recessed: oklch(15% 0 0);
 
   /* Borders */
   --border:        #292929;
@@ -421,6 +423,7 @@
     --sidebar-bg:     #050505;
     --sidebar-hover:  #1A1A1A;
     --surface-canvas: #050505;
+    --color-kumo-recessed: oklch(15% 0 0);
     --border:        #292929;
     --border-strong: #3D3D3D;
     --divider:       #1F1F1F;
@@ -501,7 +504,7 @@ body {
   -moz-osx-font-smoothing: grayscale;
   font-family: var(--font-sans, "Geist"), system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   font-size: 14px;
-  background: var(--surface-0, var(--c-bg));
+  background: var(--surface-canvas, var(--c-bg));
   overscroll-behavior: none;
   color: var(--fg-1, var(--c-text-1));
 }

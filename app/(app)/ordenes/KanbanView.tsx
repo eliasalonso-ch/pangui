@@ -168,8 +168,8 @@ export default function KanbanView({ ordenes, reprogramadaIds, selectedId, myId,
       {/* Range header */}
       <div style={{
         display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap",
-        padding: "12px 16px", borderBottom: "1px solid var(--border)",
-        background: "var(--surface-1)",
+        padding: "6px 20px", minHeight: 40, borderBottom: "1px solid var(--border)",
+        background: "var(--surface-canvas)",
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: 6, color: "var(--fg-3)", fontSize: 12, fontWeight: 600 }}>
           <CalendarRange size={14} />
@@ -181,8 +181,8 @@ export default function KanbanView({ ordenes, reprogramadaIds, selectedId, myId,
           max={rangeTo || undefined}
           onChange={e => setRangeFrom(e.target.value)}
           style={{
-            height: 30, padding: "0 8px", border: "1px solid var(--border)", borderRadius: 6,
-            background: "var(--surface-1)", color: "var(--fg-1)", fontSize: 12, fontFamily: "inherit",
+            height: 28, padding: "0 8px", border: "1px solid var(--border)", borderRadius: 6,
+            background: "var(--surface-1)", color: "var(--fg-1)", fontSize: 12, fontWeight: 500, fontFamily: "inherit",
           }}
         />
         <span style={{ color: "var(--fg-4)", fontSize: 12 }}>â†’</span>
@@ -192,8 +192,8 @@ export default function KanbanView({ ordenes, reprogramadaIds, selectedId, myId,
           min={rangeFrom || undefined}
           onChange={e => setRangeTo(e.target.value)}
           style={{
-            height: 30, padding: "0 8px", border: "1px solid var(--border)", borderRadius: 6,
-            background: "var(--surface-1)", color: "var(--fg-1)", fontSize: 12, fontFamily: "inherit",
+            height: 28, padding: "0 8px", border: "1px solid var(--border)", borderRadius: 6,
+            background: "var(--surface-1)", color: "var(--fg-1)", fontSize: 12, fontWeight: 500, fontFamily: "inherit",
           }}
         />
         <div style={{ display: "flex", gap: 4 }}>
@@ -207,9 +207,9 @@ export default function KanbanView({ ordenes, reprogramadaIds, selectedId, myId,
               type="button"
               onClick={() => applyPreset(p.key)}
               style={{
-                height: 30, padding: "0 10px", borderRadius: 6,
+                height: 28, padding: "0 10px", borderRadius: 6,
                 border: "1px solid var(--border)", background: "var(--surface-1)",
-                fontSize: 11, fontWeight: 600, color: "var(--fg-2)",
+                fontSize: 12, fontWeight: 500, color: "var(--fg-2)",
                 cursor: "pointer", fontFamily: "inherit",
               }}
             >
@@ -223,9 +223,9 @@ export default function KanbanView({ ordenes, reprogramadaIds, selectedId, myId,
             onClick={clearRange}
             style={{
               display: "flex", alignItems: "center", gap: 4,
-              height: 30, padding: "0 10px", borderRadius: 6,
+              height: 28, padding: "0 10px", borderRadius: 6,
               border: "1px solid var(--border)", background: "var(--surface-1)",
-              fontSize: 11, fontWeight: 600, color: "var(--fg-3)",
+              fontSize: 12, fontWeight: 500, color: "var(--fg-3)",
               cursor: "pointer", fontFamily: "inherit",
             }}
           >
@@ -240,8 +240,8 @@ export default function KanbanView({ ordenes, reprogramadaIds, selectedId, myId,
 
       {/* Columns */}
       <div style={{
-        flex: 1, minHeight: 0, display: "flex", gap: 12, padding: 16,
-        overflowX: "auto", overflowY: "hidden",
+        flex: 1, minHeight: 0, display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 12, padding: 16,
+        overflow: "hidden",
       }}>
       {COLUMNS.map(col => (
         <KanbanColumn
@@ -337,7 +337,8 @@ function KanbanColumn({
       }}
       onDrop={(e) => { e.preventDefault(); onDrop(); }}
       style={{
-        flex: "0 0 300px",
+        width: "100%",
+        minWidth: 0,
         display: "flex",
         flexDirection: "column",
         minHeight: 0,

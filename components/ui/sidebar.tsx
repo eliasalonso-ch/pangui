@@ -42,7 +42,7 @@ export const Sidebar = ({ children, className, ...props }: React.HTMLAttributes<
     <aside
       className={cn("flex flex-col flex-shrink-0 transition-all duration-200", className)}
       style={{
-        width: collapsed ? 56 : 200,
+        width: collapsed ? 56 : "var(--sidebar-w)",
         background: "var(--sidebar-bg)",
         borderRight: "1px solid var(--border)",
         height: "100vh",
@@ -91,10 +91,10 @@ export const SidebarGroupLabel = ({ children, className, ...props }: React.HTMLA
     <div
       className={cn("px-3 mb-1", className)}
       style={{
-        fontSize: "10px",
+        fontSize: "13px",
         fontWeight: 600,
-        letterSpacing: "0.08em",
-        textTransform: "uppercase",
+        letterSpacing: 0,
+        textTransform: "none",
         color: "var(--fg-4)",
         marginTop: "16px",
       }}
@@ -144,6 +144,7 @@ export const SidebarMenuButton = ({
         )}
         style={{
           width: collapsed ? 40 : "100%",
+          fontSize: "13px",
           color: isActive ? "var(--brand)" : "var(--fg-3)",
           background: isActive ? "var(--brand-tint)" : "transparent",
           boxShadow: isActive ? (collapsed ? "none" : "inset 3px 0 0 var(--brand)") : "none",

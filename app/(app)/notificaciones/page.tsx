@@ -1,227 +1,172 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase";
 import {
-  Bell, Trash2, CheckCheck, AlertTriangle, Info,
-  Wrench, CalendarClock, Package, Loader2,
-  PackageSearch, Search,
+  AlertTriangle, Bell, CalendarClock, Check, CheckCheck, Circle,
+  ExternalLink, Info, Package, PackageSearch, Search, Trash2, Wrench,
 } from "lucide-react";
+import { createClient } from "@/lib/supabase";
+import AppLoadingState from "@/components/AppLoadingState";
 
 interface Notif {
   id: string;
   tipo: string;
   titulo: string;
-  mensaje?: string;
-  leida: boolean;
-  url?: string;
+  mensaje: string | null;
+  leida: boolean | null;
+  url: string | null;
   created_at: string;
 }
 
-const TIPO_ICON: Record<string, React.ElementType> = {
-  emergencia: AlertTriangle,
-  ot: Wrench,
-  preventivo: CalendarClock,
-  inventario: Package,
-  solicitud_materiales: PackageSearch,
-  tipo_trabajo_actualizado: Search,
+const TYPE_ICON: Record<string, React.ElementType> = {
+  emergencia: AlertTriangle, ot: Wrench, orden: Wrench, asignado: Wrench,
+  estado_cambiado: Wrench, completado: CheckCheck, procedimiento_completado: CheckCheck,
+  preventivo: CalendarClock, inventario: Package, inventario_stock_bajo: Package,
+  solicitud_materiales: PackageSearch, tipo_trabajo_actualizado: Search,
+  ot_vencida: AlertTriangle, ot_urgente_sin_asignar: AlertTriangle,
 };
 
-const TIPO_COLOR: Record<string, string> = {
-  emergencia: "var(--danger)",
-  ot: "var(--brand)",
-  preventivo: "var(--brand)",
-  inventario: "var(--warning)",
-  solicitud_materiales: "var(--warning)",
-  tipo_trabajo_actualizado: "var(--brand)",
+const TYPE_COLOR: Record<string, string> = {
+  emergencia: "var(--danger)", ot_vencida: "var(--danger)",
+  ot_urgente_sin_asignar: "var(--danger)", inventario: "var(--warning)",
+  inventario_stock_bajo: "var(--warning)", solicitud_materiales: "var(--warning)",
 };
 
-function formatTime(iso: string) {
-  const d = new Date(iso);
-  const diff = Math.floor((Date.now() - d.getTime()) / 60000);
-  if (diff < 1) return "Ahora";
-  if (diff < 60) return `Hace ${diff} min`;
-  const h = Math.floor(diff / 60);
-  if (h < 24) return `Hace ${h}h`;
-  const days = Math.floor(h / 24);
-  if (days < 7) return `Hace ${days} día${days !== 1 ? "s" : ""}`;
-  return d.toLocaleDateString("es-CL", { day: "2-digit", month: "short" });
+function relativeTime(value: string) {
+  const minutes = Math.max(0, Math.floor((Date.now() - new Date(value).getTime()) / 60_000));
+  if (minutes < 1) return "Ahora";
+  if (minutes < 60) return `Hace ${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `Hace ${hours} h`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `Hace ${days} día${days === 1 ? "" : "s"}`;
+  return new Date(value).toLocaleDateString("es-CL", { day: "numeric", month: "short" });
+}
+
+function destination(url: string | null) {
+  if (!url) return null;
+  const order = url.match(/(?:^|\/)orden(?:es)?\/([0-9a-f-]{36})/i);
+  if (order?.[1]) return { href: `/ordenes?id=${encodeURIComponent(order[1])}`, external: false };
+  if (url.startsWith("/")) return { href: url, external: false };
+  if (/^https?:\/\//i.test(url)) return { href: url, external: true };
+  return null;
 }
 
 export default function NotificacionesPage() {
   const router = useRouter();
   const [userId, setUserId] = useState<string | null>(null);
-  const [notifs, setNotifs] = useState<Notif[]>([]);
+  const [items, setItems] = useState<Notif[]>([]);
   const [loading, setLoading] = useState(true);
+  const [onlyUnread, setOnlyUnread] = useState(false);
 
   useEffect(() => {
-    async function load() {
+    let active = true;
+    void (async () => {
       const sb = createClient();
       const { data: { user } } = await sb.auth.getUser();
       if (!user) { router.replace("/login"); return; }
+      if (!active) return;
       setUserId(user.id);
-
-      const { data } = await sb
-        .from("notifications")
-        .select("*")
-        .eq("usuario_id", user.id)
-        .order("created_at", { ascending: false })
-        .limit(50);
-      setNotifs(data ?? []);
+      const { data } = await sb.from("notifications")
+        .select("id,tipo,titulo,mensaje,leida,url,created_at")
+        .eq("usuario_id", user.id).order("created_at", { ascending: false }).limit(100);
+      if (!active) return;
+      setItems((data ?? []) as Notif[]);
       setLoading(false);
-
-      await sb.from("notifications").update({ leida: true })
-        .eq("usuario_id", user.id).eq("leida", false);
-      setNotifs(prev => prev.map(n => ({ ...n, leida: true })));
-    }
-    load();
+    })();
+    return () => { active = false; };
   }, [router]);
 
-  async function eliminar(id: string) {
-    const sb = createClient();
-    await sb.from("notifications").delete().eq("id", id);
-    setNotifs(prev => prev.filter(n => n.id !== id));
-  }
+  const unreadCount = items.filter(item => !item.leida).length;
+  const visible = useMemo(() => onlyUnread ? items.filter(item => !item.leida) : items, [items, onlyUnread]);
 
-  async function limpiarTodo() {
+  async function setRead(item: Notif, leida: boolean) {
     if (!userId) return;
-    const sb = createClient();
-    await sb.from("notifications").delete().eq("usuario_id", userId);
-    setNotifs([]);
+    setItems(current => current.map(row => row.id === item.id ? { ...row, leida } : row));
+    await createClient().from("notifications").update({ leida }).eq("id", item.id).eq("usuario_id", userId);
   }
 
-  const unread = notifs.filter(n => !n.leida).length;
+  async function markAllRead() {
+    if (!userId || unreadCount === 0) return;
+    setItems(current => current.map(item => ({ ...item, leida: true })));
+    await createClient().from("notifications").update({ leida: true }).eq("usuario_id", userId).or("leida.eq.false,leida.is.null");
+  }
+
+  async function remove(item: Notif) {
+    if (!userId) return;
+    setItems(current => current.filter(row => row.id !== item.id));
+    await createClient().from("notifications").delete().eq("id", item.id).eq("usuario_id", userId);
+  }
+
+  async function clearAll() {
+    if (!userId) return;
+    await createClient().from("notifications").delete().eq("usuario_id", userId);
+    setItems([]);
+  }
+
+  async function open(item: Notif) {
+    const target = destination(item.url);
+    if (!item.leida) await setRead(item, true);
+    if (!target) return;
+    if (target.external) window.open(target.href, "_blank", "noopener,noreferrer");
+    else router.push(target.href);
+  }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100dvh", overflow: "hidden", background: "var(--surface-canvas)" }}>
-
-      {/* Header */}
-      <div style={{
-        flexShrink: 0, borderBottom: "1px solid var(--border)",
-        padding: "0 24px", height: 56,
-        display: "flex", alignItems: "center", justifyContent: "space-between",
-        background: "var(--surface-1)",
-      }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <Bell size={20} style={{ color: "var(--brand)" }} />
-          {unread > 0 && (
-            <span style={{
-              background: "var(--danger)", color: "var(--fg-on-brand)",
-              fontSize: 11, fontWeight: 700,
-              borderRadius: 10, padding: "1px 7px",
-              lineHeight: "18px",
-            }}>
-              {unread}
-            </span>
-          )}
+    <div style={{ padding: "28px 32px 64px", maxWidth: 1280, margin: "0 auto" }}>
+      <section style={{ border: "1px solid var(--border)", borderRadius: 12, overflow: "hidden", background: "var(--surface-1)" }}>
+        <div style={{ minHeight: 66, padding: "0 22px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, borderBottom: "1px solid var(--border)" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <span style={{ width: 34, height: 34, display: "grid", placeItems: "center", borderRadius: "50%", background: "var(--brand-tint)", color: "var(--brand)" }}><Bell size={17} /></span>
+            <div>
+              <h2 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: "var(--fg-1)" }}>Bandeja de notificaciones</h2>
+              <p style={{ margin: "2px 0 0", fontSize: 12.5, color: "var(--fg-4)" }}>{unreadCount} sin leer · {items.length} en total</p>
+            </div>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <button type="button" onClick={() => setOnlyUnread(value => !value)} style={{ height: 32, padding: "0 11px", border: `1px solid ${onlyUnread ? "var(--brand)" : "var(--border)"}`, borderRadius: 7, background: onlyUnread ? "var(--brand-tint)" : "var(--surface-1)", color: onlyUnread ? "var(--brand)" : "var(--fg-3)", font: "inherit", fontSize: 12, cursor: "pointer" }}>Solo no leídas</button>
+            {unreadCount > 0 && <button type="button" onClick={markAllRead} style={buttonStyle}><CheckCheck size={14} /> Marcar todas como leídas</button>}
+            {items.length > 0 && <button type="button" onClick={clearAll} style={buttonStyle}><Trash2 size={13} /> Limpiar todo</button>}
+          </div>
         </div>
-        {notifs.length > 0 && (
-          <button
-            type="button"
-            onClick={limpiarTodo}
-            style={{
-              display: "flex", alignItems: "center", gap: 5,
-              height: 30, padding: "0 12px",
-              background: "none", border: "1px solid var(--border)", borderRadius: 6,
-              fontSize: 12, color: "var(--fg-3)", cursor: "pointer", fontFamily: "inherit",
-            }}
-          >
-            <Trash2 size={13} />
-            Limpiar todo
-          </button>
-        )}
-      </div>
 
-      {/* Body */}
-      <div style={{ flex: 1, overflowY: "auto" }}>
         {loading ? (
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: 200, gap: 8, color: "var(--fg-4)" }}>
-            <Loader2 size={16} className="animate-spin" />
-            <span style={{ fontSize: 13 }}>Cargando…</span>
+          <AppLoadingState label="Cargando notificaciones…" minHeight={220} />
+        ) : visible.length === 0 ? (
+          <div style={{ height: 260, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10, color: "var(--fg-4)" }}>
+            <CheckCheck size={36} style={{ opacity: .35 }} />
+            <span style={{ fontSize: 13 }}>{onlyUnread ? "No tienes notificaciones sin leer" : "No tienes notificaciones"}</span>
           </div>
-        ) : notifs.length === 0 ? (
-          <div style={{
-            display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-            height: 300, gap: 12, color: "var(--fg-4)",
-          }}>
-            <CheckCheck size={40} style={{ opacity: 0.2 }} />
-            <p style={{ fontSize: 14, margin: 0, textAlign: "center", lineHeight: 1.6 }}>
-              Todo al día.<br />No tienes notificaciones pendientes.
-            </p>
-          </div>
-        ) : (
-          <div>
-            {notifs.map(n => {
-              const Icon = TIPO_ICON[n.tipo] ?? Info;
-              const color = TIPO_COLOR[n.tipo] ?? "var(--fg-3)";
-              return (
-                <div
-                  key={n.id}
-                  style={{
-                    display: "flex", alignItems: "flex-start",
-                    borderBottom: "1px solid var(--border)",
-                    background: n.leida ? "var(--surface-1)" : "var(--brand-tint)",
-                  }}
-                >
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (!n.url) return;
-                      const match = n.url.match(/\/orden\/([^/]+)/);
-                      if (match) router.push(`/ordenes?id=${encodeURIComponent(match[1])}`);
-                      else router.push(n.url);
-                    }}
-                    style={{
-                      flex: 1, display: "flex", alignItems: "flex-start", gap: 12,
-                      padding: "14px 20px",
-                      background: "none", border: "none",
-                      cursor: n.url ? "pointer" : "default",
-                      fontFamily: "inherit", textAlign: "left",
-                    }}
-                  >
-                    <span style={{
-                      width: 34, height: 34, borderRadius: 8, flexShrink: 0,
-                      display: "flex", alignItems: "center", justifyContent: "center",
-                      background: `${color}18`, color,
-                    }}>
-                      <Icon size={16} />
-                    </span>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <p style={{ fontSize: 13, fontWeight: 600, color: "var(--fg-1)", margin: 0, lineHeight: 1.4 }}>
-                        {n.titulo}
-                      </p>
-                      {n.mensaje && (
-                        <p style={{ fontSize: 12, color: "var(--fg-3)", margin: "2px 0 0", lineHeight: 1.4 }}>
-                          {n.mensaje}
-                        </p>
-                      )}
-                      <p style={{ fontSize: 11, color: "var(--fg-4)", margin: "4px 0 0" }}>
-                        {formatTime(n.created_at)}
-                      </p>
-                    </div>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => eliminar(n.id)}
-                    title="Eliminar"
-                    style={{
-                      width: 36, height: 36, margin: "10px 12px 10px 0", flexShrink: 0,
-                      display: "flex", alignItems: "center", justifyContent: "center",
-                      background: "none", border: "none", borderRadius: 6,
-                      cursor: "pointer", color: "var(--fg-4)",
-                    }}
-                    onMouseEnter={e => { e.currentTarget.style.color = "var(--danger)"; e.currentTarget.style.background = "var(--danger-bg)"; }}
-                    onMouseLeave={e => { e.currentTarget.style.color = "var(--fg-4)"; e.currentTarget.style.background = "none"; }}
-                  >
-                    <Trash2 size={14} />
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
+        ) : visible.map(item => {
+          const Icon = TYPE_ICON[item.tipo] ?? Info;
+          const color = TYPE_COLOR[item.tipo] ?? "var(--brand)";
+          const target = destination(item.url);
+          return (
+            <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "13px 22px", borderBottom: "1px solid var(--border)", background: item.leida ? "var(--surface-1)" : "var(--brand-tint)" }}>
+              <span style={{ width: 34, height: 34, flexShrink: 0, display: "grid", placeItems: "center", borderRadius: "50%", background: `color-mix(in srgb, ${color} 14%, transparent)`, color }}><Icon size={16} /></span>
+              <button type="button" onClick={() => void open(item)} style={{ minWidth: 0, flex: 1, padding: 0, border: 0, background: "transparent", textAlign: "left", cursor: target ? "pointer" : "default", fontFamily: "inherit" }}>
+                <span style={{ display: "flex", alignItems: "center", gap: 7 }}>
+                  <strong style={{ color: "var(--fg-1)", fontSize: 13.5, fontWeight: item.leida ? 600 : 700 }}>{item.titulo}</strong>
+                  {target?.external && <ExternalLink size={11} color="var(--fg-4)" />}
+                </span>
+                {item.mensaje && <span style={{ display: "block", marginTop: 2, color: "var(--fg-3)", fontSize: 12.5, lineHeight: 1.4 }}>{item.mensaje}</span>}
+                <span style={{ display: "block", marginTop: 4, color: "var(--fg-4)", fontSize: 11.5 }}>{relativeTime(item.created_at)}</span>
+              </button>
+              <div style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
+                <button type="button" onClick={() => void setRead(item, !item.leida)} title={item.leida ? "Marcar como no leída" : "Marcar como leída"} aria-label={item.leida ? "Marcar como no leída" : "Marcar como leída"} className="notif-row-action">{item.leida ? <Circle size={14} /> : <Check size={15} />}</button>
+                <button type="button" onClick={() => void remove(item)} title="Eliminar notificación" aria-label="Eliminar notificación" className="notif-row-action"><Trash2 size={14} /></button>
+              </div>
+            </div>
+          );
+        })}
+      </section>
     </div>
   );
 }
+
+const buttonStyle: React.CSSProperties = {
+  height: 32, padding: "0 11px", display: "inline-flex", alignItems: "center", gap: 6,
+  border: "1px solid var(--border)", borderRadius: 7, background: "var(--surface-1)",
+  color: "var(--fg-3)", fontSize: 12, cursor: "pointer", fontFamily: "inherit",
+};

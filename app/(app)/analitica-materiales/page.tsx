@@ -27,7 +27,7 @@ const C = {
   info: "var(--brand)",         infoBg: "var(--brand-tint)",
   purple: "var(--brand)",       purpleBg: "var(--brand-tint)",
   text1: "var(--fg-1)", text2: "var(--fg-2)", text3: "var(--fg-4)",
-  border: "var(--border)", bg: "var(--surface-0)", surface: "var(--surface-1)",
+  border: "var(--border)", bg: "var(--surface-canvas)", surface: "var(--surface-1)",
 };
 
 // ── DB row shapes ─────────────────────────────────────────────────────────────

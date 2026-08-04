@@ -3,6 +3,60 @@ import { withSentryConfig } from "@sentry/nextjs";
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactCompiler: true,
+  async redirects() {
+    return [
+      {
+        source: "/activos",
+        destination: "/activos/activos",
+        permanent: false,
+      },
+      {
+        source: "/activos/:vista(todos|criticos|semi-criticos|no-criticos)",
+        destination: "/activos/activos",
+        permanent: true,
+      },
+      {
+        source: "/partes",
+        destination: "/partes/materiales",
+        permanent: false,
+      },
+      {
+        source: "/ordenes",
+        destination: "/ordenes/lista",
+        permanent: false,
+      },
+      {
+        source: "/ubicaciones",
+        destination: "/ubicaciones/ubicaciones",
+        permanent: false,
+      },
+      {
+        source: "/notificaciones",
+        destination: "/notificaciones/bandeja",
+        permanent: false,
+      },
+      {
+        source: "/notificaciones/avisos",
+        destination: "/notificaciones/bandeja",
+        permanent: true,
+      },
+      {
+        source: "/reglas-alerta",
+        destination: "/notificaciones/reglas-alerta",
+        permanent: true,
+      },
+      {
+        source: "/preferencias-notificaciones",
+        destination: "/notificaciones/preferencias",
+        permanent: true,
+      },
+      {
+        source: "/preferencias-notificaciones/reglas-alerta",
+        destination: "/notificaciones/reglas-alerta",
+        permanent: true,
+      },
+    ];
+  },
   experimental: {
     viewTransition: true,
   },

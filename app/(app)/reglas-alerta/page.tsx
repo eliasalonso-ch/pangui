@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { createClient } from "@/lib/supabase";
 import { esAdmin } from "@/lib/roles";
+import AppLoadingState from "@/components/AppLoadingState";
 
 // Las unidades espejan las de la app móvil (regla-alerta/[id].tsx) para que el
 // mismo umbral se lea igual en los dos clientes.
@@ -442,6 +443,7 @@ function RuleCard({
     String(Math.max(1, Math.round((regla.umbral_minutos ?? 0) / unitByKey(currentUnit).multiplier)))
   );
   const [draftUnit, setDraftUnit] = useState<UnitKey>(currentUnit);
+  const [expanded, setExpanded] = useState(false);
 
   function commitThreshold() {
     const n = Number.parseInt(draftValue, 10);
@@ -452,31 +454,28 @@ function RuleCard({
   return (
     <div style={{
       background: "var(--surface-1)",
-      border: "1px solid var(--border)",
-      borderRadius: "var(--r-md)",
-      boxShadow: "0 1px 3px rgba(15,23,42,0.06)",
-      opacity: regla.activa ? 1 : 0.62,
+      borderBottom: "1px solid var(--border)",
       overflow: "hidden",
     }}>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 14, padding: 20 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(250px, 1fr) minmax(220px, 1.15fr) minmax(130px, .65fr) auto", alignItems: "center", gap: 14, padding: "13px 22px", opacity: regla.activa ? 1 : 0.58 }}>
         <div style={{ display: "flex", gap: 12, minWidth: 0 }}>
           <span style={{
-            width: 38,
-            height: 38,
-            borderRadius: "var(--r-sm)",
-            background: `color-mix(in srgb, ${meta.color} 14%, transparent)`,
-            color: meta.color,
+            width: 34,
+            height: 34,
+            borderRadius: "50%",
+            background: "var(--brand-tint)",
+            color: "var(--brand)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
             flexShrink: 0,
           }}>
-            <Icon size={18} />
+            <Icon size={16} />
           </span>
           <div style={{ minWidth: 0 }}>
-            <h2 style={{ margin: 0, color: "var(--fg-1)", fontSize: 14, fontWeight: 700 }}>{meta.label}</h2>
-            <p style={{ margin: "4px 0 0", color: "var(--fg-3)", fontSize: 12.5, lineHeight: 1.45 }}>{meta.description}</p>
-            <p style={{ margin: "8px 0 0", color: "var(--fg-4)", fontSize: 11.5 }}>
+            <h2 style={{ margin: 0, color: "var(--fg-1)", fontSize: 13.5, fontWeight: 600 }}>{meta.label}</h2>
+            <p style={{ display: "none", margin: "4px 0 0", color: "var(--fg-3)", fontSize: 12.5, lineHeight: 1.45 }}>{meta.description}</p>
+            <p style={{ display: "none", margin: "8px 0 0", color: "var(--fg-4)", fontSize: 11.5 }}>
               {meta.condicion ? (
                 // Reglas por evento: mismo resumen que la lista en móvil.
                 <>Se activa: <strong style={{ color: "var(--fg-2)" }}>{meta.resumen}</strong></>
@@ -486,16 +485,24 @@ function RuleCard({
             </p>
           </div>
         </div>
-        <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
-          <span style={{ fontSize: 12, color: regla.activa ? "var(--success)" : "var(--fg-4)", fontWeight: 650, paddingTop: 4 }}>
-            {regla.activa ? "Activa" : "Inactiva"}
+        <div style={{ minWidth: 0 }}>
+          <span style={{ display: "block", fontSize: 13, color: "var(--fg-2)" }}>
+            {meta.condicion ? meta.resumen : displayThreshold(regla.umbral_minutos, meta.preferredUnit)}
           </span>
+          <button type="button" onClick={() => setExpanded(value => !value)} style={{ marginTop: 3, padding: 0, border: 0, background: "transparent", color: "var(--brand)", fontSize: 11.5, cursor: "pointer", fontFamily: "inherit" }}>
+            {expanded ? "Cerrar configuración" : "Configurar"}
+          </button>
+        </div>
+        <div style={{ fontSize: 12.5, color: "var(--fg-3)" }}>
+          {recipients.size === 0 ? "Todo el equipo" : `${recipients.size} ${recipients.size === 1 ? "usuario" : "usuarios"}`}
+        </div>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 8 }}>
           <Toggle checked={regla.activa} disabled={saving} onChange={activa => onPatch(regla.id, { activa })} />
         </div>
       </div>
 
-      {regla.activa && (
-        <div style={{ borderTop: "1px solid var(--border)", padding: "14px 20px", background: "var(--surface-0)", display: "grid", gap: 14 }}>
+      {expanded && (
+        <div style={{ borderTop: "1px solid var(--border)", padding: "16px 22px 18px 66px", background: "var(--surface-2)", display: "grid", gap: 14 }}>
           {meta.condicion ? (
             // Regla por evento: no hay umbral que configurar. Igual que en móvil,
             // se muestra la condición en solo lectura.
@@ -677,22 +684,15 @@ export default function ReglasAlertaPage() {
   }), [reglas]);
 
   if (loading) {
-    return (
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "60dvh", gap: 8, color: "var(--fg-4)", fontSize: 13 }}>
-        <Loader2 size={16} className="animate-spin" />
-        <span>Cargando reglas...</span>
-      </div>
-    );
+    return <AppLoadingState label="Cargando reglas de alerta…" minHeight="60dvh" />;
   }
 
-  // Sin height:100dvh ni overflow propios, y sin header local: el layout ya
-  // renderiza GlobalTopBar y su propio scroll. Ver configuracion/suscripcion.
   return (
-    <div style={{ background: "var(--surface-0)" }}>
-      <div style={{ padding: "28px 24px" }}>
-        <div style={{ maxWidth: 1240, margin: "0 auto", display: "flex", flexDirection: "column", gap: 20 }}>
+    <div style={{ minHeight: "100%", background: "var(--surface-canvas)" }}>
+      <div style={{ padding: "28px 32px 64px", maxWidth: 1280, margin: "0 auto" }}>
           {!isAdmin ? (
             <div style={{
+              margin: 20,
               background: "var(--surface-1)",
               border: "1px solid var(--border)",
               borderRadius: "var(--r-md)",
@@ -704,26 +704,31 @@ export default function ReglasAlertaPage() {
             </div>
           ) : (
             <>
-              <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
-                <p style={{ margin: 0, maxWidth: 760, color: "var(--fg-3)", fontSize: 13, lineHeight: 1.55 }}>
+              <section style={{ border: "1px solid var(--border)", borderRadius: 12, overflow: "hidden", background: "var(--surface-1)" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "18px 22px", borderBottom: "1px solid var(--border)", background: "var(--surface-1)" }}>
+                <span style={{ width: 34, height: 34, flexShrink: 0, display: "grid", placeItems: "center", borderRadius: "50%", background: "var(--brand-tint)", color: "var(--brand)" }}><BellRing size={17} /></span>
+                <div style={{ minWidth: 0 }}>
+                <h2 style={{ fontSize: 17, fontWeight: 700, color: "var(--fg-1)", margin: 0 }}>Alertas operacionales</h2>
+                <p style={{ margin: 0, maxWidth: 800, color: "var(--fg-3)", fontSize: 12, lineHeight: 1.5 }}>
                   Configura cuándo se crean alertas operacionales automáticas para tu equipo y quién las recibe.
                   Los cambios se aplican en la próxima ejecución del cron horario.
                 </p>
-                <span style={{ display: "flex", alignItems: "center", gap: 7, color: saved ? "var(--success)" : "var(--fg-4)", fontSize: 12, whiteSpace: "nowrap" }}>
-                  {savingId ? <Loader2 size={13} className="animate-spin" /> : saved ? <Check size={13} /> : null}
-                  {savingId ? "Guardando..." : saved ? "Guardado" : "Se evalúan cada hora"}
-                </span>
+                </div>
               </div>
 
-              {error && <Notice kind="err" onClose={() => setError(null)}>{error}</Notice>}
+              <div style={{ display: "grid", gridTemplateColumns: "minmax(250px, 1fr) minmax(220px, 1.15fr) minmax(130px, .65fr) auto", gap: 14, padding: "10px 22px", background: "var(--surface-2)", color: "var(--fg-4)", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                <span>Nombre</span><span>Condición</span><span>Destinatarios</span><span style={{ textAlign: "right" }}>Activo</span>
+              </div>
+
+              {error && <div style={{ margin: "12px 20px 0" }}><Notice kind="err" onClose={() => setError(null)}>{error}</Notice></div>}
 
               <div>
-                <p style={{ fontSize: 12, fontWeight: 700, color: "var(--fg-2)", margin: "0 0 12px", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                <p style={{ display: "none", fontSize: 11, fontWeight: 700, color: "var(--fg-4)", margin: 0, padding: "10px 20px", textTransform: "uppercase", letterSpacing: "0.06em", borderBottom: "1px solid var(--border)" }}>
                   Activas ({activas.length})
                 </p>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(360px, 1fr))", gap: 12 }}>
+                <div>
                   {activas.length === 0 ? (
-                    <div style={{ border: "1px dashed var(--border)", borderRadius: "var(--r-md)", padding: 20, color: "var(--fg-4)", fontSize: 13 }}>
+                    <div style={{ padding: 20, background: "var(--surface-1)", borderBottom: "1px solid var(--border)", color: "var(--fg-4)", fontSize: 13 }}>
                       No hay reglas activas.
                     </div>
                   ) : activas.map(regla => (
@@ -744,10 +749,10 @@ export default function ReglasAlertaPage() {
 
               {inactivas.length > 0 && (
                 <div>
-                  <p style={{ fontSize: 12, fontWeight: 700, color: "var(--fg-2)", margin: "0 0 12px", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                  <p style={{ display: "none", fontSize: 11, fontWeight: 700, color: "var(--fg-4)", margin: 0, padding: "10px 20px", textTransform: "uppercase", letterSpacing: "0.06em", borderBottom: "1px solid var(--border)" }}>
                     Inactivas ({inactivas.length})
                   </p>
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(360px, 1fr))", gap: 12 }}>
+                  <div>
                     {inactivas.map(regla => (
                       <RuleCard
                         key={regla.id}
@@ -764,10 +769,16 @@ export default function ReglasAlertaPage() {
                   </div>
                 </div>
               )}
+              </section>
+              <div style={{ marginTop: 10, minHeight: 20, display: "flex", justifyContent: "flex-end" }}>
+                <span style={{ display: "flex", alignItems: "center", gap: 7, color: saved ? "var(--success)" : "var(--fg-4)", fontSize: 12 }}>
+                  {savingId ? <Loader2 size={13} className="animate-spin" /> : saved ? <Check size={13} /> : null}
+                  {savingId ? "Guardando..." : saved ? "Guardado" : "Se evalúan cada hora"}
+                </span>
+              </div>
             </>
           )}
         </div>
       </div>
-    </div>
   );
 }

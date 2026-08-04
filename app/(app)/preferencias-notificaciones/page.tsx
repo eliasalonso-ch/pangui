@@ -32,7 +32,6 @@ import {
   AlertTriangle,
   Bell,
   BellOff,
-  BookOpen,
   Check,
   Loader2,
   MessageSquare,
@@ -42,6 +41,7 @@ import {
   UserPlus,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase";
+import AppLoadingState from "@/components/AppLoadingState";
 import {
   disablePush,
   enablePush,
@@ -177,36 +177,11 @@ export default function PreferenciasNotificacionesPage() {
   const blocked = permission === "denied";
 
   if (loading) {
-    return (
-      <div style={{ display: "grid", placeItems: "center", padding: 64, color: "var(--fg-4)" }}>
-        <Loader2 size={22} className="animate-spin" />
-      </div>
-    );
+    return <AppLoadingState label="Cargando preferencias…" />;
   }
 
   return (
-    <div style={{ padding: "28px 32px 64px", maxWidth: 1080, margin: "0 auto" }}>
-      {/* ── Page heading ── */}
-      <p style={{ fontSize: 12, fontWeight: 600, color: "var(--fg-4)", margin: 0 }}>Mi cuenta</p>
-      <h1 style={{ fontSize: 30, fontWeight: 700, color: "var(--fg-1)", margin: "4px 0 6px", letterSpacing: "-0.02em" }}>
-        Notificaciones
-      </h1>
-      <p style={{ fontSize: 14, color: "var(--fg-3)", margin: "0 0 14px" }}>
-        Define sobre qué quieres recibir avisos y cómo.
-      </p>
-      <Link
-        href="/reglas-alerta"
-        style={{
-          display: "inline-flex", alignItems: "center", gap: 7,
-          padding: "6px 13px", borderRadius: 999,
-          border: "1px solid var(--brand)", color: "var(--brand)",
-          fontSize: 13, fontWeight: 600, textDecoration: "none",
-        }}
-      >
-        <BookOpen size={14} />
-        Reglas de alerta del workspace
-      </Link>
-
+    <div style={{ padding: "28px 32px 64px", maxWidth: 1280, margin: "0 auto" }}>
       {error && (
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 18, padding: "11px 14px", borderRadius: 9, background: "var(--danger-bg)", color: "var(--danger)", fontSize: 13 }}>
           <AlertTriangle size={15} style={{ flexShrink: 0 }} />
@@ -328,7 +303,7 @@ export default function PreferenciasNotificacionesPage() {
           Estas preferencias se comparten con la app móvil: eliges una vez qué te interesa y decides en cada dispositivo
           dónde llega. Los avisos siempre quedan en la campana. Las alertas operacionales (vencimientos, órdenes sin
           asignar, escalaciones) y las emergencias las configura tu administrador en{" "}
-          <Link href="/reglas-alerta" style={{ color: "var(--brand)" }}>reglas de alerta</Link> y no pueden desactivarse
+          <Link href="/notificaciones/reglas-alerta" style={{ color: "var(--brand)" }}>reglas de alerta</Link> y no pueden desactivarse
           desde aquí.
         </p>
       </div>

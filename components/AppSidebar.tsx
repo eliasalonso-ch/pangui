@@ -18,7 +18,7 @@ import {
   PackageSearch,
   ListChecks,
   Bell,
-  BellRing,
+  BellDot,
   Trash2,
   CircleUserRound,
   Building2,
@@ -42,7 +42,6 @@ import {
   SidebarMenu,
   SidebarMenuItem,
   SidebarMenuButton,
-  SidebarSeparator,
   useSidebar,
 } from "@/components/ui/sidebar";
 
@@ -213,7 +212,7 @@ const NAV_ITEMS = [
   { href: "/ordenes",            icon: ClipboardList,  label: "Órdenes"                                   },
   { href: "/activos",            icon: Box,            label: "Activos"                                   },
   { href: "/analitica",          icon: BarChart2,      label: "Analítica",               noMateriales: true},
-  { href: "/analitica-materiales", icon: PackageSearch, label: "Analítica de Materiales", skipHoja: true   },
+  { href: "/analitica-materiales", icon: PackageSearch, label: "Analítica de materiales", skipHoja: true   },
   { href: "/procedimientos",     icon: ClipboardCheck, label: "Procedimientos",          adminOnly: true   },
   { href: "/partes",             icon: Boxes,          label: "Materiales",              inventario: true, skipMateriales: true },
   { href: "/usuarios",           icon: Users,          label: "Equipo",                  adminOnly: true, usuariosOnly: true },
@@ -228,6 +227,7 @@ export default function AppSidebar() {
   const [modoRegistro, setModoRegistro] = useState<"ambos" | "materiales" | "hoja">("ambos");
   const [workspaceLogo, setWorkspaceLogo] = useState<string | null | undefined>(undefined);
   const [mounted, setMounted] = useState(false);
+  const [hasUnreadNotifications, setHasUnreadNotifications] = useState(false);
 
   const { puedeVer, userRol: permisosRol } = usePermisos();
   const effectiveRol = userRol ?? permisosRol;
@@ -244,11 +244,29 @@ export default function AppSidebar() {
 
   useEffect(() => {
     let active = true;
+    const sb = createClient();
+    let notificationChannel: ReturnType<typeof sb.channel> | null = null;
+
+    async function refreshUnread(userId: string) {
+      const { count } = await sb
+        .from("notifications")
+        .select("id", { count: "exact", head: true })
+        .eq("usuario_id", userId)
+        .or("leida.eq.false,leida.is.null");
+      if (active) setHasUnreadNotifications((count ?? 0) > 0);
+    }
 
     async function load() {
-      const sb = createClient();
       const { data: { user } } = await sb.auth.getUser();
       if (!active || !user) return;
+
+      await refreshUnread(user.id);
+      notificationChannel = sb
+        .channel(`sidebar-notifications:${user.id}`)
+        .on("postgres_changes", { event: "*", schema: "public", table: "notifications", filter: `usuario_id=eq.${user.id}` }, () => {
+          void refreshUnread(user.id);
+        })
+        .subscribe();
 
       const { data } = await sb
         .from("usuarios")
@@ -276,6 +294,7 @@ export default function AppSidebar() {
 
     return () => {
       active = false;
+      if (notificationChannel) void sb.removeChannel(notificationChannel);
     };
   }, []);
 
@@ -325,12 +344,12 @@ export default function AppSidebar() {
       {/* Header: logo */}
       <SidebarHeader>
         <div style={{
-          minHeight: collapsed ? 56 : 148,
+          minHeight: collapsed ? 56 : 120,
           display: "flex",
           flexDirection: collapsed ? "row" : "column",
           alignItems: "center",
           justifyContent: "center",
-          gap: collapsed ? 0 : 10,
+          gap: 0,
           padding: collapsed ? "8px" : "16px 12px 14px",
           borderBottom: "1px solid var(--border)",
         }}>
@@ -341,7 +360,7 @@ export default function AppSidebar() {
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              borderRadius: collapsed ? 8 : 16,
+              borderRadius: 0,
               overflow: "hidden",
               flexShrink: 0,
             }}>
@@ -355,11 +374,6 @@ export default function AppSidebar() {
                 }}
               />
             </div>
-          )}
-          {!collapsed && (
-            <span style={{ width: "100%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textAlign: "center", color: "var(--fg-1)", fontSize: 13, fontWeight: 600 }}>
-              {userData?.nombre || "Pangui"}
-            </span>
           )}
         </div>
       </SidebarHeader>
@@ -378,8 +392,18 @@ export default function AppSidebar() {
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={isActive("/notificaciones/bandeja")} tooltip="Notificaciones">
+                  <Link href="/notificaciones/bandeja" style={{ display: "flex", alignItems: "center", gap: collapsed ? 0 : 10 }}>
+                    {hasUnreadNotifications
+                      ? <BellDot size={16} className="notif-bell-dot" style={{ flexShrink: 0 }} />
+                      : <Bell size={16} style={{ flexShrink: 0 }} />}
+                    {!collapsed && <span>Notificaciones</span>}
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={isActive("/ordenes")} tooltip="Órdenes">
-                  <Link href="/ordenes" style={{ display: "flex", alignItems: "center", gap: collapsed ? 0 : 10 }}>
+                  <Link href="/ordenes/lista" style={{ display: "flex", alignItems: "center", gap: collapsed ? 0 : 10 }}>
                     <ClipboardList size={16} style={{ flexShrink: 0 }} />
                     {!collapsed && <span>Órdenes</span>}
                   </Link>
@@ -407,10 +431,10 @@ export default function AppSidebar() {
               )}
               {isAdmin && modoRegistro !== "materiales" && hasAnalyticsPro && (
                 <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={isActive("/analitica-materiales")} tooltip="Analítica de Materiales">
+                  <SidebarMenuButton asChild isActive={isActive("/analitica-materiales")} tooltip="Analítica de materiales">
                     <Link href="/analitica-materiales" style={{ display: "flex", alignItems: "center", gap: collapsed ? 0 : 10 }}>
                       <PackageSearch size={16} style={{ flexShrink: 0 }} />
-                      {!collapsed && <span>Analítica de Materiales</span>}
+                      {!collapsed && <span>Analítica de materiales</span>}
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -449,8 +473,6 @@ export default function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        <SidebarSeparator />
-
         <SidebarGroup>
           <SidebarGroupLabel>Gestión</SidebarGroupLabel>
           <SidebarGroupContent>
@@ -458,7 +480,7 @@ export default function AppSidebar() {
               {isAdmin && (
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild isActive={isActive("/ubicaciones")} tooltip="Ubicaciones">
-                    <Link href="/ubicaciones" style={{ display: "flex", alignItems: "center", gap: collapsed ? 0 : 10 }}>
+                    <Link href="/ubicaciones/ubicaciones" style={{ display: "flex", alignItems: "center", gap: collapsed ? 0 : 10 }}>
                       <MapPin size={16} style={{ flexShrink: 0 }} />
                       {!collapsed && <span>Ubicaciones</span>}
                     </Link>
@@ -477,16 +499,6 @@ export default function AppSidebar() {
               )}
               {isAdmin && (
                 <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={isActive("/reglas-alerta")} tooltip="Reglas de alerta">
-                    <Link href="/reglas-alerta" style={{ display: "flex", alignItems: "center", gap: collapsed ? 0 : 10 }}>
-                      <BellRing size={16} style={{ flexShrink: 0 }} />
-                      {!collapsed && <span>Reglas de alerta</span>}
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              )}
-              {isAdmin && (
-                <SidebarMenuItem>
                   <SidebarMenuButton asChild isActive={isActive("/papelera")} tooltip="Papelera">
                     <Link href="/papelera" style={{ display: "flex", alignItems: "center", gap: collapsed ? 0 : 10 }}>
                       <Trash2 size={16} style={{ flexShrink: 0 }} />
@@ -498,8 +510,6 @@ export default function AppSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
-
-        <SidebarSeparator />
 
         <SidebarGroup>
           <SidebarGroupLabel>Cuenta</SidebarGroupLabel>
@@ -523,14 +533,6 @@ export default function AppSidebar() {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               )}
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={isActive("/preferencias-notificaciones")} tooltip="Notificaciones">
-                  <Link href="/preferencias-notificaciones" style={{ display: "flex", alignItems: "center", gap: collapsed ? 0 : 10 }}>
-                    <Bell size={16} style={{ flexShrink: 0 }} />
-                    {!collapsed && <span>Notificaciones</span>}
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
               {mounted && userData?.rol === "owner" && (
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild isActive={isActive("/suscripcion")} tooltip="Suscripción">

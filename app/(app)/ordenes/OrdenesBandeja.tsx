@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
-import { Plus, Search, X, ChevronDown, Loader2, FileText, ArrowUpDown, Download, AlertTriangle, Calendar, List, CalendarDays, Columns3, Check, Copy, DatabaseArrowDown, Eye, EyeOff } from "lucide-react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { Plus, Search, X, ChevronDown, Loader2, FileText, ArrowUpDown, Download, AlertTriangle, Calendar, Check, Copy, DatabaseArrowDown, Eye, EyeOff } from "lucide-react";
 import { useTopBarAction } from "@/components/TopBarActions";
 import { createClient, logRealtimeChannel } from "@/lib/supabase";
 import { esAdmin } from "@/lib/roles";
@@ -114,6 +114,7 @@ export default function OrdenesBandeja({
   todayKey,
 }: Props) {
   const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
 
   const [ordenes, setOrdenes]   = useState<OrdenListItem[]>(initialOrdenes);
@@ -169,14 +170,12 @@ export default function OrdenesBandeja({
   // it is a universal filter in the top filter bar, so unassigned overdue/sin
   // progreso OTs still appear when that filter is active.
   type ViewKey = "lista" | "calendario" | "kanban";
-  const [view, setView] = useState<ViewKey>(
-    () => {
-      const v = searchParams?.get("vista");
-      if (v === "calendario") return "calendario";
-      if (v === "kanban")     return "kanban";
-      return "lista";
-    },
-  );
+  const view: ViewKey = pathname.endsWith("/calendario")
+    ? "calendario"
+    : pathname.endsWith("/kanban")
+      ? "kanban"
+      : "lista";
+  const viewPath = `/ordenes/${view}`;
 
   type TabKey = "pendientes" | "completas";
   type ScopeKey = "todas" | PendingScopeKey;
@@ -395,9 +394,7 @@ export default function OrdenesBandeja({
     if (pushUrl) {
       const params = new URLSearchParams();
       params.set("id", id);
-      if (view === "calendario") params.set("vista", "calendario");
-      else if (view === "kanban") params.set("vista", "kanban");
-      router.push(`/ordenes?${params.toString()}`, { scroll: false });
+      router.push(`${viewPath}?${params.toString()}`, { scroll: false });
     }
     setRightPanel("none");
     setSelected(id);
@@ -410,7 +407,7 @@ export default function OrdenesBandeja({
     } finally {
       setLoadingDetail(false);
     }
-  }, [router, view]);
+  }, [router, viewPath]);
 
   const openCreate = useCallback(() => {
     setSelected(null);
@@ -418,10 +415,8 @@ export default function OrdenesBandeja({
     setRightPanel("create");
     const params = new URLSearchParams();
     params.set("panel", "crear");
-    if (view === "calendario") params.set("vista", "calendario");
-    else if (view === "kanban") params.set("vista", "kanban");
-    router.push(`/ordenes?${params.toString()}`, { scroll: false });
-  }, [router, view]);
+    router.push(`${viewPath}?${params.toString()}`, { scroll: false });
+  }, [router, viewPath]);
 
   // Stable per-list callbacks so memoized OTRows don't re-render on every parent
   // update. These take the OT id and avoid per-row inline closures.
@@ -734,6 +729,10 @@ export default function OrdenesBandeja({
 
   // Apply filters + search + sort
   const filtered = useMemo(() => {
+    // Calendar and Kanban are independent views. List-only search, filters,
+    // scopes and read-state toggles must not leak into them when navigating.
+    if (view !== "lista") return ordenes.slice();
+
     // Prioridad de fuentes:
     //   1. búsqueda  -> resultados del servidor (todas las coincidencias)
     //   2. filtros   -> `allOrdenesForCounts`, el set completo que ya se trae
@@ -748,11 +747,9 @@ export default function OrdenesBandeja({
     const baseSource = searchResults ?? (hasActiveFilters ? countOrdenes : ordenes);
     // Tab decides active vs. completed; scope narrows further. Kanban shows
     // all states side-by-side, so the tab gate is bypassed in that view.
-    let list = view === "kanban"
-      ? baseSource.slice()
-      : baseSource.filter(o =>
-          tab === "pendientes" ? ACTIVE_ESTADOS.has(o.estado) : CLOSED_ESTADOS.has(o.estado)
-        );
+    let list = baseSource.filter(o =>
+      tab === "pendientes" ? ACTIVE_ESTADOS.has(o.estado) : CLOSED_ESTADOS.has(o.estado)
+    );
 
     if (scope !== "todas") {
       list = list.filter(o => pendingScopeFor(o, reprogramadaIds, faltanMaterialesIds, todayKey) === scope);
@@ -1243,51 +1240,13 @@ export default function OrdenesBandeja({
       {/* ── Navigation header ── */}
       {/* Toolbar is chrome, so it sits at the canvas tone alongside the sidebar
           and top bar rather than reading as a white surface. */}
-      <div style={{ flexShrink:0, borderBottom:"1px solid var(--border)", background:"var(--surface-canvas)" }}>
+      {view === "lista" && <div style={{ flexShrink:0, borderBottom:"1px solid var(--border)", background:"var(--surface-canvas)" }}>
 
         {/* Top row */}
         <div style={{
           display:"flex", alignItems:"center", justifyContent:"space-between",
           padding:"9px 20px", minHeight:56, gap:12, flexWrap:"wrap",
         }}>
-          <div style={{ display:"flex", alignItems:"center", gap:14, flexShrink:0 }}>
-            {/* Vista toggle. Same URL, ?vista= param for shareable links. */}
-            <div style={{ display:"flex", border:"1px solid var(--border)", borderRadius:8, overflow:"hidden", height:32 }}>
-              {([
-                { key: "lista" as const,      label: "Lista",      icon: List },
-                { key: "calendario" as const, label: "Calendario", icon: CalendarDays },
-                { key: "kanban" as const,     label: "Kanban",     icon: Columns3 },
-              ]).map((v, i, arr) => {
-                const isActive = view === v.key;
-                const Icon = v.icon;
-                return (
-                  <button
-                    key={v.key}
-                    type="button"
-                    onClick={() => {
-                      setView(v.key);
-                      const params = new URLSearchParams(searchParams?.toString() ?? "");
-                      if (v.key === "lista") params.delete("vista");
-                      else params.set("vista", v.key);
-                      router.replace(`/ordenes${params.toString() ? `?${params.toString()}` : ""}`, { scroll: false });
-                    }}
-                    style={{
-                      display:"flex", alignItems:"center", gap:6,
-                      padding:"0 12px", height:"100%",
-                      background: isActive ? "var(--brand)" : "var(--surface-1)",
-                      color: isActive ? "white" : "var(--fg-2)",
-                      border:"none", borderRight: i < arr.length - 1 ? "1px solid var(--border)" : "none",
-                      fontSize:12, fontWeight:600, cursor:"pointer", fontFamily:"inherit",
-                    }}
-                  >
-                    <Icon size={13} />
-                    {v.label}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
           <div style={{ display:"flex", alignItems:"center", gap:8, flex:"1 1 520px", minWidth:0, justifyContent:"flex-end", flexWrap:"wrap" }}>
             {/* Search */}
             <div style={{ position:"relative", maxWidth:280, minWidth:220, flex:"1 1 220px" }}>
@@ -1418,7 +1377,7 @@ export default function OrdenesBandeja({
             sociedades={sociedades}
           />
         </div>
-      </div>
+      </div>}
 
       {/* ── Main split pane ── */}
       <div ref={splitContainerRef} style={{ display:"flex", flexGrow:1, flexShrink:1, flexBasis:0, minHeight:0, minWidth:0, overflow:"hidden" }}>
@@ -1854,7 +1813,7 @@ export default function OrdenesBandeja({
       {(view === "calendario" || view === "kanban") && (selected || rightPanel === "create" || (rightPanel === "edit" && detail)) && (
         <div
           style={{ position:"fixed", inset:0, zIndex:300, background:"rgba(15,23,42,0.45)", display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}
-          onClick={() => { setSelected(null); setDetail(null); setRightPanel("none"); router.push(`/ordenes?vista=${view}`, { scroll: false }); }}
+          onClick={() => { setSelected(null); setDetail(null); setRightPanel("none"); router.push(viewPath, { scroll: false }); }}
         >
           <div
             onClick={e => e.stopPropagation()}
@@ -1876,7 +1835,7 @@ export default function OrdenesBandeja({
                 categorias={categorias}
                 myId={myId}
                 wsId={wsId}
-                onClose={() => { setRightPanel("none"); router.push(`/ordenes?vista=${view}`, { scroll: false }); }}
+                onClose={() => { setRightPanel("none"); router.push(viewPath, { scroll: false }); }}
                 onCreated={async (orden) => {
                   setRightPanel("none");
                   await refreshList();
@@ -1917,7 +1876,7 @@ export default function OrdenesBandeja({
                 wsId={wsId}
                 onEdit={() => setRightPanel("edit")}
                 onDelete={() => deleteOT(detail.id)}
-                onClose={() => { setSelected(null); setDetail(null); setRightPanel("none"); router.push(`/ordenes?vista=${view}`, { scroll: false }); }}
+                onClose={() => { setSelected(null); setDetail(null); setRightPanel("none"); router.push(viewPath, { scroll: false }); }}
                 showCloseButton
                 onOpenOrden={(id) => openOT(id, true)}
                 isMarcada={marcadas.has(detail.id)}

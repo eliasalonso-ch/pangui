@@ -236,7 +236,7 @@ function SuscripcionPageInner() {
   return (
     // Sin height:100dvh ni overflow propios: eso creaba un segundo viewport
     // dentro del scroll del layout. La página fluye y scrollea una sola vez.
-    <div style={{ background: "var(--surface-0)" }}>
+    <div style={{ minHeight: "100%", background: "var(--surface-canvas)" }}>
       {redirecting && <CheckoutRedirectOverlay planKey={redirecting} />}
 
       <div style={{ padding: "28px 24px" }}>

@@ -49,7 +49,7 @@ const C = {
   text2: "var(--fg-2)",
   text3: "var(--fg-4)",
   border: "var(--border)",
-  bg: "var(--surface-0)",
+  bg: "var(--surface-canvas)",
   surface: "var(--surface-1)",
 };
 

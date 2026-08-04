@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
-import { useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   AlertTriangle, Box, Boxes, Check, ChevronRight, CircleAlert, ImagePlus,
   Filter, Loader2, MapPin, Minus, Package, PackageCheck, Pencil, Plus, RotateCcw, Search, Trash2, X,
@@ -70,8 +70,11 @@ function Loading() {
 }
 
 function MaterialesPageInner() {
+  const pathname = usePathname();
+  const router = useRouter();
   const searchParams = useSearchParams();
   const requestedMaterialId = searchParams.get("material");
+  const requestedLocationId = searchParams.get("ubicacion");
   const [workspaceId, setWorkspaceId] = useState<string | null>(null);
   const [role, setRole] = useState("tecnico");
   const [materials, setMaterials] = useState<Material[]>([]);
@@ -81,7 +84,7 @@ function MaterialesPageInner() {
   const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([]);
   const [loading, setLoading] = useState(true);
   const [reservationWarning, setReservationWarning] = useState(false);
-  const [segment, setSegment] = useState<Segment>("materiales");
+  const segment: Segment = pathname.endsWith("/ubicaciones") ? "ubicaciones" : "materiales";
   const [search, setSearch] = useState("");
   const [stockFilter, setStockFilter] = useState<StockFilter>("todos");
   const [selectedMaterialId, setSelectedMaterialId] = useState<string | null>(null);
@@ -94,11 +97,17 @@ function MaterialesPageInner() {
 
   useEffect(() => {
     if (!requestedMaterialId || !materials.some((material) => material.id === requestedMaterialId)) return;
-    setSegment("materiales");
     setSelectedLocationId(null);
     setEditor(null);
     setSelectedMaterialId(requestedMaterialId);
   }, [materials, requestedMaterialId]);
+
+  useEffect(() => {
+    if (!requestedLocationId || !locations.some((location) => location.id === requestedLocationId)) return;
+    setSelectedMaterialId(null);
+    setEditor(null);
+    setSelectedLocationId(requestedLocationId);
+  }, [locations, requestedLocationId]);
 
   const loadData = useCallback(async (wsId: string) => {
     const sb = createClient();
@@ -153,10 +162,6 @@ function MaterialesPageInner() {
     return containsMaterial && (!q || [location.edificio, location.direccion].filter(Boolean).some(v => String(v).toLowerCase().includes(q)));
   }), [locations, materialFilterId, reservations, search]);
 
-  const chooseSegment = (next: Segment) => {
-    setSegment(next); setSearch(""); setSelectedMaterialId(null); setSelectedLocationId(null); setEditor(null);
-  };
-
   const refresh = async () => { if (workspaceId) await loadData(workspaceId); };
 
   const adjustStock = async (material: Material, delta: number) => {
@@ -179,13 +184,9 @@ function MaterialesPageInner() {
   const activeRelationFilter = segment === "materiales" ? locationFilterId : materialFilterId;
   return (
     <div className={styles.page}>
-      {/* Top row: segment toggle on the left, search + actions on the right —
-          same arrangement as the /ordenes toolbar. */}
+      {/* Search and actions stay with the active routed view. */}
       <header className={styles.header}>
-        <div className={styles.segmented}>
-          <button className={segment === "materiales" ? styles.segmentActive : ""} onClick={() => chooseSegment("materiales")}>Materiales <span>{materials.length}</span></button>
-          <button className={segment === "ubicaciones" ? styles.segmentActive : ""} onClick={() => chooseSegment("ubicaciones")}>Ubicaciones <span>{locations.length}</span></button>
-        </div>
+        <div />
         <div className={styles.headerActions}>
           <div className={styles.searchBox}>
             <Search size={14} />
@@ -235,8 +236,8 @@ function MaterialesPageInner() {
 
         <section className={styles.detailPane}>
           {editor ? <MaterialEditor state={editor} workspaceId={workspaceId!} onClose={() => setEditor(null)} onSaved={async () => { await refresh(); setEditor(null); }} />
-            : selectedMaterial ? <MaterialDetail material={selectedMaterial} reservations={reservations.filter(item => item.parte_id === selectedMaterial.id)} locations={locations} canManage={canManage} onClose={() => setSelectedMaterialId(null)} onEdit={() => setEditor({ mode: "edit", material: selectedMaterial })} onDelete={() => removeMaterial(selectedMaterial)} onAdjust={delta => adjustStock(selectedMaterial, delta)} onOpenLocation={id => { setSegment("ubicaciones"); setSelectedMaterialId(null); setSelectedLocationId(id); }} />
-            : selectedLocation ? <LocationDetail location={selectedLocation} reservations={reservations.filter(item => item.ubicacion_id === selectedLocation.id)} withdrawals={withdrawals.filter(item => item.ubicacion_id === selectedLocation.id)} canManage={canManage} onClose={() => setSelectedLocationId(null)} onReserve={() => setReserveOpen(true)} onRefresh={refresh} onOpenMaterial={id => { setSegment("materiales"); setSelectedLocationId(null); setSelectedMaterialId(id); }} />
+            : selectedMaterial ? <MaterialDetail material={selectedMaterial} reservations={reservations.filter(item => item.parte_id === selectedMaterial.id)} locations={locations} canManage={canManage} onClose={() => setSelectedMaterialId(null)} onEdit={() => setEditor({ mode: "edit", material: selectedMaterial })} onDelete={() => removeMaterial(selectedMaterial)} onAdjust={delta => adjustStock(selectedMaterial, delta)} onOpenLocation={id => router.push(`/partes/ubicaciones?ubicacion=${encodeURIComponent(id)}`)} />
+            : selectedLocation ? <LocationDetail location={selectedLocation} reservations={reservations.filter(item => item.ubicacion_id === selectedLocation.id)} withdrawals={withdrawals.filter(item => item.ubicacion_id === selectedLocation.id)} canManage={canManage} onClose={() => setSelectedLocationId(null)} onReserve={() => setReserveOpen(true)} onRefresh={refresh} onOpenMaterial={id => router.push(`/partes/materiales?material=${encodeURIComponent(id)}`)} />
             : <Empty icon={<Package size={32} />} title={segment === "materiales" ? "Selecciona un material" : "Selecciona una ubicación"} subtitle="El detalle aparecerá aquí." />}
         </section>
       </main>

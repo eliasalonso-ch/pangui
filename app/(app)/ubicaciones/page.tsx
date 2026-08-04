@@ -2,12 +2,13 @@
 
 import { useEffect, useRef, useState } from "react";
 import QRCode from "qrcode";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   MapPin, Building2, Plus, Pencil, Trash2, X, Check,
   Loader2, Search, ChevronRight, Image as ImageIcon, Upload, QrCode, Package, Wrench, Printer, Share2,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase";
+import AppLoadingState from "@/components/AppLoadingState";
 import { uploadToR2, deleteFromR2 } from "@/lib/r2";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -204,10 +205,16 @@ function ImageUpload({
 
 export default function UbicacionesPage() {
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [wsId, setWsId]             = useState<string | null>(null);
   const [myRol, setMyRol]           = useState<string | null>(null);
   const [loading, setLoading]       = useState(true);
-  const [section, setSection]       = useState<Section>("ubicaciones");
+  const section: Section = pathname.endsWith("/lugares")
+    ? "lugares"
+    : pathname.endsWith("/asociaciones")
+      ? "sociedades"
+      : "ubicaciones";
   const [search, setSearch]         = useState("");
 
   // Data
@@ -222,10 +229,14 @@ export default function UbicacionesPage() {
     type: Section;
     mode: "create" | "edit" | "view";
     id?: string;
-  } | null>(null);
+  } | null>(() => searchParams.get("nueva") === "1"
+    ? { type: "ubicaciones", mode: "create" }
+    : searchParams.get("id")
+      ? { type: "ubicaciones", mode: "view", id: searchParams.get("id")! }
+      : null);
 
   // Form state
-  const [form, setForm]             = useState<Record<string, string>>({});
+  const [form, setForm]             = useState<Record<string, string>>(() => searchParams.get("nueva") === "1" ? { qr_code: "" } : {} as Record<string, string>);
   const [imgUrl, setImgUrl]         = useState<string | null>(null);
   const [uploadingImg, setUploadingImg] = useState(false);
   const [saving, setSaving]         = useState(false);
@@ -453,56 +464,18 @@ export default function UbicacionesPage() {
     : sociedades.find(item => item.id === panel.id) ?? null;
 
   if (loading) {
-    return (
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", color: "var(--fg-4)", gap: 8 }}>
-        <Loader2 size={18} className="animate-spin" /> Cargando…
-      </div>
-    );
+    return <AppLoadingState label="Cargando ubicaciones…" minHeight="60dvh" />;
   }
 
   return (
-    <div style={{ display: "flex", height: "100dvh", overflow: "hidden", background: "var(--surface-1)" }}>
+    <div style={{ display: "flex", height: "100%", minHeight: 0, overflow: "hidden", background: "var(--surface-canvas)" }}>
 
       {/* Main list */}
       <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, borderRight: panel ? "1px solid var(--border)" : "none" }}>
 
-        {/* Header */}
-        <div style={{ flexShrink: 0, borderBottom: "1px solid var(--border)", padding: "0 24px", height: 56, display: "flex", alignItems: "center", justifyContent: "flex-end" }}>
-          {canEdit && (
-            <Btn onClick={() => openCreate(section)}>
-              <Plus size={14} />
-              {section === "ubicaciones" ? "Nueva ubicación"
-               : section === "lugares" ? "Nuevo lugar"
-               : "Nueva asociación"}
-            </Btn>
-          )}
-        </div>
-
-        {/* Tabs */}
-        <div style={{ flexShrink: 0, borderBottom: "1px solid var(--border)", padding: "0 24px", display: "flex", gap: 0 }}>
-          {([["ubicaciones", "Ubicaciones"], ["lugares", "Lugares específicos"], ["sociedades", "Asociaciones"]] as [Section, string][]).map(([key, label]) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => { setSection(key); setSearch(""); }}
-              style={{
-                height: 40, padding: "0 16px",
-                background: "none", border: "none",
-                borderBottom: section === key ? "2px solid var(--brand)" : "2px solid transparent",
-                color: section === key ? "var(--brand)" : "var(--fg-4)",
-                fontSize: 13, fontWeight: section === key ? 600 : 500,
-                cursor: "pointer", fontFamily: "inherit",
-                marginBottom: -1, transition: "color 0.1s",
-              }}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-
-        {/* Search */}
-        <div style={{ flexShrink: 0, padding: "12px 24px", borderBottom: "1px solid var(--border)" }}>
-          <div style={{ position: "relative", maxWidth: 360 }}>
+        {/* Toolbar */}
+        <div style={{ flexShrink: 0, minHeight: 58, padding: "10px 24px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
+          <div style={{ position: "relative", width: 360, maxWidth: "100%" }}>
             <Search size={14} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "var(--fg-4)" }} />
             <input
               type="text"
@@ -523,6 +496,14 @@ export default function UbicacionesPage() {
               </button>
             )}
           </div>
+          {canEdit && (
+            <Btn onClick={() => openCreate(section)}>
+              <Plus size={14} />
+              {section === "ubicaciones" ? "Nueva ubicación"
+               : section === "lugares" ? "Nuevo lugar"
+               : "Nueva asociación"}
+            </Btn>
+          )}
         </div>
 
         {/* List */}

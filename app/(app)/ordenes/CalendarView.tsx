@@ -414,7 +414,7 @@ export default function CalendarView({ ordenes, reprogramadaIds, selectedId, myI
   const dayModalItems = dayModalKey ? (calendarEntriesByDate.get(dayModalKey) ?? []) : [];
 
   return (
-    <div style={{ flexGrow: 1, flexShrink: 1, flexBasis: 0, display: "flex", flexDirection: "column", minHeight: 0, minWidth: 0, background: "var(--surface-1)", overflow: "hidden" }}>
+    <div style={{ flexGrow: 1, flexShrink: 1, flexBasis: 0, display: "flex", flexDirection: "column", minHeight: 0, minWidth: 0, background: "var(--surface-canvas)", overflow: "hidden" }}>
       {/* Toolbar — Mes/Semana left, label center, prev/next around label */}
       <div style={{
         display:"flex", alignItems:"center", padding:"12px 16px",
@@ -576,7 +576,7 @@ export default function CalendarView({ ordenes, reprogramadaIds, selectedId, myI
       {/* Grid */}
       <div style={{ flexGrow: 1, flexShrink: 1, flexBasis: 0, display: "flex", flexDirection: "column", minHeight: 0, minWidth: 0, overflow: "hidden", border:"1px solid var(--border)", borderRadius:10, margin:"0 16px 16px" }}>
         {/* DoW header — capitalized full words like the reference */}
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(7, minmax(0, 1fr))", flexShrink:0, borderBottom:"1px solid var(--border)" }}>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(7, minmax(0, 1fr))", flexShrink:0, borderBottom:"1px solid var(--border)", background:"var(--surface-canvas)" }}>
           {dow.map(d => (
             <div key={d} style={{ padding:"10px 12px", fontSize:11, fontWeight:700, color:"var(--fg-3)", textTransform:"uppercase", letterSpacing:"0.06em", textAlign:"left" }}>
               {d}
@@ -619,7 +619,7 @@ export default function CalendarView({ ordenes, reprogramadaIds, selectedId, myI
                 style={{
                   borderRight: !isLastCol ? "1px solid var(--border)" : "none",
                   borderBottom: !isLastRow ? "1px solid var(--border)" : "none",
-                  background: isDropTarget ? "var(--brand-tint)" : isWeekend(day) ? "var(--surface-0)" : "var(--surface-1)",
+                  background: isDropTarget ? "var(--brand-tint)" : isWeekend(day) ? "var(--surface-hover)" : "var(--surface-canvas)",
                   opacity: inMonth ? 1 : 0.55,
                   padding:"6px 6px",
                   display:"flex", flexDirection:"column", minHeight: 0, minWidth: 0,

@@ -45,7 +45,6 @@ function pageTrail(pathname: string): string[] {
   if (pathname.startsWith("/ubicaciones")) return ["Gestión", "Ubicaciones"];
   if (pathname.startsWith("/notificaciones")) return ["Gestión", "Notificaciones"];
   if (pathname.startsWith("/requisitos")) return ["Gestión", "Requisitos de OTs"];
-  if (pathname.startsWith("/reglas-alerta")) return ["Gestión", "Reglas de alerta"];
   if (pathname.startsWith("/papelera")) return ["Gestión", "Papelera"];
   return ["Operaciones", "Inicio"];
 }

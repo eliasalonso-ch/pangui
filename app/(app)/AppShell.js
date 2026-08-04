@@ -17,7 +17,7 @@ function applyStoredTheme() {
   root.setAttribute("data-theme", resolved);
   root.setAttribute("data-theme-pref", preference);
   root.style.colorScheme = resolved;
-  root.style.backgroundColor = resolved === "dark" ? "#0B1220" : "#F7F8FA";
+  root.style.backgroundColor = "var(--surface-canvas)";
 }
 
 function useTooNarrow(breakpoint = 1024) {
@@ -149,7 +149,7 @@ export default function AppShell({ children }) {
               style={{
                 flex: 1,
                 minHeight: 0,
-                overflowY: pathname === "/ordenes" ? "hidden" : "auto",
+                overflowY: pathname.startsWith("/ordenes") ? "hidden" : "auto",
                 overflowX: "hidden",
               }}
             >

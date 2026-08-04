@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { createPortal } from "react-dom";
+import { usePathname, useRouter } from "next/navigation";
 import {
   Box, ChevronDown, ChevronRight, ExternalLink, Loader2, Plus, Search, Trash2, X,
   Building2, User, MapPin, Calendar, Hash, GitBranch, FileText, Pencil,
@@ -127,6 +128,46 @@ function ubicacionLabel(activo: Activo) {
   return activo.ubicacion ? [activo.ubicacion.edificio, activo.ubicacion.detalle].filter(Boolean).join(" · ") : null;
 }
 
+function AssetFilterDropdown({ label, icon, active, children }: { label: string; icon: React.ReactNode; active: boolean; children: React.ReactNode }) {
+  const [open, setOpen] = useState(false);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
+  useEffect(() => {
+    const close = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (!buttonRef.current?.contains(target) && !menuRef.current?.contains(target)) setOpen(false);
+    };
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, []);
+  useEffect(() => {
+    if (!open) return;
+    const reposition = () => {
+      const rect = buttonRef.current?.getBoundingClientRect();
+      if (rect) setMenuPosition({ top: rect.bottom + 4, left: rect.left });
+    };
+    window.addEventListener("resize", reposition);
+    window.addEventListener("scroll", reposition, true);
+    return () => { window.removeEventListener("resize", reposition); window.removeEventListener("scroll", reposition, true); };
+  }, [open]);
+  const toggleMenu = () => {
+    if (!open) {
+      const rect = buttonRef.current?.getBoundingClientRect();
+      if (rect) setMenuPosition({ top: rect.bottom + 4, left: rect.left });
+    }
+    setOpen(value => !value);
+  };
+  return <div style={{ position: "relative" }}>
+    <button ref={buttonRef} type="button" onClick={toggleMenu} style={{ display: "flex", alignItems: "center", gap: 5, height: 28, padding: "0 10px", border: active ? "1.5px solid var(--brand)" : "1px solid var(--border)", borderRadius: 6, background: active ? "var(--brand-tint)" : "var(--surface-1)", color: active ? "var(--brand)" : "var(--fg-2)", fontSize: 12, fontWeight: active ? 600 : 500, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" }}>
+      {icon}{label}<ChevronDown size={11} style={{ opacity: 0.5 }} />
+    </button>
+    {open && createPortal(<div ref={menuRef} style={{ position: "fixed", top: menuPosition.top, left: menuPosition.left, zIndex: 10000, minWidth: 220, padding: 6, background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: 8, boxShadow: "var(--shadow-md)" }}>{children}</div>, document.body)}
+  </div>;
+}
+
+const assetFilterOptionStyle: React.CSSProperties = { display: "flex", alignItems: "center", width: "100%", minHeight: 32, padding: "0 8px", border: 0, borderRadius: 6, background: "transparent", color: "var(--fg-2)", font: "500 12px inherit", textAlign: "left", cursor: "pointer" };
+
 function ActivoRow({ activo, selected, onClick }: { activo: Activo; selected: boolean; onClick: () => void }) {
   const crit = (activo.criticidad ?? "no_critico") as AssetCriticality;
   const critCfg = CRITICIDAD_COLOR[crit];
@@ -139,34 +180,34 @@ function ActivoRow({ activo, selected, onClick }: { activo: Activo; selected: bo
         width: "100%",
         display: "flex",
         gap: 12,
-        padding: "12px 16px",
-        border: "none",
-        borderBottom: "1px solid #F1F5F9",
-        borderLeft: selected ? "3px solid #2563EB" : "3px solid transparent",
-        background: selected ? "#EFF6FF" : "#fff",
+        padding: "14px 16px",
+        border: selected ? "1px solid var(--brand)" : "1px solid var(--border)",
+        borderRadius: 9,
+        background: selected ? "var(--brand-tint)" : "var(--surface-1)",
+        boxShadow: "var(--shadow-xs)",
         cursor: "pointer",
         textAlign: "left",
       }}
     >
       {activo.imagen_url ? (
-        <img src={activo.imagen_url} alt="" style={{ width: 46, height: 46, borderRadius: 8, objectFit: "cover", background: "#F1F5F9", flexShrink: 0 }} />
+        <img src={activo.imagen_url} alt="" style={{ width: 46, height: 46, borderRadius: 8, objectFit: "cover", background: "var(--surface-hover)", flexShrink: 0 }} />
       ) : (
-        <span style={{ width: 46, height: 46, borderRadius: 8, background: "#EFF6FF", display: "inline-flex", alignItems: "center", justifyContent: "center", color: "#2563EB", flexShrink: 0 }}>
+        <span style={{ width: 46, height: 46, borderRadius: 8, background: "var(--brand-tint)", display: "inline-flex", alignItems: "center", justifyContent: "center", color: "var(--brand-fg)", flexShrink: 0 }}>
           <Box size={22} />
         </span>
       )}
       <span style={{ flex: 1, minWidth: 0 }}>
-        <span style={{ display: "block", fontSize: 14, fontWeight: 700, color: "#0F172A", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{activo.nombre}</span>
-        <span style={{ display: "block", marginTop: 3, fontSize: 12, color: "#64748B", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        <span style={{ display: "block", fontSize: 14, fontWeight: 600, lineHeight: 1.35, color: "var(--fg-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{activo.nombre}</span>
+        <span style={{ display: "block", marginTop: 3, fontSize: 12, color: "var(--fg-3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
           {[activo.numero_serie, location].filter(Boolean).join(" · ") || "Sin n° de serie"}
         </span>
         <span style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginTop: 7 }}>
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, color: "#64748B" }}>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, color: "var(--fg-3)" }}>
             <span style={{ width: 6, height: 6, borderRadius: "50%", background: estadoColor(activo.estado) }} />
             {estadoLabel(activo.estado)}
           </span>
-          <span style={{ padding: "2px 7px", borderRadius: 6, background: critCfg.bg, color: critCfg.color, fontSize: 11, fontWeight: 700 }}>
-            {CRITICIDAD_LABEL[crit]}
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "1px 6px", borderRadius: "var(--r-sm)", border: "1px solid var(--border-strong)", background: "transparent", color: "var(--fg-1)", fontSize: 11, fontWeight: 400 }}>
+            <AlertCircle size={11} style={{ color: critCfg.color }} />{CRITICIDAD_LABEL[crit]}
           </span>
         </span>
       </span>
@@ -776,7 +817,7 @@ function GeneralTab({ activo, onFullscreen }: { activo: Activo; onFullscreen: ()
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
       {activo.imagen_url && (
-        <button onClick={onFullscreen} style={{ position: "relative", height: 240, borderRadius: "var(--r-md)", overflow: "hidden", background: "var(--brand)", border: "none", padding: 0, cursor: "pointer", display: "block" }}>
+        <button onClick={onFullscreen} style={{ position: "relative", width: "100%", height: 300, borderRadius: "var(--r-md)", overflow: "hidden", background: "var(--surface-1)", border: "1px solid var(--border)", padding: 0, cursor: "pointer", display: "block" }}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={activo.imagen_url} alt="" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
           <span style={{ position: "absolute", bottom: 10, right: 10, background: "rgba(0,0,0,0.45)", borderRadius: "50%", padding: 7, color: "#fff", display: "inline-flex" }}><Maximize2 size={16} /></span>
@@ -848,19 +889,19 @@ function DetallesTab({ activo, hijos, onOpenActivo }: { activo: Activo; hijos: A
 
   const equipoFields = [
     { label: "Criticidad", value: CRITICIDAD_LABEL[crit], icon: <AlertCircle size={16} /> },
-    activo.fabricante?.nombre && { label: "Fabricante", value: activo.fabricante.nombre, icon: <Factory size={16} /> },
-    activo.modelo?.nombre && { label: "Modelo", value: activo.modelo.nombre, icon: <Tag size={16} /> },
-    activo.numero_serie && { label: "N° de serie", value: activo.numero_serie, icon: <Hash size={16} /> },
-    activo.año_fabricacion && { label: "Año", value: String(activo.año_fabricacion), icon: <Calendar size={16} /> },
-    activo.proveedor?.nombre && { label: "Proveedor", value: activo.proveedor.nombre, icon: <Truck size={16} /> },
-  ].filter(Boolean) as { label: string; value: string; icon: React.ReactNode }[];
+    { label: "Fabricante", value: activo.fabricante?.nombre ?? "Sin fabricante", icon: <Factory size={16} /> },
+    { label: "Modelo", value: activo.modelo?.nombre ?? "Sin modelo", icon: <Tag size={16} /> },
+    { label: "N° de serie", value: activo.numero_serie ?? "Sin número de serie", icon: <Hash size={16} /> },
+    { label: "Año", value: activo.año_fabricacion ? String(activo.año_fabricacion) : "Sin año", icon: <Calendar size={16} /> },
+    { label: "Proveedor", value: activo.proveedor?.nombre ?? "Sin proveedor", icon: <Truck size={16} /> },
+  ];
 
   const ubicFields = [
-    activo.sociedad?.nombre && { label: "Cliente", value: activo.sociedad.nombre, icon: <Building2 size={16} /> },
-    ubic && { label: "Ubicación", value: ubic, icon: <MapPin size={16} /> },
-    activo.lugar?.nombre && { label: "Lugar", value: activo.lugar.nombre, icon: <MapPin size={16} /> },
-    activo.responsable?.nombre && { label: "Responsable", value: activo.responsable.nombre, icon: <User size={16} /> },
-  ].filter(Boolean) as { label: string; value: string; icon: React.ReactNode }[];
+    { label: "Cliente", value: activo.sociedad?.nombre ?? "Sin cliente", icon: <Building2 size={16} /> },
+    { label: "Ubicación", value: ubic ?? "Sin ubicación", icon: <MapPin size={16} /> },
+    { label: "Lugar", value: activo.lugar?.nombre ?? "Sin lugar específico", icon: <MapPin size={16} /> },
+    { label: "Responsable", value: activo.responsable?.nombre ?? "Sin responsable", icon: <User size={16} /> },
+  ];
 
   return (
     <div>
@@ -910,11 +951,10 @@ function DetallesTab({ activo, hijos, onOpenActivo }: { activo: Activo; hijos: A
       )}
 
       {/* Jerarquía */}
-      {(activo.parent || hijos.length > 0) && (
-        <div style={{ marginTop: 32, paddingTop: 26, borderTop: "1px solid var(--border)" }}>
+      <div style={{ marginTop: 32, paddingTop: 26, borderTop: "1px solid var(--border)" }}>
           <MetaSectionLabel>Jerarquía</MetaSectionLabel>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {activo.parent && (
+            {activo.parent ? (
               <button onClick={() => onOpenActivo(activo.parent!.id)} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", border: "1px solid var(--border)", borderRadius: "var(--r-md)", background: "var(--surface-0)", cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}>
                 <span style={{ width: 30, height: 30, borderRadius: 8, background: "var(--brand-tint)", color: "var(--brand-fg)", display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><GitBranch size={15} /></span>
                 <span style={{ flex: 1, minWidth: 0 }}>
@@ -923,6 +963,11 @@ function DetallesTab({ activo, hijos, onOpenActivo }: { activo: Activo; hijos: A
                 </span>
                 <ChevronRight size={15} style={{ color: "var(--fg-4)", flexShrink: 0 }} />
               </button>
+            ) : (
+              <div style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", border: "1px solid var(--border)", borderRadius: "var(--r-md)", background: "var(--surface-1)" }}>
+                <span style={{ width: 30, height: 30, borderRadius: 8, background: "var(--surface-hover)", color: "var(--fg-4)", display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><GitBranch size={15} /></span>
+                <span style={{ flex: 1, minWidth: 0 }}><span style={{ display: "block", fontSize: 11, fontWeight: 700, color: "var(--fg-4)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Activo padre</span><span style={{ display: "block", marginTop: 2, fontSize: 13.5, color: "var(--fg-3)" }}>Sin activo padre</span></span>
+              </div>
             )}
             {hijos.map(h => (
               <button key={h.id} onClick={() => onOpenActivo(h.id)} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", border: "1px solid var(--border)", borderRadius: "var(--r-md)", background: "var(--surface-0)", cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}>
@@ -932,8 +977,7 @@ function DetallesTab({ activo, hijos, onOpenActivo }: { activo: Activo; hijos: A
               </button>
             ))}
           </div>
-        </div>
-      )}
+      </div>
     </div>
   );
 }
@@ -1080,27 +1124,29 @@ function ActivoDetail({
     }
   }
 
-  const openActivo = (id: string) => router.push(`/activos?id=${id}`);
+  const openActivo = (id: string) => router.push(`/activos/activos?id=${encodeURIComponent(id)}`);
 
   return (
-    <div style={{ height: "100%", display: "flex", flexDirection: "column", background: "var(--surface-1)" }}>
+    <div style={{ height: "100%", display: "flex", flexDirection: "column", background: "var(--surface-canvas)" }}>
       {/* ── Header ── */}
-      <div style={{ flexShrink: 0, borderBottom: "1px solid var(--border)", background: "var(--surface-1)" }}>
-        <div style={{ display: "flex", alignItems: "flex-start", padding: "12px 16px", minHeight: 52, gap: 8 }}>
-          <h1 style={{ flex: 1, minWidth: 0, fontSize: 22, fontWeight: 500, color: "var(--fg-1)", margin: 0, lineHeight: 1.3, overflowWrap: "break-word", wordBreak: "break-word" }}>
+      <div style={{ flexShrink: 0, borderBottom: "1px solid var(--border)", background: "var(--surface-canvas)", padding: "22px 27px 21px" }}>
+        <div style={{ display: "flex", alignItems: "flex-start", minHeight: 42, gap: 12 }}>
+          <h1 style={{ flex: 1, minWidth: 0, fontSize: 26, fontWeight: 700, letterSpacing: "-0.02em", color: "var(--fg-1)", margin: 0, lineHeight: 1.25, overflowWrap: "break-word", wordBreak: "break-word" }}>
             {activo.nombre}
           </h1>
           <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
-            <button onClick={onEdit} style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 36, padding: "0 16px", border: "1px solid var(--border)", borderRadius: "var(--r-sm)", background: "var(--surface-1)", color: "var(--brand-fg)", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+            <button onClick={onEdit} style={{ display: "inline-flex", alignItems: "center", gap: 7, height: 42, padding: "0 17px", border: "none", borderRadius: 6, background: "var(--brand)", color: "var(--fg-on-brand)", fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }} onMouseEnter={e => { e.currentTarget.style.background = "var(--brand-active)"; }} onMouseLeave={e => { e.currentTarget.style.background = "var(--brand)"; }}>
               <Pencil size={14} /> Editar
             </button>
-            <button onClick={onClose} style={{ width: 32, height: 36, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", borderRadius: "var(--r-sm)", cursor: "pointer", color: "var(--fg-4)", flexShrink: 0 }}>
+            <button onClick={onClose} style={{ width: 42, height: 42, display: "flex", alignItems: "center", justifyContent: "center", background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: 6, cursor: "pointer", color: "var(--fg-3)", flexShrink: 0 }}>
               <X size={18} />
             </button>
           </div>
         </div>
         {/* Estado — click to change (saved instantly) + criticidad chip */}
-        <div style={{ display: "flex", gap: 8, padding: "0 16px 14px", flexWrap: "wrap", alignItems: "center" }}>
+        <div style={{ display: "flex", gap: 12, marginTop: 12, flexWrap: "wrap", alignItems: "center", color: "var(--fg-3)" }}>
+          {activo.ubicacion && <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12 }}><MapPin size={14} />{activo.ubicacion.edificio}</span>}
+          {activo.sociedad && <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12 }}><Building2 size={14} />{activo.sociedad.nombre}</span>}
           <div ref={estadoMenuRef} style={{ position: "relative" }}>
             <button onClick={() => setEstadoMenuOpen(o => !o)} disabled={changingEstado} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: 0, background: "none", border: "none", cursor: "pointer", fontFamily: "inherit" }}>
               <span style={{ width: 8, height: 8, borderRadius: "50%", background: estadoColor(activo.estado) }} />
@@ -1118,17 +1164,18 @@ function ActivoDetail({
               </div>
             )}
           </div>
-          <span style={{ padding: "3px 8px", borderRadius: "var(--r-xs)", background: critCfg.bg, color: critCfg.color, fontSize: 12, fontWeight: 700 }}>{CRITICIDAD_LABEL[crit]}</span>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "2px 7px", borderRadius: "var(--r-sm)", border: "1px solid var(--border-strong)", background: "transparent", color: "var(--fg-1)", fontSize: 12, fontWeight: 400 }}><AlertCircle size={12} style={{ color: critCfg.color }} />{CRITICIDAD_LABEL[crit]}</span>
         </div>
 
         {/* Tabs */}
-        <div style={{ display: "flex" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 17 }}>
           {(["general", "detalles", "historial"] as ActivoTab[]).map(t => {
             const active = tab === t;
             const label = t === "general" ? "General" : t === "detalles" ? "Detalles" : "Historial";
+            const Icon = t === "general" ? Box : t === "detalles" ? FileText : Clock;
             return (
-              <button key={t} onClick={() => setTab(t)} style={{ flex: 1, padding: "11px 0", background: "none", border: "none", borderBottom: `2px solid ${active ? "var(--brand)" : "transparent"}`, color: active ? "var(--brand)" : "var(--fg-4)", fontSize: 14, fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}>
-                {label}
+              <button key={t} onClick={() => setTab(t)} style={{ display: "inline-flex", alignItems: "center", gap: 7, height: 33, padding: "0 13px", background: active ? "var(--brand-tint)" : "var(--surface-1)", border: "1px solid var(--brand)", borderRadius: 4, color: "var(--brand)", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+                <Icon size={16} />{label}
               </button>
             );
           })}
@@ -1136,14 +1183,14 @@ function ActivoDetail({
       </div>
 
       {/* ── Body ── */}
-      <div style={{ flex: 1, overflowY: "auto", padding: "28px 28px 80px", background: "var(--surface-1)" }}>
+      <div style={{ flex: 1, overflowY: "auto", padding: "28px 27px 80px", background: "var(--surface-canvas)" }}>
         {tab === "general" && <GeneralTab activo={activo} onFullscreen={() => setFullscreen(true)} />}
         {tab === "detalles" && <DetallesTab activo={activo} hijos={hijos} onOpenActivo={openActivo} />}
         {tab === "historial" && <HistorialTab activoId={activo.id} onOpenOT={(otId) => router.push(`/ordenes?id=${encodeURIComponent(otId)}`)} />}
 
         {/* Delete action (always available) */}
         <div style={{ marginTop: 30, paddingTop: 24, borderTop: "1px solid var(--border)", display: "flex", justifyContent: "flex-end" }}>
-          <button onClick={handleDelete} disabled={deleting} style={{ padding: "9px 14px", borderRadius: "var(--r-sm)", border: "1px solid var(--border)", background: "var(--surface-1)", color: "var(--danger)", cursor: "pointer", fontSize: 13, fontWeight: 700, display: "flex", alignItems: "center", gap: 6 }}>
+          <button onClick={handleDelete} disabled={deleting} style={{ height: 34, padding: "0 13px", borderRadius: 6, border: "1px solid var(--border)", background: "var(--surface-1)", color: "var(--danger)", cursor: "pointer", fontSize: 13, fontWeight: 500, display: "flex", alignItems: "center", gap: 6, fontFamily: "inherit" }}>
             {deleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />} Eliminar
           </button>
         </div>
@@ -1163,12 +1210,13 @@ function ActivoDetail({
 
 export default function ActivosBandeja({ initialActivos, usuarios, ubicaciones, lugares, sociedades, fabricantes, modelos, proveedores, myRol, wsId, initialSelectedId }: Props) {
   const router = useRouter();
-  const searchParams = useSearchParams();
+  const pathname = usePathname();
   const [activos, setActivos] = useState<Activo[]>(initialActivos);
   const [selected, setSelected] = useState<string | null>(initialSelectedId ?? null);
   const selectedRef = useRef<string | null>(initialSelectedId ?? null);
   const [editing, setEditing] = useState<Activo | null | "new">(null);
   const [search, setSearch] = useState("");
+  const locationsView = pathname.endsWith("/ubicaciones");
   const [filterCrit, setFilterCrit] = useState<CritFilter>("all");
   const [filterSociedadId, setFilterSociedadId] = useState<string | "all">("all");
   const [sort, setSort] = useState<ActivoSortOption>("nombre_asc");
@@ -1203,11 +1251,14 @@ export default function ActivosBandeja({ initialActivos, usuarios, ubicaciones, 
   }, [sortOpen]);
 
   useEffect(() => {
-    const params = new URLSearchParams(searchParams?.toString() ?? "");
+    const currentQuery = window.location.search.slice(1);
+    const params = new URLSearchParams(currentQuery);
     if (selected) params.set("id", selected);
     else params.delete("id");
-    router.replace(`/activos${params.toString() ? `?${params.toString()}` : ""}`, { scroll: false });
-  }, [selected]);
+    const nextQuery = params.toString();
+    if (nextQuery === currentQuery) return;
+    window.history.replaceState(window.history.state, "", `${pathname}${nextQuery ? `?${nextQuery}` : ""}`);
+  }, [pathname, selected]);
 
   useEffect(() => {
     const sb = createClient();
@@ -1293,23 +1344,18 @@ export default function ActivosBandeja({ initialActivos, usuarios, ubicaciones, 
     return counts;
   }, [activos]);
 
-  // Per-criticidad counts for the tab strip (respect search + sociedad filter).
-  const critCounts = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    const base = activos.filter(a => {
-      if (filterSociedadId !== "all" && a.sociedad_id !== filterSociedadId) return false;
-      if (!q) return true;
-      return [a.nombre, a.numero_serie, a.fabricante?.nombre, a.modelo?.nombre, a.sociedad?.nombre, ubicacionLabel(a)]
-        .filter(Boolean)
-        .some(v => String(v).toLowerCase().includes(q));
-    });
-    return {
-      all: base.length,
-      critico: base.filter(a => a.criticidad === "critico").length,
-      semi_critico: base.filter(a => a.criticidad === "semi_critico").length,
-      no_critico: base.filter(a => a.criticidad === "no_critico").length,
-    };
-  }, [activos, search, filterSociedadId]);
+  const assetLocations = useMemo(() => ubicaciones
+    .map(location => ({
+      ...location,
+      count: activos.filter(asset => asset.ubicacion_id === location.id).length,
+    }))
+    .filter(location => location.count > 0)
+    .filter(location => {
+      const q = search.trim().toLowerCase();
+      const matchesSociedad = filterSociedadId === "all" || location.sociedad_id === filterSociedadId;
+      return matchesSociedad && (!q || [location.edificio, location.detalle].filter(Boolean).some(value => String(value).toLowerCase().includes(q)));
+    })
+    .sort((a, b) => a.edificio.localeCompare(b.edificio)), [activos, filterSociedadId, search, ubicaciones]);
 
   const currentSortLabel = ACTIVO_SORT_OPTIONS.find(o => o.value === sort)?.label ?? "";
   const openCreate = useCallback(() => { setEditing("new"); setSelected(null); }, []);
@@ -1329,39 +1375,33 @@ export default function ActivosBandeja({ initialActivos, usuarios, ubicaciones, 
   }, []);
 
   const showRight = !!(editing || selectedActivo);
-  const critTabs: { value: CritFilter; label: string; count: number }[] = [
-    { value: "all",          label: "Todos", count: critCounts.all },
-    { value: "critico",      label: "Crítico", count: critCounts.critico },
-    { value: "semi_critico", label: "Semi", count: critCounts.semi_critico },
-    { value: "no_critico",   label: "No crítico", count: critCounts.no_critico },
-  ];
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100dvh", overflow: "hidden", background: "var(--c-bg, var(--surface-canvas))" }}>
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", minHeight: 0, overflow: "hidden", background: "var(--c-bg, var(--surface-canvas))" }}>
 
       {/* ── Navigation header ── */}
-      <div style={{ flexShrink: 0, borderBottom: "1px solid var(--border)", background: "var(--surface-1)" }}>
+      <div style={{ position: "relative", zIndex: 100, flexShrink: 0, overflow: "visible", borderBottom: "1px solid var(--border)", background: "var(--surface-canvas)" }}>
 
         {/* Top row */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 20px", height: 56, gap: 12 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, justifyContent: "flex-end" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "9px 20px", minHeight: 56, gap: 12, flexWrap: "wrap" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flex: "1 1 520px", minWidth: 0, justifyContent: "flex-end", flexWrap: "wrap" }}>
             {/* Search */}
-            <div style={{ position: "relative", maxWidth: 280, flex: 1 }}>
+            <div style={{ position: "relative", maxWidth: 280, minWidth: 220, flex: "1 1 220px" }}>
               <Search size={14} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "var(--fg-4)", pointerEvents: "none" }} />
               <input
                 type="text"
-                placeholder="Buscar por nombre, código, modelo…"
+                placeholder={locationsView ? "Buscar ubicaciones" : "Buscar por nombre, código, modelo…"}
                 value={search}
                 onChange={e => setSearch(e.target.value)}
                 style={{
                   paddingLeft: 34, paddingRight: search ? 28 : 10,
-                  height: 36, width: "100%",
+                  height: 38, width: "100%",
                   border: "1px solid var(--border)", borderRadius: 8,
-                  fontSize: 13, color: "var(--fg-1)", background: "var(--surface-0)",
+                  fontSize: 14, fontWeight: 500, color: "var(--fg-1)", background: "var(--surface-1)",
                   outline: "none", fontFamily: "inherit",
                 }}
-                onFocus={e => { e.currentTarget.style.borderColor = "var(--brand)"; e.currentTarget.style.background = "var(--surface-1)"; e.currentTarget.style.boxShadow = "0 0 0 3px rgba(37,99,235,0.10)"; }}
-                onBlur={e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.background = "var(--surface-0)"; e.currentTarget.style.boxShadow = "none"; }}
+                onFocus={e => { e.currentTarget.style.borderColor = "var(--brand)"; }}
+                onBlur={e => { e.currentTarget.style.borderColor = "var(--border)"; }}
               />
               {search && (
                 <button onClick={() => setSearch("")} style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", background: "transparent", border: "none", cursor: "pointer", color: "var(--fg-4)", display: "flex" }}>
@@ -1374,120 +1414,64 @@ export default function ActivosBandeja({ initialActivos, usuarios, ubicaciones, 
             {canCreate && (
               <button
                 type="button"
-                onClick={openCreate}
+                onClick={() => locationsView ? router.push("/ubicaciones/ubicaciones?nueva=1") : openCreate()}
                 style={{
                   display: "flex", alignItems: "center", gap: 6,
                   padding: "0 16px", height: 38,
                   background: "var(--brand)", color: "var(--fg-on-brand)",
                   border: "none", borderRadius: 8,
-                  fontSize: 13, fontWeight: 600,
+                  fontSize: 14, fontWeight: 500,
                   cursor: "pointer", fontFamily: "inherit",
                   whiteSpace: "nowrap", flexShrink: 0,
-                  boxShadow: "0 2px 6px rgba(0,122,255,0.25)",
                 }}
-                onMouseEnter={e => (e.currentTarget.style.opacity = "0.9")}
-                onMouseLeave={e => (e.currentTarget.style.opacity = "1")}
+                onMouseEnter={e => { e.currentTarget.style.background = "var(--brand-active)"; }}
+                onMouseLeave={e => { e.currentTarget.style.background = "var(--brand)"; }}
               >
                 <Plus size={16} strokeWidth={2} />
-                Nuevo Activo
+                {locationsView ? "Nueva ubicación" : "Nuevo Activo"}
               </button>
             )}
           </div>
         </div>
 
-        {/* Sub-nav: sociedad filter chips */}
-        {sociedades.length > 0 && (
-          <div style={{ display: "flex", alignItems: "center", padding: "0 20px", minHeight: 40, gap: 6, overflowX: "auto" }}>
-            {[{ id: "all" as const, nombre: "Todos", count: activos.length }, ...sociedades.map(s => ({ id: s.id, nombre: s.nombre, count: sociedadCounts.get(s.id) ?? 0 }))].map(opt => {
-              const active = filterSociedadId === opt.id;
-              return (
-                <button
-                  key={opt.id}
-                  onClick={() => setFilterSociedadId(opt.id)}
-                  style={{
-                    flexShrink: 0, display: "flex", alignItems: "center", gap: 5,
-                    padding: "5px 12px", borderRadius: 8,
-                    border: `1px solid ${active ? "var(--brand)" : "var(--border)"}`,
-                    background: active ? "var(--brand-tint)" : "var(--surface-1)",
-                    color: active ? "var(--brand-fg)" : "var(--fg-2)",
-                    fontSize: 12.5, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
-                  }}
-                >
-                  {opt.nombre}
-                  <span style={{ fontSize: 11, fontWeight: 700, color: active ? "var(--brand-fg)" : "var(--fg-4)" }}>{opt.count}</span>
-                </button>
-              );
-            })}
-          </div>
-        )}
+        {/* Filters use the same compact toolbar language as Órdenes. */}
+        <div style={{ display: "flex", alignItems: "center", padding: "6px 20px", minHeight: 40, gap: 8, overflowX: "auto" }}>
+          {!locationsView && <AssetFilterDropdown label="Criticidad" icon={<AlertCircle size={13} />} active={filterCrit !== "all"}>{([['all','Todas'],['critico','Crítico'],['semi_critico','Semi-crítico'],['no_critico','No crítico']] as [CritFilter,string][]).map(([value, label]) => <button key={value} type="button" onClick={() => setFilterCrit(value)} style={{ ...assetFilterOptionStyle, background: filterCrit === value ? "var(--brand-tint)" : "transparent", color: filterCrit === value ? "var(--brand-fg)" : "var(--fg-2)" }}>{label}</button>)}</AssetFilterDropdown>}
+          <AssetFilterDropdown label="Sociedad" icon={<Building2 size={13} />} active={filterSociedadId !== "all"}><button type="button" onClick={() => setFilterSociedadId("all")} style={{ ...assetFilterOptionStyle, background: filterSociedadId === "all" ? "var(--brand-tint)" : "transparent" }}>Todas</button>{sociedades.map(sociedad => <button key={sociedad.id} type="button" onClick={() => setFilterSociedadId(sociedad.id)} style={{ ...assetFilterOptionStyle, background: filterSociedadId === sociedad.id ? "var(--brand-tint)" : "transparent", color: filterSociedadId === sociedad.id ? "var(--brand-fg)" : "var(--fg-2)" }}>{sociedad.nombre} ({sociedadCounts.get(sociedad.id) ?? 0})</button>)}</AssetFilterDropdown>
+          {(filterCrit !== "all" || filterSociedadId !== "all") && <button type="button" onClick={() => { setFilterCrit("all"); setFilterSociedadId("all"); }} style={{ height: 28, padding: "0 10px", border: "1px solid var(--border)", borderRadius: 6, background: "var(--surface-1)", color: "var(--fg-3)", font: "500 12px inherit", cursor: "pointer" }}>Limpiar</button>}
+        </div>
       </div>
 
       {/* ── Main split pane ── */}
-      <div style={{ display: "flex", flexGrow: 1, flexShrink: 1, flexBasis: 0, minHeight: 0, minWidth: 0, overflow: "hidden" }}>
+      <div style={{ position: "relative", zIndex: 0, display: "flex", flexGrow: 1, flexShrink: 1, flexBasis: 0, minHeight: 0, minWidth: 0, overflow: "hidden" }}>
 
         {/* LEFT: list column */}
         <div style={{
           display: (!isDesktop && showRight) ? "none" : "flex",
           flexDirection: "column",
-          width: isDesktop ? 400 : "100%",
+          width: isDesktop ? 518 : "100%",
           minWidth: 0,
-          maxWidth: isDesktop ? 400 : undefined,
+          maxWidth: isDesktop ? 518 : undefined,
           flexShrink: 0,
           borderRight: isDesktop ? "1px solid var(--border)" : "none",
-          background: "var(--surface-1)",
+          background: "var(--surface-canvas)",
           position: "relative",
         }}>
 
-          {/* Criticidad tab strip */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", borderBottom: "1px solid var(--border)", flexShrink: 0 }}>
-            {critTabs.map((t, i) => {
-              const isActive = filterCrit === t.value;
-              return (
-                <button
-                  key={t.value}
-                  type="button"
-                  onClick={() => setFilterCrit(t.value)}
-                  style={{
-                    display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-                    padding: "12px 8px",
-                    background: isActive ? "var(--surface-hover)" : "var(--surface-1)",
-                    border: "none",
-                    borderRight: i < critTabs.length - 1 ? "1px solid var(--border)" : "none",
-                    borderBottom: isActive ? "2px solid var(--brand)" : "2px solid transparent",
-                    cursor: "pointer", fontFamily: "inherit", transition: "background 0.1s",
-                  }}
-                  onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = "var(--surface-hover)"; }}
-                  onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = "var(--surface-1)"; }}
-                >
-                  <span style={{ fontSize: 12.5, fontWeight: isActive ? 700 : 500, color: isActive ? "var(--brand-fg)" : "var(--fg-2)" }}>
-                    {t.label}
-                  </span>
-                  <span style={{
-                    fontSize: 11, fontWeight: 700, padding: "1px 6px", borderRadius: 4,
-                    background: isActive ? "var(--brand-tint)" : "var(--surface-hover)",
-                    color: isActive ? "var(--brand-fg)" : "var(--fg-4)",
-                  }}>
-                    {t.count}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-
           {/* Sort dropdown row */}
-          <div ref={sortRef} style={{ position: "relative", borderBottom: "1px solid var(--border)", flexShrink: 0 }}>
+          {!locationsView && <div ref={sortRef} style={{ position: "relative", borderBottom: "1px solid var(--border)", flexShrink: 0 }}>
             <button
               type="button"
               onClick={() => setSortOpen(v => !v)}
               style={{
                 display: "flex", alignItems: "center", gap: 6,
                 width: "100%", padding: "10px 16px",
-                background: "var(--surface-1)", border: "none",
+                background: "var(--surface-canvas)", border: "none",
                 fontSize: 13, color: "var(--fg-2)",
                 cursor: "pointer", fontFamily: "inherit", textAlign: "left",
               }}
               onMouseEnter={e => { e.currentTarget.style.background = "var(--surface-hover)"; }}
-              onMouseLeave={e => { e.currentTarget.style.background = "var(--surface-1)"; }}
+              onMouseLeave={e => { e.currentTarget.style.background = "var(--surface-canvas)"; }}
             >
               <span style={{ color: "var(--fg-3)" }}>Ordenar por:</span>
               <span style={{ fontWeight: 600, color: "var(--brand-fg)" }}>{currentSortLabel}</span>
@@ -1523,11 +1507,17 @@ export default function ActivosBandeja({ initialActivos, usuarios, ubicaciones, 
                 ))}
               </div>
             )}
-          </div>
+          </div>}
 
           {/* List */}
-          <div style={{ flex: 1, minHeight: 0, overflowY: "auto" }}>
-            {filtered.length === 0 ? (
+          <div style={{ flex: 1, minHeight: 0, overflowY: "auto", display: "flex", flexDirection: "column", gap: 8, padding: 10 }}>
+            {locationsView ? assetLocations.map(location => (
+              <button key={location.id} type="button" onClick={() => router.push(`/ubicaciones/ubicaciones?id=${encodeURIComponent(location.id)}`)} style={{ width: "100%", minHeight: 76, padding: "12px 14px", display: "flex", alignItems: "center", gap: 12, border: "1px solid var(--border)", borderRadius: 9, background: "var(--surface-1)", boxShadow: "var(--shadow-xs)", color: "var(--fg-1)", textAlign: "left", cursor: "pointer", fontFamily: "inherit" }}>
+                <span style={{ width: 44, height: 44, borderRadius: 9, background: "var(--brand-tint)", color: "var(--brand-fg)", display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><MapPin size={21} /></span>
+                <span style={{ flex: 1, minWidth: 0 }}><strong style={{ display: "block", fontSize: 14, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{location.edificio}</strong><span style={{ display: "block", marginTop: 4, fontSize: 12, color: "var(--fg-3)" }}>{location.count} {location.count === 1 ? "activo" : "activos"}</span></span>
+                <ChevronRight size={17} style={{ color: "var(--fg-4)" }} />
+              </button>
+            )) : filtered.length === 0 ? (
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: 280, gap: 12, color: "var(--fg-4)" }}>
                 <Box size={38} strokeWidth={1.5} />
                 <p style={{ fontSize: 13, color: "var(--fg-2)", fontWeight: 500 }}>
@@ -1543,13 +1533,16 @@ export default function ActivosBandeja({ initialActivos, usuarios, ubicaciones, 
             ) : filtered.map(activo => (
               <ActivoRow key={activo.id} activo={activo} selected={selected === activo.id} onClick={() => { setEditing(null); setSelected(prev => prev === activo.id ? null : activo.id); }} />
             ))}
+            {locationsView && assetLocations.length === 0 && <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: 280, gap: 10, color: "var(--fg-4)" }}><MapPin size={38} strokeWidth={1.5} /><p style={{ fontSize: 13, color: "var(--fg-2)", fontWeight: 500 }}>{search ? "Sin resultados" : "Sin ubicaciones con activos"}</p></div>}
           </div>
         </div>
 
         {/* RIGHT: detail or form */}
         {(isDesktop || showRight) && (
           <div style={{ flex: 1, minWidth: 0, overflow: "hidden", background: "var(--c-bg, var(--surface-canvas))" }}>
-            {editing ? (
+            {locationsView ? (
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: 12, color: "var(--fg-4)" }}><div style={{ width: 64, height: 64, borderRadius: 12, background: "var(--surface-hover)", display: "flex", alignItems: "center", justifyContent: "center" }}><MapPin size={28} style={{ color: "var(--border-strong)" }} /></div><div style={{ textAlign: "center" }}><p style={{ fontSize: 14, fontWeight: 600, color: "var(--fg-2)" }}>Selecciona una ubicación</p><p style={{ fontSize: 12, color: "var(--fg-4)", marginTop: 4 }}>Abre una ubicación para ver sus activos</p></div></div>
+            ) : editing ? (
               <ActivoForm
                 activo={editing === "new" ? null : editing}
                 usuarios={usuarios}

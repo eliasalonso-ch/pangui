@@ -222,7 +222,7 @@ export default function RequisitosPage() {
   return (
     // Sin height:100dvh ni overflow propios: eso creaba un segundo viewport
     // dentro del scroll del layout. Ver configuracion/suscripcion.
-    <div style={{ background: "var(--surface-0)" }}>
+    <div style={{ minHeight: "100%", background: "var(--surface-canvas)" }}>
       <div style={{ padding: "28px 24px" }}>
         <div style={{ maxWidth: 720, margin: "0 auto" }}>
         <p style={{ margin: 0, fontSize: 13, color: "var(--fg-4)" }}>
