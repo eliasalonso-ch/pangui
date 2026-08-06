@@ -2,7 +2,7 @@ import { createClient } from "@/lib/supabase";
 import { withSupabaseAuthRetry } from "@/lib/supabase-auth-retry";
 import { ensureOtCategoria } from "@/lib/cuotas-client";
 import type {
-  OrdenTrabajo, OrdenListItem, ActividadOT, ActividadTipo,
+  OrdenTrabajo, OrdenListItem, OrdenBulkItem, OrdenCalendarExtra, ActividadOT, ActividadTipo,
   Estado, Prioridad, TipoTrabajo, ClasificacionOT, Recurrencia, RecurrenciaConfig, OTLink,
 } from "@/types/ordenes";
 import {
@@ -154,6 +154,42 @@ export const LIST_SELECT = `
   categorias_ot (nombre, icono, color),
   ubicaciones (edificio, detalle),
   activos (nombre)
+`;
+
+/**
+ * Lean select for the workspace-wide snapshot that feeds the tab counts and,
+ * when a filter is active, the rendered list. Same shape the bandeja draws,
+ * minus what only the export, the calendar and the OT detail read.
+ *
+ * Dropped vs LIST_SELECT:
+ *   - categorias_ot / activos joins → no OTRow or KanbanView reader
+ *   - recurrencia_config (jsonb)    → CalendarView only, fetched on demand via
+ *                                     ORDEN_CALENDAR_EXTRA_SELECT
+ *   - tipo, n_serie, hito, solicitante, recurrencia_iteracion, updated_at
+ *                                   → export-only (export keeps LIST_SELECT)
+ *
+ * KEPT deliberately — do not "optimize" these away:
+ *   - descripcion → OTRow renders the N° OT chip and the ITO line out of it via
+ *     parseDescMeta, and matchesSearch reads it during the search debounce,
+ *     before server results land.
+ *   - ubicaciones (edificio, detalle) → OTRow's location chip, the kanban card,
+ *     and the `sort === "ubicacion"` comparator.
+ *
+ * Mirrors ORDEN_LIST_SELECT in mobile's features/work-orders/api.ts.
+ */
+export const ORDEN_BULK_SELECT = `
+  id, titulo, descripcion, estado, prioridad, tipo_trabajo, clasificacion,
+  fecha_inicio, fecha_termino, recurrencia, proxima_ejecucion,
+  recurrencia_origen_id, created_at,
+  categoria_id, ubicacion_id, activo_id, creado_por, asignados_ids,
+  numero, parent_id,
+  iniciado_at, en_ejecucion, tiempo_total_segundos,
+  ubicaciones (edificio, detalle)
+`;
+
+/** Calendar-only columns, merged onto bulk rows when the calendar opens. */
+export const ORDEN_CALENDAR_EXTRA_SELECT = `
+  id, recurrencia_config, activos (nombre)
 `;
 
 // ── Fetch ─────────────────────────────────────────────────────────────────────
@@ -350,7 +386,25 @@ export async function fetchAllOrdenesForExport(
   wsId: string,
   firstPage?: OrdenListItem[],
 ): Promise<OrdenListItem[]> {
-  const all: OrdenListItem[] = [];
+  return pageThroughAll<OrdenListItem>(
+    (before) => fetchOrdenesPage(wsId, before),
+    firstPage,
+  );
+}
+
+/**
+ * Walks a keyset-paginated OT query to completion, de-duplicating by id.
+ *
+ * Shared by the export fetch and the workspace-wide snapshot so the cursor,
+ * dedupe and runaway-loop ceiling live in exactly one place. `firstPage` lets a
+ * caller donate rows it already holds (the SSR page) instead of re-fetching
+ * them — a short first page means there is no page 2 at all.
+ */
+export async function pageThroughAll<T extends { id: string; created_at: string }>(
+  fetchPage: (before: string | null) => Promise<T[]>,
+  firstPage?: T[],
+): Promise<T[]> {
+  const all: T[] = [];
   const seen = new Set<string>();
   let before: string | null = null;
   if (firstPage) {
@@ -362,7 +416,7 @@ export async function fetchAllOrdenesForExport(
   }
   // Hard ceiling so a bad cursor can never loop forever.
   for (let page = 0; page < 100; page++) {
-    const rows: OrdenListItem[] = await fetchOrdenesPage(wsId, before);
+    const rows: T[] = await fetchPage(before);
     for (const r of rows) {
       if (!seen.has(r.id)) { seen.add(r.id); all.push(r); }
     }
@@ -371,6 +425,80 @@ export async function fetchAllOrdenesForExport(
     if (!before) break;
   }
   return all;
+}
+
+/** One page of the lean workspace snapshot. Mirrors fetchOrdenesPage's keyset. */
+async function fetchOrdenesBulkPage(
+  wsId: string,
+  beforeCreatedAt?: string | null,
+): Promise<OrdenBulkItem[]> {
+  const soloAsignadas = await getSoloAsignadasUserId();
+  const runQuery = () => {
+    const sb = createClient();
+    let query = sb
+      .from("ordenes_trabajo")
+      .select(ORDEN_BULK_SELECT)
+      .eq("workspace_id", wsId)
+      .is("parent_id", null)
+      .is("deleted_at", null)
+      .order("created_at", { ascending: false })
+      .limit(ORDENES_PAGE_SIZE);
+
+    query = aplicarVisibilidad(query, soloAsignadas);
+    if (beforeCreatedAt) query = query.lt("created_at", beforeCreatedAt);
+    return query;
+  };
+
+  const { data, error } = await withSupabaseAuthRetry(runQuery);
+  if (error) throw error;
+  return (data ?? []) as unknown as OrdenBulkItem[];
+}
+
+/**
+ * Every parent OT in the workspace, in the lean bulk shape.
+ *
+ * Drives the tab counts and the filtered list. This is the app's most expensive
+ * read — call it only when workspace membership actually changed (create,
+ * realtime INSERT, an UPDATE for a row outside the loaded page), never on the
+ * periodic poll.
+ */
+export async function fetchAllOrdenesBulk(
+  wsId: string,
+  firstPage?: OrdenBulkItem[],
+): Promise<OrdenBulkItem[]> {
+  return pageThroughAll<OrdenBulkItem>(
+    (before) => fetchOrdenesBulkPage(wsId, before),
+    firstPage,
+  );
+}
+
+/**
+ * The columns CalendarView needs that the bulk select omits, keyed by OT id.
+ *
+ * Only recurrent OTs and OTs with an activo can contribute anything, so the
+ * query narrows to those; every other row keeps its null/undefined defaults,
+ * which is exactly what the calendar already renders for them.
+ */
+export async function fetchOrdenesCalendarExtras(
+  wsId: string,
+): Promise<Map<string, OrdenCalendarExtra>> {
+  const soloAsignadas = await getSoloAsignadasUserId();
+  const runQuery = () => {
+    const sb = createClient();
+    const query = sb
+      .from("ordenes_trabajo")
+      .select(ORDEN_CALENDAR_EXTRA_SELECT)
+      .eq("workspace_id", wsId)
+      .is("parent_id", null)
+      .is("deleted_at", null)
+      .or("recurrencia.neq.ninguna,activo_id.not.is.null");
+    return aplicarVisibilidad(query, soloAsignadas);
+  };
+
+  const { data, error } = await withSupabaseAuthRetry(runQuery);
+  if (error) throw error;
+  const rows = (data ?? []) as unknown as (OrdenCalendarExtra & { id: string })[];
+  return new Map(rows.map((r) => [r.id, { recurrencia_config: r.recurrencia_config, activos: r.activos }]));
 }
 
 // Fetches a SINGLE OT in the list-row shape (LIST_SELECT, joins intact). Used

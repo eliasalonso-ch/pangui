@@ -9,12 +9,25 @@ import {
 } from "date-fns";
 import { es } from "date-fns/locale";
 import { updateOrden } from "@/lib/ordenes-api";
-import type { OrdenListItem, Usuario } from "@/types/ordenes";
+import type { OrdenListItem, OrdenBulkItem, Usuario } from "@/types/ordenes";
 
 export type CalendarMode = "mes" | "semana";
 
 interface Props {
-  ordenes:         OrdenListItem[];
+  /**
+   * Bulk rows with the calendar-only columns merged back in. Typed as the lean
+   * shape because the workspace-wide snapshot omits export-only fields; the
+   * recurrence engine and hover popover read `recurrencia_config`/`activos`,
+   * which arrive via the on-demand extras fetch.
+   */
+  ordenes:         OrdenBulkItem[];
+  /**
+   * True while the calendar-only columns (recurrencia_config, activos) are
+   * still loading. The grid renders immediately without them — recurrence
+   * previews and the Activo row simply appear once they land — so this only
+   * drives a small toolbar notice, never a blocking spinner.
+   */
+  loadingExtras?:  boolean;
   reprogramadaIds: Set<string>;
   selectedId:      string | null;
   myId:            string;
@@ -27,7 +40,7 @@ interface Props {
 
 interface CalendarEntry {
   key: string;
-  orden: OrdenListItem;
+  orden: OrdenBulkItem;
   dateKey: string;
   isPreview: boolean;
 }
@@ -76,7 +89,7 @@ function parseOTDate(s: string | null): Date | null {
   return parseISO(s.slice(0, 10) + "T00:00:00");
 }
 
-function getCalendarDate(o: OrdenListItem): Date | null {
+function getCalendarDate(o: OrdenBulkItem): Date | null {
   return parseOTDate(o.fecha_inicio ?? o.fecha_termino ?? null);
 }
 
@@ -104,7 +117,7 @@ function firstWeeklyOccurrence(d: Date, interval: number, targetWeekday: number)
   return addLocalDays(d, days);
 }
 
-function advanceOccurrenceDate(d: Date, o: OrdenListItem): Date | null {
+function advanceOccurrenceDate(d: Date, o: OrdenBulkItem): Date | null {
   const config = o.recurrencia_config;
   const interval = Math.max(1, Number(config?.interval ?? 1) || 1);
   const weekdays = Array.isArray(config?.weekdays) ? config.weekdays : [];
@@ -151,7 +164,7 @@ function advanceOccurrenceDate(d: Date, o: OrdenListItem): Date | null {
   }
 }
 
-function getFirstPreviewDate(o: OrdenListItem): Date | null {
+function getFirstPreviewDate(o: OrdenBulkItem): Date | null {
   const base = getCalendarDate(o);
   const config = o.recurrencia_config;
   const interval = Math.max(1, Number(config?.interval ?? 1) || 1);
@@ -167,7 +180,7 @@ function getFirstPreviewDate(o: OrdenListItem): Date | null {
   return base ? advanceOccurrenceDate(base, o) : null;
 }
 
-function buildRecurrencePreviewDates(o: OrdenListItem, rangeStart: Date, rangeEnd: Date): Date[] {
+function buildRecurrencePreviewDates(o: OrdenBulkItem, rangeStart: Date, rangeEnd: Date): Date[] {
   if (!o.recurrencia || o.recurrencia === "ninguna") return [];
   const endDate = parseOTDate(o.recurrencia_config?.end_date ?? null);
   const actualKey = getCalendarDate(o) ? toDateOnly(getCalendarDate(o)!) : null;
@@ -209,7 +222,7 @@ function setDragPreview(e: React.DragEvent, label: string) {
   window.setTimeout(() => preview.remove(), 0);
 }
 
-export default function CalendarView({ ordenes, reprogramadaIds, selectedId, myId, usuarios, onOpenOT, onPatchOrden }: Props) {
+export default function CalendarView({ ordenes, loadingExtras, reprogramadaIds, selectedId, myId, usuarios, onOpenOT, onPatchOrden }: Props) {
   const [mode, setMode]       = useState<CalendarMode>("mes");
   const [anchor, setAnchor]   = useState<Date>(() => new Date());
   const [dragId, setDragId]   = useState<string | null>(null);
@@ -221,7 +234,7 @@ export default function CalendarView({ ordenes, reprogramadaIds, selectedId, myI
   // Hover popover state. We use a portal anchored to viewport coordinates so
   // the popover can escape the day cell (which is overflow:hidden) without
   // being clipped.
-  const [hoverOrden, setHoverOrden] = useState<OrdenListItem | null>(null);
+  const [hoverOrden, setHoverOrden] = useState<OrdenBulkItem | null>(null);
   const [hoverPos, setHoverPos]     = useState<{ left: number; top: number } | null>(null);
   const hoverTimer = useRef<number | null>(null);
   const dragNavTimer = useRef<number | null>(null);
@@ -376,7 +389,7 @@ export default function CalendarView({ ordenes, reprogramadaIds, selectedId, myI
   }
 
   // Hover handlers. Small delay so brushing past doesn't open every card.
-  function showHover(e: React.MouseEvent, o: OrdenListItem) {
+  function showHover(e: React.MouseEvent, o: OrdenBulkItem) {
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     if (hoverTimer.current) window.clearTimeout(hoverTimer.current);
     hoverTimer.current = window.setTimeout(() => {
@@ -720,7 +733,7 @@ export default function CalendarView({ ordenes, reprogramadaIds, selectedId, myI
 // ── Event card ───────────────────────────────────────────────────────────────
 
 interface EventCardProps {
-  orden:           OrdenListItem;
+  orden:           OrdenBulkItem;
   isReprogramada:  boolean;
   isSelected:      boolean;
   isDragging:      boolean;
@@ -958,7 +971,7 @@ function DayOrdersModal({ date, ordenes, usuarios, selectedId, draggingId, repro
 // ── Hover popover ────────────────────────────────────────────────────────────
 
 interface HoverPopoverProps {
-  orden:        OrdenListItem;
+  orden:        OrdenBulkItem;
   left:         number;
   top:          number;
   usuarios:     Usuario[];

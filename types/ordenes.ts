@@ -309,6 +309,33 @@ export type OrdenListItem = Pick<
   | "_pending"
 > & Partial<Pick<OrdenTrabajo, "proxima_ejecucion" | "recurrencia_origen_id" | "recurrencia_iteracion">>;
 
+// ─── Bulk item (workspace-wide snapshot for counts + filtered lists) ──────────
+
+/**
+ * The row shape returned by `ORDEN_BULK_SELECT`. Same as `OrdenListItem` minus
+ * the columns only the export, the calendar and the OT detail read.
+ *
+ * These rows ARE rendered: when a filter is active the bandeja's list source
+ * switches from the paginated page to this snapshot, so anything OTRow or
+ * KanbanView draws must stay present. The dropped fields are re-widened to
+ * optional rather than removed so a component that reads one gets a
+ * `possibly undefined` error at build time instead of a blank cell in
+ * production.
+ */
+export type OrdenBulkItem = Omit<
+  OrdenListItem,
+  "tipo" | "n_serie" | "solicitante" | "hito" | "recurrencia_config" | "categorias_ot" | "activos"
+> &
+  Partial<
+    Pick<
+      OrdenListItem,
+      "tipo" | "n_serie" | "solicitante" | "hito" | "recurrencia_config" | "categorias_ot" | "activos"
+    >
+  >;
+
+/** The calendar-only columns, fetched on demand and merged onto bulk rows. */
+export type OrdenCalendarExtra = Pick<OrdenListItem, "recurrencia_config" | "activos">;
+
 
 // ─── Filter state ─────────────────────────────────────────────────────────────
 

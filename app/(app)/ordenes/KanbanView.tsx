@@ -1,9 +1,9 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Clock, Lock, RotateCw, AlertCircle, MapPin, CalendarRange, X } from "lucide-react";
 import { updateOrdenEstado } from "@/lib/ordenes-api";
-import type { Estado, OrdenListItem, Usuario } from "@/types/ordenes";
+import type { Estado, OrdenListItem, OrdenBulkItem, Usuario } from "@/types/ordenes";
 import { addDaysKey, chileDateKey, dateKey, monthEndKey, monthStartKey } from "./date-utils";
 
 function formatShortYmd(value: string | null | undefined): string {
@@ -19,7 +19,7 @@ function weekdayFromKey(key: string): number {
 }
 
 interface Props {
-  ordenes:         OrdenListItem[];
+  ordenes:         OrdenBulkItem[];
   reprogramadaIds: Set<string>;
   selectedId:      string | null;
   myId:            string;
@@ -98,7 +98,7 @@ export default function KanbanView({ ordenes, reprogramadaIds, selectedId, myId,
   // Bucket OTs by estado and sort within each column for execution: due date,
   // then priority, then newest created.
   const byEstado = useMemo(() => {
-    const map = new Map<Estado, OrdenListItem[]>();
+    const map = new Map<Estado, OrdenBulkItem[]>();
     for (const col of COLUMNS) map.set(col.estado, []);
     for (const o of rangeFiltered) {
       const arr = map.get(o.estado as Estado);
@@ -275,7 +275,7 @@ export default function KanbanView({ ordenes, reprogramadaIds, selectedId, myId,
 
 interface KanbanColumnProps {
   col:               ColumnDef;
-  items:             OrdenListItem[];
+  items:             OrdenBulkItem[];
   rangeActive:       boolean;
   isDropTarget:      boolean;
   dragId:            string | null;
@@ -284,7 +284,7 @@ interface KanbanColumnProps {
   onDragOver:        () => void;
   onDragLeaveColumn: () => void;
   onDrop:            () => void;
-  onCardDragStart:   (orden: OrdenListItem, e: React.DragEvent) => void;
+  onCardDragStart:   (orden: OrdenBulkItem, e: React.DragEvent) => void;
   onCardDragEnd:     () => void;
   onOpenOT:          (id: string) => void;
 }
@@ -426,7 +426,7 @@ function KanbanColumn({
 // â”€â”€ Card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 interface KanbanCardProps {
-  orden:           OrdenListItem;
+  orden:           OrdenBulkItem;
   isReprogramada:  boolean;
   isSelected:      boolean;
   isDragging:      boolean;

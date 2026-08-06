@@ -10,7 +10,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { parseDescMeta, updateOrden } from "@/lib/ordenes-api";
-import type { OrdenListItem, Usuario, Estado, Prioridad } from "@/types/ordenes";
+import type { OrdenListItem, OrdenBulkItem, Usuario, Estado, Prioridad } from "@/types/ordenes";
 import { chileDateKey, dateKey, daysBetweenKeys } from "./date-utils";
 
 // Estado y prioridad se muestran como etiquetas sin relleno: borde de 1px,
@@ -188,7 +188,7 @@ function HoverTooltip({ label, body, children, triggerStyle }: {
 // â”€â”€ AssignDropdown â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function AssignDropdown({ orden, usuarios, myId, onAssigned, onClose, anchorRect }: {
-  orden:       OrdenListItem;
+  orden:       OrdenBulkItem;
   usuarios:    Usuario[];
   myId:        string;
   onAssigned:  (ids: string[]) => void;
@@ -314,7 +314,7 @@ function AssignDropdown({ orden, usuarios, myId, onAssigned, onClose, anchorRect
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 interface Props {
-  orden:        OrdenListItem;
+  orden:        OrdenBulkItem;
   rowNumber?:   number;
   usuarios:     Usuario[];
   isSelected:   boolean;

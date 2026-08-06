@@ -6,7 +6,9 @@ import { Plus, Search, X, ChevronDown, Loader2, FileText, ArrowUpDown, Download,
 import { useTopBarAction } from "@/components/TopBarActions";
 import { createClient, logRealtimeChannel } from "@/lib/supabase";
 import { esAdmin } from "@/lib/roles";
-import { fetchOrden, fetchOrdenesPage, fetchAllOrdenesForExport, fetchOrdenListItem, searchOrdenes, ORDENES_SEARCH_LIMIT, deleteOrden, ORDENES_PAGE_SIZE, parseDescMeta, fetchMarcadasIds, toggleMarcada, matchesSearch, ELECTRILAM_WORKSPACE_ID } from "@/lib/ordenes-api";
+import { fetchOrden, fetchOrdenesPage, fetchAllOrdenesForExport, fetchAllOrdenesBulk, fetchOrdenesCalendarExtras, fetchOrdenListItem, searchOrdenes, ORDENES_SEARCH_LIMIT, deleteOrden, ORDENES_PAGE_SIZE, parseDescMeta, fetchMarcadasIds, toggleMarcada, matchesSearch, ELECTRILAM_WORKSPACE_ID } from "@/lib/ordenes-api";
+import { needsBulkSnapshot, shouldRefetchBulk } from "./bulk-refresh";
+import { mergeCalendarExtras } from "@/lib/orden-merge";
 import { buildOrdenesWorkbook, type ExportCols as SharedExportCols, type OrdenInput, type HojaInput, type FilaInput, type FotoItemInput, type MaterialUsadoInput } from "@/lib/excel-export-shared";
 import { ExportScheduler } from "./ExportScheduler";
 import MeconectaCheck from "./MeconectaCheck";
@@ -26,7 +28,7 @@ import {
 import { copyHojaToOrden } from "@/lib/hojas-api";
 import { clearPendingHojaCopy, getPendingHojaCopy, type PendingHojaCopy } from "@/lib/hoja-copy-store";
 import type {
-  OrdenListItem, OrdenTrabajo,
+  OrdenListItem, OrdenBulkItem, OrdenCalendarExtra, OrdenTrabajo,
   Usuario, Ubicacion, LugarEspecifico, Sociedad, Activo, CategoriaOT,
   Estado, FiltrosState, SortOption, TipoTrabajo,
 } from "@/types/ordenes";
@@ -118,9 +120,13 @@ export default function OrdenesBandeja({
   const searchParams = useSearchParams();
 
   const [ordenes, setOrdenes]   = useState<OrdenListItem[]>(initialOrdenes);
-  const [allOrdenesForCounts, setAllOrdenesForCounts] = useState<OrdenListItem[] | null>(
+  const [allOrdenesForCounts, setAllOrdenesForCounts] = useState<OrdenBulkItem[] | null>(
     () => initialOrdenes.length < ORDENES_PAGE_SIZE ? initialOrdenes : null,
   );
+  // Calendar-only columns (recurrencia_config, activos), fetched the first time
+  // the user opens the calendar. Null = not loaded for the current row set.
+  const [calendarExtras, setCalendarExtras] = useState<Map<string, OrdenCalendarExtra> | null>(null);
+  const [loadingCalendarExtras, setLoadingCalendarExtras] = useState(false);
   const [hasMoreOrdenes, setHasMoreOrdenes] = useState(initialOrdenes.length >= ORDENES_PAGE_SIZE);
   const [loadingMoreOrdenes, setLoadingMoreOrdenes] = useState(false);
   // State updates are asynchronous, so the observer and the fallback button
@@ -504,17 +510,56 @@ export default function OrdenesBandeja({
   // Refresh list from DB. The visible list stays paginated, but counts use a
   // complete workspace snapshot so they do not change as the user scrolls.
   const refreshListPromiseRef = useRef<Promise<void> | null>(null);
+  // Timestamp of the last workspace-wide snapshot fetch. 0 = never.
+  const lastBulkFetchRef = useRef(0);
+
+  /**
+   * Refreshes the VISIBLE page only. This is what the 60s poll runs.
+   *
+   * Deliberately does not touch `allOrdenesForCounts`: that snapshot is every OT
+   * in the workspace, and refetching it once a minute per open tab was the bulk
+   * of this project's Supabase egress. Counts drift only when membership
+   * changes, and those paths call `refreshList` below.
+   */
+  const refreshVisible = useCallback(async () => {
+    const data = await fetchOrdenesPage(wsId);
+    setOrdenes(data);
+    setHasMoreOrdenes(data.length >= ORDENES_PAGE_SIZE);
+  }, [wsId]);
+
+  /**
+   * Refreshes the visible page AND the workspace-wide snapshot.
+   *
+   * For events that change which OTs exist: create, realtime INSERT, or a
+   * realtime UPDATE for a row outside the loaded page. The snapshot half is
+   * rate-limited so a burst of realtime events can't re-download the workspace
+   * repeatedly.
+   */
   const refreshList = useCallback(async () => {
     if (refreshListPromiseRef.current) return refreshListPromiseRef.current;
 
     const refresh = (async () => {
-      // Reuse the visible first page as the export/count snapshot's first page.
+      // Reuse the visible first page as the snapshot's first page.
       // Previously both calls issued the same 300-row request concurrently.
       const data = await fetchOrdenesPage(wsId);
-      const allForCounts = await fetchAllOrdenesForExport(wsId, data);
       setOrdenes(data);
-      setAllOrdenesForCounts(allForCounts);
       setHasMoreOrdenes(data.length >= ORDENES_PAGE_SIZE);
+
+      if (!shouldRefetchBulk(Date.now(), lastBulkFetchRef.current)) return;
+      if (!needsBulkSnapshot(data.length, ORDENES_PAGE_SIZE)) {
+        // Short first page — it IS the whole workspace.
+        lastBulkFetchRef.current = Date.now();
+        setAllOrdenesForCounts(data);
+        setCalendarExtras(null);
+        return;
+      }
+      lastBulkFetchRef.current = Date.now();
+      const allForCounts = await fetchAllOrdenesBulk(wsId, data);
+      setAllOrdenesForCounts(allForCounts);
+      // Membership changed, so cached calendar extras may be missing a new OT.
+      // Only cleared here — never on the poll, or the workspace-wide fetch
+      // would return through the calendar's back door.
+      setCalendarExtras(null);
     })();
 
     refreshListPromiseRef.current = refresh;
@@ -526,11 +571,17 @@ export default function OrdenesBandeja({
   }, [wsId]);
 
   useEffect(() => {
+    // The SSR first page is already in `initialOrdenes`. If it came back short
+    // there is no page 2, so that page is the complete workspace and the
+    // snapshot fetch is pure waste.
+    if (!needsBulkSnapshot(initialOrdenes.length, ORDENES_PAGE_SIZE)) return;
     let cancelled = false;
-    fetchAllOrdenesForExport(wsId)
+    lastBulkFetchRef.current = Date.now();
+    fetchAllOrdenesBulk(wsId, initialOrdenes)
       .then(data => { if (!cancelled) setAllOrdenesForCounts(data); })
       .catch(() => { /* counts fall back to the loaded page until the next refresh */ });
     return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wsId]);
 
   const loadMoreOrdenes = useCallback(async () => {
@@ -566,16 +617,21 @@ export default function OrdenesBandeja({
     }
   }, [hasMoreOrdenes, ordenes, wsId, search]);
 
-  // Poll list every 60s — no realtime channel for ordenes_trabajo.
+  // Poll the VISIBLE page every 60s — no realtime channel for ordenes_trabajo.
+  // Skipped while the tab is hidden: this is an all-day ops tool, and polling
+  // backgrounded tabs was a large share of the egress bill for no user benefit.
+  // The next tick after the user returns catches everything up.
+  //
   // Swallow transient network errors (e.g. the user's connection drops): the
   // next poll recovers. Without this, a failed fetch becomes an unhandled
   // promise rejection that surfaces as a crash.
   useEffect(() => {
     const id = setInterval(() => {
-      refreshList().catch(() => { /* transient — next poll retries */ });
+      if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
+      refreshVisible().catch(() => { /* transient — next poll retries */ });
     }, 60_000);
     return () => clearInterval(id);
-  }, [refreshList]);
+  }, [refreshVisible]);
 
   useEffect(() => {
     if (!wsId) return;
@@ -841,6 +897,27 @@ export default function OrdenesBandeja({
     return list;
   }, [ordenes, countOrdenes, hasActiveFilters, searchResults, view, tab, scope, search, sort, filtros, ubicaciones, reprogramadaIds, faltanMaterialesIds, ocultarMarcadas, marcadas, todayKey]);
 
+  // The calendar needs recurrencia_config + activos, which the lean bulk select
+  // omits. Fetch them the first time the calendar opens, not on every list load.
+  useEffect(() => {
+    if (view !== "calendario") return;
+    if (calendarExtras) return;
+    let cancelled = false;
+    setLoadingCalendarExtras(true);
+    fetchOrdenesCalendarExtras(wsId)
+      .then(m => { if (!cancelled) setCalendarExtras(m); })
+      .catch(() => { /* calendar degrades to no recurrence previews */ })
+      .finally(() => { if (!cancelled) setLoadingCalendarExtras(false); });
+    return () => { cancelled = true; };
+  }, [view, wsId, calendarExtras]);
+
+  // Same array reference until the extras actually land, so the list and kanban
+  // paths never re-render for a calendar-only fetch.
+  const ordenesConExtras = useMemo(
+    () => (view === "calendario" ? mergeCalendarExtras(filtered, calendarExtras) : filtered),
+    [view, filtered, calendarExtras],
+  );
+
   // The rows actually rendered — a window into `filtered` that grows on scroll.
   const visibleOrdenes = useMemo(
     () => filtered.slice(0, visibleCount),
@@ -915,7 +992,10 @@ export default function OrdenesBandeja({
 
   // Counts reflect the current filters (search + filtros) but not the active/closed tab split
   const filteredCounts = useMemo(() => {
-    const applyFilters = (list: OrdenListItem[]) => {
+    // Typed as the lean bulk row: `countSource` is either the workspace-wide
+    // snapshot (OrdenBulkItem) or server search results (OrdenListItem), and
+    // every field read below exists on both.
+    const applyFilters = (list: OrdenBulkItem[]) => {
       if (filtros.estados.length)      list = list.filter(o => filtros.estados.includes(o.estado));
       if (filtros.prioridades.length)  list = list.filter(o => filtros.prioridades.includes(o.prioridad));
       if (filtros.tipos.length)        list = list.filter(o => o.tipo_trabajo != null && filtros.tipos.includes(o.tipo_trabajo));
@@ -971,15 +1051,15 @@ export default function OrdenesBandeja({
     const active = countSource.filter(o => ACTIVE_ESTADOS.has(o.estado));
     const closed = countSource.filter(o => CLOSED_ESTADOS.has(o.estado));
     const activeByScope = {
-      sin_asignar: [] as OrdenListItem[],
-      sin_progreso: [] as OrdenListItem[],
-      vencidas: [] as OrdenListItem[],
-      reprogramadas: [] as OrdenListItem[],
-      materiales: [] as OrdenListItem[],
-      levantamientos: [] as OrdenListItem[],
-      presupuestos: [] as OrdenListItem[],
-      otras: [] as OrdenListItem[],
-    } satisfies Record<PendingScopeKey, OrdenListItem[]>;
+      sin_asignar: [] as OrdenBulkItem[],
+      sin_progreso: [] as OrdenBulkItem[],
+      vencidas: [] as OrdenBulkItem[],
+      reprogramadas: [] as OrdenBulkItem[],
+      materiales: [] as OrdenBulkItem[],
+      levantamientos: [] as OrdenBulkItem[],
+      presupuestos: [] as OrdenBulkItem[],
+      otras: [] as OrdenBulkItem[],
+    } satisfies Record<PendingScopeKey, OrdenBulkItem[]>;
 
     for (const o of active) {
       activeByScope[pendingScopeFor(o, reprogramadaIds, faltanMaterialesIds, todayKey)].push(o);
@@ -1402,7 +1482,8 @@ export default function OrdenesBandeja({
         }}>
           {view === "calendario" ? (
             <CalendarView
-              ordenes={filtered}
+              ordenes={ordenesConExtras}
+              loadingExtras={loadingCalendarExtras}
               reprogramadaIds={reprogramadaIds}
               selectedId={selected}
               myId={myId}

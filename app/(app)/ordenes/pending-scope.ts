@@ -5,12 +5,24 @@ export type PendingScopeKey =
   | "sin_asignar" | "sin_progreso" | "vencidas" | "reprogramadas"
   | "materiales" | "levantamientos" | "presupuestos" | "otras";
 
+/**
+ * The only fields bucketing reads. Declared structurally rather than as
+ * `OrdenListItem` so these helpers also accept the lean `OrdenBulkItem` rows
+ * from the workspace-wide snapshot, which omits export-only columns like
+ * `tipo` — none of which matter here.
+ */
+export type ScopeableOrden = Pick<
+  OrdenListItem,
+  | "id" | "estado" | "clasificacion" | "tipo_trabajo" | "asignados_ids"
+  | "fecha_termino" | "en_ejecucion" | "iniciado_at" | "tiempo_total_segundos"
+>;
+
 // "Sin progreso": nobody has touched the OT yet — it's still in its initial
 // `pendiente` state AND the timer was never started. Any state change
 // (en_espera / en_curso / completado) or any timer activity counts as progress.
 // Gating on `estado === "pendiente"` is the primary, always-present signal;
 // the timer fields catch a pendiente OT that was started then reset.
-export function sinProgreso(o: OrdenListItem): boolean {
+export function sinProgreso(o: ScopeableOrden): boolean {
   if (o.estado !== "pendiente") return false;
   if (o.en_ejecucion) return false;
   if (o.iniciado_at) return false;
@@ -19,17 +31,17 @@ export function sinProgreso(o: OrdenListItem): boolean {
 }
 
 /** "Vencida": has a due date in the past and isn't completed. */
-export function estaVencida(o: OrdenListItem, todayKey: string): boolean {
+export function estaVencida(o: ScopeableOrden, todayKey: string): boolean {
   if (o.estado === "completado" || !o.fecha_termino) return false;
   const dueKey = dateKey(o.fecha_termino);
   return !!dueKey && dueKey < todayKey;
 }
 
-export function esLevantamiento(o: OrdenListItem): boolean {
+export function esLevantamiento(o: ScopeableOrden): boolean {
   return o.clasificacion === "levantamiento" || o.tipo_trabajo === "levantamiento";
 }
 
-export function esPresupuesto(o: OrdenListItem): boolean {
+export function esPresupuesto(o: ScopeableOrden): boolean {
   return o.tipo_trabajo === "presupuesto";
 }
 
@@ -48,7 +60,7 @@ export function esPresupuesto(o: OrdenListItem): boolean {
  *    los materiales, no mirándola en "Vencidas".
  */
 export function pendingScopeFor(
-  o: OrdenListItem,
+  o: ScopeableOrden,
   reprogramadaIds: Set<string>,
   faltanMaterialesIds: Set<string>,
   todayKey: string,
