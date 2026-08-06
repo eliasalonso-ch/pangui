@@ -8,6 +8,7 @@ import { createClient, logRealtimeChannel } from "@/lib/supabase";
 import { esAdmin } from "@/lib/roles";
 import { fetchOrden, fetchOrdenesPage, fetchAllOrdenesForExport, fetchAllOrdenesBulk, fetchOrdenesCalendarExtras, fetchOrdenListItem, searchOrdenes, ORDENES_SEARCH_LIMIT, deleteOrden, ORDENES_PAGE_SIZE, parseDescMeta, fetchMarcadasIds, toggleMarcada, matchesSearch, ELECTRILAM_WORKSPACE_ID } from "@/lib/ordenes-api";
 import { needsBulkSnapshot, shouldRefetchBulk } from "./bulk-refresh";
+import { needsFullWorkspaceSet } from "./list-source";
 import { mergeCalendarExtras } from "@/lib/orden-merge";
 import { buildOrdenesWorkbook, type ExportCols as SharedExportCols, type OrdenInput, type HojaInput, type FilaInput, type FotoItemInput, type MaterialUsadoInput } from "@/lib/excel-export-shared";
 import { ExportScheduler } from "./ExportScheduler";
@@ -769,19 +770,7 @@ export default function OrdenesBandeja({
 
   const searchHitCap = searchResults !== null && searchResults.length >= ORDENES_SEARCH_LIMIT;
 
-  // ¿Hay algún filtro activo? Con filtros, la lista tiene que mirar el set
-  // completo y no solo las páginas cargadas por el scroll infinito.
-  const hasActiveFilters =
-    filtros.estados.length > 0 ||
-    filtros.prioridades.length > 0 ||
-    filtros.tipos.length > 0 ||
-    filtros.asignadoIds.length > 0 ||
-    filtros.ubicacionIds.length > 0 ||
-    filtros.sociedadIds.length > 0 ||
-    filtros.fechaVencimiento != null ||
-    filtros.sinAsignar ||
-    filtros.deUsuariosDadosDeBaja ||
-    filtros.soloAsignados;
+  const hasActiveFilters = needsFullWorkspaceSet({ scope, ocultarMarcadas, filtros });
 
   // Apply filters + search + sort
   const filtered = useMemo(() => {
