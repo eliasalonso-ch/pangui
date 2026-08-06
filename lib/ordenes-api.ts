@@ -241,8 +241,7 @@ export async function getSoloAsignadasUserId(): Promise<string | null> {
  * shape, and spelling them out here would force every caller to thread its own
  * row type through for no added safety.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function aplicarVisibilidad<T extends { contains: (col: string, val: any) => T }>(
+function aplicarVisibilidad<T extends { contains: (col: string, val: unknown[]) => T }>(
   query: T,
   userId: string | null,
 ): T {

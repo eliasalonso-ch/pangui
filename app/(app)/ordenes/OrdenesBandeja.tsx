@@ -7,7 +7,7 @@ import { useTopBarAction } from "@/components/TopBarActions";
 import { createClient, logRealtimeChannel } from "@/lib/supabase";
 import { esAdmin } from "@/lib/roles";
 import { fetchOrden, fetchOrdenesPage, fetchAllOrdenesForExport, fetchAllOrdenesBulk, fetchOrdenesCalendarExtras, fetchOrdenListItem, searchOrdenes, ORDENES_SEARCH_LIMIT, deleteOrden, ORDENES_PAGE_SIZE, parseDescMeta, fetchMarcadasIds, toggleMarcada, matchesSearch, ELECTRILAM_WORKSPACE_ID } from "@/lib/ordenes-api";
-import { needsBulkSnapshot, shouldRefetchBulk } from "./bulk-refresh";
+import { needsBulkSnapshot, shouldRefetchBulk, coalesce } from "./bulk-refresh";
 import { needsFullWorkspaceSet } from "./list-source";
 import { mergeCalendarExtras } from "@/lib/orden-merge";
 import { buildOrdenesWorkbook, type ExportCols as SharedExportCols, type OrdenInput, type HojaInput, type FilaInput, type FotoItemInput, type MaterialUsadoInput } from "@/lib/excel-export-shared";
@@ -513,6 +513,25 @@ export default function OrdenesBandeja({
   const refreshListPromiseRef = useRef<Promise<void> | null>(null);
   // Timestamp of the last workspace-wide snapshot fetch. 0 = never.
   const lastBulkFetchRef = useRef(0);
+  // In-flight snapshot walk, shared by the mount effect and refreshList.
+  //
+  // The walk pages through the whole workspace, so two overlapping runs issue
+  // the same ~70 kB requests twice with an identical cursor. The cooldown alone
+  // does not prevent that: both callers can pass the check before either has
+  // finished and stamped `lastBulkFetchRef`. Whoever starts first parks its
+  // promise here and the other awaits it instead of starting a second walk.
+  const bulkFetchPromiseRef = useRef<Promise<OrdenBulkItem[]> | null>(null);
+
+  const runBulkFetch = useCallback((firstPage: OrdenBulkItem[]) => {
+    return coalesce(bulkFetchPromiseRef, () => {
+      lastBulkFetchRef.current = Date.now();
+      return fetchAllOrdenesBulk(wsId, firstPage).catch((err) => {
+        // Don't let a failed walk hold the cooldown open.
+        lastBulkFetchRef.current = 0;
+        throw err;
+      });
+    });
+  }, [wsId]);
 
   /**
    * Refreshes the VISIBLE page only. This is what the 60s poll runs.
@@ -554,8 +573,7 @@ export default function OrdenesBandeja({
         setCalendarExtras(null);
         return;
       }
-      lastBulkFetchRef.current = Date.now();
-      const allForCounts = await fetchAllOrdenesBulk(wsId, data);
+      const allForCounts = await runBulkFetch(data);
       setAllOrdenesForCounts(allForCounts);
       // Membership changed, so cached calendar extras may be missing a new OT.
       // Only cleared here — never on the poll, or the workspace-wide fetch
@@ -577,13 +595,12 @@ export default function OrdenesBandeja({
     // snapshot fetch is pure waste.
     if (!needsBulkSnapshot(initialOrdenes.length, ORDENES_PAGE_SIZE)) return;
     let cancelled = false;
-    lastBulkFetchRef.current = Date.now();
-    fetchAllOrdenesBulk(wsId, initialOrdenes)
+    runBulkFetch(initialOrdenes)
       .then(data => { if (!cancelled) setAllOrdenesForCounts(data); })
       .catch(() => { /* counts fall back to the loaded page until the next refresh */ });
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [wsId]);
+  }, [wsId, runBulkFetch]);
 
   const loadMoreOrdenes = useCallback(async () => {
     if (loadingMoreOrdenesRef.current || !hasMoreOrdenes) return;

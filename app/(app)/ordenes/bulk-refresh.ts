@@ -41,3 +41,37 @@ export function shouldRefetchBulk(
   if (lastFetchMs === 0) return true;
   return nowMs - lastFetchMs >= minIntervalMs;
 }
+
+/** Holds the in-flight snapshot walk so concurrent callers share one run. */
+export interface InFlightRef<T> {
+  current: Promise<T> | null;
+}
+
+/**
+ * Runs `start()` unless an identical run is already in flight, in which case
+ * the caller joins that one.
+ *
+ * The snapshot walk pages through the entire workspace, so two overlapping runs
+ * issue the same ~70 kB requests twice with an identical cursor. The cooldown
+ * timestamp alone cannot prevent this: the mount effect and a realtime-driven
+ * refresh can both pass the check before either has finished and stamped it.
+ */
+export function coalesce<T>(ref: InFlightRef<T>, start: () => Promise<T>): Promise<T> {
+  if (ref.current) return ref.current;
+  // The guard must be cleared BEFORE the returned promise settles, or a caller
+  // doing `await coalesce(...)` and then calling again would still see the
+  // finished run parked in `ref` and join it instead of starting a new one.
+  // `token` identifies this run without the async IIFE having to close over the
+  // promise it is itself producing.
+  const token: { p: Promise<T> | null } = { p: null };
+  const run = (async () => {
+    try {
+      return await start();
+    } finally {
+      if (ref.current === token.p) ref.current = null;
+    }
+  })();
+  token.p = run;
+  ref.current = run;
+  return run;
+}

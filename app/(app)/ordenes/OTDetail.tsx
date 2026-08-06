@@ -889,14 +889,23 @@ export default function OTDetail({
       .catch(() => { if (!cancelled) setSubOrdenes([]); })
       .finally(() => { if (!cancelled) setLoadingSubOrdenes(false); });
 
+    // Skipped while the tab is hidden: this panel stays open all day in an ops
+    // tool, and polling a backgrounded tab spends egress for nothing. The next
+    // tick after the user comes back catches up.
+    //
+    // Sub-OTs are only created from this panel, by this user — `handleCreateSubOrden`
+    // refetches on its own. The poll exists to catch a colleague adding one, so
+    // 30s is far tighter than it needs to be; 2 minutes is still well inside
+    // "I didn't notice a delay" for an event that is already rare.
     const pollId = setInterval(async () => {
+      if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
       try {
         const rows = await fetchSubOrdenes(orden.id);
         if (!cancelled) setSubOrdenes(rows);
       } catch {
         // ignore transient errors
       }
-    }, 30_000);
+    }, 120_000);
 
     return () => {
       cancelled = true;
