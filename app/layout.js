@@ -1,6 +1,7 @@
 import { Inter, Geist } from "next/font/google";
 import "./globals.css";
 import { PostHogProvider } from "./PostHogProvider";
+import { structuredData } from "./structured-data";
 
 const inter = Inter({
   variable: "--font-heading",
@@ -13,9 +14,44 @@ const geist = Geist({
   subsets: ["latin"],
 });
 
+const SITE_URL = "https://getpangui.com";
+const SITE_DESCRIPTION =
+  "Pangui es el software de órdenes de trabajo (CMMS) para contratistas y empresas de servicios de mantención en Chile. Planifica, ejecuta y respalda OTs, activos, materiales y evidencia — desde la oficina hasta el celular del técnico. Prueba gratis 30 días.";
+
 export const metadata = {
-  title: "Pangui",
-  description: "Gestión de órdenes de trabajo",
+  metadataBase: new URL(SITE_URL),
+  title: {
+    default:
+      "Pangui | Software de Órdenes de Trabajo y Mantenimiento (CMMS) para Contratistas en Chile",
+    template: "%s | Pangui",
+  },
+  description: SITE_DESCRIPTION,
+  keywords: [
+    "software de mantenimiento",
+    "órdenes de trabajo",
+    "CMMS",
+    "GMAO",
+    "software mantención Chile",
+    "mantenimiento preventivo",
+    "gestión de activos",
+    "software para contratistas",
+    "OT mantención",
+  ],
+  alternates: { canonical: "/" },
+  openGraph: {
+    type: "website",
+    url: SITE_URL,
+    siteName: "Pangui",
+    locale: "es_CL",
+    title: "Pangui | Software de Órdenes de Trabajo y Mantenimiento (CMMS)",
+    description: SITE_DESCRIPTION,
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Pangui | Software de Órdenes de Trabajo y Mantenimiento (CMMS)",
+    description: SITE_DESCRIPTION,
+  },
+  robots: { index: true, follow: true },
   icons: {
     icon: [
       { url: "/icons/favicon.ico", sizes: "any" },
@@ -43,6 +79,13 @@ export default function RootLayout({ children }) {
         />
         <link rel="preconnect" href="https://yqwsryjbmlvcghnwnzik.supabase.co" />
         <link rel="dns-prefetch" href="https://yqwsryjbmlvcghnwnzik.supabase.co" />
+        {/* JSON-LD belongs in <head>: PostHog injects loader <script>s into
+            <body> before hydration, and React would try to reconcile a
+            body-level script tag against them (hydration mismatch). */}
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+        />
       </head>
       <body>
         <PostHogProvider>{children}</PostHogProvider>

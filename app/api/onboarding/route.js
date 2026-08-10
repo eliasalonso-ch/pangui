@@ -14,6 +14,7 @@
  */
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { TRIAL_DAYS } from "@/lib/flow-plans";
 
 const admin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -95,7 +96,7 @@ export async function POST(req) {
 
   // 2. Promote the existing usuarios row to owner + fill profile data.
   const trialEnd = new Date();
-  trialEnd.setDate(trialEnd.getDate() + 14);
+  trialEnd.setDate(trialEnd.getDate() + TRIAL_DAYS);
 
   const { error: updErr } = await admin
     .from("usuarios")

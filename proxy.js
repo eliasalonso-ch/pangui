@@ -24,6 +24,11 @@ export async function proxy(request) {
   const isPublic =
     pathname.startsWith("/monitoring") || // Sentry tunnel — must bypass auth
     pathname === "/api/health" ||         // uptime monitor — must bypass auth
+    // SEO/social endpoints: crawlers arrive with no session, and redirecting
+    // them to /login would deindex the site and break link previews.
+    pathname === "/sitemap.xml" ||
+    pathname === "/robots.txt" ||
+    pathname === "/opengraph-image" ||
     pathname.startsWith("/arco") ||
     pathname.startsWith("/privacidad") ||
     pathname.startsWith("/terminos") ||
@@ -34,6 +39,12 @@ export async function proxy(request) {
     // discard the URL fragment and redirect every new member to /login.
     pathname.startsWith("/invite") ||
     pathname.startsWith("/precios") ||
+    // Marketing pages — public by definition; the auth gate would bounce
+    // prospective customers to /login before they ever see the product.
+    pathname.startsWith("/demo") ||
+    pathname === "/api/demo" ||
+    pathname.startsWith("/industrias") ||
+    pathname.startsWith("/casos-de-exito") ||
     pathname.startsWith("/recuperar-contrasena") ||
     pathname.startsWith("/reset-contrasena") ||
     pathname.startsWith("/confirmar-reset") ||

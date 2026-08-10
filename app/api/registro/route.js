@@ -5,6 +5,7 @@
  */
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { TRIAL_DAYS } from "@/lib/flow-plans";
 
 const admin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -79,7 +80,7 @@ export async function POST(req) {
   //    cargo_id / oficio_id go to the canonical FK columns; cargo / oficio
   //    text are also written for backwards compatibility with the legacy schema.
   const trialEnd = new Date();
-  trialEnd.setDate(trialEnd.getDate() + 14);
+  trialEnd.setDate(trialEnd.getDate() + TRIAL_DAYS);
 
   const { error: perfilError } = await admin.from("usuarios").update({
     workspace_id: workspace.id,

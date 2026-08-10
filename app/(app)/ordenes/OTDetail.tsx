@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase";
 import { uploadToR2 } from "@/lib/r2";
@@ -546,7 +546,7 @@ interface Props {
   onToggleMarcada?: (id: string, next: boolean) => void;
 }
 
-type Tab = "detalle" | "actividad" | "fotos" | "materiales" | "procedimientos" | "hoja";
+type Tab = "detalle" | "actividad" | "fotos" | "materiales" | "hoja";
 
 /** Título de la barra compacta dentro de cada pestaña. */
 const TAB_TITLE: Record<Tab, string> = {
@@ -554,7 +554,6 @@ const TAB_TITLE: Record<Tab, string> = {
   actividad:      "Actividad",
   fotos:          "Fotos",
   materiales:     "Materiales",
-  procedimientos: "Procedimientos",
   hoja:           "Hoja de cálculo",
 };
 
@@ -984,16 +983,32 @@ export default function OTDetail({
 
   // Load procedure library (lazy, for attach picker)
   useEffect(() => {
-    if (tab !== "procedimientos" || procLibrary.length > 0 || !wsId) return;
+    if (tab !== "detalle" || procLibrary.length > 0 || !wsId) return;
     setLoadingProcLib(true);
     listProcedimientos(wsId)
       .then(data => { setProcLibrary(data); setLoadingProcLib(false); })
       .catch(() => setLoadingProcLib(false));
   }, [tab, wsId]);
 
-  // Poll procedimientos every 60s while the tab is open
+  // El botón flotante solo tiene sentido si la sección está fuera de pantalla.
   useEffect(() => {
-    if (tab !== "procedimientos") return;
+    const el = procSectionRef.current;
+    const root = detalleScrollRef.current;
+    if (tab !== "detalle" || !el || !root || otProcs.length === 0) {
+      setProcFueraDeVista(false);
+      return;
+    }
+    const observer = new IntersectionObserver(
+      ([entry]) => setProcFueraDeVista(!entry.isIntersecting),
+      { root, threshold: 0.08 },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [tab, otProcs.length, loadingProcs]);
+
+  // Poll procedimientos every 60s while Detalles is open
+  useEffect(() => {
+    if (tab !== "detalle") return;
 
     const pollId = setInterval(async () => {
       try {
@@ -2164,12 +2179,22 @@ export default function OTDetail({
     ? fotoGrupos.reduce((total, grupo) => total + (grupo.items?.length ?? 0), 0)
     : fotos.length;
   const completedProcedures = otProcs.filter((otp) => otp.ejecucion?.estado === "completado").length;
+  // Procedimiento visible en Detalles (null = el primero).
+  const [procVisibleId, setProcVisibleId] = useState<string | null>(null);
+  // Salto rápido a Procedimientos: en una OT larga la sección queda muy abajo.
+  const detalleScrollRef = useRef<HTMLDivElement | null>(null);
+  const procSectionRef = useRef<HTMLDivElement | null>(null);
+  const [procFueraDeVista, setProcFueraDeVista] = useState(false);
+  // UUID → nombre, para atribuir cada respuesta de procedimiento.
+  const nombrePorUsuario = useMemo(
+    () => new Map(usuarios.map(u => [u.id, u.nombre])),
+    [usuarios],
+  );
   const dashboardNav = ([
     { tab: "detalle", label: "Detalles", value: "Ver", caption: "información de la OT", icon: <Info size={19} />, color: "var(--brand-fg)", tint: "var(--brand-tint)" },
     { tab: "actividad", label: "Actividad", value: String(actividad.length), caption: "eventos", icon: <CircleDot size={19} />, color: "var(--brand-fg)", tint: "var(--brand-tint)" },
     { tab: "fotos", label: "Fotos", value: String(totalFotos), caption: "fotos", icon: <Camera size={19} />, color: "var(--brand-fg)", tint: "var(--brand-tint)" },
     { tab: "materiales", label: "Materiales", value: String(ordenPartes.length), caption: "ítems usados", icon: <Package size={19} />, color: "var(--fg-2)", tint: "var(--surface-hover)" },
-    { tab: "procedimientos", label: "Procedimientos", value: otProcs.length > 0 ? `${completedProcedures}/${otProcs.length}` : "0", caption: completedProcedures === otProcs.length && otProcs.length > 0 ? "completados" : "asignados", icon: <ClipboardCheck size={19} />, color: "var(--fg-2)", tint: "var(--surface-hover)" },
     { tab: "hoja", label: "Hoja de cálculo", value: "Abrir", caption: "registros", icon: <Sheet size={19} />, color: "var(--success)", tint: "var(--success-bg)" },
   ] as Array<{
     tab: Tab | null; label: string; value: string; caption: string;
@@ -2183,11 +2208,108 @@ export default function OTDetail({
   return (
     // Canvas, so the detail pane reads as a surface with white cards on it
     // rather than one flat white sheet.
-    <div style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden", background: "var(--surface-canvas)" }}>
+    <div style={{ position: "relative", display: "flex", flexDirection: "column", height: "100%", overflow: "hidden", background: "var(--surface-canvas)" }}>
+      {/* Salto directo a Procedimientos: en una OT con muchas fotos y
+          materiales la sección queda muy abajo y no se sabe que existe. */}
+      {tab === "detalle" && procFueraDeVista && (
+        <button
+          type="button"
+          onClick={() => procSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
+          style={{
+            position: "absolute", bottom: 20, left: "50%", transform: "translateX(-50%)",
+            zIndex: 60, height: 40, padding: "0 18px",
+            display: "inline-flex", alignItems: "center", gap: 7,
+            background: "var(--brand)", color: "var(--fg-on-brand)",
+            border: "none", borderRadius: 999, cursor: "pointer",
+            fontSize: 13, fontWeight: 600, fontFamily: "inherit",
+            boxShadow: "var(--shadow-lg)",
+          }}
+        >
+          <ClipboardCheck size={15} />
+          Ir a procedimientos
+        </button>
+      )}
+
+      {/* Lightbox a nivel de componente: antes vivía dentro de la pestaña
+          Fotos, así que al abrirlo desde una firma en Detalles el estado
+          cambiaba pero no había nada montado que lo dibujara. */}
+      {lightboxGrupo !== null && (
+        <div
+          // z-index must beat GlobalTopBar (zIndex 100), otherwise the
+          // breadcrumb bar shows through the fullscreen lightbox.
+          style={{ background: "var(--surface-0)", zIndex: 200 }}
+          className="fixed inset-0 flex items-center justify-center"
+          onClick={() => setLightboxGrupo(null)}
+        >
+          {/* Close — top-right of the viewport */}
+          <button
+            type="button"
+            onClick={e => { e.stopPropagation(); setLightboxGrupo(null); }}
+            aria-label="Cerrar"
+            className="absolute top-5 flex items-center justify-center"
+            style={{
+              // Horizontally center the X over the right chevron:
+              // chevron inset md:right-1 (0.25rem), size 150 → center at 0.25rem + 75px.
+              // X size 64 → center at inset + 32px. Match: inset = 0.25rem + 43px.
+              right: "calc(0.25rem + 15px)",
+              color: "var(--fg-1)", background: "transparent", border: "none", padding: 0, cursor: "pointer",
+            }}
+          >
+            <X size={64} strokeWidth={1} />
+          </button>
+
+          {/* Prev — left edge of the viewport, vertically centered */}
+          {lightboxGrupo.idx > 0 && (
+            <button
+              type="button"
+              onClick={e => { e.stopPropagation(); setLightboxGrupo(g => g && { ...g, idx: g.idx - 1 }); }}
+              aria-label="Anterior"
+              className="absolute left-0 top-1/2 -translate-y-1/2 flex items-center justify-center md:left-1"
+              style={{ color: "var(--fg-1)", background: "transparent", border: "none", padding: 0, cursor: "pointer" }}
+            >
+              <ChevronDown size={100} strokeWidth={1} className="rotate-90" />
+            </button>
+          )}
+
+          {/* Next — right edge of the viewport, vertically centered */}
+          {lightboxGrupo.idx < lightboxGrupo.urls.length - 1 && (
+            <button
+              type="button"
+              onClick={e => { e.stopPropagation(); setLightboxGrupo(g => g && { ...g, idx: g.idx + 1 }); }}
+              aria-label="Siguiente"
+              className="absolute right-0 top-1/2 -translate-y-1/2 flex items-center justify-center md:right-1"
+              style={{ color: "var(--fg-1)", background: "transparent", border: "none", padding: 0, cursor: "pointer" }}
+            >
+              <ChevronDown size={100} strokeWidth={1} className="-rotate-90" />
+            </button>
+          )}
+
+          {/* Image */}
+          <div className="relative inline-block max-h-[82vh] max-w-[78vw]" onClick={e => e.stopPropagation()}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={lightboxGrupo.urls[lightboxGrupo.idx]}
+              alt=""
+              className="block max-h-[82vh] max-w-[78vw] select-none object-contain shadow-2xl"
+            />
+          </div>
+
+          {/* Counter — only when there's more than one image */}
+          {lightboxGrupo.urls.length > 1 && (
+            <div
+              className="absolute bottom-6 left-1/2 -translate-x-1/2 text-sm font-medium"
+              style={{ color: "var(--fg-1)" }}
+            >
+              {lightboxGrupo.idx + 1} / {lightboxGrupo.urls.length}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Shared confirmation popup for every destructive action in this view. */}
       <ConfirmDeleteModal pending={confirmDelete} onClose={() => setConfirmDelete(null)} />
 
-      <div style={{ flex: 1, minHeight: 0, overflowY: "auto", overflowX: "hidden" }}>
+      <div ref={detalleScrollRef} style={{ flex: 1, minHeight: 0, overflowY: "auto", overflowX: "hidden" }}>
 
       {/* ── Header ── */}
       <div style={{ position: "relative", flexShrink: 0, borderBottom: "1px solid var(--border)", background: "var(--surface-canvas)" }}>
@@ -2906,87 +3028,123 @@ export default function OTDetail({
               </div>
             )}
 
-            {/* ── Requisitos section — visible to all, editable by admins ── */}
-            {(canManage || requiereMateriales || requiereHoja || requiereFotos || fotosObligatoriasTodas) && (
-              <div style={{ marginTop: 30, paddingTop: 24, borderTop: "1px solid var(--border)", maxWidth: 1100 }}>
-                <p style={{ fontSize: 11, fontWeight: 700, color: "var(--fg-4)", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 14, marginTop: 0 }}>
-                  Requisitos para cerrar
-                </p>
-                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                  {/* Materiales — disabled (but visible) when the workspace uses
-                       only hoja de cálculo, so users see why it's blocked. */}
-                  {(canManage || requiereMateriales) && (() => {
-                    const blocked = modoRegistro === "hoja";
-                    return (
-                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px", background: "var(--surface-0)", border: "1px solid var(--border)", borderRadius: "var(--r-md)", opacity: blocked ? 0.55 : 1 }}>
-                        <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                          <span style={{ fontSize: 13, fontWeight: 600, color: "var(--fg-1)" }}>Requiere materiales</span>
-                          <span style={{ fontSize: 12, color: "var(--fg-2)" }}>
-                            {blocked ? "Desactivado: el workspace solo usa hoja de cálculo" : "Bloquea el cierre si no hay materiales registrados"}
-                          </span>
-                        </div>
-                        {canManage ? (
-                          <button type="button" onClick={handleToggleRequiereMateriales} disabled={togglingMat || blocked}
-                            style={{ width: 42, height: 24, borderRadius: 12, border: "none", cursor: blocked ? "not-allowed" : "pointer", background: (requiereMateriales && !blocked) ? "var(--brand)" : "var(--border-strong)", position: "relative", transition: "background 0.2s", flexShrink: 0, opacity: togglingMat ? 0.6 : 1 }}>
-                            <span style={{ position: "absolute", top: 2, left: (requiereMateriales && !blocked) ? 20 : 2, width: 20, height: 20, borderRadius: "50%", background: "var(--surface-1)", transition: "left 0.2s", boxShadow: "0 1px 3px rgba(0,0,0,0.2)" }} />
-                          </button>
-                        ) : (
-                          <span style={{ fontSize: 12, fontWeight: 600, color: (requiereMateriales && !blocked) ? "var(--brand-fg)" : "var(--fg-4)" }}>{(requiereMateriales && !blocked) ? "Sí" : "No"}</span>
-                        )}
-                      </div>
-                    );
-                  })()}
-                  {/* Hoja de cálculo — disabled (but visible) when the workspace
-                       uses only materiales. */}
-                  {(canManage || requiereHoja) && (() => {
-                    const blocked = modoRegistro === "materiales";
-                    return (
-                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px", background: "var(--surface-0)", border: "1px solid var(--border)", borderRadius: "var(--r-md)", opacity: blocked ? 0.55 : 1 }}>
-                        <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                          <span style={{ fontSize: 13, fontWeight: 600, color: "var(--fg-1)" }}>Requiere hoja de cálculo</span>
-                          <span style={{ fontSize: 12, color: "var(--fg-2)" }}>
-                            {blocked ? "Desactivado: el workspace solo usa materiales" : "Bloquea el cierre si la hoja no tiene filas registradas"}
-                          </span>
-                        </div>
-                        {canManage ? (
-                          <button type="button" onClick={handleToggleRequiereHoja} disabled={togglingHoja || blocked}
-                            style={{ width: 42, height: 24, borderRadius: 12, border: "none", cursor: blocked ? "not-allowed" : "pointer", background: (requiereHoja && !blocked) ? "var(--brand)" : "var(--border-strong)", position: "relative", transition: "background 0.2s", flexShrink: 0, opacity: togglingHoja ? 0.6 : 1 }}>
-                            <span style={{ position: "absolute", top: 2, left: (requiereHoja && !blocked) ? 20 : 2, width: 20, height: 20, borderRadius: "50%", background: "var(--surface-1)", transition: "left 0.2s", boxShadow: "0 1px 3px rgba(0,0,0,0.2)" }} />
-                          </button>
-                        ) : (
-                          <span style={{ fontSize: 12, fontWeight: 600, color: (requiereHoja && !blocked) ? "var(--brand-fg)" : "var(--fg-4)" }}>{(requiereHoja && !blocked) ? "Sí" : "No"}</span>
-                        )}
-                      </div>
-                    );
-                  })()}
-                  {/* Fotos — admins/owners can override per-OT even when the
-                       workspace mandates fotos globally. Non-admins see only
-                       the effective state. */}
-                  {(canManage || requiereFotos || fotosObligatoriasTodas) && (
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px", background: "var(--surface-0)", border: "1px solid var(--border)", borderRadius: "var(--r-md)" }}>
-                      <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                        <span style={{ fontSize: 13, fontWeight: 600, color: "var(--fg-1)" }}>Requiere fotos</span>
-                        <span style={{ fontSize: 12, color: "var(--fg-2)" }}>
-                          {fotosObligatoriasTodas && !canManage
-                            ? "Obligatorio en todas las OTs del workspace"
-                            : "Bloquea el cierre si no hay fotos registradas"}
-                        </span>
-                      </div>
-                      {canManage ? (
-                        <button type="button" onClick={handleToggleRequiereFotos} disabled={togglingFotos}
-                          style={{ width: 42, height: 24, borderRadius: 12, border: "none", cursor: "pointer", background: requiereFotos ? "var(--brand)" : "var(--border-strong)", position: "relative", transition: "background 0.2s", flexShrink: 0, opacity: togglingFotos ? 0.6 : 1 }}>
-                          <span style={{ position: "absolute", top: 2, left: requiereFotos ? 20 : 2, width: 20, height: 20, borderRadius: "50%", background: "var(--surface-1)", transition: "left 0.2s", boxShadow: "0 1px 3px rgba(0,0,0,0.2)" }} />
+
+            {/* ── Procedimientos — vive dentro de Detalles, debajo de
+                 Asignados, en vez de una pestaña aparte. ── */}
+            <div ref={procSectionRef} style={{ marginTop: 30, paddingTop: 24, borderTop: "1px solid var(--border)" }}>
+              {/* Paginación junto al título: con varios procedimientos se
+                  navega uno a uno en vez de apilarlos todos. */}
+              {(() => {
+                const idx = Math.max(0, otProcs.findIndex(o => o.id === (procVisibleId ?? otProcs[0]?.id)));
+                const go = (delta: number) => {
+                  const next = otProcs[idx + delta];
+                  if (next) setProcVisibleId(next.id);
+                };
+                return (
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+                    <p style={{ fontSize: 11, fontWeight: 700, color: "var(--fg-4)", textTransform: "uppercase", letterSpacing: "0.06em", margin: 0 }}>Procedimientos</p>
+                    {otProcs.length > 1 && (
+                      <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                        <button
+                          type="button"
+                          onClick={() => go(-1)}
+                          disabled={idx === 0}
+                          aria-label="Procedimiento anterior"
+                          style={{
+                            width: 26, height: 26, display: "flex", alignItems: "center", justifyContent: "center",
+                            border: "1px solid var(--border)", borderRadius: "var(--r-xs)",
+                            background: "var(--surface-1)", cursor: idx === 0 ? "default" : "pointer",
+                            color: "var(--fg-2)", opacity: idx === 0 ? 0.4 : 1,
+                          }}
+                        >
+                          <ChevronLeft size={14} />
                         </button>
-                      ) : (
-                        <span style={{ fontSize: 12, fontWeight: 600, color: (requiereFotos || fotosObligatoriasTodas) ? "var(--brand-fg)" : "var(--fg-4)" }}>
-                          {(requiereFotos || fotosObligatoriasTodas) ? "Sí" : "No"}
+                        <span style={{ fontSize: 11.5, color: "var(--fg-3)", minWidth: 46, textAlign: "center" }}>
+                          {idx + 1} de {otProcs.length}
                         </span>
-                      )}
-                    </div>
-                  )}
-                </div>
+                        <button
+                          type="button"
+                          onClick={() => go(1)}
+                          disabled={idx >= otProcs.length - 1}
+                          aria-label="Procedimiento siguiente"
+                          style={{
+                            width: 26, height: 26, display: "flex", alignItems: "center", justifyContent: "center",
+                            border: "1px solid var(--border)", borderRadius: "var(--r-xs)",
+                            background: "var(--surface-1)", cursor: idx >= otProcs.length - 1 ? "default" : "pointer",
+                            color: "var(--fg-2)", opacity: idx >= otProcs.length - 1 ? 0.4 : 1,
+                          }}
+                        >
+                          <ChevronRight size={14} />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+            {loadingProcs ? (
+              <div style={{ display: "flex", justifyContent: "center", padding: "40px 0" }}>
+                <Loader2 size={18} className="animate-spin" style={{ color: "var(--fg-4)" }} />
               </div>
+            ) : (
+              <>
+                {/* Attached procedures */}
+                {otProcs.length === 0 ? (
+                  <div style={{ textAlign: "center", padding: "32px 0", color: "var(--fg-4)", fontSize: 13 }}>
+                    <ClipboardCheck size={28} style={{ color: "var(--border-strong)", margin: "0 auto 8px" }} />
+                    <div>No hay procedimientos adjuntos</div>
+                  </div>
+                ) : (
+                  <div style={{ marginBottom: 20 }}>
+                    {/* Uno a la vez, elegido desde el encabezado. Con varios
+                        procedimientos de decenas de pasos, apilarlos obligaba a
+                        recorrer todo para llegar al que se busca. */}
+                    <ProcedimientoEjecutado
+                      otp={otProcs.find(o => o.id === procVisibleId) ?? otProcs[0]}
+                      nombrePorUsuario={nombrePorUsuario}
+                      onPhotoClick={(url) => setLightboxGrupo({ urls: [url], idx: 0 })}
+                    />
+                  </div>
+                )}
+
+                {/* Attach picker */}
+                {isActive && (
+                  <div style={{ borderTop: otProcs.length > 0 ? "1px solid var(--divider)" : "none", paddingTop: otProcs.length > 0 ? 16 : 0 }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: "var(--fg-4)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 10 }}>
+                      Agregar procedimiento
+                    </div>
+                    {loadingProcLib ? (
+                      <div style={{ display: "flex", justifyContent: "center", padding: "20px 0" }}>
+                        <Loader2 size={14} className="animate-spin" style={{ color: "var(--border-strong)" }} />
+                      </div>
+                    ) : procLibrary.filter(p => !otProcs.some(op => op.procedimiento_id === p.id)).length === 0 ? (
+                      <div style={{ fontSize: 12.5, color: "var(--fg-4)", padding: "8px 0" }}>
+                        {procLibrary.length === 0 ? "No hay procedimientos en la biblioteca." : "Todos los procedimientos ya están adjuntos."}
+                      </div>
+                    ) : (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                        {procLibrary.filter(p => !otProcs.some(op => op.procedimiento_id === p.id)).map(p => (
+                          <div key={p.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", border: "1px solid var(--border)", borderRadius: "var(--r-md)", background: "var(--surface-0)" }}>
+                            <div>
+                              <div style={{ fontSize: 13, fontWeight: 500, color: "var(--fg-1)" }}>{p.nombre}</div>
+                              <div style={{ fontSize: 11, color: "var(--fg-4)" }}>{p.pasos_count} pasos{p.categoria ? ` · ${p.categoria}` : ""}</div>
+                            </div>
+                            <button
+                              onClick={() => handleAttachProc(p.id)}
+                              disabled={attachingProc === p.id}
+                              style={{ height: 28, padding: "0 10px", background: "var(--brand-tint)", border: "1px solid var(--brand)", borderRadius: "var(--r-sm)", cursor: "pointer", fontSize: 12, fontWeight: 600, color: "var(--brand-fg)", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 4 }}
+                            >
+                              {attachingProc === p.id ? <Loader2 size={11} className="animate-spin" /> : <Plus size={11} />}
+                              Adjuntar
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </>
             )}
+            </div>
           </div>
         )}
 
@@ -3109,78 +3267,6 @@ export default function OTDetail({
                     shrinks to the image's rendered size, then position the
                     controls absolutely against that container instead of the
                     viewport. */}
-                {lightboxGrupo !== null && (
-                  <div
-                    // z-index must beat GlobalTopBar (zIndex 100), otherwise the
-                    // breadcrumb bar shows through the fullscreen lightbox.
-                    style={{ background: "var(--surface-0)", zIndex: 200 }}
-                    className="fixed inset-0 flex items-center justify-center"
-                    onClick={() => setLightboxGrupo(null)}
-                  >
-                    {/* Close — top-right of the viewport */}
-                    <button
-                      type="button"
-                      onClick={e => { e.stopPropagation(); setLightboxGrupo(null); }}
-                      aria-label="Cerrar"
-                      className="absolute top-5 flex items-center justify-center"
-                      style={{
-                        // Horizontally center the X over the right chevron:
-                        // chevron inset md:right-1 (0.25rem), size 150 → center at 0.25rem + 75px.
-                        // X size 64 → center at inset + 32px. Match: inset = 0.25rem + 43px.
-                        right: "calc(0.25rem + 15px)",
-                        color: "var(--fg-1)", background: "transparent", border: "none", padding: 0, cursor: "pointer",
-                      }}
-                    >
-                      <X size={64} strokeWidth={1} />
-                    </button>
-
-                    {/* Prev — left edge of the viewport, vertically centered */}
-                    {lightboxGrupo.idx > 0 && (
-                      <button
-                        type="button"
-                        onClick={e => { e.stopPropagation(); setLightboxGrupo(g => g && { ...g, idx: g.idx - 1 }); }}
-                        aria-label="Anterior"
-                        className="absolute left-0 top-1/2 -translate-y-1/2 flex items-center justify-center md:left-1"
-                        style={{ color: "var(--fg-1)", background: "transparent", border: "none", padding: 0, cursor: "pointer" }}
-                      >
-                        <ChevronDown size={100} strokeWidth={1} className="rotate-90" />
-                      </button>
-                    )}
-
-                    {/* Next — right edge of the viewport, vertically centered */}
-                    {lightboxGrupo.idx < lightboxGrupo.urls.length - 1 && (
-                      <button
-                        type="button"
-                        onClick={e => { e.stopPropagation(); setLightboxGrupo(g => g && { ...g, idx: g.idx + 1 }); }}
-                        aria-label="Siguiente"
-                        className="absolute right-0 top-1/2 -translate-y-1/2 flex items-center justify-center md:right-1"
-                        style={{ color: "var(--fg-1)", background: "transparent", border: "none", padding: 0, cursor: "pointer" }}
-                      >
-                        <ChevronDown size={100} strokeWidth={1} className="-rotate-90" />
-                      </button>
-                    )}
-
-                    {/* Image */}
-                    <div className="relative inline-block max-h-[82vh] max-w-[78vw]" onClick={e => e.stopPropagation()}>
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={lightboxGrupo.urls[lightboxGrupo.idx]}
-                        alt=""
-                        className="block max-h-[82vh] max-w-[78vw] select-none object-contain shadow-2xl"
-                      />
-                    </div>
-
-                    {/* Counter — only when there's more than one image */}
-                    {lightboxGrupo.urls.length > 1 && (
-                      <div
-                        className="absolute bottom-6 left-1/2 -translate-x-1/2 text-sm font-medium"
-                        style={{ color: "var(--fg-1)" }}
-                      >
-                        {lightboxGrupo.idx + 1} / {lightboxGrupo.urls.length}
-                      </div>
-                    )}
-                  </div>
-                )}
               </>
             )}
           </div>
@@ -3304,137 +3390,6 @@ export default function OTDetail({
         )}
 
         {/* ── Procedimientos ── */}
-        {tab === "procedimientos" && (
-          <div style={{ padding: "24px 28px 120px" }}>
-            {loadingProcs ? (
-              <div style={{ display: "flex", justifyContent: "center", padding: "40px 0" }}>
-                <Loader2 size={18} className="animate-spin" style={{ color: "var(--fg-4)" }} />
-              </div>
-            ) : (
-              <>
-                {/* Attached procedures */}
-                {otProcs.length === 0 ? (
-                  <div style={{ textAlign: "center", padding: "32px 0", color: "var(--fg-4)", fontSize: 13 }}>
-                    <ClipboardCheck size={28} style={{ color: "var(--border-strong)", margin: "0 auto 8px" }} />
-                    <div>No hay procedimientos adjuntos</div>
-                  </div>
-                ) : (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 20 }}>
-                    {otProcs.map(otp => {
-                      const proc = otp.procedimiento;
-                      const ejec = otp.ejecucion;
-                      const isCompleted = ejec?.estado === "completado";
-                      const inProgress = ejec?.estado === "en_curso";
-                      return (
-                        <div key={otp.id} style={{ border: "1px solid var(--border)", borderRadius: "var(--r-md)", overflow: "hidden", background: "var(--surface-1)" }}>
-                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 14px" }}>
-                            <div style={{ flex: 1 }}>
-                              <div style={{ fontSize: 13.5, fontWeight: 600, color: "var(--fg-1)" }}>{proc?.nombre ?? "—"}</div>
-                              {proc?.descripcion && (
-                                <div style={{ fontSize: 12, color: "var(--fg-2)", marginTop: 2 }}>{proc.descripcion}</div>
-                              )}
-                              <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6 }}>
-                                <span style={{ fontSize: 11, color: "var(--fg-4)" }}>{proc?.pasos_count ?? 0} pasos</span>
-                                {proc?.bloquea_cierre_ot && (
-                                  <span style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 11, color: "var(--warning)", fontWeight: 500 }}>
-                                    <Shield size={10} />Bloquea cierre
-                                  </span>
-                                )}
-                                {isCompleted && (
-                                  <span style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 11, color: "var(--success)", fontWeight: 600, background: "var(--success-bg)", borderRadius: "var(--r-xs)", padding: "1px 6px" }}>
-                                    <CheckCircle2 size={10} />Completado
-                                  </span>
-                                )}
-                                {inProgress && (
-                                  <span style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 11, color: "var(--brand-fg)", fontWeight: 600, background: "var(--brand-tint)", borderRadius: "var(--r-xs)", padding: "1px 6px" }}>
-                                    <PlayCircle size={10} />En curso
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                            <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                              {!isCompleted && (
-                                <button
-                                  onClick={() => handleStartEjec(otp)}
-                                  disabled={startingEjec === otp.procedimiento_id}
-                                  style={{
-                                    height: 30, padding: "0 12px",
-                                    background: "var(--brand-tint)",
-                                    border: `1px solid ${"var(--brand-fg)"}`,
-                                    borderRadius: "var(--r-sm)", cursor: "pointer", fontSize: 12, fontWeight: 600,
-                                    color: "var(--brand-fg)", fontFamily: "inherit",
-                                    display: "flex", alignItems: "center", gap: 5,
-                                  }}
-                                >
-                                  {startingEjec === otp.procedimiento_id ? <Loader2 size={11} className="animate-spin" /> : <Play size={11} />}
-                                  {inProgress ? "Continuar" : "Ejecutar"}
-                                </button>
-                              )}
-                              {isCompleted && (
-                                <button
-                                  onClick={() => handleStartEjec(otp)}
-                                  style={{ height: 30, padding: "0 12px", background: "none", border: "1px solid var(--border)", borderRadius: "var(--r-sm)", cursor: "pointer", fontSize: 12, color: "var(--fg-2)", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 5 }}
-                                >
-                                  <CheckCircle2 size={11} />Ver
-                                </button>
-                              )}
-                              <button
-                                onClick={() => setConfirmDelete({ label: proc?.nombre ?? "este procedimiento", onConfirm: () => handleDetachProc(otp.procedimiento_id) })}
-                                disabled={detachingProc === otp.procedimiento_id}
-                                style={{ width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", borderRadius: "var(--r-sm)", cursor: "pointer", color: "var(--fg-4)" }}
-                                onMouseEnter={e => { e.currentTarget.style.color = "var(--danger)"; e.currentTarget.style.background = "var(--danger-bg)"; }}
-                                onMouseLeave={e => { e.currentTarget.style.color = "var(--fg-4)"; e.currentTarget.style.background = "transparent"; }}
-                              >
-                                {detachingProc === otp.procedimiento_id ? <Loader2 size={12} className="animate-spin" /> : <X size={13} />}
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-
-                {/* Attach picker */}
-                {isActive && (
-                  <div style={{ borderTop: otProcs.length > 0 ? "1px solid var(--divider)" : "none", paddingTop: otProcs.length > 0 ? 16 : 0 }}>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: "var(--fg-4)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 10 }}>
-                      Agregar procedimiento
-                    </div>
-                    {loadingProcLib ? (
-                      <div style={{ display: "flex", justifyContent: "center", padding: "20px 0" }}>
-                        <Loader2 size={14} className="animate-spin" style={{ color: "var(--border-strong)" }} />
-                      </div>
-                    ) : procLibrary.filter(p => !otProcs.some(op => op.procedimiento_id === p.id)).length === 0 ? (
-                      <div style={{ fontSize: 12.5, color: "var(--fg-4)", padding: "8px 0" }}>
-                        {procLibrary.length === 0 ? "No hay procedimientos en la biblioteca." : "Todos los procedimientos ya están adjuntos."}
-                      </div>
-                    ) : (
-                      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                        {procLibrary.filter(p => !otProcs.some(op => op.procedimiento_id === p.id)).map(p => (
-                          <div key={p.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", border: "1px solid var(--border)", borderRadius: "var(--r-md)", background: "var(--surface-0)" }}>
-                            <div>
-                              <div style={{ fontSize: 13, fontWeight: 500, color: "var(--fg-1)" }}>{p.nombre}</div>
-                              <div style={{ fontSize: 11, color: "var(--fg-4)" }}>{p.pasos_count} pasos{p.categoria ? ` · ${p.categoria}` : ""}</div>
-                            </div>
-                            <button
-                              onClick={() => handleAttachProc(p.id)}
-                              disabled={attachingProc === p.id}
-                              style={{ height: 28, padding: "0 10px", background: "var(--brand-tint)", border: "1px solid var(--brand)", borderRadius: "var(--r-sm)", cursor: "pointer", fontSize: 12, fontWeight: 600, color: "var(--brand-fg)", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 4 }}
-                            >
-                              {attachingProc === p.id ? <Loader2 size={11} className="animate-spin" /> : <Plus size={11} />}
-                              Adjuntar
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-        )}
 
         {/* ── Hoja de cálculo ── */}
         {wsId && (
@@ -3883,6 +3838,219 @@ function signatureImageSrc(value: string | null | undefined) {
   return trimmed;
 }
 
+
+/**
+ * Un procedimiento ya ejecutado, desplegado dentro de Detalles: contador de
+ * campos, cada paso como tarjeta con su respuesta y quién la rellenó, y la
+ * firma como imagen. Espeja la vista de MaintainX y evita entrar a otra
+ * pantalla solo para leer lo que se respondió.
+ */
+/** Nombre por tipo, para pasos guardados sin título. */
+const TIPO_FALLBACK_LABEL: Partial<Record<ProcedimientoPaso["tipo"], string>> = {
+  inspeccion: "Inspección",
+  lista_verificacion: "Lista de verificación",
+  si_no_na: "Verificación",
+  firma: "Firma",
+  imagen: "Foto",
+  archivo: "Archivo",
+  texto: "Texto",
+  numero: "Valor numérico",
+  monto: "Monto",
+  medidor: "Lectura de medidor",
+  fecha: "Fecha",
+  hora: "Hora",
+  fecha_hora: "Fecha y hora",
+  opcion_multiple: "Opción múltiple",
+};
+
+function ProcedimientoEjecutado({
+  otp, onPhotoClick, nombrePorUsuario,
+}: {
+  otp: OTProcedimiento;
+  onPhotoClick: (url: string) => void;
+  /** UUID → nombre, para mostrar quién rellenó cada campo. */
+  nombrePorUsuario: Map<string, string>;
+}) {
+  const proc = otp.procedimiento;
+  const ejec = otp.ejecucion;
+  const pasos = (proc?.pasos ?? []) as ProcedimientoPaso[];
+  const respByPaso = new Map<string, PendingResp>();
+  for (const r of (ejec?.respuestas ?? []) as PendingResp[]) {
+    if (r.paso_id) respByPaso.set(r.paso_id, r);
+  }
+
+  const answerable = pasos.filter(
+    p => p.tipo !== "seccion" && p.tipo !== "instruccion" && p.tipo !== "advertencia",
+  );
+  const answered = answerable.filter(p => {
+    const r = respByPaso.get(p.id);
+    return r ? isAnsweredForType(p, r) : false;
+  }).length;
+
+  return (
+    <div style={{ border: "1px solid var(--border)", borderRadius: "var(--r-md)", overflow: "hidden", background: "var(--surface-1)", marginBottom: 12 }}>
+      {/* Encabezado del procedimiento */}
+      <div style={{ background: "var(--brand)", color: "var(--fg-on-brand)", padding: "14px 18px", fontSize: 15, fontWeight: 700 }}>
+        {proc?.nombre ?? "Procedimiento"}
+      </div>
+
+      {/* Contador de campos */}
+      <div style={{ padding: "16px 18px", borderBottom: "1px solid var(--border)", textAlign: "center" }}>
+        <div style={{ fontSize: 20, fontWeight: 700, color: "var(--fg-1)" }}>
+          {answered} | {answerable.length}
+        </div>
+        <div style={{ fontSize: 12.5, color: "var(--fg-3)", marginTop: 2 }}>Campos completados</div>
+      </div>
+
+      <div style={{ padding: "14px 18px", display: "flex", flexDirection: "column", gap: 12 }}>
+        {pasos.map(paso => {
+          const resp = respByPaso.get(paso.id);
+
+          // Secciones/instrucciones: encabezado en negrita, sin tarjeta.
+          if (paso.tipo === "seccion" || paso.tipo === "instruccion" || paso.tipo === "advertencia") {
+            return (
+              <div key={paso.id} style={{ fontSize: 14.5, fontWeight: 700, color: "var(--fg-1)", lineHeight: 1.4, marginTop: 4 }}>
+                {paso.titulo}
+                {paso.descripcion && (
+                  <div style={{ fontSize: 13, fontWeight: 400, color: "var(--fg-2)", marginTop: 4, lineHeight: 1.5 }}>
+                    {paso.descripcion}
+                  </div>
+                )}
+              </div>
+            );
+          }
+
+          return (
+            <div key={paso.id} style={{ border: "1px solid var(--border)", borderRadius: "var(--r-md)", padding: "12px 14px" }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: "var(--fg-1)", lineHeight: 1.45 }}>
+                {paso.titulo?.trim() || TIPO_FALLBACK_LABEL[paso.tipo] || "Campo"}
+              </div>
+              {paso.descripcion && (
+                <div style={{ fontSize: 12.5, color: "var(--fg-3)", marginTop: 3, lineHeight: 1.45 }}>{paso.descripcion}</div>
+              )}
+
+              <div style={{ marginTop: 10 }}>
+                {paso.tipo === "si_no_na"
+                  ? <EstadoSegmento valor={resp?.valor_texto ?? null} variante="si_no_na" />
+                  : resp
+                    ? <ReadonlyAnswer paso={paso} resp={resp} onPhotoClick={onPhotoClick} />
+                    : <div style={{ fontSize: 12.5, color: "var(--fg-4)" }}>Sin respuesta</div>}
+
+                {/* La evidencia va aparte de la respuesta: cualquier tipo de
+                    paso puede llevar fotos, no solo los de tipo imagen.
+                    "imagen" ya las dibuja en ReadonlyAnswer. */}
+                {resp && paso.tipo !== "imagen" && (
+                  <EvidenciaFotos resp={resp} onPhotoClick={onPhotoClick} />
+                )}
+              </div>
+
+              {(() => {
+                // Quién y cuándo. La app móvil no llena firmado_nombre ni
+                // firmado_por_id (siempre NULL), así que el autor se resuelve
+                // con respondido_por, que sí viene siempre.
+                const autor =
+                  resp?.firmado_nombre ??
+                  (resp?.firmado_por_id && nombrePorUsuario.get(resp.firmado_por_id)) ??
+                  (resp?.respondido_por && nombrePorUsuario.get(resp.respondido_por)) ??
+                  null;
+                const fecha = resp?.firmado_at ?? resp?.respondido_at ?? null;
+                if (!autor && !fecha) return null;
+                const verbo = paso.tipo === "firma" ? "Firmado" : "Rellenado";
+                return (
+                  <div style={{ fontSize: 12, color: "var(--fg-3)", marginTop: 10 }}>
+                    {verbo} por <strong style={{ color: "var(--fg-2)" }}>{autor ?? "—"}</strong>
+                    {fecha ? ` el ${new Date(fecha).toLocaleString("es-CL")}` : ""}
+                  </div>
+                );
+              })()}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/** Los tres estados de un paso Sí/No/N-A, con el elegido resaltado. */
+/**
+ * Fotos de evidencia de un paso. Cualquier tipo puede llevarlas: la app móvil
+ * las guarda en valor_json.evidence_images (y espeja la primera en foto_url),
+ * pero la web no las mostraba en ningún paso que no fuera de tipo "imagen".
+ */
+function EvidenciaFotos({
+  resp, onPhotoClick,
+}: {
+  resp: PendingResp;
+  onPhotoClick?: (url: string) => void;
+}) {
+  const evid = (resp.valor_json as any)?.evidence_images;
+  const urls: string[] = Array.isArray(evid) ? evid.filter((u: unknown) => typeof u === "string") : [];
+  // foto_url suele ser la primera de evidence_images: se evita duplicarla.
+  if (resp.foto_url && !urls.includes(resp.foto_url)) urls.unshift(resp.foto_url);
+  if (urls.length === 0) return null;
+  return (
+    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
+      {urls.map((u, i) => (
+        <button
+          key={i}
+          type="button"
+          onClick={() => onPhotoClick?.(u)}
+          style={{ padding: 0, border: "none", background: "none", cursor: onPhotoClick ? "zoom-in" : "default", lineHeight: 0 }}
+        >
+          <img
+            src={u}
+            alt=""
+            loading="lazy"
+            decoding="async"
+            style={{ width: 96, height: 96, objectFit: "cover", borderRadius: "var(--r-sm)", border: "1px solid var(--border)", display: "block" }}
+          />
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function EstadoSegmento({ valor, variante = "inspeccion" }: { valor: string | null; variante?: "inspeccion" | "si_no_na" }) {
+  const norm = (valor ?? "").toLowerCase();
+  // Dos vocabularios distintos: la inspección evalúa (aprobado/alerta/falla) y
+  // el paso Sí/No/N-A responde una pregunta. El orden de los segmentos y qué
+  // valor enciende cada uno cambia entre ambos.
+  const opciones: { label: string; match: string[]; color: string; bg: string }[] =
+    variante === "si_no_na"
+      ? [
+          { label: "SÍ",  match: ["si", "sí", "yes", "true", "pass"], color: "var(--success)", bg: "var(--success-bg)" },
+          { label: "NO",  match: ["no", "false", "fail"],             color: "var(--danger)",  bg: "var(--danger-bg)" },
+          { label: "N/A", match: ["na", "n/a", "observation"],        color: "var(--fg-3)",    bg: "var(--surface-hover)" },
+        ]
+      : [
+          { label: "OK",          match: ["si", "sí", "pass", "aprobado", "ok", "true"],     color: "var(--success)", bg: "var(--success-bg)" },
+          // "na" es como las ejecuciones antiguas guardaban la opción del medio.
+          { label: "OBSERVACIÓN", match: ["alerta", "warn", "warning", "observation", "na"], color: "var(--warning)", bg: "var(--st-wait-bg)" },
+          { label: "NO CUMPLE",   match: ["no", "fail", "falla", "no_cumple", "false"],      color: "var(--danger)",  bg: "var(--danger-bg)" },
+        ];
+  return (
+    <div style={{ display: "flex", gap: 8 }}>
+      {opciones.map(o => {
+        const active = o.match.includes(norm);
+        return (
+          <span
+            key={o.label}
+            style={{
+              flex: 1, textAlign: "center", padding: "9px 6px",
+              borderRadius: "var(--r-sm)", fontSize: 12, fontWeight: 600,
+              border: `1px solid ${active ? o.color : "var(--border)"}`,
+              background: active ? o.bg : "transparent",
+              color: active ? o.color : "var(--fg-4)",
+            }}
+          >
+            {o.label}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
 function ReadonlyAnswer({ paso, resp, onPhotoClick }: { paso: ProcedimientoPaso; resp: PendingResp; onPhotoClick?: (url: string) => void }) {
   const currency = paso.moneda ?? "CLP";
   switch (paso.tipo) {
@@ -3896,13 +4064,64 @@ function ReadonlyAnswer({ paso, resp, onPhotoClick }: { paso: ProcedimientoPaso;
     case "opcion_multiple":
       return <div style={{ fontSize: 12.5, color: "var(--fg-2)", marginTop: 4 }}>{resp.valor_texto}</div>;
     case "lista_verificacion": {
+      // "N de M marcados" escondía justo lo que interesa: cuáles. Se listan
+      // todos los ítems con su estado.
       const checked: string[] = (resp.valor_json as any)?.checked ?? [];
-      return <div style={{ fontSize: 12, color: "var(--fg-2)", marginTop: 4 }}>{checked.length} de {paso.opciones?.length ?? 0} marcados</div>;
+      const opciones = paso.opciones ?? [];
+      if (opciones.length === 0 && checked.length === 0) return null;
+      const lista = opciones.length > 0 ? opciones : checked;
+      return (
+        <div style={{ display: "flex", flexDirection: "column", gap: 5, marginTop: 6 }}>
+          {lista.map((op, i) => {
+            const done = checked.includes(op);
+            return (
+              <div key={i} style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 12.5, color: done ? "var(--fg-1)" : "var(--fg-3)" }}>
+                {done
+                  ? <CheckCircle2 size={13} style={{ color: "var(--success)", flexShrink: 0 }} />
+                  : <Circle size={13} style={{ color: "var(--fg-4)", flexShrink: 0 }} />}
+                <span>{op}</span>
+              </div>
+            );
+          })}
+        </div>
+      );
     }
     case "inspeccion": {
-      const items: { item: string; result: string }[] = (resp.valor_json as any)?.items ?? [];
-      const pass = items.filter(i => i.result === "pass").length;
-      return <div style={{ fontSize: 12, color: "var(--fg-2)", marginTop: 4 }}>{pass}/{items.length} pasaron</div>;
+      // Cada ítem se muestra con el mismo segmento de tres estados que un paso
+      // Sí/No/N-A, y debajo sus fotos. Un "3/3 pasaron" no decía qué se revisó
+      // ni mostraba la evidencia, que sí estaba guardada.
+      const items: { item: string; result: string; foto_urls?: string[] }[] = (resp.valor_json as any)?.items ?? [];
+      if (items.length === 0) return null;
+      return (
+        <div style={{ display: "flex", flexDirection: "column", gap: 16, marginTop: 8 }}>
+          {items.map((it, i) => (
+            <div key={i} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: "var(--fg-1)" }}>{it.item}</div>
+              <EstadoSegmento valor={it.result} />
+              {(it.foto_urls ?? []).length > 0 && (
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  {(it.foto_urls ?? []).map((u, k) => (
+                    <button
+                      key={k}
+                      type="button"
+                      onClick={() => onPhotoClick?.(u)}
+                      style={{ padding: 0, border: "none", background: "none", cursor: onPhotoClick ? "zoom-in" : "default", lineHeight: 0 }}
+                    >
+                      <img
+                        src={u}
+                        alt=""
+                        loading="lazy"
+                        decoding="async"
+                        style={{ width: 96, height: 96, objectFit: "cover", borderRadius: "var(--r-sm)", border: "1px solid var(--border)", display: "block" }}
+                      />
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      );
     }
     case "imagen":
       if (!resp.foto_url) return null;
@@ -3954,7 +4173,37 @@ function ReadonlyAnswer({ paso, resp, onPhotoClick }: { paso: ProcedimientoPaso;
     case "firma": {
       const src = signatureImageSrc(resp.firma_svg);
       return src
-        ? <img src={src} alt="firma" loading="lazy" decoding="async" style={{ marginTop: 6, maxWidth: "100%", height: 80, objectFit: "contain", border: "1px solid var(--border)", borderRadius: "var(--r-sm)", background: "#fff" }} />
+        ? (
+          // La firma se captura con trazo fino sobre lienzo blanco: a tamaño
+          // pequeño casi no se ve. Se renderiza grande y con contraste para
+          // que el trazo sea legible al revisar o auditar la OT.
+          <button
+            type="button"
+            onClick={() => onPhotoClick?.(src)}
+            title="Ver firma en grande"
+            style={{
+              display: "block", marginTop: 6, padding: 10, width: "100%", maxWidth: 560,
+              boxSizing: "border-box", textAlign: "left",
+              border: "1px solid var(--border)", borderRadius: "var(--r-sm)",
+              background: "#fff",
+              cursor: onPhotoClick ? "zoom-in" : "default",
+            }}
+          >
+            <img
+              src={src}
+              alt="firma"
+              loading="lazy"
+              decoding="async"
+              style={{
+                width: "100%", height: 200, display: "block",
+                // Alineada a la izquierda: centrada quedaba flotando en medio
+                // de una caja ancha y se leía como un error de maquetación.
+                objectFit: "contain", objectPosition: "left center",
+                filter: "contrast(1.6) saturate(0)",
+              }}
+            />
+          </button>
+        )
         : <div style={{ fontSize: 12.5, color: "var(--success)", marginTop: 4 }}>✓ Firmado</div>;
     }
     case "medidor":
@@ -4822,7 +5071,7 @@ function ProcEjecucionModal({
                       {(() => {
                         const isInfoOnly = paso.tipo === "instruccion" || paso.tipo === "advertencia" || paso.tipo === "seccion";
                         const editing = !!editingPasos[paso.id];
-                        if (false && isCompleted && saved && !editing) {
+                        if (isCompleted && saved && !editing) {
                           return (
                             <div style={{ paddingLeft: 36, display: "flex", alignItems: "flex-start", gap: 10 }}>
                               <div style={{ flex: 1, minWidth: 0 }}>

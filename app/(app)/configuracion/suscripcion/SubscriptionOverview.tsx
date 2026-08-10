@@ -10,6 +10,9 @@ interface BillingProfile {
   billing_email: string | null;
   razon_social: string | null;
   rut: string | null;
+  domicilio: string | null;
+  region: string | null;
+  comuna: string | null;
 }
 
 interface Props {
@@ -41,7 +44,28 @@ interface Props {
 
 const emptyProfile: BillingProfile = {
   billing_email: null, razon_social: null, rut: null,
+  domicilio: null, region: null, comuna: null,
 };
+
+// Regiones oficiales de Chile, con los nombres que usa el selector del SII.
+const REGIONES = [
+  "Arica y Parinacota",
+  "Tarapacá",
+  "Antofagasta",
+  "Atacama",
+  "Coquimbo",
+  "Valparaíso",
+  "Metropolitana de Santiago",
+  "Libertador General Bernardo O'Higgins",
+  "Maule",
+  "Ñuble",
+  "Biobío",
+  "La Araucanía",
+  "Los Ríos",
+  "Los Lagos",
+  "Aysén del General Carlos Ibáñez del Campo",
+  "Magallanes y de la Antártica Chilena",
+];
 
 const money = (value: number) => new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format(value);
 // timeZone UTC: los períodos se guardan a medianoche UTC y son días calendario,
@@ -84,10 +108,10 @@ export function SubscriptionOverview(props: Props) {
         if (!draft.billing_email || !/^\S+@\S+\.\S+$/.test(draft.billing_email)) throw new Error("Ingresa un email válido.");
         if (draft.billing_email !== confirmEmail) throw new Error("Los emails no coinciden.");
       }
-      // Una BHE solo identifica al receptor por RUT y nombre. Giro, dirección,
-      // comuna, ciudad y región son campos de factura y no se piden.
-      if (kind === "address" && (!draft.razon_social || !draft.rut)) {
-        throw new Error("Completa nombre o razón social y RUT.");
+      // El formulario de emisión de BHE del SII exige RUT, nombre, domicilio,
+      // región y comuna del destinatario.
+      if (kind === "address" && (!draft.razon_social || !draft.rut || !draft.domicilio || !draft.region || !draft.comuna)) {
+        throw new Error("Completa nombre o razón social, RUT, domicilio, región y comuna.");
       }
       const response = await fetch("/api/suscripcion/billing-profile", {
         method: "PUT",
@@ -115,7 +139,7 @@ export function SubscriptionOverview(props: Props) {
   useEffect(() => {
     if (!hasCard) setConfirmRemove(false);
   }, [hasCard]);
-  const profileComplete = Boolean(profile.razon_social && profile.rut);
+  const profileComplete = Boolean(profile.razon_social && profile.rut && profile.domicilio && profile.region && profile.comuna);
   // Para contratar hace falta además el correo al que enviaremos la boleta.
   // Mientras carga no damos por bueno el perfil: habilitar los planes y luego
   // apagarlos deja elegir un plan en la ventana intermedia.
@@ -170,6 +194,8 @@ export function SubscriptionOverview(props: Props) {
                 <div style={{ display: "grid", gap: 4, minWidth: 0 }}>
                   <strong style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{profile.razon_social}</strong>
                   <span>{profile.rut}</span>
+                  <span style={subtext}>{profile.domicilio}</span>
+                  <span style={subtext}>{profile.comuna}, {profile.region}</span>
                 </div>
               </div>
             ) : (
@@ -264,10 +290,24 @@ export function SubscriptionOverview(props: Props) {
           <div style={{ padding: 18, display: "grid", gap: 14 }}>
             <p style={{ margin: "0 0 2px", color: "var(--fg-3)", fontSize: 13, lineHeight: 1.45 }}>
               Usamos estos datos como receptor en la boleta de honorarios electrónica que
-              emitimos ante el SII. Es todo lo que necesitamos.
+              emitimos ante el SII. El SII exige RUT, nombre, domicilio, región y comuna
+              del destinatario.
             </p>
             <Field label="Nombre o razón social" value={draft.razon_social} onChange={value => setDraft({ ...draft, razon_social: value })} wide />
             <Field label="RUT" value={draft.rut} onChange={value => setDraft({ ...draft, rut: value })} placeholder="76.123.456-7" wide />
+            <Field label="Domicilio" value={draft.domicilio} onChange={value => setDraft({ ...draft, domicilio: value })} placeholder="Calle, número, oficina" wide />
+            <label style={{ display: "grid", gap: 6, gridColumn: "1 / -1", color: "var(--fg-2)", fontSize: 12.5, fontWeight: 600 }}>
+              Región
+              <select
+                value={draft.region ?? ""}
+                onChange={event => setDraft({ ...draft, region: event.target.value || null })}
+                style={inputStyle}
+              >
+                <option value="">Seleccione región…</option>
+                {REGIONES.map(region => <option key={region} value={region}>{region}</option>)}
+              </select>
+            </label>
+            <Field label="Comuna" value={draft.comuna} onChange={value => setDraft({ ...draft, comuna: value })} placeholder="Ej. Coronel" wide />
           </div>
           <ModalFooter error={error} saving={saving} onCancel={() => setEditingAddress(false)} onSave={() => void save("address")} />
         </ModalShell>

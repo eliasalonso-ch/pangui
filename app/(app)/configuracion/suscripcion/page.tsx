@@ -82,6 +82,18 @@ function SuscripcionPageInner() {
 
   useEffect(() => { reload(); }, [reload]);
 
+  // Mientras la suscripción espera el pago del link, la página quedaba pegada
+  // en "Esperando el pago" hasta un refresh manual. Sondea el estado cada 30 s
+  // (sin spinner) y se actualiza sola cuando el webhook confirma el pago.
+  useEffect(() => {
+    if (data?.subscription?.status !== "past_due") return;
+    const id = setInterval(async () => {
+      const res = await fetch("/api/suscripcion/status", { cache: "no-store" });
+      if (res.ok) setData(await res.json());
+    }, 30_000);
+    return () => clearInterval(id);
+  }, [data?.subscription?.status]);
+
   useEffect(() => {
     const status = search.get("status");
     if (!status) return;

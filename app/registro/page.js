@@ -294,7 +294,7 @@ function RegistroPageInner() {
             paddingLeft: 10,
             marginBottom: 28,
           }}>
-            Pro gratis por 14 días
+            Pro gratis por 30 días
           </span>
           <h1 style={{
             fontSize: "clamp(1.9rem, 2.8vw, 2.8rem)",
@@ -383,7 +383,7 @@ function RegistroPageInner() {
               </h2>
               <p style={{ color: "#475569", fontSize: 14, margin: 0, lineHeight: 1.55 }}>
                 {step === 1
-                  ? "14 días de Pro gratis. Sin tarjeta de crédito."
+                  ? "30 días de Pro gratis. Sin tarjeta de crédito."
                   : "Esto nos ayuda a configurar tu workspace."}
               </p>
             </div>
@@ -398,7 +398,7 @@ function RegistroPageInner() {
               }}>
                 <Sparkles size={14} style={{ marginTop: 2, flexShrink: 0 }} />
                 <div>
-                  Vienes interesado en <strong>{requestedPlanDef.name}</strong>. Crea tu cuenta con 14 días de Pro gratis y al terminar lo activas en un clic.
+                  Vienes interesado en <strong>{requestedPlanDef.name}</strong>. Crea tu cuenta con 30 días de Pro gratis y al terminar lo activas en un clic.
                 </div>
               </div>
             )}

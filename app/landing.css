@@ -32,6 +32,19 @@
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo,
     Consolas, monospace;
 
+  /* ── Legal-page aliases ──
+     app/privacidad and app/terminos were written against these token names,
+     which are not defined anywhere in the app (they resolved to browser
+     defaults and picked up the dashboard's dark background). Pin them to the
+     light marketing palette so public pages stay light in any theme. */
+  --black: var(--ink);
+  --white: #FFFFFF;
+  --background: #F6F8FB;
+  --accent-1: var(--accent);
+  --accent-2: rgba(39, 61, 136, 0.08);
+  --accent-5: var(--ink-2);
+  --divider-1: var(--hairline);
+
   font-family: var(--font-body);
   font-feature-settings: "ss01", "cv11";
   color: var(--ink);
@@ -48,11 +61,20 @@
 }
 
 /* Tailwind preflight is disabled in tailwind.config.js, so browser defaults
-   leak through. Zero out the platform <button> background + border so our
-   utility classes win — fixes FAQ rows rendering as grey rectangles. */
-.landing-root button {
+   leak through. Recreate the two preflight rules the landing depends on,
+   wrapped in :where() so they have zero specificity and every Tailwind
+   utility still wins:
+   1. border-style defaults to `none`, so width-only utilities like
+      `border-b` never paint — default all elements to 0-width solid.
+   2. platform <button> styles (grey background, padding) — zero them out. */
+:where(.landing-root *, .landing-root *::before, .landing-root *::after) {
+  border-width: 0;
+  border-style: solid;
+  border-color: var(--hairline);
+}
+
+:where(.landing-root button) {
   background: transparent;
-  border: 0;
   padding: 0;
   font: inherit;
   color: inherit;
@@ -62,6 +84,18 @@
 /* Tailwind's text-balance ships in v3.3+; alias for safety */
 .landing-root .text-balance {
   text-wrap: balance;
+}
+
+/* ---------- Force the light canvas on public pages ----------
+   The dashboard theme lives on <html> (data-theme + an inline background-color
+   written by the pre-paint script in layout.js), which sits ABOVE .landing-root
+   and paints the overscroll/rubber-band area. Marketing and legal pages mount
+   <PublicPageTheme>, which adds .pangui-public to <html>; these rules override
+   the dark canvas — the inline style needs !important to lose. */
+html.pangui-public,
+html.pangui-public body {
+  background: #ffffff !important;
+  color-scheme: light !important;
 }
 
 /* ---------- Landing hero background ---------- */

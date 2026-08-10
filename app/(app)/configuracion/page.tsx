@@ -3,10 +3,10 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase";
-import { ROL_LABEL, esAdmin, esOwner } from "@/lib/roles";
+import { ROL_LABEL, esAdmin } from "@/lib/roles";
 import {
   LogOut, KeyRound, Bell, User, Loader2, Check, Eye, EyeOff, ChevronRight,
-  Pencil, Building2, Shield, MonitorSmartphone, X, ImagePlus, Trash2,
+  Pencil, MonitorSmartphone, X, ImagePlus, Trash2,
 } from "lucide-react";
 
 export type ConfiguracionSection = "perfil" | "workspace" | "notificaciones" | "apariencia";
@@ -31,16 +31,19 @@ const PLAN_LABEL: Record<string, string> = {
   empresa: "Empresa",
   trial:   "Trial",
 };
-const PLAN_COLOR: Record<string, { bg: string; text: string; border: string }> = {
-  basic:   { bg: "var(--surface-hover)", text: "var(--fg-2)", border: "var(--border-strong)" },
-  pro:     { bg: "var(--brand-tint)", text: "var(--brand-fg)", border: "var(--border-strong)" },
-  empresa: { bg: "var(--brand-tint)", text: "var(--brand-fg)", border: "var(--border-strong)" },
-  trial:   { bg: "var(--st-wait-bg)", text: "var(--st-wait-fg)", border: "var(--border-strong)" },
-};
 
+// Debe coincidir con app/registro/page.js: el registro guarda el slug
+// ("facilities"), no la etiqueta. Con dos listas distintas el select aparecía
+// vacío para workspaces existentes y al editar cualquier campo se pisaba el
+// slug con un texto que el resto del sistema no reconoce.
 const SECTORES = [
-  "Manufactura", "Minería", "Construcción", "Energía", "Retail",
-  "Salud", "Transporte", "Educación", "Agricultura", "Otro",
+  { value: "mineria",      label: "Minería" },
+  { value: "facilities",   label: "Facilities / Universidades / Hospitales" },
+  { value: "industria",    label: "Industria manufacturera" },
+  { value: "construccion", label: "Construcción" },
+  { value: "puertos",      label: "Puertos y logística" },
+  { value: "agro",         label: "Agricultura" },
+  { value: "otro",         label: "Otro" },
 ];
 
 const SECTION_TITLES: Record<ConfiguracionSection, string> = {
@@ -71,7 +74,6 @@ export default function ConfiguracionPage({ section }: { section?: Configuracion
   const [oficios, setOficios]   = useState<{ id: string; nombre: string }[]>([]);
   const [cargos, setCargos]     = useState<{ id: string; nombre: string }[]>([]);
   const [plan, setPlan]       = useState("");
-  const [planStatus, setPlanStatus] = useState("");
   const [workspaceId, setWorkspaceId] = useState("");
   const [memberSince, setMemberSince] = useState("");
   const [loadingProfile, setLoadingProfile] = useState(true);
@@ -108,10 +110,11 @@ export default function ConfiguracionPage({ section }: { section?: Configuracion
 
   // Workspace edit (admin/owner only)
   const [ws, setWs]               = useState({ nombre: "", sector: "", region: "" });
-  const [wsDraft, setWsDraft]     = useState({ nombre: "", sector: "", region: "" });
-  const [editingWs, setEditingWs] = useState(false);
-  const [savingWs, setSavingWs]   = useState(false);
-  const [wsSaved, setWsSaved]     = useState(false);
+  // Per-field editing (mirrors the Mi Cuenta cards): text fields open an
+  // inline input; the sector select saves on change.
+  const [wsEditField, setWsEditField]   = useState<"nombre" | "region" | null>(null);
+  const [wsFieldDraft, setWsFieldDraft] = useState("");
+  const [savingWsField, setSavingWsField] = useState<string | null>(null);
   const [loadingWs, setLoadingWs] = useState(false);
 
   useEffect(() => {
@@ -138,7 +141,6 @@ export default function ConfiguracionPage({ section }: { section?: Configuracion
       setOficioId(perfil?.oficio_id ?? null);
       setCargoId(perfil?.cargo_id ?? null);
       setPlan(perfil?.plan ?? "");
-      setPlanStatus(perfil?.plan_status ?? "");
       setWorkspaceId(perfil?.workspace_id ?? "");
       setMemberSince(
         perfil?.created_at
@@ -180,7 +182,6 @@ export default function ConfiguracionPage({ section }: { section?: Configuracion
       .then(({ data }) => {
         const d = { nombre: data?.nombre ?? "", sector: data?.sector ?? "", region: data?.region ?? "" };
         setWs(d);
-        setWsDraft(d);
         setLogoUrl((data as any)?.logo_url ?? null);
         setLoadingWs(false);
       });
@@ -302,19 +303,16 @@ export default function ConfiguracionPage({ section }: { section?: Configuracion
     }
   }
 
-  async function saveWorkspace() {
+  async function saveWsField(field: "nombre" | "sector" | "region", value: string) {
     if (!workspaceId) return;
-    setSavingWs(true);
+    setSavingWsField(field);
     const sb = createClient();
-    await sb.from("workspaces").update(wsDraft).eq("id", workspaceId);
-    setWs(wsDraft);
-    setSavingWs(false);
-    setWsSaved(true);
-    setEditingWs(false);
-    setTimeout(() => setWsSaved(false), 2500);
+    await sb.from("workspaces").update({ [field]: value }).eq("id", workspaceId);
+    setWs(w => ({ ...w, [field]: value }));
+    setSavingWsField(null);
+    setWsEditField(null);
   }
 
-  const planInfo = PLAN_COLOR[plan] ?? PLAN_COLOR.basic;
   const initials = nombre
     ? nombre.trim().split(/\s+/).map(p => p[0]).slice(0, 2).join("").toUpperCase()
     : null;
@@ -569,101 +567,64 @@ export default function ConfiguracionPage({ section }: { section?: Configuracion
               </div>
             ) : (
               <>
-                {/* Workspace info card */}
-                <div style={{ background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: 12, padding: 20, boxShadow: "0 1px 3px rgba(15,23,42,0.06)" }}>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-                    <p style={{ fontSize: 12, fontWeight: 700, color: "var(--fg-2)", margin: 0, textTransform: "uppercase", letterSpacing: "0.06em" }}>Información del workspace</p>
-                    {!editingWs && (
-                      <button type="button" onClick={() => { setWsDraft(ws); setEditingWs(true); }}
-                        style={{ display: "flex", alignItems: "center", gap: 5, height: 30, padding: "0 10px", border: "1px solid var(--border)", borderRadius: "var(--r-sm)", background: "var(--surface-1)", fontSize: 12, fontWeight: 600, color: "var(--fg-1)", cursor: "pointer", fontFamily: "inherit" }}>
-                        <Pencil size={12} /> Editar
-                      </button>
-                    )}
-                  </div>
-
-                  {editingWs ? (
-                    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                      <div>
-                        <label style={{ fontSize: 12, fontWeight: 600, color: "var(--fg-1)", display: "block", marginBottom: 5 }}>Nombre del workspace</label>
-                        <input
-                          value={wsDraft.nombre}
-                          onChange={e => setWsDraft(d => ({ ...d, nombre: e.target.value }))}
-                          placeholder="Ej. Planta Norte"
-                          style={inputStyle}
-                          onFocus={e => { e.currentTarget.style.borderColor = "var(--brand)"; e.currentTarget.style.boxShadow = "0 0 0 3px rgba(37,99,235,0.12)"; }}
-                          onBlur={e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.boxShadow = "none"; }}
-                        />
-                      </div>
-                      <div>
-                        <label style={{ fontSize: 12, fontWeight: 600, color: "var(--fg-1)", display: "block", marginBottom: 5 }}>Sector</label>
-                        <select value={wsDraft.sector} onChange={e => setWsDraft(d => ({ ...d, sector: e.target.value }))} style={selectStyle}>
-                          <option value="">Sin especificar</option>
-                          {SECTORES.map(s => <option key={s} value={s}>{s}</option>)}
-                        </select>
-                      </div>
-                      <div>
-                        <label style={{ fontSize: 12, fontWeight: 600, color: "var(--fg-1)", display: "block", marginBottom: 5 }}>Región / Ciudad</label>
-                        <input
-                          value={wsDraft.region}
-                          onChange={e => setWsDraft(d => ({ ...d, region: e.target.value }))}
-                          placeholder="Ej. Región de Antofagasta"
-                          style={inputStyle}
-                          onFocus={e => { e.currentTarget.style.borderColor = "var(--brand)"; e.currentTarget.style.boxShadow = "0 0 0 3px rgba(37,99,235,0.12)"; }}
-                          onBlur={e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.boxShadow = "none"; }}
-                        />
-                      </div>
-                      <div style={{ display: "flex", gap: 8 }}>
-                        <button type="button" onClick={saveWorkspace} disabled={savingWs}
-                          style={{ flex: 1, height: 38, border: "none", borderRadius: "var(--r-md)", background: "var(--brand)", color: "var(--surface-1)", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}>
-                          {savingWs ? <Loader2 size={13} className="animate-spin" /> : "Guardar"}
-                        </button>
-                        <button type="button" onClick={() => { setEditingWs(false); setWsDraft(ws); }}
-                          style={{ flex: 1, height: 38, border: "1px solid var(--border)", borderRadius: "var(--r-md)", background: "var(--surface-1)", color: "var(--fg-1)", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
-                          Cancelar
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                      {wsSaved && (
-                        <div style={{ padding: "8px 12px", background: "var(--success-bg)", border: "1px solid var(--success)", borderRadius: "var(--r-md)", fontSize: 12, color: "var(--st-done-fg)", fontWeight: 600, display: "flex", alignItems: "center", gap: 6 }}>
-                          <Check size={13} /> Cambios guardados
+                {/* One card per setting, mirroring the Mi Cuenta tab. Text
+                    fields edit inline; the sector select saves on change. */}
+                {(["nombre", "region"] as const).map(field => {
+                  const meta = field === "nombre"
+                    ? { label: "Nombre del workspace", hint: "Cómo se identifica tu empresa en Pangui", placeholder: "Ej. Planta Norte" }
+                    : { label: "Región / Ciudad", hint: "Dónde opera tu equipo", placeholder: "Ej. Región de Antofagasta" };
+                  return (
+                    <SettingCard key={field} label={meta.label} hint={meta.hint} saving={savingWsField === field}>
+                      {wsEditField === field ? (
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <input
+                            autoFocus
+                            value={wsFieldDraft}
+                            placeholder={meta.placeholder}
+                            onChange={e => setWsFieldDraft(e.target.value)}
+                            onKeyDown={e => {
+                              if (e.key === "Enter") void saveWsField(field, wsFieldDraft.trim());
+                              if (e.key === "Escape") setWsEditField(null);
+                            }}
+                            style={{ ...inputStyle, width: 220 }}
+                          />
+                          <button type="button" onClick={() => void saveWsField(field, wsFieldDraft.trim())} disabled={savingWsField === field}
+                            style={{ width: 34, height: 34, border: "none", borderRadius: "var(--r-sm)", background: "var(--brand)", color: "var(--fg-on-brand)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                            {savingWsField === field ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+                          </button>
+                          <button type="button" onClick={() => setWsEditField(null)}
+                            style={{ width: 34, height: 34, border: "1px solid var(--border)", borderRadius: "var(--r-sm)", background: "var(--surface-1)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, color: "var(--fg-4)" }}>
+                            <X size={14} />
+                          </button>
+                        </div>
+                      ) : (
+                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                          <span style={{ fontSize: 13.5, color: "var(--fg-2)" }}>{ws[field] || "—"}</span>
+                          <button type="button" onClick={() => { setWsFieldDraft(ws[field]); setWsEditField(field); }}
+                            style={{ background: "none", border: "none", cursor: "pointer", color: "var(--fg-4)", display: "flex", padding: 4 }}>
+                            <Pencil size={14} />
+                          </button>
                         </div>
                       )}
-                      <InfoRow icon={<Building2 size={14} />} label="Nombre" value={ws.nombre || "—"} />
-                      <InfoRow icon={<Shield size={14} />} label="Sector" value={ws.sector || "—"} />
-                      <InfoRow label="Región" value={ws.region || "—"} />
-                    </div>
-                  )}
-                </div>
+                    </SettingCard>
+                  );
+                })}
 
-                {/* Requisitos de OTs link */}
-                <button
-                  type="button"
-                  onClick={() => router.push("/requisitos")}
-                  style={{
-                    display: "flex", alignItems: "center", gap: 14, width: "100%",
-                    padding: "16px 20px", textAlign: "left",
-                    background: "var(--surface-1)", border: "1px solid var(--border)",
-                    borderRadius: 12, boxShadow: "0 1px 3px rgba(15,23,42,0.06)",
-                    cursor: "pointer", fontFamily: "inherit",
-                  }}
-                >
-                  <span style={{
-                    width: 36, height: 36, borderRadius: 8, background: "var(--brand-tint)",
-                    color: "var(--brand-fg)", display: "inline-flex", alignItems: "center",
-                    justifyContent: "center", flexShrink: 0,
-                  }}>
-                    <Shield size={16} />
-                  </span>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: "var(--fg-1)" }}>Requisitos de OTs</p>
-                    <p style={{ margin: "2px 0 0", fontSize: 12, color: "var(--fg-4)" }}>
-                      Fotos, materiales, hoja de cálculo y permisos por defecto
-                    </p>
-                  </div>
-                  <ChevronRight size={16} style={{ color: "var(--fg-4)" }} />
-                </button>
+                <SettingCard label="Sector" hint="Rubro principal de tu operación" saving={savingWsField === "sector"}>
+                  <select
+                    value={ws.sector}
+                    onChange={e => void saveWsField("sector", e.target.value)}
+                    style={{ ...selectStyle, width: 200 }}
+                  >
+                    <option value="">Sin especificar</option>
+                    {SECTORES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+                    {/* Valor heredado que no está en el catálogo actual: sin
+                        esto el select se ve vacío y el primer cambio lo pisa. */}
+                    {ws.sector && !SECTORES.some(s => s.value === ws.sector) && (
+                      <option value={ws.sector}>{ws.sector}</option>
+                    )}
+                  </select>
+                </SettingCard>
 
                 {/* Logo card */}
                 <div style={{ background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: 12, padding: 20, boxShadow: "0 1px 3px rgba(15,23,42,0.06)" }}>
@@ -724,29 +685,6 @@ export default function ConfiguracionPage({ section }: { section?: Configuracion
                   {logoError && <p style={{ fontSize: 12, color: "var(--danger)", margin: "10px 0 0" }}>{logoError}</p>}
                 </div>
 
-                {/* Plan card — solo owner (responsable de facturación) */}
-                {esOwner(myRol) && (
-                <button
-                  type="button"
-                  onClick={() => router.push("/suscripcion")}
-                  style={{
-                    background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: 12, padding: 20,
-                    boxShadow: "0 1px 3px rgba(15,23,42,0.06)", cursor: "pointer", fontFamily: "inherit",
-                    width: "100%", textAlign: "left",
-                  }}
-                >
-                  <p style={{ fontSize: 12, fontWeight: 700, color: "var(--fg-2)", margin: "0 0 14px", textTransform: "uppercase", letterSpacing: "0.06em" }}>Suscripción</p>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                    <div>
-                      <p style={{ fontSize: 16, fontWeight: 700, color: "var(--fg-1)", margin: 0 }}>{PLAN_LABEL[plan] ?? "Sin plan"}</p>
-                      <p style={{ fontSize: 12, color: "var(--fg-2)", margin: "3px 0 0" }}>
-                        {planStatus === "active" ? "Activo" : planStatus === "trial" ? "En prueba" : planStatus === "cancelled" ? "Cancelado" : "Gestionar plan y facturación"}
-                      </p>
-                    </div>
-                    <ChevronRight size={16} style={{ color: "var(--fg-4)" }} />
-                  </div>
-                </button>
-                )}
               </>
             )}
           </div>
@@ -799,16 +737,6 @@ function SettingCard({
         {saving && <Loader2 size={14} className="animate-spin" style={{ color: "var(--fg-4)" }} />}
         {children}
       </div>
-    </div>
-  );
-}
-
-function InfoRow({ icon, label, value }: { icon?: React.ReactNode; label: string; value: string }) {
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-      {icon && <span style={{ color: "var(--fg-4)", flexShrink: 0 }}>{icon}</span>}
-      <span style={{ fontSize: 12, color: "var(--fg-4)", minWidth: 70 }}>{label}</span>
-      <span style={{ fontSize: 13, color: "var(--fg-1)", fontWeight: 500 }}>{value}</span>
     </div>
   );
 }

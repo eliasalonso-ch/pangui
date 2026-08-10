@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminSupabase, requireAdminOfWorkspace } from "../_helpers";
 
-// Una BHE identifica al receptor por RUT y nombre; no lleva giro ni dirección
-// (eso es formato de factura / boleta en papel). Ver la migración
-// 20260728180754_billing_profiles.sql.
-const FIELDS = "billing_email, razon_social, rut";
+// El formulario de emisión de BHE del SII pide RUT, nombre, domicilio, región
+// y comuna del destinatario (los tres últimos obligatorios en la página de
+// emisión). Ver migraciones 20260728180754 y 20260810120000.
+const FIELDS = "billing_email, razon_social, rut, domicilio, region, comuna";
 const SCHEMA_MISMATCH_CODES = new Set(["42P01", "42703", "PGRST204", "PGRST205"]);
 
 function emptyProfile(email: string) {
@@ -47,6 +47,9 @@ export async function PUT(request: NextRequest) {
       billing_email: value("billing_email", true),
       razon_social: value("razon_social"),
       rut: value("rut"),
+      domicilio: value("domicilio"),
+      region: value("region"),
+      comuna: value("comuna"),
       updated_at: new Date().toISOString(),
     };
     const { data, error } = await adminSupabase()

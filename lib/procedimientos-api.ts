@@ -32,13 +32,15 @@ const PASOS_FK = "procedimiento_pasos!procedimiento_pasos_procedimiento_id_fkey"
 
 const PROCEDIMIENTO_SELECT = `
   id, workspace_id, nombre, descripcion, categoria, activo,
-  bloquea_cierre_ot, auto_adjuntar, created_by, created_at, updated_at,
+  bloquea_cierre_ot, auto_adjuntar, bloquea_inicio, notificar_al_completar,
+  created_by, created_at, updated_at,
   version, iso_categoria, hereda_a_hijos,
   pasos:${PASOS_FK}(${PASO_SELECT})
 `;
 
 const LIST_SELECT = `
-  id, nombre, descripcion, categoria, activo, bloquea_cierre_ot, auto_adjuntar, created_at,
+  id, nombre, descripcion, categoria, activo, bloquea_cierre_ot, auto_adjuntar,
+  bloquea_inicio, notificar_al_completar, created_at,
   version, iso_categoria, hereda_a_hijos,
   pasos_count:${PASOS_FK}(count)
 `;
@@ -132,6 +134,8 @@ export async function createProcedimiento(
       iso_categoria: form.iso_categoria?.trim() || null,
       bloquea_cierre_ot: form.bloquea_cierre_ot,
       auto_adjuntar: form.auto_adjuntar,
+      bloquea_inicio: form.bloquea_inicio,
+      notificar_al_completar: form.notificar_al_completar,
       hereda_a_hijos: form.hereda_a_hijos ?? false,
       created_by: userId,
     })
@@ -157,6 +161,8 @@ export async function updateProcedimiento(
       iso_categoria: form.iso_categoria?.trim() || null,
       bloquea_cierre_ot: form.bloquea_cierre_ot,
       auto_adjuntar: form.auto_adjuntar,
+      bloquea_inicio: form.bloquea_inicio,
+      notificar_al_completar: form.notificar_al_completar,
       hereda_a_hijos: form.hereda_a_hijos ?? false,
       updated_at: new Date().toISOString(),
     })
@@ -286,6 +292,24 @@ async function upsertPasos(procedimientoId: string, pasos: PasoFormItem[]) {
       .eq("id", u.id);
     if (upErr) throw new Error(upErr.message);
   }
+}
+
+/**
+ * Toggle one behavior flag without touching the pasos. La pantalla de detalle
+ * guarda al instante (como la hoja de Ajustes en móvil), así que reutilizar
+ * updateProcedimiento —que reescribe todos los pasos— sería caro y arriesgado.
+ */
+export async function updateProcedimientoComportamiento(
+  id: string,
+  patch: Partial<Pick<Procedimiento,
+    "bloquea_cierre_ot" | "auto_adjuntar" | "bloquea_inicio" | "notificar_al_completar">>,
+): Promise<void> {
+  const sb = createClient();
+  const { error } = await sb
+    .from("procedimientos")
+    .update({ ...patch, updated_at: new Date().toISOString() })
+    .eq("id", id);
+  if (error) throw new Error(error.message);
 }
 
 export async function archiveProcedimiento(id: string): Promise<void> {

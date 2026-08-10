@@ -7,7 +7,7 @@ import {
   ArrowLeft, Plus, Trash2, Loader2, Save,
   Info, AlertTriangle, Type, Hash, DollarSign,
   CheckSquare, List, ListChecks, ClipboardCheck,
-  Camera, PenLine, ChevronDown, ChevronUp, X,
+  Camera, PenLine, ChevronDown, ChevronUp, X, GripVertical,
 } from "lucide-react";
 import {
   createProcedimiento, updateProcedimiento, getProcedimiento,
@@ -41,32 +41,21 @@ const TIPO_META: Record<TipoPasoProc, { label: string; icon: React.ReactNode; co
   puntuacion:        { label: "Puntuación",            icon: <CheckSquare size={14} />,   color: "#14B8A6", desc: "Puntaje calculado" },
 };
 
+// Espeja GALLERY en la app móvil (features/procedimientos/paso-tipos.ts).
+// escaneo, falla_iso14224 y puntuacion existen en el tipo pero no se ofrecen:
+// el técnico nunca los ve en el teléfono, así que crearlos desde la web dejaba
+// pasos que la app no sabe renderizar. sub_procedimiento también queda fuera,
+// igual que en móvil.
 const TIPO_GROUPS: { label: string; tipos: TipoPasoProc[] }[] = [
-  { label: "Organización",         tipos: ["seccion", "instruccion", "advertencia"] },
-  { label: "Campos de entrada",    tipos: ["texto", "numero", "monto", "medidor"] },
-  { label: "Fecha y hora",         tipos: ["fecha", "hora", "fecha_hora"] },
-  { label: "Selección",            tipos: ["si_no_na", "opcion_multiple"] },
-  { label: "Verificación",         tipos: ["lista_verificacion", "inspeccion"] },
-  { label: "Multimedia",           tipos: ["imagen", "archivo", "firma"] },
-  { label: "Avanzados (ISO)",      tipos: ["escaneo", "falla_iso14224", "sub_procedimiento", "puntuacion"] },
+  { label: "Texto y números", tipos: ["instruccion", "texto", "numero", "monto", "medidor"] },
+  { label: "Fechas",          tipos: ["fecha", "hora", "fecha_hora"] },
+  { label: "Selección",       tipos: ["si_no_na", "opcion_multiple", "lista_verificacion", "inspeccion"] },
+  { label: "Multimedia",      tipos: ["imagen", "archivo", "firma"] },
+  { label: "Organización",    tipos: ["seccion", "advertencia"] },
 ];
 
 const MONEDAS = ["CLP", "USD", "EUR", "UF"];
 const UNIDADES_MEDIDOR = ["hr", "km", "mi", "rpm", "psi", "bar", "kPa", "°C", "°F", "litros", "galones", "kWh", "ciclos", "unidades"];
-const OPERADORES_CONDICION = [
-  { value: "eq",       label: "es igual a" },
-  { value: "ne",       label: "no es igual a" },
-  { value: "in",       label: "está en" },
-  { value: "gt",       label: "es mayor que" },
-  { value: "lt",       label: "es menor que" },
-  { value: "gte",      label: "es mayor o igual que" },
-  { value: "lte",      label: "es menor o igual que" },
-  { value: "contains", label: "contiene" },
-] as const;
-
-// Which step types can scoring weight be applied to? Mirrors MaintainX: only
-// answer-bearing fields, not info blocks or organizers.
-const TIPOS_SCORABLES: TipoPasoProc[] = ["si_no_na", "opcion_multiple", "lista_verificacion", "inspeccion"];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -110,24 +99,122 @@ function emptyForm(): ProcedimientoForm {
     iso_categoria: "",
     bloquea_cierre_ot: false,
     auto_adjuntar: false,
+    bloquea_inicio: false,
+    notificar_al_completar: false,
     hereda_a_hijos: false,
     puntaje_minimo: null,
     pasos: [],
   };
 }
 
+// Comportamiento del procedimiento. Mismos textos que la hoja de Ajustes en
+// móvil (app/(tabs)/procedimientos/ajustes.tsx) para que ambas plataformas
+// describan las reglas igual.
+const COMPORTAMIENTO_ROWS: {
+  key: "bloquea_inicio" | "bloquea_cierre_ot" | "auto_adjuntar" | "notificar_al_completar" | "hereda_a_hijos";
+  label: string;
+  hint: string;
+}[] = [
+  {
+    key: "bloquea_inicio",
+    label: "Obligatorio antes de iniciar",
+    hint: "Debe completarse antes de poder iniciar la OT. Se adjunta a cada OT nueva.",
+  },
+  {
+    key: "bloquea_cierre_ot",
+    label: "Obligatorio para cerrar OT",
+    hint: "La OT no puede completarse hasta ejecutar este procedimiento.",
+  },
+  {
+    key: "auto_adjuntar",
+    label: "Auto-adjuntar a nuevas OTs",
+    hint: "Se adjunta automáticamente a cada OT nueva del espacio de trabajo.",
+  },
+  {
+    key: "notificar_al_completar",
+    label: "Avisar al completar",
+    hint: "Notifica a los usuarios configurados en Reglas de Alerta.",
+  },
+  {
+    key: "hereda_a_hijos",
+    label: "Heredar a sub-OTs",
+    hint: "Sub-OTs creadas debajo de una OT con este procedimiento lo reciben automáticamente.",
+  },
+];
+
+/** Una tarjeta por ajuste — misma forma que SettingCard en Configuración. */
+function ProcSettingCard({
+  label, hint, children, align = "center",
+}: {
+  label: string;
+  hint?: string;
+  children: React.ReactNode;
+  align?: "center" | "start";
+}) {
+  return (
+    <div style={{
+      display: "flex", alignItems: align === "start" ? "flex-start" : "center",
+      justifyContent: "space-between", gap: 20,
+      background: "var(--surface-1)", border: "1px solid var(--border)",
+      borderRadius: 12, padding: "20px 24px",
+      boxShadow: "0 1px 3px rgba(15,23,42,0.06)",
+    }}>
+      <div style={{ minWidth: 0 }}>
+        <p style={{ fontSize: 15, fontWeight: 600, color: "var(--fg-1)", margin: 0 }}>{label}</p>
+        {hint && <p style={{ fontSize: 13, color: "var(--fg-3)", margin: "4px 0 0", lineHeight: 1.45 }}>{hint}</p>}
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+/** Switch estilo iOS, igual que el panel de detalle. */
+function ProcSwitch({
+  checked, onChange, label,
+}: {
+  checked: boolean;
+  onChange: (value: boolean) => void;
+  label: string;
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label={label}
+      onClick={() => onChange(!checked)}
+      style={{
+        width: 42, height: 25, flexShrink: 0, padding: 2,
+        borderRadius: 999, border: "none",
+        background: checked ? "var(--brand)" : "var(--border-strong)",
+        cursor: "pointer", transition: "background 0.18s",
+        display: "flex", alignItems: "center",
+      }}
+    >
+      <span style={{
+        width: 21, height: 21, borderRadius: "50%", background: "var(--surface-1)",
+        transform: checked ? "translateX(17px)" : "translateX(0)",
+        transition: "transform 0.18s",
+        boxShadow: "0 1px 3px rgba(0,0,0,0.25)",
+      }} />
+    </button>
+  );
+}
+
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const lbl: React.CSSProperties = {
   fontSize: 11, fontWeight: 700, textTransform: "uppercase",
-  letterSpacing: "0.06em", color: "#64748B", marginBottom: 5, display: "block",
+  letterSpacing: "0.06em", color: "var(--fg-3)", marginBottom: 5, display: "block",
 };
 function inp(focus = false): React.CSSProperties {
   return {
     width: "100%", height: 36, padding: "0 10px",
-    border: `1px solid ${focus ? "#2563EB" : "#E2E8F0"}`,
-    borderRadius: 6, fontSize: 13, fontFamily: "inherit", color: "#0F172A",
-    background: "#fff", outline: "none", boxSizing: "border-box",
+    border: `1px solid ${focus ? "var(--brand)" : "var(--border)"}`,
+    borderRadius: 6, fontSize: 13, fontFamily: "inherit", color: "var(--fg-1)",
+    background: "var(--surface-1)", outline: "none", boxSizing: "border-box",
     boxShadow: focus ? "0 0 0 3px rgba(37,99,235,0.10)" : "none",
   };
 }
@@ -165,17 +252,30 @@ function FocusTextarea({ style, ...props }: React.TextareaHTMLAttributes<HTMLTex
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-interface Props { editId?: string }
+interface Props {
+  editId?: string;
+  /** Vienen del diálogo de "nuevo procedimiento" (app/procedimientos/nueva). */
+  initialNombre?: string;
+  initialDescripcion?: string;
+}
 
-export default function ProcedimientoBuilder({ editId }: Props) {
+type BuilderTab = "campos" | "configuracion";
+
+export default function ProcedimientoBuilder({ editId, initialNombre, initialDescripcion }: Props) {
   const router = useRouter();
   const [wsId, setWsId] = useState<string | null>(null);
   const [myId, setMyId] = useState<string | null>(null);
-  const [form, setForm] = useState<ProcedimientoForm>(emptyForm());
+  const [form, setForm] = useState<ProcedimientoForm>(() => ({
+    ...emptyForm(),
+    nombre: initialNombre ?? "",
+    descripcion: initialDescripcion ?? "",
+  }));
+  const [tab, setTab] = useState<BuilderTab>("campos");
   const [saving, setSaving] = useState(false);
   const [loadingEdit, setLoadingEdit] = useState(!!editId);
   const [expandedPaso, setExpandedPaso] = useState<string | null>(null);
-  const [pickerOpen, setPickerOpen] = useState(false);
+  const [dragTempId, setDragTempId] = useState<string | null>(null);
+  const [dragOverTempId, setDragOverTempId] = useState<string | null>(null);
 
   useEffect(() => {
     async function load() {
@@ -200,6 +300,8 @@ export default function ProcedimientoBuilder({ editId }: Props) {
           iso_categoria: proc.iso_categoria ?? "",
           bloquea_cierre_ot: proc.bloquea_cierre_ot,
           auto_adjuntar: proc.auto_adjuntar,
+          bloquea_inicio: proc.bloquea_inicio ?? false,
+          notificar_al_completar: proc.notificar_al_completar ?? false,
           hereda_a_hijos: proc.hereda_a_hijos ?? false,
           puntaje_minimo: proc.puntaje_minimo ?? null,
           pasos: (proc.pasos ?? []).map(p => ({
@@ -248,7 +350,21 @@ export default function ProcedimientoBuilder({ editId }: Props) {
     const np = emptyPaso(tipo);
     setForm(f => ({ ...f, pasos: [...f.pasos, np] }));
     setExpandedPaso(np.tempId);
-    setPickerOpen(false);
+  }
+
+  /** Mueve el campo arrastrado a la posición del campo sobre el que se soltó. */
+  function dropPaso(targetTempId: string) {
+    const from = form.pasos.findIndex(p => p.tempId === dragTempId);
+    const to = form.pasos.findIndex(p => p.tempId === targetTempId);
+    setDragTempId(null);
+    setDragOverTempId(null);
+    if (from < 0 || to < 0 || from === to) return;
+    setForm(f => {
+      const next = [...f.pasos];
+      const [moved] = next.splice(from, 1);
+      next.splice(to, 0, moved);
+      return { ...f, pasos: next };
+    });
   }
 
   function movePaso(from: number, dir: 1 | -1) {
@@ -261,7 +377,9 @@ export default function ProcedimientoBuilder({ editId }: Props) {
   }
 
   async function handleSave() {
-    if (!form.nombre.trim()) { alert("El nombre es requerido"); return; }
+    // El nombre vive en la pestaña Configuración: si falta, hay que llevar al
+    // usuario ahí o el error apunta a un campo que no está viendo.
+    if (!form.nombre.trim()) { setTab("configuracion"); alert("El nombre es requerido"); return; }
     if (form.pasos.some(p => !p.titulo.trim())) { alert("Todos los pasos deben tener título"); return; }
     if (!wsId || !myId) return;
     setSaving(true);
@@ -279,216 +397,233 @@ export default function ProcedimientoBuilder({ editId }: Props) {
   if (loadingEdit) {
     return (
       <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%" }}>
-        <Loader2 size={20} className="animate-spin" style={{ color: "#94A3B8" }} />
+        <Loader2 size={20} className="animate-spin" style={{ color: "var(--fg-4)" }} />
       </div>
     );
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "#F8FAFC" }}>
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "var(--surface-canvas)" }}>
 
-      {/* Header */}
-      <div style={{ padding: "16px 32px", borderBottom: "1px solid #E2E8F0", background: "#fff", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+      {/* Fila de título: back + nombre del procedimiento + acción principal. */}
+      <div style={{
+        padding: "12px 24px", background: "var(--surface-canvas)", flexShrink: 0,
+        display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16,
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
           <button
             onClick={() => router.push("/procedimientos")}
-            style={{ width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", borderRadius: 6, cursor: "pointer", color: "#64748B" }}
-            onMouseEnter={e => { e.currentTarget.style.background = "#F1F5F9"; }}
+            aria-label="Volver a la biblioteca"
+            style={{ width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", borderRadius: 6, cursor: "pointer", color: "var(--fg-3)", flexShrink: 0 }}
+            onMouseEnter={e => { e.currentTarget.style.background = "var(--surface-hover)"; }}
             onMouseLeave={e => { e.currentTarget.style.background = "none"; }}
           >
             <ArrowLeft size={16} />
           </button>
-          <h1 style={{ fontSize: 17, fontWeight: 700, color: "#0F172A", margin: 0 }}>
-            {editId ? "Editar procedimiento" : "Nuevo procedimiento"}
+          <h1 style={{
+            fontSize: 17, fontWeight: 700, color: "var(--fg-1)", margin: 0,
+            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+          }}>
+            {form.nombre || (editId ? "Editar procedimiento" : "Nuevo procedimiento")}
           </h1>
         </div>
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          style={{
-            display: "flex", alignItems: "center", gap: 6,
-            height: 36, padding: "0 16px",
-            background: saving ? "#CBD5E1" : "linear-gradient(135deg, #1E3A8A, #2563EB)",
-            border: "none", borderRadius: 8, cursor: saving ? "default" : "pointer",
-            fontSize: 13, fontWeight: 600, color: "#fff", fontFamily: "inherit",
-          }}
+
+        {/* En Campos la acción es avanzar a Configuración; guardar es el paso
+            final y vive en esa pestaña. */}
+        {tab === "campos" ? (
+          <button
+            onClick={() => setTab("configuracion")}
+            style={{
+              display: "flex", alignItems: "center", gap: 6, flexShrink: 0,
+              height: 36, padding: "0 18px",
+              background: "var(--brand)", border: "none", borderRadius: 8, cursor: "pointer",
+              fontSize: 13, fontWeight: 600, color: "var(--fg-on-brand)", fontFamily: "inherit",
+            }}
+          >
+            Continuar
+          </button>
+        ) : (
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            style={{
+              display: "flex", alignItems: "center", gap: 6, flexShrink: 0,
+              height: 36, padding: "0 16px",
+              background: saving ? "var(--border-strong)" : "var(--brand)",
+              border: "none", borderRadius: 8, cursor: saving ? "default" : "pointer",
+              fontSize: 13, fontWeight: 600, color: "var(--fg-on-brand)", fontFamily: "inherit",
+            }}
+          >
+            {saving ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
+            {saving ? "Guardando…" : editId ? "Guardar" : "Crear procedimiento"}
+          </button>
+        )}
+      </div>
+
+      {/* Segmented control — mismo componente visual que las vistas de Órdenes. */}
+      <div style={{ flexShrink: 0, padding: "0 24px 9px", borderBottom: "1px solid var(--border)", background: "var(--surface-canvas)" }}>
+        <nav
+          aria-label="Secciones del procedimiento"
+          style={{ display: "inline-flex", overflow: "hidden", border: "1px solid var(--divider)", borderRadius: 9, background: "var(--color-kumo-recessed)" }}
         >
-          {saving ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
-          {saving ? "Guardando…" : "Guardar"}
-        </button>
+          {([["campos", "Campos del procedimiento"], ["configuracion", "Configuración"]] as const).map(([key, label]) => {
+            const selected = tab === key;
+            return (
+              <button
+                key={key}
+                onClick={() => setTab(key)}
+                aria-current={selected ? "page" : undefined}
+                style={{
+                  minHeight: 34, padding: "0 11px", display: "inline-flex", alignItems: "center",
+                  background: selected ? "var(--surface-1)" : "transparent",
+                  border: selected ? "1px solid var(--border)" : "1px solid transparent",
+                  borderRadius: selected ? 7 : 0,
+                  boxShadow: selected ? "var(--shadow-sm)" : "none",
+                  color: selected ? "var(--fg-1)" : "var(--fg-3)",
+                  fontSize: 13, fontWeight: selected ? 600 : 500,
+                  cursor: "pointer", fontFamily: "inherit",
+                }}
+              >
+                {label}
+              </button>
+            );
+          })}
+        </nav>
       </div>
 
       {/* Body */}
       <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "24px 32px" }}>
-        <div style={{ maxWidth: 720, margin: "0 auto", display: "flex", flexDirection: "column", gap: 20 }}>
+        <div style={{ maxWidth: tab === "campos" ? 1040 : 720, margin: "0 auto", display: "flex", flexDirection: "column", gap: 16 }}>
 
-          {/* Metadata card */}
-          <div style={{ background: "#fff", borderRadius: 12, border: "1px solid #E2E8F0", padding: "20px 24px" }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: "#0F172A", marginBottom: 16 }}>Información básica</div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-              <div style={{ gridColumn: "span 2" }}>
-                <label style={lbl}>Nombre del procedimiento *</label>
-                <FocusInput
-                  type="text"
-                  value={form.nombre}
-                  onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))}
-                  placeholder="Ej: Revisión de tablero eléctrico"
-                  style={{ height: 38 }}
-                />
-              </div>
-              <div style={{ gridColumn: "span 2" }}>
-                <label style={lbl}>Descripción</label>
-                <FocusTextarea
-                  value={form.descripcion}
-                  onChange={e => setForm(f => ({ ...f, descripcion: e.target.value }))}
-                  placeholder="Describe el objetivo de este procedimiento…"
-                  style={{ minHeight: 72 }}
-                />
-              </div>
-              <div>
-                <label style={lbl}>Categoría</label>
-                <FocusInput
-                  type="text"
-                  value={form.categoria}
-                  onChange={e => setForm(f => ({ ...f, categoria: e.target.value }))}
-                  placeholder="Ej: Eléctrico, Mecánico…"
-                />
-              </div>
-              <div>
-                <label style={lbl}>Categoría ISO</label>
-                <select
-                  value={form.iso_categoria ?? ""}
-                  onChange={e => setForm(f => ({ ...f, iso_categoria: e.target.value || "" }))}
-                  style={{ ...inp(), appearance: "auto" }}
-                >
-                  <option value="">— sin clasificar —</option>
-                  <option value="inspeccion">Inspección</option>
-                  <option value="mantenimiento">Mantenimiento</option>
-                  <option value="seguridad">Seguridad</option>
-                  <option value="calibracion">Calibración</option>
-                  <option value="calidad">Calidad / 9001</option>
-                  <option value="otro">Otro</option>
-                </select>
-                <div style={{ fontSize: 11.5, color: "#94A3B8", marginTop: 3 }}>
-                  Usado para sugerencias ISO (no obligatorio).
-                </div>
-              </div>
-              <div>
-                <label style={lbl}>Puntaje mínimo</label>
-                <FocusInput
-                  type="number"
-                  min={0}
-                  value={form.puntaje_minimo == null ? "" : String(form.puntaje_minimo)}
-                  onChange={e => setForm(f => ({ ...f, puntaje_minimo: e.target.value === "" ? null : Number(e.target.value) }))}
-                  placeholder="Sin mínimo"
-                />
-                <div style={{ fontSize: 11.5, color: "#94A3B8", marginTop: 3 }}>
-                  Suma de pesos requerida para aprobar. Solo aplica con pasos puntuados.
-                </div>
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 10, justifyContent: "flex-end", minWidth: 0 }}>
-                <div>
-                  <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
-                    <input
-                      type="checkbox"
-                      checked={form.bloquea_cierre_ot}
-                      onChange={e => setForm(f => ({ ...f, bloquea_cierre_ot: e.target.checked }))}
-                      style={{ width: 14, height: 14, accentColor: "#2563EB", cursor: "pointer" }}
-                    />
-                    <span style={{ fontSize: 13, color: "#0F172A", fontWeight: 500 }}>Bloquea cierre de OT</span>
-                  </label>
-                  <div style={{ fontSize: 11.5, color: "#94A3B8", marginTop: 3, paddingLeft: 22 }}>
-                    La OT no puede completarse hasta ejecutar este procedimiento.
-                  </div>
-                </div>
-                <div>
-                  <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
-                    <input
-                      type="checkbox"
-                      checked={form.auto_adjuntar}
-                      onChange={e => setForm(f => ({ ...f, auto_adjuntar: e.target.checked }))}
-                      style={{ width: 14, height: 14, accentColor: "#8B5CF6", cursor: "pointer" }}
-                    />
-                    <span style={{ fontSize: 13, color: "#0F172A", fontWeight: 500 }}>Auto-adjuntar a nuevas OTs</span>
-                  </label>
-                  <div style={{ fontSize: 11.5, color: "#94A3B8", marginTop: 3, paddingLeft: 22 }}>
-                    Se adjunta automáticamente a cada OT nueva del workspace.
-                  </div>
-                </div>
-                <div>
-                  <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
-                    <input
-                      type="checkbox"
-                      checked={form.hereda_a_hijos ?? false}
-                      onChange={e => setForm(f => ({ ...f, hereda_a_hijos: e.target.checked }))}
-                      style={{ width: 14, height: 14, accentColor: "#10B981", cursor: "pointer" }}
-                    />
-                    <span style={{ fontSize: 13, color: "#0F172A", fontWeight: 500 }}>Heredar a sub-OTs</span>
-                  </label>
-                  <div style={{ fontSize: 11.5, color: "#94A3B8", marginTop: 3, paddingLeft: 22 }}>
-                    Sub-OTs creadas debajo de una OT con este procedimiento lo reciben automáticamente.
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
+          {/* Metadata card — pestaña Configuración */}
+          {tab === "configuracion" && (
+          <>
+            {/* Una tarjeta por ajuste, igual que Mi cuenta y Espacio de trabajo. */}
+            <ProcSettingCard label="Nombre del procedimiento" hint="Cómo aparece en la biblioteca y en la OT">
+              <FocusInput
+                type="text"
+                value={form.nombre}
+                onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))}
+                placeholder="Ej: Revisión de tablero eléctrico"
+                style={{ width: 260, height: 38 }}
+              />
+            </ProcSettingCard>
 
-          {/* Steps card */}
-          <div style={{ background: "#fff", borderRadius: 12, border: "1px solid #E2E8F0", padding: "20px 24px", minWidth: 0, overflow: "hidden" }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: form.pasos.length > 0 ? 14 : 0 }}>
-              <div style={{ fontSize: 13, fontWeight: 600, color: "#0F172A" }}>
-                Campos{" "}
-                <span style={{ fontSize: 12, color: "#94A3B8", fontWeight: 400 }}>
-                  ({form.pasos.length})
-                </span>
+            <ProcSettingCard label="Descripción" hint="Qué hay que hacer y con qué objetivo" align="start">
+              <FocusTextarea
+                value={form.descripcion}
+                onChange={e => setForm(f => ({ ...f, descripcion: e.target.value }))}
+                placeholder="Describe el objetivo de este procedimiento…"
+                style={{ width: 260, minHeight: 72 }}
+              />
+            </ProcSettingCard>
+
+            {/* Comportamiento — mismos textos que la hoja de Ajustes en móvil. */}
+            {COMPORTAMIENTO_ROWS.map(row => (
+              <ProcSettingCard key={row.key} label={row.label} hint={row.hint}>
+                <ProcSwitch
+                  checked={Boolean(form[row.key])}
+                  onChange={v => setForm(f => ({ ...f, [row.key]: v }))}
+                  label={row.label}
+                />
+              </ProcSettingCard>
+            ))}
+          </>
+          )}
+
+          {/* Campos — encabezado + tarjetas, con la paleta flotante a la
+              derecha (patrón MaintainX): agregar un campo no empuja el
+              contenido ni obliga a bajar hasta un botón al final. */}
+          {tab === "campos" && (
+          <div style={{ display: "flex", alignItems: "flex-start", gap: 20 }}>
+
+            <div style={{ flex: 1, minWidth: 0 }}>
+              {form.pasos.length === 0 ? (
+                <div style={{
+                  background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: 12,
+                  padding: "40px 24px", textAlign: "center", color: "var(--fg-4)", fontSize: 13.5,
+                }}>
+                  Agrega tu primer campo desde el panel de la derecha.
+                </div>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  {form.pasos.map((paso, idx) => (
+                    <PasoEditor
+                      key={paso.tempId}
+                      paso={paso}
+                      index={idx}
+                      total={form.pasos.length}
+                      expanded={expandedPaso === paso.tempId}
+                      onToggle={() => setExpandedPaso(expandedPaso === paso.tempId ? null : paso.tempId)}
+                      onChange={patch => updatePaso(paso.tempId, patch)}
+                      onRemove={() => removePaso(paso.tempId)}
+                      onMove={dir => movePaso(idx, dir)}
+                      onDragStart={() => setDragTempId(paso.tempId)}
+                      onDragOver={() => setDragOverTempId(paso.tempId)}
+                      onDrop={() => dropPaso(paso.tempId)}
+                      dragging={dragTempId === paso.tempId}
+                      dragOver={dragOverTempId === paso.tempId && dragTempId !== paso.tempId}
+                    />
+                  ))}
+                </div>
+              )}
+
+              <div style={{ marginTop: 14, fontSize: 12, color: "var(--fg-4)" }}>
+                Recuento de campos: {form.pasos.length}
               </div>
             </div>
 
-            {form.pasos.length === 0 && !pickerOpen && (
-              <div style={{ textAlign: "center", padding: "24px 0 4px", color: "#94A3B8", fontSize: 13 }}>
-                Agrega campos usando el botón de abajo
+            {/* Paleta */}
+            <div style={{
+              width: 190, flexShrink: 0, position: "sticky", top: 0,
+              background: "var(--surface-1)", border: "1px solid var(--border)",
+              borderRadius: 12, padding: "14px 12px",
+              boxShadow: "0 1px 3px rgba(15,23,42,0.06)",
+            }}>
+              <div style={{
+                fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em",
+                color: "var(--fg-4)", textAlign: "center", marginBottom: 12,
+              }}>
+                Campo nuevo
               </div>
-            )}
-
-            {form.pasos.length > 0 && (
-              <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 12 }}>
-                {form.pasos.map((paso, idx) => (
-                  <PasoEditor
-                    key={paso.tempId}
-                    paso={paso}
-                    index={idx}
-                    total={form.pasos.length}
-                    allPasos={form.pasos}
-                    expanded={expandedPaso === paso.tempId}
-                    onToggle={() => setExpandedPaso(expandedPaso === paso.tempId ? null : paso.tempId)}
-                    onChange={patch => updatePaso(paso.tempId, patch)}
-                    onRemove={() => removePaso(paso.tempId)}
-                    onMove={dir => movePaso(idx, dir)}
-                  />
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                {TIPO_GROUPS.map(group => (
+                  <div key={group.label}>
+                    <div style={{
+                      fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em",
+                      color: "var(--fg-4)", margin: "8px 0 4px", paddingLeft: 6,
+                    }}>
+                      {group.label}
+                    </div>
+                    {group.tipos.map(tipo => {
+                      const m = TIPO_META[tipo];
+                      return (
+                        <button
+                          key={tipo}
+                          onClick={() => addPaso(tipo)}
+                          title={m.desc}
+                          style={{
+                            display: "flex", alignItems: "center", gap: 8, width: "100%",
+                            padding: "7px 8px", border: "none", borderRadius: 8,
+                            background: "none", cursor: "pointer", textAlign: "left",
+                            fontFamily: "inherit", fontSize: 12.5, color: "var(--fg-1)",
+                          }}
+                          onMouseEnter={e => { e.currentTarget.style.background = "var(--surface-hover)"; }}
+                          onMouseLeave={e => { e.currentTarget.style.background = "none"; }}
+                        >
+                          <span style={{ color: m.color, display: "flex", flexShrink: 0 }}>{m.icon}</span>
+                          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            {m.label}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
                 ))}
               </div>
-            )}
-
-            {pickerOpen ? (
-              <TipoPicker onSelect={addPaso} onClose={() => setPickerOpen(false)} />
-            ) : (
-              <button
-                onClick={() => setPickerOpen(true)}
-                style={{
-                  display: "flex", alignItems: "center", gap: 6,
-                  width: "100%", height: 38, justifyContent: "center",
-                  border: "2px dashed #E2E8F0", borderRadius: 8, background: "none",
-                  cursor: "pointer", fontSize: 13, color: "#64748B", fontFamily: "inherit",
-                  transition: "all 0.15s",
-                }}
-                onMouseEnter={e => { e.currentTarget.style.borderColor = "#2563EB"; e.currentTarget.style.color = "#2563EB"; }}
-                onMouseLeave={e => { e.currentTarget.style.borderColor = "#E2E8F0"; e.currentTarget.style.color = "#64748B"; }}
-              >
-                <Plus size={14} />
-                Agregar campo
-              </button>
-            )}
+            </div>
           </div>
+          )}
 
         </div>
       </div>
@@ -498,117 +633,159 @@ export default function ProcedimientoBuilder({ editId }: Props) {
 
 // ─── Tipo Picker ──────────────────────────────────────────────────────────────
 
-function TipoPicker({ onSelect, onClose }: { onSelect: (t: TipoPasoProc) => void; onClose: () => void }) {
-  return (
-    <div style={{ border: "1px solid #E2E8F0", borderRadius: 10, background: "#F8FAFC", padding: "14px 16px" }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-        <span style={{ fontSize: 12.5, fontWeight: 600, color: "#475569" }}>Selecciona el tipo de campo</span>
-        <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: "#94A3B8", padding: 2, lineHeight: 0 }}>
-          <X size={14} />
-        </button>
+/**
+ * Cómo se verá el campo para el técnico. Se muestra en la tarjeta colapsada
+ * para que el autor entienda qué está armando sin abrir la configuración.
+ */
+function FieldPreview({ paso }: { paso: PasoFormItem }) {
+  const box: React.CSSProperties = {
+    border: "1px solid var(--border)", borderRadius: 8,
+    background: "var(--surface-0)", padding: "10px 12px",
+    fontSize: 13, color: "var(--fg-4)",
+  };
+
+  if (paso.tipo === "seccion" || paso.tipo === "instruccion" || paso.tipo === "advertencia") {
+    return (
+      <div style={{ fontSize: 12.5, color: "var(--fg-3)", lineHeight: 1.5 }}>
+        {paso.descripcion || (paso.tipo === "seccion" ? "Encabezado de sección" : "Texto informativo para el técnico")}
       </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-        {TIPO_GROUPS.map(group => (
-          <div key={group.label}>
-            <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#94A3B8", marginBottom: 6 }}>
-              {group.label}
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 5 }}>
-              {group.tipos.map(tipo => {
-                const m = TIPO_META[tipo];
-                return (
-                  <button
-                    key={tipo}
-                    onClick={() => onSelect(tipo)}
-                    style={{
-                      display: "flex", alignItems: "flex-start", gap: 8, padding: "8px 10px",
-                      border: `1px solid ${m.color}22`, borderRadius: 8,
-                      background: `${m.color}08`, cursor: "pointer",
-                      textAlign: "left", fontFamily: "inherit",
-                      transition: "background 0.12s",
-                      minWidth: 0, overflow: "hidden",
-                    }}
-                    onMouseEnter={e => { e.currentTarget.style.background = `${m.color}18`; }}
-                    onMouseLeave={e => { e.currentTarget.style.background = `${m.color}08`; }}
-                  >
-                    <span style={{ color: m.color, marginTop: 1, flexShrink: 0 }}>{m.icon}</span>
-                    <div style={{ minWidth: 0 }}>
-                      <div style={{ fontSize: 12.5, fontWeight: 600, color: "#0F172A", lineHeight: 1.2 }}>{m.label}</div>
-                      <div style={{ fontSize: 11, color: "#94A3B8", marginTop: 2, lineHeight: 1.3 }}>{m.desc}</div>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
+    );
+  }
+
+  if (paso.tipo === "si_no_na") {
+    return (
+      <div style={{ display: "flex", gap: 6 }}>
+        {["Sí", "No", "N/A"].map(o => (
+          <span key={o} style={{ ...box, padding: "6px 14px", fontSize: 12.5 }}>{o}</span>
+        ))}
+      </div>
+    );
+  }
+
+  if (paso.tipo === "opcion_multiple" || paso.tipo === "lista_verificacion" || paso.tipo === "inspeccion") {
+    const opts = (paso.opciones ?? []).filter(Boolean);
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+        {(opts.length ? opts : ["Opción 1", "Opción 2"]).slice(0, 4).map((o, i) => (
+          <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, color: "var(--fg-3)" }}>
+            <span style={{
+              width: 14, height: 14, flexShrink: 0,
+              border: "1px solid var(--border-strong)",
+              borderRadius: paso.tipo === "opcion_multiple" ? "50%" : 4,
+            }} />
+            {o}
           </div>
         ))}
       </div>
-    </div>
-  );
+    );
+  }
+
+  if (paso.tipo === "imagen" || paso.tipo === "archivo") {
+    return (
+      <div style={{ ...box, display: "flex", alignItems: "center", gap: 8 }}>
+        {paso.tipo === "imagen" ? <Camera size={14} /> : <Info size={14} />}
+        {paso.tipo === "imagen" ? "Se adjuntará una foto" : "Se adjuntará un archivo"}
+      </div>
+    );
+  }
+
+  if (paso.tipo === "firma") {
+    return <div style={{ ...box, height: 46, display: "flex", alignItems: "center" }}>Firma del cliente</div>;
+  }
+
+  if (paso.tipo === "texto") {
+    return <div style={{ ...box, minHeight: paso.multilinea ? 56 : 36 }}>El texto se ingresará aquí</div>;
+  }
+
+  const numericHint =
+    paso.tipo === "numero"  ? (paso.unidad ? `Valor en ${paso.unidad}` : "Valor numérico") :
+    paso.tipo === "monto"   ? `Monto en ${paso.moneda || "CLP"}` :
+    paso.tipo === "medidor" ? (paso.unidad ? `Lectura en ${paso.unidad}` : "Lectura del medidor") :
+    paso.tipo === "fecha"   ? "dd-mm-aaaa" :
+    paso.tipo === "hora"    ? "--:--" :
+    paso.tipo === "fecha_hora" ? "dd-mm-aaaa --:--" :
+    "Respuesta del técnico";
+
+  return <div style={box}>{numericHint}</div>;
 }
 
-// ─── Paso Editor ──────────────────────────────────────────────────────────────
-
 function PasoEditor({
-  paso, index, total, allPasos, expanded, onToggle, onChange, onRemove, onMove,
+  paso, index, total, expanded, onToggle, onChange, onRemove, onMove,
+  onDragStart, onDragOver, onDrop, dragging, dragOver,
 }: {
   paso: PasoFormItem;
   index: number;
   total: number;
-  allPasos: PasoFormItem[];
   expanded: boolean;
   onToggle: () => void;
   onChange: (patch: Partial<PasoFormItem>) => void;
   onRemove: () => void;
   onMove: (dir: 1 | -1) => void;
+  onDragStart: () => void;
+  onDragOver: () => void;
+  onDrop: () => void;
+  dragging: boolean;
+  dragOver: boolean;
 }) {
   const meta = TIPO_META[paso.tipo];
   const isInfoOnly = paso.tipo === "instruccion" || paso.tipo === "advertencia" || paso.tipo === "seccion";
-  const isScorable = TIPOS_SCORABLES.includes(paso.tipo);
-  // The "requiere_nota_si" / "requiere_foto_si" / "genera_correctiva" controls
-  // only make sense for answer-bearing types that have a "fail-like" state.
-  const supportsFailGuard = paso.tipo === "si_no_na" || paso.tipo === "inspeccion" || paso.tipo === "opcion_multiple";
-  // Steps that can be referenced as a condition source — anything with a
-  // distinct answer the user can match against.
-  const conditionSources = allPasos
-    .filter(p => p.tempId !== paso.tempId)
-    .filter(p => p.tipo !== "seccion" && p.tipo !== "instruccion" && p.tipo !== "advertencia" && p.tipo !== "puntuacion");
-
   return (
-    <div style={{
-      border: `1px solid ${expanded ? "#CBD5E1" : "#E2E8F0"}`,
-      borderRadius: 8, overflow: "hidden",
-      boxShadow: expanded ? "0 2px 8px rgba(15,23,42,0.06)" : "none",
-    }}>
-      {/* Header row */}
+    <div
+      onDragOver={e => { e.preventDefault(); onDragOver(); }}
+      onDrop={e => { e.preventDefault(); onDrop(); }}
+      style={{
+        border: `1px solid ${expanded ? "var(--brand)" : dragOver ? "var(--brand)" : "var(--border)"}`,
+        borderRadius: 10, overflow: "hidden",
+        opacity: dragging ? 0.45 : 1,
+        boxShadow: expanded ? "0 2px 8px rgba(15,23,42,0.08)" : "none",
+        transition: "border-color 0.12s, opacity 0.12s",
+      }}>
+      {/* Colapsado: vista previa de cómo verá el campo el técnico, con el
+          asa de arrastre a la izquierda. Al seleccionarlo aparece la
+          configuración (patrón MaintainX). */}
       <div
         onClick={onToggle}
         style={{
-          display: "flex", alignItems: "center", gap: 10, padding: "10px 12px",
-          background: expanded ? "#F8FAFC" : "#fff", cursor: "pointer",
-          userSelect: "none",
+          display: "flex", alignItems: "flex-start", gap: 10, padding: "14px 16px",
+          background: "var(--surface-1)", cursor: "pointer", userSelect: "none",
         }}
       >
-        <span style={{
-          width: 22, height: 22, borderRadius: 6, flexShrink: 0,
-          background: meta.color + "15", color: meta.color,
-          display: "flex", alignItems: "center", justifyContent: "center",
-        }}>
-          {meta.icon}
+        <span
+          draggable
+          onDragStart={e => { e.stopPropagation(); onDragStart(); }}
+          onClick={e => e.stopPropagation()}
+          title="Arrastra para reordenar"
+          style={{
+            flexShrink: 0, marginTop: 2, cursor: "grab", color: "var(--fg-4)",
+            display: "flex", alignItems: "center", lineHeight: 0, padding: "2px 1px",
+          }}
+        >
+          <GripVertical size={15} />
         </span>
-        <span style={{ fontSize: 12, color: "#94A3B8", fontWeight: 500, flexShrink: 0 }}>{index + 1}.</span>
-        <span style={{ flex: 1, minWidth: 0, fontSize: 13, color: paso.titulo ? "#0F172A" : "#94A3B8", fontWeight: paso.titulo ? 500 : 400, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-          {paso.titulo || "Sin título"}
-        </span>
-        <span style={{ fontSize: 11, color: meta.color, background: meta.color + "15", borderRadius: 4, padding: "2px 6px", flexShrink: 0, whiteSpace: "nowrap", maxWidth: 120, overflow: "hidden", textOverflow: "ellipsis" }}>
-          {meta.label}
-        </span>
-        {expanded ? <ChevronUp size={14} style={{ color: "#94A3B8", flexShrink: 0 }} /> : <ChevronDown size={14} style={{ color: "#94A3B8", flexShrink: 0 }} />}
+
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+            <span style={{
+              fontSize: 13.5, fontWeight: 500,
+              color: paso.titulo ? "var(--fg-1)" : "var(--fg-4)",
+              overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+            }}>
+              {paso.titulo || meta.label}
+            </span>
+            {paso.requerido && !isInfoOnly && (
+              <span style={{ fontSize: 11, color: "var(--danger)" }}>*</span>
+            )}
+            <span style={{ marginLeft: "auto", color: meta.color, display: "flex", flexShrink: 0 }}>
+              {meta.icon}
+            </span>
+          </div>
+          <FieldPreview paso={paso} />
+        </div>
       </div>
 
       {/* Expanded editor */}
       {expanded && (
-        <div style={{ padding: "14px 14px 16px", borderTop: "1px solid #E2E8F0", background: "#fff", minWidth: 0 }}>
+        <div style={{ padding: "14px 14px 16px", borderTop: "1px solid var(--border)", background: "var(--surface-1)", minWidth: 0 }}>
           <div style={{ display: "flex", flexDirection: "column", gap: 12, minWidth: 0 }}>
 
             {/* Title */}
@@ -637,10 +814,7 @@ function PasoEditor({
                   paso.tipo === "inspeccion" ? "Ej: Inspección visual" :
                   paso.tipo === "imagen" ? "Ej: Foto del equipo revisado" :
                   paso.tipo === "archivo" ? "Ej: Adjuntar reporte PDF" :
-                  paso.tipo === "escaneo" ? "Ej: Escanear código de activo" :
-                  paso.tipo === "falla_iso14224" ? "Ej: Registrar modo de falla" :
                   paso.tipo === "sub_procedimiento" ? "Ej: Inspección de compresor" :
-                  paso.tipo === "puntuacion" ? "Ej: Puntaje de auditoría" :
                   "Ej: Firma del supervisor"
                 }
               />
@@ -669,9 +843,9 @@ function PasoEditor({
                   type="checkbox"
                   checked={paso.multilinea}
                   onChange={e => onChange({ multilinea: e.target.checked })}
-                  style={{ width: 14, height: 14, accentColor: "#2563EB", cursor: "pointer" }}
+                  style={{ width: 14, height: 14, accentColor: "var(--brand)", cursor: "pointer" }}
                 />
-                <span style={{ fontSize: 12.5, color: "#475569" }}>Texto multilínea</span>
+                <span style={{ fontSize: 12.5, color: "var(--fg-2)" }}>Texto multilínea</span>
               </label>
             )}
 
@@ -703,9 +877,9 @@ function PasoEditor({
                       style={{
                         padding: "4px 12px", borderRadius: 6, fontSize: 12.5, fontWeight: 600,
                         cursor: "pointer", fontFamily: "inherit",
-                        border: paso.moneda === m ? "1px solid #2563EB" : "1px solid #E2E8F0",
-                        background: paso.moneda === m ? "#EFF6FF" : "#fff",
-                        color: paso.moneda === m ? "#2563EB" : "#475569",
+                        border: paso.moneda === m ? "1px solid var(--brand)" : "1px solid var(--border)",
+                        background: paso.moneda === m ? "#EFF6FF" : "var(--surface-1)",
+                        color: paso.moneda === m ? "var(--brand)" : "var(--fg-2)",
                       }}
                     >
                       {m}
@@ -760,153 +934,32 @@ function PasoEditor({
             )}
 
             {(paso.tipo === "archivo") && (
-              <div style={{ fontSize: 12, color: "#64748B" }}>
+              <div style={{ fontSize: 12, color: "var(--fg-3)" }}>
                 El técnico podrá adjuntar un archivo (PDF, docx, etc.) al ejecutar este paso.
               </div>
             )}
 
             {(paso.tipo === "fecha" || paso.tipo === "hora" || paso.tipo === "fecha_hora") && (
-              <div style={{ fontSize: 12, color: "#64748B" }}>
+              <div style={{ fontSize: 12, color: "var(--fg-3)" }}>
                 Captura una {paso.tipo === "fecha" ? "fecha" : paso.tipo === "hora" ? "hora" : "fecha y hora"} con el reloj del dispositivo.
               </div>
             )}
 
-            {paso.tipo === "escaneo" && (
-              <div style={{ fontSize: 12, color: "#64748B" }}>
-                Escanea un código QR o de barras (típicamente vinculado a un activo). En web se puede ingresar manualmente.
-              </div>
-            )}
 
-            {paso.tipo === "falla_iso14224" && (
-              <div style={{ fontSize: 12, color: "#64748B", background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 6, padding: "8px 10px" }}>
-                Mostrará selectores en cascada de modo / causa / mecanismo / acción ISO 14224.
-                La taxonomía se carga desde <code style={{ background: "#fff", padding: "0 4px", borderRadius: 3 }}>workspace_taxonomias</code>.
-              </div>
-            )}
 
-            {paso.tipo === "sub_procedimiento" && (
-              <div>
-                <label style={lbl}>Sub-procedimiento embebido</label>
-                <div style={{ fontSize: 11.5, color: "#94A3B8" }}>
-                  Edita el sub-procedimiento por separado en la biblioteca y referéncialo aquí (selector próximamente).
-                </div>
-              </div>
-            )}
 
-            {paso.tipo === "puntuacion" && (
-              <div style={{ fontSize: 12, color: "#64748B" }}>
-                Muestra el puntaje acumulado del procedimiento (suma de pesos de pasos ya respondidos). No requiere entrada.
-              </div>
-            )}
-
-            {/* ── Avanzado: scoring, lógica condicional, guardrails ISO ── */}
-            {(isScorable || conditionSources.length > 0 || supportsFailGuard) && (
-              <details style={{ borderTop: "1px solid #F1F5F9", paddingTop: 10 }}>
-                <summary style={{ cursor: "pointer", fontSize: 12, fontWeight: 600, color: "#475569", outline: "none" }}>
-                  Avanzado (ISO)
-                </summary>
-                <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 10 }}>
-
-                  {isScorable && (
-                    <div>
-                      <label style={lbl}>Peso (puntos)</label>
-                      <FocusInput
-                        type="number"
-                        min={0}
-                        value={paso.peso == null ? "" : String(paso.peso)}
-                        onChange={e => onChange({ peso: e.target.value === "" ? 0 : Number(e.target.value) })}
-                        placeholder="0 = no puntuado"
-                        style={{ maxWidth: 160 }}
-                      />
-                      <div style={{ fontSize: 11.5, color: "#94A3B8", marginTop: 3 }}>
-                        Suma al puntaje total del procedimiento si el paso se aprueba.
-                      </div>
-                    </div>
-                  )}
-
-                  {conditionSources.length > 0 && (
-                    <div>
-                      <label style={lbl}>Mostrar solo si…</label>
-                      <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr 1fr", gap: 6 }}>
-                        <select
-                          value={paso.condicion_tempid ?? ""}
-                          onChange={e => onChange({ condicion_tempid: e.target.value || null })}
-                          style={{ ...inp(), appearance: "auto" }}
-                        >
-                          <option value="">— sin condición —</option>
-                          {conditionSources.map(p => (
-                            <option key={p.tempId} value={p.tempId}>
-                              {p.titulo ? `${allPasos.indexOf(p) + 1}. ${p.titulo}` : `Paso ${allPasos.indexOf(p) + 1}`}
-                            </option>
-                          ))}
-                        </select>
-                        <select
-                          value={paso.condicion_operador ?? ""}
-                          onChange={e => onChange({ condicion_operador: (e.target.value || null) as PasoFormItem["condicion_operador"] })}
-                          disabled={!paso.condicion_tempid}
-                          style={{ ...inp(), appearance: "auto", opacity: paso.condicion_tempid ? 1 : 0.5 }}
-                        >
-                          <option value="">operador…</option>
-                          {OPERADORES_CONDICION.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                        </select>
-                        <FocusInput
-                          type="text"
-                          value={paso.condicion_valor == null ? "" : String(paso.condicion_valor)}
-                          onChange={e => onChange({ condicion_valor: e.target.value || null })}
-                          disabled={!paso.condicion_tempid}
-                          placeholder="valor (ej: fail)"
-                          style={{ opacity: paso.condicion_tempid ? 1 : 0.5 }}
-                        />
-                      </div>
-                    </div>
-                  )}
-
-                  {supportsFailGuard && (
-                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                      <div>
-                        <label style={lbl}>Exigir nota si la respuesta es…</label>
-                        <FocusInput
-                          type="text"
-                          value={paso.requiere_nota_si?.join(", ") ?? ""}
-                          onChange={e => onChange({ requiere_nota_si: e.target.value.split(",").map(s => s.trim()).filter(Boolean) })}
-                          placeholder="fail, no, poor"
-                        />
-                      </div>
-                      <div>
-                        <label style={lbl}>Exigir foto si la respuesta es…</label>
-                        <FocusInput
-                          type="text"
-                          value={paso.requiere_foto_si?.join(", ") ?? ""}
-                          onChange={e => onChange({ requiere_foto_si: e.target.value.split(",").map(s => s.trim()).filter(Boolean) })}
-                          placeholder="fail, replace"
-                        />
-                      </div>
-                      <label style={{ display: "flex", alignItems: "center", gap: 7, cursor: "pointer" }}>
-                        <input
-                          type="checkbox"
-                          checked={paso.genera_correctiva ?? false}
-                          onChange={e => onChange({ genera_correctiva: e.target.checked })}
-                          style={{ width: 14, height: 14, accentColor: "#DC2626", cursor: "pointer" }}
-                        />
-                        <span style={{ fontSize: 12.5, color: "#475569" }}>Crear OT correctiva automática al fallar</span>
-                      </label>
-                    </div>
-                  )}
-                </div>
-              </details>
-            )}
 
             {/* Footer: requerido + move/delete */}
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingTop: 4, borderTop: "1px solid #F1F5F9", marginTop: 2 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingTop: 4, borderTop: "1px solid var(--border)", marginTop: 2 }}>
               {!isInfoOnly ? (
                 <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
                   <input
                     type="checkbox"
                     checked={paso.requerido}
                     onChange={e => onChange({ requerido: e.target.checked })}
-                    style={{ width: 13, height: 13, accentColor: "#2563EB", cursor: "pointer" }}
+                    style={{ width: 13, height: 13, accentColor: "var(--brand)", cursor: "pointer" }}
                   />
-                  <span style={{ fontSize: 12.5, color: "#475569" }}>Campo requerido</span>
+                  <span style={{ fontSize: 12.5, color: "var(--fg-2)" }}>Campo requerido</span>
                 </label>
               ) : <span />}
               <div style={{ display: "flex", gap: 4 }}>
@@ -934,7 +987,7 @@ function PasoEditor({
 
 const iconBtn: React.CSSProperties = {
   width: 26, height: 26, display: "flex", alignItems: "center", justifyContent: "center",
-  background: "none", border: "1px solid #E2E8F0", borderRadius: 5, cursor: "pointer", color: "#64748B",
+  background: "none", border: "1px solid var(--border)", borderRadius: 5, cursor: "pointer", color: "var(--fg-3)",
 };
 
 // ─── Opciones editor (for opcion_multiple, lista_verificacion, inspeccion) ───
@@ -985,7 +1038,7 @@ function OpcionesEditor({
       <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
         {opciones.map((op, i) => (
           <div key={i} style={{ display: "flex", gap: 6, alignItems: "center" }}>
-            <span style={{ fontSize: 12, color: "#94A3B8", width: 18, textAlign: "right", flexShrink: 0 }}>{i + 1}.</span>
+            <span style={{ fontSize: 12, color: "var(--fg-4)", width: 18, textAlign: "right", flexShrink: 0 }}>{i + 1}.</span>
             <FocusInput
               type="text"
               value={op}
@@ -998,9 +1051,9 @@ function OpcionesEditor({
             {opciones.length > 1 && (
               <button
                 onClick={() => remove(i)}
-                style={{ width: 24, height: 24, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", cursor: "pointer", color: "#CBD5E1", padding: 0, flexShrink: 0 }}
+                style={{ width: 24, height: 24, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", cursor: "pointer", color: "var(--border-strong)", padding: 0, flexShrink: 0 }}
                 onMouseEnter={e => { e.currentTarget.style.color = "#EF4444"; }}
-                onMouseLeave={e => { e.currentTarget.style.color = "#CBD5E1"; }}
+                onMouseLeave={e => { e.currentTarget.style.color = "var(--border-strong)"; }}
               >
                 <X size={12} />
               </button>
@@ -1013,10 +1066,10 @@ function OpcionesEditor({
         style={{
           marginTop: 6, display: "flex", alignItems: "center", gap: 5,
           background: "none", border: "none", cursor: "pointer", padding: "2px 0",
-          fontSize: 12, color: "#64748B", fontFamily: "inherit",
+          fontSize: 12, color: "var(--fg-3)", fontFamily: "inherit",
         }}
-        onMouseEnter={e => { e.currentTarget.style.color = "#2563EB"; }}
-        onMouseLeave={e => { e.currentTarget.style.color = "#64748B"; }}
+        onMouseEnter={e => { e.currentTarget.style.color = "var(--brand)"; }}
+        onMouseLeave={e => { e.currentTarget.style.color = "var(--fg-3)"; }}
       >
         <Plus size={12} />
         Agregar opción (Enter)

@@ -35,6 +35,12 @@ export async function POST(req: Request) {
     try {
       const payment = await flow.getPaymentStatus(token);
       subscriptionId = payment.subscriptionId ?? payment.pending_info?.subscriptionId ?? null;
+      // Los cobros por link de pago de una suscripción no traen subscriptionId:
+      // viene embebido en commerceOrder como "sus_xxx_<invoiceId>_<fecha>".
+      if (!subscriptionId && typeof payment.commerceOrder === "string") {
+        const match = payment.commerceOrder.match(/^(sus_[A-Za-z0-9]+)/);
+        if (match) subscriptionId = match[1];
+      }
     } catch {
       // Not a payment token — try subscription
     }
@@ -135,18 +141,30 @@ export async function POST(req: Request) {
       newStatus === "canceled" ? "cancelled":
       "payment_failed";
 
-    // Look up current plan_key to mirror plan as well
-    const { data: subRow } = await admin
-      .from("subscriptions")
-      .select("plan_key")
-      .eq("id", existing.id)
-      .maybeSingle();
-    const planMirror = subRow?.plan_key ?? "basic";
+    if (newStatus === "canceled") {
+      // Suscripción terminada en Flow (impago tras los reintentos, o
+      // cancelación voluntaria que llegó al fin del período). El workspace
+      // baja a Basic gratis — igual que al expirar el trial. Sin esto,
+      // usuarios.plan quedaba en "pro" y tieneAcceso() seguía regalando
+      // funciones pagadas para siempre.
+      await admin
+        .from("usuarios")
+        .update({ plan: "basic", plan_status: "active" })
+        .eq("workspace_id", existing.workspace_id);
+    } else {
+      // Look up current plan_key to mirror plan as well
+      const { data: subRow } = await admin
+        .from("subscriptions")
+        .select("plan_key")
+        .eq("id", existing.id)
+        .maybeSingle();
+      const planMirror = subRow?.plan_key ?? "basic";
 
-    await admin
-      .from("usuarios")
-      .update({ plan: planMirror, plan_status: planStatus })
-      .eq("workspace_id", existing.workspace_id);
+      await admin
+        .from("usuarios")
+        .update({ plan: planMirror, plan_status: planStatus })
+        .eq("workspace_id", existing.workspace_id);
+    }
 
     return NextResponse.json({ ok: true });
   } catch (err) {

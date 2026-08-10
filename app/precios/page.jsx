@@ -2,11 +2,12 @@ import "../landing.css";
 import Link from "next/link";
 import { ArrowRight, Check, Minus } from "lucide-react";
 import { LandingFooter, LandingNav } from "../Landing";
+import PublicPageTheme from "@/components/PublicPageTheme";
 import { UI_VISIBLE_PLANS, TRIAL_DAYS } from "@/lib/flow-plans";
 
 export const metadata = {
   title: "Precios · Pangui",
-  description: "Planes por usuario para equipos de mantención. Prueba Pro gratis por 14 días.",
+  description: "Planes por usuario para equipos de mantención. Prueba Pro gratis por 30 días.",
 };
 
 const fmtCLP = (n) =>
@@ -57,11 +58,12 @@ const MATRIX_ROWS = [
     ],
   },
   {
+    // Las notificaciones push están disponibles en todos los planes, así que no
+    // aparecen acá: esta tabla solo lista lo que efectivamente distingue un plan
+    // de otro.
     section: "Avanzado",
     rows: [
-      { label: "Notificaciones push web y móvil", feature: "push" },
-      { label: "Normativa y cumplimiento",        feature: "normativa" },
-      { label: "Escaneo de OT con IA",            feature: "ai_scan" },
+      { label: "Escaneo de OT con IA", feature: "ai_scan" },
     ],
   },
 ];
@@ -69,7 +71,8 @@ const MATRIX_ROWS = [
 export default function PreciosPage() {
   return (
     <div className="landing-root min-h-screen antialiased">
-      <LandingNav context="precios" />
+      <PublicPageTheme />
+      <LandingNav />
 
       <main className="pt-16 md:pt-[68px]">
         <section className="border-b border-[var(--hairline)] bg-[#F6F8FB]">
@@ -133,7 +136,7 @@ export default function PreciosPage() {
             <div className="grid gap-px border border-[var(--hairline)] bg-[var(--hairline)] lg:col-span-7">
               {[
                 ["Durante la prueba", `Todas las funciones de Pro quedan disponibles por ${TRIAL_DAYS} días.`],
-                ["Si no eliges plan", "El workspace pasa a Basic y se bloquean preventivos, exportaciones, analítica avanzada, push, normativa, exportes programados e IA."],
+                ["Si no eliges plan", "El workspace pasa a Basic y se bloquean preventivos, exportaciones, analítica avanzada, exportes programados e IA."],
                 ["Al subir de plan", "El cobro se calcula por usuarios activos y el acceso se actualiza desde Configuración → Suscripción."],
               ].map(([title, body]) => (
                 <article key={title} className="bg-white p-6 md:p-8">
@@ -164,7 +167,7 @@ export default function PreciosPage() {
         </section>
       </main>
 
-      <LandingFooter context="precios" />
+      <LandingFooter />
     </div>
   );
 }

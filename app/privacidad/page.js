@@ -213,11 +213,12 @@ export default function PrivacidadPage() {
         </p>
         <InfoBox>
           Cumplimos la <strong>Ley 21.719</strong> de Protección de Datos
-          Personales (vigencia plena 1 de diciembre de 2026) y ofrecemos un{" "}
-          <Link href="/arco" style={{ color: "#273D88", fontWeight: 600 }}>
-            Portal ARCO
-          </Link>{" "}
-          para ejercer tus derechos de forma gratuita.
+          Personales (vigencia plena 1 de diciembre de 2026). Puedes ejercer tus
+          derechos de forma gratuita escribiendo a{" "}
+          <a href="mailto:contacto@getpangui.com" style={{ color: "#273D88", fontWeight: 600 }}>
+            contacto@getpangui.com
+          </a>
+          .
         </InfoBox>
       </LegalSection>
 
@@ -340,11 +341,11 @@ export default function PrivacidadPage() {
           ]}
         />
         <InfoBox>
-          Ejerce tus derechos gratuitamente en nuestro{" "}
-          <Link href="/arco" style={{ color: "#273D88", fontWeight: 600 }}>
-            Portal ARCO →
-          </Link>{" "}
-          Respondemos en un plazo máximo de <strong>30 días corridos</strong>{" "}
+          Ejerce tus derechos gratuitamente escribiendo a{" "}
+          <a href="mailto:contacto@getpangui.com" style={{ color: "#273D88", fontWeight: 600 }}>
+            contacto@getpangui.com
+          </a>
+          . Respondemos en un plazo máximo de <strong>30 días corridos</strong>{" "}
           conforme al Art. 22 Ley 21.719. También puedes escribirnos directamente a{" "}
           <a href="mailto:contacto@getpangui.com" style={{ color: "#273D88" }}>contacto@getpangui.com</a>.
         </InfoBox>
@@ -365,7 +366,6 @@ export default function PrivacidadPage() {
           items={[
             "Usar el botón \"Eliminar cuenta\" desde Configuración → Cuenta dentro de la aplicación móvil o web.",
             "Enviar un correo a contacto@getpangui.com desde la dirección registrada.",
-            "Ejercer el derecho de cancelación en nuestro Portal ARCO.",
           ]}
         />
         <p style={{ marginTop: 12 }}>Una vez recibida la solicitud:</p>

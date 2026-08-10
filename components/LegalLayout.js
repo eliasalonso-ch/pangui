@@ -1,10 +1,9 @@
 "use client";
 
-import Link from "next/link";
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
+import "../app/landing.css";
 import { motion } from "framer-motion";
+import { LandingFooter, LandingNav } from "../app/Landing";
+import PublicPageTheme from "./PublicPageTheme";
 
 // ── Variantes de animación ──────────────────────────────────────
 export const fadeUp = {
@@ -25,7 +24,7 @@ export function LegalSection({ icon: Icon, title, children }) {
       style={{
         marginBottom: "clamp(1.75rem, 4vw, 2.5rem)",
         paddingBottom: "clamp(1.75rem, 4vw, 2.5rem)",
-        borderBottom: "1px solid var(--divider-1)",
+        borderBottom: "1px solid var(--hairline)",
       }}
     >
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
@@ -34,12 +33,12 @@ export function LegalSection({ icon: Icon, title, children }) {
             style={{
               width: 36,
               height: 36,
-              background: "var(--accent-2)",
+              background: "rgba(39, 61, 136, 0.08)",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
               flexShrink: 0,
-              color: "var(--accent-1)",
+              color: "var(--accent)",
             }}
           >
             <Icon size={17} />
@@ -49,7 +48,7 @@ export function LegalSection({ icon: Icon, title, children }) {
           style={{
             fontSize: "clamp(1.05rem, 3vw, 1.35rem)",
             fontWeight: 900,
-            color: "var(--black)",
+            color: "var(--ink)",
             letterSpacing: "-0.02em",
             lineHeight: 1.2,
             margin: 0,
@@ -63,7 +62,7 @@ export function LegalSection({ icon: Icon, title, children }) {
 
       <div
         style={{
-          color: "var(--accent-5)",
+          color: "var(--ink-2)",
           lineHeight: 1.7,
           fontSize: "clamp(14px, 2vw, 15px)",
         }}
@@ -76,108 +75,21 @@ export function LegalSection({ icon: Icon, title, children }) {
 
 // ── Layout principal ───────────────────────────────────────────
 export default function LegalLayout({ children, title, description }) {
-  const router = useRouter();
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  function handleBack() {
-    if (typeof window !== "undefined" && window.history.length > 1) {
-      router.back();
-    } else {
-      router.push("/");
-    }
-  }
-
   return (
+    // `landing-root` scopes the marketing palette here: these are public pages,
+    // so they must stay light regardless of the dashboard's theme setting.
     <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        minHeight: "100vh",
-        fontFamily: "var(--font-sans, 'DM Sans', system-ui, sans-serif)",
-        background: "var(--background)",
-        color: "var(--black)",
-      }}
+      className="landing-root antialiased"
+      style={{ display: "flex", flexDirection: "column", minHeight: "100vh" }}
     >
-      {/* ── Navbar (sticky) ─────────────────────────────────────── */}
-      <header
-        style={{
-          position: "sticky",
-          top: 0,
-          zIndex: 50,
-          backgroundColor: "#273D88",
-          height: 60,
-          display: "flex",
-          alignItems: "center",
-          borderBottom: "1px solid rgba(255,255,255,0.08)",
-          paddingLeft: "clamp(12px, 4vw, 24px)",
-          paddingRight: "clamp(12px, 4vw, 24px)",
-        }}
-      >
-        <div
-          style={{
-            width: "100%",
-            maxWidth: "48rem",
-            margin: "0 auto",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: 8,
-          }}
-        >
-          {/* Logo */}
-          <Link href="/" style={{ display: "flex", alignItems: "center", flexShrink: 0 }}>
-            <img
-              src="/logo6.svg"
-              alt="Pangui"
-              style={{ width: "clamp(100px, 22vw, 130px)", height: "auto" }}
-            />
-          </Link>
-
-          {/* Volver */}
-          {mounted && (
-            <button
-              onClick={handleBack}
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 6,
-                fontSize: 13,
-                fontWeight: 600,
-                color: "rgba(255,255,255,0.85)",
-                background: "transparent",
-                padding: "6px clamp(8px, 2vw, 14px)",
-                border: "1px solid rgba(255,255,255,0.25)",
-                borderRadius: 4,
-                cursor: "pointer",
-                transition: "color 0.15s, background 0.15s",
-                whiteSpace: "nowrap",
-                fontFamily: "inherit",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.color = "#fff";
-                e.currentTarget.style.background = "rgba(255,255,255,0.12)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.color = "rgba(255,255,255,0.85)";
-                e.currentTarget.style.background = "transparent";
-              }}
-            >
-              <ArrowLeft size={13} />
-              Volver
-            </button>
-          )}
-        </div>
-      </header>
+      <PublicPageTheme />
+      <LandingNav />
 
       {/* ── Hero del encabezado legal ──────────────────────────── */}
       <div
+        className="landing-hero-grid"
         style={{
-          background: "linear-gradient(135deg, #0a0f1e 0%, #0d1530 100%)",
-          paddingTop: "clamp(2rem, 6vw, 3.5rem)",
+          paddingTop: "calc(68px + clamp(2rem, 6vw, 3.5rem))",
           paddingBottom: "clamp(1.75rem, 5vw, 3rem)",
           paddingLeft: "clamp(16px, 4vw, 24px)",
           paddingRight: "clamp(16px, 4vw, 24px)",
@@ -203,13 +115,14 @@ export default function LegalLayout({ children, title, description }) {
             </motion.span>
 
             <motion.h1
+              className="font-display"
               variants={fadeUp}
               style={{
                 fontSize: "clamp(1.6rem, 5vw, 3rem)",
-                fontWeight: 900,
+                fontWeight: 800,
                 color: "#fff",
                 lineHeight: 1.12,
-                letterSpacing: "-0.025em",
+                letterSpacing: "-0.03em",
                 marginBottom: 12,
               }}
             >
@@ -220,7 +133,7 @@ export default function LegalLayout({ children, title, description }) {
               <motion.p
                 variants={fadeUp}
                 style={{
-                  color: "#94a3b8",
+                  color: "rgba(255,255,255,0.78)",
                   fontSize: "clamp(13.5px, 2.5vw, 15px)",
                   maxWidth: 520,
                   lineHeight: 1.65,
@@ -254,50 +167,9 @@ export default function LegalLayout({ children, title, description }) {
         </motion.div>
       </main>
 
-      {/* ── Footer ──────────────────────────────────────────────── */}
-      <footer
-        style={{
-          background: "#0A1628",
-          padding: "1.5rem clamp(16px, 4vw, 24px)",
-          marginTop: "auto",
-        }}
-      >
-        <div
-          style={{
-            maxWidth: "48rem",
-            margin: "0 auto",
-            display: "flex",
-            flexDirection: "row",
-            flexWrap: "wrap",
-            justifyContent: "space-between",
-            alignItems: "center",
-            gap: 12,
-            fontSize: 13,
-            color: "#475569",
-          }}
-        >
-          <p style={{ margin: 0, flex: "1 1 auto", minWidth: 0 }}>
-            © 2026 Pangui. Hecho en Chile con ♥ para pymes de mantención.
-          </p>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: "8px 20px" }}>
-            {[
-              { label: "Privacidad", href: "/privacidad" },
-              { label: "Términos", href: "/terminos" },
-              { label: "Portal ARCO", href: "/arco" },
-            ].map((l) => (
-              <Link
-                key={l.href}
-                href={l.href}
-                style={{ color: "#475569", textDecoration: "none", transition: "color 0.15s" }}
-                onMouseEnter={(e) => (e.currentTarget.style.color = "#94a3b8")}
-                onMouseLeave={(e) => (e.currentTarget.style.color = "#475569")}
-              >
-                {l.label}
-              </Link>
-            ))}
-          </div>
-        </div>
-      </footer>
+      <div style={{ marginTop: "auto" }}>
+        <LandingFooter />
+      </div>
     </div>
   );
 }

@@ -4,7 +4,7 @@
  * Floating celebration toast shown on /inicio for two scenarios:
  *
  *   ?welcome=trial    — right after the public /registro signup completes.
- *                       "¡Bienvenido a Pangui! 14 días de Pro gratis…"
+ *                       "¡Bienvenido a Pangui! 30 días de Pro gratis…"
  *   ?welcome=<plan>   — after a successful Flow checkout (basic/esencial/pro).
  *                       "¡Bienvenido a Esencial! Tu suscripción está activa…"
  *
@@ -63,7 +63,7 @@ function WelcomeToastInner({ variant }: { variant: Variant }) {
     ? "¡Bienvenido a Pangui!"
     : `¡Bienvenido a ${PLANS.find(p => p.key === variant.planKey)!.name}!`;
   const body = variant.kind === "trial"
-    ? "Tienes 14 días de Pro gratis para explorar todas las funciones. Invita a tu equipo cuando quieras."
+    ? "Tienes 30 días de Pro gratis para explorar todas las funciones. Invita a tu equipo cuando quieras."
     : "Tu suscripción está activa. Empieza a disfrutar de todas las funciones desbloqueadas.";
 
   return (

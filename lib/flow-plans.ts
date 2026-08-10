@@ -6,7 +6,7 @@
  * sub-categories of OTs (procedimientos adjuntos, fotos adjuntas, repetitivas)
  * counted over a rolling 30-day window.
  *
- * Trial: 14 days at Pro features. Auto-downgrade to Basic (paid) on expiry.
+ * Trial: 30 days at Pro features. Auto-downgrade to Basic (paid) on expiry.
  * Billing model: one Flow plan per tier; quantity (user count) is mirrored via
  * subscription_items (see lib/flow-sync.ts).
  */
@@ -46,15 +46,15 @@ export interface PlanDef {
     // Analytics & insights
     analytics_pro:            boolean;   // advanced analytics dashboard + materials
     scheduler:                boolean;   // export schedules
-    // Notifications & compliance
+    // Notifications — disponibles en todos los planes; se mantiene la bandera
+    // para no romper llamadas existentes, pero ya no diferencia planes.
     push:                     boolean;
-    normativa:                boolean;
     // AI
     ai_scan:                  boolean;
   };
 }
 
-export const TRIAL_DAYS = 14;
+export const TRIAL_DAYS = 30;
 
 export const PLANS: PlanDef[] = [
   {
@@ -92,8 +92,7 @@ export const PLANS: PlanDef[] = [
       inventario:                false,
       analytics_pro:             false,
       scheduler:                 false,
-      push:                      false,
-      normativa:                 false,
+      push:                      true,
       ai_scan:                   false,
     },
   },
@@ -133,8 +132,7 @@ export const PLANS: PlanDef[] = [
       inventario:                false,
       analytics_pro:             false,
       scheduler:                 false,
-      push:                      false,
-      normativa:                 false,
+      push:                      true,
       ai_scan:                   false,
     },
   },
@@ -153,9 +151,7 @@ export const PLANS: PlanDef[] = [
       "Analítica avanzada (MTTR, MTBF, FTFR)",
       "Analítica de materiales",
       "Historial de analítica ilimitado",
-      "Notificaciones push (web + móvil)",
       "Exportes programados",
-      "Normativa y cumplimiento",
       "Escaneo de OT con IA",
       "Soporte prioritario",
     ],
@@ -177,7 +173,6 @@ export const PLANS: PlanDef[] = [
       analytics_pro:             true,
       scheduler:                 true,
       push:                      true,
-      normativa:                 true,
       ai_scan:                   true,
     },
   },
@@ -213,7 +208,6 @@ export const PLANS: PlanDef[] = [
       analytics_pro:             true,
       scheduler:                 true,
       push:                      true,
-      normativa:                 true,
       ai_scan:                   true,
     },
   },

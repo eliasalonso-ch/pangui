@@ -1,39 +1,37 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase";
 import {
-  ClipboardCheck, Plus, Search, Loader2, X, Pencil, Trash2,
-  CheckCircle2, AlertTriangle, ChevronRight, Shield, Zap,
+  ClipboardCheck, Plus, Search, Loader2, X, Pencil, Trash2, FileText,
+  ListFilter, Lock, PlayCircle, Zap, type LucideIcon,
 } from "lucide-react";
-import {
-  listProcedimientos, archiveProcedimiento,
-} from "@/lib/procedimientos-api";
+import { listProcedimientos, archiveProcedimiento } from "@/lib/procedimientos-api";
 import type { ProcedimientoListItem } from "@/types/procedimientos";
+import ProcedimientoDetalle from "./ProcedimientoDetalle";
 
-const TIPO_LABEL: Record<string, string> = {
-  instruccion: "Instrucción",
-  verificacion: "Verificación",
-  medicion: "Medición",
-  foto: "Foto",
-  advertencia: "Advertencia",
-  material: "Material",
-  firma: "Firma",
-};
+// Master–detail, igual que Órdenes: lista filtrable a la izquierda, detalle a
+// la derecha. Reemplaza la grilla de tarjetas, que obligaba a navegar a otra
+// página para ver cada procedimiento.
 
-const labelStyle: React.CSSProperties = {
-  fontSize: 11, fontWeight: 700, textTransform: "uppercase",
-  letterSpacing: "0.06em", color: "var(--fg-4)", marginBottom: 5, display: "block",
-};
+type Filtro = "todos" | "cierre" | "inicio" | "auto";
+
+const FILTROS: { key: Filtro; label: string; icon: LucideIcon }[] = [
+  { key: "todos",  label: "Todos",           icon: ListFilter },
+  { key: "cierre", label: "Bloquean cierre", icon: Lock },
+  { key: "inicio", label: "Bloquean inicio", icon: PlayCircle },
+  { key: "auto",   label: "Auto-adjuntar",   icon: Zap },
+];
 
 export default function ProcedimientosPage() {
   const router = useRouter();
-  const [wsId, setWsId] = useState<string | null>(null);
   const [myRol, setMyRol] = useState<string | null>(null);
   const [items, setItems] = useState<ProcedimientoListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [filtro, setFiltro] = useState<Filtro>("todos");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [archiving, setArchiving] = useState<string | null>(null);
   const [confirmArchive, setConfirmArchive] = useState<ProcedimientoListItem | null>(null);
 
@@ -44,7 +42,6 @@ export default function ProcedimientosPage() {
       if (!user) return;
       const { data } = await sb.from("usuarios").select("workspace_id, rol").eq("id", user.id).maybeSingle();
       if (!data?.workspace_id) return;
-      setWsId(data.workspace_id);
       setMyRol(data.rol);
       const list = await listProcedimientos(data.workspace_id);
       setItems(list);
@@ -55,7 +52,10 @@ export default function ProcedimientosPage() {
 
   const isAdmin = myRol === "jefe" || myRol === "admin" || myRol === "owner";
 
-  const filtered = items.filter(p => {
+  const filtered = useMemo(() => items.filter(p => {
+    if (filtro === "cierre" && !p.bloquea_cierre_ot) return false;
+    if (filtro === "inicio" && !p.bloquea_inicio) return false;
+    if (filtro === "auto"   && !p.auto_adjuntar) return false;
     const q = search.trim().toLowerCase();
     if (!q) return true;
     return (
@@ -63,36 +63,66 @@ export default function ProcedimientosPage() {
       (p.descripcion?.toLowerCase().includes(q) ?? false) ||
       (p.categoria?.toLowerCase().includes(q) ?? false)
     );
-  });
+  }), [items, search, filtro]);
 
   async function handleArchive(proc: ProcedimientoListItem) {
     setArchiving(proc.id);
     try {
       await archiveProcedimiento(proc.id);
       setItems(prev => prev.filter(p => p.id !== proc.id));
-    } catch (e: any) {
-      alert(e.message);
+      if (selectedId === proc.id) setSelectedId(null);
+    } catch (e) {
+      alert((e as Error).message);
     } finally {
       setArchiving(null);
       setConfirmArchive(null);
     }
   }
 
+
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "var(--surface-canvas)" }}>
 
-      {/* Header */}
-      <div style={{ padding: "24px 32px 0", flexShrink: 0 }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+      {/* Toolbar en dos filas, igual que la bandeja de Órdenes: búsqueda y
+          acción principal arriba, filtros debajo. Sobre el lienzo, no blanco. */}
+      <div style={{ flexShrink: 0, borderBottom: "1px solid var(--border)", background: "var(--surface-canvas)" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 16px 8px", justifyContent: "flex-end" }}>
+          <div style={{ position: "relative", width: 320 }}>
+            <Search size={14} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "var(--fg-4)", pointerEvents: "none" }} />
+            <input
+              type="text"
+              placeholder="Buscar procedimientos…"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              style={{
+                width: "100%", height: 36, paddingLeft: 32, paddingRight: search ? 32 : 12,
+                border: "1px solid var(--border)", borderRadius: "var(--r-md)", fontSize: 13,
+                background: "var(--surface-1)", outline: "none", fontFamily: "inherit", color: "var(--fg-1)",
+                boxSizing: "border-box",
+              }}
+              onFocus={e => { e.currentTarget.style.borderColor = "var(--brand)"; e.currentTarget.style.boxShadow = "var(--shadow-focus)"; }}
+              onBlur={e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.boxShadow = "none"; }}
+            />
+            {search && (
+              <button
+                onClick={() => setSearch("")}
+                aria-label="Limpiar búsqueda"
+                style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "var(--fg-4)", padding: 2 }}
+              >
+                <X size={13} />
+              </button>
+            )}
+          </div>
+
           {isAdmin && (
             <button
               onClick={() => router.push("/procedimientos/nueva")}
               style={{
-                display: "flex", alignItems: "center", gap: 6, marginLeft: "auto",
-                height: 38, padding: "0 16px",
-                background: "linear-gradient(135deg, var(--brand-active), var(--brand))",
-                border: "none", borderRadius: 8, cursor: "pointer",
+                display: "flex", alignItems: "center", gap: 6,
+                height: 36, padding: "0 14px",
+                background: "var(--brand)", border: "none", borderRadius: "var(--r-md)", cursor: "pointer",
                 fontSize: 13, fontWeight: 600, color: "var(--fg-on-brand)", fontFamily: "inherit",
+                whiteSpace: "nowrap",
               }}
             >
               <Plus size={14} />
@@ -101,69 +131,94 @@ export default function ProcedimientosPage() {
           )}
         </div>
 
-        {/* Search */}
-        <div style={{ marginTop: 16, marginBottom: 16, position: "relative", maxWidth: 400 }}>
-          <Search size={14} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "var(--fg-4)", pointerEvents: "none" }} />
-          <input
-            type="text"
-            placeholder="Buscar procedimientos…"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            style={{
-              width: "100%", height: 36, paddingLeft: 32, paddingRight: search ? 32 : 12,
-              border: "1px solid var(--border)", borderRadius: 8, fontSize: 13,
-              background: "var(--surface-1)", outline: "none", fontFamily: "inherit", color: "var(--fg-1)",
-              boxSizing: "border-box",
-            }}
-            onFocus={e => { e.currentTarget.style.borderColor = "var(--brand)"; e.currentTarget.style.boxShadow = "var(--shadow-focus)"; }}
-            onBlur={e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.boxShadow = "none"; }}
-          />
-          {search && (
-            <button
-              onClick={() => setSearch("")}
-              style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "var(--fg-4)", padding: 2 }}
-            >
-              <X size={13} />
-            </button>
-          )}
+        <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "0 16px 10px", flexWrap: "wrap" }}>
+          {FILTROS.map(f => {
+            const active = filtro === f.key;
+            const Icon = f.icon;
+            return (
+              <button
+                key={f.key}
+                onClick={() => setFiltro(f.key)}
+                style={{
+                  height: 32, padding: "0 11px", borderRadius: "var(--r-md)", cursor: "pointer", fontFamily: "inherit",
+                  display: "inline-flex", alignItems: "center", gap: 6,
+                  fontSize: 12.5, fontWeight: active ? 600 : 500,
+                  border: `1px solid ${active ? "var(--brand)" : "var(--border)"}`,
+                  background: active ? "var(--brand-tint)" : "var(--surface-1)",
+                  color: active ? "var(--brand-fg)" : "var(--fg-2)",
+                }}
+              >
+                <Icon size={13} />
+                {f.label}
+              </button>
+            );
+          })}
         </div>
       </div>
 
-      {/* Content */}
-      <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "0 32px 32px" }}>
-        {loading ? (
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: 200 }}>
-            <Loader2 size={20} className="animate-spin" style={{ color: "var(--fg-4)" }} />
-          </div>
-        ) : filtered.length === 0 ? (
-          <div style={{
-            display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-            height: 240, background: "var(--surface-1)", borderRadius: 12, border: "1px solid var(--border)",
-            color: "var(--fg-4)", gap: 8,
-          }}>
-            <ClipboardCheck size={36} style={{ color: "var(--fg-4)" }} />
-            <div style={{ fontSize: 14, fontWeight: 500, color: "var(--fg-3)" }}>
-              {search ? "Sin resultados" : "No hay procedimientos aún"}
+      {/* Master–detail */}
+      <div style={{ flex: 1, minHeight: 0, display: "flex" }}>
+
+        {/* Lista */}
+        {/* Gap + padding para que cada fila se lea como tarjeta flotando sobre
+            el lienzo, igual que la bandeja de Órdenes. */}
+        <div style={{
+          width: 380, flexShrink: 0, borderRight: "1px solid var(--border)",
+          overflowY: "auto", background: "var(--surface-canvas)",
+          display: "flex", flexDirection: "column", gap: 8, padding: "8px 10px",
+        }}>
+          {loading ? (
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: 200 }}>
+              <Loader2 size={20} className="animate-spin" style={{ color: "var(--fg-4)" }} />
             </div>
-            {!search && isAdmin && (
-              <div style={{ fontSize: 13, color: "var(--fg-4)" }}>Crea el primero usando el botón de arriba</div>
-            )}
-          </div>
-        ) : (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))", gap: 12 }}>
-            {filtered.map(proc => (
-              <ProcCard
+          ) : filtered.length === 0 ? (
+            <div style={{
+              display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+              height: 240, color: "var(--fg-4)", gap: 8, padding: 24, textAlign: "center",
+            }}>
+              <ClipboardCheck size={32} style={{ color: "var(--fg-4)" }} />
+              <div style={{ fontSize: 14, fontWeight: 500, color: "var(--fg-3)" }}>
+                {search || filtro !== "todos" ? "Sin resultados" : "No hay procedimientos aún"}
+              </div>
+              {!search && filtro === "todos" && isAdmin && (
+                <div style={{ fontSize: 12.5, color: "var(--fg-4)" }}>Crea el primero con el botón de arriba</div>
+              )}
+            </div>
+          ) : (
+            filtered.map(proc => (
+              <ProcRow
                 key={proc.id}
                 proc={proc}
+                selected={selectedId === proc.id}
                 isAdmin={isAdmin}
                 archiving={archiving === proc.id}
+                onSelect={() => setSelectedId(proc.id)}
                 onEdit={() => router.push(`/procedimientos/${proc.id}/editar`)}
                 onArchive={() => setConfirmArchive(proc)}
-                onClick={() => router.push(`/procedimientos/${proc.id}`)}
               />
-            ))}
-          </div>
-        )}
+            ))
+          )}
+        </div>
+
+        {/* Detalle */}
+        <div style={{ flex: 1, minWidth: 0, overflowY: "auto" }}>
+          {selectedId ? (
+            <ProcedimientoDetalle
+              id={selectedId}
+              isAdmin={isAdmin}
+              onEdit={() => router.push(`/procedimientos/${selectedId}/editar`)}
+            />
+          ) : (
+            <div style={{
+              height: "100%", display: "flex", flexDirection: "column",
+              alignItems: "center", justifyContent: "center", gap: 10, color: "var(--fg-4)",
+            }}>
+              <FileText size={40} style={{ opacity: 0.5 }} />
+              <div style={{ fontSize: 14, fontWeight: 600, color: "var(--fg-3)" }}>Selecciona un procedimiento</div>
+              <div style={{ fontSize: 12.5 }}>El detalle aparecerá aquí</div>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Confirm archive */}
@@ -197,90 +252,86 @@ export default function ProcedimientosPage() {
   );
 }
 
-function ProcCard({
-  proc, isAdmin, archiving, onEdit, onArchive, onClick,
+function ProcRow({
+  proc, selected, isAdmin, archiving, onSelect, onEdit, onArchive,
 }: {
   proc: ProcedimientoListItem;
+  selected: boolean;
   isAdmin: boolean;
   archiving: boolean;
+  onSelect: () => void;
   onEdit: () => void;
   onArchive: () => void;
-  onClick: () => void;
 }) {
   const [hover, setHover] = useState(false);
+  const pasos = proc.pasos_count ?? 0;
 
   return (
     <div
-      onClick={onClick}
+      onClick={onSelect}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
       style={{
-        background: "var(--surface-1)", borderRadius: 12,
-        border: `1px solid ${hover ? "var(--border-strong)" : "var(--border)"}`,
-        boxShadow: hover ? "var(--shadow-sm)" : "var(--shadow-xs)",
-        padding: "16px 18px",
-        cursor: "pointer",
-        transition: "border-color 0.15s, box-shadow 0.15s",
-        display: "flex", flexDirection: "column", gap: 10,
+        padding: "12px 14px", cursor: "pointer", flexShrink: 0,
+        background: selected ? "var(--brand-tint)" : "var(--surface-1)",
+        border: `1px solid ${selected ? "var(--brand)" : hover ? "var(--border-strong)" : "var(--border)"}`,
+        borderRadius: "var(--r-lg)",
+        transition: "border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease)",
       }}
     >
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }}>
-        <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 14, fontWeight: 600, color: "var(--fg-1)", marginBottom: 2 }}>{proc.nombre}</div>
-          {proc.descripcion && (
-            <div style={{ fontSize: 12.5, color: "var(--fg-3)", lineHeight: 1.4, WebkitLineClamp: 2, WebkitBoxOrient: "vertical", display: "-webkit-box", overflow: "hidden" }}>
-              {proc.descripcion}
-            </div>
-          )}
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <div style={{
+            fontSize: 13.5, fontWeight: 600, color: "var(--fg-1)",
+            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+          }}>
+            {proc.nombre}
+          </div>
+          <div style={{ fontSize: 11.5, color: "var(--fg-4)", marginTop: 2 }}>
+            {pasos} {pasos === 1 ? "campo" : "campos"}
+            {proc.categoria ? ` · ${proc.categoria}` : ""}
+          </div>
         </div>
-        {isAdmin && (
-          <div style={{ display: "flex", gap: 4, flexShrink: 0 }} onClick={e => e.stopPropagation()}>
+        {isAdmin && hover && (
+          <div style={{ display: "flex", gap: 2, flexShrink: 0 }} onClick={e => e.stopPropagation()}>
             <button
               onClick={onEdit}
-              style={{ width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", borderRadius: 6, cursor: "pointer", color: "var(--fg-3)" }}
-              onMouseEnter={e => { e.currentTarget.style.background = "var(--surface-hover)"; e.currentTarget.style.color = "var(--fg-1)"; }}
-              onMouseLeave={e => { e.currentTarget.style.background = "none"; e.currentTarget.style.color = "var(--fg-3)"; }}
+              aria-label="Editar"
+              style={{ width: 26, height: 26, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", borderRadius: 6, cursor: "pointer", color: "var(--fg-3)" }}
             >
-              <Pencil size={13} />
+              <Pencil size={12} />
             </button>
             <button
               onClick={onArchive}
               disabled={archiving}
-              style={{ width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", borderRadius: 6, cursor: "pointer", color: "var(--fg-3)" }}
-              onMouseEnter={e => { e.currentTarget.style.background = "var(--danger-bg)"; e.currentTarget.style.color = "var(--danger)"; }}
-              onMouseLeave={e => { e.currentTarget.style.background = "none"; e.currentTarget.style.color = "var(--fg-3)"; }}
+              aria-label="Archivar"
+              style={{ width: 26, height: 26, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", borderRadius: 6, cursor: "pointer", color: "var(--fg-3)" }}
             >
-              {archiving ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
+              {archiving ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
             </button>
           </div>
         )}
       </div>
 
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          {proc.categoria && (
-            <span style={{ fontSize: 11, fontWeight: 600, color: "var(--brand)", background: "var(--brand-tint)", borderRadius: 4, padding: "2px 7px" }}>
-              {proc.categoria}
-            </span>
-          )}
-          <span style={{ fontSize: 11, color: "var(--fg-4)" }}>
-            {proc.pasos_count ?? 0} paso{(proc.pasos_count ?? 0) !== 1 ? "s" : ""}
-          </span>
-          {proc.bloquea_cierre_ot && (
-            <span style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 11, color: "var(--warning)", fontWeight: 500 }}>
-              <Shield size={11} />
-              Bloquea cierre
-            </span>
-          )}
-          {proc.auto_adjuntar && (
-            <span style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 11, color: "var(--brand)", fontWeight: 500 }}>
-              <Zap size={11} />
-              Auto-adjuntar
-            </span>
-          )}
+      {(proc.bloquea_cierre_ot || proc.bloquea_inicio || proc.auto_adjuntar || proc.notificar_al_completar) && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 6 }}>
+          {proc.bloquea_inicio     && <Chip label="Bloquea inicio" color="var(--warning)" />}
+          {proc.bloquea_cierre_ot  && <Chip label="Bloquea cierre" color="var(--warning)" />}
+          {proc.auto_adjuntar      && <Chip label="Auto-adjuntar" color="var(--brand)" />}
+          {proc.notificar_al_completar && <Chip label="Avisa al completar" color="var(--fg-3)" />}
         </div>
-        <ChevronRight size={14} style={{ color: "var(--fg-4)" }} />
-      </div>
+      )}
     </div>
+  );
+}
+
+function Chip({ label, color }: { label: string; color: string }) {
+  return (
+    <span style={{
+      fontSize: 10.5, fontWeight: 600, color, border: `1px solid ${color}`,
+      borderRadius: 4, padding: "1px 5px", opacity: 0.9, whiteSpace: "nowrap",
+    }}>
+      {label}
+    </span>
   );
 }

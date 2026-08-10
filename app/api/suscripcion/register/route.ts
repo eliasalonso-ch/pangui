@@ -142,7 +142,7 @@ export async function POST(req: Request) {
 
     // La suscripción queda pendiente hasta que el webhook confirme el pago del
     // primer link: nadie usa funciones pagadas antes de pagarlas.
-    await admin.from("subscriptions").upsert({
+    const { error: upsertError } = await admin.from("subscriptions").upsert({
       workspace_id:         workspaceId,
       plan_key:             planKey,
       flow_subscription_id: created.subscriptionId,
@@ -157,6 +157,19 @@ export async function POST(req: Request) {
       current_period_end:   refreshed.period_end ?? refreshed.next_invoice_date ?? null,
       updated_at:           new Date().toISOString(),
     }, { onConflict: "workspace_id" });
+
+    // Si esto falla, la suscripción existe en Flow pero la base local no tiene
+    // el flow_subscription_id — el webhook posterior no encuentra la fila y el
+    // pago queda huérfano. Mejor fallar fuerte y que el usuario reintente.
+    if (upsertError) {
+      console.error("[suscripcion/register] upsert falló tras crear la suscripción en Flow:", upsertError, {
+        workspaceId,
+        subscriptionId: created.subscriptionId,
+      });
+      return NextResponse.json({
+        error: "La suscripción se creó en Flow pero no se pudo registrar localmente. Contacta a soporte antes de reintentar.",
+      }, { status: 500 });
+    }
 
     return NextResponse.json({
       ok: true,

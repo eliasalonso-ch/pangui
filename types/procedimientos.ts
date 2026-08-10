@@ -34,6 +34,12 @@ export interface Procedimiento {
   activo: boolean;
   bloquea_cierre_ot: boolean;
   auto_adjuntar: boolean;
+  // Comportamiento que la app móvil ya exponía y la web no: bloquea_inicio
+  // obliga a completar el procedimiento antes de iniciar la OT, y
+  // notificar_al_completar dispara la regla de alerta
+  // "procedimiento_completado".
+  bloquea_inicio: boolean;
+  notificar_al_completar: boolean;
   // New in 20260521; optional so legacy code that maps partial rows still compiles.
   // DB has defaults: version=1, hereda_a_hijos=false, iso_categoria/puntaje_*=null.
   version?: number;
@@ -56,6 +62,8 @@ export interface ProcedimientoListItem {
   activo: boolean;
   bloquea_cierre_ot: boolean;
   auto_adjuntar: boolean;
+  bloquea_inicio: boolean;
+  notificar_al_completar: boolean;
   hereda_a_hijos?: boolean;
   version?: number;
   created_at: string;
@@ -266,6 +274,8 @@ export interface ProcedimientoForm {
   iso_categoria?: string;
   bloquea_cierre_ot: boolean;
   auto_adjuntar: boolean;
+  bloquea_inicio: boolean;
+  notificar_al_completar: boolean;
   hereda_a_hijos?: boolean;
   puntaje_minimo?: number | null;
   pasos: PasoFormItem[];
