@@ -152,6 +152,7 @@ export const LIST_SELECT = `
   categoria_id, ubicacion_id, activo_id, creado_por, asignados_ids,
   numero, parent_id,
   iniciado_at, en_ejecucion, tiempo_total_segundos,
+  completado_en,
   categorias_ot (nombre, icono, color),
   ubicaciones (edificio, detalle),
   activos (nombre)
@@ -175,6 +176,9 @@ export const LIST_SELECT = `
  *     before server results land.
  *   - ubicaciones (edificio, detalle) → OTRow's location chip, the kanban card,
  *     and the `sort === "ubicacion"` comparator.
+ *   - completado_en → the "Completadas recientemente" sort. This select feeds
+ *     the rendered list whenever a filter is active, so dropping it would make
+ *     that order silently collapse to "sin fecha" for every row.
  *
  * Mirrors ORDEN_LIST_SELECT in mobile's features/work-orders/api.ts.
  */
@@ -185,6 +189,7 @@ export const ORDEN_BULK_SELECT = `
   categoria_id, ubicacion_id, activo_id, creado_por, asignados_ids,
   numero, parent_id,
   iniciado_at, en_ejecucion, tiempo_total_segundos,
+  completado_en,
   ubicaciones (edificio, detalle)
 `;
 

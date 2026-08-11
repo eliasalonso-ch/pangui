@@ -40,12 +40,16 @@ const ACTIVE_ESTADOS  = new Set<Estado>(["pendiente","en_espera","en_curso"]);
 const CLOSED_ESTADOS  = new Set<Estado>(["completado"]);
 const PRIORIDAD_ORDER: Record<string, number> = { urgente:4, alta:3, media:2, baja:1, ninguna:0 };
 
-const SORT_OPTIONS: { value: SortOption; label: string }[] = [
-  { value: "prioridad_desc",    label: "Prioridad: Más alto primero" },
-  { value: "created_at_desc",   label: "Más recientes primero" },
-  { value: "fecha_termino_asc", label: "Fecha límite" },
-  { value: "prioridad_asc",     label: "Prioridad: Más bajo primero" },
-  { value: "ubicacion",         label: "Ubicación" },
+// `soloCompletas` marks options that only make sense once an OT is closed:
+// "Completadas recientemente" would order the Pendientes tab by a column that is
+// null for every row there.
+const SORT_OPTIONS: { value: SortOption; label: string; soloCompletas?: true }[] = [
+  { value: "prioridad_desc",     label: "Prioridad: Más alto primero" },
+  { value: "created_at_desc",    label: "Más recientes primero" },
+  { value: "completado_en_desc", label: "Completadas recientemente", soloCompletas: true },
+  { value: "fecha_termino_asc",  label: "Fecha límite" },
+  { value: "prioridad_asc",      label: "Prioridad: Más bajo primero" },
+  { value: "ubicacion",          label: "Ubicación" },
 ];
 
 type WaitingReasonKey = "materiales" | "acceso" | "reprogramar" | "otro";
@@ -204,7 +208,12 @@ export default function OrdenesBandeja({
     return "todas";
   });
   const [search, setSearch]     = useState("");
-  const [sort, setSort]         = useState<SortOption>("created_at_desc");
+  // Arrancar en Completas (p. ej. ?filtro=completadas_hoy) también ordena por
+  // fecha de cierre, igual que al cambiar de pestaña a mano.
+  const [sort, setSort]         = useState<SortOption>(() => {
+    const f = searchParams?.get("filtro");
+    return f === "completadas_hoy" ? "completado_en_desc" : "created_at_desc";
+  });
 
   // Pre-apply filter from URL param (e.g. ?filtro=urgentes from inicio dashboard)
   const [filtros, setFiltros]   = useState<FiltrosState>(() => {
@@ -885,6 +894,15 @@ export default function OrdenesBandeja({
     } else {
       list.sort((a, b) => {
         switch (sort) {
+          case "completado_en_desc": {
+            // Sin fecha de cierre van al final: son OTs anteriores al backfill
+            // o que nunca se completaron.
+            const ac = a.completado_en, bc = b.completado_en;
+            if (!ac && !bc) return 0;
+            if (!ac) return 1;
+            if (!bc) return -1;
+            return new Date(bc).getTime() - new Date(ac).getTime();
+          }
           case "fecha_termino_asc":
             if (!a.fecha_termino) return 1;
             if (!b.fecha_termino) return -1;
@@ -1528,6 +1546,15 @@ export default function OrdenesBandeja({
                     // Reset scope when switching tabs because some scopes don't
                     // apply on both sides (e.g. "Reprogramadas" requires en_espera).
                     setScope("todas");
+                    // Cada pestaña tiene su noción de "reciente": en Completas es
+                    // la fecha de cierre, no la de creación. Solo se reajusta si
+                    // el orden actual es el que la otra pestaña usa por defecto,
+                    // para no pisar una elección explícita del usuario.
+                    if (t.key === "completas" && sort === "created_at_desc") {
+                      setSort("completado_en_desc");
+                    } else if (t.key === "pendientes" && sort === "completado_en_desc") {
+                      setSort("created_at_desc");
+                    }
                   }}
                   style={{
                     display:"flex", alignItems:"center", justifyContent:"space-between",
@@ -1669,7 +1696,7 @@ export default function OrdenesBandeja({
                     <div style={{ padding:"8px 14px 4px", fontSize:10, fontWeight:700, color:"var(--fg-4)", textTransform:"uppercase", letterSpacing:"0.06em" }}>
                       Ordenar por
                     </div>
-                    {SORT_OPTIONS.map(o => (
+                    {SORT_OPTIONS.filter(o => !o.soloCompletas || tab === "completas").map(o => (
                       <button
                         key={o.value}
                         type="button"

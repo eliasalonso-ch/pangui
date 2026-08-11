@@ -280,6 +280,9 @@ export interface OrdenTrabajo {
   requiere_materiales: boolean;
   requiere_hoja: boolean;
   requiere_fotos: boolean;
+  // When the OT was completed. Stamped by a trigger on every completion path
+  // and cleared on reopen; drives the "Completadas recientemente" sort.
+  completado_en?: string | null;
   // Audited owner/admin close with unmet requisitos. Only present on the detail
   // select — LIST_SELECT stays lean for egress.
   cierre_forzado?: boolean;
@@ -310,7 +313,7 @@ export type OrdenListItem = Pick<
   | "created_at" | "categoria_id" | "ubicacion_id" | "activo_id"
   | "creado_por" | "asignados_ids" | "numero" | "parent_id"
   | "n_serie" | "solicitante" | "hito"
-  | "iniciado_at" | "en_ejecucion" | "tiempo_total_segundos"
+  | "iniciado_at" | "en_ejecucion" | "tiempo_total_segundos" | "completado_en"
   | "categorias_ot" | "ubicaciones" | "activos"
   | "_pending"
 > & Partial<Pick<OrdenTrabajo, "proxima_ejecucion" | "recurrencia_origen_id" | "recurrencia_iteracion">>;
@@ -362,6 +365,7 @@ export interface FiltrosState {
 
 export type SortOption =
   | "created_at_desc"
+  | "completado_en_desc"
   | "fecha_termino_asc"
   | "prioridad_desc"
   | "prioridad_asc"

@@ -18,7 +18,7 @@ import {
   ClipboardCheck, Info, Hash as HashIcon, Camera, PenLine, Shield, CheckSquare,
   Type, DollarSign, List, ListChecks, AlertCircle, ImagePlus, FolderOpen,
   Lock, LockOpen, Mic, MicOff, Volume2, GitBranch, Wrench, Link as LinkIcon,
-  Phone, Mail, Circle,
+  Phone, Mail, Circle, MessageSquare,
   Minus, ArrowUp, ArrowDown, RotateCw, UserRoundX, UserRoundCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -548,15 +548,6 @@ interface Props {
 }
 
 type Tab = "detalle" | "actividad" | "fotos" | "materiales" | "hoja";
-
-/** Título de la barra compacta dentro de cada pestaña. */
-const TAB_TITLE: Record<Tab, string> = {
-  detalle:        "Detalle",
-  actividad:      "Actividad",
-  fotos:          "Fotos",
-  materiales:     "Materiales",
-  hoja:           "Hoja de cálculo",
-};
 
 // ── Parts types ───────────────────────────────────────────────────────────────
 
@@ -2294,7 +2285,7 @@ export default function OTDetail({
   );
   const dashboardNav = ([
     { tab: "detalle", label: "Detalles", value: "Ver", caption: "información de la OT", icon: <Info size={19} />, color: "var(--brand-fg)", tint: "var(--brand-tint)" },
-    { tab: "actividad", label: "Actividad", value: String(actividad.length), caption: "eventos", icon: <CircleDot size={19} />, color: "var(--brand-fg)", tint: "var(--brand-tint)" },
+    { tab: "actividad", label: "Actividad", value: String(actividad.length), caption: "eventos", icon: <MessageSquare size={19} />, color: "var(--brand-fg)", tint: "var(--brand-tint)" },
     { tab: "fotos", label: "Fotos", value: String(totalFotos), caption: "fotos", icon: <Camera size={19} />, color: "var(--brand-fg)", tint: "var(--brand-tint)" },
     { tab: "materiales", label: "Materiales", value: String(ordenPartes.length), caption: "ítems usados", icon: <Package size={19} />, color: "var(--fg-2)", tint: "var(--surface-hover)" },
     { tab: "hoja", label: "Hoja de cálculo", value: "Abrir", caption: "registros", icon: <Sheet size={19} />, color: "var(--success)", tint: "var(--success-bg)" },
@@ -2411,8 +2402,6 @@ export default function OTDetail({
       {/* Shared confirmation popup for every destructive action in this view. */}
       <ConfirmDeleteModal pending={confirmDelete} onClose={() => setConfirmDelete(null)} />
 
-      <div ref={detalleScrollRef} style={{ flex: 1, minHeight: 0, overflowY: "auto", overflowX: "hidden" }}>
-
       {/* An OT closed with unmet requisitos says so permanently — the audit trail
           is worthless if it only lives in the activity log nobody scrolls to. */}
       {orden.cierre_forzado && (
@@ -2430,165 +2419,90 @@ export default function OTDetail({
 
       {/* ── Header ── */}
       <div style={{ position: "relative", flexShrink: 0, borderBottom: "1px solid var(--border)", background: "var(--surface-canvas)" }}>
-        {/* Top bar: title + optional close (modal overlays). Timer was moved into the body.
-            Solo se muestra en la pestaña principal: dentro de una pestaña el
-            título ya no aporta y ocupaba una franja alta de la pantalla. Las
-            otras pestañas usan la barra compacta de más abajo. */}
-        {tab === "detalle" && (
-        <div style={{ display: "flex", alignItems: "flex-start", padding: "24px 28px 18px", minHeight: 52, gap: 16 }}>
+        {/* Barra de secciones: primero de todo y en todas las pestañas, para que
+            cambiar de sección sea siempre un clic desde el mismo lugar. Solo
+            iconos, todos del mismo tamaño; el nombre va en title/aria-label y la
+            activa se distingue por el color de marca. */}
+        <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 28px" }}>
           {showBackButton && (
             <button
               type="button"
               onClick={onClose}
               aria-label="Volver a órdenes"
               title="Volver a órdenes"
-              style={{ width: 36, height: 36, marginTop: 1, flexShrink: 0, display: "inline-flex", alignItems: "center", justifyContent: "center", border: "1px solid var(--border)", borderRadius: "var(--r-sm)", background: "var(--surface-1)", color: "var(--fg-2)", cursor: "pointer" }}
+              style={{ width: 34, height: 34, flexShrink: 0, display: "inline-flex", alignItems: "center", justifyContent: "center", border: "1px solid var(--border)", borderRadius: "var(--r-sm)", background: "var(--surface-1)", color: "var(--fg-2)", cursor: "pointer" }}
             >
-              <ChevronLeft size={19} />
+              <ChevronLeft size={18} />
             </button>
           )}
-          <div style={{ flex: 1, minWidth: 0, paddingRight: 190 }}>
-            {orden.numero != null && (
-              <div style={{ display: "inline-flex", alignItems: "center", minHeight: 24, padding: "0 9px", border: "1px solid var(--border-strong)", borderRadius: "var(--r-sm)", background: "transparent", color: "var(--fg-1)", fontSize: 12, fontWeight: 500, marginBottom: 8 }}>
-                OT #{orden.numero}
-              </div>
-            )}
-            <h1
-              style={{
-                fontSize: 27, fontWeight: 700, color: "var(--fg-1)",
-                margin: 0, lineHeight: 1.3,
-                overflowWrap: "break-word",
-                wordBreak: "break-word",
-              }}
-            >
-              {orden.titulo || "Sin título"}
-              <CopyOTUrlButton ordenId={orden.id} />
-            </h1>
-            <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: "7px 12px", marginTop: 12, color: "var(--fg-3)", fontSize: 13 }}>
-              {orden.ubicaciones?.edificio && (
-                <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><MapPin size={15} />{orden.ubicaciones.edificio}</span>
-              )}
-              {orden.sociedad?.nombre && (
-                <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><Building2 size={15} />{orden.sociedad.nombre}</span>
-              )}
-              {orden.fecha_termino && (
-                <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><Calendar size={15} />Vencimiento: {fmtFechaLocal(orden.fecha_termino)}</span>
-              )}
-              {orden.prioridad !== "ninguna" && (
-                <DetailBadge icon={prioIcon} iconColor={prioSolid}>{prioLabel}</DetailBadge>
-              )}
+          <div style={{ flex: 1, minWidth: 0, overflowX: "auto", overflowY: "hidden" }}>
+            <div role="tablist" aria-label="Secciones de la orden" style={{ display: "flex", alignItems: "center", gap: 6, width: "max-content", minWidth: "100%" }}>
+            {dashboardNav.map((item) => {
+              const active = item.tab != null && tab === item.tab;
+              return (
+              <button
+                key={item.label}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                aria-label={item.label}
+                title={item.label}
+                onClick={() => { if (item.tab) setTab(item.tab); }}
+                style={{
+                  height: 34,
+                  width: 38,
+                  padding: 0,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  background: active ? "var(--brand-tint)" : "transparent",
+                  border: `1px solid ${active ? "var(--brand)" : "var(--border)"}`,
+                  borderRadius: "var(--r-sm)",
+                  color: active ? "var(--brand)" : "var(--fg-2)",
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                  whiteSpace: "nowrap",
+                  flexShrink: 0,
+                  transition: "background 0.12s, border-color 0.12s, color 0.12s",
+                }}
+                onMouseEnter={e => { if (!active) e.currentTarget.style.background = "var(--surface-hover)"; }}
+                onMouseLeave={e => { if (!active) e.currentTarget.style.background = "transparent"; }}
+                onFocus={e => { e.currentTarget.style.outline = "none"; }}
+              >
+                <span style={{ width: 18, height: 18, flexShrink: 0, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+                  {item.icon}
+                </span>
+              </button>
+              );
+            })}
             </div>
           </div>
-          {showCloseButton && (
+
+          {/* Editar y el menú de acciones viven en la misma fila que las
+              secciones: así no tapan el contenido ni dependen de Detalles, y
+              quedan disponibles desde cualquier pestaña. */}
+          {(canManage || orden.creado_por === myId) && (
             <button
-              type="button" onClick={onClose}
-              style={{ width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", borderRadius: "var(--r-sm)", cursor: "pointer", color: "var(--fg-4)", flexShrink: 0 }}
-              onMouseEnter={e => { e.currentTarget.style.background = "var(--surface-hover)"; }}
-              onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}
+              type="button" onClick={onEdit}
+              style={{ flexShrink: 0, height: 34, padding: "0 13px", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, background: "var(--brand)", border: "1px solid var(--brand)", borderRadius: "var(--r-sm)", cursor: "pointer", color: "var(--fg-on-brand)", fontSize: 13, fontWeight: 700, fontFamily: "inherit" }}
+              onMouseEnter={e => { e.currentTarget.style.filter = "brightness(0.96)"; }}
+              onMouseLeave={e => { e.currentTarget.style.filter = "none"; }}
             >
-              <X size={15} />
+              <Pencil size={14} />
+              Editar
             </button>
           )}
-        </div>
-        )}
 
-        {/* Barra compacta para las pestañas que no son la principal: solo el
-            botón de volver y el nombre de la sección, al estilo del panel de
-            edición. Volver lleva a la pestaña principal, no cierra la OT. */}
-        {tab !== "detalle" && (
-          <div style={{
-            display: "flex", alignItems: "center", gap: 12,
-            padding: "0 28px", height: 64, flexShrink: 0,
-          }}>
-            <button
-              type="button"
-              onClick={() => setTab("detalle")}
-              aria-label="Volver al detalle"
-              title="Volver al detalle"
-              style={{ width: 32, height: 32, flexShrink: 0, display: "inline-flex", alignItems: "center", justifyContent: "center", border: "1px solid var(--border)", borderRadius: "var(--r-sm)", background: "var(--surface-1)", color: "var(--fg-2)", cursor: "pointer" }}
-              onMouseEnter={e => { e.currentTarget.style.background = "var(--surface-hover)"; }}
-              onMouseLeave={e => { e.currentTarget.style.background = "var(--surface-1)"; }}
-            >
-              <ChevronLeft size={17} />
-            </button>
-            <h2 style={{ flex: 1, fontSize: 17, fontWeight: 700, color: "var(--fg-1)", margin: 0, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-              {TAB_TITLE[tab] ?? "Detalle"}
-            </h2>
-            {/* El cierre del modal vive en la cabecera grande, que acá está
-                oculta: sin esto, una OT abierta en modal quedaría sin forma de
-                cerrarse desde una pestaña interna. */}
-            {showCloseButton && (
-              <button
-                type="button" onClick={onClose}
-                aria-label="Cerrar"
-                style={{ width: 32, height: 32, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", borderRadius: "var(--r-sm)", cursor: "pointer", color: "var(--fg-4)" }}
-                onMouseEnter={e => { e.currentTarget.style.background = "var(--surface-hover)"; }}
-                onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}
-              >
-                <X size={15} />
-              </button>
-            )}
-          </div>
-        )}
-
-        {/* Scrollable tab bar: navigation stays readable in the split view.
-            Solo en la pestaña principal — dentro de una sección se navega con
-            el botón de volver, que es justamente para lo que está. */}
-        {tab === "detalle" && (
-        <div style={{ margin: "0 28px 22px", overflowX: "auto", overflowY: "hidden" }}>
-          <div role="tablist" aria-label="Secciones de la orden" style={{ display: "flex", alignItems: "center", gap: 8, width: "max-content", minWidth: "100%" }}>
-          {dashboardNav.map((item) => {
-            const active = item.tab != null && tab === item.tab;
-            return (
-            <button
-              key={item.label}
-              type="button"
-              role="tab"
-              aria-selected={active}
-              onClick={() => { if (item.tab) setTab(item.tab); }}
-              style={{
-                height: 32,
-                padding: "0 14px",
-                display: "inline-flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: 5,
-                background: active ? "var(--surface-hover)" : "transparent",
-                border: "1px solid var(--brand)",
-                borderRadius: "var(--r-xs)",
-                color: "var(--brand-fg)",
-                cursor: "pointer",
-                fontFamily: "inherit",
-                whiteSpace: "nowrap",
-                flexShrink: 0,
-                fontWeight: 700,
-                transition: "background 0.12s, box-shadow 0.12s",
-              }}
-              onMouseEnter={e => { if (!active) e.currentTarget.style.background = "var(--surface-hover)"; }}
-              onMouseLeave={e => { if (!active) e.currentTarget.style.background = "transparent"; }}
-              onFocus={e => { e.currentTarget.style.outline = "none"; }}
-            >
-              <span style={{ width: 20, height: 20, flexShrink: 0, display: "inline-flex", alignItems: "center", justifyContent: "center", color: "var(--brand-fg)" }}>
-                {item.icon}
-              </span>
-              <span style={{ color: "var(--brand-fg)", fontSize: 13, fontWeight: 700 }}>
-                {item.label}{item.tab !== "detalle" && item.tab !== "hoja" ? ` (${item.value})` : ""}
-              </span>
-            </button>
-            );
-          })}
-          </div>
-
-                    <div ref={exportMenuRef} style={{ position: "absolute", top: 24, right: 28, zIndex: 20 }}>
+          <div ref={exportMenuRef} style={{ position: "relative", flexShrink: 0 }}>
             <button
               type="button"
               onClick={() => setExportMenuOpen(v => !v)}
               title="Mas acciones"
-              style={{ width: 42, height: 42, display: "flex", alignItems: "center", justifyContent: "center", background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: "var(--r-sm)", cursor: "pointer", color: "var(--fg-1)" }}
+              style={{ width: 34, height: 34, display: "flex", alignItems: "center", justifyContent: "center", background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: "var(--r-sm)", cursor: "pointer", color: "var(--fg-1)" }}
               onMouseEnter={e => { e.currentTarget.style.background = "var(--surface-hover)"; }}
               onMouseLeave={e => { e.currentTarget.style.background = "var(--surface-1)"; }}
             >
-              {exporting ? <Loader2 size={14} className="animate-spin" /> : <MoreVertical size={17} />}
+              {exporting ? <Loader2 size={14} className="animate-spin" /> : <MoreVertical size={16} />}
             </button>
             {exportMenuOpen && (
               <div style={{
@@ -2667,27 +2581,63 @@ export default function OTDetail({
             )}
           </div>
 
-          {(canManage || orden.creado_por === myId) && (
+          {showCloseButton && (
             <button
-              type="button" onClick={onEdit}
-              style={{ position: "absolute", top: 24, right: 80, zIndex: 19, height: 42, padding: "0 15px", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, background: "var(--brand)", border: "1px solid var(--brand)", borderRadius: "var(--r-sm)", cursor: "pointer", color: "var(--fg-on-brand)", fontSize: 13, fontWeight: 700, fontFamily: "inherit" }}
-              onMouseEnter={e => { e.currentTarget.style.filter = "brightness(0.96)"; }}
-              onMouseLeave={e => { e.currentTarget.style.filter = "none"; }}
+              type="button" onClick={onClose}
+              aria-label="Cerrar"
+              style={{ width: 32, height: 32, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", borderRadius: "var(--r-sm)", cursor: "pointer", color: "var(--fg-4)" }}
+              onMouseEnter={e => { e.currentTarget.style.background = "var(--surface-hover)"; }}
+              onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}
             >
-              <Pencil size={14} />
-              Editar
+              <X size={15} />
             </button>
           )}
         </div>
-        )}
       </div>
 
-      {/* ── Body ── */}
-      <div style={{ minHeight: 0, overflow: "visible" }}>
+      {/* ── Body ──
+          El único contenedor con scroll: la cabecera y la barra de secciones
+          quedan encima y no se mueven, que es lo que se pedía con "fijas". */}
+      <div ref={detalleScrollRef} style={{ flex: 1, minHeight: 0, overflowY: "auto", overflowX: "hidden" }}>
 
         {/* ── Detalle ── */}
         {tab === "detalle" && (
-          <div style={{ padding: "28px 28px 120px" }}>
+          <div style={{ padding: "22px 28px 120px" }}>
+            {/* Título y metadatos: dentro del área con scroll, no en la cabecera
+                fija. Solo la barra de secciones se queda quieta; el título se va
+                con el contenido, que es lo que se espera al bajar. */}
+            <div style={{ minWidth: 0, paddingRight: 190, marginBottom: 22 }}>
+              {orden.numero != null && (
+                <div style={{ display: "inline-flex", alignItems: "center", minHeight: 24, padding: "0 9px", border: "1px solid var(--border-strong)", borderRadius: "var(--r-sm)", background: "transparent", color: "var(--fg-1)", fontSize: 12, fontWeight: 500, marginBottom: 8 }}>
+                  OT #{orden.numero}
+                </div>
+              )}
+              <h1
+                style={{
+                  fontSize: 27, fontWeight: 700, color: "var(--fg-1)",
+                  margin: 0, lineHeight: 1.3,
+                  overflowWrap: "break-word",
+                  wordBreak: "break-word",
+                }}
+              >
+                {orden.titulo || "Sin título"}
+                <CopyOTUrlButton ordenId={orden.id} />
+              </h1>
+              <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: "7px 12px", marginTop: 12, color: "var(--fg-3)", fontSize: 13 }}>
+                {orden.ubicaciones?.edificio && (
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><MapPin size={15} />{orden.ubicaciones.edificio}</span>
+                )}
+                {orden.sociedad?.nombre && (
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><Building2 size={15} />{orden.sociedad.nombre}</span>
+                )}
+                {orden.fecha_termino && (
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><Calendar size={15} />Vencimiento: {fmtFechaLocal(orden.fecha_termino)}</span>
+                )}
+                {orden.prioridad !== "ninguna" && (
+                  <DetailBadge icon={prioIcon} iconColor={prioSolid}>{prioLabel}</DetailBadge>
+                )}
+              </div>
+            </div>
             {orden.parent_id && (
               <button
                 type="button"
@@ -3524,9 +3474,6 @@ export default function OTDetail({
           </div>
         )}
 
-      </div>
-
-      {/* ── Execution modal ── */}
       </div>
 
       {pauseOpen && (
