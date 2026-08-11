@@ -2307,7 +2307,17 @@ export default function OTDetail({
       {tab === "detalle" && procFueraDeVista && (
         <button
           type="button"
-          onClick={() => procSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
+          // Se desplaza el contenedor del cuerpo a mano en vez de usar
+          // scrollIntoView: ese método arrastra TODOS los ancestros con scroll,
+          // así que también movía la página y se llevaba la cabecera fija fuera
+          // de vista, dejando una franja blanca abajo.
+          onClick={() => {
+            const root = detalleScrollRef.current;
+            const target = procSectionRef.current;
+            if (!root || !target) return;
+            const offset = target.getBoundingClientRect().top - root.getBoundingClientRect().top;
+            root.scrollTo({ top: root.scrollTop + offset, behavior: "smooth" });
+          }}
           style={{
             position: "absolute", bottom: 20, left: "50%", transform: "translateX(-50%)",
             zIndex: 60, height: 40, padding: "0 18px",
@@ -2455,7 +2465,7 @@ export default function OTDetail({
                   display: "inline-flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  background: active ? "var(--brand-tint)" : "transparent",
+                  background: active ? "var(--brand-tint)" : "var(--surface-1)",
                   border: `1px solid ${active ? "var(--brand)" : "var(--border)"}`,
                   borderRadius: "var(--r-sm)",
                   color: active ? "var(--brand)" : "var(--fg-2)",
@@ -2466,7 +2476,7 @@ export default function OTDetail({
                   transition: "background 0.12s, border-color 0.12s, color 0.12s",
                 }}
                 onMouseEnter={e => { if (!active) e.currentTarget.style.background = "var(--surface-hover)"; }}
-                onMouseLeave={e => { if (!active) e.currentTarget.style.background = "transparent"; }}
+                onMouseLeave={e => { if (!active) e.currentTarget.style.background = "var(--surface-1)"; }}
                 onFocus={e => { e.currentTarget.style.outline = "none"; }}
               >
                 <span style={{ width: 18, height: 18, flexShrink: 0, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
@@ -2600,15 +2610,17 @@ export default function OTDetail({
           quedan encima y no se mueven, que es lo que se pedía con "fijas". */}
       <div ref={detalleScrollRef} style={{ flex: 1, minHeight: 0, overflowY: "auto", overflowX: "hidden" }}>
 
-        {/* ── Detalle ── */}
+        {/* ── Detalle ──
+            El padding inferior reserva espacio para el botón flotante "Ir a
+            procedimientos", que se apoya abajo al centro. */}
         {tab === "detalle" && (
-          <div style={{ padding: "22px 28px 120px" }}>
+          <div style={{ padding: "22px 28px 76px" }}>
             {/* Título y metadatos: dentro del área con scroll, no en la cabecera
                 fija. Solo la barra de secciones se queda quieta; el título se va
                 con el contenido, que es lo que se espera al bajar. */}
             <div style={{ minWidth: 0, paddingRight: 190, marginBottom: 22 }}>
               {orden.numero != null && (
-                <div style={{ display: "inline-flex", alignItems: "center", minHeight: 24, padding: "0 9px", border: "1px solid var(--border-strong)", borderRadius: "var(--r-sm)", background: "transparent", color: "var(--fg-1)", fontSize: 12, fontWeight: 500, marginBottom: 8 }}>
+                <div style={{ display: "inline-flex", alignItems: "center", minHeight: 24, padding: "0 9px", border: "1px solid var(--border)", borderRadius: "var(--r-sm)", background: "var(--surface-1)", color: "var(--fg-1)", fontSize: 12, fontWeight: 500, marginBottom: 8 }}>
                   OT #{orden.numero}
                 </div>
               )}
@@ -2754,17 +2766,17 @@ export default function OTDetail({
                           type="button"
                           onClick={handleClick}
                           disabled={timerBusy}
-                          // Sin seleccionar: todos iguales — borde e ícono
-                          // azules sobre fondo transparente. Seleccionado: se
+                          // Sin seleccionar: todos iguales — borde gris de 1px
+                          // sobre blanco, con el ícono en azul. Seleccionado: se
                           // rellena con el color del estado y el ícono y el
                           // texto pasan a blanco. "Sin asignar" no tiene color
                           // propio hasta que la OT tiene asignados.
                           style={{
                             display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
                             gap: 7, padding: "10px 16px", minWidth: 86, minHeight: 62,
-                            border: `1px solid ${isSelected && accent ? accent : "var(--brand)"}`,
+                            border: `1px solid ${isSelected && accent ? accent : "var(--border)"}`,
                             borderRadius: "var(--r-md)",
-                            background: isSelected ? (accent ?? "transparent") : "transparent",
+                            background: isSelected ? (accent ?? "var(--surface-1)") : "var(--surface-1)",
                             color: isSelected && accent ? "#FFFFFF" : "var(--fg-1)",
                             cursor: timerBusy ? "default" : "pointer",
                             transition: "background var(--dur-fast) var(--ease)",
@@ -2773,7 +2785,7 @@ export default function OTDetail({
                             if (!timerBusy && !isSelected) ev.currentTarget.style.background = "var(--brand-tint)";
                           }}
                           onMouseLeave={ev => {
-                            if (!isSelected) ev.currentTarget.style.background = "transparent";
+                            if (!isSelected) ev.currentTarget.style.background = "var(--surface-1)";
                           }}
                         >
                           <Icon size={18} style={{ color: isSelected && accent ? "#FFFFFF" : "var(--brand)" }} />
@@ -2907,6 +2919,9 @@ export default function OTDetail({
               </div>
             )}
 
+            {/* Sub-OTs oculto: la función no está terminada. La sección y toda
+                su lógica (fetch, creación, estado) siguen en el archivo — solo
+                se deja de renderizar hasta que se complete.
             {!orden.parent_id && (
               <SubOrdenesSection
                 subOrdenes={subOrdenes}
@@ -2919,6 +2934,7 @@ export default function OTDetail({
                 onOpen={openOrden}
               />
             )}
+            */}
 
             {/* Adjuntos de creación, adjuntos de ejecución y links */}
             {(() => {
@@ -3330,7 +3346,7 @@ export default function OTDetail({
         )}
         {/* ── Partes ── */}
         {tab === "materiales" && (
-          <div style={{ padding: "24px 28px 120px" }}>
+          <div style={{ padding: "24px 28px 32px" }}>
 
             {/* Search catalogue */}
             {(isActive || canManage) && (
@@ -3450,7 +3466,7 @@ export default function OTDetail({
 
         {/* ── Hoja de cálculo ── */}
         {wsId && (
-          <div style={{ display: tab === "hoja" ? "block" : "none", padding: "24px 28px 120px" }}>
+          <div style={{ display: tab === "hoja" ? "block" : "none", padding: "24px 28px 32px" }}>
             {requiereHoja && isActive && (
               <div style={{
                 display: "flex", alignItems: "center", gap: 8,
