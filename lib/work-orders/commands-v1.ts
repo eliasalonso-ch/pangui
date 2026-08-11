@@ -91,6 +91,13 @@ export type TransitionWorkOrderPayloadV1 = {
   action: WorkOrderActionV1;
   comment?: string;
   asignados_ids?: string[];
+  /**
+   * Owner/admin escape hatch for completing an OT whose requisitos can no longer
+   * be satisfied. The server re-checks the actor's role and demands a reason, so
+   * setting this from a non-elevated client only earns a FORCE_CLOSE_FORBIDDEN.
+   */
+  force_close?: boolean;
+  force_close_reason?: string;
 };
 
 type CommandRpcName =
@@ -104,6 +111,8 @@ const COMMAND_ERROR_MESSAGES: Record<string, string> = {
   MATERIALS_REQUIRED: "Esta OT requiere registrar al menos un material antes de completarla.",
   SHEET_REQUIRED: "Esta OT requiere completar la hoja de cálculo antes de cerrarla.",
   PHOTOS_REQUIRED: "Esta OT requiere al menos una foto de evidencia antes de cerrarla.",
+  FORCE_CLOSE_FORBIDDEN: "Solo un propietario o administrador puede cerrar una OT con requisitos pendientes.",
+  FORCE_CLOSE_REASON_REQUIRED: "Debes indicar un motivo para forzar el cierre de la OT.",
   CONFLICT: "La OT cambió desde que la abriste. Recárgala e intenta nuevamente.",
   INVALID_STATE_TRANSITION: "Este cambio de estado no es válido desde el estado actual de la OT.",
   FORBIDDEN: "No tienes permisos para realizar esta acción.",

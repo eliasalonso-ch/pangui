@@ -134,6 +134,7 @@ export const ORDEN_SELECT = `
   iniciado_at, pausado_at, en_ejecucion, tiempo_total_segundos,
   recurrencia, recurrencia_config, proxima_ejecucion, recurrencia_origen_id, recurrencia_iteracion, parent_id,
   requiere_materiales, requiere_hoja, requiere_fotos,
+  cierre_forzado, cierre_forzado_motivo, cierre_forzado_por, cierre_forzado_at,
   imagen_url, fotos_urls, links,
   activos (id, nombre),
   ubicaciones (id, edificio, detalle, sociedad_id, sociedades(nombre)),
@@ -890,11 +891,18 @@ export async function updateOrden(
   return data as unknown as OrdenTrabajo;
 }
 
+/**
+ * Owner/admin override for completing an OT with unmet requisitos. The reason is
+ * mandatory and is re-validated server-side alongside the actor's role.
+ */
+export type ForceClose = { reason: string };
+
 async function runCanonicalTransition(
   id: string,
   userId: string,
   action: WorkOrderActionV1,
   comment?: string,
+  forceClose?: ForceClose,
 ): Promise<boolean> {
   if (!WORK_ORDER_COMMANDS_V1_ENABLED) return false;
   const rollout = await getWorkOrderRolloutV1();
@@ -918,9 +926,25 @@ async function runCanonicalTransition(
       expected_updated_at: current.updated_at,
       action,
       ...(comment?.trim() ? { comment: comment.trim() } : {}),
+      ...(forceClose ? { force_close: true, force_close_reason: forceClose.reason.trim() } : {}),
     },
   });
   return true;
+}
+
+/**
+ * Legacy-path counterpart to the RPC's override columns. The photo trigger only
+ * stands down when these are set in the same UPDATE that completes the OT, so
+ * they must be merged into that statement rather than written afterwards.
+ */
+function forceCloseColumns(userId: string, forceClose?: ForceClose) {
+  if (!forceClose) return {};
+  return {
+    cierre_forzado:        true,
+    cierre_forzado_motivo: forceClose.reason.trim(),
+    cierre_forzado_por:    userId,
+    cierre_forzado_at:     new Date().toISOString(),
+  };
 }
 
 export async function updateOrdenEstado(
@@ -928,6 +952,7 @@ export async function updateOrdenEstado(
   estado: Estado,
   userId: string,
   ordenCtx?: { titulo: string; workspaceId: string; asignadosIds: string[] },
+  forceClose?: ForceClose,
 ): Promise<void> {
   const ESTADO_LABELS: Record<Estado, string> = {
     pendiente:   "Abierta",
@@ -958,13 +983,26 @@ export async function updateOrdenEstado(
           command_id: crypto.randomUUID(),
           workspace_id: current.workspace_id,
           actor_id: userId,
-          payload: { ot_id: id, expected_updated_at: current.updated_at, action },
+          payload: {
+            ot_id: id,
+            expected_updated_at: current.updated_at,
+            action,
+            ...(forceClose && action === "complete"
+              ? { force_close: true, force_close_reason: forceClose.reason.trim() }
+              : {}),
+          },
         });
         return;
       }
     }
   }
-  const { error } = await sb.from("ordenes_trabajo").update({ estado }).eq("id", id);
+  const { error } = await sb
+    .from("ordenes_trabajo")
+    .update({
+      estado,
+      ...(estado === "completado" ? forceCloseColumns(userId, forceClose) : {}),
+    })
+    .eq("id", id);
   if (error) throw error;
   await insertActividad(id, userId, "estado_cambiado", ESTADO_LABELS[estado]);
 
@@ -1050,9 +1088,10 @@ export async function completarOrden(
   comentario: string | undefined,
   segundosAcumulados: number,
   ordenCtx?: { titulo: string; workspaceId: string; asignadosIds: string[] },
+  forceClose?: ForceClose,
 ): Promise<void> {
   const sb = createClient();
-  if (await runCanonicalTransition(id, userId, "complete", comentario)) return;
+  if (await runCanonicalTransition(id, userId, "complete", comentario, forceClose)) return;
   const { error } = await sb
     .from("ordenes_trabajo")
     .update({
@@ -1060,10 +1099,16 @@ export async function completarOrden(
       fecha_termino:         new Date().toISOString(),
       tiempo_total_segundos: segundosAcumulados,
       estado:                "completado",
+      ...forceCloseColumns(userId, forceClose),
     })
     .eq("id", id);
   if (error) throw error;
-  await insertActividad(id, userId, "completado", comentario);
+  await insertActividad(
+    id,
+    userId,
+    "completado",
+    forceClose ? `Cierre forzado: ${forceClose.reason.trim()}` : comentario,
+  );
 
   if (ordenCtx) {
     notifyOTEstadoCambiado({

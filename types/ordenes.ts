@@ -280,6 +280,12 @@ export interface OrdenTrabajo {
   requiere_materiales: boolean;
   requiere_hoja: boolean;
   requiere_fotos: boolean;
+  // Audited owner/admin close with unmet requisitos. Only present on the detail
+  // select — LIST_SELECT stays lean for egress.
+  cierre_forzado?: boolean;
+  cierre_forzado_motivo?: string | null;
+  cierre_forzado_por?: string | null;
+  cierre_forzado_at?: string | null;
   // Media
   imagen_url: string | null;
   fotos_urls: string[] | null;

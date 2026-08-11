@@ -36,6 +36,7 @@ import {
   uploadOrdenFoto, addOrdenFoto, removeOrdenFoto,
   parseDescMeta, fetchOrden, fetchSubOrdenes, createSubOrden,
 } from "@/lib/ordenes-api";
+import type { ForceClose } from "@/lib/ordenes-api";
 import { analytics } from "@/lib/analytics";
 import {
   fetchFotoGrupos, createFotoGrupo, updateFotoGrupo, deleteFotoGrupo,
@@ -45,8 +46,8 @@ import type { FotoGrupo } from "@/lib/foto-grupos-api";
 import { FotosGaleria } from "./FotosGaleria";
 import { optimizedImageUrl } from "@/lib/image-cdn";
 import {
-  getOTProcedimientos, attachProcedimiento, detachProcedimiento,
-  listProcedimientos, startEjecucion, saveRespuesta, completeEjecucion, maybeTriggerCorrectiva,
+  getOTProcedimientos,
+  startEjecucion, saveRespuesta, completeEjecucion, maybeTriggerCorrectiva,
 } from "@/lib/procedimientos-api";
 import type {
   OrdenTrabajo, ActividadOT, ActividadTipo, Usuario, Estado, Prioridad,
@@ -55,7 +56,7 @@ import { notifyClasificacionCambiada } from "@/lib/notificar";
 import { esElevado, esAdmin } from "@/lib/roles";
 import { CategoriaIcon } from "@/components/ordenes/categoria-icon";
 import type {
-  OTProcedimiento, ProcedimientoListItem, ProcedimientoEjecucion,
+  OTProcedimiento, ProcedimientoEjecucion,
   PasoRespuesta, TipoPasoProc, ProcedimientoPaso,
 } from "@/types/procedimientos";
 
@@ -635,6 +636,28 @@ export default function OTDetail({
   const [pendingMaterialRequestSheetId, setPendingMaterialRequestSheetId] = useState<string | null>(null);
   const materialRequestPauseBusyRef = useRef(false);
 
+  // Close-gate dialog. `missing` is what the OT still owes; `resume` is the close
+  // the user was attempting, replayed with an override once they justify it.
+  const [gate, setGate] = useState<{
+    missing: string[];
+    resume: (forceClose?: ForceClose) => Promise<void>;
+  } | null>(null);
+  const [gateReason, setGateReason] = useState("");
+  const [gateBusy, setGateBusy] = useState(false);
+
+  // Autosave feedback. Procedure steps save on change/blur with no Save button,
+  // so the toast is the only signal that the write landed.
+  const [saveToast, setSaveToast] = useState<"saving" | "saved" | "error" | null>(null);
+  const saveToastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const showSaveToast = useCallback((state: "saving" | "saved" | "error") => {
+    if (saveToastTimer.current) clearTimeout(saveToastTimer.current);
+    setSaveToast(state);
+    if (state !== "saving") {
+      saveToastTimer.current = setTimeout(() => setSaveToast(null), state === "error" ? 4000 : 1800);
+    }
+  }, []);
+  useEffect(() => () => { if (saveToastTimer.current) clearTimeout(saveToastTimer.current); }, []);
+
   const [fotos, setFotos] = useState<string[]>([
     ...(orden.imagen_url ? [orden.imagen_url] : []),
     ...(orden.fotos_urls ?? []),
@@ -735,14 +758,9 @@ export default function OTDetail({
   // ── Procedimientos state ─────────────────────────────────────────────────────
   const [otProcs, setOtProcs] = useState<OTProcedimiento[]>([]);
   const [loadingProcs, setLoadingProcs] = useState(false);
-  const [procLibrary, setProcLibrary] = useState<ProcedimientoListItem[]>([]);
-  const [loadingProcLib, setLoadingProcLib] = useState(false);
-  const [attachingProc, setAttachingProc] = useState<string | null>(null);
-  const [detachingProc, setDetachingProc] = useState<string | null>(null);
   // Pending destructive action awaiting confirmation (shared across the tab —
   // procedures, photo groups, individual photos, materials). Guards accidental clicks.
   const [confirmDelete, setConfirmDelete] = useState<ConfirmDelete | null>(null);
-  const [startingEjec, setStartingEjec] = useState<string | null>(null);
   const [activeEjec, setActiveEjec] = useState<{ ejecucion: ProcedimientoEjecucion; pasos: OTProcedimiento["procedimiento"] | null } | null>(null);
   const [savingResp, setSavingResp] = useState<string | null>(null);
   const [pendingResps, setPendingResps] = useState<Record<string, PendingResp>>({});
@@ -851,7 +869,14 @@ export default function OTDetail({
   // button that the database will reject.
   const canDelete = esAdmin(myRol);
   const canManageFotos = esAdmin(myRol);
+  // Closing an OT with unmet requisitos is an owner/admin escape hatch. This only
+  // controls the affordance — the RPC and the photo trigger re-check the role.
+  const canForceClose = esAdmin(myRol);
   const canUploadFotos = canManageFotos || (orden.asignados_ids ?? []).includes(myId);
+  // Filling in procedure steps mirrors the photo rule: whoever is actually doing
+  // the work (the assignees) plus owner/admin. A completed OT is read-only.
+  const canFillProcs = orden.estado !== "completado"
+    && (esAdmin(myRol) || (orden.asignados_ids ?? []).includes(myId));
   const isActive = orden.estado !== "completado";
 
 
@@ -981,15 +1006,6 @@ export default function OTDetail({
     }
   }, [orden.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Load procedure library (lazy, for attach picker)
-  useEffect(() => {
-    if (tab !== "detalle" || procLibrary.length > 0 || !wsId) return;
-    setLoadingProcLib(true);
-    listProcedimientos(wsId)
-      .then(data => { setProcLibrary(data); setLoadingProcLib(false); })
-      .catch(() => setLoadingProcLib(false));
-  }, [tab, wsId]);
-
   // El botón flotante solo tiene sentido si la sección está fuera de pantalla.
   useEffect(() => {
     const el = procSectionRef.current;
@@ -1022,59 +1038,39 @@ export default function OTDetail({
     return () => clearInterval(pollId);
   }, [tab, orden.id]);
 
-  async function handleAttachProc(procId: string) {
+  /**
+   * Ensures the given attached procedure has an ejecución, creating one on first
+   * write. Mirrors mobile, which starts the ejecución when the screen opens —
+   * here the first edit is the trigger, so merely viewing a procedure doesn't
+   * mark it as started.
+   */
+  async function ensureEjecucion(otProc: OTProcedimiento): Promise<ProcedimientoEjecucion | null> {
+    if (otProc.ejecucion) return otProc.ejecucion;
+    if (!myId) return null;
+    const ejec = await startEjecucion(otProc.procedimiento_id, orden.id, myId);
+    setOtProcs(prev => prev.map(otp =>
+      otp.procedimiento_id === otProc.procedimiento_id ? { ...otp, ejecucion: ejec } : otp,
+    ));
+    return ejec;
+  }
+
+  /**
+   * Saves one step's answer. `ejecucionId` is explicit so this serves both the
+   * modal and the inline card editor; `pasos` is the owning procedure's step
+   * list, needed to resolve genera_correctiva.
+   */
+  async function saveRespForEjecucion(
+    ejecucionId: string,
+    pasos: ProcedimientoPaso[],
+    pasoId: string,
+    extra?: PendingResp,
+  ) {
     if (!myId) return;
-    setAttachingProc(procId);
-    try {
-      await attachProcedimiento(orden.id, procId, myId);
-      const updated = await getOTProcedimientos(orden.id);
-      setOtProcs(updated);
-    } catch (e: any) {
-      alert(e.message);
-    } finally {
-      setAttachingProc(null);
-    }
-  }
-
-  async function handleDetachProc(procId: string) {
-    setDetachingProc(procId);
-    try {
-      await detachProcedimiento(orden.id, procId);
-      setOtProcs(prev => prev.filter(p => p.procedimiento_id !== procId));
-    } catch (e: any) {
-      alert(e.message);
-    } finally {
-      setDetachingProc(null);
-    }
-  }
-
-  async function handleStartEjec(otProc: OTProcedimiento) {
-    if (!myId) return;
-    setStartingEjec(otProc.procedimiento_id);
-    try {
-      const ejec = await startEjecucion(otProc.procedimiento_id, orden.id, myId);
-      setActiveEjec({ ejecucion: ejec, pasos: otProc.procedimiento ?? null });
-      const respMap: Record<string, PendingResp> = {};
-      for (const r of ejec.respuestas ?? []) {
-        respMap[r.paso_id] = r;
-      }
-      setPendingResps(respMap);
-      setOtProcs(prev => prev.map(otp =>
-        otp.procedimiento_id === otProc.procedimiento_id ? { ...otp, ejecucion: ejec } : otp,
-      ));
-    } catch (e: any) {
-      alert(e.message);
-    } finally {
-      setStartingEjec(null);
-    }
-  }
-
-  async function handleSaveResp(pasoId: string, extra?: PendingResp) {
-    if (!activeEjec || !myId) return;
     const resp = { ...(pendingResps[pasoId] ?? {}), ...(extra ?? {}) };
     setSavingResp(pasoId);
+    showSaveToast("saving");
     try {
-      const saved = await saveRespuesta(activeEjec.ejecucion.id, pasoId, myId, {
+      const saved = await saveRespuesta(ejecucionId, pasoId, myId, {
         aprobado:         resp.aprobado ?? null,
         valor_medido:     resp.valor_medido ?? null,
         valor_texto:      resp.valor_texto ?? null,
@@ -1083,7 +1079,11 @@ export default function OTDetail({
         firma_svg:        resp.firma_svg ?? null,
         firmado_nombre:   resp.firmado_nombre ?? null,
         firmado_por_id:   resp.firmado_por_id ?? undefined,
-        firmado_at:         resp.firmado_at ?? undefined,
+        // Explicit null must survive: it is how a cleared signature is recorded.
+        // `?? undefined` would drop the key and leave the old timestamp behind.
+        // Explicit null must survive: it is how a cleared signature wipes the
+        // timestamp. `?? undefined` would drop the key and keep the old value.
+        firmado_at:         resp.firmado_at === null ? null : (resp.firmado_at ?? undefined),
         notas:              resp.notas ?? null,
         valor_fecha:        resp.valor_fecha ?? null,
         archivo_url:        resp.archivo_url ?? null,
@@ -1096,20 +1096,29 @@ export default function OTDetail({
         device_id:          resp.device_id ?? null,
         revision_paso:      resp.revision_paso ?? null,
       });
-      // Merge the saved response back into the ejecucion's respuestas
-      setActiveEjec(prev => {
-        if (!prev) return prev;
-        const existing = prev.ejecucion.respuestas ?? [];
+      const mergeResp = (existing: typeof saved[]) => {
         const idx = existing.findIndex(r => r.paso_id === pasoId);
-        const next = idx >= 0
+        return idx >= 0
           ? existing.map((r, i) => i === idx ? saved : r)
           : [...existing, saved];
-        return { ...prev, ejecucion: { ...prev.ejecucion, respuestas: next } };
+      };
+
+      // Merge the saved response back into the ejecucion's respuestas
+      setActiveEjec(prev => {
+        if (!prev || prev.ejecucion.id !== ejecucionId) return prev;
+        return { ...prev, ejecucion: { ...prev.ejecucion, respuestas: mergeResp(prev.ejecucion.respuestas ?? []) } };
       });
+      // The inline card reads from otProcs, so it needs the same merge to show
+      // the new answer without a refetch.
+      setOtProcs(prev => prev.map(otp =>
+        otp.ejecucion?.id === ejecucionId
+          ? { ...otp, ejecucion: { ...otp.ejecucion, respuestas: mergeResp(otp.ejecucion.respuestas ?? []) } }
+          : otp,
+      ));
 
       // If this paso auto-creates a corrective sub-OT on fail, fire the RPC.
       // Idempotent — server skips when already triggered.
-      const paso = activeEjec.pasos?.pasos?.find((p: ProcedimientoPaso) => p.id === pasoId);
+      const paso = pasos.find((p: ProcedimientoPaso) => p.id === pasoId);
       if (paso?.genera_correctiva) {
         maybeTriggerCorrectiva({
           respuestaId: saved.id,
@@ -1119,10 +1128,40 @@ export default function OTDetail({
           // Best-effort: corrective failure shouldn't block the user.
         });
       }
+      showSaveToast("saved");
     } catch (e: any) {
-      alert(e.message);
+      // The toast reports the failure — an alert() per keystroke-blur would be
+      // unbearable now that saving is automatic.
+      showSaveToast("error");
+      console.error("[procedimiento] no se pudo guardar la respuesta", e);
     } finally {
       setSavingResp(null);
+    }
+  }
+
+  function handleSaveResp(pasoId: string, extra?: PendingResp) {
+    if (!activeEjec) return;
+    return saveRespForEjecucion(
+      activeEjec.ejecucion.id,
+      (activeEjec.pasos?.pasos ?? []) as ProcedimientoPaso[],
+      pasoId,
+      extra,
+    );
+  }
+
+  /** Inline card editing: create the ejecución on demand, then save the answer. */
+  async function handleInlineSaveResp(otProc: OTProcedimiento, pasoId: string, extra?: PendingResp) {
+    try {
+      const ejec = await ensureEjecucion(otProc);
+      if (!ejec) return;
+      await saveRespForEjecucion(
+        ejec.id,
+        (otProc.procedimiento?.pasos ?? []) as ProcedimientoPaso[],
+        pasoId,
+        extra,
+      );
+    } catch (e: any) {
+      alert(e.message);
     }
   }
 
@@ -1396,15 +1435,36 @@ export default function OTDetail({
 
   // ── Actions ────────────────────────────────────────────────────────────────
 
-  const checkCompletionRequirements = async (): Promise<string | null> => {
+  /**
+   * Mirrors the server's close-gate so the UI can explain what is missing before
+   * the OT is sent, instead of surfacing a raw RPC error. Returns every unmet
+   * requisito rather than the first one, so an admin deciding whether to force
+   * the close sees the full picture in one pass.
+   *
+   * This is an explanation, not the enforcement. The gates that matter live in
+   * transition_work_order_v1 and the enforce_ot_photo_completion trigger.
+   */
+  const checkCompletionRequirements = async (): Promise<string[]> => {
+    const missing: string[] = [];
+
+    // Blocking procedures. The server treats bloquea_inicio as close-blocking
+    // too, so an OT that was force-started can't be quietly closed around it.
+    const pendingProcs = otProcs.filter(otp =>
+      (otp.procedimiento?.bloquea_cierre_ot || otp.procedimiento?.bloquea_inicio) &&
+      otp.ejecucion?.estado !== "completado",
+    );
+    for (const otp of pendingProcs) {
+      missing.push(`Procedimiento obligatorio sin completar: ${otp.procedimiento?.nombre ?? "sin nombre"}.`);
+    }
+
     // If the workspace currently disables a module via modo_registro, don't
     // enforce its close-gate even if the OT row still has the flag set
     // (the OT may pre-date the workspace mode change).
     if (requiereMateriales && modoRegistro !== "hoja" && ordenPartes.length === 0) {
-      return "Esta OT requiere al menos un material registrado antes de cerrarse. Ve a la pestaña Materiales y agrega los materiales utilizados.";
+      missing.push("Esta OT requiere al menos un material registrado. Ve a la pestaña Materiales y agrega los materiales utilizados.");
     }
     if (requiereHoja && modoRegistro !== "materiales") {
-      return "Esta OT requiere que completes la hoja de cálculo antes de cerrarse. Ve a la pestaña Hoja de cálculo.";
+      missing.push("Esta OT requiere que completes la hoja de cálculo. Ve a la pestaña Hoja de cálculo.");
     }
     if (requiereFotos || fotosObligatoriasTodas) {
       // Always verify fresh server data. Local or stale UI state must never
@@ -1415,26 +1475,65 @@ export default function OTDetail({
         setFotoGrupos(currentGrupos);
         setGruposLoaded(true);
       } catch {
-        return "No se pudieron verificar las fotos. Revisa tu conexión e inténtalo nuevamente antes de cerrar la OT.";
+        missing.push("No se pudieron verificar las fotos. Revisa tu conexión e inténtalo nuevamente antes de cerrar la OT.");
+        return missing;
       }
       const hasAnyFoto = fotos.length > 0 || currentGrupos.some(g => g.tipo === "evidencia" && (g.items?.length ?? 0) > 0);
       if (!hasAnyFoto) {
-        return "Esta OT requiere al menos una foto antes de cerrarse. Ve a la pestaña Fotos y sube las fotos del trabajo.";
+        missing.push("Esta OT requiere al menos una foto de evidencia. Ve a la pestaña Fotos y sube las fotos del trabajo.");
       }
     }
-    return null;
+    return missing;
   };
 
-  const changeStatus = async (newEstado: Estado): Promise<boolean> => {
+  /**
+   * Single entry point for every close. Runs the requisitos check first: if the
+   * OT is clear, `close` runs immediately; if not, the gate dialog explains what
+   * is missing and — for owner/admin only — offers to replay `close` with a
+   * justified override.
+   */
+  const closeWithRequirements = async (close: (forceClose?: ForceClose) => Promise<void>) => {
+    const missing = await checkCompletionRequirements();
+    if (missing.length === 0) {
+      await close();
+      return;
+    }
+    setGateReason("");
+    setGate({ missing, resume: close });
+  };
+
+  const confirmForceClose = async () => {
+    const reason = gateReason.trim();
+    if (!gate || !canForceClose || !reason) return;
+    setGateBusy(true);
+    try {
+      await gate.resume({ reason });
+      setGate(null);
+      setGateReason("");
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "No se pudo forzar el cierre de la OT.");
+    } finally {
+      setGateBusy(false);
+    }
+  };
+
+  const changeStatus = async (
+    newEstado: Estado,
+    forceClose?: ForceClose,
+    // The gate dialog reports failures itself, so it needs the error rather than
+    // an alert() fired from in here.
+    rethrow = false,
+  ): Promise<boolean> => {
     try {
       await updateOrdenEstado(orden.id, newEstado, myId, wsId && orden.titulo ? {
         titulo: orden.titulo,
         workspaceId: wsId,
         asignadosIds: orden.asignados_ids ?? [],
-      } : undefined);
+      } : undefined, forceClose);
       onOrdenUpdated({ estado: newEstado });
       return true;
     } catch (err) {
+      if (rethrow) throw err;
       alert(err instanceof Error ? err.message : "No se pudo cambiar el estado de la OT.");
       return false;
     }
@@ -2034,20 +2133,23 @@ export default function OTDetail({
           estado: "en_espera",
         });
       } else {
-        await completarOrden(orden.id, myId, timerComment || undefined, elapsed, wsId && orden.titulo ? {
-          titulo: orden.titulo,
-          workspaceId: wsId,
-          asignadosIds: orden.asignados_ids ?? [],
-        } : undefined);
-        analytics.otCompleted({
-          ot_id: orden.id,
-          workspace_id: wsId ?? "",
-          tiempo_total_segundos: elapsed,
-        });
-        onOrdenUpdated({
-          en_ejecucion: false,
-          tiempo_total_segundos: elapsed,
-          estado: "completado",
+        const comment = timerComment || undefined;
+        await closeWithRequirements(async (forceClose) => {
+          await completarOrden(orden.id, myId, comment, elapsed, wsId && orden.titulo ? {
+            titulo: orden.titulo,
+            workspaceId: wsId,
+            asignadosIds: orden.asignados_ids ?? [],
+          } : undefined, forceClose);
+          analytics.otCompleted({
+            ot_id: orden.id,
+            workspace_id: wsId ?? "",
+            tiempo_total_segundos: elapsed,
+          });
+          onOrdenUpdated({
+            en_ejecucion: false,
+            tiempo_total_segundos: elapsed,
+            estado: "completado",
+          });
         });
       }
       setTimerAction(null);
@@ -2310,6 +2412,21 @@ export default function OTDetail({
       <ConfirmDeleteModal pending={confirmDelete} onClose={() => setConfirmDelete(null)} />
 
       <div ref={detalleScrollRef} style={{ flex: 1, minHeight: 0, overflowY: "auto", overflowX: "hidden" }}>
+
+      {/* An OT closed with unmet requisitos says so permanently — the audit trail
+          is worthless if it only lives in the activity log nobody scrolls to. */}
+      {orden.cierre_forzado && (
+        <div style={{ display: "flex", gap: 10, padding: "12px 28px", borderBottom: "1px solid var(--border)", background: "var(--surface-canvas)" }}>
+          <AlertTriangle size={15} style={{ color: "var(--warning)", flexShrink: 0, marginTop: 2 }} />
+          <div style={{ minWidth: 0, fontSize: 13, lineHeight: 1.5, color: "var(--fg-2)" }}>
+            <strong style={{ color: "var(--fg-1)" }}>Cierre forzado</strong>
+            {" — se cerró con requisitos pendientes."}
+            {orden.cierre_forzado_motivo && (
+              <div style={{ marginTop: 2, color: "var(--fg-3)" }}>{orden.cierre_forzado_motivo}</div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* ── Header ── */}
       <div style={{ position: "relative", flexShrink: 0, borderBottom: "1px solid var(--border)", background: "var(--surface-canvas)" }}>
@@ -2649,7 +2766,11 @@ export default function OTDetail({
                             if (e.value === "completado") {
                               // Completion validates requirements first and the
                               // canonical command closes the running timer.
-                              await changeStatus("completado");
+                              await closeWithRequirements(async (forceClose) => {
+                                if (!await changeStatus("completado", forceClose, Boolean(forceClose))) {
+                                  throw new Error("No se pudo cambiar el estado de la OT.");
+                                }
+                              });
                               return;
                             }
                             // Pausing already transitions the OT to en_espera.
@@ -2666,6 +2787,12 @@ export default function OTDetail({
                             } finally {
                               setTimerBusy(false);
                             }
+                          } else if (e.value === "completado") {
+                            await closeWithRequirements(async (forceClose) => {
+                              if (!await changeStatus("completado", forceClose, Boolean(forceClose))) {
+                                throw new Error("No se pudo cambiar el estado de la OT.");
+                              }
+                            });
                           } else {
                             await changeStatus(e.value);
                           }
@@ -3098,50 +3225,30 @@ export default function OTDetail({
                     {/* Uno a la vez, elegido desde el encabezado. Con varios
                         procedimientos de decenas de pasos, apilarlos obligaba a
                         recorrer todo para llegar al que se busca. */}
-                    <ProcedimientoEjecutado
-                      otp={otProcs.find(o => o.id === procVisibleId) ?? otProcs[0]}
-                      nombrePorUsuario={nombrePorUsuario}
-                      onPhotoClick={(url) => setLightboxGrupo({ urls: [url], idx: 0 })}
-                    />
+                    {(() => {
+                      const visible = otProcs.find(o => o.id === procVisibleId) ?? otProcs[0];
+                      return (
+                        <ProcedimientoEjecutado
+                          otp={visible}
+                          onEnsureEjecucion={() => ensureEjecucion(visible)}
+                          nombrePorUsuario={nombrePorUsuario}
+                          onPhotoClick={(url) => setLightboxGrupo({ urls: [url], idx: 0 })}
+                          editable={canFillProcs}
+                          ordenId={orden.id}
+                          pendingResps={pendingResps}
+                          savingResp={savingResp}
+                          onUpdateResp={(pasoId, patch) => setPendingResps(prev => ({ ...prev, [pasoId]: { ...(prev[pasoId] ?? {}), ...patch } }))}
+                          onSaveResp={(pasoId, extra) => handleInlineSaveResp(visible, pasoId, extra)}
+                          onPreviewImage={(urls, idx) => setLightboxGrupo({ urls, idx })}
+                        />
+                      );
+                    })()}
                   </div>
                 )}
 
-                {/* Attach picker */}
-                {isActive && (
-                  <div style={{ borderTop: otProcs.length > 0 ? "1px solid var(--divider)" : "none", paddingTop: otProcs.length > 0 ? 16 : 0 }}>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: "var(--fg-4)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 10 }}>
-                      Agregar procedimiento
-                    </div>
-                    {loadingProcLib ? (
-                      <div style={{ display: "flex", justifyContent: "center", padding: "20px 0" }}>
-                        <Loader2 size={14} className="animate-spin" style={{ color: "var(--border-strong)" }} />
-                      </div>
-                    ) : procLibrary.filter(p => !otProcs.some(op => op.procedimiento_id === p.id)).length === 0 ? (
-                      <div style={{ fontSize: 12.5, color: "var(--fg-4)", padding: "8px 0" }}>
-                        {procLibrary.length === 0 ? "No hay procedimientos en la biblioteca." : "Todos los procedimientos ya están adjuntos."}
-                      </div>
-                    ) : (
-                      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                        {procLibrary.filter(p => !otProcs.some(op => op.procedimiento_id === p.id)).map(p => (
-                          <div key={p.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", border: "1px solid var(--border)", borderRadius: "var(--r-md)", background: "var(--surface-0)" }}>
-                            <div>
-                              <div style={{ fontSize: 13, fontWeight: 500, color: "var(--fg-1)" }}>{p.nombre}</div>
-                              <div style={{ fontSize: 11, color: "var(--fg-4)" }}>{p.pasos_count} pasos{p.categoria ? ` · ${p.categoria}` : ""}</div>
-                            </div>
-                            <button
-                              onClick={() => handleAttachProc(p.id)}
-                              disabled={attachingProc === p.id}
-                              style={{ height: 28, padding: "0 10px", background: "var(--brand-tint)", border: "1px solid var(--brand)", borderRadius: "var(--r-sm)", cursor: "pointer", fontSize: 12, fontWeight: 600, color: "var(--brand-fg)", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 4 }}
-                            >
-                              {attachingProc === p.id ? <Loader2 size={11} className="animate-spin" /> : <Plus size={11} />}
-                              Adjuntar
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
+                {/* El adjuntar procedimientos vive en los formularios de crear y
+                    editar OT: esta pestaña es para ejecutarlos, y la biblioteca
+                    completa competía visualmente con el procedimiento en curso. */}
               </>
             )}
             </div>
@@ -3459,6 +3566,105 @@ export default function OTDetail({
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Autosave feedback for procedure steps. Fixed to the top of the viewport
+          so it is visible regardless of how far down the form the user is. */}
+      {saveToast && (
+        <div
+          role="status"
+          aria-live="polite"
+          style={{
+            position: "fixed", top: 18, left: "50%", transform: "translateX(-50%)",
+            zIndex: 900, display: "flex", alignItems: "center", gap: 9,
+            padding: "11px 18px", borderRadius: "var(--r-md)",
+            boxShadow: "var(--shadow-lg)", fontSize: 13.5, fontWeight: 600,
+            color: "#FFFFFF", pointerEvents: "none",
+            background: saveToast === "error" ? "var(--danger)" : saveToast === "saved" ? "var(--success)" : "var(--fg-1)",
+          }}
+        >
+          {saveToast === "saving" && <><Loader2 size={14} className="animate-spin" /> Actualizando…</>}
+          {saveToast === "saved" && <><CheckCircle2 size={14} /> ¡Campo actualizado!</>}
+          {saveToast === "error" && <><AlertTriangle size={14} /> No se pudo guardar el campo</>}
+        </div>
+      )}
+
+      {/* ── Close-gate: unmet requisitos ──
+          Everyone sees what the OT still owes. Only owner/admin get the override,
+          and only with a written justification, which is stored on the OT. */}
+      {gate && (
+        <div
+          role="presentation"
+          onMouseDown={e => { if (e.target === e.currentTarget && !gateBusy) setGate(null); }}
+          style={{ position: "fixed", inset: 0, zIndex: 660, background: "rgba(15,23,42,0.45)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}
+        >
+          <div role="dialog" aria-modal="true" aria-label="Requisitos pendientes" style={{ width: "min(540px, 100%)", maxHeight: "min(720px, calc(100vh - 48px))", overflowY: "auto", background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: "var(--r-xl)", boxShadow: "var(--shadow-lg)" }}>
+            <div style={{ height: 58, padding: "0 16px 0 20px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid var(--border)" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 9, fontSize: 16, fontWeight: 700, color: "var(--fg-1)" }}>
+                <AlertTriangle size={18} style={{ color: "var(--warning)", flexShrink: 0 }} />
+                No se puede cerrar la OT
+              </div>
+              <button type="button" onClick={() => setGate(null)} disabled={gateBusy} aria-label="Cerrar" style={{ width: 34, height: 34, borderRadius: "50%", border: "1px solid var(--border)", background: "var(--surface-0)", color: "var(--fg-1)", display: "grid", placeItems: "center", cursor: gateBusy ? "default" : "pointer" }}><X size={18} /></button>
+            </div>
+
+            <div style={{ padding: 20, display: "flex", flexDirection: "column", gap: 16 }}>
+              <p style={{ margin: 0, fontSize: 13.5, lineHeight: 1.5, color: "var(--fg-2)" }}>
+                {gate.missing.length === 1
+                  ? "Esta OT tiene un requisito pendiente:"
+                  : `Esta OT tiene ${gate.missing.length} requisitos pendientes:`}
+              </p>
+              <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 8 }}>
+                {gate.missing.map((item, i) => (
+                  <li key={i} style={{ display: "flex", gap: 10, padding: "11px 13px", border: "1px solid var(--border)", borderRadius: "var(--r-md)", background: "var(--surface-0)", fontSize: 13, lineHeight: 1.45, color: "var(--fg-2)" }}>
+                    <AlertTriangle size={14} style={{ color: "var(--warning)", flexShrink: 0, marginTop: 2 }} />
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+
+              {canForceClose ? (
+                <>
+                  <p style={{ margin: 0, fontSize: 13, lineHeight: 1.5, color: "var(--fg-3)" }}>
+                    Como administrador puedes cerrarla de todas formas. La OT quedará marcada
+                    como <strong style={{ color: "var(--fg-2)" }}>cierre forzado</strong> y el motivo
+                    quedará registrado en su historial.
+                  </p>
+                  <label style={{ display: "flex", flexDirection: "column", gap: 7, fontSize: 12, fontWeight: 650, color: "var(--fg-3)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                    Motivo del cierre forzado
+                    <textarea
+                      autoFocus
+                      value={gateReason}
+                      onChange={e => setGateReason(e.target.value)}
+                      placeholder="Ej: El equipo fue dado de baja, no es posible tomar las fotos…"
+                      rows={3}
+                      // The field is autofocused, so the UA's default focus ring
+                      // would otherwise sit on top of the 1px border and read as
+                      // a heavy black outline.
+                      onFocus={e => { e.currentTarget.style.borderColor = "var(--brand)"; }}
+                      onBlur={e => { e.currentTarget.style.borderColor = "var(--border)"; }}
+                      style={{ resize: "vertical", minHeight: 80, padding: 12, border: "1px solid var(--border)", borderRadius: "var(--r-md)", background: "var(--surface-0)", color: "var(--fg-1)", font: "inherit", fontSize: 14, lineHeight: 1.45, textTransform: "none", letterSpacing: 0, outline: "none" }}
+                    />
+                  </label>
+                  <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 4 }}>
+                    <button type="button" onClick={() => setGate(null)} disabled={gateBusy} style={{ height: 40, padding: "0 16px", border: "1px solid var(--border)", borderRadius: "var(--r-md)", background: "var(--surface-1)", color: "var(--fg-2)", font: "inherit", fontWeight: 600, cursor: gateBusy ? "default" : "pointer" }}>Cancelar</button>
+                    <button
+                      type="button"
+                      onClick={confirmForceClose}
+                      disabled={gateBusy || !gateReason.trim()}
+                      style={{ height: 40, padding: "0 18px", border: "none", borderRadius: "var(--r-md)", background: "var(--brand)", color: "var(--fg-on-brand)", font: "inherit", fontWeight: 700, cursor: gateBusy || !gateReason.trim() ? "default" : "pointer", opacity: gateBusy || !gateReason.trim() ? 0.5 : 1 }}
+                    >
+                      {gateBusy ? "Cerrando…" : "Cerrar de todas formas"}
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 4 }}>
+                  <button type="button" onClick={() => setGate(null)} style={{ height: 40, padding: "0 18px", border: "none", borderRadius: "var(--r-md)", background: "var(--brand)", color: "var(--fg-on-brand)", font: "inherit", fontWeight: 700, cursor: "pointer" }}>Entendido</button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
@@ -3865,14 +4071,44 @@ const TIPO_FALLBACK_LABEL: Partial<Record<ProcedimientoPaso["tipo"], string>> = 
 
 function ProcedimientoEjecutado({
   otp, onPhotoClick, nombrePorUsuario,
+  editable = false, ordenId, pendingResps, savingResp, onUpdateResp, onSaveResp, onPreviewImage,
+  onEnsureEjecucion,
 }: {
   otp: OTProcedimiento;
   onPhotoClick: (url: string) => void;
   /** UUID → nombre, para mostrar quién rellenó cada campo. */
   nombrePorUsuario: Map<string, string>;
+  /** When false the card stays read-only (completed OT, or no permission). */
+  editable?: boolean;
+  /** Starts the ejecución so uploads have a real id to build their path with. */
+  onEnsureEjecucion?: () => Promise<ProcedimientoEjecucion | null>;
+  ordenId?: string;
+  pendingResps?: Record<string, PendingResp>;
+  savingResp?: string | null;
+  onUpdateResp?: (pasoId: string, patch: PendingResp) => void;
+  onSaveResp?: (pasoId: string, extra?: PendingResp) => void;
+  onPreviewImage?: (urls: string[], index: number) => void;
 }) {
   const proc = otp.procedimiento;
   const ejec = otp.ejecucion;
+
+  // Start the ejecución as soon as an editable procedure is shown. File and photo
+  // steps build their storage path from the ejecución id, so it has to exist
+  // before the user can reach an upload control — not merely by the first save.
+  const ensuringRef = useRef(false);
+  // Held in a ref so an inline arrow from the parent can't retrigger the effect.
+  const ensureRef = useRef(onEnsureEjecucion);
+  useEffect(() => { ensureRef.current = onEnsureEjecucion; });
+  useEffect(() => {
+    if (!editable || ejec || ensuringRef.current) return;
+    const run = ensureRef.current;
+    if (!run) return;
+    ensuringRef.current = true;
+    run()
+      .catch(() => { /* surfaced by the caller; the card stays uninitialised */ })
+      .finally(() => { ensuringRef.current = false; });
+  }, [editable, ejec, otp.procedimiento_id]);
+
   const pasos = (proc?.pasos ?? []) as ProcedimientoPaso[];
   const respByPaso = new Map<string, PendingResp>();
   for (const r of (ejec?.respuestas ?? []) as PendingResp[]) {
@@ -3924,13 +4160,33 @@ function ProcedimientoEjecutado({
             <div key={paso.id} style={{ border: "1px solid var(--border)", borderRadius: "var(--r-md)", padding: "12px 14px" }}>
               <div style={{ fontSize: 13, fontWeight: 600, color: "var(--fg-1)", lineHeight: 1.45 }}>
                 {paso.titulo?.trim() || TIPO_FALLBACK_LABEL[paso.tipo] || "Campo"}
+                {paso.requerido && (
+                  <span aria-hidden="true" style={{ color: "var(--danger)", marginLeft: 2 }}>*</span>
+                )}
+                {paso.requerido && (
+                  <span style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)", whiteSpace: "nowrap" }}>
+                    {" "}(obligatorio)
+                  </span>
+                )}
               </div>
               {paso.descripcion && (
                 <div style={{ fontSize: 12.5, color: "var(--fg-3)", marginTop: 3, lineHeight: 1.45 }}>{paso.descripcion}</div>
               )}
 
               <div style={{ marginTop: 10 }}>
-                {paso.tipo === "si_no_na"
+                {editable && onUpdateResp && onSaveResp && ordenId && ejec ? (
+                  <PasoInput
+                    paso={paso}
+                    resp={pendingResps?.[paso.id] ?? {}}
+                    existingResp={resp}
+                    isSaving={savingResp === paso.id}
+                    onUpdate={patch => onUpdateResp(paso.id, patch)}
+                    onSave={extra => onSaveResp(paso.id, extra)}
+                    ordenId={ordenId}
+                    ejecucionId={ejec.id}
+                    onPreviewImage={(urls, idx) => onPreviewImage?.(urls, idx)}
+                  />
+                ) : paso.tipo === "si_no_na"
                   ? <EstadoSegmento valor={resp?.valor_texto ?? null} variante="si_no_na" />
                   : resp
                     ? <ReadonlyAnswer paso={paso} resp={resp} onPhotoClick={onPhotoClick} />
@@ -4252,8 +4508,14 @@ function SignatureCanvas({
   const lastPos = useRef<{ x: number; y: number } | null>(null);
   const [hasStrokes, setHasStrokes] = useState(false);
   const [saved, setSaved] = useState(!!existingDataUrl);
+  const [open, setOpen] = useState(false);
+  // Clearing discards a signed record, so it asks first.
+  const [confirmClear, setConfirmClear] = useState(false);
 
+  // Runs when the modal opens: the canvas is unmounted until then, so the
+  // context has to be configured (and any existing signature redrawn) each time.
   useEffect(() => {
+    if (!open) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d")!;
@@ -4268,12 +4530,16 @@ function SignatureCanvas({
     const normalizedExisting = signatureImageSrc(existingDataUrl);
     if (normalizedExisting) {
       const img = new window.Image();
-      img.onload = () => ctx.drawImage(img, 0, 0);
+      // Flag the strokes only once the bitmap is actually on the canvas, so a
+      // failed load can't leave the modal claiming a signature it never drew.
+      img.onload = () => {
+        ctx.drawImage(img, 0, 0);
+        setHasStrokes(true);
+        setSaved(true);
+      };
       img.src = normalizedExisting;
-      setHasStrokes(true);
-      setSaved(true);
     }
-  }, []);
+  }, [open, existingDataUrl]);
 
   function getPos(e: React.MouseEvent | React.TouchEvent) {
     const canvas = canvasRef.current;
@@ -4337,59 +4603,124 @@ function SignatureCanvas({
     setSaved(true);
   }
 
+  const existingSrc = signatureImageSrc(existingDataUrl);
+
+  // Signing happens in a modal: a canvas sitting inline in a scrolling form
+  // swallows drag gestures and gives too little room to sign comfortably.
   return (
     <div>
-      <canvas
-        ref={canvasRef}
-        width={520}
-        height={160}
-        style={{
-          width: "100%", height: 160, display: "block",
-          border: "1px solid var(--border)", borderRadius: "var(--r-md)",
-          background: "var(--surface-0)", cursor: "crosshair", touchAction: "none",
-        }}
-        onMouseDown={startDraw}
-        onMouseMove={draw}
-        onMouseUp={stopDraw}
-        onMouseLeave={stopDraw}
-        onTouchStart={startDraw}
-        onTouchMove={draw}
-        onTouchEnd={stopDraw}
-      />
-      {!hasStrokes && (
-        <div style={{ fontSize: 12, color: "var(--fg-4)", textAlign: "center", marginTop: 4 }}>
-          Dibuja tu firma con el mouse o dedo
-        </div>
-      )}
-      <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+      {existingSrc && !open ? (
+        <>
+          <div style={{ border: "1px solid var(--border)", borderRadius: "var(--r-sm)", background: "var(--surface-0)", padding: 8 }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={existingSrc} alt="Firma registrada" style={{ display: "block", width: "100%", maxHeight: 120, objectFit: "contain" }} />
+          </div>
+          <button
+            onClick={() => setConfirmClear(true)}
+            disabled={isSaving}
+            style={{ marginTop: 8, background: "none", border: "none", padding: 0, cursor: isSaving ? "default" : "pointer", fontSize: 13, fontWeight: 600, color: "var(--brand)", fontFamily: "inherit" }}
+          >
+            Limpiar
+          </button>
+        </>
+      ) : (
         <button
-          onClick={clear}
-          style={{ height: 30, padding: "0 12px", background: "var(--surface-0)", border: "1px solid var(--border)", borderRadius: "var(--r-sm)", cursor: "pointer", fontSize: 12, color: "var(--fg-2)", fontFamily: "inherit" }}
-        >
-          Limpiar
-        </button>
-        <button
-          onClick={save}
-          disabled={!hasStrokes || isSaving}
+          onClick={() => setOpen(true)}
           style={{
-            height: 30, padding: "0 14px",
-            background: hasStrokes ? "var(--brand-tint)" : "var(--surface-0)",
-            border: `1px solid ${hasStrokes ? "var(--brand)" : "var(--border)"}`,
-            borderRadius: "var(--r-sm)", cursor: hasStrokes && !isSaving ? "pointer" : "default",
-            fontSize: 12, fontWeight: 600, color: hasStrokes ? "var(--brand-fg)" : "var(--fg-4)",
-            fontFamily: "inherit", display: "flex", alignItems: "center", gap: 4,
-            opacity: !hasStrokes ? 0.5 : 1,
+            width: "100%", minHeight: 96, display: "grid", placeItems: "center",
+            border: "1px solid var(--border)", borderRadius: "var(--r-sm)",
+            background: "var(--surface-0)", cursor: "pointer",
+            fontSize: 13.5, fontWeight: 600, color: "var(--brand)", fontFamily: "inherit",
           }}
         >
-          {isSaving ? <Loader2 size={11} className="animate-spin" /> : <PenLine size={11} />}
-          Guardar firma
+          Haz clic aquí para firmar
         </button>
-        {saved && !isSaving && (
-          <span style={{ fontSize: 12, color: "var(--success)", display: "flex", alignItems: "center", gap: 4 }}>
-            <Check size={11} /> Guardado
-          </span>
-        )}
-      </div>
+      )}
+
+      {confirmClear && (
+        <div
+          role="presentation"
+          onMouseDown={e => { if (e.target === e.currentTarget) setConfirmClear(false); }}
+          style={{ position: "fixed", inset: 0, zIndex: 810, background: "rgba(15,23,42,0.45)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}
+        >
+          <div role="dialog" aria-modal="true" aria-label="Eliminar firma" style={{ width: "min(420px, 100%)", background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: "var(--r-xl)", boxShadow: "var(--shadow-lg)", padding: 24 }}>
+            <p style={{ margin: "0 0 20px", fontSize: 14.5, lineHeight: 1.5, color: "var(--fg-1)", textAlign: "center" }}>
+              ¿Estás seguro de que quieres eliminar la firma?
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10, alignItems: "center" }}>
+              <button
+                onClick={() => { setHasStrokes(false); setSaved(false); onSave(""); setConfirmClear(false); }}
+                style={{ width: "100%", height: 42, border: "none", borderRadius: "var(--r-md)", background: "var(--brand)", color: "var(--fg-on-brand)", fontSize: 14, fontWeight: 700, fontFamily: "inherit", cursor: "pointer" }}
+              >
+                Confirmar
+              </button>
+              <button
+                onClick={() => setConfirmClear(false)}
+                style={{ background: "none", border: "none", padding: 4, cursor: "pointer", fontSize: 13.5, fontWeight: 600, color: "var(--brand)", fontFamily: "inherit" }}
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {open && (
+        <div
+          role="presentation"
+          onMouseDown={e => { if (e.target === e.currentTarget) setOpen(false); }}
+          style={{ position: "fixed", inset: 0, zIndex: 800, background: "rgba(15,23,42,0.45)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}
+        >
+          <div role="dialog" aria-modal="true" aria-label="Firma" style={{ width: "min(720px, 100%)", background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: "var(--r-xl)", boxShadow: "var(--shadow-lg)" }}>
+            <div style={{ height: 58, padding: "0 16px 0 20px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid var(--border)" }}>
+              <div style={{ fontSize: 16, fontWeight: 700, color: "var(--fg-1)" }}>Firma a continuación:</div>
+              <button type="button" onClick={() => setOpen(false)} aria-label="Cerrar" style={{ width: 34, height: 34, borderRadius: "50%", border: "1px solid var(--border)", background: "var(--surface-0)", color: "var(--fg-1)", display: "grid", placeItems: "center", cursor: "pointer" }}><X size={18} /></button>
+            </div>
+            <div style={{ padding: 20 }}>
+              <canvas
+                ref={canvasRef}
+                width={880}
+                height={280}
+                style={{
+                  width: "100%", height: 240, display: "block",
+                  border: "1px solid var(--border)", borderRadius: "var(--r-md)",
+                  background: "#FFFFFF", cursor: "crosshair", touchAction: "none",
+                }}
+                onMouseDown={startDraw}
+                onMouseMove={draw}
+                onMouseUp={stopDraw}
+                onMouseLeave={stopDraw}
+                onTouchStart={startDraw}
+                onTouchMove={draw}
+                onTouchEnd={stopDraw}
+              />
+            </div>
+            <div style={{ padding: "0 20px 20px", display: "flex", gap: 14, alignItems: "center", justifyContent: "flex-end" }}>
+              <button
+                onClick={clear}
+                style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontSize: 13.5, fontWeight: 600, color: "var(--brand)", fontFamily: "inherit" }}
+              >
+                Limpiar
+              </button>
+              <button
+                onClick={() => { save(); setOpen(false); }}
+                disabled={!hasStrokes || isSaving}
+                style={{
+                  height: 40, padding: "0 20px", border: "none", borderRadius: "var(--r-md)",
+                  background: hasStrokes ? "var(--brand)" : "var(--surface-2)",
+                  color: hasStrokes ? "var(--fg-on-brand)" : "var(--fg-4)",
+                  cursor: hasStrokes && !isSaving ? "pointer" : "default",
+                  fontSize: 13.5, fontWeight: 700, fontFamily: "inherit",
+                  display: "flex", alignItems: "center", gap: 6,
+                }}
+              >
+                {isSaving && <Loader2 size={13} className="animate-spin" />}
+                Guardar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -4413,11 +4744,22 @@ function PasoInput({
     ? responseJson.evidence_images.filter((url): url is string => typeof url === "string" && url.length > 0)
     : val("foto_url") ? [val("foto_url") as string] : [];
   const inputStyle: React.CSSProperties = {
-    width: "100%", height: 32, padding: "0 10px",
+    width: "100%", height: 40, padding: "0 12px",
     border: "1px solid var(--border)", borderRadius: "var(--r-sm)",
-    fontSize: 13, fontFamily: "inherit", color: "var(--fg-1)",
+    fontSize: 14, fontFamily: "inherit", color: "var(--fg-1)",
     background: "var(--surface-1)", outline: "none", boxSizing: "border-box",
   };
+  /**
+   * Autosave helper for free-text/number fields, which save on blur rather than
+   * on every keystroke. Only writes when the pending value actually differs from
+   * what is already stored, so tabbing through a form issues no requests.
+   */
+  const saveIfDirty = () => {
+    const keys: (keyof PendingResp)[] = ["valor_texto", "valor_medido", "notas", "valor_fecha"];
+    const dirty = keys.some(k => resp[k] !== undefined && resp[k] !== (existingResp as any)?.[k]);
+    if (dirty) onSave();
+  };
+
   const saveBtn = (label: string, disabled = false) => (
     <button
       onClick={() => onSave()}
@@ -4455,26 +4797,41 @@ function PasoInput({
     const cur = val("valor_texto");
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        {/* Las tres opciones van en una fila de celdas iguales: es un set corto y
+            excluyente, y apiladas ocupaban tres veces el alto sin ganar nada. */}
+        <div style={{ display: "flex", gap: 10 }}>
         {["Sí", "No", "N/A"].map(opt => (
           <button
             key={opt}
             onClick={() => onSave({ valor_texto: opt })}
             disabled={isSaving}
             style={{
-              minHeight: 42, padding: "0 16px", borderRadius: "var(--r-lg)", cursor: "pointer",
-              fontSize: 14, fontWeight: 400, fontFamily: "inherit",
-              border: `1px solid ${cur === opt ? opt === "Sí" ? "var(--success)" : opt === "No" ? "var(--danger)" : "var(--warning)" : "var(--border)"}`,
-              background: cur === opt ? opt === "Sí" ? "var(--success-bg)" : opt === "No" ? "var(--danger-bg)" : "var(--warning-bg)" : "var(--surface-1)",
-              color: cur === opt ? opt === "Sí" ? "var(--success)" : opt === "No" ? "var(--danger)" : "var(--warning)" : "var(--fg-2)",
+              flex: 1, minWidth: 0,
+              minHeight: 42, padding: "0 16px", borderRadius: "var(--r-sm)", cursor: "pointer",
+              fontSize: 14, fontWeight: 500, fontFamily: "inherit",
+              // La opción elegida se marca con el azul de marca, no con
+              // semáforo: "No" y "N/A" son respuestas válidas, no errores.
+              border: `1px solid ${cur === opt ? "var(--brand)" : "var(--border)"}`,
+              background: cur === opt ? "var(--brand-tint)" : "var(--surface-1)",
+              color: "var(--brand)",
             }}
           >
             {isSaving && cur === opt ? <Loader2 size={11} className="animate-spin" /> : opt}
           </button>
         ))}
-        {cur && <>
-          <PasoImagenField pasoId={paso.id} ordenId={ordenId} ejecucionId={ejecucionId} fotoUrls={evidenceUrls} isSaving={isSaving} onPreview={onPreviewImage} onUploaded={(url) => { const next = [...evidenceUrls, url]; onSave({ valor_json: { ...responseJson, evidence_images: next }, foto_url: next[0] ?? null }); }} onClear={(url) => { const next = evidenceUrls.filter(current => current !== url); onSave({ valor_json: { ...responseJson, evidence_images: next }, foto_url: next[0] ?? null }); }} />
-          <input type="text" value={(val("notas") as string | null | undefined) ?? ""} onChange={e => onUpdate({ notas: e.target.value })} onBlur={() => onSave()} placeholder="Añadir nota…" style={inputStyle} />
-        </>}
+        </div>
+        {cur && (
+          <PasoExtras
+            pasoId={paso.id} ordenId={ordenId} ejecucionId={ejecucionId}
+            fotoUrls={evidenceUrls} isSaving={isSaving} onPreview={onPreviewImage}
+            nota={(val("notas") as string | null | undefined) ?? ""}
+            onNotaChange={v => onUpdate({ notas: v })}
+            onNotaCommit={saveIfDirty}
+            inputStyle={inputStyle}
+            onUploaded={(url) => { const next = [...evidenceUrls, url]; onSave({ valor_json: { ...responseJson, evidence_images: next }, foto_url: next[0] ?? null }); }}
+            onClearPhoto={(url) => { const next = evidenceUrls.filter(current => current !== url); onSave({ valor_json: { ...responseJson, evidence_images: next }, foto_url: next[0] ?? null }); }}
+          />
+        )}
       </div>
     );
   }
@@ -4489,16 +4846,18 @@ function PasoInput({
             key={opt}
             onClick={() => onSave({ valor_texto: opt })}
             disabled={isSaving}
+            // Igual que la lista de verificación: fila limpia, el control es
+            // quien marca el estado.
             style={{
-              height: 32, padding: "0 12px", borderRadius: "var(--r-sm)", cursor: "pointer",
-              fontSize: 12.5, fontWeight: 500, fontFamily: "inherit", textAlign: "left",
-              border: cur === opt ? "1px solid var(--brand)" : "1px solid var(--border)",
-              background: cur === opt ? "var(--brand-tint)" : "var(--surface-hover)",
-              color: cur === opt ? "var(--brand-fg)" : "var(--fg-1)",
-              display: "flex", alignItems: "center", gap: 8,
+              minHeight: 34, padding: "4px 2px", borderRadius: "var(--r-sm)", cursor: "pointer",
+              fontSize: 14, fontWeight: 400, fontFamily: "inherit", textAlign: "left",
+              border: "none", background: "transparent", color: "var(--fg-1)",
+              display: "flex", alignItems: "center", gap: 10,
             }}
           >
-            <span style={{ width: 14, height: 14, borderRadius: "50%", border: `2px solid ${cur === opt ? "var(--brand)" : "var(--border-strong)"}`, background: cur === opt ? "var(--brand)" : "transparent", flexShrink: 0 }} />
+            <span style={{ width: 17, height: 17, borderRadius: "50%", border: `1.5px solid ${cur === opt ? "var(--brand)" : "var(--border-strong)"}`, display: "grid", placeItems: "center", flexShrink: 0 }}>
+              {cur === opt && <span style={{ width: 9, height: 9, borderRadius: "50%", background: "var(--brand)" }} />}
+            </span>
             {opt}
           </button>
         ))}
@@ -4522,17 +4881,17 @@ function PasoInput({
               key={opt}
               onClick={() => toggle(opt)}
               disabled={isSaving}
+              // Filas limpias, sin relleno ni borde: la casilla marcada ya
+              // comunica el estado y un bloque de color por ítem satura la lista.
               style={{
-                height: 32, padding: "0 12px", borderRadius: "var(--r-sm)", cursor: "pointer",
-                fontSize: 12.5, fontWeight: 500, fontFamily: "inherit", textAlign: "left",
-                border: isChecked ? "1px solid var(--success)" : "1px solid var(--border)",
-                background: isChecked ? "var(--success-bg)" : "var(--surface-hover)",
-                color: isChecked ? "var(--success)" : "var(--fg-1)",
-                display: "flex", alignItems: "center", gap: 8,
+                minHeight: 34, padding: "4px 2px", borderRadius: "var(--r-sm)", cursor: "pointer",
+                fontSize: 14, fontWeight: 400, fontFamily: "inherit", textAlign: "left",
+                border: "none", background: "transparent", color: "var(--fg-1)",
+                display: "flex", alignItems: "center", gap: 10,
               }}
             >
-              <span style={{ width: 14, height: 14, borderRadius: 3, border: `2px solid ${isChecked ? "var(--success)" : "var(--border-strong)"}`, background: isChecked ? "var(--success)" : "transparent", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                {isChecked && <Check size={9} style={{ color: "var(--fg-on-brand)" }} />}
+              <span style={{ width: 17, height: 17, borderRadius: 3, border: `1.5px solid ${isChecked ? "var(--brand)" : "var(--border-strong)"}`, background: isChecked ? "var(--brand)" : "transparent", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                {isChecked && <Check size={12} strokeWidth={3} style={{ color: "var(--fg-on-brand)" }} />}
               </span>
               {opt}
             </button>
@@ -4556,9 +4915,14 @@ function PasoInput({
         {items.map(({ item, result }) => (
           <div key={item} style={{ display: "flex", flexDirection: "column", gap: 8, paddingBottom: 10 }}>
             <span style={{ fontSize: 14, fontWeight: 600, color: "var(--fg-1)" }}>{item}</span>
-            <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
-            {(["pass", "fail", "na"] as const).map(r => {
-              const labels = { pass: "OK", fail: "NO CUMPLE", na: "OBSERVACIÓN" };
+            {/* Fila de celdas iguales, como el resto de los selectores cortos.
+                Cada opción lleva siempre su color: el estado se lee de un
+                vistazo aunque el ítem todavía no tenga respuesta. */}
+            <div style={{ display: "flex", gap: 10 }}>
+            {/* Orden APROBADO → ALERTA → FALLA: de mejor a peor, como el resto
+                de las escalas de la app. */}
+            {(["pass", "na", "fail"] as const).map(r => {
+              const labels = { pass: "APROBADO", fail: "FALLA", na: "ALERTA" };
               const colors = { pass: "var(--success)", fail: "var(--danger)", na: "var(--warning)" };
               return (
                 <button
@@ -4566,11 +4930,12 @@ function PasoInput({
                   onClick={() => setResult(item, r)}
                   disabled={isSaving}
                   style={{
-                    minHeight: 42, padding: "0 10px", borderRadius: "var(--r-lg)", cursor: "pointer",
-                    fontSize: 14, fontWeight: 400, fontFamily: "inherit",
-                    border: result === r ? `1px solid ${colors[r]}` : "1px solid var(--border)",
-                    background: result === r ? colors[r] + "15" : "var(--surface-hover)",
-                    color: result === r ? colors[r] : "var(--fg-4)",
+                    flex: 1, minWidth: 0,
+                    minHeight: 42, padding: "0 10px", borderRadius: "var(--r-sm)", cursor: "pointer",
+                    fontSize: 13, fontWeight: 600, fontFamily: "inherit", letterSpacing: "0.02em",
+                    border: `1px solid ${result === r ? colors[r] : "var(--border)"}`,
+                    background: result === r ? colors[r] + "15" : "var(--surface-1)",
+                    color: colors[r],
                   }}
                 >
                   {labels[r]}
@@ -4578,8 +4943,19 @@ function PasoInput({
               );
             })}
             </div>
-            <PasoImagenField pasoId={`${paso.id}-${item}`} ordenId={ordenId} ejecucionId={ejecucionId} fotoUrls={items.find(i => i.item === item)?.foto_urls ?? []} isSaving={isSaving} onPreview={onPreviewImage} onUploaded={(url) => onSave({ valor_json: { items: items.map(i => i.item === item ? { ...i, foto_urls: [...(i.foto_urls ?? []), url] } : i) } })} onClear={(url) => onSave({ valor_json: { items: items.map(i => i.item === item ? { ...i, foto_urls: (i.foto_urls ?? []).filter(current => current !== url) } : i) } })} />
-            <input type="text" value={items.find(i => i.item === item)?.nota ?? ""} onChange={e => onUpdate({ valor_json: { items: items.map(i => i.item === item ? { ...i, nota: e.target.value } : i) } })} onBlur={() => onSave()} placeholder="Añadir nota…" style={inputStyle} />
+            {result && (
+              <PasoExtras
+                pasoId={`${paso.id}-${item}`} ordenId={ordenId} ejecucionId={ejecucionId}
+                fotoUrls={items.find(i => i.item === item)?.foto_urls ?? []}
+                isSaving={isSaving} onPreview={onPreviewImage}
+                nota={items.find(i => i.item === item)?.nota ?? ""}
+                onNotaChange={v => onUpdate({ valor_json: { items: items.map(i => i.item === item ? { ...i, nota: v } : i) } })}
+                onNotaCommit={() => onSave()}
+                inputStyle={inputStyle}
+                onUploaded={(url) => onSave({ valor_json: { items: items.map(i => i.item === item ? { ...i, foto_urls: [...(i.foto_urls ?? []), url] } : i) } })}
+                onClearPhoto={(url) => onSave({ valor_json: { items: items.map(i => i.item === item ? { ...i, foto_urls: (i.foto_urls ?? []).filter(current => current !== url) } : i) } })}
+              />
+            )}
           </div>
         ))}
       </div>
@@ -4594,23 +4970,23 @@ function PasoInput({
           <textarea
             value={cur}
             onChange={e => onUpdate({ valor_texto: e.target.value })}
-            placeholder="Escribe tu respuesta…"
+            placeholder="Introducir texto"
             style={{ ...inputStyle, height: "auto", minHeight: 72, padding: "7px 10px", resize: "vertical", lineHeight: 1.5 }}
             onFocus={e => { e.currentTarget.style.borderColor = "var(--brand)"; }}
-            onBlur={e => { e.currentTarget.style.borderColor = "var(--border)"; }}
+            // Autosave on blur: no explicit Save button to forget to press.
+            onBlur={e => { e.currentTarget.style.borderColor = "var(--border)"; saveIfDirty(); }}
           />
         ) : (
           <input
             type="text"
             value={cur}
             onChange={e => onUpdate({ valor_texto: e.target.value })}
-            placeholder="Escribe tu respuesta…"
+            placeholder="Introducir texto"
             style={inputStyle}
             onFocus={e => { e.currentTarget.style.borderColor = "var(--brand)"; }}
-            onBlur={e => { e.currentTarget.style.borderColor = "var(--border)"; }}
+            onBlur={e => { e.currentTarget.style.borderColor = "var(--border)"; saveIfDirty(); }}
           />
         )}
-        {saveBtn("Guardar", !cur.trim())}
       </div>
     );
   }
@@ -4622,10 +4998,11 @@ function PasoInput({
         value={val("valor_medido")}
         onChange={(n) => onUpdate({ valor_medido: n })}
         inputStyle={inputStyle}
+        placeholder={paso.tipo === "monto" ? "Introducir importe" : "Introducir número"}
         prefix={paso.tipo === "monto" ? currency : undefined}
         suffix={paso.tipo === "numero" ? paso.unidad ?? undefined : undefined}
         rangeHint={paso.tipo === "numero" && paso.valor_min != null ? `${paso.valor_min} – ${paso.valor_max}` : undefined}
-        renderSaveBtn={(disabled) => saveBtn("OK", disabled)}
+        onCommit={saveIfDirty}
       />
     );
   }
@@ -4656,7 +5033,11 @@ function PasoInput({
         <SignatureCanvas
           existingDataUrl={existingResp?.firma_svg ?? null}
           isSaving={isSaving}
-          onSave={dataUrl => onSave({ firma_svg: dataUrl, firmado_at: new Date().toISOString() })}
+          onSave={dataUrl => onSave(dataUrl
+            ? { firma_svg: dataUrl, firmado_at: new Date().toISOString() }
+            // Empty means the user cleared it: wipe the signature and its
+            // timestamp rather than storing a blank image.
+            : { firma_svg: null, firmado_at: null })}
         />
       </div>
     );
@@ -4665,7 +5046,7 @@ function PasoInput({
   if (paso.tipo === "medidor") {
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-        <NumericInputField value={val("valor_medido")} onChange={(n) => onUpdate({ valor_medido: n })} inputStyle={inputStyle} placeholder="Lectura" width={140} suffix={paso.unidad ?? undefined} rangeHint={paso.valor_min != null && paso.valor_max != null ? `${paso.valor_min} – ${paso.valor_max}` : undefined} renderSaveBtn={(disabled) => saveBtn("OK", disabled)} />
+        <NumericInputField value={val("valor_medido")} onChange={(n) => onUpdate({ valor_medido: n })} inputStyle={inputStyle} placeholder="Lectura" width={140} suffix={paso.unidad ?? undefined} rangeHint={paso.valor_min != null && paso.valor_max != null ? `${paso.valor_min} – ${paso.valor_max}` : undefined} onCommit={saveIfDirty} />
         <PasoImagenField pasoId={paso.id} ordenId={ordenId} ejecucionId={ejecucionId} fotoUrls={evidenceUrls} isSaving={isSaving} onPreview={onPreviewImage} onUploaded={(url) => { const next = [...evidenceUrls, url]; onSave({ valor_json: { ...responseJson, evidence_images: next }, foto_url: next[0] ?? null }); }} onClear={(url) => { const next = evidenceUrls.filter(current => current !== url); onSave({ valor_json: { ...responseJson, evidence_images: next }, foto_url: next[0] ?? null }); }} />
       </div>
     );
@@ -4690,15 +5071,23 @@ function PasoInput({
           onChange={e => {
             // Convert back to a full ISO timestamp for the column (timestamptz).
             const v = e.target.value;
-            if (!v) return onUpdate({ valor_fecha: null });
+            // A date picker commits a whole value at once, so save immediately
+            // rather than waiting for a blur the user may never trigger.
+            if (!v) {
+              onUpdate({ valor_fecha: null });
+              onSave({ valor_fecha: null });
+              return;
+            }
             const iso = paso.tipo === "hora"
               ? `1970-01-01T${v}:00.000Z`
               : new Date(v).toISOString();
             onUpdate({ valor_fecha: iso });
+            onSave({ valor_fecha: iso });
           }}
           style={{ ...inputStyle, width: 200 }}
+          onFocus={e => { e.currentTarget.style.borderColor = "var(--brand)"; }}
+          onBlur={e => { e.currentTarget.style.borderColor = "var(--border)"; }}
         />
-        {saveBtn("OK", !displayed)}
       </div>
     );
   }
@@ -4738,10 +5127,12 @@ function PasoInput({
           type="text"
           value={cur}
           onChange={e => onUpdate({ escaneo_valor: e.target.value })}
-          placeholder="Código (ingreso manual en web)"
-          style={{ ...inputStyle, width: 240, fontFamily: "var(--font-mono)" }}
+          onBlur={() => { if (resp.escaneo_valor !== undefined && resp.escaneo_valor !== existingResp?.escaneo_valor) onSave(); }}
+          placeholder="Introducir código"
+          style={{ ...inputStyle, fontFamily: "var(--font-mono)" }}
+          onFocus={e => { e.currentTarget.style.borderColor = "var(--brand)"; }}
+          onBlurCapture={e => { e.currentTarget.style.borderColor = "var(--border)"; }}
         />
-        {saveBtn("OK", !cur)}
       </div>
     );
   }
@@ -4807,6 +5198,7 @@ function PasoInput({
 // number once it's actually a finite number.
 function NumericInputField({
   value, onChange, inputStyle, placeholder, prefix, suffix, rangeHint, width = 120, renderSaveBtn,
+  onCommit,
 }: {
   value: number | null | undefined;
   onChange: (n: number | null | undefined) => void;
@@ -4817,6 +5209,8 @@ function NumericInputField({
   rangeHint?: string;
   width?: number;
   renderSaveBtn?: (disabled: boolean) => React.ReactNode;
+  /** Autosave hook: fires on blur once the user leaves the field. */
+  onCommit?: () => void;
 }) {
   const [draft, setDraft] = useState<string>(value != null ? String(value) : "");
   // When the upstream value changes (e.g. after save), resync the draft so
@@ -4834,9 +5228,20 @@ function NumericInputField({
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value]);
+  // Un solo campo a lo ancho, con la moneda, la unidad y el rango DENTRO del
+  // borde. Antes colgaban a la derecha del input y cada paso quedaba con un
+  // ancho distinto, así que la columna de respuestas no alineaba nunca.
+  const [focused, setFocused] = useState(false);
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-      {prefix && <span style={{ fontSize: 12.5, fontWeight: 600, color: "var(--fg-2)" }}>{prefix}</span>}
+    <div
+      style={{
+        display: "flex", alignItems: "center", gap: 8, width: "100%",
+        height: 40, padding: "0 12px", boxSizing: "border-box",
+        border: `1px solid ${focused ? "var(--brand)" : "var(--border)"}`,
+        borderRadius: "var(--r-sm)", background: "var(--surface-1)",
+      }}
+    >
+      {prefix && <span style={{ fontSize: 14, fontWeight: 600, color: "var(--fg-3)", flexShrink: 0 }}>{prefix}</span>}
       <input
         type="text"
         inputMode="decimal"
@@ -4851,14 +5256,82 @@ function NumericInputField({
           const n = parseFloat(cleaned);
           if (Number.isFinite(n)) onChange(n);
         }}
-        placeholder={placeholder ?? "0"}
-        style={{ ...inputStyle, width }}
-        onFocus={(e) => { e.currentTarget.style.borderColor = "var(--brand)"; }}
-        onBlur={(e) => { e.currentTarget.style.borderColor = "var(--border)"; }}
+        placeholder={placeholder ?? "Introducir número"}
+        style={{
+          flex: 1, minWidth: 0, height: "100%", padding: 0,
+          border: "none", outline: "none", background: "transparent",
+          fontSize: 14, fontFamily: "inherit", color: "var(--fg-1)",
+        }}
+        onFocus={() => setFocused(true)}
+        onBlur={() => { setFocused(false); onCommit?.(); }}
       />
-      {suffix && <span style={{ fontSize: 12, color: "var(--fg-2)" }}>{suffix}</span>}
-      {rangeHint && <span style={{ fontSize: 11, color: "var(--fg-4)" }}>({rangeHint})</span>}
+      {suffix && <span style={{ fontSize: 13, color: "var(--fg-3)", flexShrink: 0 }}>{suffix}</span>}
+      {rangeHint && <span style={{ fontSize: 12, color: "var(--fg-4)", flexShrink: 0 }}>({rangeHint})</span>}
       {renderSaveBtn?.(!draft || draft === "." || draft === "-")}
+    </div>
+  );
+}
+
+// ── PasoExtras ────────────────────────────────────────────────────────────────
+// Notes and attachments for an answered step. Both start collapsed behind text
+// links: most answers need neither, and showing an empty dropzone plus a note
+// box under every step buried the actual questions.
+
+function PasoExtras({
+  pasoId, ordenId, ejecucionId, fotoUrls, isSaving, onPreview,
+  nota, onNotaChange, onNotaCommit, inputStyle, onUploaded, onClearPhoto,
+}: {
+  pasoId: string;
+  ordenId: string;
+  ejecucionId: string;
+  fotoUrls: string[];
+  isSaving: boolean;
+  onPreview: (urls: string[], index: number) => void;
+  nota: string;
+  onNotaChange: (value: string) => void;
+  onNotaCommit: () => void;
+  inputStyle: React.CSSProperties;
+  onUploaded: (url: string) => void;
+  onClearPhoto: (url: string) => void;
+}) {
+  // Anything already filled in stays open, so a saved note or photo is never
+  // hidden behind a link the user has to rediscover.
+  const [showNota, setShowNota] = useState(!!nota);
+  const [showFotos, setShowFotos] = useState(fotoUrls.length > 0);
+
+  const linkStyle: React.CSSProperties = {
+    background: "none", border: "none", padding: 0, cursor: "pointer",
+    fontSize: 13, fontWeight: 500, color: "var(--brand)", fontFamily: "inherit",
+  };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      {(!showNota || !showFotos) && (
+        <div style={{ display: "flex", gap: 20, flexWrap: "wrap" }}>
+          {!showNota && <button type="button" onClick={() => setShowNota(true)} style={linkStyle}>+ Añadir notas</button>}
+          {!showFotos && <button type="button" onClick={() => setShowFotos(true)} style={linkStyle}>+ Agregar Imágenes/Archivos</button>}
+        </div>
+      )}
+
+      {showFotos && (
+        <PasoImagenField
+          pasoId={pasoId} ordenId={ordenId} ejecucionId={ejecucionId}
+          fotoUrls={fotoUrls} isSaving={isSaving} onPreview={onPreview}
+          onUploaded={onUploaded} onClear={onClearPhoto}
+        />
+      )}
+
+      {showNota && (
+        <textarea
+          value={nota}
+          onChange={e => onNotaChange(e.target.value)}
+          onBlur={e => { e.currentTarget.style.borderColor = "var(--border)"; onNotaCommit(); }}
+          placeholder="Introducir nota"
+          rows={2}
+          style={{ ...inputStyle, height: "auto", minHeight: 64, padding: "9px 12px", resize: "vertical", lineHeight: 1.5 }}
+          onFocus={e => { e.currentTarget.style.borderColor = "var(--brand)"; }}
+        />
+      )}
     </div>
   );
 }
@@ -4881,83 +5354,90 @@ function PasoImagenField({
   onClear: (url: string) => void;
   onPreview: (urls: string[], index: number) => void;
 }) {
-  const cameraInputRef = useRef<HTMLInputElement | null>(null);
   const libraryInputRef = useRef<HTMLInputElement | null>(null);
   const [uploading, setUploading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  // Deleting an attachment is destructive and the trash icon is easy to hit by
+  // accident on a dense card, so it confirms first.
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 
   async function handleFile(f: File | undefined) {
     if (!f) return;
     setErr(null);
     setUploading(true);
     try {
-      const folder = `ordenes/${ordenId}/procedimientos/${ejecucionId}/${pasoId}`;
+      // Inspection steps qualify pasoId with the item label, which is free text
+      // and can carry spaces or accents. The presign endpoint rejects those, so
+      // the segment is sanitised rather than passed through verbatim.
+      const safePasoId = pasoId.replace(/[^a-zA-Z0-9._-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 120);
+      const folder = `ordenes/${ordenId}/procedimientos/${ejecucionId}/${safePasoId || "paso"}`;
       const url = await uploadToR2(f, folder);
       onUploaded(url);
     } catch (e: any) {
-      setErr(e?.message ?? "Error al subir la foto");
+      // The raw error carries the presign JSON payload, which means nothing to
+      // the person filling in the procedure.
+      console.error("[paso-imagen] fallo la subida", e);
+      setErr("No se pudo subir el archivo. Inténtalo nuevamente.");
     } finally {
       setUploading(false);
-      // Reset the inputs so picking the same file twice still fires onChange.
-      if (cameraInputRef.current) cameraInputRef.current.value = "";
+      // Reset the input so picking the same file twice still fires onChange.
       if (libraryInputRef.current) libraryInputRef.current.value = "";
     }
   }
 
   const busy = uploading || isSaving;
   const urls = fotoUrls ?? (fotoUrl ? [fotoUrl] : []);
-  const btn: React.CSSProperties = {
-    height: 30, padding: "0 12px", background: "var(--brand-tint)",
-    border: "1px solid var(--brand)", borderRadius: "var(--r-sm)", cursor: busy ? "default" : "pointer",
-    fontSize: 12, fontWeight: 600, color: "var(--brand-fg)", fontFamily: "inherit",
-    display: "inline-flex", alignItems: "center", gap: 4, opacity: busy ? 0.6 : 1,
-  };
-  const btnGhost: React.CSSProperties = {
-    ...btn, background: "transparent", border: "1px solid var(--border)", color: "var(--fg-2)",
-  };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8, width: "100%" }}>
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "stretch", gap: 10, width: "100%" }}>
+      {/* Los adjuntos van en su propio panel sobre la zona de carga: la miniatura
+          a la izquierda con su formato, y la papelera al extremo derecho. */}
       {urls.length > 0 && (
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "stretch", gap: 10, width: "100%" }}>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "stretch", width: "100%", border: "1px solid var(--border)", borderRadius: "var(--r-sm)", background: "var(--surface-canvas)", overflow: "hidden" }}>
           {urls.map((url, index) => (
-            <div key={url} style={{ position: "relative", width: "100%" }}>
-              <button type="button" onClick={() => onPreview(urls, index)} style={{ display: "block", width: "100%", padding: 0, border: 0, borderRadius: "var(--r-lg)", background: "transparent", cursor: "zoom-in" }} aria-label="Ver imagen">
+            <div key={url} style={{ display: "flex", alignItems: "center", gap: 14, padding: 12, borderTop: index === 0 ? "none" : "1px solid var(--border)" }}>
+              <span style={{ flexShrink: 0, padding: "5px 8px", borderRadius: "var(--r-xs)", background: "var(--surface-1)", fontSize: 10.5, fontWeight: 600, color: "var(--fg-3)", textTransform: "uppercase" }}>
+                {(url.split("?")[0].split(".").pop() ?? "img").slice(0, 4)}
+              </span>
+              <button type="button" onClick={() => onPreview(urls, index)} style={{ padding: 0, border: 0, background: "transparent", cursor: "zoom-in", flexShrink: 0 }} aria-label="Ver imagen">
                 <img
-                  src={optimizedProcedureImageUrl(url, 960)}
+                  src={optimizedProcedureImageUrl(url, 480)}
                   alt="Foto del paso"
                   loading="lazy"
                   decoding="async"
                   onError={(e) => { if (e.currentTarget.src !== url) e.currentTarget.src = url; }}
-                  style={{ display: "block", width: "100%", height: 280, borderRadius: "var(--r-lg)", border: "1px solid var(--border)", objectFit: "contain", background: "var(--surface-0)", boxSizing: "border-box" }}
+                  style={{ display: "block", width: 180, height: 180, objectFit: "contain", background: "transparent" }}
                 />
               </button>
-              <button type="button" onClick={() => { if (window.confirm("¿Quieres eliminar esta imagen?")) onClear(url); }} disabled={busy} aria-label="Quitar imagen" style={{ position: "absolute", top: 8, right: 8, width: 28, height: 28, display: "grid", placeItems: "center", padding: 0, border: "none", borderRadius: 14, background: "var(--danger)", color: "#fff", cursor: busy ? "default" : "pointer" }}>
-                <Trash2 size={14} />
+              <span style={{ flex: 1 }} />
+              <button type="button" onClick={() => setConfirmDelete(url)} disabled={busy} aria-label="Quitar imagen" style={{ flexShrink: 0, width: 32, height: 32, display: "grid", placeItems: "center", padding: 0, border: "none", borderRadius: "var(--r-sm)", background: "transparent", color: "var(--fg-2)", cursor: busy ? "default" : "pointer" }}>
+                <Trash2 size={17} />
               </button>
             </div>
           ))}
         </div>
       )}
-      <div style={{ display: "flex", justifyContent: "center", gap: 8, flexWrap: "wrap" }}>
-        <button type="button" onClick={() => cameraInputRef.current?.click()} disabled={busy} style={btn}>
-          {uploading ? <Loader2 size={11} className="animate-spin" /> : <Camera size={11} />}
-          {urls.length ? "Añadir imagen" : "Tomar foto"}
-        </button>
-        <button type="button" onClick={() => libraryInputRef.current?.click()} disabled={busy} style={btnGhost}>
-          {uploading ? <Loader2 size={11} className="animate-spin" /> : <Camera size={11} />}
-          Subir archivo
-        </button>
-      </div>
+      {/* Una sola zona de carga en vez de dos botones: el selector de archivos
+          del sistema ya ofrece cámara en móvil, así que separarlos duplicaba la
+          decisión sin agregar nada. */}
+      <button
+        type="button"
+        onClick={() => libraryInputRef.current?.click()}
+        disabled={busy}
+        // Mismo vacío punteado tenue que Procedimiento y Adjuntos.
+        style={{
+          width: "100%", minHeight: 96, padding: "16px 12px",
+          display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8,
+          border: "1px dashed var(--border-strong)", borderRadius: "var(--r-md)",
+          background: "var(--surface-canvas)",
+          cursor: busy ? "default" : "pointer", opacity: busy ? 0.6 : 1,
+          fontSize: 13, fontWeight: 500, color: "var(--brand)", fontFamily: "inherit",
+        }}
+      >
+        {uploading ? <Loader2 size={20} className="animate-spin" /> : <Camera size={20} />}
+        {uploading ? "Subiendo…" : "Agregar Imágenes/Archivos"}
+      </button>
       {err && <div style={{ fontSize: 11, color: "var(--danger)" }}>{err}</div>}
-      <input
-        ref={cameraInputRef}
-        type="file"
-        accept="image/*"
-        capture="environment"
-        style={{ display: "none" }}
-        onChange={e => handleFile(e.target.files?.[0])}
-      />
       <input
         ref={libraryInputRef}
         type="file"
@@ -4965,6 +5445,36 @@ function PasoImagenField({
         style={{ display: "none" }}
         onChange={e => handleFile(e.target.files?.[0])}
       />
+
+      {confirmDelete && (
+        <div
+          role="presentation"
+          onMouseDown={e => { if (e.target === e.currentTarget) setConfirmDelete(null); }}
+          style={{ position: "fixed", inset: 0, zIndex: 820, background: "rgba(15,23,42,0.45)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}
+        >
+          <div role="dialog" aria-modal="true" aria-label="Eliminar archivo adjunto" style={{ width: "min(440px, 100%)", background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: "var(--r-xl)", boxShadow: "var(--shadow-lg)", padding: 24, textAlign: "left" }}>
+            <p style={{ margin: "0 0 22px", fontSize: 15, fontWeight: 600, lineHeight: 1.45, color: "var(--fg-1)" }}>
+              ¿Estás seguro de que quieres eliminar el archivo adjunto?
+            </p>
+            <div style={{ display: "flex", gap: 14, alignItems: "center", justifyContent: "flex-end" }}>
+              <button
+                type="button"
+                onClick={() => setConfirmDelete(null)}
+                style={{ background: "none", border: "none", padding: 4, cursor: "pointer", fontSize: 13.5, fontWeight: 600, color: "var(--brand)", fontFamily: "inherit" }}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => { onClear(confirmDelete); setConfirmDelete(null); }}
+                style={{ height: 40, padding: "0 20px", border: "none", borderRadius: "var(--r-md)", background: "var(--brand)", color: "var(--fg-on-brand)", fontSize: 13.5, fontWeight: 700, fontFamily: "inherit", cursor: "pointer" }}
+              >
+                Confirmar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

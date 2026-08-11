@@ -15,6 +15,8 @@ import { fetchSolicitantes as fetchSolicitantesCatalog, upsertSolicitante, type 
 import { analytics } from "@/lib/analytics";
 import { uploadAndAddFotoToGrupo, createFotoGrupo } from "@/lib/foto-grupos-api";
 import { uploadToR2 } from "@/lib/r2";
+import { attachProcedimiento } from "@/lib/procedimientos-api";
+import ProcedimientosPicker, { type ProcedimientoSeleccionado } from "./ProcedimientosPicker";
 import { buildRecurrenciaConfig, RecurrenceControls } from "./RecurrenceControls";
 import type {
   Usuario, Ubicacion, LugarEspecifico, Sociedad, Activo, CategoriaOT,
@@ -1045,6 +1047,9 @@ export default function OTCrearPanel({
   const pdfInputRef = useRef<HTMLInputElement>(null);
   const adjuntoInputRef = useRef<HTMLInputElement | null>(null);
   const [adjuntos, setAdjuntos] = useState<{ file: File; nombre: string }[]>([]);
+  // Procedures are attached after the OT row exists, so the picker holds them
+  // as a draft selection until save.
+  const [procedimientos, setProcedimientos] = useState<ProcedimientoSeleccionado[]>([]);
 
   // Local copies so newly created records appear immediately without a full reload
   const [ubicaciones, setUbicaciones] = useState<Ubicacion[]>(initialUbicaciones);
@@ -1562,6 +1567,14 @@ export default function OTCrearPanel({
         } catch { /* don't block OT creation */ }
       }
 
+      // Attach the chosen procedures. Best-effort like the uploads above: the
+      // OT already exists, so a failed attach must not fail the creation.
+      for (const proc of procedimientos) {
+        try {
+          await attachProcedimiento(orden.id, proc.id, myId);
+        } catch { /* don't block OT creation */ }
+      }
+
       analytics.otCreated({
         ot_id: orden.id,
         workspace_id: wsId,
@@ -1747,21 +1760,28 @@ export default function OTCrearPanel({
               <span style={{ fontSize: 14, fontWeight: 600, color: "var(--fg-2)" }}>Álbumes de fotos</span>
             </div>
 
-            <div style={{ display: "flex", minHeight: 260, border: "1px solid var(--border)", borderRadius: "var(--r-md)", overflow: "hidden", background: "var(--surface-1)" }}>
+            {/* Sin álbumes la barra lateral no lista nada, así que se oculta: el
+                vacío ocupa todo el ancho y su texto queda centrado en el mismo
+                eje que los de Procedimiento y Adjuntos. */}
+            {/* Distribución vertical: la lista de álbumes va arriba y el álbum
+                abierto debajo, a todo el ancho. Con la barra al costado el panel
+                quedaba desplazado ~190px y sus textos nunca alineaban con los de
+                Procedimiento y Adjuntos. */}
+            <div style={{ display: "flex", flexDirection: "column", border: grupos.length === 0 ? "1px dashed var(--border-strong)" : "1px solid var(--border)", borderRadius: "var(--r-md)", overflow: "hidden", background: grupos.length === 0 ? "var(--surface-canvas)" : "var(--surface-1)" }}>
 
-              {/* Album sidebar */}
-              <aside style={{ width: 190, flexShrink: 0, display: "flex", flexDirection: "column", background: "var(--surface-1)", borderRight: "1px solid var(--border)" }}>
-                <div style={{ padding: "12px 12px 8px", fontSize: 14, fontWeight: 600, color: "var(--fg-4)" }}>
+              {/* Album strip */}
+              {grupos.length > 0 && (
+              <aside style={{ flexShrink: 0, display: "flex", flexDirection: "column", background: "var(--surface-1)", borderBottom: "1px solid var(--border)" }}>
+                <div style={{ padding: "12px 14px 8px", fontSize: 12, fontWeight: 700, color: "var(--fg-4)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
                   Álbumes
                 </div>
-                <div style={{ flex: 1, overflowY: "auto", padding: "0 8px 8px", display: "flex", flexDirection: "column", gap: 2 }}>
+                <div style={{ overflowX: "auto", padding: "0 14px 12px", display: "flex", flexDirection: "row", alignItems: "center", gap: 8 }}>
                   {(["referencia", "evidencia"] as const).map(t => {
                     const delTipo = grupos.filter(g => g.tipo === t);
                     if (delTipo.length === 0) return null;
                     return (
-                      <div key={t} style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                        <div style={{ height: 1, background: "var(--border)", margin: "6px 4px 4px" }} />
-                        <div style={{ padding: "0 8px 2px", fontSize: 14, fontWeight: 600, color: "var(--fg-4)" }}>
+                      <div key={t} style={{ display: "flex", flexDirection: "row", alignItems: "center", gap: 8 }}>
+                        <div style={{ fontSize: 13.5, fontWeight: 600, color: "var(--fg-4)", flexShrink: 0 }}>
                           {t === "referencia" ? "Referencia" : "Evidencia"}
                         </div>
                         {delTipo.map(g => {
@@ -1772,25 +1792,28 @@ export default function OTCrearPanel({
                               type="button"
                               onClick={() => setAlbumSel(g.id)}
                               title={g.titulo}
+                              // Chips en una fila: al pasar a distribución
+                              // vertical ya no hay una columna que rellenar.
                               style={{
-                                display: "flex", alignItems: "center", gap: 8,
-                                width: "100%", height: 36, padding: "0 8px",
-                                border: "none", borderRadius: "var(--r-sm)",
-                                background: on ? "var(--brand-tint)" : "transparent",
+                                display: "flex", alignItems: "center", gap: 7,
+                                flexShrink: 0, maxWidth: 220, height: 34, padding: "0 12px",
+                                border: `1px solid ${on ? "var(--brand)" : "var(--border)"}`,
+                                borderRadius: "var(--r-sm)",
+                                background: on ? "var(--brand-tint)" : "var(--surface-1)",
                                 color: on ? "var(--brand)" : "var(--fg-2)",
-                                fontSize: 14, fontWeight: on ? 600 : 500,
+                                fontSize: 13.5, fontWeight: on ? 600 : 500,
                                 cursor: "pointer", fontFamily: "inherit", textAlign: "left",
                               }}
                               onMouseEnter={e => { if (!on) e.currentTarget.style.background = "var(--surface-hover)"; }}
-                              onMouseLeave={e => { if (!on) e.currentTarget.style.background = "transparent"; }}
+                              onMouseLeave={e => { if (!on) e.currentTarget.style.background = "var(--surface-1)"; }}
                             >
                               <span style={{ flexShrink: 0, display: "flex", color: on ? "var(--brand)" : "var(--fg-3)" }}>
-                                <FolderOpen size={20} />
+                                <FolderOpen size={16} />
                               </span>
-                              <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                              <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                                 {g.titulo.charAt(0).toUpperCase() + g.titulo.slice(1)}
                               </span>
-                              <span style={{ flexShrink: 0, fontSize: 14, color: on ? "var(--brand)" : "var(--fg-4)", fontVariantNumeric: "tabular-nums" }}>
+                              <span style={{ flexShrink: 0, fontSize: 13, color: on ? "var(--brand)" : "var(--fg-4)", fontVariantNumeric: "tabular-nums" }}>
                                 {g.fotos.length}
                               </span>
                             </button>
@@ -1800,30 +1823,25 @@ export default function OTCrearPanel({
                     );
                   })}
 
-                  {grupos.length === 0 && (
-                    <div style={{ padding: "16px 8px", fontSize: 14, color: "var(--fg-4)", textAlign: "center", lineHeight: 1.5 }}>
-                      Sin álbumes
-                    </div>
-                  )}
-
                   <button
                     type="button"
                     onClick={() => { setAlbumTitulo(""); setAlbumTipo("referencia"); setAlbumModal({ mode: "crear" }); }}
                     style={{
-                      width: "100%", height: 36, marginTop: 4, flexShrink: 0,
-                      display: "flex", alignItems: "center", gap: 8, padding: "0 8px",
-                      border: "none", borderRadius: "var(--r-sm)",
+                      height: 34, flexShrink: 0,
+                      display: "flex", alignItems: "center", gap: 6, padding: "0 12px",
+                      border: "1px dashed var(--border-strong)", borderRadius: "var(--r-sm)",
                       background: "transparent", color: "var(--fg-3)",
-                      fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", textAlign: "left",
+                      fontSize: 13.5, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
                     }}
                     onMouseEnter={e => { e.currentTarget.style.background = "var(--surface-hover)"; e.currentTarget.style.color = "var(--brand)"; }}
                     onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "var(--fg-3)"; }}
                   >
-                    <span style={{ flexShrink: 0, display: "flex" }}><Plus size={20} /></span>
+                    <span style={{ flexShrink: 0, display: "flex" }}><Plus size={16} /></span>
                     Nuevo álbum
                   </button>
                 </div>
               </aside>
+              )}
 
               {/* Photo pane */}
               <section style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
@@ -1903,15 +1921,19 @@ export default function OTCrearPanel({
 
                     <div style={{ flex: 1, padding: 14, overflowY: "auto" }}>
                       {activeGrupo.fotos.length === 0 ? (
-                        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "36px 0", gap: 8, color: "var(--fg-4)" }}>
-                          <ImageIcon size={30} style={{ opacity: 0.3 }} />
-                          <span style={{ fontSize: 14 }}>Sin fotos en este álbum</span>
+                        // Mismo vacío que Procedimiento y Adjuntos: ícono en
+                        // azul junto al texto y botón de contorno de marca.
+                        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10, padding: "18px 12px", border: "1px dashed var(--border-strong)", borderRadius: "var(--r-md)", background: "var(--surface-canvas)" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 13, color: "var(--fg-3)" }}>
+                            <ImageIcon size={15} style={{ color: "var(--brand)" }} />
+                            Sin fotos en este álbum
+                          </div>
                           <button
                             type="button"
                             onClick={() => grupoFileRefs.current[activeGrupo.id]?.click()}
-                            style={{ display: "flex", alignItems: "center", gap: 6, height: 32, padding: "0 12px", marginTop: 2, border: "1px solid var(--border)", borderRadius: "var(--r-sm)", background: "var(--surface-1)", color: "var(--fg-2)", fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
+                            style={{ height: 38, padding: "0 18px", display: "flex", alignItems: "center", gap: 7, border: "1px solid var(--brand)", borderRadius: "var(--r-sm)", background: "var(--surface-1)", color: "var(--brand)", fontSize: 13.5, fontWeight: 700, fontFamily: "inherit", cursor: "pointer" }}
                           >
-                            <ImageUp size={14} />
+                            <ImageUp size={15} />
                             Agregar fotos
                           </button>
                         </div>
@@ -1953,18 +1975,18 @@ export default function OTCrearPanel({
                     />
                   </>
                 ) : (
-                  <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8, color: "var(--fg-4)", padding: 24 }}>
-                    <ImagePlus size={30} strokeWidth={1.5} style={{ opacity: 0.4 }} />
-                    <span style={{ fontSize: 14 }}>
+                  <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10, color: "var(--fg-3)", padding: 24 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 13 }}>
+                      <ImagePlus size={15} style={{ color: "var(--brand)" }} />
                       {grupos.length === 0 ? "Crea un álbum para agregar fotos" : "Selecciona un álbum"}
-                    </span>
+                    </div>
                     {grupos.length === 0 && (
                       <button
                         type="button"
                         onClick={() => { setAlbumTitulo(""); setAlbumTipo("referencia"); setAlbumModal({ mode: "crear" }); }}
-                        style={{ display: "flex", alignItems: "center", gap: 6, height: 32, padding: "0 12px", marginTop: 2, border: "1px solid var(--border)", borderRadius: "var(--r-sm)", background: "var(--surface-1)", color: "var(--fg-2)", fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
+                        style={{ height: 38, padding: "0 18px", display: "flex", alignItems: "center", gap: 7, border: "1px solid var(--brand)", borderRadius: "var(--r-sm)", background: "var(--surface-1)", color: "var(--brand)", fontSize: 13.5, fontWeight: 700, fontFamily: "inherit", cursor: "pointer" }}
                       >
-                        <Plus size={14} />
+                        <Plus size={15} />
                         Nuevo álbum
                       </button>
                     )}
@@ -1972,6 +1994,15 @@ export default function OTCrearPanel({
                 )}
               </section>
             </div>
+          </div>
+
+          {/* Procedimientos */}
+          <div style={{ marginBottom: 24 }}>
+            <ProcedimientosPicker
+              workspaceId={wsId}
+              value={procedimientos}
+              onChange={setProcedimientos}
+            />
           </div>
 
           {/* Adjuntos */}
@@ -1983,6 +2014,10 @@ export default function OTCrearPanel({
                   Adjuntos
                 </span>
               </div>
+              {/* El botón del encabezado solo aparece cuando ya hay adjuntos:
+                  con la lista vacía, el del propio vacío cumple esa función y
+                  tener los dos duplicaba la misma acción. */}
+              {adjuntos.length > 0 && (
               <button
                 type="button"
                 onClick={() => adjuntoInputRef.current?.click()}
@@ -1997,6 +2032,7 @@ export default function OTCrearPanel({
                 <Plus size={11} />
                 Adjuntar archivo
               </button>
+              )}
               <input
                 ref={adjuntoInputRef}
                 type="file"
@@ -2011,21 +2047,21 @@ export default function OTCrearPanel({
               />
             </div>
             {adjuntos.length === 0 ? (
-              <button
-                type="button"
-                onClick={() => adjuntoInputRef.current?.click()}
-                style={{
-                  width: "100%", border: "1.5px dashed var(--brand)", borderRadius: 8,
-                  padding: "18px", display: "flex", flexDirection: "column",
-                  alignItems: "center", gap: 4, color: "var(--brand)", cursor: "pointer",
-                  background: "var(--brand-tint)", fontFamily: "inherit",
-                }}
-                onMouseEnter={e => { e.currentTarget.style.opacity = "0.85"; }}
-                onMouseLeave={e => { e.currentTarget.style.opacity = "1"; }}
-              >
-                <Paperclip size={18} strokeWidth={1.5} />
-                <span style={{ fontSize: 12 }}>PDF, Word, Excel, TXT, CSV, DWG, MP3, M4A…</span>
-              </button>
+              // Mismo vacío que Procedimiento: borde tenue y un botón sólido con
+              // la acción, en vez de una zona azul que pesa más que el contenido.
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, padding: "18px 12px", border: "1px dashed var(--border-strong)", borderRadius: "var(--r-md)", background: "var(--surface-canvas)" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 13, color: "var(--fg-3)" }}>
+                  <Paperclip size={15} style={{ color: "var(--brand)" }} />
+                  PDF, Word, Excel, TXT, CSV, DWG, MP3, M4A…
+                </div>
+                <button
+                  type="button"
+                  onClick={() => adjuntoInputRef.current?.click()}
+                  style={{ height: 38, padding: "0 18px", display: "flex", alignItems: "center", gap: 7, border: "1px solid var(--brand)", borderRadius: "var(--r-sm)", background: "var(--surface-1)", color: "var(--brand)", fontSize: 13.5, fontWeight: 700, fontFamily: "inherit", cursor: "pointer" }}
+                >
+                  <Plus size={15} /> Adjuntar archivo
+                </button>
+              </div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {adjuntos.map((a, i) => {

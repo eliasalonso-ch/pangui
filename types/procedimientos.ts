@@ -181,7 +181,7 @@ export interface OTProcedimiento {
   adjuntado_por: string | null;
   adjuntado_at: string;
   hereda_a_hijos?: boolean;
-  procedimiento?: (Pick<Procedimiento, "id" | "nombre" | "descripcion" | "bloquea_cierre_ot" | "version" | "iso_categoria" | "puntaje_minimo" | "hereda_a_hijos"> & {
+  procedimiento?: (Pick<Procedimiento, "id" | "nombre" | "descripcion" | "bloquea_cierre_ot" | "bloquea_inicio" | "version" | "iso_categoria" | "puntaje_minimo" | "hereda_a_hijos"> & {
     pasos_count?: number;
     pasos?: ProcedimientoPaso[];
   }) | null;
@@ -292,7 +292,8 @@ export type RespPendiente = {
   firma_svg?: string | null;
   firmado_nombre?: string | null;
   firmado_por_id?: string;
-  firmado_at?: string;
+  // Nullable: clearing a signature writes null to wipe the timestamp.
+  firmado_at?: string | null;
   notas?: string | null;
   // new field types
   valor_fecha?: string | null;
