@@ -181,7 +181,7 @@ export interface OTProcedimiento {
   adjuntado_por: string | null;
   adjuntado_at: string;
   hereda_a_hijos?: boolean;
-  procedimiento?: (Pick<Procedimiento, "id" | "nombre" | "descripcion" | "bloquea_cierre_ot" | "version" | "iso_categoria" | "puntaje_minimo" | "hereda_a_hijos"> & {
+  procedimiento?: (Pick<Procedimiento, "id" | "nombre" | "descripcion" | "bloquea_cierre_ot" | "bloquea_inicio" | "version" | "iso_categoria" | "puntaje_minimo" | "hereda_a_hijos"> & {
     pasos_count?: number;
     pasos?: ProcedimientoPaso[];
   }) | null;

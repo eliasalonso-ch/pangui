@@ -36,6 +36,7 @@ import {
   uploadOrdenFoto, addOrdenFoto, removeOrdenFoto,
   parseDescMeta, fetchOrden, fetchSubOrdenes, createSubOrden,
 } from "@/lib/ordenes-api";
+import type { ForceClose } from "@/lib/ordenes-api";
 import { analytics } from "@/lib/analytics";
 import {
   fetchFotoGrupos, createFotoGrupo, updateFotoGrupo, deleteFotoGrupo,
@@ -635,6 +636,15 @@ export default function OTDetail({
   const [pendingMaterialRequestSheetId, setPendingMaterialRequestSheetId] = useState<string | null>(null);
   const materialRequestPauseBusyRef = useRef(false);
 
+  // Close-gate dialog. `missing` is what the OT still owes; `resume` is the close
+  // the user was attempting, replayed with an override once they justify it.
+  const [gate, setGate] = useState<{
+    missing: string[];
+    resume: (forceClose?: ForceClose) => Promise<void>;
+  } | null>(null);
+  const [gateReason, setGateReason] = useState("");
+  const [gateBusy, setGateBusy] = useState(false);
+
   const [fotos, setFotos] = useState<string[]>([
     ...(orden.imagen_url ? [orden.imagen_url] : []),
     ...(orden.fotos_urls ?? []),
@@ -851,6 +861,9 @@ export default function OTDetail({
   // button that the database will reject.
   const canDelete = esAdmin(myRol);
   const canManageFotos = esAdmin(myRol);
+  // Closing an OT with unmet requisitos is an owner/admin escape hatch. This only
+  // controls the affordance — the RPC and the photo trigger re-check the role.
+  const canForceClose = esAdmin(myRol);
   const canUploadFotos = canManageFotos || (orden.asignados_ids ?? []).includes(myId);
   const isActive = orden.estado !== "completado";
 
@@ -1396,15 +1409,36 @@ export default function OTDetail({
 
   // ── Actions ────────────────────────────────────────────────────────────────
 
-  const checkCompletionRequirements = async (): Promise<string | null> => {
+  /**
+   * Mirrors the server's close-gate so the UI can explain what is missing before
+   * the OT is sent, instead of surfacing a raw RPC error. Returns every unmet
+   * requisito rather than the first one, so an admin deciding whether to force
+   * the close sees the full picture in one pass.
+   *
+   * This is an explanation, not the enforcement. The gates that matter live in
+   * transition_work_order_v1 and the enforce_ot_photo_completion trigger.
+   */
+  const checkCompletionRequirements = async (): Promise<string[]> => {
+    const missing: string[] = [];
+
+    // Blocking procedures. The server treats bloquea_inicio as close-blocking
+    // too, so an OT that was force-started can't be quietly closed around it.
+    const pendingProcs = otProcs.filter(otp =>
+      (otp.procedimiento?.bloquea_cierre_ot || otp.procedimiento?.bloquea_inicio) &&
+      otp.ejecucion?.estado !== "completado",
+    );
+    for (const otp of pendingProcs) {
+      missing.push(`Procedimiento obligatorio sin completar: ${otp.procedimiento?.nombre ?? "sin nombre"}.`);
+    }
+
     // If the workspace currently disables a module via modo_registro, don't
     // enforce its close-gate even if the OT row still has the flag set
     // (the OT may pre-date the workspace mode change).
     if (requiereMateriales && modoRegistro !== "hoja" && ordenPartes.length === 0) {
-      return "Esta OT requiere al menos un material registrado antes de cerrarse. Ve a la pestaña Materiales y agrega los materiales utilizados.";
+      missing.push("Esta OT requiere al menos un material registrado. Ve a la pestaña Materiales y agrega los materiales utilizados.");
     }
     if (requiereHoja && modoRegistro !== "materiales") {
-      return "Esta OT requiere que completes la hoja de cálculo antes de cerrarse. Ve a la pestaña Hoja de cálculo.";
+      missing.push("Esta OT requiere que completes la hoja de cálculo. Ve a la pestaña Hoja de cálculo.");
     }
     if (requiereFotos || fotosObligatoriasTodas) {
       // Always verify fresh server data. Local or stale UI state must never
@@ -1415,26 +1449,65 @@ export default function OTDetail({
         setFotoGrupos(currentGrupos);
         setGruposLoaded(true);
       } catch {
-        return "No se pudieron verificar las fotos. Revisa tu conexión e inténtalo nuevamente antes de cerrar la OT.";
+        missing.push("No se pudieron verificar las fotos. Revisa tu conexión e inténtalo nuevamente antes de cerrar la OT.");
+        return missing;
       }
       const hasAnyFoto = fotos.length > 0 || currentGrupos.some(g => g.tipo === "evidencia" && (g.items?.length ?? 0) > 0);
       if (!hasAnyFoto) {
-        return "Esta OT requiere al menos una foto antes de cerrarse. Ve a la pestaña Fotos y sube las fotos del trabajo.";
+        missing.push("Esta OT requiere al menos una foto de evidencia. Ve a la pestaña Fotos y sube las fotos del trabajo.");
       }
     }
-    return null;
+    return missing;
   };
 
-  const changeStatus = async (newEstado: Estado): Promise<boolean> => {
+  /**
+   * Single entry point for every close. Runs the requisitos check first: if the
+   * OT is clear, `close` runs immediately; if not, the gate dialog explains what
+   * is missing and — for owner/admin only — offers to replay `close` with a
+   * justified override.
+   */
+  const closeWithRequirements = async (close: (forceClose?: ForceClose) => Promise<void>) => {
+    const missing = await checkCompletionRequirements();
+    if (missing.length === 0) {
+      await close();
+      return;
+    }
+    setGateReason("");
+    setGate({ missing, resume: close });
+  };
+
+  const confirmForceClose = async () => {
+    const reason = gateReason.trim();
+    if (!gate || !canForceClose || !reason) return;
+    setGateBusy(true);
+    try {
+      await gate.resume({ reason });
+      setGate(null);
+      setGateReason("");
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "No se pudo forzar el cierre de la OT.");
+    } finally {
+      setGateBusy(false);
+    }
+  };
+
+  const changeStatus = async (
+    newEstado: Estado,
+    forceClose?: ForceClose,
+    // The gate dialog reports failures itself, so it needs the error rather than
+    // an alert() fired from in here.
+    rethrow = false,
+  ): Promise<boolean> => {
     try {
       await updateOrdenEstado(orden.id, newEstado, myId, wsId && orden.titulo ? {
         titulo: orden.titulo,
         workspaceId: wsId,
         asignadosIds: orden.asignados_ids ?? [],
-      } : undefined);
+      } : undefined, forceClose);
       onOrdenUpdated({ estado: newEstado });
       return true;
     } catch (err) {
+      if (rethrow) throw err;
       alert(err instanceof Error ? err.message : "No se pudo cambiar el estado de la OT.");
       return false;
     }
@@ -2034,20 +2107,23 @@ export default function OTDetail({
           estado: "en_espera",
         });
       } else {
-        await completarOrden(orden.id, myId, timerComment || undefined, elapsed, wsId && orden.titulo ? {
-          titulo: orden.titulo,
-          workspaceId: wsId,
-          asignadosIds: orden.asignados_ids ?? [],
-        } : undefined);
-        analytics.otCompleted({
-          ot_id: orden.id,
-          workspace_id: wsId ?? "",
-          tiempo_total_segundos: elapsed,
-        });
-        onOrdenUpdated({
-          en_ejecucion: false,
-          tiempo_total_segundos: elapsed,
-          estado: "completado",
+        const comment = timerComment || undefined;
+        await closeWithRequirements(async (forceClose) => {
+          await completarOrden(orden.id, myId, comment, elapsed, wsId && orden.titulo ? {
+            titulo: orden.titulo,
+            workspaceId: wsId,
+            asignadosIds: orden.asignados_ids ?? [],
+          } : undefined, forceClose);
+          analytics.otCompleted({
+            ot_id: orden.id,
+            workspace_id: wsId ?? "",
+            tiempo_total_segundos: elapsed,
+          });
+          onOrdenUpdated({
+            en_ejecucion: false,
+            tiempo_total_segundos: elapsed,
+            estado: "completado",
+          });
         });
       }
       setTimerAction(null);
@@ -2310,6 +2386,21 @@ export default function OTDetail({
       <ConfirmDeleteModal pending={confirmDelete} onClose={() => setConfirmDelete(null)} />
 
       <div ref={detalleScrollRef} style={{ flex: 1, minHeight: 0, overflowY: "auto", overflowX: "hidden" }}>
+
+      {/* An OT closed with unmet requisitos says so permanently — the audit trail
+          is worthless if it only lives in the activity log nobody scrolls to. */}
+      {orden.cierre_forzado && (
+        <div style={{ display: "flex", gap: 10, padding: "12px 28px", borderBottom: "1px solid var(--border)", background: "var(--warning-tint, var(--surface-2))" }}>
+          <AlertTriangle size={15} style={{ color: "var(--warning)", flexShrink: 0, marginTop: 2 }} />
+          <div style={{ minWidth: 0, fontSize: 13, lineHeight: 1.5, color: "var(--fg-2)" }}>
+            <strong style={{ color: "var(--fg-1)" }}>Cierre forzado</strong>
+            {" — se cerró con requisitos pendientes."}
+            {orden.cierre_forzado_motivo && (
+              <div style={{ marginTop: 2, color: "var(--fg-3)" }}>{orden.cierre_forzado_motivo}</div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* ── Header ── */}
       <div style={{ position: "relative", flexShrink: 0, borderBottom: "1px solid var(--border)", background: "var(--surface-canvas)" }}>
@@ -2649,7 +2740,11 @@ export default function OTDetail({
                             if (e.value === "completado") {
                               // Completion validates requirements first and the
                               // canonical command closes the running timer.
-                              await changeStatus("completado");
+                              await closeWithRequirements(async (forceClose) => {
+                                if (!await changeStatus("completado", forceClose, Boolean(forceClose))) {
+                                  throw new Error("No se pudo cambiar el estado de la OT.");
+                                }
+                              });
                               return;
                             }
                             // Pausing already transitions the OT to en_espera.
@@ -2666,6 +2761,12 @@ export default function OTDetail({
                             } finally {
                               setTimerBusy(false);
                             }
+                          } else if (e.value === "completado") {
+                            await closeWithRequirements(async (forceClose) => {
+                              if (!await changeStatus("completado", forceClose, Boolean(forceClose))) {
+                                throw new Error("No se pudo cambiar el estado de la OT.");
+                              }
+                            });
                           } else {
                             await changeStatus(e.value);
                           }
@@ -3459,6 +3560,79 @@ export default function OTDetail({
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Close-gate: unmet requisitos ──
+          Everyone sees what the OT still owes. Only owner/admin get the override,
+          and only with a written justification, which is stored on the OT. */}
+      {gate && (
+        <div
+          role="presentation"
+          onMouseDown={e => { if (e.target === e.currentTarget && !gateBusy) setGate(null); }}
+          style={{ position: "fixed", inset: 0, zIndex: 660, background: "rgba(15,23,42,0.45)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}
+        >
+          <div role="dialog" aria-modal="true" aria-label="Requisitos pendientes" style={{ width: "min(540px, 100%)", maxHeight: "min(720px, calc(100vh - 48px))", overflowY: "auto", background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: "var(--r-xl)", boxShadow: "var(--shadow-lg)" }}>
+            <div style={{ height: 58, padding: "0 16px 0 20px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid var(--border)" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 9, fontSize: 16, fontWeight: 700, color: "var(--fg-1)" }}>
+                <AlertTriangle size={18} style={{ color: "var(--warning)", flexShrink: 0 }} />
+                No se puede cerrar la OT
+              </div>
+              <button type="button" onClick={() => setGate(null)} disabled={gateBusy} aria-label="Cerrar" style={{ width: 34, height: 34, borderRadius: "50%", border: "1px solid var(--border)", background: "var(--surface-0)", color: "var(--fg-1)", display: "grid", placeItems: "center", cursor: gateBusy ? "default" : "pointer" }}><X size={18} /></button>
+            </div>
+
+            <div style={{ padding: 20, display: "flex", flexDirection: "column", gap: 16 }}>
+              <p style={{ margin: 0, fontSize: 13.5, lineHeight: 1.5, color: "var(--fg-2)" }}>
+                {gate.missing.length === 1
+                  ? "Esta OT tiene un requisito pendiente:"
+                  : `Esta OT tiene ${gate.missing.length} requisitos pendientes:`}
+              </p>
+              <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 8 }}>
+                {gate.missing.map((item, i) => (
+                  <li key={i} style={{ display: "flex", gap: 10, padding: "11px 13px", border: "1px solid var(--border)", borderRadius: "var(--r-md)", background: "var(--surface-0)", fontSize: 13, lineHeight: 1.45, color: "var(--fg-2)" }}>
+                    <AlertTriangle size={14} style={{ color: "var(--warning)", flexShrink: 0, marginTop: 2 }} />
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+
+              {canForceClose ? (
+                <>
+                  <p style={{ margin: 0, fontSize: 13, lineHeight: 1.5, color: "var(--fg-3)" }}>
+                    Como administrador puedes cerrarla de todas formas. La OT quedará marcada
+                    como <strong style={{ color: "var(--fg-2)" }}>cierre forzado</strong> y el motivo
+                    quedará registrado en su historial.
+                  </p>
+                  <label style={{ display: "flex", flexDirection: "column", gap: 7, fontSize: 12, fontWeight: 650, color: "var(--fg-3)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                    Motivo del cierre forzado
+                    <textarea
+                      autoFocus
+                      value={gateReason}
+                      onChange={e => setGateReason(e.target.value)}
+                      placeholder="Ej: El equipo fue dado de baja, no es posible tomar las fotos…"
+                      rows={3}
+                      style={{ resize: "vertical", minHeight: 80, padding: 12, border: "1px solid var(--border)", borderRadius: "var(--r-md)", background: "var(--surface-0)", color: "var(--fg-1)", font: "inherit", fontSize: 14, lineHeight: 1.45, textTransform: "none", letterSpacing: 0 }}
+                    />
+                  </label>
+                  <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 4 }}>
+                    <button type="button" onClick={() => setGate(null)} disabled={gateBusy} style={{ height: 40, padding: "0 16px", border: "1px solid var(--border)", borderRadius: "var(--r-md)", background: "var(--surface-1)", color: "var(--fg-2)", font: "inherit", fontWeight: 600, cursor: gateBusy ? "default" : "pointer" }}>Cancelar</button>
+                    <button
+                      type="button"
+                      onClick={confirmForceClose}
+                      disabled={gateBusy || !gateReason.trim()}
+                      style={{ height: 40, padding: "0 18px", border: "none", borderRadius: "var(--r-md)", background: "var(--warning)", color: "#FFFFFF", font: "inherit", fontWeight: 700, cursor: gateBusy || !gateReason.trim() ? "default" : "pointer", opacity: gateBusy || !gateReason.trim() ? 0.5 : 1 }}
+                    >
+                      {gateBusy ? "Cerrando…" : "Cerrar de todas formas"}
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 4 }}>
+                  <button type="button" onClick={() => setGate(null)} style={{ height: 40, padding: "0 18px", border: "none", borderRadius: "var(--r-md)", background: "var(--brand)", color: "var(--fg-on-brand)", font: "inherit", fontWeight: 700, cursor: "pointer" }}>Entendido</button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}

@@ -330,7 +330,7 @@ export async function getOTProcedimientos(ordenId: string): Promise<OTProcedimie
     .select(`
       id, orden_id, procedimiento_id, adjuntado_por, adjuntado_at,
       procedimiento:procedimientos(
-        id, nombre, descripcion, bloquea_cierre_ot,
+        id, nombre, descripcion, bloquea_cierre_ot, bloquea_inicio,
         version, iso_categoria, hereda_a_hijos,
         pasos_count:${PASOS_FK}(count),
         pasos:${PASOS_FK}(${PASO_SELECT})

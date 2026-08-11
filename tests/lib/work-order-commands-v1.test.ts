@@ -176,3 +176,58 @@ describe("canonical create-command migration", () => {
     expect(sql).toContain("REVOKE ALL ON TABLE public.work_order_notification_outbox FROM PUBLIC, anon, authenticated");
   });
 });
+
+describe("admin force-close override migration", () => {
+  const sql = readFileSync(
+    resolve(process.cwd(), "supabase/migrations/20260811164444_ot_force_close_override.sql"),
+    "utf8",
+  );
+
+  it("restricts the override to elevated roles and demands a justification", () => {
+    expect(sql).toContain("FORCE_CLOSE_FORBIDDEN");
+    expect(sql).toContain("FORCE_CLOSE_REASON_REQUIRED");
+    expect(sql).toContain("COALESCE(v_user.rol, '') NOT IN ('owner', 'admin')");
+  });
+
+  it("only lets the override apply to a completion", () => {
+    expect(sql).toContain("force_close is only valid with the complete action");
+  });
+
+  it("still enforces every requisito when the close is not forced", () => {
+    expect(sql).toContain("IF NOT v_force_close THEN");
+    expect(sql).toContain("PROCEDURES_INCOMPLETE");
+    expect(sql).toContain("MATERIALS_REQUIRED");
+    expect(sql).toContain("SHEET_REQUIRED");
+    expect(sql).toContain("PHOTOS_REQUIRED");
+  });
+
+  it("keeps the state machine intact when forcing a close", () => {
+    // The transition guard sits above the `IF NOT v_force_close` block, so a
+    // forced close still cannot resurrect a terminal or invalid-state OT.
+    const completeBranch = sql.slice(sql.indexOf("WHEN 'complete' THEN"));
+    const stateGuard = completeBranch.indexOf("complete is not valid from the current state");
+    const overrideGuard = completeBranch.indexOf("IF NOT v_force_close THEN");
+    expect(stateGuard).toBeGreaterThan(-1);
+    expect(overrideGuard).toBeGreaterThan(stateGuard);
+  });
+
+  it("records the override on the row, not only in the activity log", () => {
+    expect(sql).toContain("ADD COLUMN IF NOT EXISTS cierre_forzado boolean NOT NULL DEFAULT false");
+    expect(sql).toContain("cierre_forzado_motivo");
+    expect(sql).toContain("cierre_forzado_por");
+    expect(sql).toContain("'Cierre forzado: ' || v_force_reason");
+  });
+
+  it("clears the override when the OT is reopened", () => {
+    expect(sql).toContain("WHEN v_action = 'reopen' THEN false");
+  });
+
+  it("lets the photo trigger stand down only for a verified elevated override", () => {
+    expect(sql).toContain("CREATE OR REPLACE FUNCTION public.enforce_ot_photo_completion");
+    expect(sql).toContain("COALESCE(u.rol, '') IN ('owner', 'admin')");
+    expect(sql).toContain("u.workspace_id = NEW.workspace_id");
+    // A bare flag flip must not be enough: a reason and an actor are required too.
+    expect(sql).toContain("NULLIF(btrim(COALESCE(NEW.cierre_forzado_motivo, '')), '') IS NOT NULL");
+    expect(sql).toContain("RAISE EXCEPTION 'Esta OT requiere al menos una foto subida antes de completarse'");
+  });
+});
