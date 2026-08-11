@@ -9,6 +9,7 @@ import {
   Eye, EyeOff, Loader2, Sparkles,
 } from "lucide-react";
 import { PLANS } from "@/lib/flow-plans";
+import { LandingNav } from "../Landing";
 
 const SECTORES = [
   { value: "mineria", label: "Minería" },
@@ -252,6 +253,7 @@ function RegistroPageInner() {
       minHeight: "100vh",
       fontFamily: 'var(--font-sans, "Geist"), system-ui, sans-serif',
     }}>
+      <LandingNav mobileOnly />
       <div
         className="registro-left-panel"
         style={{
@@ -275,7 +277,9 @@ function RegistroPageInner() {
         <div style={{ position: "absolute", bottom: -100, left: -100, width: 360, height: 360, borderRadius: "50%", border: "1px solid rgba(255,255,255,0.05)", pointerEvents: "none" }} />
 
         <div style={{ position: "relative", zIndex: 1, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
-          <img src="/logo6.svg" alt="Pangui" style={{ height: 28, width: "auto" }} />
+          <Link href="/" aria-label="Pangui - inicio" style={{ display: "inline-flex" }}>
+            <img src="/logo6.svg" alt="Pangui" style={{ height: 28, width: "auto" }} />
+          </Link>
           <Link href="/" aria-label="Volver al inicio" style={darkBackLink}>
             <ArrowLeft size={16} />
             Inicio
@@ -541,9 +545,7 @@ function RegistroPageInner() {
           .registro-left-panel { display: flex !important; }
           .registro-mobile-bar { display: none !important; }
         }
-        @media (max-width: 767px) {
-          .registro-mobile-bar { display: flex !important; }
-        }
+        .registro-mobile-bar { display: none !important; }
       `}</style>
     </div>
   );

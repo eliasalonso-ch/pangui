@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase";
 import posthog from "posthog-js";
 import { ArrowLeft, CheckCircle2, Eye, EyeOff, Loader2, Mail, KeyRound } from "lucide-react";
+import { LandingNav } from "../Landing";
 import {
   resendCooldownSeconds,
   normalizeEmail,
@@ -288,6 +289,7 @@ export default function LoginForm() {
       minHeight: "100vh",
       fontFamily: 'var(--font-sans, "Geist"), system-ui, sans-serif',
     }}>
+      <LandingNav mobileOnly />
 
       {/* ── Left panel (brand) ── */}
       <div
@@ -316,9 +318,11 @@ export default function LoginForm() {
 
         {/* Logo */}
         <div style={{ position: "relative", zIndex: 1, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
-          <img src="/logo6.svg" alt="Pangui" style={{ height: 28, width: "auto"}}
-            onError={e => { e.currentTarget.src = "/logo6.svg";}}
-          />
+          <Link href="/" aria-label="Pangui - inicio" style={{ display: "inline-flex" }}>
+            <img src="/logo6.svg" alt="Pangui" style={{ height: 28, width: "auto"}}
+              onError={e => { e.currentTarget.src = "/logo6.svg";}}
+            />
+          </Link>
           <Link
             href="/"
             aria-label="Volver al inicio"
@@ -665,9 +669,7 @@ export default function LoginForm() {
           .login-left-panel { display: flex !important; }
           .login-mobile-bar { display: none !important; }
         }
-        @media (max-width: 767px) {
-          .login-mobile-bar { display: flex !important; }
-        }
+        .login-mobile-bar { display: none !important; }
       `}</style>
     </div>
   );

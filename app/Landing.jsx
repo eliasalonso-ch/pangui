@@ -5,6 +5,7 @@ import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import Link from "next/link";
 import PublicPageTheme from "@/components/PublicPageTheme";
+import { StoreBadges } from "@/components/StoreBadges";
 import FeatureDetailPanel, { useFeatureDetail } from "@/components/landing/FeatureDetailPanel";
 import {
   ArrowRight,
@@ -40,7 +41,7 @@ const stagger = {
   visible: { transition: { staggerChildren: 0.08 } },
 };
 
-export function LandingNav() {
+export function LandingNav({ mobileOnly = false }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const links = [
     { label: "Industrias", href: "/industrias" },
@@ -49,7 +50,10 @@ export function LandingNav() {
   ];
 
   return (
-    <header className="fixed left-0 right-0 top-0 z-50 border-b border-black/10 bg-white">
+    <header
+      className={`fixed left-0 right-0 top-0 z-50 border-b border-black/10 bg-white${mobileOnly ? " lg:hidden" : ""}`}
+      style={{ "--accent": "#273D88", "--accent-hover": "#1F316E", "--ink": "#0A0B0D" }}
+    >
       <div className="mx-auto flex h-16 max-w-[1440px] items-center gap-10 px-4 md:h-[68px] md:px-10 xl:px-12">
         <Link href="/" aria-label="Pangui - inicio" className="flex items-center">
           <img src="/logo2.svg" alt="Pangui" className="h-7 w-auto md:h-8" />
@@ -101,7 +105,7 @@ export function LandingNav() {
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: "auto" }}
             exit={{ opacity: 0, height: 0 }}
-            className="overflow-hidden border-t border-black/10 bg-white lg:hidden"
+            className="overflow-hidden border-y border-[#D1D5DB] bg-white lg:hidden"
           >
             <div className="flex max-h-[calc(100dvh-64px)] flex-col overflow-y-auto px-4 py-4">
               {links.map((link) => (
@@ -120,14 +124,14 @@ export function LandingNav() {
               <Link
                 href="/demo"
                 onClick={() => setMenuOpen(false)}
-                className="py-4 text-[16px] font-semibold"
+                className="mt-2 flex h-11 w-full items-center justify-center rounded-none border-2 border-[#273D88] bg-white px-5 text-[15px] font-semibold text-[#273D88] transition-colors hover:bg-[#273D88] hover:text-white"
               >
                 Agendar demo
               </Link>
               <Link
                 href="/registro"
                 onClick={() => setMenuOpen(false)}
-                className="mt-2 bg-[var(--accent)] px-5 py-3 text-center text-[15px] font-semibold text-white"
+                className="mt-2 bg-[#273D88] px-5 py-3 text-center text-[15px] font-semibold text-white transition-colors hover:bg-[#1F316E]"
               >
                 Prueba gratis 30 días
               </Link>
@@ -898,11 +902,17 @@ export function LandingFooter() {
       <div className="mx-auto max-w-[1440px] px-4 py-10 sm:px-5 md:px-10 md:py-12 xl:px-12">
         <div className="grid gap-10 md:grid-cols-3">
           <div>
-            <img src="/logo2.svg" alt="Pangui" className="h-8 w-auto" />
+            <Link href="/" aria-label="Pangui - inicio" className="inline-flex">
+              <img src="/logo2.svg" alt="Pangui" className="h-8 w-auto" />
+            </Link>
             <p className="mt-6 max-w-[340px] text-[14px] leading-[1.65] text-[var(--ink-2)]">
               Software de órdenes de trabajo y mantenimiento (CMMS) para
               contratistas y empresas de servicios de mantención en Chile.
             </p>
+            <p className="mt-6 font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--ink-3)]">
+              Disponible en
+            </p>
+            <StoreBadges height={40} style={{ marginTop: 12, gap: 10 }} />
           </div>
           <div>
             <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--ink-3)]">Producto</p>

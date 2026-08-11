@@ -6,6 +6,7 @@ import AppSidebar from "@/components/AppSidebar";
 import GlobalTopBar from "@/components/GlobalTopBar";
 import { TopBarActionsProvider } from "@/components/TopBarActions";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
+import { StoreBadges } from "@/components/StoreBadges";
 
 function applyStoredTheme() {
   const stored = localStorage.getItem("pangui_theme");
@@ -63,7 +64,9 @@ function MobileWall() {
         </p>
       </div>
 
-      <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", width: "100%", maxWidth: 260 }}>
+      <div style={{ width: "100%", maxWidth: 300 }}>
+        <StoreBadges height={40} style={{ justifyContent: "center", gap: 12 }} />
+        {/*
         <a
           href="https://apps.apple.com/app/pangui"
           style={{
@@ -87,7 +90,7 @@ function MobileWall() {
           }}
         >
           🤖 Descargar en Google Play
-        </a>
+        </a> */}
       </div>
     </div>
   );
