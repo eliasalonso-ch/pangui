@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { PLANS } from "@/lib/flow-plans";
 import { LandingNav } from "../Landing";
+import PublicPageTheme from "@/components/PublicPageTheme";
 
 const SECTORES = [
   { value: "mineria", label: "Minería" },
@@ -250,9 +251,12 @@ function RegistroPageInner() {
   return (
     <div style={{
       display: "flex",
-      minHeight: "100vh",
+      width: "100%",
+      minHeight: "100dvh",
+      background: "#F8FAFC",
       fontFamily: 'var(--font-sans, "Geist"), system-ui, sans-serif',
     }}>
+      <PublicPageTheme />
       <LandingNav mobileOnly />
       <div
         className="registro-left-panel"
@@ -346,20 +350,21 @@ function RegistroPageInner() {
         <img src="/logo2.svg" alt="Pangui" style={{ height: 24, width: "auto", filter: "brightness(0) invert(1)" }} />
       </div>
 
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", background: "#F8FAFC", minHeight: "100vh" }}>
-        <div style={{
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", background: "#F8FAFC", minHeight: "100dvh" }}>
+        <div className="registro-form-area" style={{
           flex: 1,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          padding: "48px 24px",
+          padding: "96px 16px 32px",
         }}>
           <div style={{
             width: "100%",
             maxWidth: 420,
             background: "#FFFFFF",
             borderRadius: 16,
-            padding: "34px 34px",
+            padding: "28px 24px",
+            boxSizing: "border-box",
             boxShadow: "0 10px 40px rgba(15,23,42,0.10), 0 1px 3px rgba(15,23,42,0.06)",
             border: "1px solid #E2E8F0",
           }}>
@@ -544,6 +549,7 @@ function RegistroPageInner() {
         @media (min-width: 768px) {
           .registro-left-panel { display: flex !important; }
           .registro-mobile-bar { display: none !important; }
+          .registro-form-area { padding: 48px 24px !important; }
         }
         .registro-mobile-bar { display: none !important; }
       `}</style>

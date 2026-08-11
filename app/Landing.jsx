@@ -91,7 +91,7 @@ export function LandingNav({ mobileOnly = false }) {
 
         <button
           type="button"
-          className="ml-auto lg:hidden"
+          className="ml-auto text-[#0A0B0D] lg:hidden"
           onClick={() => setMenuOpen((value) => !value)}
           aria-label={menuOpen ? "Cerrar menú" : "Abrir menú"}
         >
