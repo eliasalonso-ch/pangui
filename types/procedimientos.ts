@@ -292,7 +292,8 @@ export type RespPendiente = {
   firma_svg?: string | null;
   firmado_nombre?: string | null;
   firmado_por_id?: string;
-  firmado_at?: string;
+  // Nullable: clearing a signature writes null to wipe the timestamp.
+  firmado_at?: string | null;
   notas?: string | null;
   // new field types
   valor_fecha?: string | null;

@@ -10,6 +10,8 @@ import { updateOrden, parseDescMeta, buildDescripcion, ELECTRILAM_WORKSPACE_ID }
 import { fetchSolicitantes as fetchSolicitantesCatalog, upsertSolicitante, type Solicitante } from "@/lib/solicitantes-api";
 import { uploadToR2 } from "@/lib/r2";
 import { createClient } from "@/lib/supabase";
+import { getOTProcedimientos, attachProcedimiento, detachProcedimiento } from "@/lib/procedimientos-api";
+import ProcedimientosPicker, { type ProcedimientoSeleccionado } from "./ProcedimientosPicker";
 import { buildRecurrenciaConfig, RecurrenceControls } from "./RecurrenceControls";
 import type {
   OrdenTrabajo, Usuario, Ubicacion, LugarEspecifico, Sociedad, Activo, CategoriaOT,
@@ -638,6 +640,27 @@ export default function OTEditPanel({
   interface DraftAdjunto { file: File; nombre: string }
   const [adjuntos, setAdjuntos] = useState<DraftAdjunto[]>([]);
 
+  // Attached procedures, plus a snapshot of what was attached when the panel
+  // opened so save can work out the attach/detach diff.
+  const [procedimientos, setProcedimientos] = useState<ProcedimientoSeleccionado[]>([]);
+  const [procsOriginales, setProcsOriginales] = useState<ProcedimientoSeleccionado[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    getOTProcedimientos(orden.id)
+      .then(rows => {
+        if (cancelled) return;
+        const mapped = rows.map(r => ({
+          id: r.procedimiento_id,
+          nombre: r.procedimiento?.nombre ?? "Procedimiento",
+          pasos_count: r.procedimiento?.pasos_count,
+        }));
+        setProcedimientos(mapped);
+        setProcsOriginales(mapped);
+      })
+      .catch(() => { /* non-fatal: picker just starts empty */ });
+    return () => { cancelled = true; };
+  }, [orden.id]);
+
   // Categorías — multiple selection (parity with OTCrearPanel/mobile). Seeds
   // from the array column, falling back to the single legacy column.
   const [categoriaIds, setCategoriaIds] = useState<string[]>(
@@ -723,6 +746,21 @@ export default function OTEditPanel({
         },
         orden.asignados_ids,
       );
+
+      // Reconcile the procedure selection against what is currently attached.
+      // Best-effort like the attachments above: the OT edit itself already
+      // succeeded, so a failure here must not present as a failed save.
+      const originalIds = new Set(procsOriginales.map(p => p.id));
+      const nextIds = new Set(procedimientos.map(p => p.id));
+      for (const proc of procedimientos) {
+        if (originalIds.has(proc.id)) continue;
+        try { await attachProcedimiento(orden.id, proc.id, myId); } catch { /* non-fatal */ }
+      }
+      for (const proc of procsOriginales) {
+        if (nextIds.has(proc.id)) continue;
+        try { await detachProcedimiento(orden.id, proc.id); } catch { /* non-fatal */ }
+      }
+
       onSaved(updated);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error al guardar.");
@@ -794,6 +832,15 @@ export default function OTEditPanel({
             </select>
           </div>
 
+          {/* Procedimientos */}
+          <div style={{ padding: "24px 0", borderBottom: "1px solid var(--border)" }}>
+            <ProcedimientosPicker
+              workspaceId={wsId}
+              value={procedimientos}
+              onChange={setProcedimientos}
+            />
+          </div>
+
           {/* Adjuntos */}
           <div style={{ padding: "24px 0", borderBottom: "1px solid var(--border)" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
@@ -803,6 +850,9 @@ export default function OTEditPanel({
                   Adjuntos
                 </span>
               </div>
+              {/* Solo con adjuntos ya cargados: si la lista está vacía, el botón
+                  del propio vacío ya ofrece la misma acción. */}
+              {(form.links.filter(l => l.tipo === "archivo").length > 0 || adjuntos.length > 0) && (
               <button
                 type="button"
                 onClick={() => adjuntoInputRef.current?.click()}
@@ -811,6 +861,7 @@ export default function OTEditPanel({
                 <Plus size={11} />
                 Adjuntar archivo
               </button>
+              )}
               <input
                 ref={adjuntoInputRef}
                 type="file"
@@ -877,14 +928,20 @@ export default function OTEditPanel({
               </div>
             )}
             {form.links.filter(l => l.tipo === "archivo").length === 0 && adjuntos.length === 0 && (
-              <button
-                type="button"
-                onClick={() => adjuntoInputRef.current?.click()}
-                style={{ width: "100%", border: "1.5px dashed var(--brand)", borderRadius: 8, padding: "18px", display: "flex", flexDirection: "column", alignItems: "center", gap: 6, color: "var(--brand)", cursor: "pointer", background: "var(--brand-tint)", fontFamily: "inherit" }}
-              >
-                <Paperclip size={18} strokeWidth={1.5} />
-                <span style={{ fontSize: 12 }}>PDF, Word, Excel, TXT, CSV, DWG, MP3, M4A…</span>
-              </button>
+              // Mismo vacío que Procedimiento (borde tenue + botón sólido).
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, padding: "18px 12px", border: "1px dashed var(--border-strong)", borderRadius: "var(--r-md)", background: "var(--surface-canvas)" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 13, color: "var(--fg-3)" }}>
+                  <Paperclip size={15} style={{ color: "var(--brand)" }} />
+                  PDF, Word, Excel, TXT, CSV, DWG, MP3, M4A…
+                </div>
+                <button
+                  type="button"
+                  onClick={() => adjuntoInputRef.current?.click()}
+                  style={{ height: 38, padding: "0 18px", display: "flex", alignItems: "center", gap: 7, border: "1px solid var(--brand)", borderRadius: "var(--r-sm)", background: "var(--surface-1)", color: "var(--brand)", fontSize: 13.5, fontWeight: 700, fontFamily: "inherit", cursor: "pointer" }}
+                >
+                  <Plus size={15} /> Adjuntar archivo
+                </button>
+              </div>
             )}
           </div>
 
