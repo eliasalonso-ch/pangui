@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { needsFullWorkspaceSet } from "@/app/(app)/ordenes/list-source";
 import type { FiltrosState } from "@/types/ordenes";
 
+
 const SIN_FILTROS: FiltrosState = {
   estados: [],
   prioridades: [],
@@ -9,6 +10,7 @@ const SIN_FILTROS: FiltrosState = {
   asignadoIds: [],
   ubicacionIds: [],
   sociedadIds: [],
+  itos: [],
   fechaVencimiento: null,
   sinAsignar: false,
   soloAsignados: false,
@@ -42,6 +44,7 @@ describe("needsFullWorkspaceSet", () => {
     ["asignadoIds", { asignadoIds: ["u1"] }],
     ["ubicacionIds", { ubicacionIds: ["ub1"] }],
     ["sociedadIds", { sociedadIds: ["s1"] }],
+    ["itos", { itos: ["ITO 1"] }],
     ["fechaVencimiento", { fechaVencimiento: "hoy" }],
     ["sinAsignar", { sinAsignar: true }],
     ["soloAsignados", { soloAsignados: true }],
@@ -51,4 +54,5 @@ describe("needsFullWorkspaceSet", () => {
       needsFullWorkspaceSet({ ...base, filtros: { ...SIN_FILTROS, ...over } as FiltrosState }),
     ).toBe(true);
   });
+
 });

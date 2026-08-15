@@ -9,6 +9,9 @@ import { esAdmin } from "@/lib/roles";
 import { fetchOrden, fetchOrdenesPage, fetchAllOrdenesForExport, fetchAllOrdenesBulk, fetchOrdenesCalendarExtras, fetchOrdenListItem, searchOrdenes, ORDENES_SEARCH_LIMIT, deleteOrden, ORDENES_PAGE_SIZE, parseDescMeta, fetchMarcadasIds, toggleMarcada, matchesSearch, ELECTRILAM_WORKSPACE_ID } from "@/lib/ordenes-api";
 import { needsBulkSnapshot, shouldRefetchBulk, coalesce } from "./bulk-refresh";
 import { needsFullWorkspaceSet } from "./list-source";
+import { collectItos } from "./ito-filter";
+import { applyFiltros } from "./filter-predicate";
+import { initialFilterKeys, activeFilterKeys, filterKeysStorageKey, type FilterKey } from "./filter-registry";
 import { mergeCalendarExtras } from "@/lib/orden-merge";
 import { buildOrdenesWorkbook, type ExportCols as SharedExportCols, type OrdenInput, type HojaInput, type FilaInput, type FotoItemInput, type MaterialUsadoInput } from "@/lib/excel-export-shared";
 import { ExportScheduler } from "./ExportScheduler";
@@ -19,15 +22,14 @@ import KanbanView from "./KanbanView";
 import OTDetail from "./OTDetail";
 import OTCrearPanel from "./OTCrearPanel";
 import OTEditPanel from "./OTEditPanel";
-import OTFiltrosPanel from "./OTFiltrosPanel";
 import { FilterBar } from "./OTFiltrosPanel";
-import { addDaysKey, dateKey, monthEndKey, monthStartKey } from "./date-utils";
 import {
   pendingScopeFor, esLevantamiento, esPresupuesto, estaVencida, sinProgreso,
   type PendingScopeKey,
 } from "./pending-scope";
 import { copyHojaToOrden } from "@/lib/hojas-api";
 import { clearPendingHojaCopy, getPendingHojaCopy, type PendingHojaCopy } from "@/lib/hoja-copy-store";
+
 import type {
   OrdenListItem, OrdenBulkItem, OrdenCalendarExtra, OrdenTrabajo,
   Usuario, Ubicacion, LugarEspecifico, Sociedad, Activo, CategoriaOT,
@@ -79,11 +81,13 @@ function classifyWaitingReason(comment: string | null | undefined): { key: Waiti
 const EMPTY_FILTROS: FiltrosState = {
   estados: [], prioridades: [], tipos: [],
   asignadoIds: [], ubicacionIds: [], sociedadIds: [],
+  itos: [],
   fechaVencimiento: null,
   sinAsignar: false,
   soloAsignados: false,
   deUsuariosDadosDeBaja: false,
 };
+
 
 // How many rows to reveal per infinite-scroll step.
 const VISIBLE_CHUNK = 30;
@@ -234,6 +238,41 @@ export default function OrdenesBandeja({
     if (f === "completadas_hoy")  return { ...EMPTY_FILTROS, estados: ["completado"] };
     return EMPTY_FILTROS;
   });
+
+  /**
+   * Filtros visibles en la barra. Electrilam los ve todos (ya opera asi);
+   * una cuenta nueva arranca con 4 y agrega el resto desde "+ Añadir filtro".
+   * Es preferencia de UI, no dato: vive en localStorage por workspace, no en la
+   * base. Los filtros que ya vienen con valor (deep link ?filtro=…) se muestran
+   * si o si, para que la lista nunca salga recortada sin un chip que lo explique.
+   */
+  const [visibleFilterKeys, setVisibleFilterKeys] = useState<FilterKey[]>(() =>
+    initialFilterKeys({ workspaceId: wsId, preseeded: activeFilterKeys(filtros) }),
+  );
+  // Se lee en un efecto y no en el inicializador para no desalinear el HTML del
+  // servidor con el del cliente: localStorage no existe durante el SSR.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    let saved: FilterKey[] | null = null;
+    try {
+      const raw = window.localStorage.getItem(filterKeysStorageKey(wsId));
+      const parsed = raw ? JSON.parse(raw) : null;
+      if (Array.isArray(parsed)) saved = parsed as FilterKey[];
+    } catch { /* preferencia corrupta → default */ }
+    setVisibleFilterKeys(initialFilterKeys({
+      workspaceId: wsId, saved, preseeded: activeFilterKeys(filtros),
+    }));
+    // Solo al montar / cambiar de workspace: despues manda la interaccion.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wsId]);
+
+  const changeVisibleFilterKeys = useCallback((keys: FilterKey[]) => {
+    setVisibleFilterKeys(keys);
+    if (typeof window === "undefined") return;
+    try {
+      window.localStorage.setItem(filterKeysStorageKey(wsId), JSON.stringify(keys));
+    } catch { /* cuota llena / modo privado: la barra sigue funcionando */ }
+  }, [wsId]);
   const [isDesktop, setIsDesktop] = useState(false);
   // Resizable split between the list and the detail panel (desktop list view).
   // Persisted so the user's chosen width survives reloads. Clamped on read.
@@ -773,6 +812,12 @@ export default function OrdenesBandeja({
     [waitingAlerts],
   );
 
+  // ITOs disponibles para el dropdown. Se derivan de `countOrdenes` (el set
+  // completo del workspace) y no de `ordenes`: si saliera de la lista paginada,
+  // el dropdown solo ofreceria los ITOs de la primera pagina y filtrar por uno
+  // "ausente" seria imposible aunque existiera mas abajo.
+  const itoOptions = useMemo(() => collectItos(countOrdenes), [countOrdenes]);
+
   // Server-side text search: the infinite-scroll list only holds loaded pages,
   // so an in-memory search can't find OTs the user hasn't scrolled to. When
   // there's a query we fetch matches from the server (debounced) and use those
@@ -826,56 +871,10 @@ export default function OrdenesBandeja({
       list = list.filter(o => pendingScopeFor(o, reprogramadaIds, faltanMaterialesIds, todayKey) === scope);
     }
 
-    // Filtros
-    if (filtros.estados.length)      list = list.filter(o => filtros.estados.includes(o.estado));
-    if (filtros.prioridades.length)  list = list.filter(o => filtros.prioridades.includes(o.prioridad));
-    if (filtros.tipos.length)        list = list.filter(o => o.tipo_trabajo != null && filtros.tipos.includes(o.tipo_trabajo));
-    if (filtros.asignadoIds.length)  list = list.filter(o => filtros.asignadoIds.some(id => o.asignados_ids?.includes(id)));
-    if (filtros.ubicacionIds.length) list = list.filter(o => o.ubicacion_id != null && filtros.ubicacionIds.includes(o.ubicacion_id));
-    if (filtros.sociedadIds.length) {
-      // Match via ubicacion.sociedad_id (joined in list select)
-      const ubicsBySociedad = new Set(
-        ubicaciones
-          .filter(u => u.sociedad_id != null && filtros.sociedadIds.includes(u.sociedad_id))
-          .map(u => u.id)
-      );
-      list = list.filter(o => o.ubicacion_id != null && ubicsBySociedad.has(o.ubicacion_id));
-    }
-    if (filtros.fechaVencimiento) {
-      const todayStr = todayKey;
-      const tomorrowStr = addDaysKey(todayStr, 1);
-      const in7Str = addDaysKey(todayStr, 7);
-      const in30Str = addDaysKey(todayStr, 30);
-      const monthStart = monthStartKey(todayStr);
-      const monthEnd = monthEndKey(todayStr);
-      list = list.filter(o => {
-        const d = dateKey(o.fecha_termino);
-        if (!d) return false;
-        switch (filtros.fechaVencimiento) {
-          case "hoy":       return d === todayStr;
-          case "manana":    return d === tomorrowStr;
-          case "7dias":     return d >= todayStr && d <= in7Str;
-          case "30dias":    return d >= todayStr && d <= in30Str;
-          case "este_mes":  return d >= monthStart && d <= monthEnd;
-          case "vencidas":  return d < todayStr && o.estado !== "completado";
-          default:          return true;
-        }
-      });
-    }
-    if (filtros.sinAsignar) {
-      list = list.filter(o => !o.asignados_ids || o.asignados_ids.length === 0);
-    }
-    if (filtros.deUsuariosDadosDeBaja) {
-      list = list.filter(o => (o.asignados_ids ?? []).some(id => dadosDeBajaIds.has(id)));
-    }
-    if (filtros.soloAsignados) {
-      list = list.filter(o => o.asignados_ids && o.asignados_ids.length > 0);
-    }
-
-    // Search — checks title, N° OT, solicitante and description body
-    if (search.trim()) {
-      list = list.filter(o => matchesSearch(o, search));
-    }
+    // Filtros + búsqueda — cadena compartida con los contadores de pestaña.
+    list = applyFiltros(list, filtros, {
+      ubicaciones, dadosDeBajaIds, todayKey, search, matchesSearch,
+    });
 
     // Hide the current user's marked ("leídas") OTs when the toggle is on.
     if (ocultarMarcadas) list = list.filter(o => !marcadas.has(o.id));
@@ -919,7 +918,7 @@ export default function OrdenesBandeja({
       });
     }
     return list;
-  }, [ordenes, countOrdenes, hasActiveFilters, searchResults, view, tab, scope, search, sort, filtros, ubicaciones, reprogramadaIds, faltanMaterialesIds, ocultarMarcadas, marcadas, todayKey]);
+  }, [ordenes, countOrdenes, hasActiveFilters, searchResults, view, tab, scope, search, sort, filtros, ubicaciones, dadosDeBajaIds, reprogramadaIds, faltanMaterialesIds, ocultarMarcadas, marcadas, todayKey]);
 
   // The calendar needs recurrencia_config + activos, which the lean bulk select
   // omits. Fetch them the first time the calendar opens, not on every list load.
@@ -1019,55 +1018,10 @@ export default function OrdenesBandeja({
     // Typed as the lean bulk row: `countSource` is either the workspace-wide
     // snapshot (OrdenBulkItem) or server search results (OrdenListItem), and
     // every field read below exists on both.
-    const applyFilters = (list: OrdenBulkItem[]) => {
-      if (filtros.estados.length)      list = list.filter(o => filtros.estados.includes(o.estado));
-      if (filtros.prioridades.length)  list = list.filter(o => filtros.prioridades.includes(o.prioridad));
-      if (filtros.tipos.length)        list = list.filter(o => o.tipo_trabajo != null && filtros.tipos.includes(o.tipo_trabajo));
-      if (filtros.asignadoIds.length)  list = list.filter(o => filtros.asignadoIds.some(id => o.asignados_ids?.includes(id)));
-      if (filtros.ubicacionIds.length) list = list.filter(o => o.ubicacion_id != null && filtros.ubicacionIds.includes(o.ubicacion_id));
-      if (filtros.sociedadIds.length) {
-        const ubicsBySociedad = new Set(
-          ubicaciones
-            .filter(u => u.sociedad_id != null && filtros.sociedadIds.includes(u.sociedad_id))
-            .map(u => u.id)
-        );
-        list = list.filter(o => o.ubicacion_id != null && ubicsBySociedad.has(o.ubicacion_id));
-      }
-      if (filtros.fechaVencimiento) {
-        const todayStr = todayKey;
-        const tomorrowStr = addDaysKey(todayStr, 1);
-        const in7Str = addDaysKey(todayStr, 7);
-        const in30Str = addDaysKey(todayStr, 30);
-        const monthStart = monthStartKey(todayStr);
-        const monthEnd = monthEndKey(todayStr);
-        list = list.filter(o => {
-          const d = dateKey(o.fecha_termino);
-          if (!d) return false;
-          switch (filtros.fechaVencimiento) {
-            case "hoy":       return d === todayStr;
-            case "manana":    return d === tomorrowStr;
-            case "7dias":     return d >= todayStr && d <= in7Str;
-            case "30dias":    return d >= todayStr && d <= in30Str;
-            case "este_mes":  return d >= monthStart && d <= monthEnd;
-            case "vencidas":  return d < todayStr && o.estado !== "completado";
-            default:          return true;
-          }
-        });
-      }
-      if (filtros.sinAsignar) {
-        list = list.filter(o => !o.asignados_ids || o.asignados_ids.length === 0);
-      }
-      if (filtros.deUsuariosDadosDeBaja) {
-        list = list.filter(o => (o.asignados_ids ?? []).some(id => dadosDeBajaIds.has(id)));
-      }
-      if (filtros.soloAsignados) {
-        list = list.filter(o => o.asignados_ids && o.asignados_ids.length > 0);
-      }
-      if (search.trim()) {
-        list = list.filter(o => matchesSearch(o, search));
-      }
-      return list;
-    };
+    const applyFilters = (list: OrdenBulkItem[]) =>
+      applyFiltros(list, filtros, {
+        ubicaciones, dadosDeBajaIds, todayKey, search, matchesSearch,
+      });
     // Per tab × per scope. Drives the dropdown labels, the red-dot indicators,
     // and the tab pill counts. All respect search + filtros so the count
     // shown matches what the user would actually see if they clicked in.
@@ -1107,7 +1061,7 @@ export default function OrdenesBandeja({
         presupuestos:   applyFilters(closed.filter(esPresupuesto)).length,
       },
     };
-  }, [countOrdenes, searchResults, filtros, search, ubicaciones, reprogramadaIds, faltanMaterialesIds, todayKey]);
+  }, [countOrdenes, searchResults, filtros, search, ubicaciones, dadosDeBajaIds, reprogramadaIds, faltanMaterialesIds, todayKey]);
   const currentSortLabel = SORT_OPTIONS.find(o => o.value === sort)?.label ?? "";
   const scopeLabel: Record<ScopeKey, string> = {
     todas: "Todas",
@@ -1125,23 +1079,22 @@ export default function OrdenesBandeja({
     if (filtros.sinAsignar) labels.push("Sin asignar");
     if (filtros.deUsuariosDadosDeBaja) labels.push("De usuarios dados de baja");
     if (filtros.soloAsignados) labels.push("Asignadas");
+    const named = <T,>(values: T[], lookup: (v: T) => string | undefined, plural: string) => {
+      const names = values.map(lookup).filter((n): n is string => Boolean(n));
+      return names.length === 1 ? names[0] : `${names.length || values.length} ${plural}`;
+    };
+
     if (filtros.asignadoIds.length) {
-      const names = filtros.asignadoIds
-        .map(id => usuarios.find(user => user.id === id)?.nombre)
-        .filter((name): name is string => Boolean(name));
-      labels.push(names.length === 1 ? names[0] : `${names.length || filtros.asignadoIds.length} usuarios`);
+      labels.push(named(filtros.asignadoIds, id => usuarios.find(user => user.id === id)?.nombre, "usuarios"));
     }
     if (filtros.ubicacionIds.length) {
-      const names = filtros.ubicacionIds
-        .map(id => ubicaciones.find(location => location.id === id)?.edificio)
-        .filter((name): name is string => Boolean(name));
-      labels.push(names.length === 1 ? names[0] : `${names.length || filtros.ubicacionIds.length} ubicaciones`);
+      labels.push(named(filtros.ubicacionIds, id => ubicaciones.find(location => location.id === id)?.edificio, "ubicaciones"));
     }
     if (filtros.sociedadIds.length) {
-      const names = filtros.sociedadIds
-        .map(id => sociedades.find(company => company.id === id)?.nombre)
-        .filter((name): name is string => Boolean(name));
-      labels.push(names.length === 1 ? names[0] : `${names.length || filtros.sociedadIds.length} asociaciones`);
+      labels.push(named(filtros.sociedadIds, id => sociedades.find(company => company.id === id)?.nombre, "asociaciones"));
+    }
+    if (filtros.itos.length) {
+      labels.push(named(filtros.itos, v => v, "ITOs"));
     }
     if (filtros.prioridades.length) labels.push(filtros.prioridades.length === 1 ? `Prioridad ${filtros.prioridades[0]}` : `${filtros.prioridades.length} prioridades`);
     if (filtros.estados.length) labels.push(filtros.estados.length === 1 ? filtros.estados[0].replaceAll("_", " ") : `${filtros.estados.length} estados`);
@@ -1212,19 +1165,15 @@ export default function OrdenesBandeja({
       const allOrdenes = await fetchAllOrdenesForExport(wsId);
       const allFiltered = (() => {
         let list = [...allOrdenes];
+        // Filtros propios del modal de exportacion (acotan sin tocar la bandeja).
         if (exportFilterEstados.length)  list = list.filter(o => exportFilterEstados.includes(o.estado));
         if (exportFilterTipos.length)    list = list.filter(o => o.tipo_trabajo != null && exportFilterTipos.includes(o.tipo_trabajo));
-        if (filtros.estados.length)      list = list.filter(o => filtros.estados.includes(o.estado));
-        if (filtros.prioridades.length)  list = list.filter(o => filtros.prioridades.includes(o.prioridad));
-        if (filtros.tipos.length)        list = list.filter(o => o.tipo_trabajo != null && filtros.tipos.includes(o.tipo_trabajo));
-        if (filtros.asignadoIds.length)  list = list.filter(o => filtros.asignadoIds.some(id => o.asignados_ids?.includes(id)));
-        if (filtros.ubicacionIds.length) list = list.filter(o => o.ubicacion_id != null && filtros.ubicacionIds.includes(o.ubicacion_id));
-        if (filtros.sinAsignar)          list = list.filter(o => !o.asignados_ids || o.asignados_ids.length === 0);
-        if (filtros.deUsuariosDadosDeBaja) list = list.filter(o => (o.asignados_ids ?? []).some(id => dadosDeBajaIds.has(id)));
-        if (filtros.soloAsignados)       list = list.filter(o => o.asignados_ids && o.asignados_ids.length > 0);
-        if (search.trim()) {
-          list = list.filter(o => matchesSearch(o, search));
-        }
+        // …y encima los de la bandeja, con la MISMA cadena que la lista y los
+        // contadores. Antes esta era una tercera copia a mano y ya se habia
+        // quedado sin los filtros de sociedad y de ITO.
+        list = applyFiltros(list, filtros, {
+          ubicaciones, dadosDeBajaIds, todayKey, search, matchesSearch,
+        });
         list.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
         return list;
       })();
@@ -1462,11 +1411,14 @@ export default function OrdenesBandeja({
             aria-pressed={ocultarMarcadas}
             style={{
               display:"flex", alignItems:"center", justifyContent:"center",
-              width:30, height:28, marginRight:8, flexShrink:0,
+              // Misma altura y radio que los chips de FilterBar para que la
+              // fila quede pareja.
+              width:34, height:32, marginRight:8, flexShrink:0,
               border: ocultarMarcadas ? "1.5px solid var(--brand)" : "1px solid var(--border)",
-              borderRadius:6,
+              borderRadius:7,
               background: ocultarMarcadas ? "var(--brand-tint)" : "var(--surface-1)",
-              color: ocultarMarcadas ? "var(--brand)" : "var(--fg-2)",
+              // Ícono siempre en azul de marca, igual que los chips de filtro.
+              color: "var(--brand)",
               cursor:"pointer", fontFamily:"inherit",
             }}
           >
@@ -1479,6 +1431,9 @@ export default function OrdenesBandeja({
             usuarios={usuarios}
             ubicaciones={ubicaciones}
             sociedades={sociedades}
+            itos={itoOptions}
+            visibleKeys={visibleFilterKeys}
+            onVisibleKeysChange={changeVisibleFilterKeys}
           />
         </div>
       </div>}
@@ -1619,7 +1574,10 @@ export default function OrdenesBandeja({
                   onClick={() => setSortOpen(v => !v)}
                   style={{
                     display:"flex", alignItems:"center", gap:6,
-                    width:"100%", padding:"10px 16px",
+                    // Mismo padding horizontal (20px) que la barra de filtros de
+                    // arriba, para que "Mostrando:" arranque en la misma
+                    // vertical que el primer chip.
+                    width:"100%", padding:"10px 20px",
                     background:"var(--surface-canvas)", border:"none",
                     fontSize:13, color:"var(--fg-2)",
                     cursor:"pointer", fontFamily:"inherit", textAlign:"left",
@@ -1636,6 +1594,10 @@ export default function OrdenesBandeja({
                   {triggerHasAttention && (
                     <span aria-label="Hay órdenes que requieren atención"
                           style={{
+                            // `flexShrink: 0` + `display: block`: sin esto el
+                            // punto es un flex item que se comprime contra el
+                            // `marginLeft: auto` de al lado y sale ovalado/cortado.
+                            display:"block", flexShrink:0,
                             width:8, height:8, borderRadius:"50%",
                             background:"var(--danger)", marginLeft:4,
                           }} />

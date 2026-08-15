@@ -355,6 +355,14 @@ export interface FiltrosState {
   asignadoIds: string[];
   ubicacionIds: string[];
   sociedadIds: string[];
+  /**
+   * ITOs seleccionados, por su texto exacto. El valor NO sale de la columna
+   * `hito` — esa se omite de ORDEN_BULK_SELECT (ver ordenes-api.ts) y el bulk es
+   * justamente la fuente que se renderiza cuando hay un filtro activo. Se lee de
+   * `parseDescMeta(descripcion).hito`, la misma fuente que OTRow ya dibuja, así
+   * el filtro siempre coincide con lo que el usuario ve en la fila.
+   */
+  itos: string[];
   fechaVencimiento: "hoy" | "manana" | "7dias" | "30dias" | "este_mes" | "vencidas" | null;
   sinAsignar: boolean;
   soloAsignados: boolean;

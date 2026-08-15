@@ -27,6 +27,7 @@ export function needsFullWorkspaceSet(args: {
     filtros.asignadoIds.length > 0 ||
     filtros.ubicacionIds.length > 0 ||
     filtros.sociedadIds.length > 0 ||
+    filtros.itos.length > 0 ||
     filtros.fechaVencimiento != null ||
     filtros.sinAsignar ||
     filtros.deUsuariosDadosDeBaja ||
