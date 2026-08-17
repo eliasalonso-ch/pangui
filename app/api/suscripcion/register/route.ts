@@ -14,6 +14,7 @@ import { NextResponse } from "next/server";
 import { adminSupabase, requireAdminOfWorkspace } from "../_helpers";
 import { flow, FlowError } from "@/lib/flow";
 import { flowPlanId, planByKey, type PlanKey } from "@/lib/flow-plans";
+import { urlDeRedireccion } from "@/lib/flow-redirect";
 
 export async function POST(req: Request) {
   const auth = await requireAdminOfWorkspace();
@@ -122,9 +123,13 @@ export async function POST(req: Request) {
           customerId: flowCustomerId,
           url_return: urlReturn,
         });
-        // El resto del flujo (callback → createSubscription → webhook) ya
-        // existe y está probado; ver register/callback/route.ts.
-        return NextResponse.json({ url: registro.url, pending_payment: false });
+        // Flow devuelve `url` y `token` POR SEPARADO y hay que concatenarlos;
+        // ver lib/flow-redirect.ts. El resto del flujo (callback →
+        // createSubscription → webhook) ya existe y está probado.
+        return NextResponse.json({
+          url: urlDeRedireccion(registro, "inscribir la tarjeta"),
+          pending_payment: false,
+        });
       } catch (err) {
         const fe = err as FlowError;
         // 7001 = el comercio no tiene contrato de cargo automático. Es un

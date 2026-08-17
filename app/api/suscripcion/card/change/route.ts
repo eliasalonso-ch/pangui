@@ -16,6 +16,7 @@
 import { NextResponse } from "next/server";
 import { adminSupabase, requireAdminOfWorkspace } from "../../_helpers";
 import { flow, FlowError } from "@/lib/flow";
+import { urlDeRedireccion } from "@/lib/flow-redirect";
 
 export async function POST() {
   const auth = await requireAdminOfWorkspace();
@@ -66,7 +67,7 @@ export async function POST() {
       customerId: flowCustomerId,
       url_return: `${appUrl}/api/suscripcion/card/change/callback`,
     });
-    return NextResponse.json({ url: `${reg.url}?token=${reg.token}` });
+    return NextResponse.json({ url: urlDeRedireccion(reg, "cambiar la tarjeta") });
   } catch (err) {
     const fe = err as FlowError;
     console.error("[suscripcion/card/change]", fe);

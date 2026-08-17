@@ -132,9 +132,11 @@ function SuscripcionPageInner() {
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "No se pudo crear la suscripción.");
 
-      // Con cargo automático Flow devolvía una URL para inscribir la tarjeta.
-      // Hoy el cobro va por link de pago: la suscripción queda creada y Flow
-      // envía el link por email, así que no hay a dónde redirigir.
+      // Dos caminos según FLOW_CARGO_AUTOMATICO (ver /api/suscripcion/register):
+      //   - con cargo automático: Flow devuelve la URL donde el usuario
+      //     inscribe su tarjeta, y hay que redirigir.
+      //   - con link de pago: la suscripción queda creada y Flow envía el link
+      //     por email, así que no hay a dónde redirigir.
       if (json.url) {
         setTimeout(() => window.location.assign(json.url), 600);
         return;
