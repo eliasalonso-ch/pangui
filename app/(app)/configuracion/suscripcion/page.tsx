@@ -7,6 +7,7 @@ import { motion, useMotionValue, useSpring, useTransform } from "framer-motion";
 import { Loader2, Check, CreditCard, AlertCircle, ArrowLeft, X, Sparkles, ShieldCheck, Pencil, Trash2 } from "lucide-react";
 import { SELF_SERVE_PLANS, PLANS, type PlanKey } from "@/lib/flow-plans";
 import { textoDesglose } from "@/lib/tributario";
+import { resumirCambio, type ResumenCambio } from "@/lib/cambio-plan";
 import { resolveCardBrand } from "@/lib/card-brand";
 import { CardBrandLogo } from "@/components/CardBrandLogo";
 import { InvoicesPanel } from "./InvoicesPanel";
@@ -66,6 +67,11 @@ function SuscripcionPageInner() {
   const [error, setError] = useState<string | null>(null);
   const [flash, setFlash] = useState<{ kind: "ok" | "err"; msg: string } | null>(null);
   const [confirmCancel, setConfirmCancel] = useState(false);
+  // Plan que el usuario eligió y todavía no confirma. Un cambio de plan mueve
+  // dinero —una subida cobra la diferencia al instante— así que no puede
+  // dispararse con un solo clic.
+  const [planPorConfirmar, setPlanPorConfirmar] = useState<PlanKey | null>(null);
+  const [cancelandoAgendado, setCancelandoAgendado] = useState(false);
   // Reemplaza al antiguo checkbox de aceptación: en vez de pedir un clic extra,
   // exigimos los datos que realmente hacen falta para cobrar y emitir la factura.
   const [profileReady, setProfileReady] = useState(false);
@@ -181,6 +187,23 @@ function SuscripcionPageInner() {
     }
   }
 
+  /** Deshace una bajada de plan agendada, antes de que llegue su fecha. */
+  async function cancelarCambioAgendado() {
+    setCancelandoAgendado(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/suscripcion/cancel-scheduled-plan", { method: "POST" });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? "No se pudo cancelar el cambio.");
+      setFlash({ kind: "ok", msg: "Cambio de plan cancelado. Conservas tu plan actual." });
+      await reload();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setCancelandoAgendado(false);
+    }
+  }
+
   async function changeCard() {
     setSubmitting("card_change");
     setRedirecting("card_change");
@@ -257,6 +280,25 @@ function SuscripcionPageInner() {
     // dentro del scroll del layout. La página fluye y scrollea una sola vez.
     <div style={{ minHeight: "100%", background: "var(--surface-canvas)" }}>
       {redirecting && <CheckoutRedirectOverlay planKey={redirecting} />}
+
+      {planPorConfirmar && sub && (
+        <ConfirmarCambioPlan
+          resumen={resumirCambio({
+            planActual:      sub.plan_key,
+            planNuevo:       planPorConfirmar,
+            usuariosActivos: activeUsers,
+            periodoFin:      sub.current_period_end,
+            precioPorUsuario: sub.is_early_customer ? sub.price_per_user_clp : null,
+          })}
+          trabajando={submitting === planPorConfirmar}
+          onCancelar={() => setPlanPorConfirmar(null)}
+          onConfirmar={() => {
+            const plan = planPorConfirmar;
+            setPlanPorConfirmar(null);
+            void changePlan(plan);
+          }}
+        />
+      )}
 
       <div style={{ padding: "28px 24px" }}>
         <div style={{ maxWidth: 1240, margin: "0 auto", display: "flex", flexDirection: "column", gap: 20 }}>
@@ -382,12 +424,34 @@ function SuscripcionPageInner() {
                 </p>
               </div>
             )}
+            {/* Cambio agendado. Mientras no llegue la fecha nada se aplicó en
+                Flow, así que se puede deshacer sin costo — es la red de
+                seguridad para quien bajó de plan por error. */}
             {sub?.scheduled_plan_key && (
               <div style={{ display: "flex", alignItems: "flex-start", gap: 9, marginBottom: 12, padding: "11px 13px", border: "1px solid var(--border-strong)", borderRadius: "var(--r-md)", background: "var(--surface-2)" }}>
                 <AlertCircle size={15} style={{ color: "var(--fg-3)", flexShrink: 0, marginTop: 1 }} />
-                <p style={{ margin: 0, fontSize: 12.5, lineHeight: 1.5, color: "var(--fg-2)" }}>
-                  Cambio agendado a <strong>{PLANS.find(p => p.key === sub.scheduled_plan_key)?.name ?? sub.scheduled_plan_key}</strong> el {fmtDate(sub.scheduled_plan_at ?? sub.current_period_end)}. Hasta entonces conservas {currentPlan?.name ?? sub.plan_key} y no habrá cobros adicionales. Elige otro plan para reemplazar este cambio.
-                </p>
+                <div style={{ display: "grid", gap: 9, minWidth: 0 }}>
+                  <p style={{ margin: 0, fontSize: 12.5, lineHeight: 1.5, color: "var(--fg-2)" }}>
+                    Cambio agendado a <strong>{PLANS.find(p => p.key === sub.scheduled_plan_key)?.name ?? sub.scheduled_plan_key}</strong> el {fmtDate(sub.scheduled_plan_at ?? sub.current_period_end)}. Hasta entonces conservas {currentPlan?.name ?? sub.plan_key} y no habrá cobros adicionales.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => void cancelarCambioAgendado()}
+                    disabled={cancelandoAgendado}
+                    style={{
+                      width: "fit-content", minHeight: 30, padding: "0 11px",
+                      display: "inline-flex", alignItems: "center", gap: 6,
+                      border: "1px solid var(--border-strong)", borderRadius: "var(--r-md)",
+                      background: "var(--surface-1)", color: "var(--fg-1)",
+                      fontSize: 12, fontWeight: 600, fontFamily: "inherit",
+                      cursor: cancelandoAgendado ? "default" : "pointer",
+                    }}
+                  >
+                    {cancelandoAgendado
+                      ? <><Loader2 size={12} className="animate-spin" /> Cancelando…</>
+                      : <><X size={12} /> Cancelar este cambio</>}
+                  </button>
+                </div>
               </div>
             )}
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
@@ -433,7 +497,14 @@ function SuscripcionPageInner() {
                     <button
                       type="button"
                       disabled={disabled}
-                      onClick={() => (isPaid || customer?.has_card) ? changePlan(p.key) : startCheckout(p.key)}
+                      // Cambiar entre planes pagados pide confirmación: una
+                      // subida cobra la diferencia al instante. Contratar
+                      // desde prueba o Basic gratis no la pide — ahí el paso
+                      // siguiente es el formulario de tarjeta de Flow, que ya
+                      // es una confirmación en sí.
+                      onClick={() => (isPaid || customer?.has_card)
+                        ? setPlanPorConfirmar(p.key)
+                        : startCheckout(p.key)}
                       style={{
                         ...primaryBtn,
                         marginTop: "auto",
@@ -913,6 +984,92 @@ function Centered({ children }: { children: React.ReactNode }) {
   return (
     <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100dvh", gap: 8, color: "var(--fg-4)", fontSize: 13 }}>
       {children}
+    </div>
+  );
+}
+
+/**
+ * Confirmación previa a un cambio de plan.
+ *
+ * Un cambio mueve dinero y no siempre se puede deshacer: subir cobra la
+ * diferencia al instante. El diálogo dice qué va a pasar, cuánto pasa a costar
+ * y —cuando corresponde— que es irreversible. Ver lib/cambio-plan.ts.
+ */
+function ConfirmarCambioPlan({ resumen, trabajando, onCancelar, onConfirmar }: {
+  resumen:     ResumenCambio;
+  trabajando:  boolean;
+  onCancelar:  () => void;
+  onConfirmar: () => void;
+}) {
+  // Escape cierra sin aplicar: es la salida esperada de un diálogo del que uno
+  // se arrepiente, que es justo el caso que este modal existe para cubrir.
+  useEffect(() => {
+    function alEscape(e: KeyboardEvent) { if (e.key === "Escape") onCancelar(); }
+    document.addEventListener("keydown", alEscape);
+    return () => document.removeEventListener("keydown", alEscape);
+  }, [onCancelar]);
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={resumen.titulo}
+      onMouseDown={e => { if (e.target === e.currentTarget) onCancelar(); }}
+      style={{
+        position: "fixed", inset: 0, zIndex: 1000, display: "grid", placeItems: "center",
+        padding: 16, background: "rgba(0,0,0,.45)", backdropFilter: "blur(4px)",
+      }}
+    >
+      <div style={{
+        width: "min(460px, calc(100vw - 32px))", maxHeight: "calc(100dvh - 32px)", overflowY: "auto",
+        border: "1px solid var(--border)", borderRadius: "var(--r-xl)",
+        background: "var(--surface-1)", boxShadow: "var(--shadow-lg)",
+      }}>
+        <div style={{ padding: "18px 18px 0" }}>
+          <h2 style={{ margin: 0, fontSize: 17, color: "var(--fg-1)" }}>{resumen.titulo}</h2>
+        </div>
+
+        <div style={{ padding: 18, display: "grid", gap: 12 }}>
+          <p style={{ margin: 0, fontSize: 13.5, lineHeight: 1.55, color: "var(--fg-1)" }}>
+            {resumen.detalle}
+          </p>
+
+          {resumen.advertencia && (
+            <div style={{
+              display: "flex", alignItems: "flex-start", gap: 9, padding: "11px 13px",
+              border: "1px solid var(--warning)", borderRadius: "var(--r-md)",
+              background: "var(--st-wait-bg)",
+            }}>
+              <AlertCircle size={15} style={{ color: "var(--warning)", flexShrink: 0, marginTop: 1 }} />
+              <p style={{ margin: 0, fontSize: 12.5, lineHeight: 1.5, color: "var(--fg-1)" }}>
+                {resumen.advertencia}
+              </p>
+            </div>
+          )}
+
+          {resumen.reversible && resumen.tipo === "bajada" && (
+            <p style={{ margin: 0, fontSize: 12.5, lineHeight: 1.5, color: "var(--fg-3)" }}>
+              Puedes cancelar este cambio en cualquier momento antes de esa fecha.
+            </p>
+          )}
+        </div>
+
+        <div style={{
+          padding: "0 18px 18px", display: "flex", justifyContent: "flex-end", gap: 8,
+        }}>
+          <button type="button" onClick={onCancelar} disabled={trabajando} style={ghostBtn}>
+            No, volver
+          </button>
+          <button
+            type="button"
+            onClick={onConfirmar}
+            disabled={trabajando}
+            style={{ ...primaryBtn, minWidth: 150, opacity: trabajando ? 0.7 : 1 }}
+          >
+            {trabajando ? <Loader2 size={13} className="animate-spin" /> : resumen.textoConfirmar}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
