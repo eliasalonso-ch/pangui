@@ -3,7 +3,12 @@
 import { useEffect, useState } from "react";
 import { CreditCard, Loader2, Mail, Pencil, ReceiptText, X, type LucideIcon } from "lucide-react";
 import { CardPreview } from "@/components/CardPreview";
+import { GiroSelect } from "@/components/GiroSelect";
 import { rutEsValido, formatearRut } from "@/lib/tributario";
+import {
+  NOMBRES_REGIONES, comunasDeRegion, comunaPerteneceARegion,
+  comunaCanonica, regionCanonica,
+} from "@/lib/regiones-comunas";
 
 // Datos del receptor de la factura electrónica afecta a IVA. El giro y la
 // ciudad los exige la factura y no los pedía la boleta de honorarios anterior.
@@ -51,26 +56,6 @@ const emptyProfile: BillingProfile = {
   domicilio: null, region: null, comuna: null, ciudad: null,
 };
 
-// Regiones oficiales de Chile, con los nombres que usa el selector del SII.
-const REGIONES = [
-  "Arica y Parinacota",
-  "Tarapacá",
-  "Antofagasta",
-  "Atacama",
-  "Coquimbo",
-  "Valparaíso",
-  "Metropolitana de Santiago",
-  "Libertador General Bernardo O'Higgins",
-  "Maule",
-  "Ñuble",
-  "Biobío",
-  "La Araucanía",
-  "Los Ríos",
-  "Los Lagos",
-  "Aysén del General Carlos Ibáñez del Campo",
-  "Magallanes y de la Antártica Chilena",
-];
-
 const money = (value: number) => new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format(value);
 // timeZone UTC: los períodos se guardan a medianoche UTC y son días calendario,
 // no instantes. Sin esto, en Chile (UTC−4) se muestran un día antes.
@@ -94,7 +79,18 @@ export function SubscriptionOverview(props: Props) {
         const json = await response.json();
         if (!response.ok) throw new Error(json.error || "No se pudieron cargar los datos de facturación.");
         if (active) {
-          const next = { ...emptyProfile, ...json, billing_email: json.billing_email || props.billingEmail };
+          // Los perfiles guardados antes de los selectores tienen región y
+          // comuna escritas a mano, a menudo sin tilde ("Concepcion"). Se
+          // llevan al nombre oficial para que el <select> encuentre la opción;
+          // sin esto el campo aparecía vacío, como si el dato se hubiera
+          // perdido.
+          const next = {
+            ...emptyProfile,
+            ...json,
+            billing_email: json.billing_email || props.billingEmail,
+            region: regionCanonica(json.region) ?? json.region ?? null,
+            comuna: comunaCanonica(json.comuna) ?? json.comuna ?? null,
+          };
           setProfile(next);
           setDraft(next);
         }
@@ -301,29 +297,71 @@ export function SubscriptionOverview(props: Props) {
       ) : null}
 
       {editingAddress ? (
-        <ModalShell title="Datos de facturación" width={430} onClose={() => setEditingAddress(false)}>
-          <div style={{ padding: 18, display: "grid", gap: 14 }}>
-            <p style={{ margin: "0 0 2px", color: "var(--fg-3)", fontSize: 13, lineHeight: 1.45 }}>
+        // 620px y no 430 como los otros modales: este formulario tiene siete
+        // campos, y los nombres de giro del SII son largos ("ACTIVIDADES DE
+        // CONSULTORÍA DE INFORMÁTICA Y DE GESTIÓN DE INSTALACIONES
+        // INFORMÁTICAS"). Angosto se truncaban y quedaba una columna muy alta.
+        <ModalShell title="Datos de facturación" width={620} onClose={() => setEditingAddress(false)}>
+          {/* auto-fit + minmax en vez de "1fr 1fr": en un teléfono las dos
+              columnas colapsan solas a una sin necesidad de media queries. */}
+          <div style={{ padding: 18, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))", gap: 14 }}>
+            <p style={{ margin: "0 0 2px", gridColumn: "1 / -1", color: "var(--fg-3)", fontSize: 13, lineHeight: 1.45 }}>
               Usamos estos datos como receptor en la factura electrónica que emitimos
               ante el SII. La factura exige RUT, razón social, giro y dirección completa
               del receptor.
             </p>
-            <Field label="Razón social" value={draft.razon_social} onChange={value => setDraft({ ...draft, razon_social: value })} wide />
-            <Field label="RUT" value={draft.rut} onChange={value => setDraft({ ...draft, rut: value })} placeholder="76.123.456-7" wide />
-            <Field label="Giro" value={draft.giro} onChange={value => setDraft({ ...draft, giro: value })} placeholder="Ej. Servicios de ingeniería" wide />
+            {/* Razón social y RUT comparten fila: el RUT es corto y dejarlo solo
+                en una línea desperdicia el ancho. */}
+            <Field label="Razón social" value={draft.razon_social} onChange={value => setDraft({ ...draft, razon_social: value })} />
+            <Field label="RUT" value={draft.rut} onChange={value => setDraft({ ...draft, rut: value })} placeholder="76.123.456-7" />
+            <GiroSelect
+              value={draft.giro}
+              onChange={valor => setDraft({ ...draft, giro: valor })}
+              inputStyle={inputStyle}
+            />
             <Field label="Dirección" value={draft.domicilio} onChange={value => setDraft({ ...draft, domicilio: value })} placeholder="Calle, número, oficina" wide />
-            <label style={{ display: "grid", gap: 6, gridColumn: "1 / -1", color: "var(--fg-2)", fontSize: 12.5, fontWeight: 600 }}>
+            <label style={{ display: "grid", gap: 6, color: "var(--fg-2)", fontSize: 12.5, fontWeight: 600 }}>
               Región
               <select
                 value={draft.region ?? ""}
-                onChange={event => setDraft({ ...draft, region: event.target.value || null })}
+                onChange={event => {
+                  // Cambiar de región invalida la comuna elegida: sin esto se
+                  // podía guardar "Coronel, Metropolitana", una dirección
+                  // imposible, en un documento tributario.
+                  const region = event.target.value || null;
+                  const comuna = draft.comuna && comunaPerteneceARegion(draft.comuna, region ?? "")
+                    ? draft.comuna
+                    : null;
+                  setDraft({ ...draft, region, comuna, ciudad: comuna ?? null });
+                }}
                 style={inputStyle}
               >
                 <option value="">Seleccione región…</option>
-                {REGIONES.map(region => <option key={region} value={region}>{region}</option>)}
+                {NOMBRES_REGIONES.map(region => <option key={region} value={region}>{region}</option>)}
               </select>
             </label>
-            <Field label="Comuna" value={draft.comuna} onChange={value => setDraft({ ...draft, comuna: value })} placeholder="Ej. Coronel" wide />
+            <label style={{ display: "grid", gap: 6, color: "var(--fg-2)", fontSize: 12.5, fontWeight: 600 }}>
+              Comuna
+              <select
+                value={draft.comuna ?? ""}
+                onChange={event => {
+                  // La ciudad se rellena con la comuna, que es lo correcto en la
+                  // gran mayoría de las direcciones comerciales, y queda
+                  // editable para los casos donde difiere.
+                  const comuna = event.target.value || null;
+                  setDraft({ ...draft, comuna, ciudad: comuna ?? draft.ciudad });
+                }}
+                disabled={!draft.region}
+                style={{ ...inputStyle, opacity: draft.region ? 1 : 0.55 }}
+              >
+                <option value="">
+                  {draft.region ? "Seleccione comuna…" : "Elige primero una región"}
+                </option>
+                {comunasDeRegion(draft.region).map(comuna => (
+                  <option key={comuna} value={comuna}>{comuna}</option>
+                ))}
+              </select>
+            </label>
             <Field label="Ciudad" value={draft.ciudad} onChange={value => setDraft({ ...draft, ciudad: value })} placeholder="Ej. Concepción" wide />
           </div>
           <ModalFooter error={error} saving={saving} onCancel={() => setEditingAddress(false)} onSave={() => void save("address")} />

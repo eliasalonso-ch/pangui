@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminSupabase, requireAdminOfWorkspace } from "../_helpers";
 import { rutEsValido, normalizarRut } from "@/lib/tributario";
+import { NOMBRES_REGIONES, comunaPerteneceARegion } from "@/lib/regiones-comunas";
 
 // Receptor de la factura electrónica afecta a IVA: el SII exige RUT, razón
 // social, giro y dirección completa. Ver migraciones 20260728180754,
@@ -56,6 +57,18 @@ export async function PUT(request: NextRequest) {
       throw new Error("El tipo de receptor debe ser 'empresa' o 'persona'.");
     }
 
+    // Región y comuna tienen que ser consistentes entre sí: el formulario ya
+    // encadena los selectores, pero una dirección imposible en un documento
+    // tributario no puede depender solo del cliente.
+    const region = value("region");
+    const comuna = value("comuna");
+    if (region && !NOMBRES_REGIONES.includes(region)) {
+      throw new Error(`La región "${region}" no existe.`);
+    }
+    if (comuna && region && !comunaPerteneceARegion(comuna, region)) {
+      throw new Error(`La comuna "${comuna}" no pertenece a la región ${region}.`);
+    }
+
     const profile = {
       workspace_id: auth.ctx.workspaceId,
       billing_email: value("billing_email", true),
@@ -63,8 +76,8 @@ export async function PUT(request: NextRequest) {
       rut: rut ? normalizarRut(rut) : null,
       giro: value("giro"),
       domicilio: value("domicilio"),
-      region: value("region"),
-      comuna: value("comuna"),
+      region,
+      comuna,
       ciudad: value("ciudad"),
       tipo_receptor: tipoReceptor ?? "empresa",
       updated_at: new Date().toISOString(),
