@@ -16,6 +16,7 @@ import { flow } from "@/lib/flow";
 import { flowPlanId, planByKey } from "@/lib/flow-plans";
 import { claveIdempotencia, esDuplicado } from "@/lib/webhook-idempotencia";
 import { registrarPeriodoFacturado } from "@/lib/dte/registrar-periodo";
+import { estadoDesdeFlow } from "@/lib/flow-status";
 
 export async function POST(req: Request) {
   try {
@@ -65,15 +66,8 @@ export async function POST(req: Request) {
 
     const admin = adminSupabase();
 
-    // Flow subscription status: 0 inactive, 1 active, 2 trial, 4 canceled.
-    // Morose lives in a separate field: 1 = overdue, 2 = pending but not overdue.
-    const statusMap: Record<number, "trialing" | "active" | "canceled" | "unpaid" | "past_due"> = {
-      0: "unpaid",
-      1: sub.morose === 1 ? "past_due" : "active",
-      2: "trialing",
-      4: "canceled",
-    };
-    const newStatus = statusMap[sub.status] ?? "active";
+    // Ver lib/flow-status.ts: `morose = 2` es "pendiente de pago", no activa.
+    const newStatus = estadoDesdeFlow({ status: sub.status, morose: sub.morose });
 
     const { data: existing } = await admin
       .from("subscriptions")
