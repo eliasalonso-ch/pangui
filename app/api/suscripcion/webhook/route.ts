@@ -14,6 +14,8 @@ import { NextResponse } from "next/server";
 import { adminSupabase } from "../_helpers";
 import { flow } from "@/lib/flow";
 import { flowPlanId, planByKey } from "@/lib/flow-plans";
+import { claveIdempotencia, esDuplicado } from "@/lib/webhook-idempotencia";
+import { registrarPeriodoFacturado } from "@/lib/dte/registrar-periodo";
 
 export async function POST(req: Request) {
   try {
@@ -85,6 +87,37 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true });
     }
 
+    // Candado de idempotencia. Se inserta el evento ANTES de aplicar efectos:
+    // si Flow reentrega la misma notificación, el índice único rechaza la
+    // inserción y salimos sin reprocesar. Sin esto, una entrega duplicada con
+    // un cambio de plan agendado y vencido llamaba a changePlan dos veces.
+    const clave = claveIdempotencia({
+      subscriptionId:  sub.subscriptionId,
+      status:          newStatus,
+      periodStart:     sub.period_start ?? sub.subscription_start ?? null,
+      nextInvoiceDate: sub.next_invoice_date ?? null,
+    });
+
+    const { error: eventoError } = await admin.from("subscription_events").insert({
+      subscription_id: existing.id,
+      workspace_id:    existing.workspace_id,
+      event_type:      `subscription.${newStatus}`,
+      flow_payload:    sub as unknown as Record<string, unknown>,
+      idempotency_key: clave,
+    });
+
+    if (eventoError) {
+      if (esDuplicado(eventoError)) {
+        console.info("[flow webhook] evento duplicado, ya procesado:", clave);
+        return NextResponse.json({ ok: true, duplicate: true });
+      }
+      // Un fallo real de base: no se aplican efectos sin dejar rastro del
+      // evento, porque el reintento de Flow no encontraría el candado y
+      // volvería a procesar todo.
+      console.error("[flow webhook] no se pudo registrar el evento:", eventoError);
+      return NextResponse.json({ ok: true });
+    }
+
     const updates: Record<string, unknown> = {
       status:               newStatus,
       updated_at:           new Date().toISOString(),
@@ -126,12 +159,24 @@ export async function POST(req: Request) {
 
     await admin.from("subscriptions").update(updates).eq("id", existing.id);
 
-    // Audit trail
-    await admin.from("subscription_events").insert({
-      subscription_id: existing.id,
-      workspace_id:    existing.workspace_id,
-      event_type:      `subscription.${newStatus}`,
-      flow_payload:    sub as unknown as Record<string, unknown>,
+    // El audit trail ya quedó escrito arriba, al tomar el candado de
+    // idempotencia — no se inserta de nuevo acá.
+
+    // Documento tributario del período recién pagado. Solo registra cuando el
+    // período quedó efectivamente pagado (ver lib/dte/periodo-facturable.ts);
+    // trial, impago y cancelación no generan factura. No lanza: si falla, el
+    // período aparece en scripts/facturas-pendientes.sql.
+    const precioPorUsuario = (updates.price_per_user_clp as number | undefined)
+      ?? existing.price_per_user_clp;
+
+    await registrarPeriodoFacturado(admin, {
+      workspaceId:      existing.workspace_id,
+      subscriptionId:   existing.id,
+      precioPorUsuario,
+      status:           newStatus,
+      periodStart:      sub.period_start ?? sub.subscription_start ?? null,
+      periodEnd:        sub.period_end ?? null,
+      nextInvoiceDate:  sub.next_invoice_date ?? null,
     });
 
     // Mirror status onto usuarios (used by lib/planes.js for gating)

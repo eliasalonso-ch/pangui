@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminSupabase, requireAdminOfWorkspace } from "../_helpers";
+import { rutEsValido, normalizarRut } from "@/lib/tributario";
 
-// El formulario de emisión de BHE del SII pide RUT, nombre, domicilio, región
-// y comuna del destinatario (los tres últimos obligatorios en la página de
-// emisión). Ver migraciones 20260728180754 y 20260810120000.
-const FIELDS = "billing_email, razon_social, rut, domicilio, region, comuna";
+// Receptor de la factura electrónica afecta a IVA: el SII exige RUT, razón
+// social, giro y dirección completa. Ver migraciones 20260728180754,
+// 20260810120000 y 20260817120000_facturacion_spa_iva.
+const FIELDS = "billing_email, razon_social, rut, giro, domicilio, region, comuna, ciudad, tipo_receptor";
 const SCHEMA_MISMATCH_CODES = new Set(["42P01", "42703", "PGRST204", "PGRST205"]);
 
 function emptyProfile(email: string) {
@@ -42,14 +43,30 @@ export async function PUT(request: NextRequest) {
     return result || null;
   };
   try {
+    // El RUT se valida y normaliza en el servidor: el cliente ya lo valida,
+    // pero un RUT inválido no se descubre al guardar sino al emitir la
+    // factura, cuando el SII la rechaza y el cobro ya ocurrió.
+    const rut = value("rut");
+    if (rut && !rutEsValido(rut)) {
+      throw new Error("El RUT no es válido. Revisa el número y el dígito verificador.");
+    }
+
+    const tipoReceptor = value("tipo_receptor");
+    if (tipoReceptor && !["empresa", "persona"].includes(tipoReceptor)) {
+      throw new Error("El tipo de receptor debe ser 'empresa' o 'persona'.");
+    }
+
     const profile = {
       workspace_id: auth.ctx.workspaceId,
       billing_email: value("billing_email", true),
       razon_social: value("razon_social"),
-      rut: value("rut"),
+      rut: rut ? normalizarRut(rut) : null,
+      giro: value("giro"),
       domicilio: value("domicilio"),
       region: value("region"),
       comuna: value("comuna"),
+      ciudad: value("ciudad"),
+      tipo_receptor: tipoReceptor ?? "empresa",
       updated_at: new Date().toISOString(),
     };
     const { data, error } = await adminSupabase()

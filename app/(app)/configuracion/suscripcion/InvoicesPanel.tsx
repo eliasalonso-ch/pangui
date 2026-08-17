@@ -68,8 +68,8 @@ export function InvoicesPanel() {
           </p>
           <p style={{ margin: "6px 0 0", color: "var(--fg-3)", fontSize: 12.5, lineHeight: 1.5 }}>
             Cada mes Flow.cl envía el link de pago al email de cobros, y el comprobante una vez
-            pagado. El documento tributario es la boleta de honorarios electrónica, que
-            enviamos por separado al mismo correo.
+            pagado. El documento tributario es la factura electrónica afecta a IVA, que
+            enviamos por separado al mismo correo. Los montos que ves acá incluyen IVA.
           </p>
         </div>
 

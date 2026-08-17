@@ -101,20 +101,46 @@ export async function POST(req: Request) {
       });
     }
 
-    // Cobro por link de pago mensual, no por cargo automático.
+    // ── Cargo automático vs. link de pago mensual ──────────────────────────
     //
-    // El medio de pago "Cargo automático" (producto 148 de Flow) solo está
-    // disponible para empresas con cuenta corriente a nombre de un RUT de
-    // primera categoría. Pangui factura hoy como persona natural de segunda
-    // categoría, así que /customer/register responde
+    // El medio de pago "Cargo automático" (producto 148 de Flow) exige una
+    // cuenta a nombre de un RUT de primera categoría. Mientras Pangui facturó
+    // como persona natural de segunda categoría eso no se cumplía y
+    // /customer/register respondía
     //   code 7001: "Commerce has not automatic charge contract"
+    // así que el cobro se hacía por link de pago mensual: Flow crea el ciclo y
+    // envía un link por email en cada renovación.
     //
-    // Flow soporta suscripciones igual en ese escenario: crea el ciclo y envía
-    // un link de pago por email en cada renovación. Por eso acá se crea la
-    // suscripción directamente en vez de inscribir una tarjeta.
-    //
-    // Si más adelante se contrata cargo automático, este bloque vuelve a
-    // registerCard y el resto del flujo (callback, webhook) ya lo soporta.
+    // Con la SpA constituida el requisito se cumple, pero el contrato de cargo
+    // automático se habilita del lado de Flow, no del código. El flag permite
+    // activarlo cuando Flow confirme y volver atrás sin desplegar si responde
+    // 7001. Con el flag apagado el comportamiento es exactamente el anterior.
+    if (process.env.FLOW_CARGO_AUTOMATICO === "true") {
+      const urlReturn = `${appUrl}/api/suscripcion/register/callback?plan_key=${encodeURIComponent(planKey)}`;
+      try {
+        const registro = await flow.registerCard({
+          customerId: flowCustomerId,
+          url_return: urlReturn,
+        });
+        // El resto del flujo (callback → createSubscription → webhook) ya
+        // existe y está probado; ver register/callback/route.ts.
+        return NextResponse.json({ url: registro.url, pending_payment: false });
+      } catch (err) {
+        const fe = err as FlowError;
+        // 7001 = el comercio no tiene contrato de cargo automático. Es un
+        // problema de configuración en Flow, no del código: se avisa fuerte y
+        // se cae al flujo de link de pago para no dejar al cliente sin
+        // contratar.
+        const sinContrato = (fe.message ?? "").toLowerCase().includes("automatic charge");
+        console.error(
+          sinContrato
+            ? "[suscripcion/register] FLOW_CARGO_AUTOMATICO=true pero Flow no tiene el contrato habilitado (7001). Revisa el producto 148 en el panel de Flow."
+            : "[suscripcion/register] registerCard falló, se cae a link de pago:",
+          fe,
+        );
+      }
+    }
+
     // El plan de Flow cobra el precio de lista por el usuario #1; los usuarios
     // extra se agregan como items al precio real (ver lib/flow-sync.ts). Para
     // un cliente fundador eso dejaría el primer usuario a precio de lista, así

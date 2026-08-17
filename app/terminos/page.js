@@ -346,9 +346,9 @@ export default function TerminosPage() {
         </p>
         <PlanesTable
           rows={[
-            ["Basic", "$4.990 CLP / usuario activo / mes", "Funciones esenciales para comenzar."],
-            ["Esencial", "$6.990 CLP / usuario activo / mes", "Para equipos en operación con más capacidad y exportaciones."],
-            ["Pro", "$9.990 CLP / usuario activo / mes", "Funciones avanzadas, inventario, analítica y automatizaciones."],
+            ["Basic", "$4.990 CLP / usuario activo / mes (IVA incl.)", "Funciones esenciales para comenzar."],
+            ["Esencial", "$6.990 CLP / usuario activo / mes (IVA incl.)", "Para equipos en operación con más capacidad y exportaciones."],
+            ["Pro", "$9.990 CLP / usuario activo / mes (IVA incl.)", "Funciones avanzadas, inventario, analítica y automatizaciones."],
             ["Enterprise", "A convenir", "Para empresas con condiciones comerciales, SLA o integraciones específicas."],
           ]}
         />
@@ -388,7 +388,7 @@ export default function TerminosPage() {
             "Los cargos se hacen en CLP, con la frecuencia mensual indicada para el plan elegido.",
             "El cobro se calcula según el precio del plan por la cantidad de usuarios activos del workspace.",
             "El owner puede cambiar de plan, actualizar tarjeta o cancelar la suscripción desde Configuración > Suscripción.",
-            "Por cada cobro se emite una boleta de honorarios electrónica ante el SII, enviada al email de cobros del espacio de trabajo. Pangui no emite facturas, por lo que los montos pagados no dan derecho a crédito fiscal de IVA. Los precios publicados corresponden al monto bruto de la boleta; cuando el cliente sea un contribuyente obligado a retener el impuesto de segunda categoría, dicha retención se aplica sobre ese monto.",
+            "Por cada cobro se emite una factura electrónica afecta a IVA ante el SII, enviada al email de cobros del espacio de trabajo. Todos los precios publicados incluyen IVA (19%): el monto indicado es el total a pagar, y la factura desglosa el neto y el impuesto. Si el cliente es contribuyente de IVA, la factura da derecho a crédito fiscal por el impuesto desglosado en ella.",
             "En caso de no pago, Pangui puede limitar o suspender funciones pagadas hasta regularizar el saldo.",
             "Pangui no almacena los datos completos de tarjetas de crédito; el procesamiento lo realiza Flow.cl.",
           ]}

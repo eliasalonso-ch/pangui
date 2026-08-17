@@ -6,9 +6,11 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { motion, useMotionValue, useSpring, useTransform } from "framer-motion";
 import { Loader2, Check, CreditCard, AlertCircle, ArrowLeft, X, Sparkles, ShieldCheck, Pencil, Trash2 } from "lucide-react";
 import { SELF_SERVE_PLANS, PLANS, type PlanKey } from "@/lib/flow-plans";
+import { textoDesglose } from "@/lib/tributario";
 import { resolveCardBrand } from "@/lib/card-brand";
 import { CardBrandLogo } from "@/components/CardBrandLogo";
 import { InvoicesPanel } from "./InvoicesPanel";
+import { DocumentosPanel } from "./DocumentosPanel";
 import { SubscriptionOverview } from "./SubscriptionOverview";
 
 type PendingAction = PlanKey | "cancel" | "card_change" | "card_remove";
@@ -65,7 +67,7 @@ function SuscripcionPageInner() {
   const [flash, setFlash] = useState<{ kind: "ok" | "err"; msg: string } | null>(null);
   const [confirmCancel, setConfirmCancel] = useState(false);
   // Reemplaza al antiguo checkbox de aceptación: en vez de pedir un clic extra,
-  // exigimos los datos que realmente hacen falta para cobrar y emitir la boleta.
+  // exigimos los datos que realmente hacen falta para cobrar y emitir la factura.
   const [profileReady, setProfileReady] = useState(false);
 
   const reload = useCallback(async () => {
@@ -112,7 +114,7 @@ function SuscripcionPageInner() {
 
   function ensureBillingReady() {
     if (profileReady) return true;
-    setError("Completa el email de cobros y los datos de la boleta antes de elegir un plan.");
+    setError("Completa el email de cobros y los datos de facturación antes de elegir un plan.");
     return false;
   }
 
@@ -354,7 +356,7 @@ function SuscripcionPageInner() {
               <div style={{ display: "flex", alignItems: "flex-start", gap: 9, marginBottom: 12, padding: "11px 13px", border: "1px solid var(--border-strong)", borderRadius: "var(--r-md)", background: "var(--surface-2)" }}>
                 <AlertCircle size={15} style={{ color: "var(--fg-3)", flexShrink: 0, marginTop: 1 }} />
                 <p style={{ margin: 0, fontSize: 12.5, lineHeight: 1.5, color: "var(--fg-2)" }}>
-                  Completa el <strong>email de cobros</strong> y los <strong>datos de la boleta</strong> para poder elegir un plan. Los necesitamos para emitir la boleta de honorarios de cada cobro.
+                  Completa el <strong>email de cobros</strong> y los <strong>datos de facturación</strong> para poder elegir un plan. Los necesitamos para emitir la factura electrónica de cada cobro.
                 </p>
               </div>
             )}
@@ -451,6 +453,18 @@ function SuscripcionPageInner() {
             </div>
           )}
 
+          {/* Cobros y documentos van separados a propósito: el cobro es el
+              movimiento de dinero en Flow y el documento es la factura ante el
+              SII. Un período puede estar pagado y su factura aún pendiente de
+              emisión, así que mezclarlos en una sola tabla haría creer que
+              falta un cobro cuando lo que falta es emitir. */}
+          {isPaid && (
+            <div>
+              <p style={{ ...sectionLabel, marginBottom: 12 }}>Documentos tributarios</p>
+              <DocumentosPanel />
+            </div>
+          )}
+
           {/* Acción destructiva: siempre al final, nunca entre información. */}
           {isPaid && !sub?.canceled_at && (
             <div style={{ paddingTop: 4, borderTop: "1px solid var(--border)" }}>
@@ -541,14 +555,19 @@ function BillingDisclosure({
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 10 }}>
         <MiniStat label="Modelo" value="Mensual por usuario activo" />
         <MiniStat label="Usuarios activos hoy" value={`${activeUsers}`} />
-        <MiniStat label="Total estimado hoy" value={estimatedCost > 0 ? fmtCLP(estimatedCost) : "-"} />
+        <MiniStat label="Total estimado hoy (IVA incl.)" value={estimatedCost > 0 ? fmtCLP(estimatedCost) : "-"} />
         <MiniStat label={canceled ? "Acceso hasta" : "Renovación"} value={periodEnd ? fmtDate(periodEnd) : "Mensual"} />
       </div>
+      {estimatedCost > 0 && (
+        <p style={{ fontSize: 12.5, lineHeight: 1.55, color: "var(--fg-3)", margin: 0 }}>
+          Desglose del total estimado: {textoDesglose(estimatedCost)}.
+        </p>
+      )}
       <p style={{ fontSize: 12.5, lineHeight: 1.55, color: "var(--fg-2)", margin: 0 }}>
         Al activar o cambiar un plan aceptas el cobro mensual en CLP según el plan elegido y la cantidad de usuarios activos del workspace. <strong>Cada mes Flow.cl envía un link de pago al email de cobros</strong>; el acceso se mantiene mientras el pago esté al día. Puedes desactivar usuarios antes del siguiente ciclo para ajustar el cobro, y cancelar la suscripción desde esta pantalla manteniendo acceso hasta el fin del periodo pagado.
       </p>
       <p style={{ fontSize: 12.5, lineHeight: 1.55, color: "var(--fg-2)", margin: 0 }}>
-        Los pagos se procesan a través de Flow.cl. Por cada cobro emitimos una <strong>boleta de honorarios electrónica</strong> ante el SII, que enviamos al email de cobros del workspace. No emitimos facturas, por lo que estos montos no dan derecho a crédito fiscal de IVA. Los precios indicados son el monto bruto de la boleta; si tu empresa está obligada a retener el impuesto de segunda categoría, la retención se aplica sobre ese monto.
+        Los pagos se procesan a través de Flow.cl. Por cada cobro emitimos una <strong>factura electrónica afecta a IVA</strong> ante el SII, que enviamos al email de cobros del workspace. <strong>Todos los precios publicados incluyen IVA (19%)</strong>: el monto que ves es el total a pagar. Si tu empresa es contribuyente de IVA, la factura da derecho a crédito fiscal por el impuesto desglosado en ella.
       </p>
       {/* Sin checkbox: el consentimiento queda por acción. El aviso está a la
           vista y contratar es el acto de aceptación, que es como opera el resto
