@@ -62,9 +62,17 @@ export async function POST(req: Request) {
       .select("flow_customer_id, has_card")
       .eq("workspace_id", workspaceId)
       .maybeSingle();
-    // Sin cliente en Flow hay que pasar por /register, que lo crea. La tarjeta
-    // no se exige: con link de pago no existe medio guardado.
-    if (!customer?.flow_customer_id) {
+    // Sin cliente en Flow hay que pasar por /register, que lo crea.
+    //
+    // Con cargo automático también se exige tarjeta inscrita: crear acá la
+    // suscripción para un cliente sin medio de pago deja un cobro que nunca va
+    // a entrar, y el workspace queda en past_due sin que la UI explique por
+    // qué. /register redirige al formulario de tarjeta de Flow.
+    //
+    // Con el flag apagado (link de pago mensual) no hay tarjeta que exigir, así
+    // que basta con que el cliente exista.
+    const exigeTarjeta = process.env.FLOW_CARGO_AUTOMATICO === "true";
+    if (!customer?.flow_customer_id || (exigeTarjeta && !customer.has_card)) {
       return NextResponse.json({ error: "needs_card", redirect: "/suscripcion?action=upgrade" }, { status: 402 });
     }
     try {

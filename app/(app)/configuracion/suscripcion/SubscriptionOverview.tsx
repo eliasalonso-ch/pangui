@@ -217,19 +217,19 @@ export function SubscriptionOverview(props: Props) {
           </SideCard>
         </div>
 
-        {/* Método de pago — inactivo mientras el cobro sea por link de pago.
-            Flow solo ofrece "Cargo automático" a empresas (ver el comentario en
-            /api/suscripcion/register), así que hoy no hay tarjeta que guardar y
-            esta sección no se renderiza.
-
-            El bloque se conserva íntegro a propósito: cuando se contrate cargo
-            automático basta con volver a mostrarlo. `hasCard` sigue siendo la
-            condición correcta — un workspace con tarjeta inscrita la ve.
+        {/* Método de pago. Con cargo automático activo esta sección es central:
+            es la tarjeta a la que Flow carga el cobro cada mes.
 
             Método de pago en su propia fila: la tarjeta necesita ancho para
             leerse, y apretada en un tercio del grid competía con dos tarjetas
-            que son solo texto. */}
-        {hasCard && (
+            que son solo texto.
+
+            Se muestra también SIN tarjeta cuando hay un plan pagado: ese
+            workspace tiene un cobro mensual que va a fallar, y la rama de
+            "Agregar tarjeta" era inalcanzable cuando la condición era solo
+            `hasCard`. En prueba o Basic gratis no se muestra: no hay nada que
+            cobrar todavía. */}
+        {(hasCard || props.showPlanSummary) && (
           <SideCard title="Método de pago" icon={CreditCard}>
             {hasCard ? (
               <div style={{ padding: 16, display: "grid", gap: 14 }}>
@@ -288,8 +288,9 @@ export function SubscriptionOverview(props: Props) {
             <Field label="Nuevo email" value={draft.billing_email} onChange={value => setDraft({ ...draft, billing_email: value })} placeholder="Ingresa el nuevo email" />
             <Field label="Confirmar nuevo email" value={confirmEmail} onChange={setConfirmEmail} placeholder="Confirma el nuevo email" />
             <p style={{ margin: 0, color: "var(--fg-3)", fontSize: 12.5, lineHeight: 1.5 }}>
-              Flow.cl envía a este correo el comprobante de cada cobro. La factura
-              electrónica se emite por separado y llega al mismo correo.
+              Flow.cl envía a este correo el comprobante de cada cobro automático y los
+              avisos si una tarjeta falla. La factura electrónica se emite por separado y
+              llega al mismo correo.
             </p>
           </div>
           <ModalFooter error={error} saving={saving} onCancel={() => setEditingEmail(false)} onSave={() => void save("email")} />

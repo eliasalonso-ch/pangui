@@ -147,6 +147,9 @@ function SuscripcionPageInner() {
       setFlash({
         kind: "ok",
         msg: `Suscripción creada. Flow.cl envió el link de pago a ${json.email ?? "tu email de cobros"}. El plan se activa al confirmarse el pago.`,
+        // Nota: este mensaje solo aparece con FLOW_CARGO_AUTOMATICO apagado.
+        // Con cargo automático el flujo redirige a inscribir la tarjeta y
+        // nunca llega acá.
       });
       await reload();
     } catch (e) {
@@ -281,21 +284,38 @@ function SuscripcionPageInner() {
             </div>
           )}
 
-          {/* Suscripción creada esperando el pago del link. Sin este aviso el
-              usuario solo ve "Pago atrasado" en rojo, que no le dice qué hacer
-              ni que el link ya está en su correo. */}
+          {/* Suscripción pendiente de pago. Con cargo automático hay dos causas
+              muy distintas y el aviso no puede tratarlas igual: o falta
+              inscribir la tarjeta, o la tarjeta inscrita rechazó el cobro. Sin
+              esto el usuario solo ve "Pago atrasado" en rojo, que no le dice
+              qué hacer. */}
           {sub?.status === "past_due" && (
             <div style={{ ...card, border: "1px solid var(--warning)", background: "var(--st-wait-bg)" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
                 <AlertCircle size={16} style={{ color: "var(--warning)" }} />
-                <p style={{ ...sectionLabel, color: "var(--warning)" }}>Esperando el pago</p>
+                <p style={{ ...sectionLabel, color: "var(--warning)" }}>
+                  {customer?.has_card ? "No pudimos cobrar tu tarjeta" : "Falta inscribir tu tarjeta"}
+                </p>
               </div>
-              <p style={{ fontSize: 14, color: "var(--fg-1)", margin: 0, lineHeight: 1.5 }}>
-                Flow.cl envió el link de pago de <strong>{currentPlan?.name ?? sub.plan_key}</strong> a {customer?.email ?? "tu email de cobros"}. El plan se activa apenas se confirme el pago.
-              </p>
-              <p style={{ fontSize: 13, color: "var(--fg-2)", margin: "6px 0 0", lineHeight: 1.5 }}>
-                Si no lo encuentras, revisa la carpeta de spam. Mientras tanto conservas tu plan anterior.
-              </p>
+              {customer?.has_card ? (
+                <>
+                  <p style={{ fontSize: 14, color: "var(--fg-1)", margin: 0, lineHeight: 1.5 }}>
+                    El cobro de <strong>{currentPlan?.name ?? sub.plan_key}</strong> a tu tarjeta terminada en {customer.card_last4 ?? "····"} no se pudo procesar. Flow.cl reintentará automáticamente en los próximos días.
+                  </p>
+                  <p style={{ fontSize: 13, color: "var(--fg-2)", margin: "6px 0 0", lineHeight: 1.5 }}>
+                    Si el problema persiste, actualiza tu tarjeta más abajo. Mientras tanto conservas el acceso.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p style={{ fontSize: 14, color: "var(--fg-1)", margin: 0, lineHeight: 1.5 }}>
+                    Tu suscripción a <strong>{currentPlan?.name ?? sub.plan_key}</strong> está creada, pero aún no hay una tarjeta inscrita para cobrarla. El plan se activa apenas se realice el primer cobro.
+                  </p>
+                  <p style={{ fontSize: 13, color: "var(--fg-2)", margin: "6px 0 0", lineHeight: 1.5 }}>
+                    Elige tu plan otra vez para inscribir la tarjeta en Flow.cl. Mientras tanto conservas tu plan anterior.
+                  </p>
+                </>
+              )}
             </div>
           )}
 
@@ -434,7 +454,7 @@ function SuscripcionPageInner() {
               })}
             </div>
             <p style={{ fontSize: 12, color: "var(--fg-4)", margin: "12px 0 0", display: "flex", alignItems: "center", gap: 6 }}>
-              <CreditCard size={12} /> Al elegir un plan, Flow.cl envía un link de pago al email de cobros. El plan se activa al confirmarse el pago.
+              <CreditCard size={12} /> Al elegir un plan te llevamos a Flow.cl para inscribir tu tarjeta. El primer cobro se hace al inscribirla y los siguientes se cargan automáticamente cada mes.
             </p>
           </div>
 
@@ -566,7 +586,7 @@ function BillingDisclosure({
         </p>
       )}
       <p style={{ fontSize: 12.5, lineHeight: 1.55, color: "var(--fg-2)", margin: 0 }}>
-        Al activar o cambiar un plan aceptas el cobro mensual en CLP según el plan elegido y la cantidad de usuarios activos del workspace. <strong>Cada mes Flow.cl envía un link de pago al email de cobros</strong>; el acceso se mantiene mientras el pago esté al día. Puedes desactivar usuarios antes del siguiente ciclo para ajustar el cobro, y cancelar la suscripción desde esta pantalla manteniendo acceso hasta el fin del periodo pagado.
+        Al activar o cambiar un plan aceptas el cobro mensual en CLP según el plan elegido y la cantidad de usuarios activos del workspace. <strong>El cobro se carga automáticamente a la tarjeta que inscribas en Flow.cl</strong>, cada mes y sin acción de tu parte; el acceso se mantiene mientras el pago esté al día. Puedes desactivar usuarios antes del siguiente ciclo para ajustar el cobro, cambiar la tarjeta desde esta pantalla, y cancelar la suscripción manteniendo acceso hasta el fin del periodo pagado.
       </p>
       <p style={{ fontSize: 12.5, lineHeight: 1.55, color: "var(--fg-2)", margin: 0 }}>
         Los pagos se procesan a través de Flow.cl. Por cada cobro emitimos una <strong>factura electrónica afecta a IVA</strong> ante el SII, que enviamos al email de cobros del workspace. <strong>Todos los precios publicados incluyen IVA (19%)</strong>: el monto que ves es el total a pagar. Si tu empresa es contribuyente de IVA, la factura da derecho a crédito fiscal por el impuesto desglosado en ella.
@@ -575,7 +595,7 @@ function BillingDisclosure({
           vista y contratar es el acto de aceptación, que es como opera el resto
           del checkout. */}
       <p style={{ fontSize: 12.5, lineHeight: 1.5, color: "var(--fg-3)", margin: 0 }}>
-        Al elegir un plan aceptas los <Link href="/terminos" target="_blank" style={linkStyle}>Términos y Condiciones</Link> y la <Link href="/privacidad" target="_blank" style={linkStyle}>Política de Privacidad</Link>, y el cobro mensual por usuarios activos mediante Flow.cl, que se paga con el link que Flow envía cada mes al email de cobros.
+        Al elegir un plan aceptas los <Link href="/terminos" target="_blank" style={linkStyle}>Términos y Condiciones</Link> y la <Link href="/privacidad" target="_blank" style={linkStyle}>Política de Privacidad</Link>, y el cobro mensual automático por usuarios activos a la tarjeta inscrita en Flow.cl. Pangui no almacena los datos de tu tarjeta: los procesa y guarda Flow.cl.
       </p>
     </div>
   );
@@ -899,12 +919,12 @@ function Centered({ children }: { children: React.ReactNode }) {
 
 function CheckoutRedirectOverlay({ planKey }: { planKey: RedirectAction }) {
   const plan = planKey === "card_change" ? null : PLANS.find(p => p.key === planKey);
-  // Elegir plan ya no redirige a Flow: se crea la suscripción y Flow envía el
-  // link de pago por email. El overlay solo cubre la espera mientras se crea.
-  const title = planKey === "card_change" ? "Te llevamos a Flow.cl" : "Creando tu suscripción";
+  // Con cargo automático, elegir plan redirige a Flow para inscribir la
+  // tarjeta, así que el overlay cubre una redirección real y no una espera.
+  const title = "Te llevamos a Flow.cl";
   const body = planKey === "card_change"
     ? "En unos segundos verás la pantalla de Flow.cl para actualizar tu tarjeta de forma segura."
-    : `Estamos activando tu suscripción a ${plan?.name ?? "tu plan"}. Flow.cl te enviará el link de pago por correo en unos minutos.`;
+    : `En unos segundos verás la pantalla de Flow.cl para inscribir tu tarjeta y activar ${plan?.name ?? "tu plan"}. Pangui no guarda los datos de tu tarjeta.`;
 
   return (
     <div style={{
@@ -972,9 +992,9 @@ function CheckoutRedirectOverlay({ planKey }: { planKey: RedirectAction }) {
 }
 
 function statusLabel(s: string) {
-  // past_due = "Pendiente de pago": con link de pago mensual este estado cubre
-  // tanto una suscripción recién creada como una renovación sin pagar. "Pago
-  // atrasado" alarmaba a quien acababa de suscribirse.
+  // past_due = "Pendiente de pago": cubre tanto una suscripción creada sin
+  // tarjeta inscrita como un cobro automático que la tarjeta rechazó y Flow
+  // aún está reintentando. "Pago atrasado" alarmaba en ambos casos.
   return ({ trialing: "En prueba", active: "Activa", past_due: "Pendiente de pago", unpaid: "Sin pagar", canceled: "Cancelada", basic_free: "Basic (gratis)" } as Record<string, string>)[s] ?? s;
 }
 
@@ -982,8 +1002,9 @@ function statusPill(s: string): React.CSSProperties {
   const palette: Record<string, { bg: string; fg: string }> = {
     trialing: { bg: "var(--brand-tint)", fg: "var(--brand-fg)" },
     active: { bg: "var(--success-bg)", fg: "var(--st-done-fg)" },
-    // Ámbar, no rojo: con link de pago este estado es la espera normal entre
-    // suscribirse y pagar, no una falla.
+    // Ámbar, no rojo: Flow reintenta el cobro automático varios días antes de
+    // dar la suscripción por impaga, así que este estado todavía es
+    // recuperable y no una falla definitiva.
     past_due: { bg: "var(--st-wait-bg)", fg: "var(--warning)" },
     unpaid: { bg: "var(--danger-bg)", fg: "var(--danger)" },
     canceled: { bg: "var(--surface-hover)", fg: "var(--fg-2)" },

@@ -67,9 +67,9 @@ export function InvoicesPanel() {
             Aquí encontrarás los cobros generados por tu suscripción mediante Flow.cl.
           </p>
           <p style={{ margin: "6px 0 0", color: "var(--fg-3)", fontSize: 12.5, lineHeight: 1.5 }}>
-            Cada mes Flow.cl envía el link de pago al email de cobros, y el comprobante una vez
-            pagado. El documento tributario es la factura electrónica afecta a IVA, que
-            enviamos por separado al mismo correo. Los montos que ves acá incluyen IVA.
+            Cada mes Flow.cl carga el cobro a tu tarjeta inscrita y envía el comprobante al
+            email de cobros. El documento tributario es la factura electrónica afecta a IVA,
+            que enviamos por separado al mismo correo. Los montos que ves acá incluyen IVA.
           </p>
         </div>
 
@@ -89,7 +89,7 @@ export function InvoicesPanel() {
               <ReceiptText size={42} style={{ color: "var(--fg-4)", marginBottom: 14 }} />
               <p style={{ margin: 0, color: "var(--fg-1)", fontSize: 16, fontWeight: 600 }}>Aún no hay documentos</p>
               <p style={{ margin: "6px 0 0", maxWidth: 390, color: "var(--fg-3)", fontSize: 13, lineHeight: 1.5 }}>
-                Aparecerán aquí una vez que pagues el primer link que Flow.cl envía al email de cobros.
+                Aparecerán aquí después del primer cobro a tu tarjeta.
               </p>
             </div>
           ) : (
