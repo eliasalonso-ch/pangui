@@ -16,6 +16,8 @@ import { adminSupabase } from "../../_helpers";
 import { flow, FlowError } from "@/lib/flow";
 import { flowPlanId, planByKey, type PlanKey } from "@/lib/flow-plans";
 import { syncSubscriptionToUserCount } from "@/lib/flow-sync";
+import { estadoDesdeFlow } from "@/lib/flow-status";
+import { registrarPeriodoFacturado } from "@/lib/dte/registrar-periodo";
 
 const PLAN_KEYS: PlanKey[] = ["basic", "esencial", "pro"];
 
@@ -156,12 +158,21 @@ async function handle(req: Request) {
     // Fetch the canonical subscription detail so we can persist period dates.
     // The /create response sometimes omits period_end; /get always has it.
     const flowSub = await flow.getSubscription(flowSubId).catch(() => null);
+
+    // El estado sale de lo que Flow reporta, no de un "active" fijo: con cargo
+    // automático el cobro es inmediato, pero si la tarjeta lo rechaza Flow
+    // devuelve morose distinto de 0 y el workspace no debe quedar con acceso
+    // pagado. Ver lib/flow-status.ts.
+    const estado = flowSub
+      ? estadoDesdeFlow({ status: flowSub.status, morose: flowSub.morose })
+      : "past_due";
+
     const subUpdate: Record<string, unknown> = {
       plan_key:             planKey,
       flow_subscription_id: flowSubId,
       flow_plan_id:         flowPlan,
       price_per_user_clp:   plan.pricePerUser,
-      status:               "active",
+      status:               estado,
       trial_end:            null,
       current_period_start: flowSub?.period_start ?? null,
       current_period_end:   flowSub?.period_end ?? flowSub?.next_invoice_date ?? null,
@@ -181,11 +192,41 @@ async function handle(req: Request) {
     // 5. Mirror to usuarios.plan / plan_status (legacy gating)
     await admin.from("usuarios").update({
       plan:        planKey,
-      plan_status: "active",
+      plan_status: estado === "active" ? "active" : "payment_failed",
     }).eq("workspace_id", workspaceId);
 
     // 6. Reconcile subscription items with current user count
     await syncSubscriptionToUserCount(workspaceId);
+
+    // 7. Documento tributario del primer período.
+    //
+    // Con cargo automático el cobro ocurre acá mismo, así que este callback es
+    // el primer momento en que el período está pagado. Sin esto el documento
+    // dependía de que llegara el webhook, y si Flow no notifica (o notifica
+    // tarde) el período quedaba cobrado y sin factura.
+    //
+    // Es idempotente: si el webhook llega después, el índice único por período
+    // impide el duplicado y registrarPeriodoFacturado lo trata como caso
+    // normal. Tampoco lanza — un fallo acá no debe dejar al cliente sin el
+    // acceso que ya pagó.
+    const { data: subRow } = await admin
+      .from("subscriptions")
+      .select("id")
+      .eq("workspace_id", workspaceId)
+      .eq("flow_subscription_id", flowSubId)
+      .maybeSingle();
+
+    if (subRow?.id) {
+      await registrarPeriodoFacturado(admin, {
+        workspaceId,
+        subscriptionId:   subRow.id,
+        precioPorUsuario: plan.pricePerUser,
+        status:           estado,
+        periodStart:      flowSub?.period_start ?? null,
+        periodEnd:        flowSub?.period_end ?? null,
+        nextInvoiceDate:  flowSub?.next_invoice_date ?? null,
+      });
+    }
 
     // Redirect to the dashboard with a welcome flag so /inicio can render a
     // celebration toast. Going back to /suscripcion would dump

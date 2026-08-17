@@ -210,6 +210,11 @@ export const flow = {
     flowPost<FlowCustomer>("/customer/create", p),
   getCustomer: (customerId: string) =>
     flowGet<FlowCustomer>("/customer/get", { customerId }),
+  /** Actualiza nombre y/o email del cliente. Flow manda a ese email los
+   *  comprobantes, avisos de cargo y links de pago, así que debe seguir al
+   *  email de cobros del workspace. */
+  editCustomer: (p: { customerId: string; name?: string; email?: string }) =>
+    flowPost<FlowCustomer>("/customer/edit", p),
 
   registerCard: (p: { customerId: string; url_return: string }) =>
     flowPost<FlowRegisterCardResponse>("/customer/register", p),

@@ -43,11 +43,27 @@ export async function POST(req: Request) {
   const { data: perfil } = await admin
     .from("usuarios").select("nombre").eq("id", userId).maybeSingle();
 
-  const customerName = ws?.nombre || perfil?.nombre || email;
+  // Flow manda TODO a este correo: comprobantes, avisos de cargo automático y
+  // links de pago. Debe ser el email de cobros del workspace, no el de la
+  // cuenta que está contratando — quien administra puede no ser quien recibe
+  // la facturación, y la app le promete al cliente que los documentos llegan
+  // al email de cobros (ver el resumen legal en /configuracion/suscripcion).
+  const { data: billing } = await admin
+    .from("billing_profiles")
+    .select("billing_email, razon_social")
+    .eq("workspace_id", workspaceId)
+    .maybeSingle();
+
+  const billingEmail = billing?.billing_email?.trim() || email;
+
+  // La razón social es lo que el cliente declaró como receptor de la factura,
+  // así que identifica mejor al cliente en el panel de Flow que el nombre del
+  // workspace.
+  const customerName = billing?.razon_social || ws?.nombre || perfil?.nombre || billingEmail;
 
   const { data: existing } = await admin
     .from("flow_customers")
-    .select("flow_customer_id")
+    .select("flow_customer_id, email")
     .eq("workspace_id", workspaceId)
     .maybeSingle();
 
@@ -71,7 +87,7 @@ export async function POST(req: Request) {
       try {
         const customer = await flow.createCustomer({
           name:       customerName,
-          email,
+          email:      billingEmail,
           externalId: workspaceId,
         });
         flowCustomerId = customer.customerId;
@@ -97,9 +113,27 @@ export async function POST(req: Request) {
       await admin.from("flow_customers").insert({
         workspace_id:     workspaceId,
         flow_customer_id: flowCustomerId,
-        email,
+        email:            billingEmail,
         name:             customerName,
       });
+    } else if (existing?.email && existing.email !== billingEmail) {
+      // El cliente ya existía en Flow con otro correo. Sin esto, cambiar el
+      // email de cobros no tenía efecto: Flow seguía mandando comprobantes y
+      // avisos de cargo al correo con que se creó el cliente.
+      try {
+        await flow.editCustomer({
+          customerId: flowCustomerId,
+          email:      billingEmail,
+          name:       customerName,
+        });
+        await admin.from("flow_customers")
+          .update({ email: billingEmail, name: customerName, updated_at: new Date().toISOString() })
+          .eq("workspace_id", workspaceId);
+      } catch (err) {
+        // No bloquea la contratación: el cobro funciona igual, solo que los
+        // correos siguen yendo al destinatario anterior hasta que se resuelva.
+        console.error("[suscripcion/register] no se pudo actualizar el email del cliente en Flow:", err);
+      }
     }
 
     // ── Cargo automático vs. link de pago mensual ──────────────────────────
@@ -202,11 +236,14 @@ export async function POST(req: Request) {
       }, { status: 500 });
     }
 
+    // `email` es el de cobros: es el que Flow usa y el que el banner de
+    // "esperando el pago" le muestra al usuario. Devolver el de la sesión
+    // hacía que la UI dijera un correo distinto del que recibía el link.
     return NextResponse.json({
       ok: true,
       pending_payment: true,
       plan_key: planKey,
-      email,
+      email: billingEmail,
     });
   } catch (err) {
     const fe = err as FlowError;
