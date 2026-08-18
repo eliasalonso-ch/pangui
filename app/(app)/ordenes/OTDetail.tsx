@@ -4613,8 +4613,9 @@ function ReadonlyAnswer({ paso, resp, onPhotoClick }: { paso: ProcedimientoPaso;
 }
 
 function SignatureCanvas({
-  existingDataUrl, isSaving, onSave,
+  ordenId, existingDataUrl, isSaving, onSave,
 }: {
+  ordenId: string;
   existingDataUrl?: string | null;
   isSaving: boolean;
   onSave: (dataUrl: string) => void;
@@ -4824,7 +4825,10 @@ function SignatureCanvas({
 
     setUploading(true);
     try {
-      const url = await uploadToR2(file, "firmas");
+      // Must live under ordenes/<id>/: the r2-presign function authorizes a
+      // fixed set of roots plus `ordenes/<existing id>`. A bare "firmas"
+      // folder is rejected with forbidden_folder.
+      const url = await uploadToR2(file, `ordenes/${ordenId}/firmas`);
       onSave(url);
       setSaved(true);
     } catch {
@@ -5265,6 +5269,7 @@ function PasoInput({
           </div>
         )}
         <SignatureCanvas
+          ordenId={ordenId}
           existingDataUrl={existingResp?.firma_svg ?? null}
           isSaving={isSaving}
           onSave={dataUrl => onSave(dataUrl
