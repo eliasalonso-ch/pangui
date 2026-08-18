@@ -37,6 +37,7 @@ import {
   parseDescMeta, fetchOrden, fetchSubOrdenes, createSubOrden,
 } from "@/lib/ordenes-api";
 import type { ForceClose } from "@/lib/ordenes-api";
+import { useCategorias } from "@/lib/queries";
 import { analytics } from "@/lib/analytics";
 import {
   fetchFotoGrupos, createFotoGrupo, updateFotoGrupo, deleteFotoGrupo,
@@ -652,20 +653,16 @@ export default function OTDetail({
   // Catálogo de categorías del workspace, para resolver `categoria_ids`.
   // El select de la OT solo trae la categoría principal como join, así que las
   // adicionales llegan como ids sueltos y hay que ponerles nombre y color.
-  const [catalogoCategorias, setCatalogoCategorias] = useState<CategoriaOT[]>([]);
   const idsExtra = orden.categoria_ids ?? [];
   const necesitaCatalogo = idsExtra.some(id => id !== orden.categoria_id);
 
-  useEffect(() => {
-    if (!necesitaCatalogo || !wsId) return;
-    let ignorar = false;
-    const sb = createClient();
-    sb.from("categorias_ot")
-      .select("id, nombre, icono, color")
-      .or(`workspace_id.eq.${wsId},workspace_id.is.null`)
-      .then(({ data }) => { if (!ignorar) setCatalogoCategorias((data ?? []) as CategoriaOT[]); });
-    return () => { ignorar = true; };
-  }, [necesitaCatalogo, wsId]);
+  // Cached per workspace: this used to refetch the whole catálogo every time
+  // the user opened an OT with extra categories. `enabled` keeps the request
+  // from firing at all when the OT has no extra ids to resolve, but a cache
+  // entry warmed by another OT is reused immediately.
+  const { data: catalogoCategorias = [] } = useCategorias(
+    necesitaCatalogo ? wsId : null,
+  );
 
   /**
    * Todas las categorías de la OT, sin repetir y en el orden guardado.

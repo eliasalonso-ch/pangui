@@ -1,6 +1,7 @@
 import { Inter, Geist } from "next/font/google";
 import "./globals.css";
 import { PostHogProvider } from "./PostHogProvider";
+import { QueryProvider } from "./QueryProvider";
 import { structuredData } from "./structured-data";
 
 const inter = Inter({
@@ -88,7 +89,9 @@ export default function RootLayout({ children }) {
         />
       </head>
       <body>
-        <PostHogProvider>{children}</PostHogProvider>
+        <PostHogProvider>
+          <QueryProvider>{children}</QueryProvider>
+        </PostHogProvider>
       </body>
     </html>
   );
