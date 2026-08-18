@@ -153,6 +153,18 @@ export default function OrdenesBandeja({
   const listScrollRef = useRef<HTMLDivElement>(null);
   const [selected, setSelected] = useState<string | null>(initialSelectedId ?? null);
   const [detail, setDetail]     = useState<OrdenTrabajo | null>(null);
+  // Prefetch cache for OT detail, keyed by id.
+  //
+  // WHY: opening an OT used to always wait a full round-trip on fetchOrden
+  // before anything rendered, so every click showed a "Cargando..." spinner.
+  // OTRow already fires onPrefetch on hover/focus (the prop existed but was
+  // never passed in, so it was dead code) — warming this cache there means the
+  // request is usually already in flight, or done, by the time the user clicks.
+  //
+  // Stores the PROMISE, not the row: two hovers over the same id must share one
+  // request, and a click landing mid-flight must await the same promise rather
+  // than firing a second identical query.
+  const detailCache = useRef<Map<string, Promise<OrdenTrabajo | null>>>(new Map());
   const selectedRef = useRef<string | null>(initialSelectedId ?? null);
   const [loadingDetail, setLoadingDetail] = useState(false);
 
@@ -445,6 +457,22 @@ export default function OrdenesBandeja({
   }, [waitingOrderIds]);
 
   // Open order detail
+  /**
+   * Warms the detail cache for an OT without rendering it. Called from OTRow on
+   * hover/focus, so the fetch overlaps the time the user spends moving the
+   * mouse and deciding to click. Failures are swallowed: this is speculative
+   * work, and a rejected prefetch must not surface an error or poison the
+   * cache — openOT retries on a real click.
+   */
+  const prefetchOT = useCallback((id: string) => {
+    if (detailCache.current.has(id)) return;
+    const promise = fetchOrden(id).catch(() => {
+      detailCache.current.delete(id);
+      return null;
+    });
+    detailCache.current.set(id, promise);
+  }, []);
+
   const openOT = useCallback(async (id: string, pushUrl = true) => {
     if (pushUrl) {
       const params = new URLSearchParams();
@@ -453,16 +481,50 @@ export default function OrdenesBandeja({
     }
     setRightPanel("none");
     setSelected(id);
-    setLoadingDetail(true);
+
+    // Instant paint: the list row already holds titulo, estado, prioridad,
+    // ubicacion and descripcion, so render those immediately instead of a
+    // full-panel spinner. fetchOrden then fills in the detail-only fields.
+    // `_pending` marks the row as partial so OTDetail can skip anything that
+    // needs the full record. Only seed when we have a row AND no cached detail,
+    // and never seed over a different OT's stale detail.
+    const cached = detailCache.current.get(id);
+    const row = ordenes.find(o => o.id === id) ?? countOrdenes.find(o => o.id === id);
+
+    // Seed ONLY when there is no cached detail. Seeding sets `detail` twice
+    // (partial, then full), and OTDetail's effects key on fields of `orden` —
+    // so an extra render there refires per-OT queries like fetchSubOrdenes.
+    // With a warm prefetch we can render the real record once and skip that.
+    if (!cached && row) {
+      setDetail({ ...(row as unknown as OrdenTrabajo), _pending: true });
+      setLoadingDetail(false);
+    } else if (!cached) {
+      setDetail(null);
+      setLoadingDetail(true);
+    } else {
+      // Cached: keep whatever is on screen until the real record resolves
+      // (usually already settled), so there is no spinner and no extra paint.
+      setLoadingDetail(false);
+    }
+
     try {
-      const orden = await fetchOrden(id);
-      setDetail(orden ?? null);
+      // Reuse an in-flight/completed prefetch when one exists, so a hover
+      // followed by a click is a single request.
+      const orden = await (cached ?? fetchOrden(id));
+      detailCache.current.set(id, Promise.resolve(orden));
+      // Avoid a redundant state write when the seeded row and the resolved
+      // record are the same OT and nothing the detail effects read changed.
+      setDetail(prev =>
+        prev && orden && prev.id === orden.id && prev._pending !== true && prev === orden
+          ? prev
+          : (orden ?? null),
+      );
     } catch {
       setDetail(null);
     } finally {
       setLoadingDetail(false);
     }
-  }, [router, viewPath]);
+  }, [router, viewPath, ordenes, countOrdenes]);
 
   const openCreate = useCallback(() => {
     setSelected(null);
@@ -1729,6 +1791,7 @@ export default function OrdenesBandeja({
                     usuarios={usuarios}
                     isSelected={selected === o.id}
                     onClick={handleRowClick}
+                    onPrefetch={prefetchOT}
                     myId={myId}
                     onAssigned={handleRowAssigned}
                     coordinadaPara={scope === "reprogramadas" ? (o.fecha_inicio ?? null) : null}

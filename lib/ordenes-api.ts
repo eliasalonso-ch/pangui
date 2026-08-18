@@ -155,6 +155,7 @@ export const LIST_SELECT = `
   completado_en,
   categorias_ot (nombre, icono, color),
   ubicaciones (edificio, detalle),
+  lugar:lugares (nombre),
   activos (nombre)
 `;
 
@@ -200,7 +201,42 @@ export const ORDEN_CALENDAR_EXTRA_SELECT = `
 
 // ── Fetch ─────────────────────────────────────────────────────────────────────
 
-export const ORDENES_PAGE_SIZE = 300;
+// Page size deliberately kept well under ~150.
+//
+// WHY: at LIMIT 300 the planner estimates it will touch most of the workspace's
+// rows anyway, so it abandons idx_ordenes_trabajo_active, sequentially scans
+// ordenes_trabajo and top-N heapsorts the result. Measured on production data
+// (653 parent OTs), same query and same joins:
+//
+//   LIMIT 300 -> Seq Scan + heapsort : plan 271ms + exec 161ms = ~432ms
+//   LIMIT 150 -> Index Scan + Memoize: plan   4.7ms + exec   2.9ms
+//   LIMIT 100 -> Index Scan + Memoize: plan   4.9ms + exec   1.1ms
+//   LIMIT  50 -> Index Scan + Memoize: plan   5.5ms + exec   2.9ms
+//   LIMIT  20 -> Index Scan + Memoize: plan   3.4ms + exec  12.4ms (cold cache)
+//
+// ~50x faster for the first paint, purely from staying on the index. Anything
+// comfortably under ~150 gets the good plan; the exact value is a UX choice,
+// not a performance one. 20 matches the infinite-scroll increment, so the first
+// paint fetches exactly one screenful and the rest stream in on scroll.
+// Raising this back toward 300 silently reverts to the seq-scan plan, so
+// re-measure with EXPLAIN (ANALYZE) before changing it.
+export const ORDENES_PAGE_SIZE = 20;
+
+/**
+ * Page size for the workspace-wide snapshot (tab counts + filtered lists).
+ *
+ * Deliberately LARGER than ORDENES_PAGE_SIZE. These are two different jobs:
+ * the rendered list wants a small first paint (20) because the user only sees
+ * a screenful, but the snapshot must walk EVERY parent OT, so a small page
+ * turns one job into ~33 sequential round-trips — and each round-trip pays the
+ * planner cost, which on this table is both large and volatile (measured
+ * between 4ms and 570ms for the same query, thanks to 26 indexes).
+ *
+ * 150 keeps the fast Index Scan plan (the seq-scan cliff is between 150 and
+ * 300 — see the note on ORDENES_PAGE_SIZE) while cutting the snapshot to ~5
+ * requests. Do not raise this to 300.
+ */
+export const ORDENES_BULK_PAGE_SIZE = 150;
 
 /**
  * Restricted visibility: which user id (if any) OT queries must be filtered to.
@@ -311,7 +347,16 @@ export function parseOrdenNumeroQuery(rawQuery: string): number | null {
  * título, N° OT text, solicitante and description body.
  */
 export function matchesSearch(
-  o: { titulo?: string | null; numero?: number | null; descripcion?: string | null },
+  o: {
+    titulo?: string | null;
+    numero?: number | null;
+    descripcion?: string | null;
+    solicitante?: string | null;
+    ubicaciones?: { edificio?: string | null; detalle?: string | null } | null;
+    lugar?: { nombre?: string | null } | null;
+    activos?: { nombre?: string | null } | null;
+    categorias_ot?: { nombre?: string | null } | null;
+  },
   rawQuery: string,
 ): boolean {
   const raw = rawQuery.trim();
@@ -325,12 +370,27 @@ export function matchesSearch(
   }
 
   const q = raw.replace(/\s+/g, " ").toLowerCase();
-  if ((o.titulo ?? "").toLowerCase().includes(q)) return true;
+  const hit = (v: string | null | undefined) => (v ?? "").toLowerCase().includes(q);
+
+  if (hit(o.titulo)) return true;
+  // Related records — must mirror the field list in search_ordenes_v1() or the
+  // pre-server-response filtering will disagree with the server's results.
+  if (
+    hit(o.ubicaciones?.edificio) ||
+    hit(o.ubicaciones?.detalle) ||
+    hit(o.lugar?.nombre) ||
+    hit(o.activos?.nombre) ||
+    hit(o.categorias_ot?.nombre)
+  ) {
+    return true;
+  }
+
   const meta = parseDescMeta(o.descripcion ?? null);
   return (
-    (meta.nOT ?? "").toLowerCase().includes(q) ||
-    (meta.solicitante ?? "").toLowerCase().includes(q) ||
-    (meta.descripcion ?? "").toLowerCase().includes(q)
+    hit(meta.nOT) ||
+    hit(meta.solicitante) ||
+    hit(o.solicitante) ||
+    hit(meta.descripcion)
   );
 }
 
@@ -360,23 +420,35 @@ export async function searchOrdenes(wsId: string, rawQuery: string): Promise<Ord
     // A bare number with no numero hit may still be text (e.g. "500" in
     // "Victoria 500"), so continue into the text search below.
   }
-  // Escape PostgREST `or`/`ilike` metacharacters so a literal %, _, comma, or
-  // parenthesis in the query can't break the filter syntax or inject terms.
-  const safe = q.replace(/[\\%_,()]/g, (c) => `\\${c}`);
-  const pattern = `%${safe}%`;
+  // Text search runs through the search_ordenes_v1 RPC rather than a PostgREST
+  // `.or()`. WHY: `.or()` can only filter columns physically on
+  // ordenes_trabajo, so ubicacion / lugar / activo / categoria -- which live
+  // behind FKs -- were unsearchable. Users searching a building or a floor got
+  // zero results. The function joins those tables and matches in SQL.
+  //
+  // Visibility is NOT passed in: the function derives the caller's workspace
+  // and the solo_asignadas rule from auth.uid() itself, since SECURITY DEFINER
+  // bypasses RLS and a client-supplied workspace_id can't be trusted.
   const sb = createClient();
-  const textQuery = sb
+  const { data, error } = await sb.rpc("search_ordenes_v1", {
+    p_workspace_id: wsId,
+    p_query: q,
+    p_limit: ORDENES_SEARCH_LIMIT,
+  });
+  if (error) throw error;
+  const ids = ((data ?? []) as { id: string }[]).map((r) => r.id);
+  if (!ids.length) return [];
+
+  // The RPC returns bare ordenes_trabajo rows; re-select through LIST_SELECT so
+  // results carry the same joined shape (ubicaciones, lugar, activos,
+  // categorias_ot) the bandeja renders. RLS applies normally on this read.
+  const { data: rows, error: rowsErr } = await sb
     .from("ordenes_trabajo")
     .select(LIST_SELECT)
-    .eq("workspace_id", wsId)
-    .is("parent_id", null)
-    .is("deleted_at", null)
-    .or(`titulo.ilike.${pattern},descripcion.ilike.${pattern},solicitante.ilike.${pattern}`);
-  const { data, error } = await aplicarVisibilidad(textQuery, soloAsignadas)
-    .order("created_at", { ascending: false })
-    .limit(ORDENES_SEARCH_LIMIT);
-  if (error) throw error;
-  return (data ?? []) as unknown as OrdenListItem[];
+    .in("id", ids)
+    .order("created_at", { ascending: false });
+  if (rowsErr) throw rowsErr;
+  return (rows ?? []) as unknown as OrdenListItem[];
 }
 
 export async function fetchOrdenes(wsId: string): Promise<OrdenListItem[]> {
@@ -408,6 +480,10 @@ export async function fetchAllOrdenesForExport(
 export async function pageThroughAll<T extends { id: string; created_at: string }>(
   fetchPage: (before: string | null) => Promise<T[]>,
   firstPage?: T[],
+  // Must match the limit `fetchPage` actually uses: a short page is how this
+  // detects the last page, so a mismatch either stops early (dropping rows) or
+  // fires one pointless extra request.
+  pageSize: number = ORDENES_PAGE_SIZE,
 ): Promise<T[]> {
   const all: T[] = [];
   const seen = new Set<string>();
@@ -416,7 +492,7 @@ export async function pageThroughAll<T extends { id: string; created_at: string 
     for (const row of firstPage) {
       if (!seen.has(row.id)) { seen.add(row.id); all.push(row); }
     }
-    if (firstPage.length < ORDENES_PAGE_SIZE) return all;
+    if (firstPage.length < pageSize) return all;
     before = firstPage.at(-1)?.created_at ?? null;
   }
   // Hard ceiling so a bad cursor can never loop forever.
@@ -425,7 +501,7 @@ export async function pageThroughAll<T extends { id: string; created_at: string 
     for (const r of rows) {
       if (!seen.has(r.id)) { seen.add(r.id); all.push(r); }
     }
-    if (rows.length < ORDENES_PAGE_SIZE) break; // last page
+    if (rows.length < pageSize) break; // last page
     before = rows[rows.length - 1]?.created_at ?? null;
     if (!before) break;
   }
@@ -447,7 +523,7 @@ async function fetchOrdenesBulkPage(
       .is("parent_id", null)
       .is("deleted_at", null)
       .order("created_at", { ascending: false })
-      .limit(ORDENES_PAGE_SIZE);
+      .limit(ORDENES_BULK_PAGE_SIZE);
 
     query = aplicarVisibilidad(query, soloAsignadas);
     if (beforeCreatedAt) query = query.lt("created_at", beforeCreatedAt);
@@ -469,11 +545,18 @@ async function fetchOrdenesBulkPage(
  */
 export async function fetchAllOrdenesBulk(
   wsId: string,
-  firstPage?: OrdenBulkItem[],
+  // NOTE: intentionally ignored. Callers pass the rendered list's first page,
+  // which is fetched at ORDENES_PAGE_SIZE (20) — but this walk pages at
+  // ORDENES_BULK_PAGE_SIZE (150), and pageThroughAll uses "short page = last
+  // page" to terminate. Seeding a 20-row page into a 150-row walk would end the
+  // walk immediately and silently return ~20 of 653 OTs, corrupting the tab
+  // counts. The parameter is kept so the call sites stay unchanged.
+  _firstPage?: OrdenBulkItem[],
 ): Promise<OrdenBulkItem[]> {
   return pageThroughAll<OrdenBulkItem>(
     (before) => fetchOrdenesBulkPage(wsId, before),
-    firstPage,
+    undefined,
+    ORDENES_BULK_PAGE_SIZE,
   );
 }
 

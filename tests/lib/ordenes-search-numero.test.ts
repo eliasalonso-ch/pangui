@@ -36,6 +36,50 @@ describe("matchesSearch", () => {
     ...over,
   });
 
+  // Related-record search. These fields live behind FKs, so before
+  // search_ordenes_v1 they were unsearchable and users looking for a building
+  // or a floor got zero results. Keep this list in sync with the RPC's WHERE.
+  describe("related records", () => {
+    it("matches on ubicacion edificio", () => {
+      expect(matchesSearch(ot({ ubicaciones: { edificio: "FACULTAD DE MEDICINA", detalle: null } }), "medicina")).toBe(true);
+    });
+
+    it("matches on ubicacion detalle", () => {
+      expect(matchesSearch(ot({ ubicaciones: { edificio: null, detalle: "Ala norte" } }), "ala norte")).toBe(true);
+    });
+
+    it("matches on lugar especifico", () => {
+      expect(matchesSearch(ot({ lugar: { nombre: "4to piso" } }), "4to piso")).toBe(true);
+      expect(matchesSearch(ot({ lugar: { nombre: "zocalo" } }), "ZOCALO")).toBe(true);
+    });
+
+    it("matches on activo nombre", () => {
+      expect(matchesSearch(ot({ activos: { nombre: "Ascensor 3" } }), "ascensor")).toBe(true);
+    });
+
+    it("matches on categoria nombre", () => {
+      expect(matchesSearch(ot({ categorias_ot: { nombre: "Electricidad" } }), "electric")).toBe(true);
+    });
+
+    it("matches on the solicitante column, not only the descripcion meta", () => {
+      expect(matchesSearch(ot({ solicitante: "Zunilda Robles" }), "zunilda")).toBe(true);
+    });
+
+    it("still returns false when nothing matches", () => {
+      expect(matchesSearch(ot({ lugar: { nombre: "zocalo" } }), "inexistente")).toBe(false);
+    });
+
+    it("tolerates null/absent relations", () => {
+      expect(matchesSearch(ot({ ubicaciones: null, lugar: null, activos: null }), "bomba")).toBe(true);
+      expect(matchesSearch(ot({ ubicaciones: null, lugar: null, activos: null }), "medicina")).toBe(false);
+    });
+
+    it("an explicit #number lookup ignores related records", () => {
+      // "#500" must stay a number lookup even if a lugar contains "500".
+      expect(matchesSearch(ot({ numero: 1, lugar: { nombre: "Sala 500" } }), "#500")).toBe(false);
+    });
+  });
+
   it("matches an exact OT number via #", () => {
     expect(matchesSearch(ot(), "#123")).toBe(true);
   });

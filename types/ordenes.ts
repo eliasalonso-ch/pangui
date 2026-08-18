@@ -314,7 +314,7 @@ export type OrdenListItem = Pick<
   | "creado_por" | "asignados_ids" | "numero" | "parent_id"
   | "n_serie" | "solicitante" | "hito"
   | "iniciado_at" | "en_ejecucion" | "tiempo_total_segundos" | "completado_en"
-  | "categorias_ot" | "ubicaciones" | "activos"
+  | "categorias_ot" | "ubicaciones" | "activos" | "lugar"
   | "_pending"
 > & Partial<Pick<OrdenTrabajo, "proxima_ejecucion" | "recurrencia_origen_id" | "recurrencia_iteracion">>;
 
