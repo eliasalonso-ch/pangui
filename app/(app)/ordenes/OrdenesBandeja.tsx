@@ -155,18 +155,24 @@ export default function OrdenesBandeja({
   const listScrollRef = useRef<HTMLDivElement>(null);
   const [selected, setSelected] = useState<string | null>(initialSelectedId ?? null);
   const [detail, setDetail]     = useState<OrdenTrabajo | null>(null);
-  // Prefetch cache for OT detail, keyed by id.
-  //
-  // WHY: opening an OT used to always wait a full round-trip on fetchOrden
-  // before anything rendered, so every click showed a "Cargando..." spinner.
-  // OTRow already fires onPrefetch on hover/focus (the prop existed but was
-  // never passed in, so it was dead code) — warming this cache there means the
-  // request is usually already in flight, or done, by the time the user clicks.
-  //
-  // Stores the PROMISE, not the row: two hovers over the same id must share one
-  // request, and a click landing mid-flight must await the same promise rather
-  // than firing a second identical query.
-  const detailCache = useRef<Map<string, Promise<OrdenTrabajo | null>>>(new Map());
+  /**
+   * How long a fetched OT detail stays fresh, by state.
+   *
+   * A completed OT is historical: it only changes if someone deliberately
+   * edits it, and 565 of this workspace's 653 OTs are completed — so the vast
+   * majority of opens can be served from cache indefinitely within a session.
+   * An open OT changes constantly (notes, parts, photos, reassignments), so it
+   * gets a short window and relies on realtime for anything newer.
+   *
+   * Realtime already invalidates on change (see the postgres_changes handler),
+   * so a stale-but-cached open OT is corrected within a tick anyway.
+   */
+  const detailStaleTime = useCallback((orden: OrdenTrabajo | null | undefined) => {
+    if (!orden) return 0;
+    return CLOSED_ESTADOS.has(orden.estado as Estado)
+      ? 60 * 60 * 1000 // 1 h — historical
+      : 2 * 60 * 1000; // 2 min — still moving
+  }, []);
   const selectedRef = useRef<string | null>(initialSelectedId ?? null);
   const [loadingDetail, setLoadingDetail] = useState(false);
 
@@ -467,13 +473,16 @@ export default function OrdenesBandeja({
    * cache — openOT retries on a real click.
    */
   const prefetchOT = useCallback((id: string) => {
-    if (detailCache.current.has(id)) return;
-    const promise = fetchOrden(id).catch(() => {
-      detailCache.current.delete(id);
-      return null;
+    void queryClient.prefetchQuery({
+      queryKey: ["orden", id],
+      queryFn: () => fetchOrden(id),
+      // Respect whatever is already cached: prefetchQuery is a no-op while the
+      // entry is fresh, so hovering the same row repeatedly costs nothing.
+      staleTime: detailStaleTime(
+        queryClient.getQueryData<OrdenTrabajo | null>(["orden", id]),
+      ),
     });
-    detailCache.current.set(id, promise);
-  }, []);
+  }, [queryClient, detailStaleTime]);
 
   const openOT = useCallback(async (id: string, pushUrl = true) => {
     if (pushUrl) {
@@ -490,43 +499,47 @@ export default function OrdenesBandeja({
     // `_pending` marks the row as partial so OTDetail can skip anything that
     // needs the full record. Only seed when we have a row AND no cached detail,
     // and never seed over a different OT's stale detail.
-    const cached = detailCache.current.get(id);
+    // Already-resolved detail from a hover prefetch or an earlier open.
+    const cached = queryClient.getQueryData<OrdenTrabajo | null>(["orden", id]);
     const row = ordenes.find(o => o.id === id) ?? countOrdenes.find(o => o.id === id);
 
     // Seed ONLY when there is no cached detail. Seeding sets `detail` twice
     // (partial, then full), and OTDetail's effects key on fields of `orden` —
     // so an extra render there refires per-OT queries like fetchSubOrdenes.
     // With a warm prefetch we can render the real record once and skip that.
-    if (!cached && row) {
+    if (cached) {
+      // Cache hit: render the real record straight away. No seed, no spinner,
+      // and no second paint — which also stops OTDetail's per-OT effects from
+      // firing twice.
+      setDetail(cached);
+      setLoadingDetail(false);
+    } else if (row) {
+      // Instant paint from the list row while the full record loads.
       setDetail({ ...(row as unknown as OrdenTrabajo), _pending: true });
       setLoadingDetail(false);
-    } else if (!cached) {
+    } else {
       setDetail(null);
       setLoadingDetail(true);
-    } else {
-      // Cached: keep whatever is on screen until the real record resolves
-      // (usually already settled), so there is no spinner and no extra paint.
-      setLoadingDetail(false);
     }
 
     try {
-      // Reuse an in-flight/completed prefetch when one exists, so a hover
-      // followed by a click is a single request.
-      const orden = await (cached ?? fetchOrden(id));
-      detailCache.current.set(id, Promise.resolve(orden));
-      // Avoid a redundant state write when the seeded row and the resolved
-      // record are the same OT and nothing the detail effects read changed.
-      setDetail(prev =>
-        prev && orden && prev.id === orden.id && prev._pending !== true && prev === orden
-          ? prev
-          : (orden ?? null),
-      );
+      // fetchQuery de-duplicates against an in-flight prefetch and serves the
+      // cache when still fresh, so hover-then-click is a single request. The
+      // staleness window depends on the OT's state: completed OTs are
+      // historical, open ones keep moving.
+      const orden = await queryClient.fetchQuery({
+        queryKey: ["orden", id],
+        queryFn: () => fetchOrden(id),
+        staleTime: detailStaleTime(cached ?? (row as unknown as OrdenTrabajo | undefined)),
+      });
+      setDetail(prev => (prev && orden && prev === orden ? prev : (orden ?? null)));
     } catch {
-      setDetail(null);
+      // Keep an instant-painted row on screen rather than blanking the panel.
+      setDetail(prev => (prev?._pending ? prev : null));
     } finally {
       setLoadingDetail(false);
     }
-  }, [router, viewPath, ordenes, countOrdenes]);
+  }, [router, viewPath, ordenes, countOrdenes, queryClient, detailStaleTime]);
 
   const openCreate = useCallback(() => {
     setSelected(null);
@@ -798,6 +811,7 @@ export default function OrdenesBandeja({
             const oldRow = payload.old as { id?: string };
             if (!oldRow.id) return;
             setOrdenes(prev => prev.filter(o => o.id !== oldRow.id));
+            queryClient.removeQueries({ queryKey: ["orden", oldRow.id] });
             if (selectedId === oldRow.id) setDetail(null);
             return;
           }
@@ -809,9 +823,17 @@ export default function OrdenesBandeja({
           // removal so trashed OTs drop out of the active list.
           if (next.deleted_at) {
             setOrdenes(prev => prev.filter(o => o.id !== next.id));
+            queryClient.removeQueries({ queryKey: ["orden", next.id] });
             if (selectedId === next.id) setDetail(null);
             return;
           }
+
+          // Someone changed this OT — the cached detail is now wrong. Drop it
+          // so the next open refetches, instead of serving a stale record for
+          // up to the staleTime window. This is what makes the long staleTime
+          // on completed OTs safe: an edit invalidates immediately rather than
+          // waiting for the window to expire.
+          queryClient.invalidateQueries({ queryKey: ["orden", next.id] });
 
           if (payload.eventType === "INSERT") {
             refreshList().catch(() => { /* transient — next event/poll retries */ });
@@ -856,7 +878,7 @@ export default function OrdenesBandeja({
         logRealtimeChannel("remove:done", channelDetails, sb);
       });
     };
-  }, [refreshList, wsId]);
+  }, [refreshList, wsId, queryClient]);
 
   const deleteOT = async (id: string) => {
     await deleteOrden(id);
