@@ -4627,6 +4627,9 @@ function SignatureCanvas({
   const [open, setOpen] = useState(false);
   // Clearing discards a signed record, so it asks first.
   const [confirmClear, setConfirmClear] = useState(false);
+  // The signature is uploaded to R2 before it is saved, so the button has to
+  // stay busy across the round-trip and not just the parent's write.
+  const [uploading, setUploading] = useState(false);
 
   // Runs when the modal opens: the canvas is unmounted until then, so the
   // context has to be configured (and any existing signature redrawn) each time.
@@ -4779,13 +4782,59 @@ function SignatureCanvas({
     return out.toDataURL("image/png");
   }
 
-  function save() {
+  /**
+   * Turns the exported data URI into a File so it can go to R2 like every
+   * other binary this app stores. Kept sync-simple: the payload is already
+   * cropped and downscaled by exportSignature, so this is a small decode.
+   */
+  function dataUrlToFile(dataUrl: string): File | null {
+    // [\s\S] instead of the `s` flag: the TS target here predates dotAll.
+    const match = /^data:([^;,]+)(;base64)?,([\s\S]*)$/.exec(dataUrl);
+    if (!match) return null;
+    const [, mime, isBase64, payload] = match;
+    try {
+      const binary = isBase64 ? atob(payload) : decodeURIComponent(payload);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+      const ext = mime === "image/png" ? "png" : (mime.split("/")[1] ?? "png");
+      return new File([bytes], `firma.${ext}`, { type: mime });
+    } catch {
+      return null;
+    }
+  }
+
+  async function save() {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const dataUrl = exportSignature(canvas);
     if (!dataUrl) return; // empty pad — nothing to save
-    onSave(dataUrl);
-    setSaved(true);
+
+    // Signatures go to R2, not into the row. Stored inline they were 48 MB of
+    // TOAST across 420 rows, and the upsert rewrites the whole row on every
+    // save -- which is what put ~600 write IOPS on a database whose reads are
+    // fully cached. The column keeps working for rows written before this.
+    const file = dataUrlToFile(dataUrl);
+    if (!file) {
+      // Could not decode: fall back to inline rather than losing a signature
+      // the user just drew.
+      onSave(dataUrl);
+      setSaved(true);
+      return;
+    }
+
+    setUploading(true);
+    try {
+      const url = await uploadToR2(file, "firmas");
+      onSave(url);
+      setSaved(true);
+    } catch {
+      // R2 unreachable — inline is worse for the database but far better than
+      // discarding a signature that gates closing the OT.
+      onSave(dataUrl);
+      setSaved(true);
+    } finally {
+      setUploading(false);
+    }
   }
 
   const existingSrc = signatureImageSrc(existingDataUrl);
@@ -4889,17 +4938,17 @@ function SignatureCanvas({
               </button>
               <button
                 onClick={() => { save(); setOpen(false); }}
-                disabled={!hasStrokes || isSaving}
+                disabled={!hasStrokes || isSaving || uploading}
                 style={{
                   height: 40, padding: "0 20px", border: "none", borderRadius: "var(--r-md)",
                   background: hasStrokes ? "var(--brand)" : "var(--surface-2)",
                   color: hasStrokes ? "var(--fg-on-brand)" : "var(--fg-4)",
-                  cursor: hasStrokes && !isSaving ? "pointer" : "default",
+                  cursor: hasStrokes && !isSaving && !uploading ? "pointer" : "default",
                   fontSize: 13.5, fontWeight: 700, fontFamily: "inherit",
                   display: "flex", alignItems: "center", gap: 6,
                 }}
               >
-                {isSaving && <Loader2 size={13} className="animate-spin" />}
+                {(isSaving || uploading) && <Loader2 size={13} className="animate-spin" />}
                 Guardar
               </button>
             </div>
