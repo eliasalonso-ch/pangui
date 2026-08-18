@@ -7,7 +7,8 @@ import { useTopBarAction } from "@/components/TopBarActions";
 import { createClient, logRealtimeChannel } from "@/lib/supabase";
 import { esAdmin } from "@/lib/roles";
 import { fetchOrden, fetchOrdenesPage, fetchAllOrdenesForExport, fetchAllOrdenesBulk, fetchOrdenesCalendarExtras, fetchOrdenListItem, searchOrdenes, ORDENES_SEARCH_LIMIT, deleteOrden, ORDENES_PAGE_SIZE, parseDescMeta, fetchMarcadasIds, toggleMarcada, matchesSearch, ELECTRILAM_WORKSPACE_ID } from "@/lib/ordenes-api";
-import { needsBulkSnapshot, shouldRefetchBulk, coalesce } from "./bulk-refresh";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { needsBulkSnapshot, BULK_MIN_INTERVAL_MS } from "./bulk-refresh";
 import { needsFullWorkspaceSet } from "./list-source";
 import { collectItos } from "./ito-filter";
 import { applyFiltros } from "./filter-predicate";
@@ -127,6 +128,7 @@ export default function OrdenesBandeja({
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const queryClient = useQueryClient();
 
   const [ordenes, setOrdenes]   = useState<OrdenListItem[]>(initialOrdenes);
   const [allOrdenesForCounts, setAllOrdenesForCounts] = useState<OrdenBulkItem[] | null>(
@@ -621,27 +623,11 @@ export default function OrdenesBandeja({
   // Refresh list from DB. The visible list stays paginated, but counts use a
   // complete workspace snapshot so they do not change as the user scrolls.
   const refreshListPromiseRef = useRef<Promise<void> | null>(null);
-  // Timestamp of the last workspace-wide snapshot fetch. 0 = never.
-  const lastBulkFetchRef = useRef(0);
-  // In-flight snapshot walk, shared by the mount effect and refreshList.
-  //
-  // The walk pages through the whole workspace, so two overlapping runs issue
-  // the same ~70 kB requests twice with an identical cursor. The cooldown alone
-  // does not prevent that: both callers can pass the check before either has
-  // finished and stamped `lastBulkFetchRef`. Whoever starts first parks its
-  // promise here and the other awaits it instead of starting a second walk.
-  const bulkFetchPromiseRef = useRef<Promise<OrdenBulkItem[]> | null>(null);
-
-  const runBulkFetch = useCallback((firstPage: OrdenBulkItem[]) => {
-    return coalesce(bulkFetchPromiseRef, () => {
-      lastBulkFetchRef.current = Date.now();
-      return fetchAllOrdenesBulk(wsId, firstPage).catch((err) => {
-        // Don't let a failed walk hold the cooldown open.
-        lastBulkFetchRef.current = 0;
-        throw err;
-      });
-    });
-  }, [wsId]);
+  // The manual cooldown (`lastBulkFetchRef`) and the in-flight coalescing ref
+  // are gone: TanStack's `staleTime` enforces the same rate limit, and it
+  // already de-duplicates concurrent callers of the same query key. Two
+  // overlapping snapshot walks are impossible by construction now, rather than
+  // by a hand-maintained promise ref.
 
   /**
    * Refreshes the VISIBLE page only. This is what the 60s poll runs.
@@ -675,19 +661,25 @@ export default function OrdenesBandeja({
       setOrdenes(data);
       setHasMoreOrdenes(data.length >= ORDENES_PAGE_SIZE);
 
-      if (!shouldRefetchBulk(Date.now(), lastBulkFetchRef.current)) return;
       if (!needsBulkSnapshot(data.length, ORDENES_PAGE_SIZE)) {
-        // Short first page — it IS the whole workspace.
-        lastBulkFetchRef.current = Date.now();
+        // Short first page — it IS the whole workspace, so there is nothing to
+        // fetch. Seed the cache directly so the query does not then go and
+        // re-download what we already have.
+        queryClient.setQueryData(["ordenes-snapshot", wsId], data);
         setAllOrdenesForCounts(data);
         setCalendarExtras(null);
         return;
       }
-      const allForCounts = await runBulkFetch(data);
-      setAllOrdenesForCounts(allForCounts);
-      // Membership changed, so cached calendar extras may be missing a new OT.
-      // Only cleared here — never on the poll, or the workspace-wide fetch
-      // would return through the calendar's back door.
+
+      // Membership changed, so the snapshot is stale. Invalidating lets
+      // TanStack decide whether to refetch: within `staleTime` it serves the
+      // cached snapshot and issues no request, which is the rate limit the
+      // manual cooldown used to enforce — except now every caller shares one
+      // cache instead of each keeping its own timestamp.
+      await queryClient.invalidateQueries({ queryKey: ["ordenes-snapshot", wsId] });
+      // Cached calendar extras may be missing a new OT. Only cleared here —
+      // never on the poll, or the workspace-wide fetch would return through
+      // the calendar's back door.
       setCalendarExtras(null);
     })();
 
@@ -699,18 +691,41 @@ export default function OrdenesBandeja({
     }
   }, [wsId]);
 
+  /**
+   * Workspace-wide snapshot, via TanStack Query.
+   *
+   * Replaces a mount effect plus a hand-rolled 120s cooldown and an in-flight
+   * promise ref. `staleTime` gives the same rate limit, and TanStack already
+   * de-duplicates concurrent callers, so `coalesce` is no longer needed for
+   * this path.
+   *
+   * `enabled`: the SSR first page is in `initialOrdenes`. If it came back short
+   * there is no page 2 — that page IS the whole workspace, and fetching the
+   * snapshot would re-download rows we already hold.
+   *
+   * Deliberately NOT converted: the rendered list, realtime row patching and
+   * infinite scroll. Those mutate rows in place (18 call sites) and would need
+   * setQueryData plumbing for no benefit — they already work.
+   */
+  const snapshotEnabled = needsBulkSnapshot(initialOrdenes.length, ORDENES_PAGE_SIZE);
+  const { data: bulkSnapshot } = useQuery({
+    queryKey: ["ordenes-snapshot", wsId],
+    enabled: snapshotEnabled,
+    // Same rate limit the manual cooldown enforced. Refetching the whole
+    // workspace on a timer is what drove Supabase egress to 3.35 GB/month.
+    staleTime: BULK_MIN_INTERVAL_MS,
+    gcTime: BULK_MIN_INTERVAL_MS * 5,
+    refetchOnWindowFocus: false,
+    queryFn: () => fetchAllOrdenesBulk(wsId),
+  });
+
+  // Mirror the query into the existing state so the ~15 downstream readers
+  // (counts, filtered list, itoOptions, waiting alerts) keep working unchanged.
+  // Realtime and optimistic updates still write to `allOrdenesForCounts`
+  // directly, so this only ever pushes a freshly fetched snapshot in.
   useEffect(() => {
-    // The SSR first page is already in `initialOrdenes`. If it came back short
-    // there is no page 2, so that page is the complete workspace and the
-    // snapshot fetch is pure waste.
-    if (!needsBulkSnapshot(initialOrdenes.length, ORDENES_PAGE_SIZE)) return;
-    let cancelled = false;
-    runBulkFetch(initialOrdenes)
-      .then(data => { if (!cancelled) setAllOrdenesForCounts(data); })
-      .catch(() => { /* counts fall back to the loaded page until the next refresh */ });
-    return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [wsId, runBulkFetch]);
+    if (bulkSnapshot) setAllOrdenesForCounts(bulkSnapshot);
+  }, [bulkSnapshot]);
 
   const loadMoreOrdenes = useCallback(async () => {
     if (loadingMoreOrdenesRef.current || !hasMoreOrdenes) return;
