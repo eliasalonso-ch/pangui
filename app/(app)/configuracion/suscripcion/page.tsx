@@ -78,7 +78,7 @@ function SuscripcionPageInner() {
 
   const reload = useCallback(async () => {
     setLoading(true);
-    const res = await fetch("/api/suscripcion/status", { cache: "no-store" });
+    const res = await fetch("/api/suscripcion/status?full=1", { cache: "no-store" });
     if (!res.ok) {
       setError("No se pudo cargar la suscripción.");
       setLoading(false);
@@ -96,7 +96,7 @@ function SuscripcionPageInner() {
   useEffect(() => {
     if (data?.subscription?.status !== "past_due") return;
     const id = setInterval(async () => {
-      const res = await fetch("/api/suscripcion/status", { cache: "no-store" });
+      const res = await fetch("/api/suscripcion/status?full=1", { cache: "no-store" });
       if (res.ok) setData(await res.json());
     }, 30_000);
     return () => clearInterval(id);

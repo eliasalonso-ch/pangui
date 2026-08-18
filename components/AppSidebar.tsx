@@ -390,7 +390,7 @@ export default function AppSidebar() {
             <SidebarMenu>
               <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={isActive("/inicio")} tooltip="Inicio">
-                  <Link href="/inicio" style={{ display: "flex", alignItems: "center", gap: collapsed ? 0 : 10 }}>
+                  <Link href="/inicio" prefetch={false} style={{ display: "flex", alignItems: "center", gap: collapsed ? 0 : 10 }}>
                     <LayoutDashboard size={16} style={{ flexShrink: 0 }} />
                     {!collapsed && <span>Inicio</span>}
                   </Link>
@@ -398,7 +398,7 @@ export default function AppSidebar() {
               </SidebarMenuItem>
               <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={isActive("/notificaciones/bandeja")} tooltip="Notificaciones">
-                  <Link href="/notificaciones/bandeja" style={{ display: "flex", alignItems: "center", gap: collapsed ? 0 : 10 }}>
+                  <Link href="/notificaciones/bandeja" prefetch={false} style={{ display: "flex", alignItems: "center", gap: collapsed ? 0 : 10 }}>
                     {hasUnreadNotifications
                       ? <BellDot size={16} className="notif-bell-dot" style={{ flexShrink: 0 }} />
                       : <Bell size={16} style={{ flexShrink: 0 }} />}
@@ -408,7 +408,7 @@ export default function AppSidebar() {
               </SidebarMenuItem>
               <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={isActive("/ordenes")} tooltip="Órdenes">
-                  <Link href="/ordenes/lista" style={{ display: "flex", alignItems: "center", gap: collapsed ? 0 : 10 }}>
+                  <Link href="/ordenes/lista" prefetch={false} style={{ display: "flex", alignItems: "center", gap: collapsed ? 0 : 10 }}>
                     <ClipboardList size={16} style={{ flexShrink: 0 }} />
                     {!collapsed && <span>Órdenes</span>}
                   </Link>
@@ -416,7 +416,7 @@ export default function AppSidebar() {
               </SidebarMenuItem>
               <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={isActive("/activos")} tooltip="Activos">
-                  <Link href="/activos" style={{ display: "flex", alignItems: "center", gap: collapsed ? 0 : 10 }}>
+                  <Link href="/activos" prefetch={false} style={{ display: "flex", alignItems: "center", gap: collapsed ? 0 : 10 }}>
                     <Box size={16} style={{ flexShrink: 0 }} />
                     {!collapsed && <span>Activos</span>}
                   </Link>
@@ -427,7 +427,7 @@ export default function AppSidebar() {
               {isAdmin && (
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild isActive={isActive("/analitica")} tooltip="Analítica">
-                    <Link href="/analitica" style={{ display: "flex", alignItems: "center", gap: collapsed ? 0 : 10 }}>
+                    <Link href="/analitica" prefetch={false} style={{ display: "flex", alignItems: "center", gap: collapsed ? 0 : 10 }}>
                       <BarChart2 size={16} style={{ flexShrink: 0 }} />
                       {!collapsed && <span>Analítica</span>}
                     </Link>
@@ -437,7 +437,7 @@ export default function AppSidebar() {
               {isAdmin && modoRegistro !== "materiales" && hasAnalyticsPro && (
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild isActive={isActive("/analitica-materiales")} tooltip="Analítica de materiales">
-                    <Link href="/analitica-materiales" style={{ display: "flex", alignItems: "center", gap: collapsed ? 0 : 10 }}>
+                    <Link href="/analitica-materiales" prefetch={false} style={{ display: "flex", alignItems: "center", gap: collapsed ? 0 : 10 }}>
                       <PackageSearch size={16} style={{ flexShrink: 0 }} />
                       {!collapsed && <span>Analítica de materiales</span>}
                     </Link>
@@ -447,7 +447,7 @@ export default function AppSidebar() {
               {isAdmin && (
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild isActive={isActive("/procedimientos")} tooltip="Procedimientos">
-                    <Link href="/procedimientos" style={{ display: "flex", alignItems: "center", gap: collapsed ? 0 : 10 }}>
+                    <Link href="/procedimientos" prefetch={false} style={{ display: "flex", alignItems: "center", gap: collapsed ? 0 : 10 }}>
                       <ClipboardCheck size={16} style={{ flexShrink: 0 }} />
                       {!collapsed && <span>Procedimientos</span>}
                     </Link>
@@ -457,7 +457,7 @@ export default function AppSidebar() {
               {puedeVer("inventario") && modoRegistro !== "hoja" && hasInventario && (
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild isActive={isActive("/partes")} tooltip="Materiales">
-                    <Link href="/partes" style={{ display: "flex", alignItems: "center", gap: collapsed ? 0 : 10 }}>
+                    <Link href="/partes" prefetch={false} style={{ display: "flex", alignItems: "center", gap: collapsed ? 0 : 10 }}>
                       <Boxes size={16} style={{ flexShrink: 0 }} />
                       {!collapsed && <span>Materiales</span>}
                     </Link>
@@ -467,7 +467,7 @@ export default function AppSidebar() {
               {isAdmin && puedeVer("usuarios") && (
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild isActive={isActive("/usuarios")} tooltip="Equipo">
-                    <Link href="/usuarios" style={{ display: "flex", alignItems: "center", gap: collapsed ? 0 : 10 }}>
+                    <Link href="/usuarios" prefetch={false} style={{ display: "flex", alignItems: "center", gap: collapsed ? 0 : 10 }}>
                       <Users size={16} style={{ flexShrink: 0 }} />
                       {!collapsed && <span>Equipo</span>}
                     </Link>
@@ -485,7 +485,7 @@ export default function AppSidebar() {
               {isAdmin && (
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild isActive={isActive("/ubicaciones")} tooltip="Ubicaciones">
-                    <Link href="/ubicaciones/ubicaciones" style={{ display: "flex", alignItems: "center", gap: collapsed ? 0 : 10 }}>
+                    <Link href="/ubicaciones/ubicaciones" prefetch={false} style={{ display: "flex", alignItems: "center", gap: collapsed ? 0 : 10 }}>
                       <MapPin size={16} style={{ flexShrink: 0 }} />
                       {!collapsed && <span>Ubicaciones</span>}
                     </Link>
@@ -495,7 +495,7 @@ export default function AppSidebar() {
               {isAdmin && (
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild isActive={isActive("/requisitos")} tooltip="Requisitos de OTs">
-                    <Link href="/requisitos" style={{ display: "flex", alignItems: "center", gap: collapsed ? 0 : 10 }}>
+                    <Link href="/requisitos" prefetch={false} style={{ display: "flex", alignItems: "center", gap: collapsed ? 0 : 10 }}>
                       <ListChecks size={16} style={{ flexShrink: 0 }} />
                       {!collapsed && <span>Requisitos de OTs</span>}
                     </Link>
@@ -505,7 +505,7 @@ export default function AppSidebar() {
               {isAdmin && (
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild isActive={isActive("/categorias")} tooltip="Categorías">
-                    <Link href="/categorias" style={{ display: "flex", alignItems: "center", gap: collapsed ? 0 : 10 }}>
+                    <Link href="/categorias" prefetch={false} style={{ display: "flex", alignItems: "center", gap: collapsed ? 0 : 10 }}>
                       <Tag size={16} style={{ flexShrink: 0 }} />
                       {!collapsed && <span>Categorías</span>}
                     </Link>
@@ -516,7 +516,7 @@ export default function AppSidebar() {
               {isAdmin && tieneItos(workspaceId) && (
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild isActive={isActive("/itos")} tooltip="ITOs">
-                    <Link href="/itos" style={{ display: "flex", alignItems: "center", gap: collapsed ? 0 : 10 }}>
+                    <Link href="/itos" prefetch={false} style={{ display: "flex", alignItems: "center", gap: collapsed ? 0 : 10 }}>
                       <Zap size={16} style={{ flexShrink: 0 }} />
                       {!collapsed && <span>ITOs</span>}
                     </Link>
@@ -526,7 +526,7 @@ export default function AppSidebar() {
               {isAdmin && (
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild isActive={isActive("/papelera")} tooltip="Papelera">
-                    <Link href="/papelera" style={{ display: "flex", alignItems: "center", gap: collapsed ? 0 : 10 }}>
+                    <Link href="/papelera" prefetch={false} style={{ display: "flex", alignItems: "center", gap: collapsed ? 0 : 10 }}>
                       <Trash2 size={16} style={{ flexShrink: 0 }} />
                       {!collapsed && <span>Papelera</span>}
                     </Link>
@@ -543,7 +543,7 @@ export default function AppSidebar() {
             <SidebarMenu>
               <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={isActive("/mi-cuenta")} tooltip="Mi cuenta">
-                  <Link href="/mi-cuenta" style={{ display: "flex", alignItems: "center", gap: collapsed ? 0 : 10 }}>
+                  <Link href="/mi-cuenta" prefetch={false} style={{ display: "flex", alignItems: "center", gap: collapsed ? 0 : 10 }}>
                     <CircleUserRound size={16} style={{ flexShrink: 0 }} />
                     {!collapsed && <span>Mi cuenta</span>}
                   </Link>
@@ -552,7 +552,7 @@ export default function AppSidebar() {
               {isAdmin && (
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild isActive={isActive("/espacio-trabajo")} tooltip="Espacio de trabajo">
-                    <Link href="/espacio-trabajo" style={{ display: "flex", alignItems: "center", gap: collapsed ? 0 : 10 }}>
+                    <Link href="/espacio-trabajo" prefetch={false} style={{ display: "flex", alignItems: "center", gap: collapsed ? 0 : 10 }}>
                       <Building2 size={16} style={{ flexShrink: 0 }} />
                       {!collapsed && <span>Espacio de trabajo</span>}
                     </Link>
@@ -562,7 +562,7 @@ export default function AppSidebar() {
               {mounted && userData?.rol === "owner" && (
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild isActive={isActive("/suscripcion")} tooltip="Suscripción">
-                    <Link href="/suscripcion" style={{ display: "flex", alignItems: "center", gap: collapsed ? 0 : 10 }}>
+                    <Link href="/suscripcion" prefetch={false} style={{ display: "flex", alignItems: "center", gap: collapsed ? 0 : 10 }}>
                       <CreditCard size={16} style={{ flexShrink: 0 }} />
                       {!collapsed && <span>Suscripción</span>}
                     </Link>

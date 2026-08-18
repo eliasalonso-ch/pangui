@@ -28,14 +28,20 @@ const PLAN_NAME: Record<string, string> = {
 /**
  * Fetch /api/suscripcion/status once on mount. Returns null while loading.
  * Cached per page render — components that need a re-check should call refetch().
+ *
+ * `full` opts into the billing half of the response (card details refreshed
+ * against Flow.cl + rolling quota counts). It is off by default because the
+ * sidebar mounts on every page and only reads `plan_features`; paying the Flow
+ * round-trip there put an external provider on every page load. Pass true only
+ * where `cuotas_uso` or card data is actually rendered.
  */
-export function useSuscripcion() {
+export function useSuscripcion(full = false) {
   const [data, setData] = useState<SuscripcionStatus | null>(null);
   const [loading, setLoading] = useState(true);
 
   async function load() {
     try {
-      const res = await fetch("/api/suscripcion/status", { cache: "no-store" });
+      const res = await fetch(`/api/suscripcion/status${full ? "?full=1" : ""}`, { cache: "no-store" });
       if (res.ok) setData(await res.json());
     } finally {
       setLoading(false);

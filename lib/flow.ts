@@ -39,6 +39,14 @@ function buildBody(params: FlowParams): URLSearchParams {
   return body;
 }
 
+/**
+ * Flow.cl is a third-party payment provider reached over the public internet.
+ * Every call here sits on a user-facing request path, so an unbounded fetch
+ * lets Flow's latency become ours: a slow provider once stalled
+ * /api/suscripcion/status for 11s on every page load. Bound every call.
+ */
+const FLOW_TIMEOUT_MS = 5_000;
+
 export async function flowGet<T = unknown>(path: string, params: FlowParams = {}): Promise<T> {
   const all = { apiKey: API_KEY, ...params };
   const s = sign(all);
@@ -46,7 +54,7 @@ export async function flowGet<T = unknown>(path: string, params: FlowParams = {}
   for (const [k, v] of Object.entries(all)) qs.set(k, String(v));
   qs.set("s", s);
   const url = `${BASE_URL}${path}?${qs.toString()}`;
-  const res = await fetch(url, { method: "GET" });
+  const res = await fetch(url, { method: "GET", signal: AbortSignal.timeout(FLOW_TIMEOUT_MS) });
   const json = await res.json();
   if (!res.ok) {
     throw new FlowError(json?.message ?? `Flow GET ${path} → HTTP ${res.status}`, res.status, json);
@@ -62,6 +70,7 @@ export async function flowPost<T = unknown>(path: string, params: FlowParams = {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body,
+    signal: AbortSignal.timeout(FLOW_TIMEOUT_MS),
   });
   const json = await res.json();
   if (!res.ok) {

@@ -9,7 +9,12 @@ import { expireTrialsIfNeeded } from "@/lib/trial-expiry";
 import { cuotasOtsWorkspace, cuotaProcedimientos, cuotaActivos } from "@/lib/cuotas-mensuales";
 import { flow } from "@/lib/flow";
 
-export async function GET() {
+export async function GET(req: Request) {
+  // The sidebar renders on every page and only reads `plan_features`, but this
+  // route also refreshes the card against Flow.cl and computes rolling quotas.
+  // An unbounded Flow call on that path once cost 11s per page load, so the
+  // billing work is opt-in: only the Suscripcion page passes ?full=1.
+  const full = new URL(req.url).searchParams.get("full") === "1";
   const sb = await serverSupabase();
   const { data: { user } } = await sb.auth.getUser();
   if (!user) return NextResponse.json({ error: "No autenticado." }, { status: 401 });
@@ -46,6 +51,7 @@ export async function GET() {
   let customer = customerRow;
   let flowPayMode: string | null = null;
   const shouldRefreshCard =
+    full &&
     customer?.flow_customer_id &&
     subscription?.flow_subscription_id &&
     (subscription.status === "active" || subscription.status === "past_due") &&
@@ -108,11 +114,13 @@ export async function GET() {
   const planStatus = subscription?.status ?? null;
 
   // Quota usage (rolling 30d for OT sub-categories + total catalog counts)
-  const [otsQuotas, procQuota, activosQuota] = await Promise.all([
-    cuotasOtsWorkspace(perfil.workspace_id, subscription?.plan_key ?? null, planStatus),
-    cuotaProcedimientos(perfil.workspace_id, subscription?.plan_key ?? null, planStatus),
-    cuotaActivos(perfil.workspace_id, subscription?.plan_key ?? null, planStatus),
-  ]);
+  const [otsQuotas, procQuota, activosQuota] = full
+    ? await Promise.all([
+        cuotasOtsWorkspace(perfil.workspace_id, subscription?.plan_key ?? null, planStatus),
+        cuotaProcedimientos(perfil.workspace_id, subscription?.plan_key ?? null, planStatus),
+        cuotaActivos(perfil.workspace_id, subscription?.plan_key ?? null, planStatus),
+      ])
+    : [null, null, null] as const;
 
   return NextResponse.json({
     rol:             perfil.rol,
@@ -132,12 +140,14 @@ export async function GET() {
     effective_plan:  effectivePlan,
     plan_limits:     plan.limits,
     plan_features:   plan.features,
-    cuotas_uso: {
-      ots_con_procedimientos: otsQuotas.con_procedimientos,
-      ots_con_fotos:          otsQuotas.con_fotos,
-      ots_repetitivas:        otsQuotas.repetitivas,
-      procedimientos:         procQuota,
-      activos:                activosQuota,
-    },
+    cuotas_uso: otsQuotas
+      ? {
+          ots_con_procedimientos: otsQuotas.con_procedimientos,
+          ots_con_fotos:          otsQuotas.con_fotos,
+          ots_repetitivas:        otsQuotas.repetitivas,
+          procedimientos:         procQuota,
+          activos:                activosQuota,
+        }
+      : undefined,
   });
 }

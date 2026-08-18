@@ -928,21 +928,38 @@ export default function OrdenesBandeja({
   // there's a query we fetch matches from the server (debounced) and use those
   // as the base for the filter pipeline instead of the loaded list. Empty query
   // → back to the loaded list. `searchResults === null` means "not searching".
-  const [searchResults, setSearchResults] = useState<OrdenListItem[] | null>(null);
+  //
+  // The 300ms debounce stays hand-rolled (TanStack keys off a value, it does not
+  // debounce), but everything after it is the query cache's job: re-typing a
+  // term already searched this session is served from cache with no request,
+  // and in-flight results for an abandoned term can no longer land after a
+  // newer one because the key changes with the term.
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   useEffect(() => {
-    const q = search.trim();
-    if (!q) { setSearchResults(null); return; }
-    let cancelled = false;
-    const t = setTimeout(async () => {
-      try {
-        const rows = await searchOrdenes(wsId, q);
-        if (!cancelled) setSearchResults(rows);
-      } catch {
-        if (!cancelled) setSearchResults([]); // query failed → show no results, not stale
-      }
-    }, 300);
-    return () => { cancelled = true; clearTimeout(t); };
-  }, [search, wsId]);
+    const t = setTimeout(() => setDebouncedSearch(search.trim()), 300);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  const { data: searchData } = useQuery({
+    queryKey: ["ordenes-search", wsId, debouncedSearch],
+    enabled: debouncedSearch.length > 0,
+    queryFn: () => searchOrdenes(wsId, debouncedSearch),
+    // Search results are a snapshot of a query the user is actively refining;
+    // 60s is long enough to make backspacing free, short enough that a result
+    // list does not go stale while they read it.
+    staleTime: 60_000,
+    gcTime: 5 * 60_000,
+    refetchOnWindowFocus: false,
+    // A failed search must show "no results", never a stale list from a
+    // different term (the previous implementation set [] on error).
+    placeholderData: undefined,
+  });
+
+  // `null` means "not searching" for the filter pipeline below. While a new
+  // term is in flight we keep showing nothing rather than the prior term's
+  // rows, matching the old behaviour.
+  const searchResults: OrdenListItem[] | null =
+    debouncedSearch.length === 0 ? null : (searchData ?? []);
 
   const searchHitCap = searchResults !== null && searchResults.length >= ORDENES_SEARCH_LIMIT;
 
