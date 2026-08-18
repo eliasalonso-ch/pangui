@@ -223,6 +223,11 @@ export default function InicioDashboard() {
   const router = useRouter();
   const [userName, setUserName]         = useState<string>("");
   const [loading, setLoading]           = useState(true);
+  // Sin esto, cualquier fallo de red dejaba la pagina en "Cargando..." para
+  // siempre: `load()` no tenia try/catch ni finally, asi que una excepcion (o
+  // un `return` temprano) se saltaba setLoading(false) y no habia forma de
+  // salir del estado de carga salvo recargando.
+  const [loadError, setLoadError]       = useState(false);
   const [allOTs, setAllOTs]             = useState<OTDashboard[]>([]);
   const [partes, setPartes]             = useState<Parte[]>([]);
   const [actividad, setActividad]       = useState<ActividadItem[]>([]);
@@ -232,71 +237,78 @@ export default function InicioDashboard() {
 
   useEffect(() => {
     async function load() {
-      const sb = createClient();
-      const { data: { user } } = await sb.auth.getUser();
-      if (!user) return;
+      try {
+        const sb = createClient();
+        const { data: { user } } = await sb.auth.getUser();
+        if (!user) return;
 
-      const { data: perfil } = await sb
-        .from("usuarios")
-        .select("nombre, workspace_id")
-        .eq("id", user.id)
-        .maybeSingle();
+        const { data: perfil } = await sb
+          .from("usuarios")
+          .select("nombre, workspace_id")
+          .eq("id", user.id)
+          .maybeSingle();
 
-      if (perfil?.nombre) setUserName(perfil.nombre.split(" ")[0]);
-      const workspaceId = perfil?.workspace_id;
-      if (!workspaceId) { setLoading(false); return; }
+        if (perfil?.nombre) setUserName(perfil.nombre.split(" ")[0]);
+        const workspaceId = perfil?.workspace_id;
+        if (!workspaceId) return;
 
-      // A member with solo_asignadas only sees their own OTs. RLS scopes by
-      // workspace only, so the dashboard has to apply the same filter the
-      // bandeja does or it leaks counts and cards for the whole workspace.
-      const soloAsignadas = await getSoloAsignadasUserId();
-      const soloMias = <T extends { contains: (c: string, v: any) => T }>(q: T): T =>
-        soloAsignadas ? q.contains("asignados_ids", [soloAsignadas]) : q;
+        // A member with solo_asignadas only sees their own OTs. RLS scopes by
+        // workspace only, so the dashboard has to apply the same filter the
+        // bandeja does or it leaks counts and cards for the whole workspace.
+        const soloAsignadas = await getSoloAsignadasUserId();
+        const soloMias = <T extends { contains: (c: string, v: any) => T }>(q: T): T =>
+          soloAsignadas ? q.contains("asignados_ids", [soloAsignadas]) : q;
 
-      const [ordenesRes, actividadRes, partesRes, totalRes] = await Promise.all([
-        soloMias(sb.from("ordenes_trabajo")
-          .select(`id, titulo, descripcion, estado, prioridad, created_at, updated_at, fecha_termino, asignados_ids, numero, iniciado_at, pausado_at, tiempo_total_segundos, clasificacion, ubicaciones(edificio)`)
-          .eq("workspace_id", workspaceId)
-          .is("parent_id", null)
-          .is("deleted_at", null)
-          .neq("estado", "cancelado"))
-          .order("created_at", { ascending: false })
-          .limit(400),
-        sb.from("actividad_ot")
-          .select("id, tipo, comentario, created_at, orden_id, orden:ordenes_trabajo!orden_id(titulo), usuario:usuarios!usuario_id(nombre)")
-          .eq("ordenes_trabajo.workspace_id", workspaceId)
-          .order("created_at", { ascending: false })
-          .limit(20),
-        sb.from("partes")
-          .select("id, nombre, stock_actual, stock_minimo")
-          .eq("workspace_id", workspaceId)
-          .not("stock_minimo", "is", null)
-          .gt("stock_minimo", 0),
-        soloMias(sb.from("ordenes_trabajo")
-          .select("id", { count: "exact", head: true })
-          .eq("workspace_id", workspaceId)
-          .is("deleted_at", null)
-          .neq("estado", "cancelado")),
-      ]);
+        const [ordenesRes, actividadRes, partesRes, totalRes] = await Promise.all([
+          soloMias(sb.from("ordenes_trabajo")
+            .select(`id, titulo, descripcion, estado, prioridad, created_at, updated_at, fecha_termino, asignados_ids, numero, iniciado_at, pausado_at, tiempo_total_segundos, clasificacion, ubicaciones(edificio)`)
+            .eq("workspace_id", workspaceId)
+            .is("parent_id", null)
+            .is("deleted_at", null)
+            .neq("estado", "cancelado"))
+            .order("created_at", { ascending: false })
+            .limit(400),
+          sb.from("actividad_ot")
+            .select("id, tipo, comentario, created_at, orden_id, orden:ordenes_trabajo!orden_id(titulo), usuario:usuarios!usuario_id(nombre)")
+            .eq("ordenes_trabajo.workspace_id", workspaceId)
+            .order("created_at", { ascending: false })
+            .limit(20),
+          sb.from("partes")
+            .select("id, nombre, stock_actual, stock_minimo")
+            .eq("workspace_id", workspaceId)
+            .not("stock_minimo", "is", null)
+            .gt("stock_minimo", 0),
+          soloMias(sb.from("ordenes_trabajo")
+            .select("id", { count: "exact", head: true })
+            .eq("workspace_id", workspaceId)
+            .is("deleted_at", null)
+            .neq("estado", "cancelado")),
+        ]);
 
-      const ordenes = ordenesRes.data ?? [];
-      setTotalOTs(totalRes.count ?? ordenes.length);
+        const ordenes = ordenesRes.data ?? [];
+        setTotalOTs(totalRes.count ?? ordenes.length);
 
-      const mapped: OTDashboard[] = ordenes.map((o: any) => ({
-        ...o,
-        ubicaciones: Array.isArray(o.ubicaciones) ? (o.ubicaciones[0] ?? null) : o.ubicaciones,
-        nOT: parseDescMeta(o.descripcion).nOT,
-        isBlocked: o.estado === "en_espera",
-        blockedReason: null,
-      }));
+        const mapped: OTDashboard[] = ordenes.map((o: any) => ({
+          ...o,
+          ubicaciones: Array.isArray(o.ubicaciones) ? (o.ubicaciones[0] ?? null) : o.ubicaciones,
+          nOT: parseDescMeta(o.descripcion).nOT,
+          isBlocked: o.estado === "en_espera",
+          blockedReason: null,
+        }));
 
-      setAllOTs(mapped);
-      setPartes((partesRes.data ?? []) as Parte[]);
-      setActividad((actividadRes.data ?? []).map((a: any) => ({
-        id: a.id, tipo: a.tipo, comentario: a.comentario, created_at: a.created_at,
-        orden_id: a.orden_id, orden_titulo: a.orden?.titulo ?? null, usuario_nombre: a.usuario?.nombre ?? null,
-      })));
-      setLoading(false);
+        setAllOTs(mapped);
+        setPartes((partesRes.data ?? []) as Parte[]);
+        setActividad((actividadRes.data ?? []).map((a: any) => ({
+          id: a.id, tipo: a.tipo, comentario: a.comentario, created_at: a.created_at,
+          orden_id: a.orden_id, orden_titulo: a.orden?.titulo ?? null, usuario_nombre: a.usuario?.nombre ?? null,
+        })));
+      } catch {
+        // Una consulta lenta o caida no puede dejar la pantalla colgada: se
+        // muestra el error con opcion a reintentar.
+        setLoadError(true);
+      } finally {
+        setLoading(false);
+      }
     }
     load();
   }, []);
@@ -322,6 +334,24 @@ export default function InicioDashboard() {
     return (
       <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", color: "var(--fg-4)", fontSize: 13 }}>
         Cargando…
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: 12, alignItems: "center", justifyContent: "center", height: "100vh", color: "var(--fg-2)", fontSize: 13 }}>
+        <span>No se pudo cargar el inicio.</span>
+        <button
+          onClick={() => window.location.reload()}
+          style={{
+            height: 34, padding: "0 16px", border: "1px solid var(--border-1)",
+            borderRadius: "var(--r-md)", background: "var(--surface-2)",
+            color: "var(--fg-1)", fontSize: 13, fontFamily: "inherit", cursor: "pointer",
+          }}
+        >
+          Reintentar
+        </button>
       </div>
     );
   }
