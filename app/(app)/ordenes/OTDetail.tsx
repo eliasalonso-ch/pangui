@@ -50,7 +50,7 @@ import {
   startEjecucion, saveRespuesta, completeEjecucion, maybeTriggerCorrectiva,
 } from "@/lib/procedimientos-api";
 import type {
-  OrdenTrabajo, ActividadOT, ActividadTipo, Usuario, Estado, Prioridad,
+  OrdenTrabajo, ActividadOT, ActividadTipo, Usuario, Estado, Prioridad, CategoriaOT,
 } from "@/types/ordenes";
 import { notifyClasificacionCambiada } from "@/lib/notificar";
 import { esElevado, esAdmin } from "@/lib/roles";
@@ -648,6 +648,47 @@ export default function OTDetail({
     }
   }, []);
   useEffect(() => () => { if (saveToastTimer.current) clearTimeout(saveToastTimer.current); }, []);
+
+  // Catálogo de categorías del workspace, para resolver `categoria_ids`.
+  // El select de la OT solo trae la categoría principal como join, así que las
+  // adicionales llegan como ids sueltos y hay que ponerles nombre y color.
+  const [catalogoCategorias, setCatalogoCategorias] = useState<CategoriaOT[]>([]);
+  const idsExtra = orden.categoria_ids ?? [];
+  const necesitaCatalogo = idsExtra.some(id => id !== orden.categoria_id);
+
+  useEffect(() => {
+    if (!necesitaCatalogo || !wsId) return;
+    let ignorar = false;
+    const sb = createClient();
+    sb.from("categorias_ot")
+      .select("id, nombre, icono, color")
+      .or(`workspace_id.eq.${wsId},workspace_id.is.null`)
+      .then(({ data }) => { if (!ignorar) setCatalogoCategorias((data ?? []) as CategoriaOT[]); });
+    return () => { ignorar = true; };
+  }, [necesitaCatalogo, wsId]);
+
+  /**
+   * Todas las categorías de la OT, sin repetir y en el orden guardado.
+   *
+   * La principal sale del join (siempre disponible); las demás se buscan en el
+   * catálogo. Mientras el catálogo carga se muestra al menos la principal, para
+   * que la ficha nunca quede sin categorías.
+   */
+  const categoriasVisibles = useMemo(() => {
+    const porId = new Map<string, CategoriaOT>();
+    if (orden.categorias_ot?.nombre && orden.categoria_id) {
+      porId.set(orden.categoria_id, { ...orden.categorias_ot, id: orden.categoria_id });
+    }
+    for (const c of catalogoCategorias) {
+      if (idsExtra.includes(c.id) && !porId.has(c.id)) porId.set(c.id, c);
+    }
+    const orden_ids = [
+      ...(orden.categoria_id ? [orden.categoria_id] : []),
+      ...idsExtra.filter(id => id !== orden.categoria_id),
+    ];
+    return orden_ids.map(id => porId.get(id)).filter(Boolean) as CategoriaOT[];
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orden.categoria_id, orden.categorias_ot, catalogoCategorias, idsExtra.join(",")]);
 
   const [fotos, setFotos] = useState<string[]>([
     ...(orden.imagen_url ? [orden.imagen_url] : []),
@@ -3067,23 +3108,29 @@ export default function OTDetail({
               ))}
             </div>
 
-            {/* Category */}
-            {orden.categorias_ot?.nombre && (
-              <div style={{ marginTop: 30, paddingTop: 24, borderTop: "1px solid var(--border)" }}>
-                {/* El color de la categoría solo tiñe el ícono. */}
-                <span style={{
-                  display: "inline-flex", alignItems: "center", gap: 5,
-                  fontSize: 12, fontWeight: 400, padding: "4px 10px",
-                  border: "1px solid var(--border-strong)",
-                  borderRadius: "var(--r-sm)",
-                  background: "transparent",
-                  color: "var(--fg-1)",
-                }}>
-                  <span style={{ display: "inline-flex", flexShrink: 0, color: orden.categorias_ot.color ?? "var(--fg-3)" }}>
-                    <CategoriaIcon icono={orden.categorias_ot.icono} size={13} />
+            {/* Categorías.
+                Una OT puede tener varias (`categoria_ids`), pero el join solo
+                trae la principal (`categoria_id`). Antes se dibujaba solo esa y
+                las demás quedaban invisibles pese a estar guardadas, así que se
+                resuelven todas contra el catálogo del workspace. */}
+            {categoriasVisibles.length > 0 && (
+              <div style={{ marginTop: 30, paddingTop: 24, borderTop: "1px solid var(--border)", display: "flex", flexWrap: "wrap", gap: 6 }}>
+                {categoriasVisibles.map(c => (
+                  /* El color de la categoría solo tiñe el ícono. */
+                  <span key={c.id} style={{
+                    display: "inline-flex", alignItems: "center", gap: 5,
+                    fontSize: 12, fontWeight: 400, padding: "4px 10px",
+                    border: "1px solid var(--border-strong)",
+                    borderRadius: "var(--r-sm)",
+                    background: "transparent",
+                    color: "var(--fg-1)",
+                  }}>
+                    <span style={{ display: "inline-flex", flexShrink: 0, color: c.color ?? "var(--fg-3)" }}>
+                      <CategoriaIcon icono={c.icono} size={13} />
+                    </span>
+                    {c.nombre}
                   </span>
-                  {orden.categorias_ot.nombre}
-                </span>
+                ))}
               </div>
             )}
 
@@ -4559,10 +4606,79 @@ function SignatureCanvas({
     setSaved(false);
   }
 
+  /**
+   * Exports the signature as a trimmed, downscaled data URI.
+   *
+   * WHY: this used to be `canvas.toDataURL("image/png")` on the full canvas.
+   * A lossless PNG of a mostly-empty canvas, base64-encoded, averaged 115 kB
+   * per signature — 419 of them were 47 MB, i.e. 39% of the entire database.
+   *
+   * Three fixes, in order of impact:
+   *   1. Crop to the ink's bounding box. Most of the canvas is blank.
+   *   2. Downscale so the longest side is at most MAX_DIM. A signature is only
+   *      ever rendered small (detail panel, PDF), so full canvas resolution is
+   *      wasted bytes.
+   * Deliberately stays PNG: the PDF service (@react-pdf/renderer v4) renders
+   * only PNG/JPEG, so a WebP signature would silently fail to appear on a
+   * signed work order. Cropping and downscaling already do the heavy lifting.
+   *
+   * Returns null when the canvas has no ink, so an empty pad never saves.
+   */
+  function exportSignature(canvas: HTMLCanvasElement): string | null {
+    const MAX_DIM = 600;
+    const PAD = 8;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return null;
+
+    const { width: w, height: h } = canvas;
+    let data: Uint8ClampedArray;
+    try {
+      data = ctx.getImageData(0, 0, w, h).data;
+    } catch {
+      // Tainted canvas (shouldn't happen here) — fall back to the old behaviour
+      // rather than losing the signature.
+      return canvas.toDataURL("image/png");
+    }
+
+    // Bounding box of any non-transparent pixel.
+    let minX = w, minY = h, maxX = -1, maxY = -1;
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        if (data[(y * w + x) * 4 + 3] !== 0) {
+          if (x < minX) minX = x;
+          if (x > maxX) maxX = x;
+          if (y < minY) minY = y;
+          if (y > maxY) maxY = y;
+        }
+      }
+    }
+    if (maxX < 0) return null; // no ink
+
+    minX = Math.max(0, minX - PAD); minY = Math.max(0, minY - PAD);
+    maxX = Math.min(w - 1, maxX + PAD); maxY = Math.min(h - 1, maxY + PAD);
+    const cropW = maxX - minX + 1;
+    const cropH = maxY - minY + 1;
+
+    const scale = Math.min(1, MAX_DIM / Math.max(cropW, cropH));
+    const outW = Math.max(1, Math.round(cropW * scale));
+    const outH = Math.max(1, Math.round(cropH * scale));
+
+    const out = document.createElement("canvas");
+    out.width = outW;
+    out.height = outH;
+    const octx = out.getContext("2d");
+    if (!octx) return canvas.toDataURL("image/png");
+    octx.drawImage(canvas, minX, minY, cropW, cropH, 0, 0, outW, outH);
+
+    return out.toDataURL("image/png");
+  }
+
   function save() {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    onSave(canvas.toDataURL("image/png"));
+    const dataUrl = exportSignature(canvas);
+    if (!dataUrl) return; // empty pad — nothing to save
+    onSave(dataUrl);
     setSaved(true);
   }
 
