@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 
 export interface CuotaItem { usado: number; limite: number; permitido: boolean }
 export interface SuscripcionStatus {
@@ -26,8 +26,9 @@ const PLAN_NAME: Record<string, string> = {
 };
 
 /**
- * Fetch /api/suscripcion/status once on mount. Returns null while loading.
- * Cached per page render — components that need a re-check should call refetch().
+ * Fetch /api/suscripcion/status. Returns null while loading.
+ * Cached for 5 minutes in the shared QueryClient, so the sidebar mounting on
+ * every navigation costs one request per session rather than one per page.
  *
  * `full` opts into the billing half of the response (card details refreshed
  * against Flow.cl + rolling quota counts). It is off by default because the
@@ -36,21 +37,28 @@ const PLAN_NAME: Record<string, string> = {
  * where `cuotas_uso` or card data is actually rendered.
  */
 export function useSuscripcion(full = false) {
-  const [data, setData] = useState<SuscripcionStatus | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { data, isLoading, refetch } = useQuery({
+    queryKey: ["suscripcion-status", full],
+    queryFn: async (): Promise<SuscripcionStatus> => {
+      const res = await fetch(`/api/suscripcion/status${full ? "?full=1" : ""}`);
+      if (!res.ok) throw new Error(`suscripcion/status ${res.status}`);
+      return res.json();
+    },
+    // The sidebar mounts on every page, so before this was a query each
+    // navigation re-ran the whole route server-side. A plan does not change
+    // mid-session: 5 minutes of cache turns N page views into one call.
+    staleTime: 5 * 60_000,
+    gcTime: 30 * 60_000,
+    refetchOnWindowFocus: false,
+  });
 
-  async function load() {
-    try {
-      const res = await fetch(`/api/suscripcion/status${full ? "?full=1" : ""}`, { cache: "no-store" });
-      if (res.ok) setData(await res.json());
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  useEffect(() => { load(); }, []);
-
-  return { data, loading, refetch: load };
+  return {
+    data: data ?? null,
+    loading: isLoading,
+    // Callers use this after mutating the plan (checkout, cancel), where the
+    // point is to bypass the cache above.
+    refetch: () => { void refetch(); },
+  };
 }
 
 /** Smallest paid tier that covers the requested feature. */

@@ -29,24 +29,35 @@ export async function GET(req: Request) {
     return NextResponse.json({ workspace_id: null, subscription: null, customer: null });
   }
 
-  // Lazy: if trial just expired, downgrade to basic_free before reading state.
-  await expireTrialsIfNeeded(perfil.workspace_id);
-
   const admin = adminSupabase();
-  const { data: subscription } = await admin
-    .from("subscriptions")
-    .select("id, plan_key, price_per_user_clp, status, trial_end, current_period_end, canceled_at, flow_subscription_id, is_early_customer, custom_price_note, scheduled_plan_key, scheduled_plan_at")
-    .eq("workspace_id", perfil.workspace_id)
-    .neq("status", "canceled")
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
 
-  const { data: customerRow } = await admin
-    .from("flow_customers")
-    .select("flow_customer_id, has_card, card_last4, card_brand, email")
-    .eq("workspace_id", perfil.workspace_id)
-    .maybeSingle();
+  // Read the subscription and the Flow customer together -- neither depends on
+  // the other, and this route runs on every page load.
+  const [{ data: subscriptionRow }, { data: customerRow }] = await Promise.all([
+    admin
+      .from("subscriptions")
+      .select("id, plan_key, price_per_user_clp, status, trial_end, current_period_end, canceled_at, flow_subscription_id, is_early_customer, custom_price_note, scheduled_plan_key, scheduled_plan_at")
+      .eq("workspace_id", perfil.workspace_id)
+      .neq("status", "canceled")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    admin
+      .from("flow_customers")
+      .select("flow_customer_id, has_card, card_last4, card_brand, email")
+      .eq("workspace_id", perfil.workspace_id)
+      .maybeSingle(),
+  ]);
+
+  // Lazy trial expiry. It used to run first and re-read `subscriptions` itself,
+  // duplicating the query above on every request; hand it the row we just read.
+  // Only an elapsed trial writes anything, so this is normally pure arithmetic.
+  let subscription = subscriptionRow;
+  const expired = await expireTrialsIfNeeded(perfil.workspace_id, subscriptionRow);
+  if (expired && subscription) {
+    // The sweep just downgraded the row; reflect that without another round-trip.
+    subscription = { ...subscription, plan_key: "basic", status: "basic_free", trial_end: null };
+  }
 
   let customer = customerRow;
   let flowPayMode: string | null = null;

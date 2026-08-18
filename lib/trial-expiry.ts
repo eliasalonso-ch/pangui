@@ -4,17 +4,41 @@
  * to basic_free so the app gates accordingly.
  *
  * No-op when there is nothing to expire.
+ *
+ * Fast path: callers that have already read the subscription row (e.g.
+ * /api/suscripcion/status, which runs on every page load) pass it in via
+ * `known`, so the common "nothing to expire" case costs zero queries instead
+ * of re-reading a row the caller is holding.
  */
 import { adminSupabase } from "@/app/api/suscripcion/_helpers";
 
-export async function expireTrialsIfNeeded(workspaceId: string): Promise<boolean> {
+export interface KnownSubscription {
+  id: string;
+  status: string | null;
+  trial_end: string | null;
+}
+
+export async function expireTrialsIfNeeded(
+  workspaceId: string,
+  known?: KnownSubscription | null,
+): Promise<boolean> {
   const admin = adminSupabase();
-  const { data: sub } = await admin
-    .from("subscriptions")
-    .select("id, status, trial_end, plan_key")
-    .eq("workspace_id", workspaceId)
-    .neq("status", "canceled")
-    .maybeSingle();
+
+  // Cheap rejects first. Only a trial that has actually elapsed needs any work,
+  // and that is the rare case -- so when the caller already has the row we can
+  // decide without touching the database at all.
+  let sub: { id: string; status: string | null; trial_end: string | null } | null;
+  if (known !== undefined) {
+    sub = known;
+  } else {
+    const { data } = await admin
+      .from("subscriptions")
+      .select("id, status, trial_end, plan_key")
+      .eq("workspace_id", workspaceId)
+      .neq("status", "canceled")
+      .maybeSingle();
+    sub = data;
+  }
 
   if (!sub) return false;
   if (sub.status !== "trialing") return false;
