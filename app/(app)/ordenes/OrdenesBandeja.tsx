@@ -936,7 +936,19 @@ export default function OrdenesBandeja({
   // newer one because the key changes with the term.
   const [debouncedSearch, setDebouncedSearch] = useState("");
   useEffect(() => {
-    const t = setTimeout(() => setDebouncedSearch(search.trim()), 300);
+    const q = search.trim();
+    // Terminos demasiado cortos no se mandan al servidor. "#" solo, o una sola
+    // letra, hacen un round-trip completo (RPC + re-select) para devolver ruido
+    // o la tabla entera. En el HAR se veia salir una busqueda con p_query="#"
+    // mientras el usuario todavia estaba escribiendo "#840".
+    // Excepcion: "#<numero>" es una busqueda exacta y util desde el primer
+    // digito, asi que ahi basta con 2 caracteres.
+    const minimo = q.startsWith("#") ? 2 : 3;
+    if (q.length > 0 && q.length < minimo) {
+      setDebouncedSearch("");
+      return;
+    }
+    const t = setTimeout(() => setDebouncedSearch(q), 300);
     return () => clearTimeout(t);
   }, [search]);
 
