@@ -430,11 +430,17 @@ export async function searchOrdenes(wsId: string, rawQuery: string): Promise<Ord
   // and the solo_asignadas rule from auth.uid() itself, since SECURITY DEFINER
   // bypasses RLS and a client-supplied workspace_id can't be trusted.
   const sb = createClient();
+  // `.select("id")`: la funcion devuelve SETOF ordenes_trabajo, o sea la fila
+  // COMPLETA -- descripcion incluida -- y aca abajo solo se usan los ids. Sin
+  // esto, buscar "lum" transferia 370 KB de JSON para quedarse con 147 UUIDs
+  // (130 KB crudos en la base contra 2,3 KB de ids). PostgREST admite proyectar
+  // sobre una RPC que retorna SETOF de una tabla, asi que el recorte ocurre en
+  // el servidor y no viaja lo que no se usa.
   const { data, error } = await sb.rpc("search_ordenes_v1", {
     p_workspace_id: wsId,
     p_query: q,
     p_limit: ORDENES_SEARCH_LIMIT,
-  });
+  }).select("id");
   if (error) throw error;
   const ids = ((data ?? []) as { id: string }[]).map((r) => r.id);
   if (!ids.length) return [];
