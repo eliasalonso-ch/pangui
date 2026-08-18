@@ -92,7 +92,7 @@ const LIMITE = (() => {
   const i = args.indexOf("--limit");
   return i >= 0 && args[i + 1] ? parseInt(args[i + 1], 10) : null;
 })();
-const CONCURRENCIA = 4;
+const CONCURRENCIA = 2;  // Bajada de 4: con 4 la base empezo a devolver 504 en auth/v1/user.
 
 if (!SUPABASE_URL || !ANON_KEY || !SERVICE_KEY) {
   console.error("Faltan NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY / SUPABASE_SERVICE_ROLE_KEY");
@@ -163,143 +163,149 @@ async function enLotes(items, limite, fn) {
 
 // ── Main ──────────────────────────────────────────────────────────────────
 
-async function main() {
-  console.log(DRY_RUN ? "== SIMULACION (no escribe nada) ==" : "== MIGRACION REAL ==");
+/**
+ * Inicia sesion y devuelve el token. Se rellama cada tanto porque el JWT de
+ * Supabase dura ~1 hora: la primera version del script pedia el token una sola
+ * vez, la fase de lectura se comio ese margen, y las subidas empezaron a
+ * fallar con `presign 401: unauthenticated` a mitad de corrida.
+ */
+async function nuevoToken() {
+  const publico = createClient(SUPABASE_URL, ANON_KEY, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+  const { data, error } = await publico.auth.signInWithPassword({
+    email: EMAIL, password: PASSWORD,
+  });
+  if (error || !data?.session) throw new Error(`login fallido: ${error?.message ?? "sin sesion"}`);
+  return data.session.access_token;
+}
 
-  // Solo las que siguen inline. Esto es lo que hace el script reanudable.
-  //
-  // Se lee de a paginas: pedir las ~420 filas de una implica arrastrar ~48 MB
-  // de base64 en una sola consulta, y eso supera el statement timeout de
-  // PostgREST. De a 25 entra sin problema.
-  // Dos pasadas: primero solo los ids (barato, sin TOAST), despues el contenido
-  // de a poco. Arrastrar firma_svg y filtrar por LIKE en la misma consulta
-  // hacia que Postgres leyera los 48 MB de TOAST de una y se pasara del
-  // statement timeout de forma intermitente.
-  // `LIKE 'data:%'` obliga a Postgres a detoastear las 2.888 filas para evaluar
-  // el patron: 13.4s medidos, por encima del statement timeout. Filtrar por
-  // longitud da exactamente el mismo conjunto (una URL son ~108 bytes, un PNG
-  // inline mas de 100 KB) y baja a 4.1s. El formato se verifica igual despues,
-  // al parsear cada data URI.
+/** Lee un grupo chico de firmas, con reintentos: TOAST hace lento el SELECT. */
+async function leerFirmas(ids) {
+  for (let intento = 1; intento <= 4; intento++) {
+    const { data, error } = await admin
+      .from("paso_respuestas")
+      .select("id, ejecucion_id, firma_svg")
+      .in("id", ids);
+    if (!error) {
+      return (data ?? []).filter(f => typeof f.firma_svg === "string" && f.firma_svg.startsWith("data:"));
+    }
+    if (intento === 4) throw new Error(`leyendo firmas: ${error.message}`);
+    await new Promise(r => setTimeout(r, 2000 * intento));
+  }
+  return [];
+}
+
+async function main() {
+  console.log(DRY_RUN ? "== SIMULACION (no escribe nada) ==" : "== MIGRACION POR LOTES ==");
+
+  // Solo los ids. No se filtra con LIKE 'data:%' a proposito: ese patron
+  // obliga a Postgres a detoastear las ~2.900 filas para evaluarse (13,4 s
+  // medidos con EXPLAIN, sobre el statement timeout). Se traen todas las que
+  // tienen firma y el formato se decide al leer el contenido.
   const { data: idRows, error: errIds } = await admin
     .from("paso_respuestas")
     .select("id")
     .not("firma_svg", "is", null)
     .order("id");
   if (errIds) throw new Error(`listando ids: ${errIds.message}`);
-  const ids = (idRows ?? []).map(r => r.id);
-  const objetivo = LIMITE ? ids.slice(0, LIMITE) : ids;
-
-  const PAGINA = 10;
-  const filas = [];
-  for (let i = 0; i < objetivo.length; i += PAGINA) {
-    const trozo = objetivo.slice(i, i + PAGINA);
-    let pagina = null;
-    // El timeout aparece de forma intermitente al tocar TOAST; reintentar la
-    // misma pagina alcanza, no hace falta abortar toda la corrida.
-    for (let intento = 1; intento <= 3; intento++) {
-      const { data, error: e } = await admin
-        .from("paso_respuestas")
-        .select("id, ejecucion_id, firma_svg")
-        .in("id", trozo);
-      if (!e) { pagina = data; break; }
-      if (intento === 3) throw new Error(`leyendo firmas: ${e.message}`);
-      await new Promise(r => setTimeout(r, 1000 * intento));
-    }
-    // El filtro real: solo las que siguen siendo data URI. Las ya migradas
-    // (URL, ~108 bytes) se descartan aca, lo que mantiene el script reanudable.
-    filas.push(...(pagina ?? []).filter(f => typeof f.firma_svg === "string" && f.firma_svg.startsWith("data:")));
-  }
-  if (!filas?.length) {
-    console.log("No quedan firmas inline. Nada que hacer.");
-    return;
-  }
-
-  const totalBytes = filas.reduce((a, f) => a + (f.firma_svg?.length ?? 0), 0);
-  console.log(`Firmas inline: ${filas.length} (${(totalBytes / 1024 / 1024).toFixed(1)} MB en la tabla)`);
-
-  // r2-presign exige carpeta ordenes/<id>, asi que necesitamos la OT de cada
-  // firma. La respuesta no la tiene: se llega via su ejecucion.
-  // De a 100 ids: un .in() con los ~420 arma una URL que el gateway rechaza.
-  const ejecIds = [...new Set(filas.map(f => f.ejecucion_id).filter(Boolean))];
-  const ordenPorEjec = new Map();
-  for (let i = 0; i < ejecIds.length; i += 100) {
-    const trozo = ejecIds.slice(i, i + 100);
-    const { data: ejecs, error: errEjec } = await admin
-      .from("procedimiento_ejecuciones")
-      .select("id, orden_id")
-      .in("id", trozo);
-    if (errEjec) throw new Error(`leyendo ejecuciones: ${errEjec.message}`);
-    for (const e of ejecs ?? []) ordenPorEjec.set(e.id, e.orden_id);
-  }
-
-  const migrables = filas.filter(f => ordenPorEjec.get(f.ejecucion_id));
-  const huerfanas = filas.length - migrables.length;
-  if (huerfanas) console.log(`Sin OT asociada (se omiten): ${huerfanas}`);
+  const todos = (idRows ?? []).map(r => r.id);
+  const objetivo = LIMITE ? todos.slice(0, LIMITE) : todos;
+  console.log(`Candidatas con firma: ${objetivo.length}`);
 
   if (DRY_RUN) {
-    const muestra = migrables.slice(0, 5);
-    console.log(`\nSe migrarian ${migrables.length} firmas. Muestra:`);
+    const muestra = await leerFirmas(objetivo.slice(0, 5));
+    console.log(`\nMuestra de las que siguen inline:`);
     for (const f of muestra) {
-      const p = parsearDataUri(f.firma_svg);
-      console.log(`  ${f.id}  ${p ? `${p.ext} ${(p.bytes.length / 1024).toFixed(0)} KB` : "NO PARSEABLE"}  -> ordenes/${ordenPorEjec.get(f.ejecucion_id)}/firmas`);
+      const parsed = parsearDataUri(f.firma_svg);
+      console.log(`  ${f.id}  ${parsed ? `${parsed.ext} ${(parsed.bytes.length / 1024).toFixed(0)} KB` : "NO PARSEABLE"}`);
     }
     console.log("\nSin --dry-run se subirian a R2 y se reemplazaria la columna por la URL.");
     return;
   }
 
-  // Sesion de usuario real: r2-presign rechaza service_role.
-  const publico = createClient(SUPABASE_URL, ANON_KEY, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
-  const { data: sesion, error: errAuth } = await publico.auth.signInWithPassword({
-    email: EMAIL,
-    password: PASSWORD,
-  });
-  if (errAuth || !sesion?.session) throw new Error(`login fallido: ${errAuth?.message ?? "sin sesion"}`);
-  const token = sesion.session.access_token;
+  let token = await nuevoToken();
+  let tokenPedidoEn = Date.now();
   console.log(`Sesion iniciada como ${EMAIL}\n`);
 
-  let ok = 0, fallidas = 0, bytesLiberados = 0;
+  let ok = 0, fallidas = 0, saltadas = 0, bytesLiberados = 0;
   const errores = [];
 
-  await enLotes(migrables, CONCURRENCIA, async (fila, i) => {
-    const etiqueta = `[${i + 1}/${migrables.length}] ${fila.id.slice(0, 8)}`;
-    try {
-      const parsed = parsearDataUri(fila.firma_svg);
-      if (!parsed) throw new Error("firma_svg no es un data URI reconocible");
+  // Lotes chicos, leidos y migrados de inmediato. La version anterior leia las
+  // 411 de golpe antes de subir nada: eso tardaba tanto que vencia el token, y
+  // ademas mantenia a la base leyendo TOAST sin pausa hasta devolver 504 en
+  // auth/v1/user. Intercalar y respirar entre lotes evita las dos cosas.
+  const LOTE = 15;
+  for (let i = 0; i < objetivo.length; i += LOTE) {
+    const idsLote = objetivo.slice(i, i + LOTE);
 
-      const folder = `ordenes/${ordenPorEjec.get(fila.ejecucion_id)}/firmas`;
-      const presign = await pedirPresign(token, parsed.ext, folder, parsed.bytes.length);
-      await subirYVerificar(presign, parsed.bytes);
-
-      // Recien aca se toca la fila: la URL ya esta confirmada.
-      const { error: errUpd } = await admin
-        .from("paso_respuestas")
-        .update({ firma_svg: presign.publicUrl })
-        .eq("id", fila.id);
-      if (errUpd) throw new Error(`update: ${errUpd.message}`);
-
-      ok++;
-      bytesLiberados += fila.firma_svg.length - presign.publicUrl.length;
-      console.log(`${etiqueta} OK  ${(parsed.bytes.length / 1024).toFixed(0)} KB -> URL`);
-    } catch (e) {
-      fallidas++;
-      errores.push(`${fila.id}: ${e.message}`);
-      console.warn(`${etiqueta} FALLO  ${e.message}`);
+    // El token se renueva por tiempo, no por lote: 45 min deja margen sobrado
+    // frente a la expiracion de ~1 h.
+    if (Date.now() - tokenPedidoEn > 45 * 60_000) {
+      token = await nuevoToken();
+      tokenPedidoEn = Date.now();
+      console.log("  (token renovado)");
     }
-  });
+
+    const filas = await leerFirmas(idsLote);
+    if (!filas.length) { saltadas += idsLote.length; continue; }
+
+    const ejecIds = [...new Set(filas.map(f => f.ejecucion_id).filter(Boolean))];
+    const ordenPorEjec = new Map();
+    if (ejecIds.length) {
+      const { data: ejecs, error: errEjec } = await admin
+        .from("procedimiento_ejecuciones")
+        .select("id, orden_id")
+        .in("id", ejecIds);
+      if (errEjec) throw new Error(`leyendo ejecuciones: ${errEjec.message}`);
+      for (const e of ejecs ?? []) ordenPorEjec.set(e.id, e.orden_id);
+    }
+
+    await enLotes(filas, CONCURRENCIA, async (fila) => {
+      const etiqueta = `${fila.id.slice(0, 8)}`;
+      try {
+        const ordenId = ordenPorEjec.get(fila.ejecucion_id);
+        if (!ordenId) throw new Error("sin OT asociada");
+        const parsed = parsearDataUri(fila.firma_svg);
+        if (!parsed) throw new Error("firma_svg no es un data URI reconocible");
+
+        const presign = await pedirPresign(token, parsed.ext, `ordenes/${ordenId}/firmas`, parsed.bytes.length);
+        await subirYVerificar(presign, parsed.bytes);
+
+        // Recien aca se toca la fila: la URL ya respondio a un HEAD.
+        const { error: errUpd } = await admin
+          .from("paso_respuestas")
+          .update({ firma_svg: presign.publicUrl })
+          .eq("id", fila.id);
+        if (errUpd) throw new Error(`update: ${errUpd.message}`);
+
+        ok++;
+        bytesLiberados += fila.firma_svg.length - presign.publicUrl.length;
+      } catch (e) {
+        fallidas++;
+        errores.push(`${fila.id}: ${e.message}`);
+      }
+    });
+
+    const hechas = ok + fallidas;
+    console.log(`lote ${Math.floor(i / LOTE) + 1}: ${ok} ok, ${fallidas} fallidas  (${hechas} procesadas, ~${(bytesLiberados / 1024 / 1024).toFixed(1)} MB liberados)`);
+
+    // Pausa deliberada: sin esto la base queda leyendo TOAST sin descanso y
+    // termina afectando al resto del proyecto (se vieron 504 en auth/v1/user).
+    await new Promise(r => setTimeout(r, 1500));
+  }
 
   console.log(`\n--- Resumen ---`);
-  console.log(`Migradas:  ${ok}`);
-  console.log(`Fallidas:  ${fallidas}`);
-  console.log(`Liberado:  ~${(bytesLiberados / 1024 / 1024).toFixed(1)} MB de la tabla`);
+  console.log(`Migradas:     ${ok}`);
+  console.log(`Fallidas:     ${fallidas}`);
+  console.log(`Ya migradas:  ${saltadas}  (se saltaron, no eran data URI)`);
+  console.log(`Liberado:     ~${(bytesLiberados / 1024 / 1024).toFixed(1)} MB de la tabla`);
   if (errores.length) {
     console.log(`\nErrores (las filas quedaron intactas, se pueden reintentar):`);
-    for (const e of errores.slice(0, 20)) console.log(`  ${e}`);
-    if (errores.length > 20) console.log(`  ... y ${errores.length - 20} mas`);
+    for (const e of errores.slice(0, 15)) console.log(`  ${e}`);
+    if (errores.length > 15) console.log(`  ... y ${errores.length - 15} mas`);
   }
   console.log(`\nEl espacio se recupera recien con:  VACUUM FULL public.paso_respuestas;`);
-  console.log(`(toma un lock exclusivo sobre la tabla -- correr fuera de horario)`);
 }
 
 main().catch(e => {

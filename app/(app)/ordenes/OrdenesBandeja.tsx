@@ -1078,7 +1078,15 @@ export default function OrdenesBandeja({
 
   // True when there's more to show — either more rows already in memory, or
   // another server page to fetch. Drives both the observer and the fallback.
-  const canShowMore = visibleCount < filtered.length || hasMoreOrdenes;
+  //
+  // `hasMoreOrdenes` solo aplica a la lista paginada por scroll infinito. Con
+  // una busqueda activa la fuente es searchOrdenes (que trae TODAS las
+  // coincidencias de una), y con filtros activos es countOrdenes (el set
+  // completo del workspace): en ambos casos no existe una "pagina siguiente"
+  // que pedir, asi que arrastrar hasMoreOrdenes dejaba el boton "Cargar mas"
+  // visible incluso con un unico resultado.
+  const fuenteCompleta = searchResults !== null || hasActiveFilters;
+  const canShowMore = visibleCount < filtered.length || (hasMoreOrdenes && !fuenteCompleta);
 
   // Infinite scroll: when the sentinel enters the viewport, reveal the next
   // chunk of in-memory rows; if we've exhausted what's loaded but the server
@@ -1091,7 +1099,7 @@ export default function OrdenesBandeja({
         if (!entries[0]?.isIntersecting) return;
         if (visibleCount < filtered.length) {
           setVisibleCount(c => Math.min(c + VISIBLE_CHUNK, filtered.length));
-        } else if (hasMoreOrdenes && !loadingMoreOrdenes) {
+        } else if (hasMoreOrdenes && !fuenteCompleta && !loadingMoreOrdenes) {
           loadMoreOrdenes();
         }
       },
@@ -1099,7 +1107,7 @@ export default function OrdenesBandeja({
     );
     observer.observe(node);
     return () => observer.disconnect();
-  }, [canShowMore, visibleCount, filtered.length, hasMoreOrdenes, loadingMoreOrdenes, loadMoreOrdenes]);
+  }, [canShowMore, visibleCount, filtered.length, hasMoreOrdenes, fuenteCompleta, loadingMoreOrdenes, loadMoreOrdenes]);
 
   // Drag-to-resize the list/detail split. While `resizing`, follow the mouse and
   // clamp so neither pane collapses; persist the final width on release.

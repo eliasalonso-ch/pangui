@@ -272,11 +272,23 @@ export default function AppSidebar() {
         })
         .subscribe();
 
-      const { data } = await sb
-        .from("usuarios")
-        .select("workspace_id, rol, nombre")
-        .eq("id", user.id)
-        .maybeSingle();
+      // Con reintentos a proposito: si esta consulta falla, `userRol` queda en
+      // null, `isAdmin` en false y el sidebar se dibuja SIN los items de
+      // administracion (Analitica, Usuarios, Ubicaciones, Categorias, ITOs,
+      // Papelera, Espacio de trabajo, Suscripcion) sin ningun aviso. Paso de
+      // verdad cuando la base estuvo saturada y devolvio 503: el menu aparecio
+      // recortado y solo se arreglaba recargando.
+      let data: { workspace_id?: string | null; rol?: string | null; nombre?: string | null } | null = null;
+      for (let intento = 1; intento <= 3; intento++) {
+        const res = await sb
+          .from("usuarios")
+          .select("workspace_id, rol, nombre")
+          .eq("id", user.id)
+          .maybeSingle();
+        if (!active) return;
+        if (!res.error && res.data) { data = res.data; break; }
+        if (intento < 3) await new Promise(r => setTimeout(r, 800 * intento));
+      }
 
       if (!active) return;
 
