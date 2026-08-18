@@ -493,33 +493,34 @@ export default function OrdenesBandeja({
     setRightPanel("none");
     setSelected(id);
 
-    // Instant paint: the list row already holds titulo, estado, prioridad,
-    // ubicacion and descripcion, so render those immediately instead of a
-    // full-panel spinner. fetchOrden then fills in the detail-only fields.
-    // `_pending` marks the row as partial so OTDetail can skip anything that
-    // needs the full record. Only seed when we have a row AND no cached detail,
-    // and never seed over a different OT's stale detail.
-    // Already-resolved detail from a hover prefetch or an earlier open.
+    // Already-resolved record from a hover prefetch or an earlier open.
     const cached = queryClient.getQueryData<OrdenTrabajo | null>(["orden", id]);
+    // The list row: enough to paint the panel before the full record lands.
     const row = ordenes.find(o => o.id === id) ?? countOrdenes.find(o => o.id === id);
 
-    // Seed ONLY when there is no cached detail. Seeding sets `detail` twice
-    // (partial, then full), and OTDetail's effects key on fields of `orden` —
-    // so an extra render there refires per-OT queries like fetchSubOrdenes.
-    // With a warm prefetch we can render the real record once and skip that.
+    // Set below when the panel is already rendering this OT, so the spinner is
+    // skipped — it would swap OTDetail out and flash the panel for no reason.
+    let alreadyShowing = false;
+
     if (cached) {
-      // Cache hit: render the real record straight away. No seed, no spinner,
-      // and no second paint — which also stops OTDetail's per-OT effects from
-      // firing twice.
+      // Cache hit: paint the real record once. No partial seed, so OTDetail's
+      // per-OT effects run a single time instead of twice.
       setDetail(cached);
       setLoadingDetail(false);
     } else if (row) {
-      // Instant paint from the list row while the full record loads.
+      // Instant paint from the list row (titulo, estado, prioridad, ubicacion,
+      // descripcion) while the full record loads. `_pending` marks it partial.
       setDetail({ ...(row as unknown as OrdenTrabajo), _pending: true });
       setLoadingDetail(false);
     } else {
-      setDetail(null);
-      setLoadingDetail(true);
+      setDetail(prev => {
+        if (prev?.id === id) {
+          alreadyShowing = true;
+          return prev;
+        }
+        return null;
+      });
+      setLoadingDetail(!alreadyShowing);
     }
 
     try {
@@ -622,6 +623,11 @@ export default function OrdenesBandeja({
     });
     if (urlId && urlId !== selected) {
       openOT(urlId, false);
+    } else if (urlId && urlId === selected) {
+      // Already open. Do nothing — re-running openOT here is what made the
+      // panel reset to Detalles a beat after the user switched sections: this
+      // effect fires when Next.js finishes its RSC navigation, which lands
+      // after the click that changed the tab.
     } else if (!urlId && selected) {
       setSelected(null);
       setDetail(null);
@@ -1947,6 +1953,10 @@ export default function OrdenesBandeja({
                 </div>
               ) : detail ? (
                 <OTDetail
+                  // Remount per OT: a new key throws away OTDetail's local state,
+                  // so opening another OT always lands on Detalles with its own
+                  // data instead of inheriting the previous OT's section.
+                  key={detail.id}
                   orden={detail}
                   usuarios={usuarios}
                   myId={myId}
@@ -2045,6 +2055,8 @@ export default function OrdenesBandeja({
               </div>
             ) : detail ? (
               <OTDetail
+                // Remount per OT — see the note on the other render site.
+                key={detail.id}
                 orden={detail}
                 usuarios={usuarios}
                 myId={myId}

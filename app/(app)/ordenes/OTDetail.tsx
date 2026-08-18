@@ -37,7 +37,8 @@ import {
   parseDescMeta, fetchOrden, fetchSubOrdenes, createSubOrden,
 } from "@/lib/ordenes-api";
 import type { ForceClose } from "@/lib/ordenes-api";
-import { useCategorias } from "@/lib/queries";
+import { useCategorias, useActividad } from "@/lib/queries";
+import { useQueryClient } from "@tanstack/react-query";
 import { analytics } from "@/lib/analytics";
 import {
   fetchFotoGrupos, createFotoGrupo, updateFotoGrupo, deleteFotoGrupo,
@@ -602,9 +603,42 @@ export default function OTDetail({
   isMarcada, onToggleMarcada,
 }: Props) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const [tab, setTab] = useState<Tab>("detalle");
-  const [actividad, setActividad] = useState<ActividadOT[]>([]);
-  const [loadingAct, setLoadingAct] = useState(false);
+  /**
+   * Tabs the user has actually opened for this OT.
+   *
+   * Every tab's data used to load on open, whether or not anyone looked at it:
+   * materiales, fotos and the hoja each fired their own queries keyed on
+   * `orden.id`. Since the tab buttons show icons only — no counts — nothing on
+   * the Detalle tab depends on that data being present, so it can wait for the
+   * click.
+   *
+   * A tab stays in the set once visited, so switching back and forth does not
+   * refetch (and does not discard HojaSpreadsheet's local edit state, which is
+   * why that one renders with `display:none` rather than unmounting).
+   */
+  // Tracked as booleans, not a Set. A Set is a new object on every insert, so
+  // putting it in a dependency array re-runs those effects on every tab change
+  // — which fought with the tab switch itself and left the panel stuck showing
+  // the previous tab's content.
+  const [materialesVisitada, setMaterialesVisitada] = useState(false);
+  const [fotosVisitada, setFotosVisitada] = useState(false);
+  const [hojaVisitada, setHojaVisitada] = useState(false);
+  const [actividadVisitada, setActividadVisitada] = useState(false);
+
+  useEffect(() => {
+    if (tab === "materiales") setMaterialesVisitada(true);
+    else if (tab === "fotos") setFotosVisitada(true);
+    else if (tab === "hoja") setHojaVisitada(true);
+    else if (tab === "actividad") setActividadVisitada(true);
+  }, [tab]);
+
+
+  // No reset-on-orden.id effect: OrdenesBandeja renders OTDetail with
+  // `key={detail.id}`, so switching OTs remounts this component and every
+  // piece of local state (including `tab`) starts fresh.
+  // `actividad` / `loadingAct` come from the useActividad query below.
   // Latest "pausado" actividad row, fetched eagerly when the OT is in espera so
   // the detail tab can show the pause reason (incl. "Reprogramar: <date>"
   // emitted by the mobile PauseSheet) without waiting for the Actividad tab.
@@ -1000,28 +1034,39 @@ export default function OTDetail({
     return () => { cancelled = true; };
   }, [orden.id, orden.estado, orden.pausado_at]);
 
-  // Load activity immediately so its dashboard count and timeline are ready
-  // before the user opens the section. Poll only while it is visible.
+  /**
+   * Activity log.
+   *
+   * Was a useEffect keyed on `[tab, orden.id]`, so it refetched on EVERY tab
+   * change, not just when the section was opened — and OTDetail now remounts
+   * per OT (`key={detail.id}`), so returning to an OT refetched it again.
+   *
+   * As a query it is cached per OT, and `refetchInterval` polls only while the
+   * Actividad section is actually open.
+   */
+  // Loads when the Actividad section is first opened, matching Materiales,
+  // Fotos and Hoja. Nothing on Detalle renders it: the tab bar is icons only,
+  // so the `actividad.length` badge is never drawn, and both exports fetch
+  // their own copy.
+  const {
+    data: actividadData,
+    isLoading: loadingActQuery,
+  } = useActividad(orden.id, {
+    enabled: actividadVisitada,
+    estado: orden.estado,
+  });
+  const actividad = actividadData ?? [];
+  const loadingAct = loadingActQuery;
+
+  // Poll only while the section is visible: an OT panel can stay open all day,
+  // and polling a section nobody is looking at spends egress for nothing.
   useEffect(() => {
-    setLoadingAct(true);
-    fetchActividad(orden.id)
-      .then(setActividad)
-      .catch(() => {})
-      .finally(() => setLoadingAct(false));
-
     if (tab !== "actividad") return;
-
-    const pollId = setInterval(async () => {
-      try {
-        const fresh = await fetchActividad(orden.id);
-        setActividad(fresh);
-      } catch {
-        // ignore transient errors
-      }
+    const pollId = setInterval(() => {
+      void queryClient.invalidateQueries({ queryKey: ["actividad", orden.id] });
     }, 30_000);
-
     return () => clearInterval(pollId);
-  }, [tab, orden.id]);
+  }, [tab, orden.id, queryClient]);
 
 
   // Load attached procedures immediately so counts and content do not wait for
@@ -1210,8 +1255,11 @@ export default function OTDetail({
     }
   }
 
-  // Eagerly load materials for the summary and section.
+  // Materials load when the Materiales tab is first opened, not on OT open.
+  // The tab button shows an icon with no count, so nothing before that click
+  // depends on this data.
   useEffect(() => {
+    if (!materialesVisitada) return;
     if (ordenPartes.length > 0) return;
     const sb = createClient();
     sb.from("orden_partes")
@@ -1226,16 +1274,18 @@ export default function OTDetail({
         }));
         setOrdenPartes(normalized as OrdenParte[]);
       });
-  }, [orden.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [orden.id, materialesVisitada]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load photo groups immediately for the summary and gallery.
   useEffect(() => {
     if (gruposLoaded) return;
+    // Same rule as materiales: wait for the Fotos tab to be opened.
+    if (!fotosVisitada) return;
     setLoadingGrupos(true);
     fetchFotoGrupos(orden.id)
       .then(data => { setFotoGrupos(data); setGruposLoaded(true); })
       .finally(() => setLoadingGrupos(false));
-  }, [orden.id, gruposLoaded]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [orden.id, gruposLoaded, fotosVisitada]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // The gallery owns the create-album form (title/description/type), so the
   // values arrive as arguments instead of being read from component state.
@@ -1476,6 +1526,31 @@ export default function OTDetail({
   const checkCompletionRequirements = async (): Promise<string[]> => {
     const missing: string[] = [];
 
+    // Materiales and fotos now load lazily, when their tab is first opened. The
+    // close-gate below reads both, so a user who closes an OT without ever
+    // visiting those tabs would otherwise be told "faltan materiales" purely
+    // because the array had never been filled. Fetch what the gate needs, once,
+    // before evaluating it.
+    let partesParaGate = ordenPartes;
+    if (requiereMateriales && modoRegistro !== "hoja" && !materialesVisitada) {
+      const sb = createClient();
+      const { data } = await sb
+        .from("orden_partes")
+        .select("id, parte_id, cantidad, cantidad_utilizada, parte:partes!parte_id(nombre, unidad, stock_actual)")
+        .eq("orden_id", orden.id)
+        .order("created_at", { ascending: true });
+      const normalized = (data ?? []).map((row: any) => ({
+        ...row,
+        parte: Array.isArray(row.parte) ? (row.parte[0] ?? null) : row.parte,
+      })) as OrdenParte[];
+      partesParaGate = normalized;
+      setOrdenPartes(normalized);
+    }
+
+    // Fotos need no equivalent: the photo gate below already refetches from the
+    // server unconditionally, on purpose — stale UI state must never satisfy a
+    // mandatory-photo close gate.
+
     // Blocking procedures. The server treats bloquea_inicio as close-blocking
     // too, so an OT that was force-started can't be quietly closed around it.
     const pendingProcs = otProcs.filter(otp =>
@@ -1489,7 +1564,7 @@ export default function OTDetail({
     // If the workspace currently disables a module via modo_registro, don't
     // enforce its close-gate even if the OT row still has the flag set
     // (the OT may pre-date the workspace mode change).
-    if (requiereMateriales && modoRegistro !== "hoja" && ordenPartes.length === 0) {
+    if (requiereMateriales && modoRegistro !== "hoja" && partesParaGate.length === 0) {
       missing.push("Esta OT requiere al menos un material registrado. Ve a la pestaña Materiales y agrega los materiales utilizados.");
     }
     if (requiereHoja && modoRegistro !== "materiales") {
@@ -1602,6 +1677,10 @@ export default function OTDetail({
       }
       await addComentario(orden.id, myId, text, audioUrl);
       setCommentText("");
+      // Explicit refresh. This used to happen by accident: the old activity
+      // effect was keyed on `tab`, so switching to Actividad refetched it.
+      // The query is cached now, so the write has to say so.
+      await queryClient.invalidateQueries({ queryKey: ["actividad", orden.id] });
       if (tab !== "actividad") setTab("actividad");
     } catch (error) {
       const message = error instanceof Error ? error.message : "No se pudo enviar el comentario.";
@@ -1937,9 +2016,13 @@ export default function OTDetail({
       }
 
       // ── Sheet 4: Actividad ───────────────────────────────────────────────────
-      if (f.actividad && actividad.length > 0) {
+      // Fetched here rather than read from the component: the activity query is
+      // gated on the Actividad section being opened, so exporting from Detalle
+      // would otherwise silently produce an empty sheet.
+      const actividadExport = f.actividad ? await fetchActividadForExport() : [];
+      if (f.actividad && actividadExport.length > 0) {
         const actH = ["Fecha y hora", "Usuario", "Tipo", "Comentario / Detalle"];
-        const actRows = [...actividad].reverse().map(act => [
+        const actRows = [...actividadExport].reverse().map(act => [
           act.created_at ? act.created_at.slice(0, 19).replace("T", " ") : "—",
           (act as any).usuario?.nombre ?? "—",
           act.tipo,
@@ -2314,6 +2397,22 @@ export default function OTDetail({
   const [procVisibleId, setProcVisibleId] = useState<string | null>(null);
   // Salto rápido a Procedimientos: en una OT larga la sección queda muy abajo.
   const detalleScrollRef = useRef<HTMLDivElement | null>(null);
+  /**
+   * Reset the body scroll when the section changes.
+   *
+   * All tabs share ONE scroll container (`detalleScrollRef`), and switching
+   * tabs only swaps its children — the scroll offset survives. Scrolling deep
+   * into the photo gallery and then switching tabs left the container scrolled
+   * past the end of the new, shorter section, so the panel looked frozen on the
+   * previous tab: the content had changed, but the viewport was parked below
+   * it. Reported as "the Fotos tab gets stuck".
+   *
+   * `auto`, not `smooth`: a section switch should land instantly, and a smooth
+   * scroll here reads as the panel drifting on its own.
+   */
+  useEffect(() => {
+    detalleScrollRef.current?.scrollTo({ top: 0, behavior: "auto" });
+  }, [tab]);
   const procSectionRef = useRef<HTMLDivElement | null>(null);
   const [procFueraDeVista, setProcFueraDeVista] = useState(false);
   // UUID → nombre, para atribuir cada respuesta de procedimiento.
@@ -3509,7 +3608,17 @@ export default function OTDetail({
         {/* ── Procedimientos ── */}
 
         {/* ── Hoja de cálculo ── */}
-        {wsId && (
+        {/*
+          `hojaVisitada` keeps this mounted once opened, so switching tabs does
+          not throw away the sheet's local edit state — that is why it renders
+          with `display:none` instead of unmounting.
+
+          But it must not mount BEFORE the first visit: HojaSpreadsheet fetches
+          hojas_inventario (and then its filas) on mount, so an always-mounted
+          hidden tab pulled that data on every single OT open, for every user,
+          whether or not anyone looked at the sheet.
+        */}
+        {wsId && hojaVisitada && (
           <div style={{ display: tab === "hoja" ? "block" : "none", padding: "24px 28px 32px" }}>
             {requiereHoja && isActive && (
               <div style={{
