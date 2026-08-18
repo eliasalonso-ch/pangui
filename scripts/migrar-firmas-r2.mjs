@@ -1,0 +1,308 @@
+#!/usr/bin/env node
+/**
+ * Migra las firmas guardadas en paso_respuestas.firma_svg a R2.
+ *
+ * POR QUE
+ * -------
+ * paso_respuestas es la tabla mas grande de la base: 52 MB, de los cuales
+ * ~48 MB son PNG de firmas guardados como texto en la columna. Eso pesa en
+ * disco tres veces: van a TOAST, pasan antes por WAL, y el upsert de la tabla
+ * (ON CONFLICT DO UPDATE) reescribe la fila entera -- imagen incluida --
+ * cada vez que se guarda cualquier campo de esa respuesta.
+ *
+ * Web y mobile ya suben las firmas nuevas a R2 y guardan la URL. Este script
+ * hace lo mismo con las que quedaron escritas antes de ese cambio.
+ *
+ * COMO
+ * ----
+ * Sube via la Edge Function `r2-presign`, igual que los clientes. Las llaves
+ * de R2 solo existen dentro de esa funcion (a proposito: no estan en .env ni
+ * en el bundle), asi que no hay forma de subir directo desde aca.
+ *
+ * `r2-presign` exige un JWT de usuario real -- rechaza service_role -- y
+ * ademas valida que la carpeta sea `ordenes/<id de una OT existente>`. Por eso
+ * el script pide credenciales de un usuario con acceso a las OTs a migrar.
+ *
+ * Las lecturas y escrituras a Postgres van con SERVICE_ROLE_KEY para saltarse
+ * RLS: hay firmas de varios workspaces y un solo usuario no las ve todas.
+ *
+ * USO
+ * ---
+ *   node scripts/migrar-firmas-r2.mjs --dry-run          # no escribe nada
+ *   node scripts/migrar-firmas-r2.mjs --limit 10         # prueba corta
+ *   node scripts/migrar-firmas-r2.mjs                    # migracion completa
+ *
+ * Variables requeridas (además de las de .env.local):
+ *   MIGRACION_EMAIL / MIGRACION_PASSWORD  -> usuario para firmar los presign
+ *
+ * SEGURIDAD DEL PROCESO
+ * ---------------------
+ * - Reanudable: solo toca filas con firma_svg tipo 'data:%', asi que volver a
+ *   correrlo salta lo ya migrado. Cortarlo a la mitad no deja nada corrupto.
+ * - Verifica cada subida con un HEAD antes de tocar la fila. Si el objeto no
+ *   quedo accesible, la fila se deja intacta y se cuenta como fallo.
+ * - Nunca borra el PNG sin haber confirmado la URL.
+ * - Concurrencia limitada: r2-presign tarda 1.8-4.5s por llamada, asi que en
+ *   serie esto son ~30 min; de a 4 baja a minutos sin saturar la funcion.
+ *
+ * DESPUES DE CORRER
+ * -----------------
+ * El espacio no vuelve solo: Postgres marca las paginas como reutilizables
+ * pero no las devuelve al disco. Para recuperarlas de verdad hay que correr
+ * VACUUM FULL public.paso_respuestas; -- toma un lock exclusivo, asi que va
+ * fuera de horario.
+ */
+
+import { createClient } from "@supabase/supabase-js";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+
+// ── Config ────────────────────────────────────────────────────────────────
+
+function cargarEnv() {
+  const ruta = join(__dirname, "..", ".env.local");
+  let texto = "";
+  try {
+    texto = readFileSync(ruta, "utf8");
+  } catch {
+    return;
+  }
+  for (const linea of texto.split("\n")) {
+    const m = /^\s*([A-Z_0-9]+)\s*=\s*(.*)$/.exec(linea);
+    if (!m) continue;
+    const [, clave, bruto] = m;
+    if (process.env[clave] !== undefined) continue;
+    process.env[clave] = bruto.trim().replace(/^["']|["']$/g, "");
+  }
+}
+cargarEnv();
+
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const EMAIL = process.env.MIGRACION_EMAIL;
+const PASSWORD = process.env.MIGRACION_PASSWORD;
+
+const args = process.argv.slice(2);
+const DRY_RUN = args.includes("--dry-run");
+const LIMITE = (() => {
+  const i = args.indexOf("--limit");
+  return i >= 0 && args[i + 1] ? parseInt(args[i + 1], 10) : null;
+})();
+const CONCURRENCIA = 4;
+
+if (!SUPABASE_URL || !ANON_KEY || !SERVICE_KEY) {
+  console.error("Faltan NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY / SUPABASE_SERVICE_ROLE_KEY");
+  process.exit(1);
+}
+if (!DRY_RUN && (!EMAIL || !PASSWORD)) {
+  console.error("Faltan MIGRACION_EMAIL / MIGRACION_PASSWORD (necesarios para firmar los presign).");
+  console.error("Para ver que haria sin escribir nada: node scripts/migrar-firmas-r2.mjs --dry-run");
+  process.exit(1);
+}
+
+const admin = createClient(SUPABASE_URL, SERVICE_KEY, {
+  auth: { autoRefreshToken: false, persistSession: false },
+});
+
+// ── Helpers ───────────────────────────────────────────────────────────────
+
+/** Decodifica un data URI a bytes + extension. Devuelve null si no es uno. */
+function parsearDataUri(valor) {
+  const m = /^data:image\/([a-z]+);base64,([\s\S]+)$/i.exec(valor.trim());
+  if (!m) return null;
+  const [, tipo, base64] = m;
+  const ext = tipo.toLowerCase() === "jpeg" ? "jpg" : tipo.toLowerCase();
+  return { ext, bytes: Buffer.from(base64, "base64") };
+}
+
+async function pedirPresign(token, ext, folder, size) {
+  const res = await fetch(`${SUPABASE_URL}/functions/v1/r2-presign`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+      apikey: ANON_KEY,
+    },
+    body: JSON.stringify({ ext, folder, size }),
+  });
+  if (!res.ok) throw new Error(`presign ${res.status}: ${(await res.text()).slice(0, 160)}`);
+  return res.json();
+}
+
+async function subirYVerificar(presign, bytes) {
+  const put = await fetch(presign.uploadUrl, {
+    method: "PUT",
+    headers: { "Content-Type": presign.contentType, "Content-Length": String(bytes.length) },
+    body: bytes,
+  });
+  if (!put.ok) throw new Error(`PUT ${put.status}: ${(await put.text()).slice(0, 160)}`);
+
+  // No basta con el 200 del PUT: confirmamos que el objeto quedo servible
+  // antes de borrar el PNG de la fila.
+  const head = await fetch(presign.publicUrl, { method: "HEAD" });
+  if (!head.ok) throw new Error(`objeto no accesible tras subir (HEAD ${head.status})`);
+}
+
+/** Corre `tareas` con como maximo `limite` en vuelo a la vez. */
+async function enLotes(items, limite, fn) {
+  const resultados = [];
+  let cursor = 0;
+  const trabajadores = Array.from({ length: Math.min(limite, items.length) }, async () => {
+    while (cursor < items.length) {
+      const i = cursor++;
+      resultados[i] = await fn(items[i], i);
+    }
+  });
+  await Promise.all(trabajadores);
+  return resultados;
+}
+
+// ── Main ──────────────────────────────────────────────────────────────────
+
+async function main() {
+  console.log(DRY_RUN ? "== SIMULACION (no escribe nada) ==" : "== MIGRACION REAL ==");
+
+  // Solo las que siguen inline. Esto es lo que hace el script reanudable.
+  //
+  // Se lee de a paginas: pedir las ~420 filas de una implica arrastrar ~48 MB
+  // de base64 en una sola consulta, y eso supera el statement timeout de
+  // PostgREST. De a 25 entra sin problema.
+  // Dos pasadas: primero solo los ids (barato, sin TOAST), despues el contenido
+  // de a poco. Arrastrar firma_svg y filtrar por LIKE en la misma consulta
+  // hacia que Postgres leyera los 48 MB de TOAST de una y se pasara del
+  // statement timeout de forma intermitente.
+  // `LIKE 'data:%'` obliga a Postgres a detoastear las 2.888 filas para evaluar
+  // el patron: 13.4s medidos, por encima del statement timeout. Filtrar por
+  // longitud da exactamente el mismo conjunto (una URL son ~108 bytes, un PNG
+  // inline mas de 100 KB) y baja a 4.1s. El formato se verifica igual despues,
+  // al parsear cada data URI.
+  const { data: idRows, error: errIds } = await admin
+    .from("paso_respuestas")
+    .select("id")
+    .not("firma_svg", "is", null)
+    .order("id");
+  if (errIds) throw new Error(`listando ids: ${errIds.message}`);
+  const ids = (idRows ?? []).map(r => r.id);
+  const objetivo = LIMITE ? ids.slice(0, LIMITE) : ids;
+
+  const PAGINA = 10;
+  const filas = [];
+  for (let i = 0; i < objetivo.length; i += PAGINA) {
+    const trozo = objetivo.slice(i, i + PAGINA);
+    let pagina = null;
+    // El timeout aparece de forma intermitente al tocar TOAST; reintentar la
+    // misma pagina alcanza, no hace falta abortar toda la corrida.
+    for (let intento = 1; intento <= 3; intento++) {
+      const { data, error: e } = await admin
+        .from("paso_respuestas")
+        .select("id, ejecucion_id, firma_svg")
+        .in("id", trozo);
+      if (!e) { pagina = data; break; }
+      if (intento === 3) throw new Error(`leyendo firmas: ${e.message}`);
+      await new Promise(r => setTimeout(r, 1000 * intento));
+    }
+    // El filtro real: solo las que siguen siendo data URI. Las ya migradas
+    // (URL, ~108 bytes) se descartan aca, lo que mantiene el script reanudable.
+    filas.push(...(pagina ?? []).filter(f => typeof f.firma_svg === "string" && f.firma_svg.startsWith("data:")));
+  }
+  if (!filas?.length) {
+    console.log("No quedan firmas inline. Nada que hacer.");
+    return;
+  }
+
+  const totalBytes = filas.reduce((a, f) => a + (f.firma_svg?.length ?? 0), 0);
+  console.log(`Firmas inline: ${filas.length} (${(totalBytes / 1024 / 1024).toFixed(1)} MB en la tabla)`);
+
+  // r2-presign exige carpeta ordenes/<id>, asi que necesitamos la OT de cada
+  // firma. La respuesta no la tiene: se llega via su ejecucion.
+  // De a 100 ids: un .in() con los ~420 arma una URL que el gateway rechaza.
+  const ejecIds = [...new Set(filas.map(f => f.ejecucion_id).filter(Boolean))];
+  const ordenPorEjec = new Map();
+  for (let i = 0; i < ejecIds.length; i += 100) {
+    const trozo = ejecIds.slice(i, i + 100);
+    const { data: ejecs, error: errEjec } = await admin
+      .from("procedimiento_ejecuciones")
+      .select("id, orden_id")
+      .in("id", trozo);
+    if (errEjec) throw new Error(`leyendo ejecuciones: ${errEjec.message}`);
+    for (const e of ejecs ?? []) ordenPorEjec.set(e.id, e.orden_id);
+  }
+
+  const migrables = filas.filter(f => ordenPorEjec.get(f.ejecucion_id));
+  const huerfanas = filas.length - migrables.length;
+  if (huerfanas) console.log(`Sin OT asociada (se omiten): ${huerfanas}`);
+
+  if (DRY_RUN) {
+    const muestra = migrables.slice(0, 5);
+    console.log(`\nSe migrarian ${migrables.length} firmas. Muestra:`);
+    for (const f of muestra) {
+      const p = parsearDataUri(f.firma_svg);
+      console.log(`  ${f.id}  ${p ? `${p.ext} ${(p.bytes.length / 1024).toFixed(0)} KB` : "NO PARSEABLE"}  -> ordenes/${ordenPorEjec.get(f.ejecucion_id)}/firmas`);
+    }
+    console.log("\nSin --dry-run se subirian a R2 y se reemplazaria la columna por la URL.");
+    return;
+  }
+
+  // Sesion de usuario real: r2-presign rechaza service_role.
+  const publico = createClient(SUPABASE_URL, ANON_KEY, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+  const { data: sesion, error: errAuth } = await publico.auth.signInWithPassword({
+    email: EMAIL,
+    password: PASSWORD,
+  });
+  if (errAuth || !sesion?.session) throw new Error(`login fallido: ${errAuth?.message ?? "sin sesion"}`);
+  const token = sesion.session.access_token;
+  console.log(`Sesion iniciada como ${EMAIL}\n`);
+
+  let ok = 0, fallidas = 0, bytesLiberados = 0;
+  const errores = [];
+
+  await enLotes(migrables, CONCURRENCIA, async (fila, i) => {
+    const etiqueta = `[${i + 1}/${migrables.length}] ${fila.id.slice(0, 8)}`;
+    try {
+      const parsed = parsearDataUri(fila.firma_svg);
+      if (!parsed) throw new Error("firma_svg no es un data URI reconocible");
+
+      const folder = `ordenes/${ordenPorEjec.get(fila.ejecucion_id)}/firmas`;
+      const presign = await pedirPresign(token, parsed.ext, folder, parsed.bytes.length);
+      await subirYVerificar(presign, parsed.bytes);
+
+      // Recien aca se toca la fila: la URL ya esta confirmada.
+      const { error: errUpd } = await admin
+        .from("paso_respuestas")
+        .update({ firma_svg: presign.publicUrl })
+        .eq("id", fila.id);
+      if (errUpd) throw new Error(`update: ${errUpd.message}`);
+
+      ok++;
+      bytesLiberados += fila.firma_svg.length - presign.publicUrl.length;
+      console.log(`${etiqueta} OK  ${(parsed.bytes.length / 1024).toFixed(0)} KB -> URL`);
+    } catch (e) {
+      fallidas++;
+      errores.push(`${fila.id}: ${e.message}`);
+      console.warn(`${etiqueta} FALLO  ${e.message}`);
+    }
+  });
+
+  console.log(`\n--- Resumen ---`);
+  console.log(`Migradas:  ${ok}`);
+  console.log(`Fallidas:  ${fallidas}`);
+  console.log(`Liberado:  ~${(bytesLiberados / 1024 / 1024).toFixed(1)} MB de la tabla`);
+  if (errores.length) {
+    console.log(`\nErrores (las filas quedaron intactas, se pueden reintentar):`);
+    for (const e of errores.slice(0, 20)) console.log(`  ${e}`);
+    if (errores.length > 20) console.log(`  ... y ${errores.length - 20} mas`);
+  }
+  console.log(`\nEl espacio se recupera recien con:  VACUUM FULL public.paso_respuestas;`);
+  console.log(`(toma un lock exclusivo sobre la tabla -- correr fuera de horario)`);
+}
+
+main().catch(e => {
+  console.error(`\nError fatal: ${e.message}`);
+  process.exit(1);
+});
