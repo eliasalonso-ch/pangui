@@ -1,0 +1,139 @@
+                    DESCRIPCION DE GIRO / ACTIVIDAD ECONOMICA
+                          "ALONSO TECHNOLOGIES SpA"
+
+
+En (ciudad), a (dia) de (mes) del (año), quien suscribe, don (nombre completo
+del representante legal), cedula nacional de identidad numero (RUT), en su
+calidad de representante legal de ALONSO TECHNOLOGIES SpA, Rol Unico Tributario
+numero 78.432.008-1, sociedad por acciones constituida con fecha (dia) de (mes)
+de (año) acogiendose a las disposiciones de la Ley N° 20.659, con domicilio en
+(domicilio completo), comuna de (comuna), ciudad de (ciudad), Region (region),
+viene en CERTIFICAR Y DECLARAR la descripcion de la actividad economica que la
+sociedad desarrolla, en los terminos que siguen.
+
+
+PRIMERO: Actividad economica registrada.
+
+La sociedad se encuentra registrada ante el Servicio de Impuestos Internos bajo
+el codigo de actividad economica 620100 - ACTIVIDADES DE PROGRAMACION
+INFORMATICA, tributando en Primera Categoria conforme a lo dispuesto en el
+articulo 20 de la Ley sobre Impuesto a la Renta, y siendo sus operaciones
+afectas al Impuesto al Valor Agregado de acuerdo al Decreto Ley N° 825.
+
+
+SEGUNDO: Giro comercial.
+
+El giro de la sociedad consiste en el desarrollo, mantencion, comercializacion
+y explotacion de software propio bajo modalidad de suscripcion (Software as a
+Service, SaaS).
+
+
+TERCERO: Descripcion de la actividad.
+
+La sociedad desarrolla, mantiene y explota comercialmente una plataforma
+informatica de su propiedad, denominada PANGUI, destinada a la gestion de
+mantenimiento de activos e infraestructura industrial (CMMS, por sus siglas en
+ingles, Computerized Maintenance Management System).
+
+Dicha plataforma permite a las empresas usuarias administrar ordenes de
+trabajo, planes de mantenimiento preventivo y correctivo, inventario de
+repuestos y materiales, procedimientos de trabajo, catastro de activos e
+instalaciones, y obtener indicadores de gestion asociados a su operacion.
+
+
+CUARTO: Modalidad de prestacion.
+
+El servicio se presta bajo la modalidad de software como servicio (SaaS). En
+virtud de ella, el cliente no adquiere la propiedad del software, sino un
+derecho de uso temporal y no exclusivo sobre la plataforma, la que permanece
+alojada en la infraestructura tecnologica contratada por la sociedad y es
+accesible mediante navegador web y aplicaciones moviles para los sistemas
+operativos iOS y Android.
+
+
+QUINTO: Modelo de comercializacion.
+
+La comercializacion se efectua mediante suscripciones de cobro mensual
+recurrente, tarificadas segun el plan contratado y la cantidad de usuarios
+activos de cada cliente. Los pagos son recaudados a traves de plataformas de
+pago electronico autorizadas y operativas en el territorio nacional, mediante
+cargo automatico a la tarjeta inscrita por el cliente.
+
+Por cada cobro percibido, la sociedad emite la correspondiente factura
+electronica afecta a IVA ante el Servicio de Impuestos Internos, la que es
+remitida al correo electronico de facturacion registrado por el cliente.
+
+
+SEXTO: Mercado objetivo.
+
+La actividad se dirige al segmento de empresas (B2B), principalmente de los
+rubros industrial, construccion, mineria, servicios y administracion de
+instalaciones, dentro del territorio de la Republica de Chile.
+
+
+Se emite el presente certificado para ser presentado ante todo tipo de
+instituciones publicas, privadas, financieras y bancarias, y especialmente para
+efectos de acreditacion de giro, apertura y mantencion de cuentas bancarias,
+contratacion de servicios de recaudacion y procesamiento de pagos, y demas
+tramites que lo requieran.
+
+
+
+
+                        _____________________________
+
+                     (Nombre completo del representante legal)
+                          C.N.I. N° (RUT del representante)
+                                Representante Legal
+                            ALONSO TECHNOLOGIES SpA
+                             R.U.T. N° 78.432.008-1
+
+
+
+
+===============================================================================
+CAMPOS A COMPLETAR
+===============================================================================
+
+  - Ciudad y fecha de emision ......... lugar y dia en que se firma
+  - Nombre y RUT del representante .... escritura de constitucion
+  - Fecha de constitucion ............. certificado de estatuto actualizado
+                                        (registrodeempresasysociedades.cl)
+  - Domicilio social completo ......... escritura de constitucion / SII
+
+Datos ya confirmados y prellenados: razon social, RUT de la sociedad
+(78.432.008-1), codigo de actividad (620100).
+
+
+===============================================================================
+VARIANTE CORTA
+===============================================================================
+
+Si la institucion solo pide una declaracion de giro sin el detalle completo,
+bastan los articulos PRIMERO, SEGUNDO y TERCERO, conservando el encabezado, el
+parrafo de comparecencia, el cierre y la firma.
+
+
+===============================================================================
+ADVERTENCIA
+===============================================================================
+
+Este documento es una DECLARACION del representante legal, util para acreditar
+en que consiste la actividad de la sociedad, algo que ningun certificado
+oficial describe: el SII solo entrega el codigo y su glosa.
+
+NO REEMPLAZA a los certificados oficiales, que se obtienen gratis y en linea:
+
+  - Certificado de vigencia y de estatuto actualizado (incluye composicion
+    accionaria) ....................... registrodeempresasysociedades.cl
+  - Certificado de inicio de actividades y situacion tributaria ...... sii.cl
+
+Cuando una institucion exija "certificado de vigencia" o "acreditacion de
+actividades ante el SII", corresponde presentar esos, no este. Este los
+acompaña, no los sustituye.
+
+Conviene ademas que el contador revise el texto antes de presentarlo: el codigo
+620100 figura con "G" en el catalogo del SII (la afectacion a IVA y la
+categoria tributaria se determinan por las caracteristicas de la actividad), y
+los articulos PRIMERO, CUARTO y QUINTO son precisamente los que fundamentan la
+clasificacion en Primera Categoria afecta a IVA.

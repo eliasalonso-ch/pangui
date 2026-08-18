@@ -23,12 +23,15 @@ import {
   CircleUserRound,
   Building2,
   CreditCard,
+  Tag,
+  Zap,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 import { createClient } from "@/lib/supabase";
 import { usePermisos } from "@/lib/permisos";
 import { ROL_LABEL } from "@/lib/roles";
+import { tieneItos } from "@/lib/itos-gate";
 import { useSuscripcion } from "@/hooks/useSuscripcion";
 
 import {
@@ -225,6 +228,7 @@ export default function AppSidebar() {
   const [userRol, setUserRol] = useState<string | null>(null);
   const [userData, setUserData] = useState<UserData | null>(null);
   const [modoRegistro, setModoRegistro] = useState<"ambos" | "materiales" | "hoja">("ambos");
+  const [workspaceId, setWorkspaceId] = useState<string | null>(null);
   const [workspaceLogo, setWorkspaceLogo] = useState<string | null | undefined>(undefined);
   const [mounted, setMounted] = useState(false);
   const [hasUnreadNotifications, setHasUnreadNotifications] = useState(false);
@@ -280,6 +284,7 @@ export default function AppSidebar() {
       if (data?.nombre && data?.rol) setUserData({ nombre: data.nombre, rol: data.rol });
 
       if (data?.workspace_id) {
+        setWorkspaceId(data.workspace_id);
         const { data: wsData } = await sb
           .from("workspaces")
           .select("modo_registro, logo_url")
@@ -493,6 +498,27 @@ export default function AppSidebar() {
                     <Link href="/requisitos" style={{ display: "flex", alignItems: "center", gap: collapsed ? 0 : 10 }}>
                       <ListChecks size={16} style={{ flexShrink: 0 }} />
                       {!collapsed && <span>Requisitos de OTs</span>}
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )}
+              {isAdmin && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={isActive("/categorias")} tooltip="Categorías">
+                    <Link href="/categorias" style={{ display: "flex", alignItems: "center", gap: collapsed ? 0 : 10 }}>
+                      <Tag size={16} style={{ flexShrink: 0 }} />
+                      {!collapsed && <span>Categorías</span>}
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )}
+              {/* ITOs: exclusivo de Electrilam, igual que en la app móvil. */}
+              {isAdmin && tieneItos(workspaceId) && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={isActive("/itos")} tooltip="ITOs">
+                    <Link href="/itos" style={{ display: "flex", alignItems: "center", gap: collapsed ? 0 : 10 }}>
+                      <Zap size={16} style={{ flexShrink: 0 }} />
+                      {!collapsed && <span>ITOs</span>}
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
