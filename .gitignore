@@ -40,3 +40,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Respaldos locales de datos (firmas del historial, etc.) -- nunca al repo
+respaldos/
