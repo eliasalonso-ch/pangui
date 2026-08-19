@@ -210,7 +210,11 @@ async function main() {
     .order("id");
   if (errIds) throw new Error(`listando ids: ${errIds.message}`);
   const todos = (idRows ?? []).map(r => r.id);
-  const objetivo = LIMITE ? todos.slice(0, LIMITE) : todos;
+  // OJO: el limite NO se aplica aca. `todos` son las filas que tienen firma,
+  // migradas o no, y las primeras por id ya estan en R2 -- cortar aca hacia que
+  // `--limit 30` procesara 30 candidatas y migrara 0. El limite cuenta firmas
+  // efectivamente migradas y se controla dentro del bucle.
+  const objetivo = todos;
   console.log(`Candidatas con firma: ${objetivo.length}`);
 
   if (DRY_RUN) {
@@ -249,6 +253,11 @@ async function main() {
 
     const filas = await leerFirmas(idsLote);
     if (!filas.length) { saltadas += idsLote.length; continue; }
+
+    // Con --limit, recorta el lote para no pasarse del total pedido.
+    const restantes = LIMITE ? LIMITE - ok : Infinity;
+    if (restantes <= 0) break;
+    if (filas.length > restantes) filas.length = restantes;
 
     const ejecIds = [...new Set(filas.map(f => f.ejecucion_id).filter(Boolean))];
     const ordenPorEjec = new Map();
@@ -289,6 +298,8 @@ async function main() {
 
     const hechas = ok + fallidas;
     console.log(`lote ${Math.floor(i / LOTE) + 1}: ${ok} ok, ${fallidas} fallidas  (${hechas} procesadas, ~${(bytesLiberados / 1024 / 1024).toFixed(1)} MB liberados)`);
+
+    if (LIMITE && ok >= LIMITE) break;
 
     // Pausa deliberada: sin esto la base queda leyendo TOAST sin descanso y
     // termina afectando al resto del proyecto (se vieron 504 en auth/v1/user).
