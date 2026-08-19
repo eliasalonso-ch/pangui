@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase";
 import { uploadToR2 } from "@/lib/r2";
+import { encuadrarFirma } from "@/lib/firma-encuadre";
 import HojaSpreadsheet from "@/components/HojaSpreadsheet";
 import { createHoja } from "@/lib/hojas-api";
 import { notifySolicitudMateriales } from "@/lib/notificar";
@@ -4211,6 +4212,43 @@ function isAnsweredForType(paso: ProcedimientoPaso, resp: PendingResp | undefine
 // Cloudflare Image Resizing rewrite — see lib/image-cdn.ts.
 const optimizedProcedureImageUrl = optimizedImageUrl;
 
+/**
+ * Firma con la caja ajustada a su proporcion real.
+ *
+ * El movil firma en un canvas a pantalla completa, asi que en vertical la
+ * imagen sale alta y angosta; con una altura fija y object-fit: contain
+ * quedaba reducida a una franja ilegible. La proporcion solo se conoce cuando
+ * la imagen carga, asi que se mide en onLoad y se reencuadra.
+ */
+function FirmaImagen({ src, altoBase }: { src: string; altoBase: number }) {
+  // Se guarda junto al src que se midio: si la firma cambia, la medida anterior
+  // deja de aplicar sola, sin un efecto que resetee el estado (y sin el render
+  // en cascada que eso provoca).
+  const [medida, setMedida] = useState<{ src: string; proporcion: number } | null>(null);
+  const proporcion = medida?.src === src ? medida.proporcion : null;
+
+  const { alto, posicion } = encuadrarFirma(proporcion, altoBase);
+
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={src}
+      alt="firma"
+      loading="lazy"
+      decoding="async"
+      onLoad={e => {
+        const { naturalWidth: w, naturalHeight: h } = e.currentTarget;
+        if (w > 0 && h > 0) setMedida({ src, proporcion: w / h });
+      }}
+      style={{
+        width: "100%", height: alto, display: "block",
+        objectFit: "contain", objectPosition: posicion,
+        filter: "contrast(1.6) saturate(0)",
+      }}
+    />
+  );
+}
+
 function signatureImageSrc(value: string | null | undefined) {
   if (!value) return null;
   const trimmed = value.trim();
@@ -4622,19 +4660,7 @@ function ReadonlyAnswer({ paso, resp, onPhotoClick }: { paso: ProcedimientoPaso;
               cursor: onPhotoClick ? "zoom-in" : "default",
             }}
           >
-            <img
-              src={src}
-              alt="firma"
-              loading="lazy"
-              decoding="async"
-              style={{
-                width: "100%", height: 200, display: "block",
-                // Alineada a la izquierda: centrada quedaba flotando en medio
-                // de una caja ancha y se leía como un error de maquetación.
-                objectFit: "contain", objectPosition: "left center",
-                filter: "contrast(1.6) saturate(0)",
-              }}
-            />
+            <FirmaImagen src={src} altoBase={200} />
           </button>
         )
         : <div style={{ fontSize: 12.5, color: "var(--success)", marginTop: 4 }}>✓ Firmado</div>;
@@ -4911,8 +4937,7 @@ function SignatureCanvas({
       {existingSrc && !open ? (
         <>
           <div style={{ border: "1px solid var(--border)", borderRadius: "var(--r-sm)", background: "var(--surface-0)", padding: 8 }}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={existingSrc} alt="Firma registrada" style={{ display: "block", width: "100%", maxHeight: 120, objectFit: "contain" }} />
+            <FirmaImagen src={existingSrc} altoBase={120} />
           </div>
           <button
             onClick={() => setConfirmClear(true)}
