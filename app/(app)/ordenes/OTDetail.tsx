@@ -1288,13 +1288,26 @@ export default function OTDetail({
   // Load photo groups immediately for the summary and gallery.
   useEffect(() => {
     if (gruposLoaded) return;
-    // Same rule as materiales: wait for the Fotos tab to be opened.
-    if (!fotosVisitada) return;
-    setLoadingGrupos(true);
+    // Se carga al abrir la pestana Fotos... o antes, en segundo plano, si la OT
+    // esta abierta y las fotos son obligatorias para cerrarla.
+    //
+    // POR QUE la precarga: el gate de cierre necesita este dato, y pedirlo
+    // recien cuando el usuario aprieta "Completada" lo hace esperar el viaje
+    // completo (preflight CORS + ida y vuelta a us-east-1, ~400 ms; la consulta
+    // en si son 2,5 ms). Traerlo mientras lee la OT hace que el cuadro de
+    // requisitos aparezca de inmediato.
+    //
+    // No debilita nada: el gate igual revalida contra el servidor si el dato no
+    // esta listo, y la regla real vive en el trigger enforce_ot_photo_completion.
+    const necesarioParaCerrar = (requiereFotos || fotosObligatoriasTodas)
+      && orden.estado !== "completado";
+    if (!fotosVisitada && !necesarioParaCerrar) return;
+    if (fotosVisitada) setLoadingGrupos(true);
     fetchFotoGrupos(orden.id)
       .then(data => { setFotoGrupos(data); setGruposLoaded(true); })
+      .catch(() => { /* el gate revalida por su cuenta */ })
       .finally(() => setLoadingGrupos(false));
-  }, [orden.id, gruposLoaded, fotosVisitada]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [orden.id, gruposLoaded, fotosVisitada, requiereFotos, fotosObligatoriasTodas, orden.estado]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // The gallery owns the create-album form (title/description/type), so the
   // values arrive as arguments instead of being read from component state.
@@ -1555,12 +1568,17 @@ export default function OTDetail({
             .eq("orden_id", orden.id)
             .order("created_at", { ascending: true })
         : Promise.resolve(null),
-      necesitaFotos
-        ? fetchFotoGrupos(orden.id).then(
-            g => ({ ok: true as const, grupos: g }),
-            () => ({ ok: false as const, grupos: [] as FotoGrupo[] }),
-          )
-        : Promise.resolve(null),
+      // Si la precarga ya trajo los grupos (efecto de arriba), se usan y el
+      // cuadro sale al instante. Si no llego a tiempo, se pide ahora: el gate
+      // nunca se salta por falta de dato.
+      !necesitaFotos
+        ? Promise.resolve(null)
+        : gruposLoaded
+          ? Promise.resolve({ ok: true as const, grupos: fotoGrupos })
+          : fetchFotoGrupos(orden.id).then(
+              g => ({ ok: true as const, grupos: g }),
+              () => ({ ok: false as const, grupos: [] as FotoGrupo[] }),
+            ),
     ]);
 
     let partesParaGate = ordenPartes;
