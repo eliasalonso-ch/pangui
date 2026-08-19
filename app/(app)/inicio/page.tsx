@@ -255,7 +255,9 @@ export default function InicioDashboard() {
         // A member with solo_asignadas only sees their own OTs. RLS scopes by
         // workspace only, so the dashboard has to apply the same filter the
         // bandeja does or it leaks counts and cards for the whole workspace.
-        const soloAsignadas = await getSoloAsignadasUserId();
+        // `user.id` ya lo tenemos de getUser() mas arriba; pasarlo evita un
+        // segundo viaje a /auth/v1/user (~700 ms desde Chile a us-east-1).
+        const soloAsignadas = await getSoloAsignadasUserId(user.id);
         const soloMias = <T extends { contains: (c: string, v: any) => T }>(q: T): T =>
           soloAsignadas ? q.contains("asignados_ids", [soloAsignadas]) : q;
 

@@ -352,7 +352,9 @@ export default function AnaliticaPage() {
       // A member with solo_asignadas only sees their own OTs. RLS scopes by
       // workspace only, so analytics must apply the same filter or it reports
       // on work the user is not allowed to see.
-      const soloAsignadas = await getSoloAsignadasUserId();
+      // `user.id` ya lo tenemos de getUser() mas arriba; pasarlo evita un
+      // segundo viaje a /auth/v1/user.
+      const soloAsignadas = await getSoloAsignadasUserId(user.id);
       const soloMias = <T extends { contains: (c: string, v: any) => T }>(q: T): T =>
         soloAsignadas ? q.contains("asignados_ids", [soloAsignadas]) : q;
 

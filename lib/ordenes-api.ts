@@ -251,29 +251,58 @@ export const ORDENES_BULK_PAGE_SIZE = 150;
  * query; call `resetVisibilidadCache()` after changing a user's own flag.
  */
 let visibilidadCache: { userId: string | null } | null = null;
+// La consulta en vuelo, no solo su resultado. Antes se cacheaba unicamente al
+// final: dos llamadas concurrentes (el dashboard pide el perfil y la
+// visibilidad a la vez) veian `visibilidadCache === null` las dos y disparaban
+// cada una su propio getUser() + select a `usuarios`. En el HAR del 2026-08-19
+// eso salia como la misma consulta duplicada, con dos preflight CORS aparte.
+let visibilidadEnVuelo: Promise<string | null> | null = null;
 
 export function resetVisibilidadCache() {
   visibilidadCache = null;
+  visibilidadEnVuelo = null;
 }
 
-export async function getSoloAsignadasUserId(): Promise<string | null> {
+/**
+ * @param userId - id ya conocido del usuario, para ahorrarse un `auth.getUser()`
+ *   de ida y vuelta. Quien ya llamo a getUser() deberia pasarlo; omitirlo sigue
+ *   funcionando igual.
+ */
+export async function getSoloAsignadasUserId(userId?: string): Promise<string | null> {
   if (visibilidadCache) return visibilidadCache.userId;
+  if (visibilidadEnVuelo) return visibilidadEnVuelo;
 
-  const sb = createClient();
-  const { data: { user } } = await sb.auth.getUser();
-  if (!user) return null;
+  visibilidadEnVuelo = (async () => {
+    const sb = createClient();
 
-  const { data } = await sb
-    .from("usuarios")
-    .select("rol, solo_asignadas")
-    .eq("id", user.id)
-    .maybeSingle();
+    let id = userId;
+    if (!id) {
+      const { data: { user } } = await sb.auth.getUser();
+      if (!user) return null;
+      id = user.id;
+    }
 
-  // Only `member` is ever restricted. Owners/admins always see everything, and
-  // a missing row must not accidentally hide a user's own work.
-  const restricted = data?.rol === "member" && data?.solo_asignadas === true;
-  visibilidadCache = { userId: restricted ? user.id : null };
-  return visibilidadCache.userId;
+    const { data } = await sb
+      .from("usuarios")
+      .select("rol, solo_asignadas")
+      .eq("id", id)
+      .maybeSingle();
+
+    // Only `member` is ever restricted. Owners/admins always see everything, and
+    // a missing row must not accidentally hide a user's own work.
+    const restricted = data?.rol === "member" && data?.solo_asignadas === true;
+    visibilidadCache = { userId: restricted ? id : null };
+    return visibilidadCache.userId;
+  })();
+
+  try {
+    return await visibilidadEnVuelo;
+  } finally {
+    // Se limpia siempre: si fallo, la proxima llamada reintenta en vez de
+    // quedarse pegada a una promesa rechazada. Si funciono, `visibilidadCache`
+    // ya responde y esta promesa deja de hacer falta.
+    visibilidadEnVuelo = null;
+  }
 }
 
 /**
