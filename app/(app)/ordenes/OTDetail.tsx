@@ -670,6 +670,15 @@ export default function OTDetail({
   } | null>(null);
   const [gateReason, setGateReason] = useState("");
   const [gateBusy, setGateBusy] = useState(false);
+  // Estado que se esta aplicando ahora mismo, o null. Cubre CUALQUIER cambio
+  // (no solo completar): mientras hay uno en vuelo, el boton correspondiente
+  // muestra un spinner y el resto queda deshabilitado.
+  //
+  // Sin esto, apretar "Completada" no daba ninguna senal durante ~1,5 s -- el
+  // chequeo de requisitos hace un round-trip a foto_grupos (preflight CORS +
+  // GET desde Chile a us-east-1; la consulta en si son 2,5 ms) -- y el usuario
+  // volvia a apretar, lanzando otra verificacion y otro PATCH.
+  const [estadoEnCurso, setEstadoEnCurso] = useState<Estado | null>(null);
 
   // Autosave feedback. Procedure steps save on change/blur with no Save button,
   // so the toast is the only signal that the write landed.
@@ -1531,15 +1540,32 @@ export default function OTDetail({
     // visiting those tabs would otherwise be told "faltan materiales" purely
     // because the array had never been filled. Fetch what the gate needs, once,
     // before evaluating it.
+    // Las dos consultas del gate salen EN PARALELO. Antes iban en serie y cada
+    // una paga preflight CORS + ida y vuelta a us-east-1: la consulta de fotos
+    // toma 2,5 ms en la base, pero el viaje completo ronda los 400 ms. En serie
+    // el usuario esperaba ~1,5 s sin ninguna senal antes de ver el cuadro.
+    const necesitaPartes = requiereMateriales && modoRegistro !== "hoja" && !materialesVisitada;
+    const necesitaFotos = requiereFotos || fotosObligatoriasTodas;
+
+    const [partesRes, gruposRes] = await Promise.all([
+      necesitaPartes
+        ? createClient()
+            .from("orden_partes")
+            .select("id, parte_id, cantidad, cantidad_utilizada, parte:partes!parte_id(nombre, unidad, stock_actual)")
+            .eq("orden_id", orden.id)
+            .order("created_at", { ascending: true })
+        : Promise.resolve(null),
+      necesitaFotos
+        ? fetchFotoGrupos(orden.id).then(
+            g => ({ ok: true as const, grupos: g }),
+            () => ({ ok: false as const, grupos: [] as FotoGrupo[] }),
+          )
+        : Promise.resolve(null),
+    ]);
+
     let partesParaGate = ordenPartes;
-    if (requiereMateriales && modoRegistro !== "hoja" && !materialesVisitada) {
-      const sb = createClient();
-      const { data } = await sb
-        .from("orden_partes")
-        .select("id, parte_id, cantidad, cantidad_utilizada, parte:partes!parte_id(nombre, unidad, stock_actual)")
-        .eq("orden_id", orden.id)
-        .order("created_at", { ascending: true });
-      const normalized = (data ?? []).map((row: any) => ({
+    if (partesRes) {
+      const normalized = ((partesRes.data ?? []) as any[]).map((row: any) => ({
         ...row,
         parte: Array.isArray(row.parte) ? (row.parte[0] ?? null) : row.parte,
       })) as OrdenParte[];
@@ -1570,18 +1596,16 @@ export default function OTDetail({
     if (requiereHoja && modoRegistro !== "materiales") {
       missing.push("Esta OT requiere que completes la hoja de cálculo. Ve a la pestaña Hoja de cálculo.");
     }
-    if (requiereFotos || fotosObligatoriasTodas) {
-      // Always verify fresh server data. Local or stale UI state must never
-      // satisfy a mandatory-photo close gate.
-      let currentGrupos: FotoGrupo[];
-      try {
-        currentGrupos = await fetchFotoGrupos(orden.id);
-        setFotoGrupos(currentGrupos);
-        setGruposLoaded(true);
-      } catch {
+    if (gruposRes) {
+      // Siempre contra el servidor: el estado local o desactualizado no puede
+      // satisfacer un gate de fotos obligatorias.
+      if (!gruposRes.ok) {
         missing.push("No se pudieron verificar las fotos. Revisa tu conexión e inténtalo nuevamente antes de cerrar la OT.");
         return missing;
       }
+      const currentGrupos = gruposRes.grupos;
+      setFotoGrupos(currentGrupos);
+      setGruposLoaded(true);
       const hasAnyFoto = fotos.length > 0 || currentGrupos.some(g => g.tipo === "evidencia" && (g.items?.length ?? 0) > 0);
       if (!hasAnyFoto) {
         missing.push("Esta OT requiere al menos una foto de evidencia. Ve a la pestaña Fotos y sube las fotos del trabajo.");
@@ -1597,13 +1621,15 @@ export default function OTDetail({
    * justified override.
    */
   const closeWithRequirements = async (close: (forceClose?: ForceClose) => Promise<void>) => {
-    const missing = await checkCompletionRequirements();
-    if (missing.length === 0) {
-      await close();
-      return;
+    {
+      const missing = await checkCompletionRequirements();
+      if (missing.length === 0) {
+        await close();
+        return;
+      }
+      setGateReason("");
+      setGate({ missing, resume: close });
     }
-    setGateReason("");
-    setGate({ missing, resume: close });
   };
 
   const confirmForceClose = async () => {
@@ -2849,52 +2875,62 @@ export default function OTDetail({
                         ? (hasAssignees ? "var(--st-progress-dot)" : null)
                         : ESTADO_ACCENT[e.value];
                       const handleClick = async () => {
-                        if (e.value === "en_espera" && orden.en_ejecucion) {
-                          setPauseOpen(true);
-                          return;
-                        }
-                        if (e.value === "en_curso") {
-                          if (orden.en_ejecucion) return; // already running
-                          if (orden.pausado_at) {
-                            await handleReanudar();
-                          } else {
-                            await handleIniciar();
+                        // Un cambio de estado a la vez: mientras hay uno en vuelo el boton
+                        // muestra spinner y los demas quedan deshabilitados. Evita que un
+                        // segundo clic durante el chequeo de requisitos (~1,5 s de ida y
+                        // vuelta) dispare otra verificacion y otro PATCH.
+                        if (estadoEnCurso !== null) return;
+                        setEstadoEnCurso(e.value);
+                        try {
+                          if (e.value === "en_espera" && orden.en_ejecucion) {
+                            setPauseOpen(true);
+                            return;
                           }
-                        } else {
-                          if (orden.en_ejecucion) {
-                            if (e.value === "completado") {
-                              // Completion validates requirements first and the
-                              // canonical command closes the running timer.
+                          if (e.value === "en_curso") {
+                            if (orden.en_ejecucion) return; // already running
+                            if (orden.pausado_at) {
+                              await handleReanudar();
+                            } else {
+                              await handleIniciar();
+                            }
+                          } else {
+                            if (orden.en_ejecucion) {
+                              if (e.value === "completado") {
+                                // Completion validates requirements first and the
+                                // canonical command closes the running timer.
+                                await closeWithRequirements(async (forceClose) => {
+                                  if (!await changeStatus("completado", forceClose, Boolean(forceClose))) {
+                                    throw new Error("No se pudo cambiar el estado de la OT.");
+                                  }
+                                });
+                                return;
+                              }
+                              // Pausing already transitions the OT to en_espera.
+                              // Do not issue a second status command for that same state.
+                              setTimerBusy(true);
+                              try {
+                                await pausarOrden(orden.id, myId, "", elapsed);
+                                onOrdenUpdated({ en_ejecucion: false, pausado_at: new Date().toISOString(), estado: "en_espera" });
+                                if (e.value !== "en_espera") {
+                                  await changeStatus(e.value);
+                                }
+                              } catch (err) {
+                                alert(err instanceof Error ? err.message : "No se pudo cambiar el estado de la OT.");
+                              } finally {
+                                setTimerBusy(false);
+                              }
+                            } else if (e.value === "completado") {
                               await closeWithRequirements(async (forceClose) => {
                                 if (!await changeStatus("completado", forceClose, Boolean(forceClose))) {
                                   throw new Error("No se pudo cambiar el estado de la OT.");
                                 }
                               });
-                              return;
+                            } else {
+                              await changeStatus(e.value);
                             }
-                            // Pausing already transitions the OT to en_espera.
-                            // Do not issue a second status command for that same state.
-                            setTimerBusy(true);
-                            try {
-                              await pausarOrden(orden.id, myId, "", elapsed);
-                              onOrdenUpdated({ en_ejecucion: false, pausado_at: new Date().toISOString(), estado: "en_espera" });
-                              if (e.value !== "en_espera") {
-                                await changeStatus(e.value);
-                              }
-                            } catch (err) {
-                              alert(err instanceof Error ? err.message : "No se pudo cambiar el estado de la OT.");
-                            } finally {
-                              setTimerBusy(false);
-                            }
-                          } else if (e.value === "completado") {
-                            await closeWithRequirements(async (forceClose) => {
-                              if (!await changeStatus("completado", forceClose, Boolean(forceClose))) {
-                                throw new Error("No se pudo cambiar el estado de la OT.");
-                              }
-                            });
-                          } else {
-                            await changeStatus(e.value);
                           }
+                        } finally {
+                          setEstadoEnCurso(null);
                         }
                       };
                       return (
@@ -2902,7 +2938,7 @@ export default function OTDetail({
                           key={e.value}
                           type="button"
                           onClick={handleClick}
-                          disabled={timerBusy}
+                          disabled={timerBusy || estadoEnCurso !== null}
                           // Sin seleccionar: todos iguales — borde gris de 1px
                           // sobre blanco, con el ícono en azul. Seleccionado: se
                           // rellena con el color del estado y el ícono y el
@@ -2915,18 +2951,25 @@ export default function OTDetail({
                             borderRadius: "var(--r-md)",
                             background: isSelected ? (accent ?? "var(--surface-1)") : "var(--surface-1)",
                             color: isSelected && accent ? "#FFFFFF" : "var(--fg-1)",
-                            cursor: timerBusy ? "default" : "pointer",
+                            cursor: timerBusy || estadoEnCurso !== null ? "default" : "pointer",
+                            opacity: estadoEnCurso !== null && estadoEnCurso !== e.value ? 0.5 : 1,
                             transition: "background var(--dur-fast) var(--ease)",
                           }}
                           onMouseEnter={ev => {
-                            if (!timerBusy && !isSelected) ev.currentTarget.style.background = "var(--brand-tint)";
+                            if (!timerBusy && estadoEnCurso === null && !isSelected) ev.currentTarget.style.background = "var(--brand-tint)";
                           }}
                           onMouseLeave={ev => {
                             if (!isSelected) ev.currentTarget.style.background = "var(--surface-1)";
                           }}
                         >
-                          <Icon size={18} style={{ color: isSelected && accent ? "#FFFFFF" : "var(--brand)" }} />
-                          {e.value === "en_curso" && orden.en_ejecucion ? (
+                          {estadoEnCurso === e.value ? (
+                            <Loader2 size={18} className="animate-spin" style={{ color: isSelected && accent ? "#FFFFFF" : "var(--brand)" }} />
+                          ) : (
+                            <Icon size={18} style={{ color: isSelected && accent ? "#FFFFFF" : "var(--brand)" }} />
+                          )}
+                          {estadoEnCurso === e.value ? (
+                            <span style={{ fontSize: 11, fontWeight: 700, textAlign: "center", lineHeight: 1.2 }}>{label}</span>
+                          ) : e.value === "en_curso" && orden.en_ejecucion ? (
                             <span style={{ fontSize: 12, fontWeight: 700, fontFamily: "monospace", textAlign: "center", lineHeight: 1.2 }}>
                               {fmtSecs(elapsed)}
                             </span>
