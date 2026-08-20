@@ -1,54 +1,65 @@
-# pangui (web)
+# CLAUDE.md
 
-> **Read `ENGINEERING_STANDARDS.md` before changing anything that touches the database,
-> work-order state, notifications, or uploads.** It is the canonical rulebook for this
-> repo *and* `pangui-native-stable` (mobile). Both apps share one Supabase project.
+Behavioral guidelines to reduce common LLM coding mistakes. Merge with project-specific instructions as needed.
 
-Stack: Next.js (App Router) + Supabase + TypeScript.
+**Tradeoff:** These guidelines bias toward caution over speed. For trivial tasks, use judgment.
 
-## Non-negotiables
+## 1. Think Before Coding
 
-- **The server decides, the client explains.** Never `UPDATE ordenes_trabajo SET estado`
-  from app code — go through `transition_work_order_v1`. Closure rules (materials,
-  sheets, photos, blocking procedures) are enforced in Postgres; client checks exist only
-  to grey out a button early.
-- **`supabase/migrations` in THIS repo is canonical.** Mobile's directory is frozen.
-  Until the two histories are reconciled (41 mobile files are missing here, and prod is
-  ahead of both), **additive DDL only** — no `DROP`, no new `NOT NULL`, no type narrowing.
-- **Migrations are idempotent** (`IF NOT EXISTS` / `CREATE OR REPLACE` / guarded `DO $$`)
-  and never edited after being applied. Fix forward.
-- **Regenerate types in both repos** in the same PR as a migration:
-  `npx supabase gen types typescript --project-id yqwsryjbmlvcghnwnzik > types/supabase.ts`
-- **One user action = one server call.** A client-side sequence of writes has no rollback.
-- **Every mutating command carries an idempotency key**; side effects go through the
-  notification outbox, never fired inline from a callback.
-- **Ship both apps together.** A rule that lands in one client first is a rule the other
-  is already violating.
-- **Never break a published mobile build** — old builds run for months. Version commands
-  (`_v2`), don't mutate them.
+**Don't assume. Don't hide confusion. Surface tradeoffs.**
 
-## Testing
+Before implementing:
+- State your assumptions explicitly. If uncertain, ask.
+- If multiple interpretations exist, present them - don't pick silently.
+- If a simpler approach exists, say so. Push back when warranted.
+- If something is unclear, stop. Name what's confusing. Ask.
 
-Every feature ships with a test. Extract decisions into pure, dependency-free modules and
-test those directly — if a test needs heavy Supabase/DOM mocking, the logic is in the
-wrong place. Run the suite on a clean tree first and report the baseline
-("3 failures, same 3 as before"), never a bare "tests pass".
+## 2. Simplicity First
 
-Known pre-existing failures (2026-07-27): `tests/components/sidebar.test.tsx`,
-`login.test.tsx`, `AppSidebar.test.tsx` — 3 files / 15 tests, unrelated to domain logic.
-Pre-existing lint: 1 error + 1 warning in `components/HojaSpreadsheet.tsx`
-(props mutation at the column-add path, exhaustive-deps on the export effect).
+**Minimum code that solves the problem. Nothing speculative.**
 
-## Conventions
+- No features beyond what was asked.
+- No abstractions for single-use code.
+- No "flexibility" or "configurability" that wasn't requested.
+- No error handling for impossible scenarios.
+- If you write 200 lines and it could be 50, rewrite it.
 
-- Supabase access goes through `lib/*-api.ts`, not inline in components.
-- CSS custom properties for theming (`var(--fg-1)`, `var(--brand)`, `var(--surface-1)`) —
-  no hardcoded colors.
-- Deep link to an OT: `/ordenes?id=<ordenId>`. `panel` only accepts `crear`; there is no
-  tab deep-link.
+Ask yourself: "Would a senior engineer say this is overcomplicated?" If yes, simplify.
 
-## Practice
+## 3. Surgical Changes
 
-Read the whole flow before editing; reuse before building; prefer no new dependency and
-no new schema. Verify (typecheck, lint, tests) before reporting done, and say what you
-ran. Never commit, push, or deploy unless asked.
+**Touch only what you must. Clean up only your own mess.**
+
+When editing existing code:
+- Don't "improve" adjacent code, comments, or formatting.
+- Don't refactor things that aren't broken.
+- Match existing style, even if you'd do it differently.
+- If you notice unrelated dead code, mention it - don't delete it.
+
+When your changes create orphans:
+- Remove imports/variables/functions that YOUR changes made unused.
+- Don't remove pre-existing dead code unless asked.
+
+The test: Every changed line should trace directly to the user's request.
+
+## 4. Goal-Driven Execution
+
+**Define success criteria. Loop until verified.**
+
+Transform tasks into verifiable goals:
+- "Add validation" → "Write tests for invalid inputs, then make them pass"
+- "Fix the bug" → "Write a test that reproduces it, then make it pass"
+- "Refactor X" → "Ensure tests pass before and after"
+
+For multi-step tasks, state a brief plan:
+```
+1. [Step] → verify: [check]
+2. [Step] → verify: [check]
+3. [Step] → verify: [check]
+```
+
+Strong success criteria let you loop independently. Weak criteria ("make it work") require constant clarification.
+
+---
+
+**These guidelines are working if:** fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.

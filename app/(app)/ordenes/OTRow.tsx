@@ -12,6 +12,7 @@ import {
 import { parseDescMeta, updateOrden } from "@/lib/ordenes-api";
 import type { OrdenListItem, OrdenBulkItem, Usuario, Estado, Prioridad } from "@/types/ordenes";
 import { chileDateKey, dateKey, daysBetweenKeys } from "./date-utils";
+import { iniciales } from "@/lib/avatar";
 
 // Estado y prioridad se muestran como etiquetas sin relleno: borde de 1px,
 // texto casi negro en peso normal y el ícono como único portador del color.
@@ -96,20 +97,6 @@ function dueLabel(fecha: string, todayKey: string): { text: string; overdue: boo
   if (diff === 1) return { text: "Manana", overdue: false };
   if (diff <= 7)  return { text: `${diff}d`, overdue: false };
   return null;
-}
-
-function initials(n: string) {
-  // Only use letters/numbers for initials. Indexing a string with `[0]`
-  // can return half of an emoji surrogate pair (for example a trailing
-  // "🏎️💨"), which serializes differently between SSR and the browser and
-  // causes a hydration mismatch.
-  const words = n.trim().split(/\s+/).filter((word) => /[\p{L}\p{N}]/u.test(word));
-  const glyph = (word: string) => word.match(/[\p{L}\p{N}]/u)?.[0] ?? "";
-  if (words.length === 0) return "?";
-  if (words.length === 1) {
-    return Array.from(words[0]).filter((character) => /[\p{L}\p{N}]/u.test(character)).slice(0, 2).join("").toLocaleUpperCase("es");
-  }
-  return `${glyph(words[0])}${glyph(words[words.length - 1])}`.toLocaleUpperCase("es");
 }
 
 // â”€â”€ HoverTooltip â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -296,7 +283,7 @@ function AssignDropdown({ orden, usuarios, myId, onAssigned, onClose, anchorRect
                 display: "flex", alignItems: "center", justifyContent: "center",
                 fontSize: "var(--fs-2xs)", fontWeight: 700,
               }}>
-                {initials(u.nombre)}
+                {iniciales(u.nombre)}
               </span>
               <span style={{ flex: 1, fontSize: "var(--fs-sm)", color: "var(--fg-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                 {u.nombre}
@@ -567,7 +554,7 @@ function OTRow({ orden, usuarios, isSelected, onClick, onPrefetch, myId, onAssig
                       marginLeft: i > 0 ? -7 : 0,
                     }}
                   >
-                    {initials(u.nombre)}
+                    {iniciales(u.nombre)}
                   </span>
                 ))}
                 {assigned.length > 3 && (

@@ -18,7 +18,7 @@ import {
   Package, Search,
   ClipboardCheck, Info, Hash as HashIcon, Camera, PenLine, Shield, CheckSquare,
   Type, DollarSign, List, ListChecks, AlertCircle, ImagePlus, FolderOpen,
-  Lock, LockOpen, Mic, MicOff, Volume2, GitBranch, Wrench, Link as LinkIcon,
+  Lock, LockOpen, Mic, MicOff, Volume2, GitBranch, Wrench, Link as LinkIcon, Paperclip,
   Phone, Mail, Circle, MessageSquare,
   Minus, ArrowUp, ArrowDown, RotateCw, UserRoundX, UserRoundCheck,
 } from "lucide-react";
@@ -38,7 +38,8 @@ import {
   parseDescMeta, fetchOrden, fetchSubOrdenes, createSubOrden,
 } from "@/lib/ordenes-api";
 import type { ForceClose } from "@/lib/ordenes-api";
-import { useCategorias, useActividad } from "@/lib/queries";
+import { useCategorias, useActividad, useWorkspaceConfig, usePartesCatalogo } from "@/lib/queries";
+import { iniciales, avatarStyle } from "@/lib/avatar";
 import { useQueryClient } from "@tanstack/react-query";
 import { analytics } from "@/lib/analytics";
 import {
@@ -151,7 +152,7 @@ const TIPO_LABEL: Record<string, string> = {
   presupuesto: "Presupuesto", levantamiento: "Levantamiento",
 };
 
-const ACT_ICON: Record<ActividadTipo, React.ComponentType<{ className?: string }>> = {
+const ACT_ICON: Record<ActividadTipo, React.ComponentType<{ className?: string; size?: number; style?: React.CSSProperties }>> = {
   creado:               CircleDot,
   asignado:             User,
   estado_cambiado:      PlayCircle,
@@ -165,22 +166,6 @@ const ACT_ICON: Record<ActividadTipo, React.ComponentType<{ className?: string }
   cancelado:            XCircle,
   comentario:           Send,
   fotos_grupo_subidas:  Image,
-};
-
-const ACT_COLOR: Record<ActividadTipo, string> = {
-  creado:               "text-indigo-500",
-  asignado:             "text-violet-500",
-  estado_cambiado:      "text-blue-500",
-  prioridad_cambiada:   "text-orange-500",
-  editado:              "text-zinc-500",
-  ubicacion_cambiada:   "text-teal-500",
-  iniciado:             "text-green-500",
-  pausado:              "text-amber-500",
-  reanudado:            "text-cyan-500",
-  completado:           "text-green-600",
-  cancelado:            "text-zinc-400",
-  comentario:           "text-blue-500",
-  fotos_grupo_subidas:  "text-sky-500",
 };
 
 const ACT_LABEL: Record<ActividadTipo, string> = {
@@ -649,9 +634,23 @@ export default function OTDetail({
   const [recording, setRecording] = useState(false);
   const [recordingElapsed, setRecordingElapsed] = useState(0);
   const [pendingAudio, setPendingAudio] = useState<{ blob: Blob; url: string } | null>(null);
+  // Foto adjunta al comentario que se esta escribiendo. `url` es un
+  // object-URL local para la miniatura; la subida real ocurre en sendComment,
+  // igual que el audio, para no dejar huerfanos en R2 si el usuario descarta.
+  // UNA sola foto por comentario: es lo que guarda `actividad_ot.foto_url` y lo
+  // que hace el movil (components/orden/sections/ActivityTab.tsx).
+  const [pendingPhoto, setPendingPhoto] = useState<{ file: File; url: string } | null>(null);
+  const photoInputRef = useRef<HTMLInputElement | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordingChunksRef = useRef<Blob[]>([]);
   const recordingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Un object-URL vive hasta que se revoca. El flujo normal (enviar/descartar)
+  // ya revoca, pero si el panel se desmonta con una foto pendiente —cambiar de
+  // OT, cerrar el panel— nadie lo haria y el blob queda retenido.
+  useEffect(() => {
+    return () => { if (pendingPhoto) URL.revokeObjectURL(pendingPhoto.url); };
+  }, [pendingPhoto]);
 
   const [timerAction, setTimerAction] = useState<"pausar" | "completar" | null>(null);
   const [timerComment, setTimerComment] = useState("");
@@ -843,8 +842,24 @@ export default function OTDetail({
   const [ordenPartes, setOrdenPartes] = useState<OrdenParte[]>([]);
   const [loadingPartes, setLoadingPartes] = useState(false);
   const [catalogSearch, setCatalogSearch] = useState("");
-  const [catalogo, setCatalogo] = useState<ParteCatalogo[]>([]);
-  const [loadingCatalog, setLoadingCatalog] = useState(false);
+  // Parts catalogue: shared cache, loaded only once the Materiales tab is open.
+  // Previously a per-mount fetch guarded by `catalogo.length > 0` — a cache that
+  // died with the component, so every OT reopened refetched the same 500 rows.
+  const { data: catalogo = [], isFetching: loadingCatalog } = usePartesCatalogo({
+    enabled: tab === "materiales",
+  });
+
+  /**
+   * Write a fresh stock value for one part back into the shared catalogue cache
+   * after `ajustar_stock_parte`. Replaces three `setCatalogo(...)` calls from
+   * when this list was local state: the RPC returns the authoritative stock, so
+   * we patch the cache instead of refetching all 500 rows.
+   */
+  const patchStockCatalogo = useCallback((parteId: string, stock: number) => {
+    queryClient.setQueryData<ParteCatalogo[]>(["partes-catalogo"], prev =>
+      (prev ?? []).map(p => (p.id === parteId ? { ...p, stock_actual: stock } : p)),
+    );
+  }, [queryClient]);
   const [addingParte, setAddingParte] = useState(false);
   const [deletingParteId, setDeletingParteId] = useState<string | null>(null);
   const [showManualForm, setShowManualForm] = useState(false);
@@ -862,28 +877,17 @@ export default function OTDetail({
   const [togglingMat, setTogglingMat] = useState(false);
   const [togglingHoja, setTogglingHoja] = useState(false);
   const [togglingFotos, setTogglingFotos] = useState(false);
-  const [fotosObligatoriasTodas, setFotosObligatoriasTodas] = useState(false);
-
-  // Fetch workspace-level flags once on mount
-  const [modoRegistro, setModoRegistro] = useState<"ambos" | "materiales" | "hoja">("ambos");
+  // Workspace-level flags. Cached per workspace by `useWorkspaceConfig` rather
+  // than refetched on every OT open — OTDetail remounts per OT (`key={detail.id}`),
+  // so the old per-mount fetch cost one round-trip per OT the user opened.
+  const { data: wsConfig } = useWorkspaceConfig(wsId);
+  const fotosObligatoriasTodas = wsConfig?.fotos_obligatorias_todas ?? false;
+  const modoRegistro = wsConfig?.modo_registro ?? "ambos";
   const [subOrdenes, setSubOrdenes] = useState<OrdenTrabajo[]>([]);
   const [loadingSubOrdenes, setLoadingSubOrdenes] = useState(false);
   const [creatingSubOrden, setCreatingSubOrden] = useState(false);
   const [newSubOrdenTitle, setNewSubOrdenTitle] = useState("");
   const [parentOrden, setParentOrden] = useState<OrdenTrabajo | null>(null);
-  useEffect(() => {
-    if (!wsId) return;
-    const sb = createClient();
-    sb.from("workspaces")
-      .select("fotos_obligatorias_todas, modo_registro")
-      .eq("id", wsId)
-      .maybeSingle()
-      .then(({ data }) => {
-        if (data?.fotos_obligatorias_todas) setFotosObligatoriasTodas(true);
-        if (data?.modo_registro) setModoRegistro(data.modo_registro as "ambos" | "materiales" | "hoja");
-      });
-  }, [wsId]); // eslint-disable-line react-hooks/exhaustive-deps
-
   async function handleToggleRequiereMateriales() {
     const next = !requiereMateriales;
     setRequiereMateriales(next);
@@ -1066,6 +1070,31 @@ export default function OTDetail({
     estado: orden.estado,
   });
   const actividad = actividadData ?? [];
+
+  /* El trigger escribe una fila de `fotos_grupo_subidas` por cada foto, asi que
+     subir 12 fotos deja 12 filas identicas. Se colapsan las consecutivas del
+     mismo usuario y mismo grupo en una sola con contador. Solo se agrupan filas
+     sin prosa: si alguna trajera texto propio, se pierde al colapsar. */
+  const actividadAgrupada = useMemo(() => {
+    const out: { act: ActividadOT; count: number }[] = [];
+    for (const act of actividad) {
+      const prev = out[out.length - 1];
+      const agrupable =
+        act.tipo === "fotos_grupo_subidas" && !act.foto_url && !act.audio_url;
+      if (
+        agrupable &&
+        prev &&
+        prev.act.tipo === act.tipo &&
+        prev.act.usuario_id === act.usuario_id &&
+        prev.act.comentario === act.comentario
+      ) {
+        prev.count += 1;
+        continue;
+      }
+      out.push({ act, count: 1 });
+    }
+    return out;
+  }, [actividad]);
   const loadingAct = loadingActQuery;
 
   // Poll only while the section is visible: an OT panel can stay open all day,
@@ -1419,22 +1448,6 @@ export default function OTDetail({
     reloadOrdenPartes();
   }, [tab, reloadOrdenPartes]);
 
-  // Load partes catalogue (lazy, once per open)
-  useEffect(() => {
-    if (tab !== "materiales" || catalogo.length > 0) return;
-    setLoadingCatalog(true);
-    const sb = createClient();
-    sb.from("partes")
-      .select("id, nombre, unidad, stock_actual")
-      .eq("activo", true)
-      .order("nombre", { ascending: true })
-      .limit(500)
-      .then(({ data }) => {
-        setCatalogo((data ?? []) as ParteCatalogo[]);
-        setLoadingCatalog(false);
-      });
-  }, [tab, catalogo.length]);
-
   async function handleAddParte(parte: ParteCatalogo) {
     // Prevent duplicate
     if (ordenPartes.some(op => op.parte_id === parte.id)) return;
@@ -1463,7 +1476,7 @@ export default function OTDetail({
     if (stockErr) {
       alert("El material se agregó, pero no se pudo descontar el stock: " + stockErr.message);
     } else if (stockNuevo !== null && stockNuevo !== undefined) {
-      setCatalogo(prev => prev.map(p => p.id === parte.id ? { ...p, stock_actual: stockNuevo as number } : p));
+      patchStockCatalogo(parte.id, stockNuevo as number);
     }
     setAddingParte(false);
   }
@@ -1489,7 +1502,7 @@ export default function OTDetail({
       if (stockErr) {
         alert("La cantidad se actualizó, pero no se pudo ajustar el stock: " + stockErr.message);
       } else if (stockNuevo !== null && stockNuevo !== undefined) {
-        setCatalogo(p => p.map(c => c.id === prev.parte_id ? { ...c, stock_actual: stockNuevo as number } : c));
+        patchStockCatalogo(prev.parte_id, stockNuevo as number);
       }
     }
   }
@@ -1514,7 +1527,7 @@ export default function OTDetail({
       if (stockErr) {
         alert("El material se eliminó, pero no se pudo restaurar el stock: " + stockErr.message);
       } else if (stockNuevo !== null && stockNuevo !== undefined) {
-        setCatalogo(prev => prev.map(c => c.id === op.parte_id ? { ...c, stock_actual: stockNuevo as number } : c));
+        patchStockCatalogo(op.parte_id, stockNuevo as number);
       }
     }
     setDeletingParteId(null);
@@ -1693,11 +1706,50 @@ export default function OTDetail({
     onOrdenUpdated({ prioridad: p });
   };
 
+  /** Máximo por foto. Coincide con el límite del bucket y evita esperas largas. */
+  const MAX_PHOTO_BYTES = 15 * 1024 * 1024; // 15 MB
+
+  const pickPhoto = (file: File | null | undefined) => {
+    if (!file) return;
+    // `accept` en el input es una sugerencia: el usuario puede forzar "todos los
+    // archivos" y elegir un PDF. Sin esto se subiria y la miniatura quedaria rota.
+    if (!file.type.startsWith("image/")) {
+      alert("Solo se pueden adjuntar imágenes.");
+      return;
+    }
+    if (file.size > MAX_PHOTO_BYTES) {
+      alert(`La imagen supera el máximo de ${Math.round(MAX_PHOTO_BYTES / 1024 / 1024)} MB.`);
+      return;
+    }
+    // Reemplazar la foto pendiente descarta la anterior: hay que soltar su
+    // object-URL o se filtra el blob.
+    setPendingPhoto(prev => {
+      if (prev) URL.revokeObjectURL(prev.url);
+      return { file, url: URL.createObjectURL(file) };
+    });
+  };
+
+  const discardPhoto = () => {
+    setPendingPhoto(prev => {
+      if (prev) URL.revokeObjectURL(prev.url);
+      return null;
+    });
+  };
+
   const sendComment = async () => {
     const text = commentText.trim();
-    if (!text && !pendingAudio) return;
+    if (!text && !pendingAudio && !pendingPhoto) return;
     setSending(true);
     try {
+      let fotoUrl: string | null = null;
+      if (pendingPhoto) {
+        // Misma carpeta que el audio: r2-presign autoriza por prefijo
+        // `ordenes/<id>/`, asi que salirse de ahi da 403.
+        // uploadToR2 ya trae el fallback same-origin para cuando el preflight
+        // CORS del PUT directo se cae en produccion.
+        fotoUrl = await uploadToR2(pendingPhoto.file, `ordenes/${orden.id}/actividad`);
+      }
+
       let audioUrl: string | null = null;
       if (pendingAudio) {
         // Upload blob to R2 via presigned URL
@@ -1720,8 +1772,11 @@ export default function OTDetail({
         URL.revokeObjectURL(pendingAudio.url);
         setPendingAudio(null);
       }
-      await addComentario(orden.id, myId, text, audioUrl);
+      await addComentario(orden.id, myId, text, audioUrl, fotoUrl);
       setCommentText("");
+      // Recien aca: si el insert falla, la foto sigue en el compositor y el
+      // usuario puede reintentar sin volver a elegirla.
+      discardPhoto();
       // Explicit refresh. This used to happen by accident: the old activity
       // effect was keyed on `tab`, so switching to Actividad refetched it.
       // The query is cached now, so the write has to say so.
@@ -3426,24 +3481,232 @@ export default function OTDetail({
           </div>
         )}
 
-        {/* ── Actividad ── */}
+        {/* -- Actividad -- */}
+        {/* Hilo de comentarios. La division no es por `tipo` sino por si la
+            fila trae prosa humana: un `completado` con el informe del tecnico
+            es un mensaje y va con avatar, mientras que un `completado` sin
+            texto es solo un cambio de estado y va como linea gris. Ademas las
+            subidas de fotos llegan una por foto desde el trigger, asi que se
+            agrupan en una sola fila para que no ahoguen la conversacion. */}
         {tab === "actividad" && (
-          <div style={{ padding: "24px 28px" }}>
+          <div style={{ padding: "18px 28px 8px" }}>
+            {/* El compositor va arriba: escribir es la accion principal de
+                esta pestana, y dejarlo al pie lo escondia bajo hilos largos.
+                Ahora es lo primero que se ve, y el historial se lee debajo. */}
+            <div style={{ marginBottom: 18 }}>
+              {/* Recording indicator */}
+              {recording && (
+                <div style={{ display: "flex", alignItems: "center", gap: 8, background: "var(--danger-bg)", borderRadius: 8, padding: "6px 10px", marginBottom: 8 }}>
+                  <span style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--danger)", display: "inline-block", animation: "pulse 1s ease-in-out infinite" }} />
+                  <span style={{ fontSize: 13, color: "var(--danger)", flex: 1 }}>Grabando… {fmtRecDuration(recordingElapsed)}</span>
+                  <button type="button" onClick={stopRecording} style={{ fontSize: 12, fontWeight: 600, color: "#fff", background: "var(--danger)", border: "none", borderRadius: 6, padding: "3px 10px", cursor: "pointer" }}>Detener</button>
+                </div>
+              )}
+              {/* Pending audio preview */}
+              {pendingAudio && !recording && (
+                <div style={{ display: "flex", alignItems: "center", gap: 8, background: "var(--surface-hover)", borderRadius: 8, padding: "6px 10px", marginBottom: 8 }}>
+                  <Volume2 size={14} style={{ color: "var(--brand)", flexShrink: 0 }} />
+                  <audio controls src={pendingAudio.url} preload="metadata" style={{ height: 28, flex: 1, minWidth: 0 }} />
+                  <button type="button" onClick={() => { URL.revokeObjectURL(pendingAudio.url); setPendingAudio(null); }} title="Descartar" style={{ background: "none", border: "none", cursor: "pointer", color: "var(--fg-4)", display: "flex", alignItems: "center" }}>
+                    <X size={14} />
+                  </button>
+                  {/* Un audio sin texto no tiene como salir con Enter a la
+                      vista, asi que la nota lleva su propio envio. */}
+                  <button
+                    type="button"
+                    onClick={sendComment}
+                    disabled={sending}
+                    title="Enviar"
+                    style={{
+                      background: "none", border: "none", padding: 0, flexShrink: 0,
+                      cursor: "pointer", display: "flex", alignItems: "center",
+                      color: "var(--brand)",
+                    }}
+                  >
+                    {sending
+                      ? <Loader2 size={15} style={{ animation: "spin 1s linear infinite" }} />
+                      : <Send size={15} />}
+                  </button>
+                </div>
+              )}
+              {/* Foto adjunta: fila horizontal —miniatura, nombre, descartar,
+                  enviar—, con la misma caja que la nota de voz de arriba para
+                  que ambos adjuntos se lean como el mismo tipo de elemento.
+                  Va sobre el campo: el compositor crece hacia arriba y el texto
+                  no se mueve. */}
+              {pendingPhoto && (
+                <div style={{
+                  display: "flex", alignItems: "center", gap: 8,
+                  background: "var(--surface-hover)", borderRadius: 8,
+                  padding: "6px 10px", marginBottom: 8,
+                }}>
+                  <div style={{ position: "relative", flexShrink: 0, lineHeight: 0 }}>
+                    <img
+                      src={pendingPhoto.url}
+                      alt="Imagen adjunta"
+                      style={{
+                        width: 34, height: 34, objectFit: "cover",
+                        borderRadius: 6, border: "1px solid var(--border)", display: "block",
+                        opacity: sending ? 0.4 : 1,
+                      }}
+                    />
+                    {sending && (
+                      <div style={{
+                        position: "absolute", inset: 0, display: "flex",
+                        alignItems: "center", justifyContent: "center",
+                      }}>
+                        <Loader2 size={14} style={{ color: "var(--brand)", animation: "spin 1s linear infinite" }} />
+                      </div>
+                    )}
+                  </div>
+                  {/* `minWidth: 0` es lo que deja que el ellipsis funcione: sin
+                      eso el flex item se niega a encogerse bajo su contenido y
+                      un nombre largo empuja el boton de enviar fuera de la caja. */}
+                  <span
+                    title={pendingPhoto.file.name}
+                    style={{
+                      flex: 1, minWidth: 0, fontSize: 13, color: "var(--fg-1)",
+                      overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                    }}
+                  >
+                    {pendingPhoto.file.name}
+                  </span>
+                  {!sending && (
+                    <button
+                      type="button"
+                      onClick={discardPhoto}
+                      title="Quitar imagen"
+                      style={{
+                        background: "none", border: "none", padding: 0, flexShrink: 0,
+                        cursor: "pointer", color: "var(--fg-4)",
+                        display: "flex", alignItems: "center",
+                      }}
+                    >
+                      <Trash2 size={15} />
+                    </button>
+                  )}
+                  {/* Una foto sin texto no puede salir con Enter (el textarea
+                      esta vacio), asi que necesita su propio envio — igual que
+                      la nota de voz. */}
+                  <button
+                    type="button"
+                    onClick={sendComment}
+                    disabled={sending}
+                    style={{
+                      flexShrink: 0, fontSize: 12, fontWeight: 600,
+                      color: "#fff", background: "var(--brand)",
+                      border: "none", borderRadius: 6, padding: "4px 12px",
+                      cursor: sending ? "default" : "pointer",
+                      display: "flex", alignItems: "center", gap: 6,
+                      opacity: sending ? 0.7 : 1,
+                    }}
+                  >
+                    {sending && <Loader2 size={12} style={{ animation: "spin 1s linear infinite" }} />}
+                    Enviar
+                  </button>
+                </div>
+              )}
+              {/* El campo queda limpio: solo texto. Enter envia (es lo que se
+                  espera de un compositor de mensajes) y Ctrl+Enter agrega una
+                  linea, asi el caso comun es una tecla y el raro son dos. */}
+              <div
+                id="act-composer"
+                style={{
+                  border: "1px solid var(--border)", borderRadius: "var(--r-md)",
+                  background: "var(--surface-0)",
+                }}
+              >
+                <textarea
+                  rows={2}
+                  disabled={sending}
+                  style={{
+                    display: "block", width: "100%", boxSizing: "border-box",
+                    minHeight: 60, maxHeight: 160, resize: "none",
+                    fontSize: 13, border: "none", outline: "none", fontFamily: "inherit",
+                    padding: "9px 11px", background: "transparent",
+                    color: "var(--fg-1)", lineHeight: 1.5,
+                  }}
+                  placeholder={pendingAudio || pendingPhoto ? "Añadir descripción (opcional)…" : "Escribe un mensaje…"}
+                  value={commentText}
+                  onChange={e => setCommentText(e.target.value)}
+                  onFocus={() => {
+                    const box = document.getElementById("act-composer");
+                    if (box) box.style.borderColor = "var(--brand)";
+                  }}
+                  onBlur={() => {
+                    const box = document.getElementById("act-composer");
+                    if (box) box.style.borderColor = "var(--border)";
+                  }}
+                  onKeyDown={e => {
+                    if (e.key !== "Enter") return;
+                    if (e.ctrlKey || e.metaKey) return;  // Ctrl+Enter: salto de linea
+                    if (e.shiftKey) return;              // Shift+Enter tambien, por costumbre
+                    e.preventDefault();                  // Enter solo: enviar
+                    sendComment();
+                  }}
+                />
+              </div>
+
+              {/* Adjuntar y microfono viven fuera del campo, a la derecha: son
+                  acciones secundarias y adentro competian con el texto. */}
+              <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 12, marginTop: 6 }}>
+                <input
+                  ref={photoInputRef}
+                  type="file"
+                  accept="image/*"
+                  style={{ display: "none" }}
+                  onChange={e => {
+                    pickPhoto(e.target.files?.[0]);
+                    // Sin esto, elegir el MISMO archivo dos veces seguidas no
+                    // dispara onChange (el value no cambia) y parece roto.
+                    e.target.value = "";
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => photoInputRef.current?.click()}
+                  disabled={sending}
+                  title="Adjuntar imagen"
+                  style={{
+                    background: "none", border: "none", padding: 0,
+                    cursor: sending ? "default" : "pointer", display: "flex", alignItems: "center",
+                    color: "var(--brand)",
+                  }}
+                >
+                  <Paperclip size={19} />
+                </button>
+                <button
+                  type="button"
+                  onClick={recording ? stopRecording : startRecording}
+                  disabled={sending}
+                  title={recording ? "Detener grabación" : "Grabar audio"}
+                  style={{
+                    background: "none", border: "none", padding: 0,
+                    cursor: "pointer", display: "flex", alignItems: "center",
+                    color: recording ? "var(--danger)" : "var(--brand)",
+                  }}
+                >
+                  {recording ? <MicOff size={20} /> : <Mic size={20} />}
+                </button>
+              </div>
+            </div>
+
             {loadingAct ? (
               <div style={{ display: "flex", justifyContent: "center", padding: "32px 0" }}>
-                <Loader2 size={18} style={{ color: "var(--pr-low)", animation: "spin 1s linear infinite" }} />
+                <Loader2 size={18} style={{ color: "var(--fg-4)", animation: "spin 1s linear infinite" }} />
               </div>
             ) : actividad.length === 0 ? (
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "48px 0", gap: 8, color: "var(--pr-low)" }}>
-                <CircleDot size={32} style={{ opacity: 0.2 }} />
-                <p style={{ fontSize: 13, margin: 0 }}>Sin actividad registrada</p>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "48px 0", gap: 10, color: "var(--fg-4)" }}>
+                <MessageSquare size={30} style={{ opacity: 0.25 }} />
+                <p style={{ fontSize: 13, margin: 0, fontWeight: 600, color: "var(--fg-1)" }}>Aún no hay comentarios</p>
+                <p style={{ fontSize: 12, margin: 0 }}>Escribe abajo para dejar el primero.</p>
               </div>
             ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
-                {actividad.map((act, idx) => {
+              <>
+                <div style={{ display: "flex", flexDirection: "column" }}>
+                {actividadAgrupada.map(entry => {
+                  const act = entry.act;
                   const Icon = ACT_ICON[act.tipo] ?? CircleDot;
-                  const colorClass = ACT_COLOR[act.tipo] ?? "text-zinc-400";
-                  const isComment = act.tipo === "comentario";
                   const isFotosGrupo = act.tipo === "fotos_grupo_subidas";
                   const label = isFotosGrupo && act.comentario
                     ? `Fotos subidas al grupo "${act.comentario}"`
@@ -3456,57 +3719,98 @@ export default function OTDetail({
                     : isFotosGrupo
                       ? null
                       : act.comentario;
-                  const isLast = idx === actividad.length - 1;
+
+                  const nombre = act.usuario?.nombre ?? "Usuario";
+                  const isMine = act.usuario_id != null && act.usuario_id === myId;
+
+                  /* Una sola forma para todas las filas: avatar, nombre con
+                     la fecha al lado, y el texto plano debajo. Sin chips ni
+                     insignias — lo que cada fila dice ya esta en su texto, y
+                     el cromo alrededor solo competia con el. */
+                  const tieneAutor = Boolean(act.usuario?.nombre);
+
+                  /* El cuerpo de la fila. Un comentario es lo que la persona
+                     escribio; el resto es la descripcion del evento, con el
+                     detalle (asignados, grupo de fotos) si lo hay. */
+                  const cuerpo = act.tipo === "comentario"
+                    ? resolvedComentario
+                    : [label, resolvedComentario].filter(Boolean).join(": ");
+
                   return (
-                    <div key={act.id} style={{ display: "flex", gap: 12, position: "relative" }}>
-                      {/* Timeline line */}
-                      {!isLast && (
-                        <div style={{ position: "absolute", left: 15, top: 26, bottom: 0, width: 1, background: "var(--border)" }} />
-                      )}
-                      <div className={cn("mt-1 size-7 rounded-full border-2 border-white bg-gray-50 flex items-center justify-center shrink-0 shadow-sm z-10", colorClass)} style={{ minWidth: 28, minHeight: 28 }}>
-                        <Icon className="w-3 h-3" />
-                      </div>
-                      <div style={{ flex: 1, minWidth: 0, paddingBottom: isLast ? 0 : 16 }}>
-                        <div style={{ display: "flex", alignItems: "baseline", gap: 6, flexWrap: "wrap" }}>
-                          {act.usuario?.nombre && (
-                            <span style={{ fontSize: 13, fontWeight: 600, color: "var(--fg-1)" }}>{act.usuario.nombre}</span>
-                          )}
-                          {!isComment && label && (
-                            <span style={{ fontSize: 12, color: "var(--fg-2)" }}>{label}</span>
-                          )}
-                          <span style={{ fontSize: 11, color: "var(--pr-low)", marginLeft: "auto" }}>{fmtTs(act.created_at)}</span>
+                    <div key={act.id} style={{ display: "flex", gap: 10, padding: "9px 0" }}>
+                      {tieneAutor ? (
+                        <div title={nombre} style={avatarStyle(32)}>
+                          {iniciales(nombre)}
                         </div>
-                        {resolvedComentario && (
+                      ) : (
+                        <div style={{
+                          width: 32, height: 32, borderRadius: "50%", flexShrink: 0,
+                          background: "var(--surface-2)", border: "1px solid var(--border)",
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                        }}>
+                          <Icon size={14} style={{ color: "var(--fg-4)" }} />
+                        </div>
+                      )}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
+                          <span style={{ fontSize: 13.5, fontWeight: 600, color: "var(--fg-1)" }}>{nombre}</span>
+                          <span style={{ fontSize: 13.5, color: "var(--fg-4)" }}>{fmtTs(act.created_at)}</span>
+                          {isMine && (
+                            <span style={{ fontSize: 11, color: "var(--fg-4)" }}>· tú</span>
+                          )}
+                        </div>
+                        {cuerpo && (
                           <div style={{
-                            marginTop: 4, fontSize: 13, lineHeight: 1.6, color: isComment ? "var(--fg-1)" : "var(--fg-2)",
-                            background: isComment ? "var(--surface-hover)" : "transparent",
-                            padding: isComment ? "8px 10px" : "0",
-                            borderRadius: isComment ? 6 : 0,
-                            borderLeft: isComment ? "2px solid var(--brand)" : "none",
+                            marginTop: 2, fontSize: 13.5, lineHeight: 1.6, color: "var(--fg-1)",
+                            whiteSpace: "pre-wrap", wordBreak: "break-word",
                           }}>
-                            {resolvedComentario}
+                            {cuerpo}
+                            {entry.count > 1 && (
+                              <span style={{ color: "var(--fg-4)" }}> ×{entry.count}</span>
+                            )}
                           </div>
                         )}
                         {act.foto_url && (
-                          <a href={act.foto_url} target="_blank" rel="noreferrer" style={{ display: "inline-block", marginTop: 8 }}>
+                          // Abre el visor de la app (mismo lightbox que Fotos y
+                          // procedimientos) en vez de una pestaña nueva: navegar
+                          // fuera perdia el scroll y el estado del panel.
+                          <button
+                            type="button"
+                            onClick={() => setLightboxGrupo({ urls: [act.foto_url!], idx: 0 })}
+                            title="Ver imagen"
+                            style={{
+                              display: "inline-block", marginTop: 8, padding: 0,
+                              border: "none", background: "none", cursor: "zoom-in", lineHeight: 0,
+                            }}
+                          >
                             <img
-                              src={act.foto_url}
-                              alt="foto"
-                              style={{ maxWidth: 260, maxHeight: 200, borderRadius: 6, border: "1px solid var(--border)", objectFit: "cover", display: "block" }}
+                              src={optimizedImageUrl(act.foto_url, 360)}
+                              alt="Imagen del comentario"
+                              loading="lazy"
+                              style={{
+                                maxWidth: 280, maxHeight: 220, borderRadius: 10,
+                                border: "1px solid var(--border)", objectFit: "cover", display: "block",
+                              }}
+                              // Si la variante optimizada no existe (fotos
+                              // subidas antes del resize), cae al original.
+                              onError={e => {
+                                if (e.currentTarget.src !== act.foto_url) e.currentTarget.src = act.foto_url!;
+                              }}
                             />
-                          </a>
+                          </button>
                         )}
                         {act.audio_url && (
-                          <div style={{ marginTop: 6, display: "flex", alignItems: "center", gap: 6 }}>
-                            <Volume2 size={13} style={{ color: "var(--brand)", flexShrink: 0 }} />
-                            <audio controls src={act.audio_url} style={{ height: 28 }} />
+                          <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 6 }}>
+                            <Volume2 size={13} style={{ color: "var(--brand-fg)", flexShrink: 0 }} />
+                            <audio controls src={act.audio_url} style={{ height: 28, maxWidth: 240 }} />
                           </div>
                         )}
                       </div>
                     </div>
                   );
                 })}
-              </div>
+                </div>
+              </>
             )}
           </div>
         )}
@@ -3860,76 +4164,6 @@ export default function OTDetail({
           onComplete={handleCompleteEjec}
         />
       )}
-
-      {/* ── Comment input ── */}
-      {tab === "actividad" && <div style={{ flexShrink: 0, borderTop: "1px solid var(--border)", padding: "12px 16px", background: "var(--surface-1)" }}>
-        {/* Recording indicator */}
-        {recording && (
-          <div style={{ display: "flex", alignItems: "center", gap: 8, background: "var(--danger-bg)", borderRadius: 8, padding: "6px 10px", marginBottom: 8 }}>
-            <span style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--danger)", display: "inline-block", animation: "pulse 1s ease-in-out infinite" }} />
-            <span style={{ fontSize: 13, color: "var(--danger)", flex: 1 }}>Grabando… {fmtRecDuration(recordingElapsed)}</span>
-            <button type="button" onClick={stopRecording} style={{ fontSize: 12, fontWeight: 600, color: "#fff", background: "var(--danger)", border: "none", borderRadius: 6, padding: "3px 10px", cursor: "pointer" }}>Detener</button>
-          </div>
-        )}
-        {/* Pending audio preview */}
-        {pendingAudio && !recording && (
-          <div style={{ display: "flex", alignItems: "center", gap: 8, background: "var(--surface-hover)", borderRadius: 8, padding: "6px 10px", marginBottom: 8 }}>
-            <Volume2 size={14} style={{ color: "var(--brand)", flexShrink: 0 }} />
-            <audio controls src={pendingAudio.url} preload="metadata" style={{ height: 28, flex: 1, minWidth: 0 }} />
-            <button type="button" onClick={() => { URL.revokeObjectURL(pendingAudio.url); setPendingAudio(null); }} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--fg-4)", display: "flex", alignItems: "center" }}>
-              <X size={14} />
-            </button>
-          </div>
-        )}
-        <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
-          {/* Mic button */}
-          <button
-            type="button"
-            onClick={recording ? stopRecording : startRecording}
-            disabled={sending}
-            title={recording ? "Detener grabación" : "Grabar audio"}
-            style={{
-              width: 38, height: 38, flexShrink: 0,
-              background: recording ? "var(--danger-bg)" : "var(--surface-hover)",
-              border: `1px solid ${recording ? "var(--danger)" : "var(--border)"}`,
-              borderRadius: "var(--r-md)", cursor: "pointer",
-              display: "flex", alignItems: "center", justifyContent: "center",
-            }}
-          >
-            {recording ? <MicOff size={15} style={{ color: "var(--danger)" }} /> : <Mic size={15} style={{ color: pendingAudio ? "var(--brand)" : "var(--fg-4)" }} />}
-          </button>
-          <textarea
-            style={{
-              flex: 1, minHeight: 42, maxHeight: 96, resize: "none",
-              fontSize: 13, border: "1px solid var(--border)", borderRadius: "var(--r-md)",
-              padding: "10px 12px", outline: "none", fontFamily: "inherit",
-              background: "var(--surface-0)", color: "var(--fg-1)", lineHeight: 1.5,
-              transition: "border-color 0.12s, box-shadow 0.12s",
-            }}
-            placeholder={pendingAudio ? "Añadir descripción (opcional)…" : "Agregar comentario…"}
-            value={commentText}
-            onChange={e => setCommentText(e.target.value)}
-            onFocus={e => { e.currentTarget.style.borderColor = "var(--brand)"; e.currentTarget.style.background = "var(--surface-1)"; e.currentTarget.style.boxShadow = "var(--shadow-focus)"; }}
-            onBlur={e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.background = "var(--surface-hover)"; e.currentTarget.style.boxShadow = "none"; }}
-            onKeyDown={e => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) sendComment(); }}
-          />
-          <button
-            type="button"
-            onClick={sendComment}
-            disabled={(!commentText.trim() && !pendingAudio) || sending}
-            style={{
-              width: 38, height: 38, flexShrink: 0,
-              background: (commentText.trim() || pendingAudio) ? "var(--brand)" : "var(--border)",
-              border: "none", borderRadius: "var(--r-md)", cursor: (commentText.trim() || pendingAudio) ? "pointer" : "default",
-              display: "flex", alignItems: "center", justifyContent: "center",
-              transition: "opacity 0.15s",
-            }}
-          >
-            {sending ? <Loader2 size={15} style={{ color: "var(--fg-on-brand)", animation: "spin 1s linear infinite" }} /> : <Send size={15} style={{ color: (commentText.trim() || pendingAudio) ? "var(--fg-on-brand)" : "var(--fg-4)" }} />}
-          </button>
-        </div>
-        <p style={{ fontSize: 11, color: "var(--fg-4)", marginTop: 5, marginBottom: 0 }}>Ctrl+Enter para enviar</p>
-      </div>}
 
       <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } } @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }`}</style>
 

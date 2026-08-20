@@ -18,14 +18,57 @@
  * ["categorias"] })` clears every workspace at once, and passing the full key
  * clears just one.
  */
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, queryOptions } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase";
-import { fetchSubOrdenes, fetchActividad } from "@/lib/ordenes-api";
+import { fetchSubOrdenes, fetchActividad, fetchOrden } from "@/lib/ordenes-api";
 import { fetchFotoGrupos } from "@/lib/foto-grupos-api";
 import { getOTProcedimientos } from "@/lib/procedimientos-api";
+import type { OrdenTrabajo } from "@/types/ordenes";
 
 /** Reference data is near-static; keep it far longer than the global default. */
 const REFERENCE_STALE_TIME = 15 * 60 * 1000; // 15 min
+
+// ─── OT detail record ────────────────────────────────────────────────────────
+
+/**
+ * How long a fetched OT record stays fresh, by estado.
+ *
+ * A completed OT is historical: it only changes if someone deliberately edits
+ * it, and the large majority of any workspace's OTs are completed — so most
+ * opens can be served from cache indefinitely within a session. An open OT
+ * changes constantly (notes, parts, photos, reassignments), so it gets a short
+ * window and relies on realtime for anything newer.
+ *
+ * Realtime already invalidates on change (see the postgres_changes handler in
+ * OrdenesBandeja), so a stale-but-cached open OT is corrected within a tick.
+ */
+export function detailStaleTime(estado: string | null | undefined): number {
+  if (!estado) return 0;
+  return estado === "completado"
+    ? 60 * 60 * 1000 // 1 h — historical
+    : 2 * 60 * 1000; //  2 min — still moving
+}
+
+/**
+ * The single definition of the `["orden", id]` query.
+ *
+ * WHY THIS EXISTS: the key, the fetcher and the staleness rule were spelled out
+ * separately at three call sites (hover prefetch, click open, realtime
+ * invalidate). Three copies of the same triple is three chances for them to
+ * drift — and a prefetch that disagrees with the open it is meant to warm is
+ * silently useless: the key or staleTime differs, so the click refetches and
+ * the prefetch was pure waste. One factory makes that impossible.
+ *
+ * `estado` is optional because the caller does not always know it yet (a cold
+ * open from a pasted URL has no row and no cache entry). Omitting it yields
+ * staleTime 0 — always refetch — which is the safe default.
+ */
+export const ordenQueryOptions = (id: string, estado?: string | null) =>
+  queryOptions({
+    queryKey: ["orden", id] as const,
+    queryFn: () => fetchOrden(id),
+    staleTime: detailStaleTime(estado),
+  });
 
 export interface CategoriaRef {
   id: string;
@@ -280,5 +323,85 @@ export function useOTProcedimientos(
     enabled: !!ordenId && (opts?.enabled ?? true),
     staleTime: subResourceStaleTime(opts?.estado),
     queryFn: () => getOTProcedimientos(ordenId!),
+  });
+}
+
+/**
+ * Workspace-level configuration flags.
+ *
+ * WHY: `OTDetail` is keyed `key={detail.id}` and so remounts per OT, and it
+ * fetched this row on every mount — opening 20 OTs meant 20 identical
+ * round-trips for a row that changes maybe monthly. The same table is also read
+ * by the sidebar and the requisitos page, uncoordinated.
+ *
+ * Cached per workspace at REFERENCE_STALE_TIME like the other catálogos: the
+ * first OT opened pays for it, every later one is free.
+ *
+ * Export-only reads (PDF header logo/nombre) deliberately keep their own
+ * one-shot fetch — they are user-triggered and need different columns.
+ */
+export interface WorkspaceConfig {
+  fotos_obligatorias_todas: boolean;
+  modo_registro: "ambos" | "materiales" | "hoja";
+}
+
+export function useWorkspaceConfig(wsId: string | null | undefined) {
+  return useQuery({
+    queryKey: ["workspace-config", wsId],
+    enabled: !!wsId,
+    staleTime: REFERENCE_STALE_TIME,
+    queryFn: async (): Promise<WorkspaceConfig> => {
+      const sb = createClient();
+      const { data, error } = await sb
+        .from("workspaces")
+        .select("fotos_obligatorias_todas, modo_registro")
+        .eq("id", wsId!)
+        .maybeSingle();
+      if (error) throw error;
+      return {
+        fotos_obligatorias_todas: !!(data as any)?.fotos_obligatorias_todas,
+        modo_registro: ((data as any)?.modo_registro ?? "ambos") as WorkspaceConfig["modo_registro"],
+      };
+    },
+  });
+}
+
+/**
+ * Active parts catalogue — workspace reference data.
+ *
+ * WHY: `OTDetail` fetched this per mount behind a `catalogo.length > 0` guard,
+ * which is a hand-rolled cache that dies with the component. Since OTDetail
+ * remounts per OT, opening the Materiales tab on each of N OTs meant N fetches
+ * of the same near-static 500-row list.
+ */
+export interface ParteCatalogoRef {
+  id: string;
+  nombre: string;
+  unidad: string;
+  stock_actual: number;
+}
+
+export function usePartesCatalogo(opts?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: ["partes-catalogo"],
+    enabled: opts?.enabled ?? true,
+    staleTime: REFERENCE_STALE_TIME,
+    queryFn: async (): Promise<ParteCatalogoRef[]> => {
+      const sb = createClient();
+      const { data, error } = await sb
+        .from("partes")
+        .select("id, nombre, unidad, stock_actual")
+        .eq("activo", true)
+        .order("nombre", { ascending: true })
+        .limit(500);
+      if (error) throw error;
+      // Normalize the nullable columns once here so consumers get a total type.
+      return (data ?? []).map((r: any) => ({
+        id: r.id,
+        nombre: r.nombre,
+        unidad: r.unidad ?? "",
+        stock_actual: r.stock_actual ?? 0,
+      })) as ParteCatalogoRef[];
+    },
   });
 }

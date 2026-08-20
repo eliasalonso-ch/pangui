@@ -201,25 +201,32 @@ export const ORDEN_CALENDAR_EXTRA_SELECT = `
 
 // ── Fetch ─────────────────────────────────────────────────────────────────────
 
-// Page size deliberately kept well under ~150.
+// Page size deliberately kept small.
 //
-// WHY: at LIMIT 300 the planner estimates it will touch most of the workspace's
-// rows anyway, so it abandons idx_ordenes_trabajo_active, sequentially scans
-// ordenes_trabajo and top-N heapsorts the result. Measured on production data
-// (653 parent OTs), same query and same joins:
+// WHY: past a threshold the planner estimates it will touch most of the
+// workspace's rows anyway, so it abandons the ordered partial index
+// (idx_ordenes_trabajo_active), scans via idx_ordenes_trabajo_workspace_id and
+// top-N heapsorts the result. Staying under the threshold keeps the Index Scan
+// + Memoize plan, which reads only the rows it returns.
 //
-//   LIMIT 300 -> Seq Scan + heapsort : plan 271ms + exec 161ms = ~432ms
-//   LIMIT 150 -> Index Scan + Memoize: plan   4.7ms + exec   2.9ms
-//   LIMIT 100 -> Index Scan + Memoize: plan   4.9ms + exec   1.1ms
-//   LIMIT  50 -> Index Scan + Memoize: plan   5.5ms + exec   2.9ms
-//   LIMIT  20 -> Index Scan + Memoize: plan   3.4ms + exec  12.4ms (cold cache)
+// CAVEAT on the numbers below: the original measurements here were taken while
+// the database had NO planner statistics (see the note on ANALYZE further
+// down), so they overstated the penalty — most of that "planning cost" was
+// missing stats, not the index count. Re-measured 2026-08-20 with correct
+// statistics, on 678 parent OTs:
 //
-// ~50x faster for the first paint, purely from staying on the index. Anything
-// comfortably under ~150 gets the good plan; the exact value is a UX choice,
-// not a performance one. 20 matches the infinite-scroll increment, so the first
-// paint fetches exactly one screenful and the rest stream in on scroll.
-// Raising this back toward 300 silently reverts to the seq-scan plan, so
-// re-measure with EXPLAIN (ANALYZE) before changing it.
+//   LIMIT 150 -> heapsort, reads all 667 : plan 27ms  + exec 88ms (cold cache)
+//   LIMIT 100 -> heapsort, reads all 667 : plan  2.4ms + exec  1.5ms
+//   LIMIT  50 -> Index Scan + Memoize    : plan  2.4ms + exec  0.4ms
+//
+// So the cliff now sits between 50 and 100, NOT between 150 and 300. Note the
+// heapsort plan is still fast in absolute terms once the cache is warm — it
+// reads the whole workspace either way, and at this table size that is cheap.
+//
+// 20 matches the infinite-scroll increment, so the first paint fetches exactly
+// one screenful and the rest stream in on scroll. Re-measure with
+// EXPLAIN (ANALYZE) before changing it — and confirm `last_analyze` is not
+// NULL first, or you will be measuring the planner's ignorance, not the query.
 export const ORDENES_PAGE_SIZE = 20;
 
 /**
@@ -228,13 +235,18 @@ export const ORDENES_PAGE_SIZE = 20;
  * Deliberately LARGER than ORDENES_PAGE_SIZE. These are two different jobs:
  * the rendered list wants a small first paint (20) because the user only sees
  * a screenful, but the snapshot must walk EVERY parent OT, so a small page
- * turns one job into ~33 sequential round-trips — and each round-trip pays the
- * planner cost, which on this table is both large and volatile (measured
- * between 4ms and 570ms for the same query, thanks to 26 indexes).
+ * turns one job into ~33 sequential round-trips, each paying its own planner
+ * cost and network latency.
  *
- * 150 keeps the fast Index Scan plan (the seq-scan cliff is between 150 and
- * 300 — see the note on ORDENES_PAGE_SIZE) while cutting the snapshot to ~5
- * requests. Do not raise this to 300.
+ * 150 is kept for the ROUND-TRIP count (~5 requests for the whole workspace),
+ * not because it wins on plan shape. Re-measured 2026-08-20 with correct
+ * statistics: at 150 the planner reads all 667 rows and heapsorts rather than
+ * walking the ordered index — the cliff moved below 150 once the planner knew
+ * the real row counts (see ORDENES_PAGE_SIZE). That plan still executes in
+ * ~1.5ms warm, so trading it for ~10x more round-trips would be a net loss.
+ *
+ * Do not raise this to 300 without re-measuring: beyond the plan shape, the
+ * payload itself grows and this query feeds the egress budget.
  */
 export const ORDENES_BULK_PAGE_SIZE = 150;
 
@@ -1379,13 +1391,23 @@ export async function removeOrdenFoto(orderId: string, url: string): Promise<voi
 
 // ── Activity / Comments ───────────────────────────────────────────────────────
 
+/**
+ * Comentario de usuario en la actividad de una OT.
+ *
+ * `fotoUrl` va DESPUES de `audioUrl` aunque el orden natural (y el del movil)
+ * sea foto-antes-que-audio: invertirlo aca romperia en silencio a cada llamador
+ * existente que pasa el audio como 4to argumento — el audio terminaria en
+ * foto_url y la fila quedaria con una imagen rota. El orden de esta firma es
+ * compatibilidad, no gusto.
+ */
 export async function addComentario(
   ordenId: string,
   userId: string,
   comentario: string,
   audioUrl?: string | null,
+  fotoUrl?: string | null,
 ): Promise<void> {
-  await insertActividad(ordenId, userId, "comentario", comentario, undefined, audioUrl);
+  await insertActividad(ordenId, userId, "comentario", comentario, fotoUrl, audioUrl);
 }
 
 export async function insertActividad(

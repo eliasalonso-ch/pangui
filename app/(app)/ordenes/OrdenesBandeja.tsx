@@ -6,7 +6,8 @@ import { Plus, Search, X, ChevronDown, Loader2, FileText, ArrowUpDown, Download,
 import { useTopBarAction } from "@/components/TopBarActions";
 import { createClient, logRealtimeChannel } from "@/lib/supabase";
 import { esAdmin } from "@/lib/roles";
-import { fetchOrden, fetchOrdenesPage, fetchAllOrdenesForExport, fetchAllOrdenesBulk, fetchOrdenesCalendarExtras, fetchOrdenListItem, searchOrdenes, ORDENES_SEARCH_LIMIT, deleteOrden, ORDENES_PAGE_SIZE, parseDescMeta, fetchMarcadasIds, toggleMarcada, matchesSearch, ELECTRILAM_WORKSPACE_ID } from "@/lib/ordenes-api";
+import { fetchOrdenesPage, fetchAllOrdenesForExport, fetchAllOrdenesBulk, fetchOrdenesCalendarExtras, fetchOrdenListItem, searchOrdenes, ORDENES_SEARCH_LIMIT, deleteOrden, ORDENES_PAGE_SIZE, parseDescMeta, fetchMarcadasIds, toggleMarcada, matchesSearch, ELECTRILAM_WORKSPACE_ID } from "@/lib/ordenes-api";
+import { ordenQueryOptions } from "@/lib/queries";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { needsBulkSnapshot, BULK_MIN_INTERVAL_MS } from "./bulk-refresh";
 import { needsFullWorkspaceSet } from "./list-source";
@@ -155,24 +156,10 @@ export default function OrdenesBandeja({
   const listScrollRef = useRef<HTMLDivElement>(null);
   const [selected, setSelected] = useState<string | null>(initialSelectedId ?? null);
   const [detail, setDetail]     = useState<OrdenTrabajo | null>(null);
-  /**
-   * How long a fetched OT detail stays fresh, by state.
-   *
-   * A completed OT is historical: it only changes if someone deliberately
-   * edits it, and 565 of this workspace's 653 OTs are completed — so the vast
-   * majority of opens can be served from cache indefinitely within a session.
-   * An open OT changes constantly (notes, parts, photos, reassignments), so it
-   * gets a short window and relies on realtime for anything newer.
-   *
-   * Realtime already invalidates on change (see the postgres_changes handler),
-   * so a stale-but-cached open OT is corrected within a tick anyway.
-   */
-  const detailStaleTime = useCallback((orden: OrdenTrabajo | null | undefined) => {
-    if (!orden) return 0;
-    return CLOSED_ESTADOS.has(orden.estado as Estado)
-      ? 60 * 60 * 1000 // 1 h — historical
-      : 2 * 60 * 1000; // 2 min — still moving
-  }, []);
+  // The key + fetcher + staleness rule for ["orden", id] now live in one place
+  // (`ordenQueryOptions` in lib/queries.ts) so the hover prefetch and the click
+  // open cannot drift apart — if they disagreed on key or staleTime the
+  // prefetch would silently stop warming the open it exists to serve.
   const selectedRef = useRef<string | null>(initialSelectedId ?? null);
   const [loadingDetail, setLoadingDetail] = useState(false);
 
@@ -473,16 +460,11 @@ export default function OrdenesBandeja({
    * cache — openOT retries on a real click.
    */
   const prefetchOT = useCallback((id: string) => {
-    void queryClient.prefetchQuery({
-      queryKey: ["orden", id],
-      queryFn: () => fetchOrden(id),
-      // Respect whatever is already cached: prefetchQuery is a no-op while the
-      // entry is fresh, so hovering the same row repeatedly costs nothing.
-      staleTime: detailStaleTime(
-        queryClient.getQueryData<OrdenTrabajo | null>(["orden", id]),
-      ),
-    });
-  }, [queryClient, detailStaleTime]);
+    // Respect whatever is already cached: prefetchQuery is a no-op while the
+    // entry is fresh, so hovering the same row repeatedly costs nothing.
+    const cached = queryClient.getQueryData<OrdenTrabajo | null>(["orden", id]);
+    void queryClient.prefetchQuery(ordenQueryOptions(id, cached?.estado));
+  }, [queryClient]);
 
   const openOT = useCallback(async (id: string, pushUrl = true) => {
     if (pushUrl) {
@@ -528,11 +510,9 @@ export default function OrdenesBandeja({
       // cache when still fresh, so hover-then-click is a single request. The
       // staleness window depends on the OT's state: completed OTs are
       // historical, open ones keep moving.
-      const orden = await queryClient.fetchQuery({
-        queryKey: ["orden", id],
-        queryFn: () => fetchOrden(id),
-        staleTime: detailStaleTime(cached ?? (row as unknown as OrdenTrabajo | undefined)),
-      });
+      const orden = await queryClient.fetchQuery(
+        ordenQueryOptions(id, (cached ?? row)?.estado),
+      );
       setDetail(prev => (prev && orden && prev === orden ? prev : (orden ?? null)));
     } catch {
       // Keep an instant-painted row on screen rather than blanking the panel.
@@ -540,7 +520,7 @@ export default function OrdenesBandeja({
     } finally {
       setLoadingDetail(false);
     }
-  }, [router, viewPath, ordenes, countOrdenes, queryClient, detailStaleTime]);
+  }, [router, viewPath, ordenes, countOrdenes, queryClient]);
 
   const openCreate = useCallback(() => {
     setSelected(null);
@@ -934,6 +914,11 @@ export default function OrdenesBandeja({
   // term already searched this session is served from cache with no request,
   // and in-flight results for an abandoned term can no longer land after a
   // newer one because the key changes with the term.
+  /* Largo minimo antes de mandar la busqueda al servidor. Vive aca arriba
+     porque lo usan el debounce y el indicador de carga: si divergen, la lista
+     queda cargando para siempre o no avisa que esta buscando. */
+  const largoMinimo = (q: string) => (q.startsWith("#") ? 2 : 3);
+
   const [debouncedSearch, setDebouncedSearch] = useState("");
   useEffect(() => {
     const q = search.trim();
@@ -943,7 +928,7 @@ export default function OrdenesBandeja({
     // mientras el usuario todavia estaba escribiendo "#840".
     // Excepcion: "#<numero>" es una busqueda exacta y util desde el primer
     // digito, asi que ahi basta con 2 caracteres.
-    const minimo = q.startsWith("#") ? 2 : 3;
+    const minimo = largoMinimo(q);
     if (q.length > 0 && q.length < minimo) {
       setDebouncedSearch("");
       return;
@@ -952,7 +937,7 @@ export default function OrdenesBandeja({
     return () => clearTimeout(t);
   }, [search]);
 
-  const { data: searchData } = useQuery({
+  const { data: searchData, isFetching: isSearchFetching } = useQuery({
     queryKey: ["ordenes-search", wsId, debouncedSearch],
     enabled: debouncedSearch.length > 0,
     queryFn: () => searchOrdenes(wsId, debouncedSearch),
@@ -974,6 +959,20 @@ export default function OrdenesBandeja({
     debouncedSearch.length === 0 ? null : (searchData ?? []);
 
   const searchHitCap = searchResults !== null && searchResults.length >= ORDENES_SEARCH_LIMIT;
+
+  /* Hay dos ventanas en las que todavia no se sabe si hay resultados: los 300ms
+     del debounce (la consulta ni siquiera salio) y el viaje al servidor. En
+     ambas `filtered` queda vacio, y sin esta bandera la lista dice "Sin
+     resultados" cuando la respuesta correcta es "todavia estoy buscando". */
+  const searchPendiente = (() => {
+    const q = search.trim();
+    if (q.length === 0) return false;
+    // Un termino bajo el minimo nunca llega a `debouncedSearch`: no esta
+    // pendiente, simplemente no se busca. Sin esto la lista quedaria cargando
+    // para siempre al escribir "#" o una sola letra.
+    if (q.length < largoMinimo(q)) return false;
+    return debouncedSearch !== q || isSearchFetching;
+  })();
 
   const hasActiveFilters = needsFullWorkspaceSet({ scope, ocultarMarcadas, filtros });
 
@@ -1829,7 +1828,14 @@ export default function OrdenesBandeja({
           {/* Gap + padding so each OTRow reads as a card floating on the canvas
               rather than a band in a continuous white sheet. */}
           <div ref={listScrollRef} style={{ flex:1, minHeight:0, overflowY:"auto", display:"flex", flexDirection:"column", gap:8, padding:"8px 10px" }}>
-            {filtered.length === 0 ? (
+            {searchPendiente && filtered.length === 0 ? (
+              /* Buscando: ni la lista vieja ni "sin resultados", que serian las
+                 dos respuestas equivocadas mientras la consulta viaja. */
+              <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", height:280, gap:12, color:"var(--fg-4)" }}>
+                <Loader2 size={22} className="animate-spin" style={{ color:"var(--brand)" }} />
+                <p style={{ fontSize:13, color:"var(--fg-2)", fontWeight:500, margin:0 }}>Buscando…</p>
+              </div>
+            ) : filtered.length === 0 ? (
               <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", height:280, gap:12, color:"var(--fg-4)" }}>
                 <svg width="38" height="46" viewBox="0 0 38 46" fill="none">
                   <rect x="2" y="2" width="34" height="42" rx="2" fill="#A67C52"/>
