@@ -157,22 +157,21 @@ function Hero() {
           <motion.p variants={fadeUp} className="max-w-[280px] font-mono text-[10px] font-medium uppercase tracking-[0.18em] text-white/75 sm:max-w-none sm:text-[11px]">
             Software de mantenimiento (CMMS) · Hecho en Chile
           </motion.p>
-          <motion.h1
-            variants={fadeUp}
-            className="mt-6 max-w-[720px] font-display text-[36px] font-bold leading-[1.04] tracking-[-0.035em] text-balance sm:text-[50px] md:mt-8 md:text-[62px] lg:text-[72px]"
-          >
+          {/* h1 and the lead <p> below are deliberately NOT motion components.
+              They are the LCP element, and framer-motion's initial="hidden"
+              held them at opacity:0 until hydration — which sits behind ~3s of
+              JS execution, giving a 9.9s element render delay. Plain elements
+              paint with the HTML. Everything else in the hero still animates. */}
+          <h1 className="mt-6 max-w-[720px] font-display text-[36px] font-bold leading-[1.04] tracking-[-0.035em] text-balance sm:text-[50px] md:mt-8 md:text-[62px] lg:text-[72px]">
             Órdenes de trabajo bajo control para empresas de mantención.
-          </motion.h1>
-          <motion.p
-            variants={fadeUp}
-            className="mt-6 max-w-[620px] text-[16px] leading-[1.6] text-white/82 md:mt-8 md:text-[19px]"
-          >
+          </h1>
+          <p className="mt-6 max-w-[620px] text-[16px] leading-[1.6] text-white/82 md:mt-8 md:text-[19px]">
             Pangui es el software de órdenes de trabajo para contratistas y
             subcontratistas que hacen mantención para otras empresas: planifique
             OTs, ejecute en terreno con la app móvil y respalde cada trabajo con
             evidencia, materiales y reportes. Menos trabajo detenido, más
             control sobre terreno.
-          </motion.p>
+          </p>
 
           <motion.div variants={fadeUp} className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap md:mt-10 md:gap-4">
             <Link
