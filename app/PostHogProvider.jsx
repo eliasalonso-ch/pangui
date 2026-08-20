@@ -25,6 +25,9 @@ if (typeof window !== "undefined" && POSTHOG_KEY && !posthog.__loaded) {
     },
     // Only enable replay in production to avoid recording local dev.
     disable_session_recording: process.env.NODE_ENV !== "production",
+    // Surveys are on by default and pull a separate 33KB surveys.js on every
+    // page load. We don't use PostHog surveys, so don't ship the bundle.
+    disable_surveys: true,
   });
 }
 

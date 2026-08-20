@@ -21,12 +21,13 @@ Sentry.init({
   replaysSessionSampleRate: 0,
   replaysOnErrorSampleRate: 1.0,
 
-  integrations: [
-    Sentry.replayIntegration({
-      maskAllText: true,
-      blockAllMedia: true,
-    }),
-  ],
+  // NOTE: replayIntegration is deliberately NOT listed here. Importing it
+  // statically pulls the rrweb recorder into the main framework chunk, which
+  // measured 571KB / ~3.0s of JS execution on the critical path of EVERY route
+  // — including the marketing pages — even though replaysSessionSampleRate is
+  // 0 and replay therefore only ever fires on an error. It is loaded lazily
+  // after the page settles instead (see below).
+  integrations: [],
 
   // Drop noise from Supabase auth-js's Web Locks self-recovery. When an auth
   // token lock is orphaned (React Strict Mode double-mount / a component
@@ -52,6 +53,47 @@ Sentry.init({
 
   debug: false,
 });
+
+/**
+ * Load Session Replay off the critical path.
+ *
+ * Timing matters: `replaysOnErrorSampleRate` replays the buffered moments
+ * BEFORE the error, so the integration has to be recording by the time one
+ * happens — loading it in response to an error would capture nothing. So we
+ * load it as soon as the browser is idle, rather than on demand.
+ *
+ * `lazyLoadIntegration` fetches the bundle from Sentry's CDN. This app
+ * deliberately tunnels Sentry through /monitoring to survive ad-blockers, and
+ * that tunnel does NOT cover this CDN fetch — so a blocked or failed load is
+ * an expected outcome, not an error. It is swallowed: losing replay is
+ * acceptable, breaking the page is not. Error and trace reporting are
+ * unaffected either way, since those go through the tunnel.
+ */
+if (
+  typeof window !== "undefined" &&
+  Boolean(process.env.NEXT_PUBLIC_SENTRY_DSN) &&
+  process.env.NODE_ENV !== "development"
+) {
+  const loadReplay = () => {
+    Sentry.lazyLoadIntegration("replayIntegration")
+      .then((replayIntegration) => {
+        const client = Sentry.getClient();
+        if (!client) return;
+        client.addIntegration(
+          replayIntegration({ maskAllText: true, blockAllMedia: true }),
+        );
+      })
+      .catch(() => {
+        // CDN blocked or offline — carry on without replay.
+      });
+  };
+
+  if (typeof window.requestIdleCallback === "function") {
+    window.requestIdleCallback(loadReplay, { timeout: 5000 });
+  } else {
+    window.setTimeout(loadReplay, 3000);
+  }
+}
 
 // Instruments client-side router navigations for tracing.
 export const onRouterTransitionStart = Sentry.captureRouterTransitionStart;
