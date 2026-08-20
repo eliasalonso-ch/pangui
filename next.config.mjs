@@ -5,6 +5,20 @@ const nextConfig = {
   reactCompiler: true,
   async redirects() {
     return [
+      // Canonical host is the apex. Vercel's project settings already redirect
+      // www -> apex (308), but that lives in the dashboard, outside the repo,
+      // and was in fact inverted until 2026-08-20 — the apex 307'd to www while
+      // every canonical, og:url, sitemap <loc> and JSON-LD url in the code said
+      // https://getpangui.com. Keeping the rule here too means the decision is
+      // version-controlled and cannot silently regress.
+      //
+      // Must stay FIRST: host normalization before any path rewriting.
+      {
+        source: "/:path*",
+        has: [{ type: "host", value: "www.getpangui.com" }],
+        destination: "https://getpangui.com/:path*",
+        permanent: true,
+      },
       {
         source: "/activos",
         destination: "/activos/activos",
