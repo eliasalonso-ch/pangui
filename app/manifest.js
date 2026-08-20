@@ -24,7 +24,6 @@ export default function manifest() {
         type: "image/png",
         purpose: "maskable",
       },
-      { src: "/icons/favicon.svg", type: "image/svg+xml", sizes: "any" },
     ],
   };
 }

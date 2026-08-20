@@ -1,4 +1,4 @@
-import { Inter, Geist } from "next/font/google";
+import { Inter, Geist, Inter_Tight, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { PostHogProvider } from "./PostHogProvider";
 import { QueryProvider } from "./QueryProvider";
@@ -13,6 +13,23 @@ const inter = Inter({
 const geist = Geist({
   variable: "--font-sans",
   subsets: ["latin"],
+});
+
+// The landing used to pull these from a blocking @import in landing.css, which
+// cost ~1.36s of render-blocking time and re-downloaded Inter a second time.
+// Self-hosting via next/font removes the blocking request entirely.
+const interTight = Inter_Tight({
+  variable: "--font-display-src",
+  subsets: ["latin"],
+  weight: ["500", "600", "700", "800"],
+  display: "swap",
+});
+
+const jetbrainsMono = JetBrains_Mono({
+  variable: "--font-mono-src",
+  subsets: ["latin"],
+  weight: ["400", "500"],
+  display: "swap",
 });
 
 const SITE_URL = "https://getpangui.com";
@@ -54,9 +71,13 @@ export const metadata = {
   },
   robots: { index: true, follow: true },
   icons: {
+    // NOTE: /icons/favicon.svg is deliberately NOT listed. Despite the .svg
+    // extension it is a 1912x1912 PNG base64-embedded in an SVG wrapper —
+    // 218KB on disk, ~110KB over the wire. Browsers prefer the SVG icon when
+    // offered, so listing it shipped 110KB on every page load for a favicon.
+    // The real PNGs below are 3-25KB.
     icon: [
       { url: "/icons/favicon.ico", sizes: "any" },
-      { url: "/icons/favicon.svg", type: "image/svg+xml" },
       { url: "/icons/favicon-96x96.png", sizes: "96x96", type: "image/png" },
     ],
     apple: "/icons/apple-touch-icon.png",
@@ -70,7 +91,11 @@ export const viewport = {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="es" className={`${inter.variable} ${geist.variable}`} suppressHydrationWarning>
+    <html
+      lang="es"
+      className={`${inter.variable} ${geist.variable} ${interTight.variable} ${jetbrainsMono.variable}`}
+      suppressHydrationWarning
+    >
       <head>
         {/* Pre-paint theme: runs before any CSS-styled body content paints. MUST stay in <head> as the first script. */}
         <script

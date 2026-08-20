@@ -3,8 +3,10 @@
    Only for things Tailwind can't express cleanly. Keep this file tiny.
    ========================================================================= */
 
-/* ---------- Fonts (display / body / mono) ---------- */
-@import url("https://fonts.googleapis.com/css2?family=Inter+Tight:wght@500;600;700;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap");
+/* ---------- Fonts (display / body / mono) ----------
+   Loaded via next/font in app/layout.js (self-hosted, non-blocking). The old
+   Google Fonts @import here was render-blocking (~1.36s) and duplicated Inter,
+   which next/font already self-hosts. */
 
 .landing-root {
   /* ── Pangui brand blue ── used as the single accent. */
@@ -25,11 +27,11 @@
   --hairline-strong: rgba(10, 11, 13, 0.18);
 
   /* Type stacks */
-  --font-display: "Inter Tight", -apple-system, BlinkMacSystemFont, "Segoe UI",
+  --font-display: var(--font-display-src), "Inter Tight", -apple-system, BlinkMacSystemFont, "Segoe UI",
     Roboto, Helvetica, Arial, sans-serif;
-  --font-body: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+  --font-body: var(--font-heading), "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
     Helvetica, Arial, sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo,
+  --font-mono: var(--font-mono-src), "JetBrains Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo,
     Consolas, monospace;
 
   /* ── Legal-page aliases ──
