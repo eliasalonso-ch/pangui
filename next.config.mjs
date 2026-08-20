@@ -57,6 +57,33 @@ const nextConfig = {
       },
     ];
   },
+  async headers() {
+    return [
+      {
+        source: "/:path*",
+        headers: [
+          // Vercel already sends max-age=63072000; this adds subdomain coverage.
+          // n.getpangui.com (the PostHog reverse proxy) already serves HTTPS,
+          // so includeSubDomains is safe. `preload` is deliberately omitted —
+          // submitting to the preload list is effectively irreversible.
+          {
+            key: "Strict-Transport-Security",
+            value: "max-age=63072000; includeSubDomains",
+          },
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          { key: "X-Frame-Options", value: "SAMEORIGIN" },
+          // camera and microphone are NOT denied: OTDetail records audio notes
+          // (getUserMedia) and uses capture="environment" for photo evidence.
+          // geolocation is unused by the web app.
+          {
+            key: "Permissions-Policy",
+            value: "geolocation=(), payment=(), usb=(), magnetometer=(), gyroscope=()",
+          },
+        ],
+      },
+    ];
+  },
   experimental: {
     viewTransition: true,
   },

@@ -15,6 +15,47 @@ import { NextResponse } from "next/server";
  *   - each request goes through this once — server components also call
  *     getServerUser() which is memoized per request via React.cache()
  */
+/**
+ * Route segments that belong to the authenticated app (the dirs under
+ * `app/(app)/`) plus `/superadmin`. ONLY these are bounced to /login when the
+ * session is missing.
+ *
+ * Why an explicit list instead of a catch-all: the catch-all redirected every
+ * unknown path to /login with a 307, so typos, dead backlinks and stale URLs
+ * all reported themselves to Google as valid redirects (soft-404) instead of
+ * 404s. Anything not listed here now falls through to Next's not-found page.
+ *
+ * Keep in sync with the directories under `app/(app)/`.
+ */
+const APP_SEGMENTS = [
+  "activos",
+  "analitica",
+  "analitica-materiales",
+  "categorias",
+  "configuracion",
+  "espacio-trabajo",
+  "inicio",
+  "itos",
+  "mi-cuenta",
+  "notificaciones",
+  "ordenes",
+  "papelera",
+  "partes",
+  "preferencias-notificaciones",
+  "procedimientos",
+  "reglas-alerta",
+  "requisitos",
+  "suscripcion",
+  "ubicaciones",
+  "usuarios",
+  "superadmin",
+];
+
+const isAppRoute = (pathname) => {
+  const segment = pathname.split("/")[1];
+  return APP_SEGMENTS.includes(segment);
+};
+
 export async function proxy(request) {
   const response = NextResponse.next();
   const pathname = request.nextUrl.pathname;
@@ -96,7 +137,7 @@ export async function proxy(request) {
     // bounce to /login. Don't retry — that's what caused the 429 storm.
     if (error) {
       if (isLogin) return response;
-      return sendToLogin();
+      return isAppRoute(pathname) ? sendToLogin() : response;
     }
     user = data.user;
   } catch {
@@ -105,7 +146,11 @@ export async function proxy(request) {
     return response;
   }
 
-  if (!user && !isLogin) return sendToLogin();
+  // Only real app routes gate to /login. Unknown paths fall through so Next
+  // can render a genuine 404 instead of a soft-404 redirect.
+  if (!user && !isLogin) {
+    return isAppRoute(pathname) ? sendToLogin() : response;
+  }
 
   if (user && isLogin) {
     return NextResponse.redirect(new URL("/ordenes", request.url));

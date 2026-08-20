@@ -1,7 +1,17 @@
 import Landing from "./Landing";
+import { faqStructuredData } from "./structured-data";
 
-// The page's JSON-LD lives in app/structured-data.js and is rendered into
-// <head> by app/layout.js.
+// Site-wide JSON-LD (SoftwareApplication + Organization) is rendered from
+// app/layout.js. The FAQPage node belongs to this page specifically — it
+// describes the "Preguntas frecuentes sobre Pangui" section in Landing.jsx.
 export default function Home() {
-  return <Landing />;
+  return (
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqStructuredData) }}
+      />
+      <Landing />
+    </>
+  );
 }

@@ -1,7 +1,13 @@
-// JSON-LD for the landing page. Rendered into <head> from app/layout.js —
-// keeping it out of <body> avoids React trying to hydrate it against the
-// PostHog loader scripts, which inject themselves into the body pre-hydration.
-export const structuredData = {
+// JSON-LD for the public marketing pages. Rendered into <head> — keeping it
+// out of <body> avoids React trying to hydrate it against the PostHog loader
+// scripts, which inject themselves into the body pre-hydration.
+//
+// Scoped per page on purpose: Google expects FAQPage and Article to describe
+// the page they appear on. Emitting them site-wide from the root layout put
+// them on /precios, /login and every gated app route too.
+
+/** Site-wide: rendered from app/layout.js on every route. */
+export const siteStructuredData = {
   "@context": "https://schema.org",
   "@graph": [
     {
@@ -29,29 +35,23 @@ export const structuredData = {
         "Reportes PDF y Excel",
         "App móvil con modo sin conexión",
       ],
-      publisher: {
-        "@type": "Organization",
-        name: "Pangui",
-        url: "https://getpangui.com",
-        email: "contacto@getpangui.com",
-        address: { "@type": "PostalAddress", addressCountry: "CL" },
-      },
+      publisher: { "@id": "https://getpangui.com/#organization" },
     },
     {
-      "@type": "Article",
-      url: "https://getpangui.com/casos-de-exito/electrilam",
-      headline:
-        "Caso de éxito: Electrilam pasa de papel y Excel a 603 órdenes de trabajo trazables con Pangui",
-      description:
-        "Ingeniería y Construcción Electrilam SpA ejecuta el mantenimiento eléctrico de la Universidad de Concepción. Con Pangui gestionó 603 órdenes de trabajo y 2.824 fotos de evidencia en cuatro meses, reemplazando el registro en papel y planillas Excel.",
-      inLanguage: "es-CL",
-      about: {
-        "@type": "Organization",
-        name: "Ingeniería y Construcción Electrilam SpA",
-        address: { "@type": "PostalAddress", addressCountry: "CL" },
-      },
-      publisher: { "@type": "Organization", name: "Pangui" },
+      "@type": "Organization",
+      "@id": "https://getpangui.com/#organization",
+      name: "Pangui",
+      url: "https://getpangui.com",
+      email: "contacto@getpangui.com",
+      address: { "@type": "PostalAddress", addressCountry: "CL" },
     },
+  ],
+};
+
+/** Landing page only (app/page.js) — matches the "Preguntas frecuentes" section. */
+export const faqStructuredData = {
+  "@context": "https://schema.org",
+  "@graph": [
     {
       "@type": "FAQPage",
       mainEntity: [
@@ -108,3 +108,24 @@ export const structuredData = {
   ],
 };
 
+/** Case-study page only (app/casos-de-exito/electrilam/page.jsx). */
+export const articleStructuredData = {
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Article",
+      url: "https://getpangui.com/casos-de-exito/electrilam",
+      headline:
+        "Caso de éxito: Electrilam pasa de papel y Excel a 603 órdenes de trabajo trazables con Pangui",
+      description:
+        "Ingeniería y Construcción Electrilam SpA ejecuta el mantenimiento eléctrico de la Universidad de Concepción. Con Pangui gestionó 603 órdenes de trabajo y 2.824 fotos de evidencia en cuatro meses, reemplazando el registro en papel y planillas Excel.",
+      inLanguage: "es-CL",
+      about: {
+        "@type": "Organization",
+        name: "Ingeniería y Construcción Electrilam SpA",
+        address: { "@type": "PostalAddress", addressCountry: "CL" },
+      },
+      publisher: { "@id": "https://getpangui.com/#organization" },
+    },
+  ],
+};

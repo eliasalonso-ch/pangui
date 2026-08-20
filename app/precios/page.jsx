@@ -5,9 +5,19 @@ import { LandingFooter, LandingNav } from "../Landing";
 import PublicPageTheme from "@/components/PublicPageTheme";
 import { UI_VISIBLE_PLANS, TRIAL_DAYS } from "@/lib/flow-plans";
 
+const PRECIOS_DESCRIPTION =
+  "Planes por usuario para equipos de mantención. Prueba Pro gratis por 30 días.";
+
 export const metadata = {
   title: "Precios · Pangui",
-  description: "Planes por usuario para equipos de mantención. Prueba Pro gratis por 30 días.",
+  description: PRECIOS_DESCRIPTION,
+  alternates: { canonical: "/precios" },
+  openGraph: {
+    title: "Precios · Pangui",
+    description: PRECIOS_DESCRIPTION,
+    url: "/precios",
+    type: "website",
+  },
 };
 
 const fmtCLP = (n) =>

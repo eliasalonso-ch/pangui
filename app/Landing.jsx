@@ -4,6 +4,7 @@ import "./landing.css";
 import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import Link from "next/link";
+import Image from "next/image";
 import PublicPageTheme from "@/components/PublicPageTheme";
 import { StoreBadges } from "@/components/StoreBadges";
 import FeatureDetailPanel, { useFeatureDetail } from "@/components/landing/FeatureDetailPanel";
@@ -56,7 +57,7 @@ export function LandingNav({ mobileOnly = false }) {
     >
       <div className="mx-auto flex h-16 max-w-[1440px] items-center gap-10 px-4 md:h-[68px] md:px-10 xl:px-12">
         <Link href="/" aria-label="Pangui - inicio" className="flex items-center">
-          <img src="/logo2.svg" alt="Pangui" className="h-7 w-auto md:h-8" />
+          <img src="/logo2.svg" alt="Pangui" width={120} height={32} className="h-7 w-auto md:h-8" />
         </Link>
 
         <nav className="mr-auto hidden items-center gap-8 lg:flex">
@@ -200,11 +201,14 @@ function Hero() {
           className="lg:col-span-6"
         >
           <div>
-            <img
+            <Image
               src="/hero-ot-motor.jpg"
               alt="Sala de bombas y motores atendida por una empresa de mantención"
+              width={1600}
+              height={1200}
+              sizes="(min-width: 1024px) 50vw, 100vw"
               className="aspect-[5/4] w-full rounded-[18px] object-cover shadow-2xl shadow-black/25 sm:aspect-[4/3] md:rounded-[22px]"
-              loading="eager"
+              priority
             />
             {/* Estado card from the real OT detail UI (EstadoSection), sitting
                 flush under the image at the same width. Static, non-interactive. */}
@@ -903,7 +907,7 @@ export function LandingFooter() {
         <div className="grid gap-10 md:grid-cols-3">
           <div>
             <Link href="/" aria-label="Pangui - inicio" className="inline-flex">
-              <img src="/logo2.svg" alt="Pangui" className="h-8 w-auto" />
+              <img src="/logo2.svg" alt="Pangui" width={120} height={32} className="h-8 w-auto" />
             </Link>
             <p className="mt-6 max-w-[340px] text-[14px] leading-[1.65] text-[var(--ink-2)]">
               Software de órdenes de trabajo y mantenimiento (CMMS) para

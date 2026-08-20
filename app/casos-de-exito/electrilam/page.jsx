@@ -4,6 +4,7 @@ import { ArrowLeft, ArrowRight } from "lucide-react";
 import { LandingFooter, LandingNav } from "../../Landing";
 import PublicPageTheme from "@/components/PublicPageTheme";
 import { getCaso } from "../casos";
+import { articleStructuredData } from "../../structured-data";
 
 const caso = getCaso("electrilam");
 
@@ -47,6 +48,12 @@ const CAMBIOS = [
 export default function CasoElectrilamPage() {
   return (
     <div className="landing-root min-h-screen antialiased">
+      {/* The Article node describes THIS page, so it is emitted here rather
+          than site-wide from the root layout. */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(articleStructuredData) }}
+      />
       <PublicPageTheme />
       <LandingNav />
 

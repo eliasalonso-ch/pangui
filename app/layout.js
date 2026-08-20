@@ -2,7 +2,7 @@ import { Inter, Geist } from "next/font/google";
 import "./globals.css";
 import { PostHogProvider } from "./PostHogProvider";
 import { QueryProvider } from "./QueryProvider";
-import { structuredData } from "./structured-data";
+import { siteStructuredData } from "./structured-data";
 
 const inter = Inter({
   variable: "--font-heading",
@@ -82,10 +82,12 @@ export default function RootLayout({ children }) {
         <link rel="dns-prefetch" href="https://yqwsryjbmlvcghnwnzik.supabase.co" />
         {/* JSON-LD belongs in <head>: PostHog injects loader <script>s into
             <body> before hydration, and React would try to reconcile a
-            body-level script tag against them (hydration mismatch). */}
+            body-level script tag against them (hydration mismatch).
+            Only the site-wide nodes go here — FAQPage and Article are emitted
+            by the pages they actually describe. */}
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(siteStructuredData) }}
         />
       </head>
       <body>
