@@ -49,9 +49,12 @@ export default function CasoElectrilamPage() {
   return (
     <div className="landing-root min-h-screen antialiased">
       {/* The Article node describes THIS page, so it is emitted here rather
-          than site-wide from the root layout. */}
+          than site-wide from the root layout. suppressHydrationWarning is
+          required: PostHog injects a loader <script> into <body> pre-hydration
+          and React would otherwise reconcile this tag against it. */}
       <script
         type="application/ld+json"
+        suppressHydrationWarning
         dangerouslySetInnerHTML={{ __html: JSON.stringify(articleStructuredData) }}
       />
       <PublicPageTheme />

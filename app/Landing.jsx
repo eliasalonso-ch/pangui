@@ -200,15 +200,20 @@ function Hero() {
           className="lg:col-span-6"
         >
           <div>
-            <Image
-              src="/hero-ot-motor.jpg"
-              alt="Sala de bombas y motores atendida por una empresa de mantención"
-              width={1600}
-              height={1200}
-              sizes="(min-width: 1024px) 50vw, 100vw"
-              className="aspect-[5/4] w-full rounded-[18px] object-cover shadow-2xl shadow-black/25 sm:aspect-[4/3] md:rounded-[22px]"
-              priority
-            />
+            {/* `fill` + a ratio-constrained wrapper, NOT width/height: with
+                explicit dimensions next/image emits its own height:auto sizing,
+                which overrides the aspect-[5/4] class and lets the box grow to
+                the image's natural 4:3 height instead of cropping into it. */}
+            <div className="relative aspect-[5/4] w-full overflow-hidden rounded-[18px] shadow-2xl shadow-black/25 sm:aspect-[4/3] md:rounded-[22px]">
+              <Image
+                src="/hero-ot-motor.jpg"
+                alt="Sala de bombas y motores atendida por una empresa de mantención"
+                fill
+                sizes="(min-width: 1024px) 50vw, 100vw"
+                className="object-cover"
+                priority
+              />
+            </div>
             {/* Estado card from the real OT detail UI (EstadoSection), sitting
                 flush under the image at the same width. Static, non-interactive. */}
             <div className="mt-4 rounded-[20px] border border-black/10 bg-white p-4 text-[var(--ink)] shadow-2xl shadow-black/25 md:mt-5">
