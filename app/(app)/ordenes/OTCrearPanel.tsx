@@ -9,6 +9,8 @@ import {
 } from "lucide-react";
 import { AlbumModal } from "./AlbumModal";
 import { createClient } from "@/lib/supabase";
+import { useOTBorrador } from "@/hooks/useOTBorrador";
+import BorradorEstado from "./BorradorEstado";
 import { callEdge } from "@/lib/edge";
 import { createOrden, buildDescripcion, ELECTRILAM_WORKSPACE_ID } from "@/lib/ordenes-api";
 import { fetchSolicitantes as fetchSolicitantesCatalog, upsertSolicitante, type Solicitante } from "@/lib/solicitantes-api";
@@ -1029,6 +1031,13 @@ export default function OTCrearPanel({
 }: Props) {
   const [form, setForm] = useState<FormState>(BLANK);
   const [saving, setSaving] = useState(false);
+
+  // ── Borrador (autosave) ───────────────────────────────────────────────────
+  const {
+    borradorGuardado, scheduleSave, discard: discardBorrador,
+    guardando: guardandoBorrador, guardadoAt: borradorGuardadoAt,
+    fallo: falloBorrador,
+  } = useOTBorrador(myId, wsId);
   const [error, setError] = useState<string | null>(null);
   const [dupWarning, setDupWarning] = useState<string | null>(null);
   const [parsing, setParsing] = useState(false);
@@ -1423,9 +1432,37 @@ export default function OTCrearPanel({
     setForm(prev => {
       const next = { ...prev, [key]: val };
       if (key === "ubicacion_id") next.lugar_id = "";
+      // Autosave is driven from here rather than a useEffect on `form`: this is
+      // the single funnel every field edit already goes through, so the draft
+      // cannot drift out of sync with what is on screen.
+      scheduleSave(next as unknown as Parameters<typeof scheduleSave>[0]);
       return next;
     });
   }
+
+  // Auto-restore: the draft is applied as soon as it arrives, with no prompt.
+  //
+  // Guarded on `form === BLANK` (a reference check — BLANK is a module
+  // constant and setF always builds a new object) so a draft that resolves
+  // slowly can never overwrite something the user has already started typing.
+  // `borradorAplicado` makes it a one-shot, so restoring cannot fight the
+  // user's own edits afterwards.
+  // Cancelar discards the draft, so it asks first — closing the panel is
+  // otherwise indistinguishable from "I'll come back to this later".
+  const [confirmarCancelar, setConfirmarCancelar] = useState(false);
+
+  const borradorAplicado = useRef(false);
+  useEffect(() => {
+    if (borradorAplicado.current) return;
+    if (!borradorGuardado) return;
+    if (form !== BLANK) {
+      // User typed before the draft loaded — leave their work alone.
+      borradorAplicado.current = true;
+      return;
+    }
+    borradorAplicado.current = true;
+    setForm({ ...BLANK, ...(borradorGuardado.payload as Partial<FormState>) });
+  }, [borradorGuardado, form]);
 
   const ubicOptions = ubicaciones.map(u => ({
     id: u.id,
@@ -1584,6 +1621,9 @@ export default function OTCrearPanel({
         asignados_count: form.asignados_ids.length,
       });
 
+      // The OT exists now: the draft has served its purpose.
+      discardBorrador();
+
       onCreated(orden);
     } catch (e) {
       const message =
@@ -1608,7 +1648,12 @@ export default function OTCrearPanel({
         <h2 style={{ fontSize: 18, fontWeight: 700, color: "var(--fg-1)", margin: 0 }}>
           Nueva Orden de Trabajo
         </h2>
-        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <BorradorEstado
+            guardando={guardandoBorrador}
+            guardadoAt={borradorGuardadoAt}
+            fallo={falloBorrador}
+          />
           <button
             type="button"
             onClick={() => setAiOpen(true)}
@@ -1640,17 +1685,6 @@ export default function OTCrearPanel({
               : <FileUp size={12} />
             }
             {parsing ? "Leyendo…" : "Importar PDF"}
-          </button>
-          <button
-            type="button"
-            onClick={onClose}
-            style={{
-              width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center",
-              border: "1px solid var(--border)", borderRadius: 8,
-              background: "var(--surface-1)", cursor: "pointer", color: "var(--fg-3)",
-            }}
-          >
-            <X size={14} />
           </button>
         </div>
       </div>
@@ -2381,11 +2415,59 @@ export default function OTCrearPanel({
         </div>
       </div>
 
+      {/* Confirmar cancelar — descarta el borrador */}
+      {confirmarCancelar && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="cancelar-ot-titulo"
+          onClick={() => setConfirmarCancelar(false)}
+          style={{ position: "fixed", inset: 0, zIndex: 100, background: "rgba(0,0,0,.38)", display: "grid", placeItems: "center", padding: 20 }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{ width: "min(420px, 100%)", borderRadius: 14, border: "1px solid var(--border)", background: "var(--surface-1)", boxShadow: "0 24px 70px rgba(0,0,0,.28)", overflow: "hidden" }}
+          >
+            <div style={{ padding: "20px 20px 8px" }}>
+              <strong id="cancelar-ot-titulo" style={{ fontSize: 16, color: "var(--fg-1)" }}>
+                ¿Descartar esta orden?
+              </strong>
+              <p style={{ margin: "8px 0 0", color: "var(--fg-2)", fontSize: 13.5, lineHeight: 1.5 }}>
+                Se borrará lo que llevas escrito y no podrás recuperarlo.
+              </p>
+            </div>
+            <div style={{ padding: "12px 20px 16px", display: "flex", justifyContent: "flex-end", gap: 8 }}>
+              <button
+                type="button"
+                onClick={() => setConfirmarCancelar(false)}
+                style={{ height: 38, padding: "0 14px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--surface-1)", color: "var(--fg-1)", fontSize: 13, fontWeight: 500, fontFamily: "inherit", cursor: "pointer" }}
+              >
+                Seguir editando
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setConfirmarCancelar(false);
+                  // Kills the pending debounce too, so nothing re-saves after
+                  // the row is deleted.
+                  discardBorrador();
+                  setForm(BLANK);
+                  onClose();
+                }}
+                style={{ height: 38, padding: "0 15px", borderRadius: 8, border: 0, background: "var(--danger)", color: "white", fontSize: 13, fontWeight: 600, fontFamily: "inherit", cursor: "pointer" }}
+              >
+                Descartar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Sticky footer */}
       <div style={{
         borderTop: "1px solid var(--border)", padding: "16px 28px",
         display: "flex", alignItems: "center", justifyContent: "space-between",
-        background: "var(--surface-1)", flexShrink: 0,
+        background: "var(--surface-canvas)", flexShrink: 0,
       }}>
         <div style={{ flex: 1 }}>
           {error && <span style={{ fontSize: 12.5, color: "var(--danger)" }}>{error}</span>}
@@ -2393,7 +2475,11 @@ export default function OTCrearPanel({
         <div style={{ display: "flex", gap: 8 }}>
           <button
             type="button"
-            onClick={onClose}
+            onClick={() => {
+              // Nothing typed yet: no draft to lose, so don't nag.
+              if (form === BLANK && !borradorGuardado) { onClose(); return; }
+              setConfirmarCancelar(true);
+            }}
             disabled={saving}
             style={{
               height: 40, padding: "0 18px",

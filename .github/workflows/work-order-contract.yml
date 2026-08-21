@@ -40,11 +40,61 @@ jobs:
           cp supabase/testing/config.toml "$root/supabase/config.toml"
           cp supabase/bootstrap/20260725_production_public_schema.sql \
             "$root/supabase/migrations/20260725000000_production_public_schema.sql"
-          cp supabase/migrations/20260725160000_enforce_ot_photo_completion_reconcile.sql "$root/supabase/migrations/"
-          cp supabase/migrations/20260725170000_work_order_create_commands_v1.sql "$root/supabase/migrations/"
-          cp supabase/migrations/20260725180000_ot_upload_intents_v1.sql "$root/supabase/migrations/"
-          cp supabase/migrations/20260725190000_work_order_rollout_v1.sql "$root/supabase/migrations/"
+          # Every migration newer than the baseline, not a hardcoded list.
+          # The four names that used to live here went stale the moment more
+          # work-order migrations landed: the tests are copied with a wildcard
+          # below, so they kept advancing while the schema stayed at 2026-07-25.
+          # That drift is what made this job fail on any migration PR --
+          # process_work_order_notification_outbox_v1 (20260725230000) was
+          # never applied, yet the suite calls it.
+          for migration in supabase/migrations/*.sql; do
+            version="$(basename "$migration")"
+            version="${version%%_*}"
+            if [[ "$version" > "20260725000000" ]]; then
+              cp "$migration" "$root/supabase/migrations/"
+            fi
+          done
           cp supabase/tests/*.sql "$root/supabase/tests/"
+
+          # The production dump carries `on_notification_insert`, a Supabase
+          # webhook that POSTs to the live send-push-notification function via
+          # supabase_functions.http_request. It needs schema `net`, which this
+          # container does not have, so every transition that inserts a
+          # notification died with 3F000. Dropping it is also correct on its
+          # own terms: a contract test must not call a production endpoint.
+          # The baseline dump carries NO supabase_realtime membership: those
+          # tables were added to the publication through the dashboard, not by
+          # a migration. Production therefore has them and a fresh CI database
+          # does not, so 20260814190000/193000 -- which DROP five and two of
+          # them -- failed with 42704 "is not part of the publication".
+          # Seed the publication to the production state before migrations run.
+          # 20260725000001 sorts immediately after the baseline.
+          seed_sql="$root/supabase/migrations/20260725000001_ci_seed_realtime_publication.sql"
+          {
+            echo "-- CI ONLY. Reproduces publication membership that exists in"
+            echo "-- production but is absent from the schema-only baseline."
+            echo "do \$\$"
+            echo "declare t text;"
+            echo "begin"
+            echo "  foreach t in array array["
+            echo "    'materiales_usados','orden_partes','partes','paso_respuestas',"
+            echo "    'procedimiento_ejecuciones','actividad_ot','ot_procedimientos'"
+            echo "  ] loop"
+            echo "    if not exists ("
+            echo "      select 1 from pg_publication_tables"
+            echo "      where pubname='supabase_realtime' and schemaname='public' and tablename=t"
+            echo "    ) then"
+            echo "      execute format('alter publication supabase_realtime add table public.%I', t);"
+            echo "    end if;"
+            echo "  end loop;"
+            echo "end"
+            echo "\$\$;"
+          } > "$seed_sql"
+
+          ci_sql="$root/supabase/migrations/29990101000000_ci_disable_webhooks.sql"
+          echo "-- CI ONLY. Exists only in the runner temp dir; the 2999" > "$ci_sql"
+          echo "-- timestamp keeps it applied last. Never reaches production." >> "$ci_sql"
+          echo "drop trigger if exists on_notification_insert on public.notifications;" >> "$ci_sql"
           echo "WORK_ORDER_CONTRACT_ROOT=$root" >> "$GITHUB_ENV"
 
       - name: Start isolated Supabase

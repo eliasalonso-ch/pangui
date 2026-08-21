@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
-import { createServerSupabase, getServerUser } from "@/lib/supabase-server";
+import { createServerSupabase, getServerUser, shouldRedirectToLogin } from "@/lib/supabase-server";
+import SesionNoDisponible from "@/components/SesionNoDisponible";
 import OrdenesBandeja from "./OrdenesBandeja";
 import type { OrdenListItem, Usuario, Ubicacion, Activo, CategoriaOT, LugarEspecifico, Sociedad } from "@/types/ordenes";
 import { LIST_SELECT, ORDENES_PAGE_SIZE } from "@/lib/ordenes-api";
@@ -11,16 +12,23 @@ interface PageProps {
 
 export default async function OrdenesPage({ searchParams }: PageProps) {
   const { id: selectedId, panel } = await searchParams;
-  const [sb, user] = await Promise.all([createServerSupabase(), getServerUser()]);
+  const [sb, auth] = await Promise.all([createServerSupabase(), getServerUser()]);
 
-  if (!user) redirect("/login");
+  // Only a positively-confirmed "no session" redirects. A transient auth
+  // failure renders a retry screen instead of silently signing the user out.
+  if (shouldRedirectToLogin(auth)) redirect("/login");
+  if (!auth.user) return <SesionNoDisponible />;
+  const user = auth.user;
 
-  const { data: perfil } = await sb
+  const { data: perfil, error: perfilError } = await sb
     .from("usuarios")
     .select("workspace_id, rol, nombre, plan, plan_status, solo_asignadas")
     .eq("id", user.id)
     .maybeSingle();
 
+  // A failed query is not proof the user has no workspace. Only an actual
+  // row with no workspace_id is; anything else would log them out on a blip.
+  if (perfilError) return <SesionNoDisponible />;
   if (!perfil?.workspace_id) redirect("/login");
   const wsId = perfil.workspace_id;
 
