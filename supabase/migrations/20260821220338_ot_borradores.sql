@@ -36,10 +36,15 @@ alter table public.ot_borradores enable row level security;
 
 -- (select auth.uid()) envuelto en subquery: se evalua una vez por query en
 -- vez de una vez por fila (mismo patron que 20260806150000_rls_initplan_auth_uid).
+-- Las policies se recrean de forma idempotente: la tabla ya existia en
+-- produccion cuando se escribio este archivo, y `create policy` no admite
+-- `if not exists`.
+drop policy if exists ot_borradores_select on public.ot_borradores;
 create policy ot_borradores_select on public.ot_borradores
   for select to authenticated
   using (user_id = (select auth.uid()));
 
+drop policy if exists ot_borradores_insert on public.ot_borradores;
 create policy ot_borradores_insert on public.ot_borradores
   for insert to authenticated
   with check (user_id = (select auth.uid()));
@@ -47,11 +52,13 @@ create policy ot_borradores_insert on public.ot_borradores
 -- El autosave hace upsert. Un upsert que cae en la rama UPDATE necesita
 -- ademas la policy de SELECT de arriba: sin ella el update no falla, devuelve
 -- 0 filas en silencio.
+drop policy if exists ot_borradores_update on public.ot_borradores;
 create policy ot_borradores_update on public.ot_borradores
   for update to authenticated
   using (user_id = (select auth.uid()))
   with check (user_id = (select auth.uid()));
 
+drop policy if exists ot_borradores_delete on public.ot_borradores;
 create policy ot_borradores_delete on public.ot_borradores
   for delete to authenticated
   using (user_id = (select auth.uid()));
