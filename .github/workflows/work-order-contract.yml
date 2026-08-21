@@ -62,6 +62,35 @@ jobs:
           # container does not have, so every transition that inserts a
           # notification died with 3F000. Dropping it is also correct on its
           # own terms: a contract test must not call a production endpoint.
+          # The baseline dump carries NO supabase_realtime membership: those
+          # tables were added to the publication through the dashboard, not by
+          # a migration. Production therefore has them and a fresh CI database
+          # does not, so 20260814190000/193000 -- which DROP five and two of
+          # them -- failed with 42704 "is not part of the publication".
+          # Seed the publication to the production state before migrations run.
+          # 20260725000001 sorts immediately after the baseline.
+          seed_sql="$root/supabase/migrations/20260725000001_ci_seed_realtime_publication.sql"
+          {
+            echo "-- CI ONLY. Reproduces publication membership that exists in"
+            echo "-- production but is absent from the schema-only baseline."
+            echo "do \$\$"
+            echo "declare t text;"
+            echo "begin"
+            echo "  foreach t in array array["
+            echo "    'materiales_usados','orden_partes','partes','paso_respuestas',"
+            echo "    'procedimiento_ejecuciones','actividad_ot','ot_procedimientos'"
+            echo "  ] loop"
+            echo "    if not exists ("
+            echo "      select 1 from pg_publication_tables"
+            echo "      where pubname='supabase_realtime' and schemaname='public' and tablename=t"
+            echo "    ) then"
+            echo "      execute format('alter publication supabase_realtime add table public.%I', t);"
+            echo "    end if;"
+            echo "  end loop;"
+            echo "end"
+            echo "\$\$;"
+          } > "$seed_sql"
+
           ci_sql="$root/supabase/migrations/29990101000000_ci_disable_webhooks.sql"
           echo "-- CI ONLY. Exists only in the runner temp dir; the 2999" > "$ci_sql"
           echo "-- timestamp keeps it applied last. Never reaches production." >> "$ci_sql"
