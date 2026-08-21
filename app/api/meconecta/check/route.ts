@@ -21,7 +21,7 @@
  *   }
  */
 import { NextResponse } from "next/server";
-import { createServerSupabase, getServerUser } from "@/lib/supabase-server";
+import { createServerSupabase, getServerUser, shouldRedirectToLogin } from "@/lib/supabase-server";
 import { ELECTRILAM_WORKSPACE_ID } from "@/lib/ordenes-api";
 import { esAdmin } from "@/lib/roles";
 
@@ -37,10 +37,19 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 export async function POST(req: Request) {
   // ── Auth: real session, Electrilam only, no requesters ──
-  const [sb, user] = await Promise.all([createServerSupabase(), getServerUser()]);
-  if (!user) {
+  const [sb, auth] = await Promise.all([createServerSupabase(), getServerUser()]);
+  if (shouldRedirectToLogin(auth)) {
     return NextResponse.json({ ok: false, error: "No autenticado" }, { status: 401 });
   }
+  // Could not verify the session (auth server unreachable / 5xx). 503 tells the
+  // caller to retry; a 401 here would make the client discard a live session.
+  if (!auth.user) {
+    return NextResponse.json(
+      { ok: false, error: "No se pudo verificar la sesion" },
+      { status: 503 },
+    );
+  }
+  const user = auth.user;
 
   const { data: perfil } = await sb
     .from("usuarios")
