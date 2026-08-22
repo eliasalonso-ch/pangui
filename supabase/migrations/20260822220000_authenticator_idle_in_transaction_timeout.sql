@@ -1,0 +1,33 @@
+-- Corta las transacciones que PostgREST deja abiertas y ociosas.
+--
+-- Contexto (incidentes del 2026-08-22): cuando la instancia se satura y una
+-- request de PostgREST devuelve 504, la conexion queda en estado
+-- `idle in transaction (aborted)`. Con `idle_in_transaction_session_timeout`
+-- en 0 (el default de Postgres) nadie la limpia: se queda ocupando un slot
+-- del limite de 60 hasta que el cliente se reconecte por su cuenta.
+--
+-- Se observaron 2 conexiones asi tras una tanda de 504s. No es la causa de
+-- las caidas -- las caidas vienen de queries lentas del panel de Supabase
+-- (pg_available_extensions 26.8s, pg_stat_statements 38s) que starvean la
+-- instancia -- pero si es lo que hace que cada caida deje basura y que la
+-- siguiente arranque con menos cupo.
+--
+-- POR QUE 60s Y NO MENOS: PostgREST abre una transaccion por request
+-- (`BEGIN ISOLATION LEVEL READ COMMITTED READ ONLY`). Una request normal vive
+-- milisegundos, asi que 60s no puede cortar trafico sano ni por lejos; solo
+-- alcanza a lo que quedo colgado.
+--
+-- POR QUE SOLO `authenticator` Y NO GLOBAL: acotado al rol de PostgREST a
+-- proposito. Puesto a nivel de base tocaria tambien a `postgres` y
+-- `supabase_admin`, y podria matar una migracion larga o una sesion del SQL
+-- editor a mitad de camino. Esto NO afecta:
+--   - las conexiones `idle` normales del pool (no estan en transaccion;
+--     `idle_in_transaction_session_timeout` solo mira sesiones CON una
+--     transaccion abierta)
+--   - queries en ejecucion (de eso se encarga `statement_timeout`, 120s)
+--   - migraciones, cron, Realtime ni Storage (otros roles)
+--
+-- Reversa:
+--   ALTER ROLE authenticator RESET idle_in_transaction_session_timeout;
+
+ALTER ROLE authenticator SET idle_in_transaction_session_timeout = '60s';
