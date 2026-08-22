@@ -73,6 +73,15 @@ export function useOTBorrador(userId: string, wsId: string) {
     },
   });
 
+  // `useMutation` returns a fresh object every render. Reaching for `.mutate`
+  // through a ref keeps `flush`/`scheduleSave` referentially stable, which is
+  // what stops the unmount-cleanup effect below from re-running (and therefore
+  // flushing a write) on every single render.
+  const saveRef = useRef(saveMutation.mutate);
+  saveRef.current = saveMutation.mutate;
+  const deleteRef = useRef(deleteMutation.mutate);
+  deleteRef.current = deleteMutation.mutate;
+
   const flush = useCallback(() => {
     if (timerRef.current) {
       clearTimeout(timerRef.current);
@@ -81,9 +90,9 @@ export function useOTBorrador(userId: string, wsId: string) {
     const pending = pendingRef.current;
     pendingRef.current = null;
     if (pending && borradorTieneContenido(pending)) {
-      saveMutation.mutate(pending);
+      saveRef.current(pending);
     }
-  }, [saveMutation]);
+  }, []);
 
   const scheduleSave = useCallback(
     (payload: BorradorPayload) => {
@@ -104,10 +113,10 @@ export function useOTBorrador(userId: string, wsId: string) {
         // An empty form should not create a row, but it must still clear a
         // draft the user just emptied on purpose.
         if (!pending) return;
-        if (borradorTieneContenido(pending)) saveMutation.mutate(pending);
+        if (borradorTieneContenido(pending)) saveRef.current(pending);
       }, AUTOSAVE_DEBOUNCE_MS);
     },
-    [saveMutation, userId, wsId],
+    [userId, wsId],
   );
 
   const discard = useCallback(() => {
@@ -118,8 +127,8 @@ export function useOTBorrador(userId: string, wsId: string) {
     pendingRef.current = null;
     clearLocalBorrador(userId, wsId);
     setBorradorLocal(null);
-    deleteMutation.mutate();
-  }, [deleteMutation, userId, wsId]);
+    deleteRef.current();
+  }, [userId, wsId]);
 
   // Last line of defence: the user closes the tab inside the debounce window.
   // `visibilitychange` fires reliably on mobile/bfcache paths where `unload`
