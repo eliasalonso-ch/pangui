@@ -683,6 +683,10 @@ export default function OTDetail({
   // Autosave feedback. Procedure steps save on change/blur with no Save button,
   // so the toast is the only signal that the write landed.
   const [saveToast, setSaveToast] = useState<"saving" | "saved" | "error" | null>(null);
+  // Nombre del archivo cuya subida fallo, para avisar al usuario. La subida de
+  // fotos no tiene boton de guardar: sin este aviso el unico sintoma era una
+  // foto que no aparecia.
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const saveToastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const showSaveToast = useCallback((state: "saving" | "saved" | "error") => {
     if (saveToastTimer.current) clearTimeout(saveToastTimer.current);
@@ -1383,6 +1387,7 @@ export default function OTDetail({
 
   async function handleUploadToGrupo(grupoId: string, file: File) {
     setUploadingGrupoId(grupoId);
+    setUploadError(null);
     try {
       const item = await uploadAndAddFotoToGrupo(
         orden.id,
@@ -1393,6 +1398,11 @@ export default function OTDetail({
       setFotoGrupos(prev => prev.map(g =>
         g.id === grupoId ? { ...g, items: [...(g.items ?? []), item] } : g
       ));
+    } catch (err) {
+      // Sin esto la promesa quedaba sin catch: la foto desaparecia en silencio
+      // y el fallo solo aparecia en Sentry como unhandled rejection.
+      setUploadError(file.name);
+      throw err;
     } finally {
       setUploadingGrupoId(null);
     }
@@ -4070,6 +4080,32 @@ export default function OTDetail({
           {saveToast === "saving" && <><Loader2 size={14} className="animate-spin" /> Actualizando…</>}
           {saveToast === "saved" && <><CheckCircle2 size={14} /> ¡Campo actualizado!</>}
           {saveToast === "error" && <><AlertTriangle size={14} /> No se pudo guardar el campo</>}
+        </div>
+      )}
+
+      {/* Fallo al subir una foto. Es descartable a mano (no se auto-oculta):
+          el usuario necesita saber que foto reintentar. */}
+      {uploadError && (
+        <div
+          role="alert"
+          style={{
+            position: "fixed", top: 18, left: "50%", transform: "translateX(-50%)",
+            zIndex: 901, display: "flex", alignItems: "center", gap: 9,
+            padding: "11px 18px", borderRadius: "var(--r-md)",
+            boxShadow: "var(--shadow-lg)", fontSize: 13.5, fontWeight: 600,
+            color: "#FFFFFF", background: "var(--danger)",
+          }}
+        >
+          <AlertTriangle size={14} />
+          No se pudo subir «{uploadError}». Intenta de nuevo.
+          <button
+            type="button"
+            onClick={() => setUploadError(null)}
+            aria-label="Cerrar aviso"
+            style={{ background: "none", border: "none", color: "#FFFFFF", cursor: "pointer", padding: 0, marginLeft: 4, display: "flex" }}
+          >
+            <X size={14} />
+          </button>
         </div>
       )}
 
