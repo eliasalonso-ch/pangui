@@ -58,7 +58,7 @@ export type FotosGaleriaProps = {
   isActive: boolean;
   uploadingGrupoId: string | null;
   creatingGrupo: boolean;
-  onUpload: (grupoId: string, file: File) => void;
+  onUpload: (grupoId: string, file: File) => Promise<void>;
   onRemoveItem: (grupoId: string, itemId: string, url: string) => void;
   /**
    * Bulk delete for a marquee/Ctrl+A selection. Receives every selected photo
@@ -492,9 +492,19 @@ export function FotosGaleria({
                       <input
                         ref={fileRef}
                         type="file" accept="image/*" multiple style={{ display: "none" }}
-                        onChange={e => {
-                          Array.from(e.target.files ?? []).forEach(f => onUpload(selected.id, f));
+                        onChange={async e => {
+                          const files = Array.from(e.target.files ?? []);
                           e.target.value = "";
+                          // Sequential on purpose: every finalize locks the same
+                          // OT row, so firing the whole selection at once makes
+                          // the uploads queue on that lock and time out.
+                          // Al primer fallo cortamos: el resto de la tanda
+                          // toparia con el mismo problema y el aviso ya se
+                          // mostro. El catch es obligatorio -- sin el la
+                          // promesa del onChange queda sin manejar.
+                          try {
+                            for (const f of files) await onUpload(selected.id, f);
+                          } catch { /* el caller ya avisa al usuario */ }
                         }}
                       />
                     </>

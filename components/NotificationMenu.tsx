@@ -23,17 +23,7 @@ import {
   X,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase";
-import type { RealtimeChannel } from "@supabase/supabase-js";
-
-interface NotificationRow {
-  id: string;
-  tipo: string;
-  titulo: string;
-  mensaje: string | null;
-  leida: boolean | null;
-  url: string | null;
-  created_at: string;
-}
+import { useNotificaciones, type NotificationRow } from "@/hooks/useNotificaciones";
 
 const TYPE_ICON: Record<string, typeof Info> = {
   emergencia: AlertTriangle,
@@ -112,54 +102,22 @@ export default function NotificationMenu() {
   const rootRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
   const [onlyUnread, setOnlyUnread] = useState(false);
-  const [loading, setLoading] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
-  const [notifications, setNotifications] = useState<NotificationRow[]>([]);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
+
+  // El fetch, el realtime y las mutaciones viven en useNotificaciones: este
+  // menu y el item del sidebar comparten cache, asi que borrar algo aca apaga
+  // el punto del sidebar en el mismo render. Sin `realtime` -- el canal unico
+  // lo abre AppSidebar, que esta siempre montado.
+  const { items: notifications, unreadCount, loading, setRead, markAllRead: markAll, remove } =
+    useNotificaciones(userId);
 
   useEffect(() => {
     let active = true;
-    let channel: RealtimeChannel | null = null;
-    const sb = createClient();
-
-    void sb.auth.getUser().then(async ({ data: { user } }) => {
-      if (!active) return;
-      if (!user) {
-        setLoading(false);
-        return;
-      }
-      setUserId(user.id);
-      const { data } = await sb
-        .from("notifications")
-        .select("id,tipo,titulo,mensaje,leida,url,created_at")
-        .eq("usuario_id", user.id)
-        .order("created_at", { ascending: false })
-        .limit(40);
-      if (!active) return;
-      setNotifications((data ?? []) as NotificationRow[]);
-      setLoading(false);
-
-      channel = sb
-        .channel(`topbar-notifications:${user.id}`)
-        .on("postgres_changes", { event: "INSERT", schema: "public", table: "notifications", filter: `usuario_id=eq.${user.id}` }, (payload) => {
-          const row = payload.new as NotificationRow;
-          setNotifications((current) => [row, ...current.filter((item) => item.id !== row.id)].slice(0, 40));
-        })
-        .on("postgres_changes", { event: "UPDATE", schema: "public", table: "notifications", filter: `usuario_id=eq.${user.id}` }, (payload) => {
-          const row = payload.new as NotificationRow;
-          setNotifications((current) => current.map((item) => item.id === row.id ? row : item));
-        })
-        .on("postgres_changes", { event: "DELETE", schema: "public", table: "notifications", filter: `usuario_id=eq.${user.id}` }, (payload) => {
-          const id = (payload.old as { id?: string }).id;
-          if (id) setNotifications((current) => current.filter((item) => item.id !== id));
-        })
-        .subscribe();
+    void createClient().auth.getUser().then(({ data: { user } }) => {
+      if (active && user) setUserId(user.id);
     });
-
-    return () => {
-      active = false;
-      if (channel) void sb.removeChannel(channel);
-    };
+    return () => { active = false; };
   }, []);
 
   useEffect(() => {
@@ -190,39 +148,33 @@ export default function NotificationMenu() {
     return () => clearInterval(id);
   }, [open]);
 
-  const unreadCount = notifications.filter((item) => !item.leida).length;
-  const visible = useMemo(
-    () => onlyUnread ? notifications.filter((item) => !item.leida) : notifications,
-    [notifications, onlyUnread],
-  );
+  /**
+   * El menu desplegable es una vista corta: el cache compartido guarda 100
+   * filas (lo que necesita la bandeja) pero aca se muestran las 40 mas
+   * recientes, como antes de unificar el estado.
+   */
+  const visible = useMemo(() => {
+    const source = onlyUnread ? notifications.filter((item) => !item.leida) : notifications;
+    return source.slice(0, 40);
+  }, [notifications, onlyUnread]);
 
-  async function markAllRead() {
-    if (!userId || unreadCount === 0) return;
-    setNotifications((current) => current.map((item) => ({ ...item, leida: true })));
-    await createClient().from("notifications").update({ leida: true }).eq("usuario_id", userId).or("leida.eq.false,leida.is.null");
+  function markAllRead() {
+    markAll();
   }
 
   /** Per-item read toggle — lets you re-flag something to deal with later. */
-  async function toggleRead(item: NotificationRow) {
-    if (!userId) return;
-    const next = !item.leida;
-    setNotifications((current) => current.map((row) => row.id === item.id ? { ...row, leida: next } : row));
-    await createClient().from("notifications").update({ leida: next }).eq("id", item.id).eq("usuario_id", userId);
+  function toggleRead(item: NotificationRow) {
+    setRead(item.id, !item.leida);
   }
 
   /** Removes a single notification. The realtime DELETE handler is idempotent. */
-  async function dismiss(item: NotificationRow) {
-    if (!userId) return;
-    setNotifications((current) => current.filter((row) => row.id !== item.id));
-    await createClient().from("notifications").delete().eq("id", item.id).eq("usuario_id", userId);
+  function dismiss(item: NotificationRow) {
+    remove(item.id);
   }
 
-  async function openNotification(item: NotificationRow) {
+  function openNotification(item: NotificationRow) {
     const target = destination(item.url);
-    if (!item.leida) {
-      setNotifications((current) => current.map((row) => row.id === item.id ? { ...row, leida: true } : row));
-      await createClient().from("notifications").update({ leida: true }).eq("id", item.id).eq("usuario_id", userId ?? "");
-    }
+    if (!item.leida) setRead(item.id, true);
     setOpen(false);
     if (!target) return;
     if (target.external) {
