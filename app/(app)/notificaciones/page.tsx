@@ -8,16 +8,7 @@ import {
 } from "lucide-react";
 import { createClient } from "@/lib/supabase";
 import AppLoadingState from "@/components/AppLoadingState";
-
-interface Notif {
-  id: string;
-  tipo: string;
-  titulo: string;
-  mensaje: string | null;
-  leida: boolean | null;
-  url: string | null;
-  created_at: string;
-}
+import { useNotificaciones, type NotificationRow as Notif } from "@/hooks/useNotificaciones";
 
 const TYPE_ICON: Record<string, React.ElementType> = {
   emergencia: AlertTriangle, ot: Wrench, orden: Wrench, asignado: Wrench,
@@ -56,58 +47,47 @@ function destination(url: string | null) {
 export default function NotificacionesPage() {
   const router = useRouter();
   const [userId, setUserId] = useState<string | null>(null);
-  const [items, setItems] = useState<Notif[]>([]);
-  const [loading, setLoading] = useState(true);
   const [onlyUnread, setOnlyUnread] = useState(false);
+
+  // Mismo cache que la campana de la topbar y el item del sidebar: marcar leida
+  // aca apaga el punto alla sin esperar un evento realtime. Sin `realtime`, el
+  // canal unico lo abre AppSidebar.
+  const {
+    items, unreadCount, loading,
+    setRead: setReadById, markAllRead: markAll, remove: removeById, clearAll: clearAllItems,
+  } = useNotificaciones(userId);
 
   useEffect(() => {
     let active = true;
-    void (async () => {
-      const sb = createClient();
-      const { data: { user } } = await sb.auth.getUser();
+    void createClient().auth.getUser().then(({ data: { user } }) => {
+      if (!active) return;
       if (!user) { router.replace("/login"); return; }
-      if (!active) return;
       setUserId(user.id);
-      const { data } = await sb.from("notifications")
-        .select("id,tipo,titulo,mensaje,leida,url,created_at")
-        .eq("usuario_id", user.id).order("created_at", { ascending: false }).limit(100);
-      if (!active) return;
-      setItems((data ?? []) as Notif[]);
-      setLoading(false);
-    })();
+    });
     return () => { active = false; };
   }, [router]);
 
-  const unreadCount = items.filter(item => !item.leida).length;
   const visible = useMemo(() => onlyUnread ? items.filter(item => !item.leida) : items, [items, onlyUnread]);
 
-  async function setRead(item: Notif, leida: boolean) {
-    if (!userId) return;
-    setItems(current => current.map(row => row.id === item.id ? { ...row, leida } : row));
-    await createClient().from("notifications").update({ leida }).eq("id", item.id).eq("usuario_id", userId);
+  function setRead(item: Notif, leida: boolean) {
+    setReadById(item.id, leida);
   }
 
-  async function markAllRead() {
-    if (!userId || unreadCount === 0) return;
-    setItems(current => current.map(item => ({ ...item, leida: true })));
-    await createClient().from("notifications").update({ leida: true }).eq("usuario_id", userId).or("leida.eq.false,leida.is.null");
+  function markAllRead() {
+    markAll();
   }
 
-  async function remove(item: Notif) {
-    if (!userId) return;
-    setItems(current => current.filter(row => row.id !== item.id));
-    await createClient().from("notifications").delete().eq("id", item.id).eq("usuario_id", userId);
+  function remove(item: Notif) {
+    removeById(item.id);
   }
 
-  async function clearAll() {
-    if (!userId) return;
-    await createClient().from("notifications").delete().eq("usuario_id", userId);
-    setItems([]);
+  function clearAll() {
+    clearAllItems();
   }
 
-  async function open(item: Notif) {
+  function open(item: Notif) {
     const target = destination(item.url);
-    if (!item.leida) await setRead(item, true);
+    if (!item.leida) setRead(item, true);
     if (!target) return;
     if (target.external) window.open(target.href, "_blank", "noopener,noreferrer");
     else router.push(target.href);

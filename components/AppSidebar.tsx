@@ -33,6 +33,7 @@ import { usePermisos } from "@/lib/permisos";
 import { ROL_LABEL } from "@/lib/roles";
 import { tieneItos } from "@/lib/itos-gate";
 import { useSuscripcion } from "@/hooks/useSuscripcion";
+import { useNotificaciones } from "@/hooks/useNotificaciones";
 
 import {
   Sidebar,
@@ -231,11 +232,16 @@ export default function AppSidebar() {
   const [workspaceId, setWorkspaceId] = useState<string | null>(null);
   const [workspaceLogo, setWorkspaceLogo] = useState<string | null | undefined>(undefined);
   const [mounted, setMounted] = useState(false);
-  const [hasUnreadNotifications, setHasUnreadNotifications] = useState(false);
+  // userId sale del mismo `load()` de abajo; las notificaciones cuelgan del
+  // hook compartido para que la campana de la topbar y esta comparta estado.
+  const [notifUserId, setNotifUserId] = useState<string | null>(null);
 
   const { puedeVer, userRol: permisosRol } = usePermisos();
   const effectiveRol = userRol ?? permisosRol;
   const suscripcion = useSuscripcion();
+  // realtime: true -- el sidebar esta siempre montado, asi que es el que abre
+  // el unico canal de `notifications`. Los demas consumidores leen del cache.
+  const { hasUnread } = useNotificaciones(notifUserId, { realtime: true });
   const planFeatures = suscripcion.data?.plan_features ?? null;
   // While the plan is loading, show items optimistically; once loaded, hide ones the plan blocks.
   const hasInventario   = !planFeatures || planFeatures.inventario;
@@ -249,28 +255,14 @@ export default function AppSidebar() {
   useEffect(() => {
     let active = true;
     const sb = createClient();
-    let notificationChannel: ReturnType<typeof sb.channel> | null = null;
-
-    async function refreshUnread(userId: string) {
-      const { count } = await sb
-        .from("notifications")
-        .select("id", { count: "exact", head: true })
-        .eq("usuario_id", userId)
-        .or("leida.eq.false,leida.is.null");
-      if (active) setHasUnreadNotifications((count ?? 0) > 0);
-    }
 
     async function load() {
       const { data: { user } } = await sb.auth.getUser();
       if (!active || !user) return;
 
-      await refreshUnread(user.id);
-      notificationChannel = sb
-        .channel(`sidebar-notifications:${user.id}`)
-        .on("postgres_changes", { event: "*", schema: "public", table: "notifications", filter: `usuario_id=eq.${user.id}` }, () => {
-          void refreshUnread(user.id);
-        })
-        .subscribe();
+      // Las notificaciones las maneja useNotificaciones (cache compartido con
+      // la campana de la topbar y la bandeja). Aca solo se publica el userId.
+      setNotifUserId(user.id);
 
       // Con reintentos a proposito: si esta consulta falla, `userRol` queda en
       // null, `isAdmin` en false y el sidebar se dibuja SIN los items de
@@ -311,7 +303,6 @@ export default function AppSidebar() {
 
     return () => {
       active = false;
-      if (notificationChannel) void sb.removeChannel(notificationChannel);
     };
   }, []);
 
@@ -411,7 +402,7 @@ export default function AppSidebar() {
               <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={isActive("/notificaciones/bandeja")} tooltip="Notificaciones">
                   <Link href="/notificaciones/bandeja" prefetch={false} style={{ display: "flex", alignItems: "center", gap: collapsed ? 0 : 10 }}>
-                    {hasUnreadNotifications
+                    {hasUnread
                       ? <BellDot size={16} className="notif-bell-dot" style={{ flexShrink: 0 }} />
                       : <Bell size={16} style={{ flexShrink: 0 }} />}
                     {!collapsed && <span>Notificaciones</span>}
