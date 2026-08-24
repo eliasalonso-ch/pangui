@@ -19,6 +19,7 @@ import type {
 } from "@/types/ordenes";
 import LinksInput from "@/components/LinksInput";
 import CategoriaMultiSelect from "@/components/ordenes/CategoriaMultiSelect";
+import CatalogoSelect from "@/components/ordenes/CatalogoSelect";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -677,18 +678,31 @@ export default function OTEditPanel({
     });
   }
 
-  const ubicOptions = ubicaciones.map(u => ({
+  // Los catálogos llegan por props, pero desde aquí se pueden crear entradas
+  // nuevas. Se guardan en estado local y se concatenan para que la recién
+  // creada aparezca seleccionada sin esperar a que el padre recargue.
+  const [nuevasUbicaciones, setNuevasUbicaciones] = useState<Ubicacion[]>([]);
+  const [nuevosLugares,     setNuevosLugares]     = useState<LugarEspecifico[]>([]);
+  const [nuevasSociedades,  setNuevasSociedades]  = useState<Sociedad[]>([]);
+  const [nuevosActivos,     setNuevosActivos]     = useState<Activo[]>([]);
+
+  const todasUbicaciones = [...ubicaciones, ...nuevasUbicaciones];
+  const todosLugares     = [...lugares,     ...nuevosLugares];
+  const todasSociedades  = [...sociedades,  ...nuevasSociedades];
+  const todosActivos     = [...activos,     ...nuevosActivos];
+
+  const ubicOptions = todasUbicaciones.map(u => ({
     id: u.id,
     label: u.edificio + (u.detalle ? ` · ${u.detalle}` : ""),
     sub: u.sociedades?.nombre,
   }));
 
-  const lugarOptions = lugares
+  const lugarOptions = todosLugares
     .filter(l => !form.ubicacion_id || l.ubicacion_id === form.ubicacion_id)
     .map(l => ({ id: l.id, label: l.nombre, sub: l.ubicaciones?.edificio }));
 
-  const sociedadOptions = sociedades.map(s => ({ id: s.id, label: s.nombre }));
-  const activoOptions   = activos.map(a => ({ id: a.id, label: a.nombre + (a.numero_serie ? ` (${a.numero_serie})` : "") }));
+  const sociedadOptions = todasSociedades.map(s => ({ id: s.id, label: s.nombre }));
+  const activoOptions   = todosActivos.map(a => ({ id: a.id, label: a.nombre + (a.numero_serie ? ` (${a.numero_serie})` : "") }));
 
   const save = async () => {
     if (!form.titulo.trim()) { setError("El título es obligatorio."); return; }
@@ -994,19 +1008,59 @@ export default function OTEditPanel({
           </FieldRow>
 
           <FieldRow icon={<Building2 size={14} />} label="Sociedad">
-            <SearchSelect placeholder="Seleccionar sociedad…" value={form.sociedad_id} options={sociedadOptions} onChange={v => setF("sociedad_id", v)} />
+            <CatalogoSelect<Sociedad>
+              value={form.sociedad_id}
+              options={sociedadOptions}
+              onChange={v => setF("sociedad_id", v)}
+              table="sociedades"
+              returning="id,nombre,activa,imagen_url,workspace_id,created_at"
+              buildRow={nombre => ({ workspace_id: wsId, nombre, activa: true })}
+              onCreated={s => setNuevasSociedades(prev => [...prev, s])}
+              placeholder="Buscar o crear…"
+              emptyLabel="Buscar o crear sociedad…"
+            />
           </FieldRow>
 
           <FieldRow icon={<MapPin size={14} />} label="Ubicación">
-            <SearchSelect placeholder="Empiece a escribir…" value={form.ubicacion_id} options={ubicOptions} onChange={v => setF("ubicacion_id", v)} />
+            <CatalogoSelect<Ubicacion>
+              value={form.ubicacion_id}
+              options={ubicOptions}
+              onChange={v => setF("ubicacion_id", v)}
+              table="ubicaciones"
+              returning="id,edificio,detalle,activa,sociedad_id"
+              buildRow={nombre => ({ workspace_id: wsId, edificio: nombre, activa: true })}
+              onCreated={u => setNuevasUbicaciones(prev => [...prev, u])}
+              placeholder="Buscar o crear…"
+              emptyLabel="Buscar o crear ubicación…"
+            />
           </FieldRow>
 
           <FieldRow icon={<MapPin size={14} />} label="Lugar específico">
-            <SearchSelect placeholder="Seleccionar lugar…" value={form.lugar_id} options={lugarOptions} onChange={v => setF("lugar_id", v)} />
+            <CatalogoSelect<LugarEspecifico>
+              value={form.lugar_id}
+              options={lugarOptions}
+              onChange={v => setF("lugar_id", v)}
+              table="lugares"
+              returning="id,nombre,ubicacion_id,activo,imagen_url,descripcion,workspace_id,created_at"
+              buildRow={nombre => ({ workspace_id: wsId, nombre, ubicacion_id: form.ubicacion_id || null, activo: true })}
+              onCreated={l => setNuevosLugares(prev => [...prev, l])}
+              placeholder="Buscar o crear…"
+              emptyLabel="Buscar o crear lugar…"
+            />
           </FieldRow>
 
           <FieldRow icon={<Settings2 size={14} />} label="Activo">
-            <SearchSelect placeholder="Empiece a escribir…" value={form.activo_id} options={activoOptions} onChange={v => setF("activo_id", v)} />
+            <CatalogoSelect<Activo>
+              value={form.activo_id}
+              options={activoOptions}
+              onChange={v => setF("activo_id", v)}
+              table="activos"
+              returning="id,nombre,numero_serie,workspace_id,activo"
+              buildRow={nombre => ({ workspace_id: wsId, nombre, activo: true })}
+              onCreated={a => setNuevosActivos(prev => [...prev, a])}
+              placeholder="Buscar o crear…"
+              emptyLabel="Buscar o crear activo…"
+            />
           </FieldRow>
 
           <FieldRow icon={<User size={14} />} label="Asignar a">

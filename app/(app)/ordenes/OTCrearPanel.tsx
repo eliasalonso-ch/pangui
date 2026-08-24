@@ -26,6 +26,7 @@ import type {
 } from "@/types/ordenes";
 import LinksInput from "@/components/LinksInput";
 import CategoriaMultiSelect from "@/components/ordenes/CategoriaMultiSelect";
+import CatalogoSelect from "@/components/ordenes/CatalogoSelect";
 
 // ── PDF text extraction ───────────────────────────────────────────────────────
 //
@@ -834,195 +835,6 @@ function SolicitanteSelect({ value, telefono, email, onChange, wsId, catalog, on
   );
 }
 
-// ── LocationSelect (search + create for ubicaciones) ──────────────────────────
-
-function LocationSelect({ value, options, onChange, wsId, onCreated: onUbicCreated }: {
-  value: string;
-  options: { id: string; label: string; sub?: string }[];
-  onChange: (id: string) => void;
-  wsId: string;
-  onCreated: (u: Ubicacion) => void;
-}) {
-  const [open, setOpen]         = useState(false);
-  const [query, setQuery]       = useState("");
-  const [creating, setCreating] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  const selected   = options.find(o => o.id === value);
-  const filtered   = options.filter(o => o.label.toLowerCase().includes(query.toLowerCase()));
-  const exactMatch = options.some(o => o.label.toLowerCase() === query.toLowerCase().trim());
-  const canCreate  = query.trim().length > 1 && !exactMatch;
-
-  useEffect(() => {
-    const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
-    document.addEventListener("mousedown", h);
-    return () => document.removeEventListener("mousedown", h);
-  }, []);
-
-  async function handleCreate() {
-    const nombre = query.trim();
-    if (!nombre) return;
-    setCreating(true);
-    try {
-      const sb = createClient();
-      const { data } = await sb
-        .from("ubicaciones")
-        .insert({ workspace_id: wsId, edificio: nombre, activa: true })
-        .select("id,edificio,detalle,activa,sociedad_id")
-        .single();
-      if (data) {
-        onUbicCreated(data as Ubicacion);
-        onChange(data.id);
-        setQuery("");
-        setOpen(false);
-      }
-    } finally {
-      setCreating(false);
-    }
-  }
-
-  return (
-    <div ref={ref} style={{ position: "relative" }}>
-      <button type="button" onClick={() => { setOpen(!open); setQuery(""); }}
-        style={{ width: "100%", height: 40, display: "flex", alignItems: "center", gap: 8, padding: "0 12px", border: "1px solid var(--border)", borderRadius: 8, background: "var(--surface-1)", fontSize: 13, color: selected ? "var(--fg-1)" : "var(--fg-4)", cursor: "pointer", textAlign: "left" }}>
-        <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-          {selected ? selected.label : "Buscar o crear ubicación…"}
-        </span>
-        <ChevronDown size={13} style={{ flexShrink: 0, color: "var(--fg-4)" }} />
-      </button>
-      {open && (
-        <div style={{ position: "absolute", top: "calc(100% + 3px)", left: 0, right: 0, zIndex: 200, background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: 8, boxShadow: "var(--shadow-md)", overflow: "hidden" }}>
-          <div style={{ padding: "8px 8px 4px" }}>
-            <input autoFocus placeholder="Buscar o crear…" value={query} onChange={e => setQuery(e.target.value)}
-              style={{ width: "100%", height: 36, padding: "0 10px", border: "1px solid var(--border)", borderRadius: 8, fontSize: 13, outline: "none", color: "var(--fg-1)", fontFamily: "inherit", background: "var(--surface-1)" }} />
-          </div>
-          <div style={{ maxHeight: 200, overflowY: "auto" }}>
-            <button type="button" onClick={() => { onChange(""); setOpen(false); }}
-              style={{ display: "block", width: "100%", textAlign: "left", padding: "10px 12px", fontSize: 13, color: "var(--fg-4)", background: !value ? "var(--brand-tint)" : "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}>
-              Sin asignar
-            </button>
-            {filtered.map(o => (
-              <button key={o.id} type="button" onClick={() => { onChange(o.id); setOpen(false); }}
-                style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", textAlign: "left", padding: "10px 12px", fontSize: 13, background: value === o.id ? "var(--brand-tint)" : "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}>
-                {value === o.id && <Check size={11} style={{ color: "var(--brand)", flexShrink: 0 }} />}
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ color: "var(--fg-1)" }}>{o.label}</div>
-                  {o.sub && <div style={{ fontSize: 11, color: "var(--fg-4)" }}>{o.sub}</div>}
-                </div>
-              </button>
-            ))}
-            {canCreate && (
-              <button type="button" onClick={handleCreate} disabled={creating}
-                style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "10px 12px", fontSize: 13, fontWeight: 600, background: "var(--brand-tint)", color: "var(--brand)", border: "none", borderTop: "1px solid var(--border)", cursor: creating ? "default" : "pointer", fontFamily: "inherit" }}>
-                {creating ? <Loader2 size={11} className="animate-spin" /> : <Plus size={11} />}
-                Crear "{query.trim()}"
-              </button>
-            )}
-            {filtered.length === 0 && !canCreate && (
-              <div style={{ padding: "10px 12px", fontSize: 12.5, color: "var(--fg-4)" }}>Sin resultados</div>
-            )}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ── LugarSelect (search + create for lugares específicos) ──────────────────────
-
-function LugarSelect({ value, options, onChange, wsId, ubicacion_id, onCreated: onLugarCreated }: {
-  value: string;
-  options: { id: string; label: string; sub?: string }[];
-  onChange: (id: string) => void;
-  wsId: string;
-  ubicacion_id: string;
-  onCreated: (l: LugarEspecifico) => void;
-}) {
-  const [open, setOpen]         = useState(false);
-  const [query, setQuery]       = useState("");
-  const [creating, setCreating] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  const selected   = options.find(o => o.id === value);
-  const filtered   = options.filter(o => o.label.toLowerCase().includes(query.toLowerCase()));
-  const exactMatch = options.some(o => o.label.toLowerCase() === query.toLowerCase().trim());
-  const canCreate  = query.trim().length > 1 && !exactMatch;
-
-  useEffect(() => {
-    const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
-    document.addEventListener("mousedown", h);
-    return () => document.removeEventListener("mousedown", h);
-  }, []);
-
-  async function handleCreate() {
-    const nombre = query.trim();
-    if (!nombre) return;
-    setCreating(true);
-    try {
-      const sb = createClient();
-      const { data } = await sb
-        .from("lugares")
-        .insert({ workspace_id: wsId, nombre, ubicacion_id: ubicacion_id || null, activo: true })
-        .select("id,nombre,ubicacion_id,activo,imagen_url,descripcion,workspace_id,created_at")
-        .single();
-      if (data) {
-        onLugarCreated(data as LugarEspecifico);
-        onChange(data.id);
-        setQuery("");
-        setOpen(false);
-      }
-    } finally {
-      setCreating(false);
-    }
-  }
-
-  return (
-    <div ref={ref} style={{ position: "relative" }}>
-      <button type="button" onClick={() => { setOpen(!open); setQuery(""); }}
-        style={{ width: "100%", height: 40, display: "flex", alignItems: "center", gap: 8, padding: "0 12px", border: "1px solid var(--border)", borderRadius: 8, background: "var(--surface-1)", fontSize: 13, color: selected ? "var(--fg-1)" : "var(--fg-4)", cursor: "pointer", textAlign: "left" }}>
-        <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-          {selected ? selected.label : "Buscar o crear lugar…"}
-        </span>
-        <ChevronDown size={13} style={{ flexShrink: 0, color: "var(--fg-4)" }} />
-      </button>
-      {open && (
-        <div style={{ position: "absolute", top: "calc(100% + 3px)", left: 0, right: 0, zIndex: 200, background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: 8, boxShadow: "var(--shadow-md)", overflow: "hidden" }}>
-          <div style={{ padding: "8px 8px 4px" }}>
-            <input autoFocus placeholder="Buscar o crear…" value={query} onChange={e => setQuery(e.target.value)}
-              style={{ width: "100%", height: 36, padding: "0 10px", border: "1px solid var(--border)", borderRadius: 8, fontSize: 13, outline: "none", color: "var(--fg-1)", fontFamily: "inherit", background: "var(--surface-1)" }} />
-          </div>
-          <div style={{ maxHeight: 200, overflowY: "auto" }}>
-            <button type="button" onClick={() => { onChange(""); setOpen(false); }}
-              style={{ display: "block", width: "100%", textAlign: "left", padding: "10px 12px", fontSize: 13, color: "var(--fg-4)", background: !value ? "var(--brand-tint)" : "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}>
-              Sin asignar
-            </button>
-            {filtered.map(o => (
-              <button key={o.id} type="button" onClick={() => { onChange(o.id); setOpen(false); }}
-                style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", textAlign: "left", padding: "10px 12px", fontSize: 13, background: value === o.id ? "var(--brand-tint)" : "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}>
-                {value === o.id && <Check size={11} style={{ color: "var(--brand)", flexShrink: 0 }} />}
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ color: "var(--fg-1)" }}>{o.label}</div>
-                  {o.sub && <div style={{ fontSize: 11, color: "var(--fg-4)" }}>{o.sub}</div>}
-                </div>
-              </button>
-            ))}
-            {canCreate && (
-              <button type="button" onClick={handleCreate} disabled={creating}
-                style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "10px 12px", fontSize: 13, fontWeight: 600, background: "var(--brand-tint)", color: "var(--brand)", border: "none", borderTop: "1px solid var(--border)", cursor: creating ? "default" : "pointer", fontFamily: "inherit" }}>
-                {creating ? <Loader2 size={11} className="animate-spin" /> : <Plus size={11} />}
-                Crear "{query.trim()}"
-              </button>
-            )}
-            {filtered.length === 0 && !canCreate && (
-              <div style={{ padding: "10px 12px", fontSize: 12.5, color: "var(--fg-4)" }}>Sin resultados</div>
-            )}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 export default function OTCrearPanel({
@@ -1063,6 +875,11 @@ export default function OTCrearPanel({
   // Local copies so newly created records appear immediately without a full reload
   const [ubicaciones, setUbicaciones] = useState<Ubicacion[]>(initialUbicaciones);
   const [lugares, setLugares]         = useState<LugarEspecifico[]>(initialLugares);
+  // Sociedades y activos también se pueden crear desde aquí, igual que en el
+  // panel de edición. Los props llegan de solo lectura, así que las entradas
+  // nuevas viven en estado local.
+  const [nuevasSociedades, setNuevasSociedades] = useState<Sociedad[]>([]);
+  const [nuevosActivos,    setNuevosActivos]    = useState<Activo[]>([]);
 
   // Solicitante catalog — the single source of truth for reusable contact info.
   // Loaded once here so both the picker and the AI/PDF scan can reuse it: when a
@@ -1478,12 +1295,12 @@ export default function OTCrearPanel({
       sub: l.ubicaciones?.edificio,
     }));
 
-  const sociedadOptions = sociedades.map(s => ({
+  const sociedadOptions = [...sociedades, ...nuevasSociedades].map(s => ({
     id: s.id,
     label: s.nombre,
   }));
 
-  const activoOptions = activos.map(a => ({
+  const activoOptions = [...activos, ...nuevosActivos].map(a => ({
     id: a.id,
     label: a.nombre + (a.numero_serie ? ` (${a.numero_serie})` : ""),
   }));
@@ -2219,11 +2036,16 @@ export default function OTCrearPanel({
 
           {/* Sociedad */}
           <FieldRow icon={<Building2 size={14} />} label="Sociedad">
-            <SearchSelect
-              placeholder="Seleccionar sociedad…"
+            <CatalogoSelect<Sociedad>
               value={form.sociedad_id}
               options={sociedadOptions}
               onChange={v => setF("sociedad_id", v)}
+              table="sociedades"
+              returning="id,nombre,activa,imagen_url,workspace_id,created_at"
+              buildRow={nombre => ({ workspace_id: wsId, nombre, activa: true })}
+              onCreated={s => setNuevasSociedades(prev => [...prev, s])}
+              placeholder="Buscar o crear…"
+              emptyLabel="Buscar o crear sociedad…"
             />
             {pdfHints?.sociedad && (
               <PdfSuggestion
@@ -2239,15 +2061,19 @@ export default function OTCrearPanel({
 
           {/* Ubicación */}
           <FieldRow icon={<MapPin size={14} />} label="Ubicación">
-            <LocationSelect
+            <CatalogoSelect<Ubicacion>
               value={form.ubicacion_id}
               options={ubicOptions}
               onChange={v => setF("ubicacion_id", v)}
-              wsId={wsId}
+              table="ubicaciones"
+              returning="id,edificio,detalle,activa,sociedad_id"
+              buildRow={nombre => ({ workspace_id: wsId, edificio: nombre, activa: true })}
               onCreated={u => {
                 setUbicaciones(prev => [...prev, u]);
                 setForm(prev => ({ ...prev, ubicacion_id: u.id, lugar_id: "" }));
               }}
+              placeholder="Buscar o crear…"
+              emptyLabel="Buscar o crear ubicación…"
             />
             {pdfHints?.ubicacion && (
               <PdfSuggestion
@@ -2263,16 +2089,19 @@ export default function OTCrearPanel({
 
           {/* Lugar específico */}
           <FieldRow icon={<MapPin size={14} />} label="Lugar específico">
-            <LugarSelect
+            <CatalogoSelect<LugarEspecifico>
               value={form.lugar_id}
               options={lugarOptions}
               onChange={v => setF("lugar_id", v)}
-              wsId={wsId}
-              ubicacion_id={form.ubicacion_id}
+              table="lugares"
+              returning="id,nombre,ubicacion_id,activo,imagen_url,descripcion,workspace_id,created_at"
+              buildRow={nombre => ({ workspace_id: wsId, nombre, ubicacion_id: form.ubicacion_id || null, activo: true })}
               onCreated={l => {
                 setLugares(prev => [...prev, l]);
                 setForm(prev => ({ ...prev, lugar_id: l.id }));
               }}
+              placeholder="Buscar o crear…"
+              emptyLabel="Buscar o crear lugar…"
             />
             {pdfHints?.lugar && (
               <PdfSuggestion
@@ -2288,11 +2117,16 @@ export default function OTCrearPanel({
 
           {/* Activo */}
           <FieldRow icon={<Settings2 size={14} />} label="Activo">
-            <SearchSelect
-              placeholder="Empiece a escribir…"
+            <CatalogoSelect<Activo>
               value={form.activo_id}
               options={activoOptions}
               onChange={v => setF("activo_id", v)}
+              table="activos"
+              returning="id,nombre,numero_serie,workspace_id,activo"
+              buildRow={nombre => ({ workspace_id: wsId, nombre, activo: true })}
+              onCreated={a => setNuevosActivos(prev => [...prev, a])}
+              placeholder="Buscar o crear…"
+              emptyLabel="Buscar o crear activo…"
             />
             {pdfHints?.activo && (
               <PdfSuggestion
