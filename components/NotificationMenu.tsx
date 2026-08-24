@@ -23,6 +23,7 @@ import {
   X,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase";
+import { getAuthUser } from "@/lib/auth-user";
 import { useNotificaciones, type NotificationRow } from "@/hooks/useNotificaciones";
 
 const TYPE_ICON: Record<string, typeof Info> = {
@@ -114,7 +115,7 @@ export default function NotificationMenu() {
 
   useEffect(() => {
     let active = true;
-    void createClient().auth.getUser().then(({ data: { user } }) => {
+    void getAuthUser().then((user) => {
       if (active && user) setUserId(user.id);
     });
     return () => { active = false; };

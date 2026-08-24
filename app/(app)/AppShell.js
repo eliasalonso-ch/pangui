@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { createClient } from "@/lib/supabase";
+import { getAuthUser } from "@/lib/auth-user";
 import AppSidebar from "@/components/AppSidebar";
 import GlobalTopBar from "@/components/GlobalTopBar";
 import { TopBarActionsProvider } from "@/components/TopBarActions";
@@ -133,7 +134,7 @@ export default function AppShell({ children }) {
     if (now - last < 300000) return;
     sessionStorage.setItem(KEY, String(now));
     const sb = createClient();
-    sb.auth.getUser().then(({ data: { user } }) => {
+    getAuthUser().then((user) => {
       if (user) sb.from("usuarios").update({ last_active: new Date().toISOString() }).eq("id", user.id).then(() => {});
     });
   }, []);
