@@ -29,6 +29,7 @@ import {
 import { useRouter } from "next/navigation";
 
 import { createClient } from "@/lib/supabase";
+import { getAuthUser } from "@/lib/auth-user";
 import { usePermisos } from "@/lib/permisos";
 import { ROL_LABEL } from "@/lib/roles";
 import { tieneItos } from "@/lib/itos-gate";
@@ -257,7 +258,7 @@ export default function AppSidebar() {
     const sb = createClient();
 
     async function load() {
-      const { data: { user } } = await sb.auth.getUser();
+      const user = await getAuthUser();
       if (!active || !user) return;
 
       // Las notificaciones las maneja useNotificaciones (cache compartido con

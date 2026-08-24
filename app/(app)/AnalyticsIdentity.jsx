@@ -7,6 +7,7 @@ import { useEffect } from "react";
 import posthog from "posthog-js";
 import * as Sentry from "@sentry/nextjs";
 import { createClient } from "@/lib/supabase";
+import { getAuthUser, resetAuthUserCache } from "@/lib/auth-user";
 
 function identify(user) {
   if (!user) return;
@@ -25,13 +26,17 @@ export default function AnalyticsIdentity() {
   useEffect(() => {
     const supabase = createClient();
 
-    supabase.auth.getUser().then(({ data }) => {
-      if (data?.user) identify(data.user);
+    getAuthUser().then((user) => {
+      if (user) identify(user);
     });
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
+      // La identidad cacheada por getAuthUser() deja de ser valida en cuanto
+      // cambia la sesion, sea cual sea el evento.
+      resetAuthUserCache();
+
       if (event === "SIGNED_OUT") {
         reset();
         return;

@@ -23,6 +23,7 @@ vi.mock("@/lib/roles", () => ({
 }));
 
 import AppSidebar from "@/components/AppSidebar";
+import { resetAuthUserCache } from "@/lib/auth-user";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
@@ -35,7 +36,12 @@ function makeChain(data: any) {
   return chain;
 }
 
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => {
+  vi.clearAllMocks();
+  // getAuthUser cachea el usuario a nivel de modulo: sin esto el primer test
+  // fija el valor para todos los demas.
+  resetAuthUserCache();
+});
 
 // AppSidebar reads the plan through useSuscripcion, which is a TanStack query,
 // so it needs a client in scope. A fresh one per render keeps tests isolated;

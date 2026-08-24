@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Check, ChevronRight, CircleUserRound, CreditCard, LogOut, Monitor, Moon, Sun } from "lucide-react";
 import { createClient } from "@/lib/supabase";
+import { getAuthUser } from "@/lib/auth-user";
 import NotificationMenu from "@/components/NotificationMenu";
 import { useTopBarActions } from "@/components/TopBarActions";
 
@@ -64,7 +65,7 @@ export default function GlobalTopBar() {
   useEffect(() => {
     setTheme((localStorage.getItem("pangui_theme") as ThemePref | null) ?? "auto");
     const sb = createClient();
-    sb.auth.getUser().then(async ({ data: { user } }) => {
+    void getAuthUser().then(async (user) => {
       if (!user) return;
       setEmail(user.email ?? "");
       const { data } = await sb.from("usuarios").select("nombre, rol").eq("id", user.id).maybeSingle();
