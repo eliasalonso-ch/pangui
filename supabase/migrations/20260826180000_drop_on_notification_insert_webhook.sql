@@ -1,0 +1,13 @@
+-- notificar ahora envia los push de Expo en lote, asi que este webhook por fila
+-- sobra: disparaba una invocacion de send-push-notification y tres consultas
+-- PostgREST por destinatario. Con la funcion nueva desplegada, dejarlo activo
+-- solo duplicaria cada push.
+--
+-- Rollback, si hiciera falta volver al envio por fila:
+--   create trigger on_notification_insert
+--     after insert on public.notifications
+--     for each row
+--     execute function supabase_functions.http_request(
+--       'https://yqwsryjbmlvcghnwnzik.supabase.co/functions/v1/send-push-notification',
+--       'POST', '{"Content-type":"application/json"}', '{}', '5000');
+drop trigger if exists on_notification_insert on public.notifications;
