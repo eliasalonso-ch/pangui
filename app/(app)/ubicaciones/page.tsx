@@ -7,48 +7,27 @@ import {
   MapPin, Building2, Plus, Pencil, Trash2, X, Check,
   Loader2, Search, ChevronRight, Image as ImageIcon, Upload, QrCode, Package, Wrench, Printer, Share2,
 } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase";
+import { getAuthUser } from "@/lib/auth-user";
 import AppLoadingState from "@/components/AppLoadingState";
+import HistorialOT from "@/components/catalogo/HistorialOT";
+import AccionesCatalogo from "@/components/catalogo/AccionesCatalogo";
 import { uploadToR2, deleteFromR2 } from "@/lib/r2";
+import {
+  useUbicacionesFull, useLugaresFull, useSociedadesFull,
+  useActivosResumen, useReservasResumen,
+  type UbicacionFull, type LugarFull, type SociedadFull,
+  type ActivoResumen, type ReservaResumen,
+} from "@/lib/queries";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-interface Sociedad {
-  id: string;
-  nombre: string;
-  imagen_url: string | null;
-  descripcion: string | null;
-  direccion: string | null;
-  qr_code: string | null;
-}
-
-interface Ubicacion {
-  id: string;
-  edificio: string;
-  detalle: string | null;
-  direccion: string | null;
-  grupo_cargo: string | null;
-  sociedad_id: string | null;
-  imagen_url: string | null;
-  sociedad_nombre: string | null;
-  descripcion: string | null;
-  qr_code: string | null;
-}
-
-interface Lugar {
-  id: string;
-  nombre: string;
-  descripcion: string | null;
-  direccion: string | null;
-  imagen_url: string | null;
-  ubicacion_id: string | null;
-  ubicacion_edificio: string | null;
-  grupo_cargo: string | null;
-  qr_code: string | null;
-}
-
-interface ActivoResumen { id: string; nombre: string; imagen_url: string | null; numero_serie: string | null; ubicacion_id: string | null; lugar_id: string | null }
-interface ReservaResumen { id: string; ubicacion_id: string; lugar_id: string | null; cantidad: number; parte: { nombre: string; unidad: string; imagen_url: string | null } | null }
+// Las filas vienen de los hooks de lib/queries.ts; aca solo se les pone el
+// nombre corto que ya usaba el resto del archivo.
+type Sociedad      = SociedadFull;
+type Ubicacion     = UbicacionFull;
+type Lugar         = LugarFull;
 
 type Section = "ubicaciones" | "lugares" | "sociedades";
 
@@ -216,13 +195,28 @@ export default function UbicacionesPage() {
       ? "sociedades"
       : "ubicaciones";
   const [search, setSearch]         = useState("");
+  const pageSize = 50;
+  const [page, setPage]             = useState(1);
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
 
-  // Data
-  const [ubicaciones, setUbicaciones] = useState<Ubicacion[]>([]);
-  const [lugares, setLugares]         = useState<Lugar[]>([]);
-  const [sociedades, setSociedades]   = useState<Sociedad[]>([]);
-  const [activos, setActivos]         = useState<ActivoResumen[]>([]);
-  const [reservas, setReservas]       = useState<ReservaResumen[]>([]);
+  // Volver al principio al cambiar de pestaña o al buscar: si no, una busqueda
+  // que devuelve 3 filas seguiria arrastrando el scroll de la anterior.
+  useEffect(() => { setPage(1); }, [section, search]);
+
+  // Data — via TanStack, asi volver a /ubicaciones no vuelve a pedir los cinco
+  // catalogos. Son datos casi estaticos: REFERENCE_STALE_TIME es 15 min.
+  const queryClient = useQueryClient();
+  const ubicacionesQ = useUbicacionesFull(wsId);
+  const lugaresQ     = useLugaresFull(wsId);
+  const sociedadesQ  = useSociedadesFull(wsId);
+  const activosQ     = useActivosResumen(wsId);
+  const reservasQ    = useReservasResumen(wsId);
+
+  const ubicaciones = ubicacionesQ.data ?? [];
+  const lugares     = lugaresQ.data ?? [];
+  const sociedades  = sociedadesQ.data ?? [];
+  const activos     = activosQ.data ?? [];
+  const reservas    = reservasQ.data ?? [];
 
   // Panel state
   const [panel, setPanel] = useState<{
@@ -244,51 +238,33 @@ export default function UbicacionesPage() {
   const [confirmDel, setConfirmDel] = useState<{ type: Section; id: string; name: string } | null>(null);
   const [qrModal, setQrModal] = useState<{ name: string; code: string } | null>(null);
 
+  // Solo resuelve el perfil: los cinco catalogos los traen los hooks de arriba
+  // en cuanto wsId deja de ser null.
   useEffect(() => {
     async function load() {
-      const sb = createClient();
-      const { data: { user } } = await sb.auth.getUser();
+      const user = await getAuthUser();
       if (!user) { router.replace("/login"); return; }
 
+      const sb = createClient();
       const { data: perfil } = await sb
         .from("usuarios").select("workspace_id, rol").eq("id", user.id).maybeSingle();
       if (!perfil?.workspace_id) { setLoading(false); return; }
 
       setWsId(perfil.workspace_id);
       setMyRol(perfil.rol);
-      await fetchAll(sb, perfil.workspace_id);
       setLoading(false);
     }
     load();
   }, [router]);
 
-  async function fetchAll(sb: ReturnType<typeof createClient>, wid: string) {
-    const [ubRes, luRes, soRes, acRes, reRes] = await Promise.all([
-      sb.from("ubicaciones")
-        .select("id, edificio, detalle, descripcion, direccion, grupo_cargo, sociedad_id, imagen_url, qr_code, sociedades(nombre)")
-        .eq("workspace_id", wid).eq("activa", true).order("edificio"),
-      sb.from("lugares")
-        .select("id, nombre, descripcion, direccion, grupo_cargo, imagen_url, qr_code, ubicacion_id, ubicaciones(edificio)")
-        .eq("workspace_id", wid).eq("activo", true).order("nombre"),
-      sb.from("sociedades")
-        .select("id, nombre, descripcion, direccion, imagen_url, qr_code")
-        .eq("workspace_id", wid).eq("activa", true).order("nombre"),
-      sb.from("activos")
-        .select("id, nombre, imagen_url, numero_serie, ubicacion_id, lugar_id")
-        .eq("workspace_id", wid).eq("activo", true).order("nombre"),
-      sb.from("material_reservations")
-        .select("id, ubicacion_id, lugar_id, cantidad, parte:partes!parte_id(nombre, unidad, imagen_url)")
-        .eq("workspace_id", wid).order("created_at", { ascending: false }),
-    ]);
-    setUbicaciones((ubRes.data ?? []).map((u: any) => ({
-      ...u, sociedad_nombre: (u.sociedades as any)?.nombre ?? null,
-    })));
-    setLugares((luRes.data ?? []).map((l: any) => ({
-      ...l, ubicacion_edificio: (l.ubicaciones as any)?.edificio ?? null,
-    })));
-    setSociedades(soRes.data ?? []);
-    setActivos((acRes.data ?? []) as ActivoResumen[]);
-    setReservas((reRes.data ?? []) as unknown as ReservaResumen[]);
+  /** Refresca los catalogos tras guardar o borrar. */
+  function invalidarCatalogos() {
+    for (const key of ["ubicaciones-full", "lugares-full", "sociedades-full", "activos-resumen", "reservas-resumen"]) {
+      queryClient.invalidateQueries({ queryKey: [key, wsId] });
+    }
+    // Los pickers de otras pantallas leen las versiones cortas del mismo dato.
+    queryClient.invalidateQueries({ queryKey: ["ubicaciones"] });
+    queryClient.invalidateQueries({ queryKey: ["lugares"] });
   }
 
   function openDetail(type: Section, id: string) {
@@ -383,7 +359,7 @@ export default function UbicacionesPage() {
         }
       }
 
-      await fetchAll(sb, wsId);
+      invalidarCatalogos();
       setPanel(null);
     } catch (error) {
       window.alert(error instanceof Error ? error.message : "No se pudo guardar. Revisa tus permisos e intenta nuevamente.");
@@ -402,7 +378,7 @@ export default function UbicacionesPage() {
                   : "sociedades";
       const col   = confirmDel.type === "sociedades" ? "activa" : confirmDel.type === "ubicaciones" ? "activa" : "activo";
       await sb.from(table).update({ [col]: false }).eq("id", confirmDel.id);
-      await fetchAll(sb, wsId);
+      invalidarCatalogos();
       setConfirmDel(null);
     } finally {
       setDeleting(null);
@@ -426,6 +402,26 @@ export default function UbicacionesPage() {
 
   const canEdit = myRol === "owner" || myRol === "admin" || myRol === "jefe";
 
+  const searchPlaceholder =
+    section === "ubicaciones" ? "Buscar ubicaciones…"
+    : section === "lugares"   ? "Buscar lugares…"
+    : "Buscar asociaciones…";
+
+  const createLabel =
+    section === "ubicaciones" ? "Nueva ubicación"
+    : section === "lugares"   ? "Nuevo lugar"
+    : "Nueva asociación";
+
+  const emptyIcon =
+    section === "ubicaciones" ? <Building2 size={32} />
+    : section === "lugares"   ? <MapPin size={32} />
+    : <Building2 size={32} />;
+
+  const emptyTitle =
+    section === "ubicaciones" ? "No hay ubicaciones aún"
+    : section === "lugares"   ? "No hay lugares específicos aún"
+    : "No hay asociaciones aún";
+
   const filtered = {
     ubicaciones: ubicaciones.filter(u =>
       !search || u.edificio.toLowerCase().includes(search.toLowerCase()) ||
@@ -439,20 +435,27 @@ export default function UbicacionesPage() {
     ),
   };
 
-  const panelTitle = !panel ? "" :
-    panel.mode === "view" ? (
-      panel.type === "ubicaciones" ? "Detalle de ubicación"
-      : panel.type === "lugares" ? "Detalle del lugar"
-      : "Detalle de asociación"
-    ) : panel.mode === "create" ? (
-      panel.type === "ubicaciones" ? "Nueva ubicación"
-      : panel.type === "lugares" ? "Nuevo lugar"
-      : "Nueva asociación"
-    ) : (
-      panel.type === "ubicaciones" ? "Editar ubicación"
-      : panel.type === "lugares" ? "Editar lugar"
-      : "Editar asociación"
+  // Paginado en cliente: los catalogos ya estan en memoria (473 lugares es el
+  // mas grande), asi que paginar en el servidor solo agregaria una ida y vuelta
+  // por pagina y romperia la busqueda instantanea, que filtra sobre el total.
+  // Lo que si evita es dibujar cientos de filas de una.
+  const visibleCount = pageSize * page;
+  const currentList = filtered[section];
+  const pageItems = currentList.slice(0, visibleCount);
+  const hasMore = currentList.length > visibleCount;
+
+  // rootMargin adelanta la carga 300px, asi la siguiente tanda ya esta dibujada
+  // cuando el centinela llega al borde y el scroll no se corta.
+  useEffect(() => {
+    const node = sentinelRef.current;
+    if (!node || !hasMore) return;
+    const observer = new IntersectionObserver(
+      entries => { if (entries[0]?.isIntersecting) setPage(p => p + 1); },
+      { rootMargin: "300px" },
     );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [hasMore, section, search]);
 
   const canSave = !saving && !uploadingImg && (
     panel?.type === "ubicaciones" ? !!form.edificio?.trim()
@@ -463,7 +466,36 @@ export default function UbicacionesPage() {
     : panel.type === "lugares" ? lugares.find(item => item.id === panel.id) ?? null
     : sociedades.find(item => item.id === panel.id) ?? null;
 
-  if (loading) {
+  /** El nombre visible cambia de columna segun el catalogo. */
+  function nombreDe(type: Section, item: Ubicacion | Lugar | Sociedad): string {
+    return type === "ubicaciones" ? (item as Ubicacion).edificio : (item as Lugar | Sociedad).nombre;
+  }
+
+  // En vista el titulo es el nombre del elemento (como en /categorias, que
+  // muestra "Eléctrico" y no "Detalle de categoría"); al crear o editar
+  // describe la accion.
+  const panelTitle = !panel ? "" :
+    panel.mode === "view" ? (
+      selectedItem ? nombreDe(panel.type, selectedItem) : ""
+    ) : panel.mode === "create" ? (
+      panel.type === "ubicaciones" ? "Nueva ubicación"
+      : panel.type === "lugares" ? "Nuevo lugar"
+      : "Nueva asociación"
+    ) : (
+      panel.type === "ubicaciones" ? "Editar ubicación"
+      : panel.type === "lugares" ? "Editar lugar"
+      : "Editar asociación"
+    );
+
+
+  // Con cache tibia los hooks resuelven al instante y esto no llega a verse;
+  // en frio espera a que llegue la lista de la pestaña actual.
+  const listaCargando =
+    section === "ubicaciones" ? ubicacionesQ.isPending
+    : section === "lugares"   ? lugaresQ.isPending
+    : sociedadesQ.isPending;
+
+  if (loading || (wsId && listaCargando)) {
     return <AppLoadingState label="Cargando ubicaciones…" minHeight="60dvh" />;
   }
 
@@ -471,120 +503,203 @@ export default function UbicacionesPage() {
     <div style={{ display: "flex", height: "100%", minHeight: 0, overflow: "hidden", background: "var(--surface-canvas)" }}>
 
       {/* Main list */}
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, borderRight: panel ? "1px solid var(--border)" : "none" }}>
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
 
         {/* Toolbar */}
-        <div style={{ flexShrink: 0, minHeight: 58, padding: "10px 24px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
-          <div style={{ position: "relative", width: 360, maxWidth: "100%" }}>
-            <Search size={14} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "var(--fg-4)" }} />
-            <input
-              type="text"
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder="Buscar…"
-              style={{
-                width: "100%", height: 34, padding: "0 10px 0 32px",
-                border: "1px solid var(--border)", borderRadius: 6,
-                fontSize: 13, color: "var(--fg-1)", outline: "none",
-                fontFamily: "inherit", background: "var(--surface-1)", boxSizing: "border-box",
-              }}
-            />
-            {search && (
-              <button type="button" onClick={() => setSearch("")}
-                style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "var(--fg-4)", display: "flex" }}>
-                <X size={13} />
+        {/* Toolbar — mismo patron que /categorias: buscador y accion alineados
+            a la derecha, tokens de radio y foco compartidos. */}
+        <div style={{ flexShrink: 0, borderBottom: "1px solid var(--border)", background: "var(--surface-canvas)" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 16px", justifyContent: "flex-end" }}>
+            <div style={{ position: "relative", width: 320 }}>
+              <Search size={14} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "var(--fg-4)", pointerEvents: "none" }} />
+              <input
+                type="text"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder={searchPlaceholder}
+                style={{
+                  width: "100%", height: 36, paddingLeft: 32, paddingRight: search ? 32 : 12,
+                  border: "1px solid var(--border)", borderRadius: "var(--r-md)", fontSize: 13,
+                  background: "var(--surface-1)", outline: "none", fontFamily: "inherit", color: "var(--fg-1)",
+                  boxSizing: "border-box",
+                }}
+                onFocus={e => { e.currentTarget.style.borderColor = "var(--brand)"; e.currentTarget.style.boxShadow = "var(--shadow-focus)"; }}
+                onBlur={e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.boxShadow = "none"; }}
+              />
+              {search && (
+                <button
+                  type="button"
+                  onClick={() => setSearch("")}
+                  aria-label="Limpiar búsqueda"
+                  style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "var(--fg-4)", padding: 2 }}
+                >
+                  <X size={13} />
+                </button>
+              )}
+            </div>
+
+            {canEdit && (
+              <button
+                type="button"
+                onClick={() => openCreate(section)}
+                style={{
+                  display: "flex", alignItems: "center", gap: 6,
+                  height: 36, padding: "0 14px",
+                  background: "var(--brand)", border: "none", borderRadius: "var(--r-md)", cursor: "pointer",
+                  fontSize: 13, fontWeight: 600, color: "var(--fg-on-brand)", fontFamily: "inherit",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                <Plus size={14} />
+                {createLabel}
               </button>
             )}
           </div>
-          {canEdit && (
-            <Btn onClick={() => openCreate(section)}>
-              <Plus size={14} />
-              {section === "ubicaciones" ? "Nueva ubicación"
-               : section === "lugares" ? "Nuevo lugar"
-               : "Nueva asociación"}
-            </Btn>
-          )}
         </div>
 
-        {/* List */}
-        <div style={{ flex: 1, overflowY: "auto" }}>
+        {/* Master–detail: columna fija de tarjetas + detalle flexible, igual
+            que /categorias. Antes la lista ocupaba todo y el detalle era un
+            panel de 380px que solo aparecia al seleccionar. */}
+        <div style={{ flex: 1, minHeight: 0, display: "flex" }}>
+
+        {/* Lista de tarjetas */}
+        <div style={{
+          width: 380, flexShrink: 0, borderRight: "1px solid var(--border)",
+          overflowY: "auto", background: "var(--surface-canvas)",
+          display: "flex", flexDirection: "column", gap: 8, padding: "8px 10px",
+        }}>
           {section === "ubicaciones" && (
-            filtered.ubicaciones.length === 0 ? <Empty label="Sin ubicaciones" /> :
-            filtered.ubicaciones.map(u => (
+            filtered.ubicaciones.length === 0 ? <Empty icon={emptyIcon} title={search ? "Sin resultados" : emptyTitle} hint={!search && canEdit ? "Crea el primero con el boton de arriba" : undefined} /> :
+            (pageItems as any[]).map(u => (
               <ListRow
                 key={u.id}
+                selected={panel?.id === u.id}
                 img={u.imagen_url}
                 name={u.edificio}
                 sub={[u.detalle, u.direccion, u.sociedad_nombre].filter(Boolean).join(" · ")}
                 onOpen={() => openDetail("ubicaciones", u.id)}
-                onEdit={canEdit ? () => openEdit("ubicaciones", u) : undefined}
-                onDelete={canEdit ? () => setConfirmDel({ type: "ubicaciones", id: u.id, name: u.edificio }) : undefined}
               />
             ))
           )}
           {section === "lugares" && (
-            filtered.lugares.length === 0 ? <Empty label="Sin lugares específicos" /> :
-            filtered.lugares.map(l => (
+            filtered.lugares.length === 0 ? <Empty icon={emptyIcon} title={search ? "Sin resultados" : emptyTitle} hint={!search && canEdit ? "Crea el primero con el boton de arriba" : undefined} /> :
+            (pageItems as any[]).map(l => (
               <ListRow
                 key={l.id}
+                selected={panel?.id === l.id}
                 img={l.imagen_url}
                 name={l.nombre}
                 sub={[l.ubicacion_edificio, l.descripcion].filter(Boolean).join(" · ")}
                 onOpen={() => openDetail("lugares", l.id)}
-                onEdit={canEdit ? () => openEdit("lugares", l) : undefined}
-                onDelete={canEdit ? () => setConfirmDel({ type: "lugares", id: l.id, name: l.nombre }) : undefined}
               />
             ))
           )}
           {section === "sociedades" && (
-            filtered.sociedades.length === 0 ? <Empty label="Sin asociaciones" /> :
-            filtered.sociedades.map(s => (
+            filtered.sociedades.length === 0 ? <Empty icon={emptyIcon} title={search ? "Sin resultados" : emptyTitle} hint={!search && canEdit ? "Crea el primero con el boton de arriba" : undefined} /> :
+            (pageItems as any[]).map(s => (
               <ListRow
                 key={s.id}
+                selected={panel?.id === s.id}
                 img={s.imagen_url}
                 name={s.nombre}
                 onOpen={() => openDetail("sociedades", s.id)}
-                onEdit={canEdit ? () => openEdit("sociedades", s) : undefined}
-                onDelete={canEdit ? () => setConfirmDel({ type: "sociedades", id: s.id, name: s.nombre }) : undefined}
               />
             ))
           )}
-        </div>
-      </div>
 
-      {/* Edit / Create panel */}
-      {panel && (
-        <div style={{ width: 380, flexShrink: 0, display: "flex", flexDirection: "column", background: "var(--surface-1)" }}>
+          {/* Scroll infinito: el centinela avisa cuando esta por entrar en
+              pantalla y se dibuja la siguiente tanda. Los datos ya estan en
+              memoria, asi que no hay peticion de por medio. */}
+          {hasMore && (
+            <div ref={sentinelRef} style={{ padding: "16px", display: "flex", justifyContent: "center" }}>
+              <Loader2 size={16} className="animate-spin" style={{ color: "var(--fg-4)" }} />
+            </div>
+          )}
+          {!hasMore && currentList.length > pageSize && (
+            <div style={{ padding: "14px 16px 20px", textAlign: "center", fontSize: 12, color: "var(--fg-4)" }}>
+              {currentList.length} en total
+            </div>
+          )}
+        </div>
+
+      {/* Detalle — siempre presente; con placeholder si no hay seleccion. */}
+      {!panel ? (
+        <div style={{
+          flex: 1, minWidth: 0, height: "100%", display: "flex", flexDirection: "column",
+          alignItems: "center", justifyContent: "center", gap: 10, color: "var(--fg-4)",
+        }}>
+          {section === "lugares" ? <MapPin size={40} style={{ opacity: 0.5 }} /> : <Building2 size={40} style={{ opacity: 0.5 }} />}
+          <div style={{ fontSize: 14, fontWeight: 600, color: "var(--fg-3)" }}>
+            {section === "ubicaciones" ? "Selecciona una ubicación"
+             : section === "lugares"   ? "Selecciona un lugar"
+             : "Selecciona una asociación"}
+          </div>
+          <div style={{ fontSize: 12.5 }}>El detalle aparecerá aquí</div>
+        </div>
+      ) : (
+        // El panel va sobre el lienzo (--surface-canvas) y la tarjeta de adentro
+        // es la que lleva --surface-1, igual que en /categorias. Antes el panel
+        // entero era --surface-1 y quedaba un bloque blanco plano.
+        // Sin `display:flex` aca: en columna flex la tarjeta quedaba acotada al
+        // alto disponible y el scroll no llegaba al final. Como bloque normal,
+        // la tarjeta crece con su contenido y este div la desplaza.
+        <div style={{ flex: 1, minWidth: 0, background: "var(--surface-canvas)", overflowY: "auto", padding: "8px 20px 20px" }}>
+          <div style={{
+            background: "var(--surface-1)", border: "1px solid var(--border)",
+            borderRadius: "var(--r-lg)",
+          }}>
           {/* Panel header */}
           <div style={{ flexShrink: 0, borderBottom: "1px solid var(--border)", padding: "0 20px", height: 56, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <span style={{ fontSize: 15, fontWeight: 700, color: "var(--fg-1)" }}>{panelTitle}</span>
-            <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-              {panel.mode === "view" && canEdit && selectedItem && (
-                <button type="button" onClick={() => openEdit(panel.type, selectedItem)} title="Editar"
-                  style={{ width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", borderRadius: 6, cursor: "pointer", color: "var(--fg-3)" }}>
-                  <Pencil size={15} />
-                </button>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              {/* Mismo par Editar + ⋮ que /categorias e /itos. */}
+              {panel.mode === "view" && selectedItem && (
+                <AccionesCatalogo
+                  puedeEditar={canEdit}
+                  puedeEliminar={canEdit}
+                  onEdit={() => openEdit(panel.type, selectedItem)}
+                  onDelete={() => setConfirmDel({
+                    type: panel.type,
+                    id: selectedItem.id,
+                    name: nombreDe(panel.type, selectedItem),
+                  })}
+                />
               )}
-              <button type="button" onClick={() => setPanel(null)}
-                style={{ width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", borderRadius: 6, cursor: "pointer", color: "var(--fg-4)" }}>
-                <X size={15} />
-              </button>
             </div>
           </div>
 
-          {/* Panel body */}
-          <div style={{ flex: 1, overflowY: "auto", padding: "20px" }}>
+          {/* Panel body — el scroll lo lleva el contenedor de afuera. */}
+          <div style={{ padding: "20px" }}>
             {panel.mode === "view" && selectedItem ? (
-              <EntityDetail
-                type={panel.type}
-                item={selectedItem}
-                ubicaciones={ubicaciones}
-                lugares={lugares}
-                activos={activos}
-                reservas={reservas}
-                onOpen={(type, id) => openDetail(type, id)}
-                onQr={(name, code) => setQrModal({ name, code })}
-              />
+              <>
+                <EntityDetail
+                  type={panel.type}
+                  item={selectedItem}
+                  ubicaciones={ubicaciones}
+                  lugares={lugares}
+                  sociedades={sociedades}
+                  activos={activos}
+                  reservas={reservas}
+                  onOpen={(type, id) => openDetail(type, id)}
+                  onQr={(name, code) => setQrModal({ name, code })}
+                />
+
+                {/* Mismo historial que /categorias e /itos: la serie y la lista
+                    de OTs salen del componente compartido, que ahora tambien
+                    filtra por ubicacion, lugar y sociedad. */}
+                {/* `minWidth: 0` contiene al ResponsiveContainer de Recharts,
+                    que si no mide de mas y se sale de la tarjeta. */}
+                <div style={{ marginTop: 20, paddingTop: 20, borderTop: "1px solid var(--border)", minWidth: 0, overflowX: "hidden" }}>
+                  <HistorialOT
+                    workspaceId={wsId}
+                    target={
+                      panel.type === "ubicaciones" ? { tipo: "ubicacion", ubicacionId: selectedItem.id }
+                      : panel.type === "lugares"   ? { tipo: "lugar", lugarId: selectedItem.id }
+                      : { tipo: "sociedad", sociedadId: selectedItem.id }
+                    }
+                  />
+                </div>
+              </>
             ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
 
@@ -704,16 +819,25 @@ export default function UbicacionesPage() {
             )}
           </div>
 
-          {/* Panel footer */}
-          {panel.mode !== "view" && <div style={{ flexShrink: 0, borderTop: "1px solid var(--border)", padding: "14px 20px", display: "flex", justifyContent: "flex-end", gap: 8 }}>
+          {/* Panel footer — pegajoso al pie de la tarjeta, como el CTA de
+              /categorias, para que no se pierda en formularios largos. */}
+          {panel.mode !== "view" && <div style={{
+            position: "sticky", bottom: 0, zIndex: 10,
+            borderTop: "1px solid var(--border)", padding: "14px 20px",
+            display: "flex", justifyContent: "flex-end", gap: 8,
+            background: "var(--surface-1)", borderRadius: "0 0 var(--r-lg) var(--r-lg)",
+          }}>
             <Btn variant="ghost" onClick={() => setPanel(null)}>Cancelar</Btn>
             <Btn onClick={handleSave} disabled={!canSave}>
               {saving ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
               {panel.mode === "create" ? "Crear" : "Guardar"}
             </Btn>
           </div>}
+          </div>
         </div>
       )}
+        </div>
+      </div>
 
       {/* Delete confirmation overlay */}
       {confirmDel && (
@@ -816,11 +940,12 @@ function QrModal({ name, code, onClose }: { name: string; code: string; onClose:
   );
 }
 
-function EntityDetail({ type, item, ubicaciones, lugares, activos, reservas, onOpen, onQr }: {
+function EntityDetail({ type, item, ubicaciones, lugares, sociedades, activos, reservas, onOpen, onQr }: {
   type: Section;
   item: any;
   ubicaciones: Ubicacion[];
   lugares: Lugar[];
+  sociedades: Sociedad[];
   activos: ActivoResumen[];
   reservas: ReservaResumen[];
   onOpen: (type: Section, id: string) => void;
@@ -835,9 +960,23 @@ function EntityDetail({ type, item, ubicaciones, lugares, activos, reservas, onO
     : type === "lugares" ? activos.filter(a => a.lugar_id === item.id) : [];
   const linkedReservations = type === "ubicaciones" ? reservas.filter(r => r.ubicacion_id === item.id)
     : type === "lugares" ? reservas.filter(r => r.lugar_id === item.id) : [];
+  // La asociación de una ubicación sale de los campos planos y pasa a ser una
+  // fila abrible, igual que los lugares específicos.
+  const linkedSociedad = type === "ubicaciones" && item.sociedad_id
+    ? sociedades.find(s => s.id === item.sociedad_id) ?? null
+    : null;
+  // Un lugar hereda la asociación de su ubicación padre.
+  const lugarSociedad = type === "lugares" && item.ubicacion_id
+    ? (() => {
+        const padre = ubicaciones.find(u => u.id === item.ubicacion_id);
+        return padre?.sociedad_id ? sociedades.find(s => s.id === padre.sociedad_id) ?? null : null;
+      })()
+    : null;
+  const sociedadAbrible = linkedSociedad ?? lugarSociedad;
+
   const fields = type === "ubicaciones" ? [
     ["Dirección", item.direccion], ["Descripción", item.descripcion ?? item.detalle],
-    ["Grupo a cargo", item.grupo_cargo], ["Asociación", item.sociedad_nombre],
+    ["Grupo a cargo", item.grupo_cargo],
   ] : type === "lugares" ? [
     ["Ubicación", item.ubicacion_edificio], ["Dirección", item.direccion],
     ["Descripción", item.descripcion], ["Grupo a cargo", item.grupo_cargo],
@@ -845,92 +984,181 @@ function EntityDetail({ type, item, ubicaciones, lugares, activos, reservas, onO
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-      <div style={{ borderRadius: 16, overflow: "hidden", background: "var(--surface-2)", border: "1px solid var(--border)" }}>
-        {item.imagen_url && <img src={item.imagen_url} alt={name} style={{ width: "100%", height: 190, display: "block", objectFit: "contain", background: "var(--surface-1)" }} />}
-        <div style={{ padding: 16 }}>
-          <h2 style={{ margin: 0, fontSize: 20, color: "var(--fg-1)" }}>{name}</h2>
+      {/* Sin tarjeta ni titulo propios: el nombre ya esta en el encabezado del
+          panel y los separadores los pone cada DetailGroup. */}
+      {(item.imagen_url || fields.some(([, value]) => value)) && (
+        <div>
+          {item.imagen_url && (
+            <img
+              src={item.imagen_url}
+              alt={name}
+              style={{ width: "100%", height: 190, display: "block", objectFit: "contain", background: "var(--surface-2)", borderRadius: "var(--r-md)", marginBottom: 14 }}
+            />
+          )}
           {fields.filter(([, value]) => value).map(([label, value]) => (
-            <div key={label} style={{ display: "flex", justifyContent: "space-between", gap: 16, paddingTop: 12, marginTop: 12, borderTop: "1px solid var(--border)" }}>
+            <div key={label} style={{ display: "flex", justifyContent: "space-between", gap: 16, padding: "7px 0" }}>
               <span style={{ fontSize: 13, fontWeight: 600, color: "var(--fg-2)" }}>{label}</span>
               <span style={{ fontSize: 13, color: "var(--fg-3)", textAlign: "right" }}>{value}</span>
             </div>
           ))}
         </div>
-      </div>
+      )}
 
-      <DetailGroup title="Código QR">
-        <button type="button" onClick={() => onQr(name, qrValue)} style={{ width: "100%", minHeight: 58, padding: "10px 12px", display: "flex", alignItems: "center", gap: 12, border: "none", background: "transparent", fontFamily: "inherit", textAlign: "left", cursor: "pointer" }}>
-          <div style={{ width: 38, height: 38, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--brand)", background: "var(--brand-tint)" }}><QrCode size={20} /></div>
-          <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 13.5, fontWeight: 600, color: "var(--fg-1)" }}>Código QR</div><div style={{ fontSize: 12, color: "var(--fg-4)", overflow: "hidden", textOverflow: "ellipsis" }}>{qrValue}</div></div>
-          <ChevronRight size={16} style={{ color: "var(--fg-4)" }} />
-        </button>
+      {/* Primer grupo: sin linea arriba. El bloque de imagen/campos ya se
+          separa por el `gap` del contenedor. */}
+      <DetailGroup title="Código QR" first>
+        <DetailLink
+          first
+          name="Código QR"
+          sub={qrValue}
+          icon={<QrCode size={15} />}
+          onClick={() => onQr(name, qrValue)}
+        />
       </DetailGroup>
 
-      {linkedLocations.length > 0 && <DetailGroup title={`Ubicaciones (${linkedLocations.length})`}>{linkedLocations.map(u => <DetailLink key={u.id} name={u.edificio} sub={u.direccion} icon={<MapPin size={17} />} onClick={() => onOpen("ubicaciones", u.id)} />)}</DetailGroup>}
-      {linkedPlaces.length > 0 && <DetailGroup title={`Lugares específicos (${linkedPlaces.length})`}>{linkedPlaces.map(l => <DetailLink key={l.id} name={l.nombre} sub={l.descripcion} icon={<MapPin size={17} />} onClick={() => onOpen("lugares", l.id)} />)}</DetailGroup>}
-      {linkedAssets.length > 0 && <DetailGroup title={`Activos (${linkedAssets.length})`}>{linkedAssets.map(a => <DetailLink key={a.id} name={a.nombre} sub={a.numero_serie} icon={<Wrench size={17} />} />)}</DetailGroup>}
-      {linkedReservations.length > 0 && <DetailGroup title={`Materiales reservados (${linkedReservations.length})`}>{linkedReservations.map(r => <DetailLink key={r.id} name={r.parte?.nombre ?? "Material"} sub={`${Number(r.cantidad).toLocaleString("es-CL")} ${r.parte?.unidad ?? ""}`} icon={<Package size={17} />} />)}</DetailGroup>}
+      {sociedadAbrible && (
+        <DetailGroup title="Asociación">
+          <DetailLink
+            first
+            name={sociedadAbrible.nombre}
+            sub={sociedadAbrible.direccion}
+            img={sociedadAbrible.imagen_url}
+            icon={<Building2 size={15} />}
+            onClick={() => onOpen("sociedades", sociedadAbrible.id)}
+          />
+        </DetailGroup>
+      )}
+      {linkedLocations.length > 0 && <DetailGroup title={`Ubicaciones (${linkedLocations.length})`}>{linkedLocations.map((u, i) => <DetailLink key={u.id} first={i === 0} name={u.edificio} sub={u.direccion} img={u.imagen_url} icon={<MapPin size={15} />} onClick={() => onOpen("ubicaciones", u.id)} />)}</DetailGroup>}
+      {linkedPlaces.length > 0 && <DetailGroup title={`Lugares específicos (${linkedPlaces.length})`}>{linkedPlaces.map((l, i) => <DetailLink key={l.id} first={i === 0} name={l.nombre} sub={l.descripcion} img={l.imagen_url} icon={<MapPin size={15} />} onClick={() => onOpen("lugares", l.id)} />)}</DetailGroup>}
+      {linkedAssets.length > 0 && <DetailGroup title={`Activos (${linkedAssets.length})`}>{linkedAssets.map((a, i) => <DetailLink key={a.id} first={i === 0} name={a.nombre} sub={a.numero_serie} img={a.imagen_url} icon={<Wrench size={15} />} />)}</DetailGroup>}
+      {linkedReservations.length > 0 && <DetailGroup title={`Materiales reservados (${linkedReservations.length})`}>{linkedReservations.map((r, i) => <DetailLink key={r.id} first={i === 0} name={r.parte?.nombre ?? "Material"} sub={`${Number(r.cantidad).toLocaleString("es-CL")} ${r.parte?.unidad ?? ""}`} img={r.parte?.imagen_url} icon={<Package size={15} />} />)}</DetailGroup>}
     </div>
   );
 }
 
-function DetailGroup({ title, children }: { title: string; children: React.ReactNode }) {
-  return <section><h3 style={{ margin: "0 0 8px 4px", fontSize: 13, fontWeight: 600, color: "var(--fg-3)" }}>{title}</h3><div style={{ border: "1px solid var(--border)", borderRadius: 14, overflow: "hidden", background: "var(--surface-2)" }}>{children}</div></section>;
+/**
+ * Grupo de una lista relacionada. Sin caja ni redondeo propios: el titulo va
+ * sobre las filas y un separador arriba las agrupa, como en la referencia. La
+ * tarjeta del detalle ya aporta borde y fondo.
+ */
+function DetailGroup({ title, first, children }: { title: string; first?: boolean; children: React.ReactNode }) {
+  return (
+    <section style={{
+      paddingTop: first ? 0 : 16,
+      // El primer grupo no lleva linea arriba: no separa de nada.
+      borderTop: first ? "none" : "1px solid var(--border)",
+    }}>
+      <h3 style={{ margin: "0 0 4px", fontSize: 13, fontWeight: 600, color: "var(--fg-1)" }}>{title}</h3>
+      <div>{children}</div>
+    </section>
+  );
 }
 
-function DetailLink({ name, sub, icon, onClick }: { name: string; sub?: string | null; icon: React.ReactNode; onClick?: () => void }) {
+/**
+ * Fila de una lista relacionada (lugares, activos, materiales).
+ *
+ * Muestra la foto real cuando existe y cae al icono del tipo cuando no. Las
+ * filas son compactas y sin redondeo: la tarjeta contenedora ya lo aporta.
+ */
+function DetailLink({ name, sub, icon, img, first, onClick }: {
+  name: string;
+  sub?: string | null;
+  icon: React.ReactNode;
+  img?: string | null;
+  first?: boolean;
+  onClick?: () => void;
+}) {
   const Tag = onClick ? "button" : "div";
-  return <Tag type={onClick ? "button" : undefined} onClick={onClick} style={{ width: "100%", minHeight: 58, padding: "10px 12px", display: "flex", alignItems: "center", gap: 12, border: "none", borderBottom: "1px solid var(--border)", background: "transparent", color: "var(--fg-2)", fontFamily: "inherit", textAlign: "left", cursor: onClick ? "pointer" : "default" } as React.CSSProperties}><div style={{ width: 36, height: 36, borderRadius: 9, display: "flex", alignItems: "center", justifyContent: "center", background: "var(--brand-tint)", color: "var(--brand)" }}>{icon}</div><div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 13.5, fontWeight: 600, color: "var(--fg-1)" }}>{name}</div>{sub && <div style={{ fontSize: 12, color: "var(--fg-4)", marginTop: 2 }}>{sub}</div>}</div>{onClick && <ChevronRight size={16} style={{ color: "var(--fg-4)" }} />}</Tag>;
+  return (
+    <Tag
+      type={onClick ? "button" : undefined}
+      onClick={onClick}
+      style={{
+        width: "100%", minHeight: 44, padding: "8px 0", display: "flex",
+        alignItems: "center", gap: 12, border: "none",
+        // El separador va ARRIBA y no en la primera fila: asi el ultimo
+        // elemento no deja una linea suelta pegada al grupo siguiente.
+        borderTop: first ? "none" : "1px solid var(--border)",
+        background: "transparent",
+        color: "var(--fg-2)", fontFamily: "inherit", textAlign: "left",
+        cursor: onClick ? "pointer" : "default",
+      } as React.CSSProperties}
+    >
+      {img ? (
+        <img
+          src={img}
+          alt=""
+          style={{ width: 28, height: 28, objectFit: "cover", border: "1px solid var(--border)", flexShrink: 0 }}
+        />
+      ) : (
+        <div style={{
+          width: 28, height: 28, flexShrink: 0, display: "flex",
+          alignItems: "center", justifyContent: "center",
+          background: "var(--brand-tint)", color: "var(--brand)",
+        }}>
+          {icon}
+        </div>
+      )}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 13, color: "var(--fg-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{name}</div>
+        {sub && <div style={{ fontSize: 11.5, color: "var(--fg-4)", marginTop: 1 }}>{sub}</div>}
+      </div>
+      {onClick && <ChevronRight size={15} style={{ color: "var(--fg-4)", flexShrink: 0 }} />}
+    </Tag>
+  );
 }
 
+/**
+ * Tarjeta de la columna izquierda. Mismo patron que CategoriaRow en
+ * /categorias: seleccionable, borde de marca cuando esta activa y acciones
+ * que aparecen al pasar el mouse.
+ */
 function ListRow({
-  img, name, sub, onOpen, onEdit, onDelete,
+  img, name, sub, selected, onOpen,
 }: {
   img: string | null;
   name: string;
   sub?: string;
+  selected?: boolean;
   onOpen?: () => void;
-  onEdit?: () => void;
-  onDelete?: () => void;
 }) {
+  const [hover, setHover] = useState(false);
   return (
-    <div onClick={onOpen} role={onOpen ? "button" : undefined} tabIndex={onOpen ? 0 : undefined} onKeyDown={e => { if (onOpen && (e.key === "Enter" || e.key === " ")) onOpen(); }} style={{
-      display: "flex", alignItems: "center", gap: 12,
-      padding: "12px 24px", borderBottom: "1px solid var(--border)",
-      transition: "background 0.1s", cursor: onOpen ? "pointer" : "default",
-    }}
-      onMouseEnter={e => { e.currentTarget.style.background = "var(--surface-hover)"; }}
-      onMouseLeave={e => { e.currentTarget.style.background = ""; }}
+    <div
+      onClick={onOpen}
+      role={onOpen ? "button" : undefined}
+      tabIndex={onOpen ? 0 : undefined}
+      onKeyDown={e => { if (onOpen && (e.key === "Enter" || e.key === " ")) onOpen(); }}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      style={{
+        display: "flex", alignItems: "center", gap: 12,
+        padding: "12px 14px", cursor: onOpen ? "pointer" : "default", flexShrink: 0,
+        background: selected ? "var(--brand-tint)" : "var(--surface-1)",
+        border: `1px solid ${selected ? "var(--brand)" : hover ? "var(--border-strong)" : "var(--border)"}`,
+        borderRadius: "var(--r-lg)",
+        transition: "border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease)",
+      }}
     >
-      <Avatar src={img} name={name} size={42} />
+      <Avatar src={img} name={name} size={38} />
       <div style={{ flex: 1, minWidth: 0 }}>
         <p style={{ fontSize: 13.5, fontWeight: 600, color: "var(--fg-1)", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{name}</p>
         {sub && <p style={{ fontSize: 12, color: "var(--fg-4)", margin: "2px 0 0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{sub}</p>}
       </div>
-      {onEdit && (
-        <button type="button" onClick={e => { e.stopPropagation(); onEdit(); }}
-          style={{ width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", borderRadius: 6, cursor: "pointer", color: "var(--fg-4)" }}
-          onMouseEnter={e => { e.currentTarget.style.background = "var(--surface-hover)"; e.currentTarget.style.color = "var(--fg-2)"; }}
-          onMouseLeave={e => { e.currentTarget.style.background = "none"; e.currentTarget.style.color = "var(--fg-4)"; }}>
-          <Pencil size={14} />
-        </button>
-      )}
-      {onDelete && (
-        <button type="button" onClick={e => { e.stopPropagation(); onDelete(); }}
-          style={{ width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", borderRadius: 6, cursor: "pointer", color: "var(--fg-4)" }}
-          onMouseEnter={e => { e.currentTarget.style.background = "var(--danger-bg)"; e.currentTarget.style.color = "var(--danger)"; }}
-          onMouseLeave={e => { e.currentTarget.style.background = "none"; e.currentTarget.style.color = "var(--fg-4)"; }}>
-          <Trash2 size={14} />
-        </button>
-      )}
     </div>
   );
 }
 
-function Empty({ label }: { label: string }) {
+/** Mismo vacio que /categorias: icono, titulo y pista de que hacer. */
+function Empty({ icon, title, hint }: { icon: React.ReactNode; title: string; hint?: string }) {
   return (
-    <div style={{ padding: "48px 24px", textAlign: "center", color: "var(--fg-4)", fontSize: 13 }}>
-      {label}
+    <div style={{
+      display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+      height: 240, color: "var(--fg-4)", gap: 8, padding: 24, textAlign: "center",
+    }}>
+      {icon}
+      <div style={{ fontSize: 14, fontWeight: 500, color: "var(--fg-3)" }}>{title}</div>
+      {hint && <div style={{ fontSize: 12.5 }}>{hint}</div>}
     </div>
   );
 }

@@ -405,3 +405,169 @@ export function usePartesCatalogo(opts?: { enabled?: boolean }) {
     },
   });
 }
+
+// ─── /ubicaciones page data ──────────────────────────────────────────────────
+
+/**
+ * The five catalogs the /ubicaciones page renders.
+ *
+ * WHY SEPARATE FROM useUbicaciones/useLugares ABOVE: those select the minimal
+ * columns a picker needs (id + label + parent). This page also shows the
+ * address, description, image and QR code, so it needs the wide row. Sharing
+ * one hook would either starve the page or make every picker download columns
+ * it never reads.
+ *
+ * Before this, the page refetched all five tables on every mount and after
+ * every save — five round trips to render a list that changes maybe weekly.
+ */
+
+export interface UbicacionFull {
+  id: string;
+  edificio: string;
+  detalle: string | null;
+  direccion: string | null;
+  grupo_cargo: string | null;
+  sociedad_id: string | null;
+  imagen_url: string | null;
+  sociedad_nombre: string | null;
+  descripcion: string | null;
+  qr_code: string | null;
+}
+
+export interface LugarFull {
+  id: string;
+  nombre: string;
+  descripcion: string | null;
+  direccion: string | null;
+  imagen_url: string | null;
+  ubicacion_id: string | null;
+  ubicacion_edificio: string | null;
+  grupo_cargo: string | null;
+  qr_code: string | null;
+}
+
+export interface SociedadFull {
+  id: string;
+  nombre: string;
+  imagen_url: string | null;
+  descripcion: string | null;
+  direccion: string | null;
+  qr_code: string | null;
+}
+
+export interface ActivoResumen {
+  id: string;
+  nombre: string;
+  imagen_url: string | null;
+  numero_serie: string | null;
+  ubicacion_id: string | null;
+  lugar_id: string | null;
+}
+
+export interface ReservaResumen {
+  id: string;
+  ubicacion_id: string;
+  lugar_id: string | null;
+  cantidad: number;
+  parte: { nombre: string; unidad: string; imagen_url: string | null } | null;
+}
+
+export function useUbicacionesFull(wsId: string | null | undefined) {
+  return useQuery({
+    queryKey: ["ubicaciones-full", wsId],
+    enabled: !!wsId,
+    staleTime: REFERENCE_STALE_TIME,
+    queryFn: async (): Promise<UbicacionFull[]> => {
+      const sb = createClient();
+      const { data, error } = await sb
+        .from("ubicaciones")
+        .select("id, edificio, detalle, descripcion, direccion, grupo_cargo, sociedad_id, imagen_url, qr_code, sociedades(nombre)")
+        .eq("workspace_id", wsId!)
+        .eq("activa", true)
+        .order("edificio");
+      if (error) throw error;
+      return (data ?? []).map((u: any) => ({
+        ...u,
+        sociedad_nombre: u.sociedades?.nombre ?? null,
+      })) as UbicacionFull[];
+    },
+  });
+}
+
+export function useLugaresFull(wsId: string | null | undefined) {
+  return useQuery({
+    queryKey: ["lugares-full", wsId],
+    enabled: !!wsId,
+    staleTime: REFERENCE_STALE_TIME,
+    queryFn: async (): Promise<LugarFull[]> => {
+      const sb = createClient();
+      const { data, error } = await sb
+        .from("lugares")
+        .select("id, nombre, descripcion, direccion, grupo_cargo, imagen_url, qr_code, ubicacion_id, ubicaciones(edificio)")
+        .eq("workspace_id", wsId!)
+        .eq("activo", true)
+        .order("nombre");
+      if (error) throw error;
+      return (data ?? []).map((l: any) => ({
+        ...l,
+        ubicacion_edificio: l.ubicaciones?.edificio ?? null,
+      })) as LugarFull[];
+    },
+  });
+}
+
+export function useSociedadesFull(wsId: string | null | undefined) {
+  return useQuery({
+    queryKey: ["sociedades-full", wsId],
+    enabled: !!wsId,
+    staleTime: REFERENCE_STALE_TIME,
+    queryFn: async (): Promise<SociedadFull[]> => {
+      const sb = createClient();
+      const { data, error } = await sb
+        .from("sociedades")
+        .select("id, nombre, descripcion, direccion, imagen_url, qr_code")
+        .eq("workspace_id", wsId!)
+        .eq("activa", true)
+        .order("nombre");
+      if (error) throw error;
+      return (data ?? []) as SociedadFull[];
+    },
+  });
+}
+
+export function useActivosResumen(wsId: string | null | undefined) {
+  return useQuery({
+    queryKey: ["activos-resumen", wsId],
+    enabled: !!wsId,
+    staleTime: REFERENCE_STALE_TIME,
+    queryFn: async (): Promise<ActivoResumen[]> => {
+      const sb = createClient();
+      const { data, error } = await sb
+        .from("activos")
+        .select("id, nombre, imagen_url, numero_serie, ubicacion_id, lugar_id")
+        .eq("workspace_id", wsId!)
+        .eq("activo", true)
+        .order("nombre");
+      if (error) throw error;
+      return (data ?? []) as ActivoResumen[];
+    },
+  });
+}
+
+export function useReservasResumen(wsId: string | null | undefined) {
+  return useQuery({
+    queryKey: ["reservas-resumen", wsId],
+    enabled: !!wsId,
+    staleTime: REFERENCE_STALE_TIME,
+    queryFn: async (): Promise<ReservaResumen[]> => {
+      const sb = createClient();
+      const { data, error } = await sb
+        .from("material_reservations")
+        .select("id, ubicacion_id, lugar_id, cantidad, parte:partes!parte_id(nombre, unidad, imagen_url)")
+        .eq("workspace_id", wsId!)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as unknown as ReservaResumen[];
+    },
+  });
+}
