@@ -339,7 +339,12 @@ export default function HistorialOT({ workspaceId, target }: {
 
   // `target` es un objeto nuevo en cada render del padre: se serializa para que
   // los efectos dependan del valor y no de la identidad, y no recarguen en loop.
-  const targetKey = target.tipo === "categoria" ? `cat:${target.categoriaId}` : `ito:${target.nombre}`;
+  const targetKey =
+    target.tipo === "categoria" ? `cat:${target.categoriaId}`
+    : target.tipo === "ubicacion" ? `ubi:${target.ubicacionId}`
+    : target.tipo === "lugar"     ? `lug:${target.lugarId}`
+    : target.tipo === "sociedad"  ? `soc:${target.sociedadId}`
+    : `ito:${target.nombre}`;
   const { desde, hasta } = resolverRango(rango);
   const desdeKey = desde.getTime();
 

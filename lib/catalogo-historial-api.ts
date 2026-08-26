@@ -25,19 +25,33 @@ const LISTA_SELECT = `
 /** Solo lo que consume la serie temporal. */
 const FECHAS_SELECT = "created_at, completado_en";
 
-/** Filtro por catálogo: categoría (por id, en sus dos columnas) o ITO (por texto). */
+/**
+ * Filtro por catálogo: categoría (por id, en sus dos columnas), ITO (por texto)
+ * o alguno de los catálogos de ubicación, que enlazan por su propia columna.
+ */
 export type HistorialTarget =
   | { tipo: "categoria"; categoriaId: string }
-  | { tipo: "ito"; nombre: string };
+  | { tipo: "ito"; nombre: string }
+  | { tipo: "ubicacion"; ubicacionId: string }
+  | { tipo: "lugar"; lugarId: string }
+  | { tipo: "sociedad"; sociedadId: string };
 
 function aplicarTarget<T>(query: T, target: HistorialTarget): T {
   const q = query as any;
-  if (target.tipo === "categoria") {
-    return q.or(`categoria_id.eq.${target.categoriaId},categoria_ids.cs.{${target.categoriaId}}`);
+  switch (target.tipo) {
+    case "categoria":
+      return q.or(`categoria_id.eq.${target.categoriaId},categoria_ids.cs.{${target.categoriaId}}`);
+    case "ubicacion":
+      return q.eq("ubicacion_id", target.ubicacionId);
+    case "lugar":
+      return q.eq("lugar_id", target.lugarId);
+    case "sociedad":
+      return q.eq("sociedad_id", target.sociedadId);
+    default:
+      // El vínculo del ITO es por texto: `ilike` iguala sin distinguir
+      // mayúsculas, igual que `normalizeIto` en la bandeja.
+      return q.ilike("hito", target.nombre.trim());
   }
-  // El vínculo del ITO es por texto: `ilike` iguala sin distinguir mayúsculas,
-  // igual que `normalizeIto` en la bandeja.
-  return q.ilike("hito", target.nombre.trim());
 }
 
 export interface PaginaHistorial {
