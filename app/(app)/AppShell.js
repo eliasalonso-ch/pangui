@@ -8,6 +8,7 @@ import GlobalTopBar from "@/components/GlobalTopBar";
 import { TopBarActionsProvider } from "@/components/TopBarActions";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { StoreBadges } from "@/components/StoreBadges";
+import PushActivationPrompt from "@/components/PushActivationPrompt";
 
 function applyStoredTheme() {
   const stored = localStorage.getItem("pangui_theme");
@@ -149,6 +150,9 @@ export default function AppShell({ children }) {
               icon buttons (e.g. Órdenes' Excel export) into the bar above them. */}
           <TopBarActionsProvider>
             <GlobalTopBar />
+            {/* Renders nothing unless this browser can take push, has not been
+                asked before, and is not already subscribed. */}
+            <PushActivationPrompt />
             <div
               style={{
                 flex: 1,

@@ -28,6 +28,16 @@ import {
   X,
 } from "lucide-react";
 
+/**
+ * The app lives on its own origin. Linking to a bare "/login" here would be
+ * handled by next/link as an in-place client navigation and then bounce
+ * through the proxy's 308 — a wasted round trip that also replaces the landing
+ * page. Point straight at the app host instead.
+ */
+const APP_HOST = "https://app.getpangui.com";
+const APP_URL = `${APP_HOST}/login`;
+const REGISTRO_URL = `${APP_HOST}/registro`;
+
 const fadeUp = {
   hidden: { opacity: 0, y: 18 },
   visible: {
@@ -73,21 +83,30 @@ export function LandingNav({ mobileOnly = false }) {
         </nav>
 
         <div className="hidden items-center gap-5 lg:flex">
-          <Link href="/login" className="text-[14px] font-semibold text-[var(--ink)] hover:text-[var(--accent)]">
+          {/* A plain <a> to the app host, not next/link: the app is a separate
+              origin now, so a client-side navigation would swap the landing
+              out and then hard-reload through the 308 anyway. target=_blank
+              leaves the marketing page open behind it. */}
+          <a
+            href={APP_URL}
+            target="_blank"
+            rel="noopener"
+            className="text-[14px] font-semibold text-[var(--ink)] hover:text-[var(--accent)]"
+          >
             Entrar
-          </Link>
+          </a>
           <Link
             href="/demo"
             className="inline-flex h-10 items-center border border-[var(--accent)] px-5 text-[14px] font-semibold text-[var(--accent)] transition-colors hover:bg-[var(--accent)] hover:text-white"
           >
             Agendar demo
           </Link>
-          <Link
-            href="/registro"
+          <a
+            href={REGISTRO_URL}
             className="inline-flex h-10 items-center bg-[var(--accent)] px-5 text-[14px] font-semibold text-white transition-colors hover:bg-[var(--accent-hover)]"
           >
             Prueba gratis
-          </Link>
+          </a>
         </div>
 
         <button
@@ -119,9 +138,15 @@ export function LandingNav({ mobileOnly = false }) {
                   {link.label}
                 </a>
               ))}
-              <Link href="/login" onClick={() => setMenuOpen(false)} className="py-4 text-[16px] font-semibold">
+              <a
+                href={APP_URL}
+                target="_blank"
+                rel="noopener"
+                onClick={() => setMenuOpen(false)}
+                className="py-4 text-[16px] font-semibold"
+              >
                 Entrar
-              </Link>
+              </a>
               <Link
                 href="/demo"
                 onClick={() => setMenuOpen(false)}
@@ -129,13 +154,13 @@ export function LandingNav({ mobileOnly = false }) {
               >
                 Agendar demo
               </Link>
-              <Link
-                href="/registro"
+              <a
+                href={REGISTRO_URL}
                 onClick={() => setMenuOpen(false)}
                 className="mt-2 bg-[#273D88] px-5 py-3 text-center text-[15px] font-semibold text-white transition-colors hover:bg-[#1F316E]"
               >
                 Prueba gratis 30 días
-              </Link>
+              </a>
             </div>
           </motion.div>
         )}
@@ -174,13 +199,13 @@ function Hero() {
           </p>
 
           <motion.div variants={fadeUp} className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap md:mt-10 md:gap-4">
-            <Link
-              href="/registro"
+            <a
+              href={REGISTRO_URL}
               className="inline-flex h-12 w-full items-center justify-center gap-3 bg-white px-6 text-[15px] font-semibold text-[var(--accent)] transition-colors hover:bg-white/90 sm:w-auto md:h-14 md:px-7"
             >
               Prueba gratis 30 días
               <ArrowRight size={17} />
-            </Link>
+            </a>
             <Link
               href="/demo"
               className="inline-flex h-12 w-full items-center justify-center border border-white/70 px-6 text-[15px] font-semibold text-white transition-colors hover:bg-white hover:text-[var(--accent)] sm:w-auto md:h-14 md:px-7"
@@ -626,13 +651,13 @@ function FinalCta() {
             demo y le mostramos la plataforma con casos reales de mantención.
           </motion.p>
           <motion.div variants={fadeUp} className="mt-9 flex w-full flex-col justify-center gap-3 sm:w-auto sm:flex-row md:gap-4">
-            <Link
-              href="/registro"
+            <a
+              href={REGISTRO_URL}
               className="inline-flex h-12 items-center justify-center gap-3 bg-white px-6 text-[15px] font-semibold text-[var(--accent)] transition-colors hover:bg-white/90 md:h-14 md:px-7"
             >
               Prueba gratis 30 días
               <ArrowRight size={17} />
-            </Link>
+            </a>
             <Link
               href="/demo"
               className="inline-flex h-12 items-center justify-center border border-white/70 px-6 text-[15px] font-semibold text-white transition-colors hover:bg-white hover:text-[var(--accent)] md:h-14 md:px-7"
@@ -928,8 +953,8 @@ export function LandingFooter() {
               <Link href="/industrias">Industrias</Link>
               <Link href="/casos-de-exito">Casos de éxito</Link>
               <Link href="/precios">Precios</Link>
-              <Link href="/registro">Prueba gratis</Link>
-              <Link href="/login">Entrar</Link>
+              <a href={REGISTRO_URL}>Prueba gratis</a>
+              <a href={APP_URL} target="_blank" rel="noopener">Entrar</a>
             </div>
           </div>
           <div>
