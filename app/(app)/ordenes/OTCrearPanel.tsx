@@ -42,13 +42,19 @@ async function extractPdfText(file: File): Promise<string> {
   // @ts-ignore
   const pdfjsLib = await import("pdfjs-dist");
   pdfjsLib.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
+  // Cast: pdfjs-dist types `getDocument`'s parameter as the source alone
+  // (URL | ArrayBuffer | TypedArray | DocumentInitParameters), so the option
+  // object trips TS2353 on `isEvalSupported` even though every key here is a
+  // documented DocumentInitParameters field accepted at runtime. Keep the
+  // options — isEvalSupported:false in particular disables pdf.js's use of
+  // eval() on untrusted uploads.
   const pdf = await pdfjsLib.getDocument({
     data: new Uint8Array(arrayBuffer),
     useWorkerFetch: false,
     isEvalSupported: false,
     useSystemFonts: true,
     disableFontFace: true,
-  }).promise;
+  } as Parameters<typeof pdfjsLib.getDocument>[0]).promise;
 
   let fullText = "";
   for (let p = 1; p <= pdf.numPages; p++) {
