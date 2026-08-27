@@ -1,7 +1,6 @@
 import { Inter, Geist, Inter_Tight, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { PostHogProvider } from "./PostHogProvider";
-import { QueryProvider } from "./QueryProvider";
 import { siteStructuredData } from "./structured-data";
 
 const inter = Inter({
@@ -115,10 +114,15 @@ export default function RootLayout({ children }) {
           dangerouslySetInnerHTML={{ __html: JSON.stringify(siteStructuredData) }}
         />
       </head>
+      {/*
+        QueryProvider is NOT here: it is app-only, and mounting it at the root
+        shipped TanStack Query to every marketing visitor reading /precios. It
+        now wraps the (app) route group instead — see app/(app)/layout.js.
+
+        PostHog stays: it tracks marketing pageviews, which is conversion data.
+      */}
       <body>
-        <PostHogProvider>
-          <QueryProvider>{children}</QueryProvider>
-        </PostHogProvider>
+        <PostHogProvider>{children}</PostHogProvider>
       </body>
     </html>
   );

@@ -56,9 +56,90 @@ const isAppRoute = (pathname) => {
   return APP_SEGMENTS.includes(segment);
 };
 
+/* ── Host routing ──────────────────────────────────────────────────────────
+ * getpangui.com      → marketing (landing, precios, casos-de-exito, legal…)
+ * app.getpangui.com  → auth screens + everything behind the login
+ *
+ * One Vercel project serves both; this is what makes them behave like two
+ * sites. Requests arriving on the wrong host are redirected, NOT rewritten:
+ * a rewrite would leave the same page reachable under both hostnames, which
+ * splits session cookies and web-push subscriptions across two origins (push
+ * subscriptions are origin-scoped — a user who activated push on the apex
+ * would silently stop receiving it). One canonical origin per page.
+ *
+ * 308 preserves the request method; 301 can turn a POST into a GET.
+ */
+const APP_HOST = "app.getpangui.com";
+const MARKETING_HOST = "getpangui.com";
+
+/** App routes that live outside `app/(app)/` — the auth screens. */
+const APP_ONLY_PREFIXES = [
+  "/login",
+  "/registro",
+  "/recuperar-contrasena",
+  "/reset-contrasena",
+  "/confirmar-reset",
+  "/invite",
+];
+
+/** Marketing sections. `/` is handled separately: it differs per host. */
+const MARKETING_PREFIXES = [
+  "/precios",
+  "/casos-de-exito",
+  "/industrias",
+  "/arco",
+  "/privacidad",
+  "/terminos",
+  "/demo",
+];
+
+const hasPrefix = (pathname, prefixes) =>
+  prefixes.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+
+/**
+ * Returns a redirect when `pathname` is being served by the wrong host, or
+ * null to let the request continue to the auth gate below.
+ *
+ * Only the two production hosts are routed — localhost and Vercel preview
+ * deployments fall through, so `next dev` never redirects itself to prod.
+ */
+function hostRedirect(request, pathname, search) {
+  const host = (request.headers.get("host") || "").split(":")[0];
+  const isAppHost = host === APP_HOST;
+  const isMarketingHost = host === MARKETING_HOST || host === `www.${MARKETING_HOST}`;
+  if (!isAppHost && !isMarketingHost) return null;
+
+  const belongsToApp = hasPrefix(pathname, APP_ONLY_PREFIXES) || isAppRoute(pathname);
+  const belongsToMarketing = hasPrefix(pathname, MARKETING_PREFIXES);
+
+  if (isMarketingHost && belongsToApp) {
+    return NextResponse.redirect(`https://${APP_HOST}${pathname}${search}`, 308);
+  }
+
+  if (isAppHost) {
+    // The app host has no landing page. Send "/" to the dashboard; if there is
+    // no session the auth gate below bounces it to /login on THIS host, so the
+    // cookie it sets is the one the app reads.
+    if (pathname === "/") {
+      return NextResponse.redirect(`https://${APP_HOST}/inicio`, 307);
+    }
+    if (belongsToMarketing) {
+      return NextResponse.redirect(`https://${MARKETING_HOST}${pathname}${search}`, 308);
+    }
+  }
+
+  return null;
+}
+
 export async function proxy(request) {
   const response = NextResponse.next();
   const pathname = request.nextUrl.pathname;
+
+  // Host routing runs FIRST: no point validating a session against a host that
+  // is about to redirect, and the redirect target's own request re-runs this
+  // proxy anyway.
+  const redirectToCorrectHost = hostRedirect(request, pathname, request.nextUrl.search);
+  if (redirectToCorrectHost) return redirectToCorrectHost;
 
   const isLogin = pathname === "/login";
   const isRoot  = pathname === "/";

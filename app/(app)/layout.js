@@ -1,5 +1,8 @@
 import AppShell from "./AppShell";
 import AnalyticsIdentity from "./AnalyticsIdentity";
+// Moved down from the root layout: TanStack Query serves authenticated data
+// only, so mounting it at the root shipped it to marketing visitors too.
+import { QueryProvider } from "../QueryProvider";
 
 // No `title` here on purpose. Setting one made every authenticated page render
 // "Pangui | Pangui": this value filled the root layout's "%s | Pangui" template
@@ -14,9 +17,9 @@ export const metadata = {
 
 export default function AppLayout({ children }) {
   return (
-    <>
+    <QueryProvider>
       <AnalyticsIdentity />
       <AppShell>{children}</AppShell>
-    </>
+    </QueryProvider>
   );
 }
