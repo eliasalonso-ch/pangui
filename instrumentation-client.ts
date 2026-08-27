@@ -1,6 +1,9 @@
 // Sentry client/browser init. The filename `instrumentation-client.ts` is a
 // Next.js convention — it runs before the app hydrates.
 import * as Sentry from "@sentry/nextjs";
+// Standalone code list — deliberately NOT imported from lib/work-orders, which
+// pulls in the Supabase client and would land it in the pre-hydration bundle.
+import { isExpectedCommandCode } from "@/lib/work-orders/expected-codes";
 
 Sentry.init({
   dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
@@ -40,7 +43,9 @@ Sentry.init({
   ignoreErrors: [/Lock broken by another request with the 'steal' option/i],
 
   beforeSend(event, hint) {
-    const err = hint?.originalException as { name?: string; message?: string } | undefined;
+    const err = hint?.originalException as
+      | { name?: string; message?: string; code?: string }
+      | undefined;
     if (
       err?.name === "AbortError" &&
       typeof err.message === "string" &&
@@ -48,6 +53,18 @@ Sentry.init({
     ) {
       return null; // benign auth-lock recovery — don't report
     }
+
+    // Work-order commands reject unmet business rules the only way PL/pgSQL
+    // can: RAISE EXCEPTION. So "you must finish the required procedures first"
+    // reaches us as a P0001 error even though it is the rule working correctly.
+    // Keep these visible — they show which requisitos users actually hit — but
+    // as warnings, so they don't page anyone. Unrecognised codes stay errors.
+    if (isExpectedCommandCode(err?.code)) {
+      event.level = "warning";
+      event.fingerprint = ["work-order-command", err!.code!];
+      event.tags = { ...event.tags, work_order_command_code: err!.code! };
+    }
+
     return event;
   },
 

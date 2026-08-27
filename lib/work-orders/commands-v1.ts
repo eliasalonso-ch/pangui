@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase";
+import { isExpectedCommandCode } from "@/lib/work-orders/expected-codes";
 import type { OrdenTrabajo, OTLink, Recurrencia, RecurrenciaConfig } from "@/types/ordenes";
 
 export const WORK_ORDER_COMMANDS_V1_ENABLED =
@@ -124,12 +125,15 @@ const COMMAND_ERROR_MESSAGES: Record<string, string> = {
 export class WorkOrderCommandError extends Error {
   readonly code: string;
   readonly details?: string;
+  /** True when this is a business rule the user can act on, not a fault. */
+  readonly expected: boolean;
 
   constructor(code: string, details?: string) {
     super(COMMAND_ERROR_MESSAGES[code] ?? details ?? "No se pudo completar la acción sobre la OT.");
     this.name = "WorkOrderCommandError";
     this.code = code;
     this.details = details;
+    this.expected = isExpectedCommandCode(code);
   }
 }
 

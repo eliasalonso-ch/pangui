@@ -16,6 +16,7 @@ import {
   type CommandEnvelope,
   type CreateWorkOrderPayloadV1,
 } from "@/lib/work-orders/commands-v1";
+import { isExpectedCommandCode } from "@/lib/work-orders/expected-codes";
 
 describe("work-order command v1 web adapter", () => {
   beforeEach(() => rpc.mockReset());
@@ -85,7 +86,36 @@ describe("work-order command v1 web adapter", () => {
     await expect(transitionWorkOrderV1(command)).rejects.toMatchObject({
       code: "PROCEDURES_INCOMPLETE",
       message: "Debes completar los procedimientos obligatorios antes de continuar.",
+      // Sentry downgrades this to a warning rather than paging — see
+      // instrumentation-client.ts. An unmet requisito is the rule working.
+      expected: true,
     });
+  });
+
+  it("separates unmet business rules from genuine faults", () => {
+    // Drives the Sentry severity split: expected codes become warnings, the
+    // rest keep paging. Guards against a new code silently defaulting to
+    // "expected" and vanishing from the alert stream.
+    for (const code of [
+      "PROCEDURES_INCOMPLETE",
+      "MATERIALS_REQUIRED",
+      "SHEET_REQUIRED",
+      "PHOTOS_REQUIRED",
+      "INVALID_STATE_TRANSITION",
+      "FORBIDDEN",
+    ]) {
+      expect(isExpectedCommandCode(code), code).toBe(true);
+    }
+
+    for (const code of [
+      "OT_NOT_FOUND",
+      "WORKSPACE_MISMATCH",
+      "COMMAND_PAYLOAD_MISMATCH",
+      "UNKNOWN",
+      undefined,
+    ]) {
+      expect(isExpectedCommandCode(code), String(code)).toBe(false);
+    }
   });
 
   it("sends optimistic concurrency data to the edit command", async () => {

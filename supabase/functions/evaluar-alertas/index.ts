@@ -24,6 +24,11 @@ const ACTIVE_ALERT_TYPES = new Set<AlertType>([
   "ot_urgente_sin_asignar",
   "ot_alta_prioridad_abierta",
   "ot_abierta_sin_progreso",
+  // Timers nobody stops: an OT is started and then left running for days. The
+  // condition and the UI copy for this existed all along, but the type was
+  // missing here, so the rule was evaluated for exactly no one.
+  "ot_en_curso_inactiva",
+  "ot_en_curso_detenida",
 ]);
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -81,6 +86,17 @@ function workspaceUsersByRole(users: UsuarioRow[], roles: string[]): string[] {
   return users.filter(u => u.rol && roles.includes(u.rol)).map(u => u.id);
 }
 
+/**
+ * Alert types whose notification also goes to the OT's assignees, not just to
+ * supervision. Only makes sense where a specific person can act: a runaway
+ * timer is fixed by the technician who started it. Unassigned-OT alerts have
+ * nobody to notify by definition, so they stay supervisor-only.
+ */
+const NOTIFY_ASSIGNEES_TOO = new Set<AlertType>([
+  "ot_en_curso_inactiva",
+  "ot_en_curso_detenida",
+]);
+
 function recipientsForAggregateAlert(
   tipo: AlertType,
   workspaceUsers: UsuarioRow[],
@@ -117,7 +133,8 @@ function evaluateCondition(
   orden: OrdenTrabajo,
   tipo: AlertType,
   umbralMinutos: number,
-  now: Date
+  now: Date,
+  lastActivityByOrden: Map<string, string>,
 ): boolean {
   const age = (date: string) =>
     (now.getTime() - new Date(date).getTime()) / 60000; // minutes
@@ -132,13 +149,22 @@ function evaluateCondition(
       );
 
     case "ot_en_curso_inactiva":
-    case "ot_en_curso_detenida":
-      // In-progress (en_ejecucion=true) and hasn't advanced — use iniciado_at as proxy
-      return (
-        (orden.estado === "en_curso" || orden.en_ejecucion === true) &&
-        orden.iniciado_at != null &&
-        age(orden.iniciado_at) >= umbralMinutos
-      );
+    case "ot_en_curso_detenida": {
+      // Measured from the last ACTIVITY, not from iniciado_at. A multi-day job
+      // that logs progress daily is working as intended and must stay quiet;
+      // what we want to catch is a timer left running with nothing happening.
+      //
+      // Falling back to iniciado_at covers OTs with no actividad rows at all —
+      // started and immediately abandoned, which is the exact shape of every
+      // runaway timer found in this database.
+      // estado is authoritative, NOT en_ejecucion. Completing or pausing an OT
+      // does not always clear that flag — three completed OTs in this database
+      // still carry en_ejecucion=true — so trusting it would alert about work
+      // that is already finished.
+      if (orden.estado !== "en_curso") return false;
+      const reference = lastActivityByOrden.get(orden.id) ?? orden.iniciado_at;
+      return reference != null && age(reference) >= umbralMinutos;
+    }
 
     case "ot_vencida":
       return (
@@ -201,8 +227,8 @@ function buildNotificationContent(
     case "ot_en_curso_inactiva":
     case "ot_en_curso_detenida":
       return {
-        titulo: "OT en curso demasiado tiempo",
-        mensaje: `"${orden.titulo}" lleva más de ${horas}h en ejecución sin cerrarse.`,
+        titulo: "OT en curso sin avance",
+        mensaje: `"${orden.titulo}" lleva más de ${horas}h con el timer corriendo y sin actividad. Si ya terminaste, ciérrala; si no, pausala.`,
       };
     case "ot_vencida":
       return {
@@ -224,7 +250,7 @@ function buildNotificationContent(
     case "ot_abierta_sin_progreso":
       return {
         titulo: "OT abierta sin progreso",
-        mensaje: `"${orden.titulo}" lleva mÃ¡s de ${horas}h sin iniciar progreso.`,
+        mensaje: `"${orden.titulo}" lleva más de ${horas}h sin iniciar progreso.`,
       };
     case "timer_inactivo_tecnico":
     case "timer_inactivo_supervisor":
@@ -282,6 +308,15 @@ function buildAggregateNotificationContent(
         mensaje: count === 1
           ? `"${sample}" superó su fecha de vencimiento y sigue abierta.`
           : `${sample}${suffix} superaron su fecha de vencimiento y siguen abiertas.`,
+      };
+
+    case "ot_en_curso_inactiva":
+    case "ot_en_curso_detenida":
+      return {
+        titulo: `${count} ${plural} con el timer corriendo`,
+        mensaje: count === 1
+          ? `"${sample}" lleva horas en ejecución sin registrar actividad.`
+          : `${sample}${suffix} llevan horas en ejecución sin registrar actividad.`,
       };
 
     default:
@@ -385,12 +420,17 @@ Deno.serve(async (req) => {
     // 2. Fetch all active OTs across relevant workspaces
     const workspaceIds = [...new Set(reglas.map((r: ReglaAlerta) => r.workspace_id))];
 
+    // deleted_at IS NULL matters: soft-deleting an OT does NOT reset estado or
+    // en_ejecucion, so OTs sitting in the papelera stay 'en_curso' forever and
+    // would otherwise be alerted on. Two of the longest-"running" OTs in this
+    // database (1213h and 1515h) turned out to be trashed months ago.
     const { data: ordenes, error: ordenErr } = await supabase
       .from("ordenes_trabajo")
       .select(
         "id, titulo, estado, prioridad, asignados_ids, en_ejecucion, iniciado_at, fecha_termino, created_at, workspace_id, creado_por"
       )
       .in("workspace_id", workspaceIds)
+      .is("deleted_at", null)
       .not("estado", "in", "(completado,cancelado)");
 
     if (ordenErr) {
@@ -402,6 +442,33 @@ Deno.serve(async (req) => {
       const list = ordenesByWorkspace.get(o.workspace_id) ?? [];
       list.push(o);
       ordenesByWorkspace.set(o.workspace_id, list);
+    }
+
+    // Last activity per OT, for the inactivity conditions. Only in-progress OTs
+    // need it, which keeps this to a handful of rows rather than the whole
+    // actividad_ot history. Ordered ascending so the last write per orden_id
+    // wins and the map ends up holding the most recent timestamp.
+    const enCursoIds = (ordenes ?? [])
+      .filter((o: OrdenTrabajo) => o.estado === "en_curso")
+      .map((o: OrdenTrabajo) => o.id);
+
+    const lastActivityByOrden = new Map<string, string>();
+    if (enCursoIds.length > 0) {
+      const { data: actividades, error: actividadErr } = await supabase
+        .from("actividad_ot")
+        .select("orden_id, created_at")
+        .in("orden_id", enCursoIds)
+        .order("created_at", { ascending: true });
+
+      if (actividadErr) {
+        // Non-fatal: without this map the conditions fall back to iniciado_at,
+        // which is the old behaviour — noisier, but never silently missing.
+        console.error("actividad_ot fetch failed:", actividadErr.message);
+      } else {
+        for (const a of actividades ?? []) {
+          lastActivityByOrden.set(a.orden_id, a.created_at);
+        }
+      }
     }
 
     const { data: usuarios, error: usuariosErr } = await supabase
@@ -437,7 +504,13 @@ Deno.serve(async (req) => {
       const newlyTriggered: OrdenTrabajo[] = [];
 
       for (const orden of wsOrdenes) {
-        const conditionMet = evaluateCondition(orden, regla.tipo, regla.umbral_minutos, now);
+        const conditionMet = evaluateCondition(
+          orden,
+          regla.tipo,
+          regla.umbral_minutos,
+          now,
+          lastActivityByOrden,
+        );
         if (!conditionMet) continue;
 
         activeIds.push(orden.id);
@@ -475,6 +548,28 @@ Deno.serve(async (req) => {
             tipo: regla.tipo,
             url: "/ordenes?vista=kanban",
           }));
+
+          // Assignees get their own OT named and linked, rather than the
+          // workspace-wide roll-up supervision receives — "your OT has been
+          // running 340h" is actionable in a way that "4 OTs need attention"
+          // is not. Deep-links straight to the OT so pausing it is one tap.
+          if (NOTIFY_ASSIGNEES_TOO.has(regla.tipo)) {
+            for (const orden of newlyTriggered) {
+              const asignados = (orden.asignados_ids ?? []).filter(
+                (uid) => validUserIds.has(uid) && !recipients.includes(uid),
+              );
+              const perOt = buildNotificationContent(regla.tipo, orden, regla.umbral_minutos);
+              for (const uid of new Set(asignados)) {
+                notifRows.push({
+                  usuario_id: uid,
+                  titulo: perOt.titulo,
+                  mensaje: perOt.mensaje,
+                  tipo: regla.tipo,
+                  url: `/ordenes/${orden.id}`,
+                });
+              }
+            }
+          }
 
           const { error: notifErr } = await supabase
             .from("notifications")

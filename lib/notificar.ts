@@ -69,6 +69,13 @@ export function notifyOTEstadoCambiado(opts: {
   const label = ESTADO_LABELS[opts.estado] ?? opts.estado;
   const completado = opts.estado === "completado";
 
+  // `tipo` is what gates push against the user's "Cambio de estado" preference:
+  // recipientsWantingPush() looks the value up in PREF_BY_TIPO, and an omitted
+  // tipo falls back to "orden", which matches nothing and is therefore pushed
+  // unconditionally. Without this the toggle in /preferencias-notificaciones
+  // silently did nothing for state changes raised by the web client.
+  const tipo = completado ? "completado" : "estado_cambiado";
+
   // Notify assigned technicians (excluding the one who made the change)
   const targets = opts.asignadosIds.filter((id) => id !== opts.changedByUserId);
   if (targets.length) {
@@ -76,6 +83,7 @@ export function notifyOTEstadoCambiado(opts: {
       titulo: `OT ${completado ? "completada ✓" : `pasó a ${label}`}`,
       mensaje: opts.titulo,
       url: `/ordenes?id=${opts.ordenId}`,
+      tipo,
       usuario_ids: targets,
     });
   }
@@ -85,6 +93,7 @@ export function notifyOTEstadoCambiado(opts: {
     titulo: `OT ${completado ? "completada ✓" : `→ ${label}`}`,
     mensaje: opts.titulo,
     url: `/ordenes?id=${opts.ordenId}`,
+    tipo,
     workspace_id_jefe: opts.workspaceId,
   });
 }

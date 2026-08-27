@@ -122,7 +122,17 @@ export async function enablePush(userId: string): Promise<
     });
 
     const error = await savePushSubscription(sub, userId);
-    if (error) return { ok: false, reason: "error", message: error.message };
+    if (error) {
+      // The browser side succeeded — permission was granted and the endpoint
+      // exists — so a failure here is ours, not the user's. Say so, rather than
+      // letting a raw PostgREST message ("new row violates row-level security…")
+      // reach someone who just clicked Activar.
+      return {
+        ok: false,
+        reason: "error",
+        message: `No pudimos guardar la suscripción en el servidor. ${error.message}`,
+      };
+    }
     return { ok: true };
   } catch (e) {
     return { ok: false, reason: "error", message: e instanceof Error ? e.message : "Error desconocido" };
