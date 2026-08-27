@@ -5,8 +5,9 @@
  * notifications exactly once per (OT, alert-type) condition.
  *
  * Duplicate prevention:
- *   - Before sending, we attempt to INSERT into notifications_alertas_log
- *     with a UNIQUE partial index on (work_order_id, type) WHERE resolved_at IS NULL.
+ *   - Before sending, we attempt to INSERT into notifications_alertas_log,
+ *     guarded by uq_alert_log_resource_open — a UNIQUE partial index on
+ *     (workspace_id, resource_type, resource_id, type) WHERE resolved_at IS NULL.
  *   - If the row already exists (conflict) the notification is skipped.
  *   - When a condition clears, we set resolved_at = now() so the next
  *     occurrence can fire again.
@@ -336,18 +337,33 @@ async function shouldTriggerAlert(
   workspaceId: string,
   now: Date
 ): Promise<boolean> {
+  // Matches uq_alert_log_resource_open, the partial unique index that actually
+  // enforces this: (workspace_id, resource_type, resource_id, type) WHERE
+  // resolved_at IS NULL. Querying by work_order_id alone would miss the
+  // workspace and resource columns the constraint is keyed on.
   const { data: existing } = await supabase
     .from("notifications_alertas_log")
     .select("id, triggered_at")
-    .eq("work_order_id", workOrderId)
+    .eq("workspace_id", workspaceId)
+    .eq("resource_type", "orden")
+    .eq("resource_id", workOrderId)
     .eq("type", tipo)
     .is("resolved_at", null)
     .maybeSingle();
 
   if (existing) return false;
 
+  // resource_type / resource_id are NOT NULL and have no default. They were
+  // added to generalise the log beyond work orders (an alert about a material
+  // or a location would set a different resource_type), but this function was
+  // never updated, so every insert failed with 23502 and no alert has fired
+  // since 2026-07-14 — the whole alerting system was silently dead, not just
+  // the timer rule. Every existing row uses 'orden'; these alerts are all about
+  // work orders, so resource_id mirrors work_order_id.
   const { error } = await supabase.from("notifications_alertas_log").insert({
     work_order_id: workOrderId,
+    resource_type: "orden",
+    resource_id: workOrderId,
     type: tipo,
     workspace_id: workspaceId,
     triggered_at: now.toISOString(),
@@ -369,15 +385,18 @@ async function resolveStaleAlerts(
   stillActiveIds: string[],
   now: Date
 ): Promise<void> {
+  // Scoped to resource_type='orden' so this never resolves a future alert about
+  // a different kind of resource that happens to share a type and workspace.
   let query = supabase
     .from("notifications_alertas_log")
     .update({ resolved_at: now.toISOString() })
     .eq("workspace_id", workspaceId)
+    .eq("resource_type", "orden")
     .eq("type", tipo)
     .is("resolved_at", null);
 
   if (stillActiveIds.length > 0) {
-    query = query.not("work_order_id", "in", `(${stillActiveIds.join(",")})`);
+    query = query.not("resource_id", "in", `(${stillActiveIds.join(",")})`);
   }
 
   const { error } = await query;
