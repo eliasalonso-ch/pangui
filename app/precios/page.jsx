@@ -9,7 +9,7 @@ const PRECIOS_DESCRIPTION =
   "Planes por usuario para equipos de mantención. Prueba Pro gratis por 30 días.";
 
 export const metadata = {
-  title: "Precios · Pangui",
+  title: "Precios",
   description: PRECIOS_DESCRIPTION,
   alternates: { canonical: "/precios" },
   openGraph: {

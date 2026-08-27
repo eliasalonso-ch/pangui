@@ -1,6 +1,6 @@
 // Invitation links are single-use and user-specific — never index them.
 export const metadata = {
-  title: "Invitación · Pangui",
+  title: "Invitación",
   robots: { index: false, follow: false },
 };
 

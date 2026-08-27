@@ -6,7 +6,7 @@ import PublicPageTheme from "@/components/PublicPageTheme";
 import { CASOS } from "./casos";
 
 export const metadata = {
-  title: "Casos de éxito · Pangui",
+  title: "Casos de éxito",
   description:
     "Empresas de mantención en Chile que reemplazaron el papel y las planillas Excel por órdenes de trabajo trazables con Pangui. Casos reales, cifras reales.",
   alternates: { canonical: "/casos-de-exito" },

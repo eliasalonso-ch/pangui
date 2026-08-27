@@ -1,7 +1,7 @@
 // /registro is a genuine conversion page and is listed in the sitemap, so it
 // gets a real title, description and canonical (unlike /login and /invite).
 export const metadata = {
-  title: "Crear cuenta · Pangui",
+  title: "Crear cuenta",
   description:
     "Crea tu cuenta de Pangui y prueba gratis por 30 días el software de órdenes de trabajo y mantenimiento para tu equipo.",
   alternates: { canonical: "/registro" },

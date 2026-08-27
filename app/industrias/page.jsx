@@ -13,7 +13,7 @@ import { LandingFooter, LandingNav } from "../Landing";
 import PublicPageTheme from "@/components/PublicPageTheme";
 
 export const metadata = {
-  title: "Industrias · Pangui",
+  title: "Industrias",
   description:
     "Software de órdenes de trabajo para contratistas de mantención eléctrica, climatización, sanitaria, industrial, campus e inmobiliaria en Chile. Un mismo flujo de OT para cada rubro.",
   alternates: { canonical: "/industrias" },

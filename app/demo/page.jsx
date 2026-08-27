@@ -5,7 +5,7 @@ import PublicPageTheme from "@/components/PublicPageTheme";
 import DemoForm from "./DemoForm";
 
 export const metadata = {
-  title: "Agendar demo · Pangui",
+  title: "Agendar demo",
   description:
     "Agende una demo guiada de Pangui, el software de órdenes de trabajo y mantenimiento (CMMS) para contratistas en Chile. Le mostramos la plataforma con casos reales de mantención.",
   alternates: { canonical: "/demo" },

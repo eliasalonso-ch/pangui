@@ -1,5 +1,5 @@
 export const metadata = {
-  title: "Superadmin · Pangui",
+  title: "Superadmin",
   robots: "noindex, nofollow",
 };
 
