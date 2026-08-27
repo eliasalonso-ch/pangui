@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse } from "next/server";
+import { sessionCookieOptions } from "./lib/supabase-cookies";
 
 /**
  * Next.js 16 proxy (formerly "middleware"). Auth gate for the app.
@@ -211,15 +212,22 @@ export async function proxy(request) {
   // budget on routes that don't need auth (landing, pricing, terms, signup, …).
   if (isPublic || isRoot) return response;
 
+  // This proxy is what persists refreshed tokens (server components cannot
+  // write cookies), so the .getpangui.com scope has to be applied here too —
+  // otherwise the first token refresh rewrites the cookie as host-only and
+  // undoes the sharing between the apex and app.getpangui.com.
+  const cookieOptions = sessionCookieOptions(request.nextUrl.hostname);
+
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     {
+      ...(cookieOptions ? { cookieOptions } : {}),
       cookies: {
         getAll: () => request.cookies.getAll(),
         setAll: (cookiesToSet) => {
           cookiesToSet.forEach(({ name, value, options }) =>
-            response.cookies.set(name, value, options),
+            response.cookies.set(name, value, { ...options, ...cookieOptions }),
           );
         },
       },
@@ -229,7 +237,15 @@ export async function proxy(request) {
   const sendToLogin = () => {
     const redirect = NextResponse.redirect(new URL("/login", request.url));
     request.cookies.getAll().forEach(({ name }) => {
-      if (name.startsWith("sb-")) redirect.cookies.delete(name);
+      if (!name.startsWith("sb-")) return;
+      // A cookie is identified by (name, domain, path): deleting by name alone
+      // clears only the host-only variant, leaving a .getpangui.com cookie in
+      // place and the dead session with it. Delete both forms — sessions
+      // predating the domain split are still host-only.
+      redirect.cookies.delete(name);
+      if (cookieOptions) {
+        redirect.cookies.delete({ name, domain: cookieOptions.domain, path: "/" });
+      }
     });
     return redirect;
   };

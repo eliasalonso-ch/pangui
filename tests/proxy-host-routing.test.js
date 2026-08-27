@@ -122,3 +122,39 @@ describe("proxy host routing", () => {
     expect(hostRedirect(MARKETING_HOST, "/industrias/mineria")).toBeNull();
   });
 });
+
+/**
+ * Session cookie scope. Mirrors lib/supabase-cookies.js.
+ *
+ * The domain split only works if the session cookie is shared between the apex
+ * and app.getpangui.com; a host-only cookie signs every existing user out the
+ * moment their bookmark redirects to the new host.
+ */
+const ROOT_DOMAIN = ".getpangui.com";
+function sessionCookieOptions(hostname) {
+  const host = (hostname || "").split(":")[0];
+  const isProdDomain = host === "getpangui.com" || host.endsWith(".getpangui.com");
+  if (!isProdDomain) return undefined;
+  return { domain: ROOT_DOMAIN, path: "/", sameSite: "lax", secure: true };
+}
+
+describe("session cookie scope", () => {
+  it("shares the session across the apex and the app subdomain", () => {
+    for (const host of ["getpangui.com", "app.getpangui.com", "www.getpangui.com"]) {
+      expect(sessionCookieOptions(host)?.domain, host).toBe(".getpangui.com");
+    }
+  });
+
+  it("leaves localhost and previews host-only", () => {
+    // A `domain` that does not match the current host is rejected outright by
+    // the browser, which would break next dev and every preview deployment.
+    expect(sessionCookieOptions("localhost")).toBeUndefined();
+    expect(sessionCookieOptions("localhost:3000")).toBeUndefined();
+    expect(sessionCookieOptions("pangui-git-main.vercel.app")).toBeUndefined();
+  });
+
+  it("does not match a lookalike domain", () => {
+    expect(sessionCookieOptions("notgetpangui.com")).toBeUndefined();
+    expect(sessionCookieOptions("getpangui.com.evil.test")).toBeUndefined();
+  });
+});
