@@ -77,6 +77,26 @@ const APP_ONLY_PREFIXES = [
   "/login",
   "/registro",
   "/recuperar-contrasena",
+];
+
+/**
+ * Auth-callback paths that must NOT be host-routed, on either host.
+ *
+ * Supabase's implicit flow returns its tokens in the URL fragment
+ * (#access_token=…), and a fragment never reaches the server — so redirecting
+ * one of these strips the token and the user lands on a dead form. Both
+ * app/reset-contrasena/page.jsx and app/invite/page.js read
+ * window.location.hash, so this is not hypothetical.
+ *
+ * They are also the one case we cannot fix by updating a link: recovery and
+ * invitation emails already sitting in inboxes point at whichever host sent
+ * them, and stay valid for their token lifetime. Serving them from both hosts
+ * is the only way those keep working.
+ *
+ * Safe to do: these pages only establish a session and then navigate onward,
+ * so the cookie is written by the host the user actually continues on.
+ */
+const AUTH_CALLBACK_PREFIXES = [
   "/reset-contrasena",
   "/confirmar-reset",
   "/invite",
@@ -108,6 +128,10 @@ function hostRedirect(request, pathname, search) {
   const isAppHost = host === APP_HOST;
   const isMarketingHost = host === MARKETING_HOST || host === `www.${MARKETING_HOST}`;
   if (!isAppHost && !isMarketingHost) return null;
+
+  // Never redirect an auth callback: doing so drops the URL fragment its token
+  // travels in. Served as-is on whichever host the email pointed at.
+  if (hasPrefix(pathname, AUTH_CALLBACK_PREFIXES)) return null;
 
   const belongsToApp = hasPrefix(pathname, APP_ONLY_PREFIXES) || isAppRoute(pathname);
   const belongsToMarketing = hasPrefix(pathname, MARKETING_PREFIXES);

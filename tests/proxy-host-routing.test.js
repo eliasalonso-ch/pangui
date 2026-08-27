@@ -16,10 +16,8 @@ const APP_SEGMENTS = [
   "reglas-alerta", "requisitos", "suscripcion", "ubicaciones", "usuarios",
   "superadmin",
 ];
-const APP_ONLY_PREFIXES = [
-  "/login", "/registro", "/recuperar-contrasena", "/reset-contrasena",
-  "/confirmar-reset", "/invite",
-];
+const APP_ONLY_PREFIXES = ["/login", "/registro", "/recuperar-contrasena"];
+const AUTH_CALLBACK_PREFIXES = ["/reset-contrasena", "/confirmar-reset", "/invite"];
 const MARKETING_PREFIXES = [
   "/precios", "/casos-de-exito", "/industrias", "/arco", "/privacidad",
   "/terminos", "/demo",
@@ -37,6 +35,8 @@ function hostRedirect(host, pathname, search = "") {
   const isAppHost = host === APP_HOST;
   const isMarketingHost = host === MARKETING_HOST || host === `www.${MARKETING_HOST}`;
   if (!isAppHost && !isMarketingHost) return null;
+
+  if (hasPrefix(pathname, AUTH_CALLBACK_PREFIXES)) return null;
 
   const belongsToApp = hasPrefix(pathname, APP_ONLY_PREFIXES) || isAppRoute(pathname);
   const belongsToMarketing = hasPrefix(pathname, MARKETING_PREFIXES);
@@ -102,6 +102,18 @@ describe("proxy host routing", () => {
     expect(hostRedirect("www.getpangui.com", "/login")).toEqual([
       "https://app.getpangui.com/login", 308,
     ]);
+  });
+
+  it("never redirects an auth callback, on either host", () => {
+    // Supabase's implicit flow puts its tokens in the URL fragment, which the
+    // browser does not send to the server — so any redirect here silently
+    // strips the token and the user gets a dead form. Recovery and invite
+    // emails already in inboxes point at the apex and must keep working.
+    for (const path of ["/reset-contrasena", "/confirmar-reset", "/invite"]) {
+      expect(hostRedirect(MARKETING_HOST, path), `apex ${path}`).toBeNull();
+      expect(hostRedirect(APP_HOST, path), `app ${path}`).toBeNull();
+      expect(hostRedirect("www.getpangui.com", path), `www ${path}`).toBeNull();
+    }
   });
 
   it("does not mistake a marketing path for an app segment", () => {
