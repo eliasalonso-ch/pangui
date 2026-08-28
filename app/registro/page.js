@@ -1,4 +1,5 @@
 "use client";
+import { MARKETING_URL } from "@/lib/app-urls";
 import { Suspense, useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
@@ -281,13 +282,9 @@ function RegistroPageInner() {
         <div style={{ position: "absolute", bottom: -100, left: -100, width: 360, height: 360, borderRadius: "50%", border: "1px solid rgba(255,255,255,0.05)", pointerEvents: "none" }} />
 
         <div style={{ position: "relative", zIndex: 1, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
-          <Link href="/" aria-label="Pangui - inicio" style={{ display: "inline-flex" }}>
+          <a href={MARKETING_URL} aria-label="Pangui - inicio" style={{ display: "inline-flex" }}>
             <img src="/logo6.svg" alt="Pangui" style={{ height: 28, width: "auto" }} />
-          </Link>
-          <Link href="/" aria-label="Volver al inicio" style={darkBackLink}>
-            <ArrowLeft size={16} />
-            Inicio
-          </Link>
+          </a>
         </div>
 
         <div style={{ position: "relative", zIndex: 1 }}>
@@ -344,10 +341,9 @@ function RegistroPageInner() {
         background: "#1E3A8A",
         borderBottom: "1px solid rgba(255,255,255,0.1)",
       }}>
-        <Link href="/" aria-label="Volver al inicio" style={mobileBackBtn}>
-          <ArrowLeft size={18} />
-        </Link>
-        <img src="/logo2.svg" alt="Pangui" style={{ height: 24, width: "auto", filter: "brightness(0) invert(1)" }} />
+        <a href={MARKETING_URL} aria-label="Ir al inicio de Pangui" style={{ display: "inline-flex" }}>
+          <img src="/logo2.svg" alt="Pangui" style={{ height: 24, width: "auto", filter: "brightness(0) invert(1)" }} />
+        </a>
       </div>
 
       <div style={{ flex: 1, display: "flex", flexDirection: "column", background: "#F8FAFC", minHeight: "100dvh" }}>
@@ -533,9 +529,9 @@ function RegistroPageInner() {
             </div>
             <p style={{ margin: "10px 0 0", fontSize: 11, color: "#94A3B8", textAlign: "center", lineHeight: 1.5 }}>
               Al registrarte aceptas nuestros{" "}
-              <Link href="/terminos" style={{ color: "#64748B", textDecoration: "underline" }}>Términos</Link>
+              <a href={`${MARKETING_URL}/terminos`} style={{ color: "#64748B", textDecoration: "underline" }}>Términos</a>
               {" "}y{" "}
-              <Link href="/privacidad" style={{ color: "#64748B", textDecoration: "underline" }}>Política de Privacidad</Link>.
+              <a href={`${MARKETING_URL}/privacidad`} style={{ color: "#64748B", textDecoration: "underline" }}>Política de Privacidad</a>.
             </p>
           </div>
         </div>
@@ -557,31 +553,6 @@ function RegistroPageInner() {
   );
 }
 
-const darkBackLink = {
-  display: "inline-flex",
-  alignItems: "center",
-  gap: 8,
-  color: "rgba(255,255,255,0.78)",
-  fontSize: 13,
-  fontWeight: 600,
-  textDecoration: "none",
-  border: "1px solid rgba(255,255,255,0.14)",
-  borderRadius: 8,
-  padding: "8px 10px",
-  background: "rgba(255,255,255,0.06)",
-};
-
-const mobileBackBtn = {
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-  width: 36,
-  height: 36,
-  color: "#FFFFFF",
-  border: "1px solid rgba(255,255,255,0.16)",
-  borderRadius: 8,
-  background: "rgba(255,255,255,0.08)",
-};
 
 const eyeBtn = {
   position: "absolute",

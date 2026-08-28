@@ -1,6 +1,6 @@
 "use client";
+import { MARKETING_URL } from "@/lib/app-urls";
 import { useState, useEffect, useRef, useCallback } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase";
 import posthog from "posthog-js";
@@ -318,31 +318,11 @@ export default function LoginForm() {
 
         {/* Logo */}
         <div style={{ position: "relative", zIndex: 1, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
-          <Link href="/" aria-label="Pangui - inicio" style={{ display: "inline-flex" }}>
+          <a href={MARKETING_URL} aria-label="Pangui - inicio" style={{ display: "inline-flex" }}>
             <img src="/logo6.svg" alt="Pangui" style={{ height: 28, width: "auto"}}
               onError={e => { e.currentTarget.src = "/logo6.svg";}}
             />
-          </Link>
-          <Link
-            href="/"
-            aria-label="Volver al inicio"
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 8,
-              color: "rgba(255,255,255,0.78)",
-              fontSize: 13,
-              fontWeight: 600,
-              textDecoration: "none",
-              border: "1px solid rgba(255,255,255,0.14)",
-              borderRadius: 8,
-              padding: "8px 10px",
-              background: "rgba(255,255,255,0.06)",
-            }}
-          >
-            <ArrowLeft size={16} />
-            Inicio
-          </Link>
+          </a>
         </div>
 
         {/* Headline */}
@@ -390,25 +370,10 @@ export default function LoginForm() {
         background: BRAND.navy,
         borderBottom: "1px solid rgba(255,255,255,0.1)",
       }}>
-        <Link
-          href="/"
-          aria-label="Volver al inicio"
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            justifyContent: "center",
-            width: 36,
-            height: 36,
-            color: "#FFFFFF",
-            border: "1px solid rgba(255,255,255,0.16)",
-            borderRadius: 8,
-            background: "rgba(255,255,255,0.08)",
-          }}
-        >
-          <ArrowLeft size={18} />
-        </Link>
-        <img src="/logo2.svg" alt="Pangui" style={{ height: 24, width: "auto", filter: "brightness(0) invert(1)" }}
-          onError={e => { e.currentTarget.style.filter = "none"; }} />
+        <a href={MARKETING_URL} aria-label="Ir al inicio de Pangui" style={{ display: "inline-flex" }}>
+          <img src="/logo2.svg" alt="Pangui" style={{ height: 24, width: "auto", filter: "brightness(0) invert(1)" }}
+            onError={e => { e.currentTarget.style.filter = "none"; }} />
+        </a>
       </div>
 
       {/* ── Right panel (form) ── */}

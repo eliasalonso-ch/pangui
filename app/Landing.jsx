@@ -1,5 +1,6 @@
 "use client";
 
+import { LOGIN_URL, MARKETING_URL, REGISTRO_URL } from "@/lib/app-urls";
 import "./landing.css";
 import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
@@ -28,15 +29,9 @@ import {
   X,
 } from "lucide-react";
 
-/**
- * The app lives on its own origin. Linking to a bare "/login" here would be
- * handled by next/link as an in-place client navigation and then bounce
- * through the proxy's 308 — a wasted round trip that also replaces the landing
- * page. Point straight at the app host instead.
- */
-const APP_HOST = "https://app.getpangui.com";
-const APP_URL = `${APP_HOST}/login`;
-const REGISTRO_URL = `${APP_HOST}/registro`;
+// Cross-origin links to the app host and back to marketing. See lib/app-urls.js
+// for why these are absolute rather than relative.
+const APP_URL = LOGIN_URL;
 
 const fadeUp = {
   hidden: { opacity: 0, y: 18 },
@@ -66,9 +61,9 @@ export function LandingNav({ mobileOnly = false }) {
       style={{ "--accent": "#273D88", "--accent-hover": "#1F316E", "--ink": "#0A0B0D" }}
     >
       <div className="mx-auto flex h-16 max-w-[1440px] items-center gap-10 px-4 md:h-[68px] md:px-10 xl:px-12">
-        <Link href="/" aria-label="Pangui - inicio" className="flex items-center">
+        <a href={MARKETING_URL} aria-label="Pangui - inicio" className="flex items-center">
           <img src="/logo2.svg" alt="Pangui" width={120} height={32} className="h-7 w-auto md:h-8" />
-        </Link>
+        </a>
 
         <nav className="mr-auto hidden items-center gap-8 lg:flex">
           {links.map((link) => (
@@ -935,9 +930,9 @@ export function LandingFooter() {
       <div className="mx-auto max-w-[1440px] px-4 py-10 sm:px-5 md:px-10 md:py-12 xl:px-12">
         <div className="grid gap-10 md:grid-cols-3">
           <div>
-            <Link href="/" aria-label="Pangui - inicio" className="inline-flex">
+            <a href={MARKETING_URL} aria-label="Pangui - inicio" className="inline-flex">
               <img src="/logo2.svg" alt="Pangui" width={120} height={32} className="h-8 w-auto" />
-            </Link>
+            </a>
             <p className="mt-6 max-w-[340px] text-[14px] leading-[1.65] text-[var(--ink-2)]">
               Software de órdenes de trabajo y mantenimiento (CMMS) para
               contratistas y empresas de servicios de mantención en Chile.
