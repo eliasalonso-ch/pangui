@@ -114,18 +114,60 @@ export const articleStructuredData = {
   "@graph": [
     {
       "@type": "Article",
+      "@id": "https://getpangui.com/casos-de-exito/electrilam#article",
       url: "https://getpangui.com/casos-de-exito/electrilam",
-      headline:
-        "Caso de éxito: Electrilam pasa de papel y Excel a 603 órdenes de trabajo trazables con Pangui",
+      mainEntityOfPage: "https://getpangui.com/casos-de-exito/electrilam",
+      // headline must stay under 110 characters or Google drops the rich result.
+      headline: "Electrilam: de papel y Excel a 603 órdenes de trabajo trazables",
       description:
         "Ingeniería y Construcción Electrilam SpA ejecuta el mantenimiento eléctrico de la Universidad de Concepción. Con Pangui gestionó 603 órdenes de trabajo y 2.824 fotos de evidencia en cuatro meses, reemplazando el registro en papel y planillas Excel.",
       inLanguage: "es-CL",
+      // image and datePublished are REQUIRED by Google for Article. Without
+      // them the page is ineligible for rich results and Search Console reports
+      // a validation error — which is what Ahrefs was flagging.
+      image: {
+        "@type": "ImageObject",
+        url: "https://getpangui.com/opengraph-image",
+        width: 1200,
+        height: 630,
+      },
+      datePublished: "2026-08-10",
+      dateModified: "2026-08-10",
+      author: { "@id": "https://getpangui.com/#organization" },
+      publisher: { "@id": "https://getpangui.com/#organization" },
       about: {
         "@type": "Organization",
         name: "Ingeniería y Construcción Electrilam SpA",
-        address: { "@type": "PostalAddress", addressCountry: "CL" },
+        address: {
+          "@type": "PostalAddress",
+          addressCountry: "CL",
+          addressRegion: "Biobío",
+        },
       },
-      publisher: { "@id": "https://getpangui.com/#organization" },
+      // The named entities this case is about. Gives Google and LLMs the real
+      // subject matter — a Chilean maintenance contractor working a university
+      // campus — rather than leaving it to be inferred from prose.
+      mentions: [
+        {
+          "@type": "CollegeOrUniversity",
+          name: "Universidad de Concepción",
+          address: {
+            "@type": "PostalAddress",
+            addressLocality: "Concepción",
+            addressRegion: "Biobío",
+            addressCountry: "CL",
+          },
+        },
+        {
+          "@type": "Thing",
+          name: "Mantenimiento eléctrico",
+        },
+        {
+          "@type": "SoftwareApplication",
+          name: "Pangui",
+          applicationCategory: "BusinessApplication",
+        },
+      ],
     },
   ],
 };

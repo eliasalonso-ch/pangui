@@ -9,17 +9,30 @@ import { articleStructuredData } from "../../structured-data";
 
 const caso = getCaso("electrilam");
 
+// The title carries no "· Pangui": the root layout's "%s | Pangui" template
+// appends it, and spelling it out rendered "… · Pangui | Pangui" in the tab.
+//
+// "mantención" is deliberate, not a typo for "mantenimiento". Chileans say
+// mantención; the big regional CMMS vendors all optimise for the Mexican and
+// Spanish spelling, which leaves the Chilean term far less contested.
 export const metadata = {
-  title: "Caso Electrilam: de papel y Excel a 603 OTs trazables · Pangui",
+  title: "Caso Electrilam: 603 OTs de mantención eléctrica",
   description:
-    "Ingeniería y Construcción Electrilam SpA ejecuta el mantenimiento eléctrico de la Universidad de Concepción. Con Pangui gestionó 603 órdenes de trabajo y 2.824 fotos de evidencia en cuatro meses.",
+    "Cómo Electrilam, contratista de mantención eléctrica, reemplazó papel y Excel por 603 órdenes de trabajo trazables en la Universidad de Concepción.",
+  keywords: [
+    "software mantención eléctrica",
+    "contratista mantención Chile",
+    "órdenes de trabajo contratistas",
+    "software mantenimiento Concepción",
+  ],
   alternates: { canonical: "/casos-de-exito/electrilam" },
   openGraph: {
-    title: "Caso Electrilam: de papel y Excel a 603 OTs trazables | Pangui",
+    title: "Caso Electrilam: 603 OTs de mantención eléctrica | Pangui",
     description:
-      "Cómo un contratista de mantenimiento eléctrico reemplazó el papel y las planillas Excel por órdenes de trabajo trazables en un campus universitario completo.",
-    url: "/casos-de-exito/electrilam",
+      "Un contratista de mantención eléctrica reemplazó el papel y las planillas Excel por órdenes de trabajo trazables en un campus universitario completo.",
+    url: "https://getpangui.com/casos-de-exito/electrilam",
     type: "article",
+    publishedTime: "2026-08-10T00:00:00-04:00",
   },
 };
 
@@ -79,8 +92,22 @@ export default function CasoElectrilamPage() {
                     {caso.industria} · {caso.periodo}
                   </p>
                   <h1 className="mt-5 max-w-[880px] font-display text-[38px] font-bold leading-[1.04] tracking-[-0.03em] text-balance md:mt-7 md:text-[60px]">
-                    De papel y Excel a 603 órdenes de trabajo trazables.
+                    Mantención eléctrica: de papel y Excel a 603 órdenes de
+                    trabajo trazables.
                   </h1>
+                  {/* Standfirst. Names the company, the trade, the city and the
+                      client in the first paragraph: the page ranked for nothing
+                      because the searchable terms — mantención eléctrica,
+                      Concepción, contratista — appeared only deep in the body
+                      or not at all. Also gives an LLM the whole case in one
+                      quotable sentence. */}
+                  <p className="mt-6 max-w-[720px] text-[17px] leading-[1.65] text-[var(--ink-2)] md:mt-8 md:text-[19px]">
+                    Electrilam es un contratista de mantención eléctrica en
+                    Concepción, Región del Biobío. En cuatro meses gestionó 603
+                    órdenes de trabajo y 2.824 fotos de evidencia para el campus
+                    de la Universidad de Concepción, sin planillas Excel ni
+                    registros en papel.
+                  </p>
                 </div>
                 <div className="lg:col-span-5">
                   <dl className="grid gap-5 sm:grid-cols-2">
@@ -224,13 +251,13 @@ export default function CasoElectrilamPage() {
               Pruebe Pangui gratis por 30 días con todo su equipo y vea sus
               órdenes de trabajo con respaldo desde el primer día.
             </p>
-            <Link
+            <a
               href={REGISTRO_URL}
               className="mt-8 inline-flex h-12 items-center justify-center gap-3 bg-white px-7 text-[15px] font-semibold text-[var(--accent)] transition-colors hover:bg-white/90 md:h-14 md:px-9"
             >
               Prueba gratis 30 días
               <ArrowRight size={17} />
-            </Link>
+            </a>
           </div>
         </section>
       </main>
