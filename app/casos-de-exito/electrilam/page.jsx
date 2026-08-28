@@ -12,24 +12,27 @@ const caso = getCaso("electrilam");
 // The title carries no "· Pangui": the root layout's "%s | Pangui" template
 // appends it, and spelling it out rendered "… · Pangui | Pangui" in the tab.
 //
-// "mantención" is deliberate, not a typo for "mantenimiento". Chileans say
-// mantención; the big regional CMMS vendors all optimise for the Mexican and
-// Spanish spelling, which leaves the Chilean term far less contested.
+// "mantenimiento", not "mantención". Chileans say mantención in speech, so this
+// page originally used it — but the search data says otherwise: Google Trends
+// (Chile, 12 months) puts "mantenimiento preventivo" at 7 and "mantención
+// preventiva" at a flat 0, and every Chilean vendor and directory
+// (comparasoftware.cl, capterra.cl, audox.cl) writes "mantenimiento". People
+// speak mantención and search mantenimiento.
 export const metadata = {
-  title: "Caso Electrilam: 603 OTs de mantención eléctrica",
+  title: "Caso Electrilam: 603 OTs de mantenimiento eléctrico",
   description:
-    "Cómo Electrilam, contratista de mantención eléctrica, reemplazó papel y Excel por 603 órdenes de trabajo trazables en la Universidad de Concepción.",
+    "Cómo Electrilam, contratista de mantenimiento eléctrico, reemplazó papel y Excel por 603 órdenes de trabajo trazables en la Universidad de Concepción.",
   keywords: [
-    "software mantención eléctrica",
-    "contratista mantención Chile",
+    "software mantenimiento eléctrico",
+    "contratista mantenimiento Chile",
     "órdenes de trabajo contratistas",
     "software mantenimiento Concepción",
   ],
   alternates: { canonical: "/casos-de-exito/electrilam" },
   openGraph: {
-    title: "Caso Electrilam: 603 OTs de mantención eléctrica | Pangui",
+    title: "Caso Electrilam: 603 OTs de mantenimiento eléctrico | Pangui",
     description:
-      "Un contratista de mantención eléctrica reemplazó el papel y las planillas Excel por órdenes de trabajo trazables en un campus universitario completo.",
+      "Un contratista de mantenimiento eléctrico reemplazó el papel y las planillas Excel por órdenes de trabajo trazables en un campus universitario completo.",
     url: "https://getpangui.com/casos-de-exito/electrilam",
     type: "article",
     publishedTime: "2026-08-10T00:00:00-04:00",
@@ -92,17 +95,17 @@ export default function CasoElectrilamPage() {
                     {caso.industria} · {caso.periodo}
                   </p>
                   <h1 className="mt-5 max-w-[880px] font-display text-[38px] font-bold leading-[1.04] tracking-[-0.03em] text-balance md:mt-7 md:text-[60px]">
-                    Mantención eléctrica: de papel y Excel a 603 órdenes de
+                    Mantenimiento eléctrico: de papel y Excel a 603 órdenes de
                     trabajo trazables.
                   </h1>
                   {/* Standfirst. Names the company, the trade, the city and the
                       client in the first paragraph: the page ranked for nothing
-                      because the searchable terms — mantención eléctrica,
+                      because the searchable terms — mantenimiento eléctrico,
                       Concepción, contratista — appeared only deep in the body
                       or not at all. Also gives an LLM the whole case in one
                       quotable sentence. */}
                   <p className="mt-6 max-w-[720px] text-[17px] leading-[1.65] text-[var(--ink-2)] md:mt-8 md:text-[19px]">
-                    Electrilam es un contratista de mantención eléctrica en
+                    Electrilam es un contratista de mantenimiento eléctrico en
                     Concepción, Región del Biobío. En cuatro meses gestionó 603
                     órdenes de trabajo y 2.824 fotos de evidencia para el campus
                     de la Universidad de Concepción, sin planillas Excel ni

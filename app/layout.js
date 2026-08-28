@@ -40,11 +40,11 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 const SITE_URL = "https://getpangui.com";
-// 152 chars. Google renders roughly 155-160 before truncating, and the previous
+// 155 chars. Google renders roughly 155-160 before truncating, and the previous
 // 255-char version lost its last third — including "Prueba gratis 30 días",
 // which is the line that actually converts.
 const SITE_DESCRIPTION =
-  "Software de órdenes de trabajo (CMMS) para contratistas de mantención en Chile. Planifica OTs, activos y evidencia desde terreno. Prueba gratis 30 días.";
+  "Software de órdenes de trabajo (CMMS) para contratistas de mantenimiento en Chile. Planifica OTs, activos y evidencia desde terreno. Prueba gratis 30 días.";
 
 export const metadata = {
   metadataBase: new URL(SITE_URL),
@@ -63,11 +63,11 @@ export const metadata = {
     "órdenes de trabajo",
     "CMMS",
     "GMAO",
-    "software mantención Chile",
+    "software mantenimiento Chile",
     "mantenimiento preventivo",
     "gestión de activos",
     "software para contratistas",
-    "OT mantención",
+    "orden de trabajo",
   ],
   alternates: { canonical: "/" },
   openGraph: {
