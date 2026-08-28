@@ -1,3 +1,4 @@
+import { REGISTRO_URL } from "@/lib/app-urls";
 import "../landing.css";
 import Link from "next/link";
 import { ArrowRight, ArrowUpRight } from "lucide-react";
@@ -66,7 +67,7 @@ export default function CasosDeExitoPage() {
               órdenes de trabajo con respaldo desde el primer día.
             </p>
             <Link
-              href="/registro"
+              href={REGISTRO_URL}
               className="mt-8 inline-flex h-12 items-center justify-center gap-3 bg-white px-7 text-[15px] font-semibold text-[var(--accent)] transition-colors hover:bg-white/90 md:h-14 md:px-9"
             >
               Prueba gratis 30 días

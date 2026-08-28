@@ -1,3 +1,4 @@
+import { REGISTRO_URL } from "@/lib/app-urls";
 import "../landing.css";
 import Link from "next/link";
 import {
@@ -221,7 +222,7 @@ export default function IndustriasPage() {
             </p>
             <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
               <Link
-                href="/registro"
+                href={REGISTRO_URL}
                 className="inline-flex h-12 items-center justify-center gap-3 bg-white px-7 text-[15px] font-semibold text-[var(--accent)] transition-colors hover:bg-white/90 md:h-14 md:px-9"
               >
                 Prueba gratis 30 días

@@ -72,7 +72,12 @@ export const metadata = {
   alternates: { canonical: "/" },
   openGraph: {
     type: "website",
-    url: SITE_URL,
+    // No `url` here. A root-level og:url is inherited by every page that does
+    // not set its own, so /privacidad and /terminos both advertised og:url =
+    // the homepage while their canonical pointed at themselves — Ahrefs flags
+    // that as "Open Graph URL not matching canonical", and a shared og:url
+    // makes social shares of any subpage resolve to the landing. Pages that
+    // want one set it explicitly; the rest simply omit it.
     siteName: "Pangui",
     locale: "es_CL",
     title: "Pangui | Software de Órdenes de Trabajo y Mantenimiento (CMMS)",

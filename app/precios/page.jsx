@@ -1,3 +1,4 @@
+import { LOGIN_URL, REGISTRO_URL, planUrl } from "@/lib/app-urls";
 import "../landing.css";
 import Link from "next/link";
 import { ArrowRight, Check, Minus } from "lucide-react";
@@ -101,14 +102,14 @@ export default function PreciosPage() {
               </p>
               <div className="mt-7 flex flex-col gap-3 sm:flex-row">
                 <Link
-                  href="/registro"
+                  href={REGISTRO_URL}
                   className="inline-flex h-12 items-center justify-center gap-3 bg-[var(--accent)] px-6 text-[15px] font-semibold text-white transition-colors hover:bg-[var(--accent-hover)]"
                 >
                   Empezar prueba Pro
                   <ArrowRight size={17} />
                 </Link>
                 <Link
-                  href="/login"
+                  href={LOGIN_URL}
                   className="inline-flex h-12 items-center justify-center border border-[var(--hairline-strong)] px-6 text-[15px] font-semibold transition-colors hover:bg-black/5"
                 >
                   Ya tengo cuenta
@@ -167,7 +168,7 @@ export default function PreciosPage() {
               Sin tarjeta, sin instalación y con el camino claro para decidir qué plan necesita tu equipo.
             </p>
             <Link
-              href="/registro"
+              href={REGISTRO_URL}
               className="mt-8 inline-flex h-12 items-center justify-center gap-3 bg-white px-7 text-[15px] font-semibold text-[var(--accent)] transition-colors hover:bg-white/90 md:h-14 md:px-9"
             >
               Crear mi cuenta
@@ -228,7 +229,7 @@ function PricingCard({ plan, featured }) {
         </a>
       ) : (
         <Link
-          href={`/registro?plan=${plan.key}`}
+          href={planUrl(plan.key)}
           className={`mt-auto inline-flex h-11 items-center justify-center px-5 text-[14px] font-semibold transition-colors ${
             featured
               ? "bg-[var(--accent)] text-white hover:bg-[var(--accent-hover)]"
