@@ -3,15 +3,23 @@ import "./globals.css";
 import { PostHogProvider } from "./PostHogProvider";
 import { siteStructuredData } from "./structured-data";
 
+// display:"swap" on every family. Without it next/font defaults to "optional",
+// which hides text for up to 100ms and then gives up on the webfont — on slow
+// 4G that shows as a blank hero and pushes both FCP and LCP out. swap paints
+// the fallback immediately and upgrades when the font lands.
 const inter = Inter({
   variable: "--font-heading",
   subsets: ["latin"],
+  // All four weights stay: landing.css sets --font-body from this variable on
+  // body, and the landing uses font-semibold/font-bold in 36 places.
   weight: ["400", "500", "600", "700"],
+  display: "swap",
 });
 
 const geist = Geist({
   variable: "--font-sans",
   subsets: ["latin"],
+  display: "swap",
 });
 
 // The landing used to pull these from a blocking @import in landing.css, which
