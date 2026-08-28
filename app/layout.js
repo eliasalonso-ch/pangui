@@ -32,14 +32,21 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 const SITE_URL = "https://getpangui.com";
+// 152 chars. Google renders roughly 155-160 before truncating, and the previous
+// 255-char version lost its last third — including "Prueba gratis 30 días",
+// which is the line that actually converts.
 const SITE_DESCRIPTION =
-  "Pangui es el software de órdenes de trabajo (CMMS) para contratistas y empresas de servicios de mantención en Chile. Planifica, ejecuta y respalda OTs, activos, materiales y evidencia — desde la oficina hasta el celular del técnico. Prueba gratis 30 días.";
+  "Software de órdenes de trabajo (CMMS) para contratistas de mantención en Chile. Planifica OTs, activos y evidencia desde terreno. Prueba gratis 30 días.";
 
 export const metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
     default:
-      "Pangui | Software de Órdenes de Trabajo y Mantenimiento (CMMS) para Contratistas en Chile",
+      // 55 chars. Google truncates around 60, and the old 89-char title was
+      // cut mid-phrase in results — "para Contratistas en Chile" never showed.
+      // CMMS and Chile stay because both are search terms; "Mantenimiento" is
+      // dropped as the near-duplicate of "Órdenes de Trabajo".
+      "Pangui | Software de Órdenes de Trabajo (CMMS) en Chile",
     template: "%s | Pangui",
   },
   description: SITE_DESCRIPTION,
