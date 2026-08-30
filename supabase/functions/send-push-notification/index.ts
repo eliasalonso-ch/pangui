@@ -93,7 +93,7 @@ Deno.serve(async (req) => {
 
     const { data: prefs } = await supabase
       .from("notificacion_preferencias")
-      .select("push_activo, push_sonido, notif_asignada, notif_comentario, notif_estado_cambiado, notif_recordatorio_timer")
+      .select("push_activo, push_sonido, notif_asignada, notif_comentario, notif_estado_cambiado")
       .eq("usuario_id", record.usuario_id)
       .maybeSingle();
 
@@ -103,7 +103,6 @@ Deno.serve(async (req) => {
     if (record.tipo === "asignado" && prefs?.notif_asignada === false) return new Response("Assignment push disabled", { status: 200 });
     if (record.tipo === "comentario" && prefs?.notif_comentario === false) return new Response("Comment push disabled", { status: 200 });
     if (["estado_cambiado", "completado", "pausado", "reanudado"].includes(record.tipo) && prefs?.notif_estado_cambiado === false) return new Response("State push disabled", { status: 200 });
-    if ((record.tipo === "timer_sin_iniciar" || String(record.tipo).startsWith("timer_inactivo_")) && prefs?.notif_recordatorio_timer === false) return new Response("Timer push disabled", { status: 200 });
 
     // ─── Mobile (Expo) ───────────────────────────────────────────────────────
     const token = (usuario as any)?.expo_push_token;

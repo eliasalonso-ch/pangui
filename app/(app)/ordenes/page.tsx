@@ -7,11 +7,21 @@ import { LIST_SELECT, ORDENES_PAGE_SIZE } from "@/lib/ordenes-api";
 import { chileDateKey } from "./date-utils";
 
 interface PageProps {
-  searchParams: Promise<{ id?: string; panel?: string }>;
+  searchParams: Promise<{ id?: string; panel?: string; ids?: string }>;
 }
 
 export default async function OrdenesPage({ searchParams }: PageProps) {
-  const { id: selectedId, panel } = await searchParams;
+  const { id: selectedId, panel, ids } = await searchParams;
+
+  // Aggregate alerts ("4 OTs vencidas") link here with ?ids=<uuid>,<uuid>,...
+  // so the reader lands on exactly the OTs the alert fired for instead of the
+  // whole board. Anything that is not a UUID is dropped rather than passed to
+  // the query.
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const alertIds = (ids ?? "")
+    .split(",")
+    .map((v) => v.trim())
+    .filter((v) => UUID_RE.test(v));
   const [sb, auth] = await Promise.all([createServerSupabase(), getServerUser()]);
 
   // Only a positively-confirmed "no session" redirects. A transient auth
@@ -46,9 +56,12 @@ export default async function OrdenesPage({ searchParams }: PageProps) {
         .eq("workspace_id", wsId)
         .is("parent_id", null)
         .is("deleted_at", null);
-      return (soloAsignadasId ? q.contains("asignados_ids", [soloAsignadasId]) : q)
+      const scoped = soloAsignadasId ? q.contains("asignados_ids", [soloAsignadasId]) : q;
+      // When an alert supplied ids, show exactly those and skip the page cap:
+      // an aggregate never names more OTs than fit comfortably in one screen.
+      return (alertIds.length ? scoped.in("id", alertIds) : scoped)
         .order("created_at", { ascending: false })
-        .limit(ORDENES_PAGE_SIZE)
+        .limit(alertIds.length ? alertIds.length : ORDENES_PAGE_SIZE)
         .then(r => (r.data ?? []) as unknown as OrdenListItem[]);
     })(),
 

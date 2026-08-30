@@ -8,12 +8,9 @@ import {
   CheckCircle2,
   Clock,
   GitBranch,
-  ShieldAlert,
   Timer,
   TrendingUp,
   Users,
-  Wrench,
-  Zap,
 } from "lucide-react";
 import {
   Bar,
@@ -23,6 +20,8 @@ import {
   Legend,
   Line,
   LineChart,
+  Pie,
+  PieChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -40,10 +39,10 @@ const C = {
   success: "var(--success)",
   successBg: "var(--success-bg)",
   warning: "var(--warning)",
-  warningBg: "var(--st-wait-bg)",
+  warningBg: "var(--warning-bg)",
   danger: "var(--danger)",
   dangerBg: "var(--danger-bg)",
-  info: "var(--brand)",
+  info: "var(--info)",
   infoBg: "var(--brand-tint)",
   text1: "var(--fg-1)",
   text2: "var(--fg-2)",
@@ -62,6 +61,7 @@ interface OTRow {
   prioridad: Prioridad;
   tipo_trabajo: TipoTrabajo | null;
   clasificacion: "levantamiento" | "ejecucion" | null;
+  recurrencia: string | null;
   created_at: string;
   updated_at: string | null;
   fecha_inicio: string | null;
@@ -96,18 +96,22 @@ interface ActiveRow {
   ubicaciones: { edificio: string } | null;
 }
 
-interface ProcExecRow {
-  id: string;
-  orden_id: string;
-  estado: string;
-  iniciado_at: string | null;
-  completado_at: string | null;
-  created_at: string;
-}
-
-function Card({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
+// `fixed` opts a card into the uniform panel size: every chart panel is the
+// same height regardless of content, so rows line up instead of stair-stepping
+// when one breakdown has more rows than its neighbour. Column layout + a
+// flex:1 body lets the chart absorb the leftover space under the header.
+// Not the default: StatCards are small tiles and the Personas table is tall,
+// and forcing either to 500px would look broken.
+function Card({ children, style, fixed }: { children: React.ReactNode; style?: React.CSSProperties; fixed?: boolean }) {
   return (
-    <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, boxShadow: "0 1px 3px rgba(15,23,42,0.06)", ...style }}>
+    <div style={{
+      background: C.surface,
+      border: `1px solid ${C.border}`,
+      borderRadius: 10,
+      boxShadow: "0 1px 3px rgba(15,23,42,0.06)",
+      ...(fixed ? { display: "flex", flexDirection: "column", height: 460, minWidth: 0, position: "relative" as const, overflow: "hidden" } : {}),
+      ...style,
+    }}>
       {children}
     </div>
   );
@@ -115,21 +119,12 @@ function Card({ children, style }: { children: React.ReactNode; style?: React.CS
 
 function CardHeader({ title, subtitle, action }: { title: string; subtitle?: string; action?: React.ReactNode }) {
   return (
-    <div style={{ padding: "15px 18px", borderBottom: `1px solid ${C.border}`, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+    <div style={{ padding: "15px 18px", borderBottom: `1px solid ${C.border}`, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexShrink: 0 }}>
       <div>
         <div style={{ fontSize: 14, fontWeight: 800, color: C.text1 }}>{title}</div>
         {subtitle && <div style={{ fontSize: 12, color: C.text3, marginTop: 2 }}>{subtitle}</div>}
       </div>
       {action}
-    </div>
-  );
-}
-
-function SectionLabel({ icon: Icon, label }: { icon: React.ElementType; label: string }) {
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "26px 0 12px" }}>
-      <Icon size={15} color={C.brand} />
-      <span style={{ fontSize: 11, fontWeight: 800, color: C.text2, textTransform: "uppercase", letterSpacing: "0.08em" }}>{label}</span>
     </div>
   );
 }
@@ -154,7 +149,7 @@ function StatCard({
     <Card style={{ padding: 18 }}>
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
         <div style={{ minWidth: 0 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: C.text3, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>{label}</div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: C.text3, letterSpacing: "0.01em", marginBottom: 8 }}>{label}</div>
           <div style={{ fontSize: 29, fontWeight: 850, color: C.text1, lineHeight: 1, letterSpacing: 0 }}>{value}</div>
           {sub && <div style={{ fontSize: 12, color: C.text2, marginTop: 7 }}>{sub}</div>}
         </div>
@@ -276,6 +271,80 @@ function normalizeJoin<T>(v: T | T[] | null): T | null {
   return Array.isArray(v) ? (v[0] ?? null) : v;
 }
 
+function isPreventiva(o: OTRow) {
+  return o.tipo_trabajo === "preventiva" || o.tipo_trabajo === "presupuesto";
+}
+
+function isRepetitiva(o: OTRow) {
+  return !!o.recurrencia && o.recurrencia !== "ninguna";
+}
+
+/**
+ * Repetitive vs one-off OTs created per bucket. Same bucketing as buildFlow
+ * (daily under 3 months, weekly beyond) so this chart's x-axis lines up with
+ * "Flujo de OTs" right above it.
+ */
+/**
+ * OTs created per bucket, one series per tipo_trabajo.
+ *
+ * Uses the real vocabulary rather than a planned/unplanned rollup: reactiva,
+ * preventiva, emergencia, levantamiento, presupuesto. `mejora` is retired from
+ * the vocabulary but 3 legacy rows still carry it, so anything unrecognised is
+ * collected under "Otro" instead of silently vanishing from the totals.
+ */
+const TIPO_SERIES: Array<{ key: string; label: string; color: string }> = [
+  { key: "reactiva",      label: "Reactiva",      color: "var(--brand)" },
+  { key: "preventiva",    label: "Preventiva",    color: "var(--success)" },
+  { key: "emergencia",    label: "Emergencia",    color: "var(--danger)" },
+  { key: "levantamiento", label: "Levantamiento", color: "var(--info)" },
+  { key: "presupuesto",   label: "Presupuesto",   color: "var(--warning)" },
+];
+
+function tipoKey(o: OTRow): string {
+  const t: string = o.tipo_trabajo ?? "";
+  return TIPO_SERIES.some(s => s.key === t) ? t : "reactiva";
+}
+
+function buildTipoSeries(ots: OTRow[], months: number) {
+  const start = rangeStart(months);
+  const now = new Date();
+  const step = months > 2 ? 7 : 1;
+  const rows: Array<Record<string, string | number>> = [];
+
+  for (let d = new Date(start); d <= now; d = addDays(d, step)) {
+    const end = addDays(d, step);
+    const startStr = dayKey(d);
+    const endStr = dayKey(end > now ? addDays(now, 1) : end);
+    const created = ots.filter(o => o.created_at.slice(0, 10) >= startStr && o.created_at.slice(0, 10) < endStr);
+    const row: Record<string, string | number> = {
+      label: d.toLocaleDateString("es-CL", { day: "numeric", month: "short" }),
+    };
+    for (const s of TIPO_SERIES) row[s.key] = created.filter(o => tipoKey(o) === s.key).length;
+    rows.push(row);
+  }
+  return rows;
+}
+
+function buildRecurrenceSeries(ots: OTRow[], months: number) {
+  const start = rangeStart(months);
+  const now = new Date();
+  const step = months > 2 ? 7 : 1;
+  const rows: Array<{ label: string; repetitivo: number; noRepetitivo: number }> = [];
+
+  for (let d = new Date(start); d <= now; d = addDays(d, step)) {
+    const end = addDays(d, step);
+    const startStr = dayKey(d);
+    const endStr = dayKey(end > now ? addDays(now, 1) : end);
+    const created = ots.filter(o => o.created_at.slice(0, 10) >= startStr && o.created_at.slice(0, 10) < endStr);
+    rows.push({
+      label: d.toLocaleDateString("es-CL", { day: "numeric", month: "short" }),
+      repetitivo: created.filter(isRepetitiva).length,
+      noRepetitivo: created.filter(o => !isRepetitiva(o)).length,
+    });
+  }
+  return rows;
+}
+
 function buildFlow(ots: OTRow[], months: number) {
   const start = rangeStart(months);
   const now = new Date();
@@ -310,7 +379,6 @@ export default function AnaliticaPage() {
   const [allOTs, setAllOTs] = useState<OTRow[]>([]);
   const [usuarios, setUsuarios] = useState<UsuarioRow[]>([]);
   const [activos, setActivos] = useState<ActiveRow[]>([]);
-  const [procExecs, setProcExecs] = useState<ProcExecRow[]>([]);
   const [rangeMonths, setRangeMonths] = useState(3);
   const [ubicacionFilter, setUbicacionFilter] = useState("all");
   const [usuarioFilter, setUsuarioFilter] = useState("all");
@@ -358,9 +426,9 @@ export default function AnaliticaPage() {
       const soloMias = <T extends { contains: (c: string, v: any) => T }>(q: T): T =>
         soloAsignadas ? q.contains("asignados_ids", [soloAsignadas]) : q;
 
-      const [otsRes, usersRes, activosRes, procRes] = await Promise.all([
+      const [otsRes, usersRes, activosRes] = await Promise.all([
         soloMias(sb.from("ordenes_trabajo")
-          .select("id, titulo, estado, prioridad, tipo_trabajo, clasificacion, created_at, updated_at, fecha_inicio, fecha_termino, presupuesto, iniciado_at, pausado_at, en_ejecucion, tiempo_total_segundos, asignados_ids, parent_id, activo_id, ubicacion_id, activos(id,nombre), ubicaciones(id,edificio)")
+          .select("id, titulo, estado, prioridad, tipo_trabajo, clasificacion, recurrencia, created_at, updated_at, fecha_inicio, fecha_termino, presupuesto, iniciado_at, pausado_at, en_ejecucion, tiempo_total_segundos, asignados_ids, parent_id, activo_id, ubicacion_id, activos(id,nombre), ubicaciones(id,edificio)")
           .eq("workspace_id", wsId)
           .is("deleted_at", null))
           .order("created_at", { ascending: false })
@@ -374,11 +442,6 @@ export default function AnaliticaPage() {
           .select("id, nombre, criticidad, ubicacion_id, ubicaciones(edificio)")
           .eq("workspace_id", wsId)
           .eq("activo", true),
-        sb.from("procedimiento_ejecuciones")
-          .select("id, orden_id, estado, iniciado_at, completado_at, created_at")
-          .eq("workspace_id", wsId)
-          .order("created_at", { ascending: false })
-          .limit(5000),
       ]);
 
       setAllOTs(((otsRes.data ?? []) as unknown[]).map((o: any) => ({
@@ -391,7 +454,6 @@ export default function AnaliticaPage() {
         ...a,
         ubicaciones: normalizeJoin(a.ubicaciones),
       })) as ActiveRow[]);
-      setProcExecs((procRes.data ?? []) as unknown as ProcExecRow[]);
       setLoading(false);
     }
     load();
@@ -411,7 +473,18 @@ export default function AnaliticaPage() {
   }), [scopedHistorical, cutoff, ubicacionFilter, usuarioFilter]);
 
   const periodRootOTs = useMemo(() => periodOTs.filter(isRoot), [periodOTs]);
-  const periodSubOTs = useMemo(() => periodOTs.filter(o => !isRoot(o)), [periodOTs]);
+  // Derived from baseOTs, NOT periodOTs: the "Principales" scope (the default)
+  // strips sub-OTs out of periodOTs entirely, so filtering them back out of it
+  // always yielded 0 -- the card read "0 abiertas" while "Total historico" right
+  // beside it counted 2 sub-OTs. Scope selects which OTs the OPERATIONAL stats
+  // describe; it should not blank out the card whose whole subject is sub-OTs.
+  const periodSubOTs = useMemo(() => baseOTs.filter(o => {
+    if (isRoot(o)) return false;
+    const inPeriod = dateInRange(o.created_at, cutoff) || dateInRange(completedAt(o), cutoff);
+    const inLoc = ubicacionFilter === "all" || o.ubicacion_id === ubicacionFilter;
+    const inUser = usuarioFilter === "all" || (o.asignados_ids ?? []).includes(usuarioFilter);
+    return inPeriod && inLoc && inUser;
+  }), [baseOTs, cutoff, ubicacionFilter, usuarioFilter]);
   const openOTs = useMemo(() => periodOTs.filter(isOpen), [periodOTs]);
   const openRootOTs = useMemo(() => periodRootOTs.filter(isOpen), [periodRootOTs]);
   const completedOTs = useMemo(() => periodOTs.filter(o => o.estado === "completado"), [periodOTs]);
@@ -446,14 +519,20 @@ export default function AnaliticaPage() {
   const byPriority = (["urgente", "alta", "media", "baja", "ninguna"] as Prioridad[]).map(p => ({
     name: p,
     count: openOTs.filter(o => o.prioridad === p).length,
-    color: p === "urgente" ? C.danger : p === "alta" ? C.warning : p === "media" ? C.info : C.text3,
+    color: p === "urgente" ? C.danger : p === "alta" ? C.warning : p === "media" ? C.info : p === "baja" ? C.success : C.text3,
   }));
   const byStatus = [
-    { name: "Pendiente", count: openOTs.filter(o => o.estado === "pendiente").length, color: C.info },
+    { name: "Pendiente", count: openOTs.filter(o => o.estado === "pendiente").length, color: "var(--st-open-dot)" },
     { name: "En curso", count: running.length, color: C.brand },
     { name: "En espera", count: blocked.length, color: C.warning },
     { name: "Completadas", count: completedOTs.length, color: C.success },
   ];
+  // Recurrencia: "ninguna" is a one-off; anything else (semanal, mensual_*,
+  // anual, personalizada) is a repeating series.
+  const repetitivas = periodOTs.filter(isRepetitiva);
+  const noRepetitivas = periodOTs.filter(o => !isRepetitiva(o));
+  const repetitionRatio = fmtPct(repetitivas.length, periodOTs.length);
+  const recurrenceSeries = useMemo(() => buildRecurrenceSeries(periodOTs, rangeMonths), [periodOTs, rangeMonths]);
   const backlogAge = [
     { label: "< 3 dias", count: openOTs.filter(o => daysSince(o.created_at) < 3).length },
     { label: "3-7 dias", count: openOTs.filter(o => daysSince(o.created_at) >= 3 && daysSince(o.created_at) < 7).length },
@@ -461,17 +540,10 @@ export default function AnaliticaPage() {
     { label: "> 14 dias", count: openOTs.filter(o => daysSince(o.created_at) >= 14).length },
   ];
 
-  const procInScope = useMemo(() => {
-    const ids = new Set(periodOTs.map(o => o.id));
-    return procExecs.filter(p => ids.has(p.orden_id));
-  }, [procExecs, periodOTs]);
-  const procCompleted = procInScope.filter(p => p.estado === "completado").length;
-  const procCompletion = fmtPct(procCompleted, procInScope.length);
-  const reactiveOTs = periodOTs.filter(o => o.tipo_trabajo === "reactiva");
-  const plannedOTs = periodOTs.filter(o => o.tipo_trabajo === "preventiva" || o.tipo_trabajo === "presupuesto");
-  const plannedRatio = fmtPct(plannedOTs.length, plannedOTs.length + reactiveOTs.length);
-  const urgentReactive = reactiveOTs.filter(o => o.prioridad === "urgente" || o.prioridad === "alta");
-  const budgetRefOTs = periodOTs.filter(o => !!o.presupuesto?.trim());
+  const plannedOTs = periodOTs.filter(isPreventiva);
+  const tipoCounts = TIPO_SERIES.map(t => ({ ...t, count: periodOTs.filter(o => tipoKey(o) === t.key).length }));
+  const plannedRatio = fmtPct(plannedOTs.length, periodOTs.length);
+  const tipoSeries = useMemo(() => buildTipoSeries(periodOTs, rangeMonths), [periodOTs, rangeMonths]);
 
   const assetRisk = useMemo(() => {
     const map = new Map<string, { id: string; name: string; location: string; criticality: string | null; reactive: number; open: number; overdue: number; downtime: number }>();
@@ -530,20 +602,6 @@ export default function AnaliticaPage() {
     });
   }, [techPerf, peopleMode]);
 
-  const quality = [
-    { label: "Abiertas sin fecha termino", count: openOTs.filter(o => !o.fecha_termino).length },
-    { label: "Abiertas sin tecnico", count: unassignedOpen.length },
-    { label: "Sin activo vinculado", count: periodOTs.filter(o => !o.activo_id).length },
-    { label: "Completadas sin inicio", count: completedOTs.filter(o => !o.iniciado_at).length },
-    { label: "Completadas sin tiempo", count: completedOTs.filter(o => !workingHours(o)).length },
-  ];
-  const costReadiness = [
-    { label: "Con N de presupuesto", count: budgetRefOTs.length },
-    { label: "Sin presupuesto", count: periodOTs.length - budgetRefOTs.length },
-    { label: "Costo monetario OT", count: 0 },
-    { label: "Costo mano de obra", count: 0 },
-  ];
-
   const insights = (() => {
     const items: Array<{ tone: "bad" | "warn" | "good"; text: string }> = [];
     if (overdue.length > 0) items.push({ tone: "bad", text: `${overdue.length} OT${overdue.length === 1 ? "" : "s"} vencida${overdue.length === 1 ? "" : "s"} requieren cierre o reprogramacion.` });
@@ -599,12 +657,15 @@ export default function AnaliticaPage() {
         </div>
       </div>
 
-      <SectionLabel icon={Activity} label="1. Operacion" />
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 14 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 14, marginTop: 14 }}>
         <StatCard label="Total historico" value={baseOTs.length} sub={`${rootOTs.length} principales + ${subOTs.length} sub-OTs`} icon={BarChart2} color={C.brand} />
         <StatCard label="En espera" value={blocked.length} sub={`${fmtPct(blocked.length, openOTs.length)} de las abiertas`} icon={Activity} color={blocked.length ? C.warning : C.success} tone={blocked.length > 0 ? "warn" : "good"} />
         <StatCard label="Sin asignar" value={unassignedOpen.length} sub={`${unassignedRootOpen.length} principales, ${unassignedOpen.length - unassignedRootOpen.length} sub-OTs`} icon={Users} color={unassignedOpen.length ? C.warning : C.success} tone={unassignedOpen.length ? "warn" : "good"} />
-        <StatCard label="Vencidas" value={overdue.length} sub={`${dueThisWeek.length} vencen en 7 dias`} icon={AlertTriangle} color={overdue.length ? C.danger : C.success} tone={overdue.length ? "bad" : "good"} />
+        {/* "periodo" is in the label on purpose: like every stat on this page
+            this counts only OTs inside the selected period, so it reads lower
+            than the app's global overdue count (47 vs 60 for Electrilam on a
+            90-day window). Without the word the two numbers look contradictory. */}
+        <StatCard label="Vencidas periodo" value={overdue.length} sub={`${dueThisWeek.length} vencen en 7 dias`} icon={AlertTriangle} color={overdue.length ? C.danger : C.success} tone={overdue.length ? "bad" : "good"} />
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 14, marginTop: 14 }}>
@@ -614,8 +675,7 @@ export default function AnaliticaPage() {
         <StatCard label="Sub-OTs periodo" value={periodSubOTs.length} sub={`${periodSubOTs.filter(isOpen).length} abiertas`} icon={GitBranch} color={C.info} />
       </div>
 
-      <SectionLabel icon={ShieldAlert} label="Decisiones inmediatas" />
-      <Card>
+      <Card style={{ marginTop: 14 }}>
         <div style={{ padding: 16, display: "grid", gap: 10 }}>
           {insights.map((i, idx) => (
             <div key={idx} style={{ padding: "11px 12px", borderRadius: 8, border: `1px solid ${i.tone === "bad" ? C.danger : i.tone === "warn" ? C.warning : C.success}`, background: i.tone === "bad" ? C.dangerBg : i.tone === "warn" ? C.warningBg : C.successBg, color: C.text1, fontSize: 13 }}>
@@ -625,19 +685,18 @@ export default function AnaliticaPage() {
         </div>
       </Card>
 
-      <SectionLabel icon={Timer} label="2. Tiempo y cumplimiento" />
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 14 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 14, marginTop: 14 }}>
         <StatCard label="Respuesta mediana" value={fmtHours(responseMedian)} sub={`${responseVals.length} OTs con inicio`} icon={Clock} color={C.info} />
         <StatCard label="Ciclo mediano" value={fmtHours(cycleMedian)} sub="Creacion a cierre" icon={Timer} color={C.brand} />
         <StatCard label="Ciclo P75" value={fmtHours(cycleP75)} sub="El 75% cierra bajo este tiempo" icon={TrendingUp} color={cycleP75 > 72 ? C.warning : C.success} tone={cycleP75 > 72 ? "warn" : "neutral"} />
         <StatCard label="SLA vencido" value={fmtPct(overdue.length, openOTs.length)} sub={`${overdue.length}/${openOTs.length} abiertas fuera de fecha`} icon={AlertTriangle} color={overdue.length ? C.danger : C.success} tone={overdue.length ? "bad" : "good"} />
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1.3fr 0.7fr", gap: 14, marginTop: 14 }}>
-        <Card>
-          <CardHeader title="Flujo de OTs" subtitle="Creadas, completadas y backlog acumulado" />
-          <div style={{ padding: "16px 8px" }}>
-            <ResponsiveContainer width="100%" height={240}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginTop: 14 }}>
+        <Card fixed>
+          <CardHeader title="Flujo de OTs" />
+          <div style={{ padding: "16px 8px", flex: 1, minHeight: 0 }}>
+            <ResponsiveContainer width="100%" height="100%">
               <LineChart data={flow} margin={{ left: -10, right: 20 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
                 <XAxis dataKey="label" tick={{ fontSize: 11, fill: C.text3 }} interval="preserveStartEnd" />
@@ -652,10 +711,10 @@ export default function AnaliticaPage() {
           </div>
         </Card>
 
-        <Card>
-          <CardHeader title="Antiguedad del backlog" subtitle="Edad desde creacion" />
-          <div style={{ padding: "16px 8px" }}>
-            <ResponsiveContainer width="100%" height={240}>
+        <Card fixed>
+          <CardHeader title="Antiguedad del backlog" />
+          <div style={{ padding: "16px 8px", flex: 1, minHeight: 0 }}>
+            <ResponsiveContainer width="100%" height="100%">
               <BarChart data={backlogAge} margin={{ left: -10 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
                 <XAxis dataKey="label" tick={{ fontSize: 11, fill: C.text3 }} />
@@ -670,27 +729,82 @@ export default function AnaliticaPage() {
         </Card>
       </div>
 
-      <SectionLabel icon={Zap} label="3. Preventivo vs correctivo" />
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 14, marginBottom: 14 }}>
-        <StatCard label="Planificado" value={plannedRatio} sub={`${plannedOTs.length} planificadas / ${reactiveOTs.length} reactivas`} icon={CheckCircle2} color={C.success} />
-        <StatCard label="Reactivas" value={reactiveOTs.length} sub={`${fmtPct(reactiveOTs.length, plannedOTs.length + reactiveOTs.length)} del mix`} icon={Zap} color={reactiveOTs.length > plannedOTs.length ? C.warning : C.brand} tone={reactiveOTs.length > plannedOTs.length ? "warn" : "neutral"} />
-        <StatCard label="Emergencias" value={urgentReactive.length} sub="Reactivas alta/urgente" icon={AlertTriangle} color={urgentReactive.length ? C.danger : C.success} tone={urgentReactive.length ? "bad" : "good"} />
-        <StatCard label="PM / checklist" value={procCompletion} sub={`${procCompleted}/${procInScope.length} procedimientos completados`} icon={CheckCircle2} color={C.success} />
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginTop: 14 }}>
+        <Card fixed>
+          <CardHeader title="Ordenes de trabajo por tipo" />
+          <div style={{ display: "flex", alignItems: "center", gap: 18, padding: "16px 18px 4px", flexShrink: 0 }}>
+            {tipoCounts.map(t => (
+              <StatChip key={t.key} value={t.count} label={t.label} color={t.color} />
+            ))}
+            <div style={{ width: 1, alignSelf: "stretch", background: C.border }} />
+            <div>
+              <div style={{ fontSize: 27, fontWeight: 850, color: C.text1, lineHeight: 1 }}>{plannedRatio}</div>
+              <div style={{ fontSize: 12, color: C.text2, marginTop: 6 }}>Proporcion de prevencion</div>
+            </div>
+          </div>
+          <div style={{ padding: "8px 8px 16px", flex: 1, minHeight: 0 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={tipoSeries} margin={{ left: -10 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke={C.border} vertical={false} />
+                <XAxis dataKey="label" tick={{ fontSize: 11, fill: C.text3 }} interval="preserveStartEnd" />
+                <YAxis tick={{ fontSize: 12, fill: C.text3 }} allowDecimals={false} />
+                <Tooltip contentStyle={tooltipStyle} />
+                {TIPO_SERIES.map((t, i) => (
+                  <Bar
+                    key={t.key}
+                    dataKey={t.key}
+                    name={t.label}
+                    stackId="t"
+                    fill={t.color}
+                    radius={i === TIPO_SERIES.length - 1 ? [4, 4, 0, 0] : undefined}
+                  />
+                ))}
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </Card>
+
+        <Card fixed>
+          <CardHeader title="No repetitivo / repetitivo" />
+          <div style={{ display: "flex", alignItems: "center", gap: 18, padding: "16px 18px 4px", flexShrink: 0 }}>
+            <StatChip value={noRepetitivas.length} label="No repetitivo" color={C.brand} />
+            <StatChip value={repetitivas.length} label="Repetitivo" color={C.success} />
+            <div style={{ width: 1, alignSelf: "stretch", background: C.border }} />
+            <div>
+              <div style={{ fontSize: 27, fontWeight: 850, color: C.text1, lineHeight: 1 }}>{repetitionRatio}</div>
+              <div style={{ fontSize: 12, color: C.text2, marginTop: 6 }}>Proporcion de repeticion</div>
+            </div>
+          </div>
+          <div style={{ padding: "8px 8px 16px", flex: 1, minHeight: 0 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={recurrenceSeries} margin={{ left: -10 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke={C.border} vertical={false} />
+                <XAxis dataKey="label" tick={{ fontSize: 11, fill: C.text3 }} interval="preserveStartEnd" />
+                <YAxis tick={{ fontSize: 12, fill: C.text3 }} allowDecimals={false} />
+                <Tooltip contentStyle={tooltipStyle} />
+                <Bar dataKey="noRepetitivo" name="No repetitivo" stackId="r" fill={C.brand} />
+                <Bar dataKey="repetitivo" name="Repetitivo" stackId="r" fill={C.success} radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </Card>
       </div>
 
-      <SectionLabel icon={Activity} label="Backlog operativo" />
-      <div style={{ display: "grid", gridTemplateColumns: "0.7fr 0.7fr 1fr", gap: 14 }}>
-        <Card>
-          <CardHeader title="Estado actual" subtitle="OTs del periodo" />
-          <SimpleBars data={byStatus} total={Math.max(1, periodOTs.length)} />
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginTop: 14 }}>
+        <Card fixed>
+          <CardHeader title="Estado actual" />
+          <DonutBreakdown data={byStatus} />
         </Card>
-        <Card>
-          <CardHeader title="Prioridad abierta" subtitle="Solo backlog" />
-          <SimpleBars data={byPriority.map(p => ({ name: p.name, count: p.count, color: p.color }))} total={Math.max(1, openOTs.length)} />
+        <Card fixed>
+          <CardHeader title="Prioridad abierta" />
+          <DonutBreakdown data={byPriority.map(p => ({ name: p.name.charAt(0).toUpperCase() + p.name.slice(1), count: p.count, color: p.color }))} />
         </Card>
-        <Card>
-          <CardHeader title="OTs vencidas" subtitle="Primeras 8 por dias de atraso" />
-          <div style={{ padding: "8px 0" }}>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 14, marginTop: 14 }}>
+        <Card fixed>
+          <CardHeader title="OTs vencidas" />
+          <div style={{ padding: "8px 0", flex: 1, minHeight: 0, overflowY: "auto" }}>
             {overdue.length === 0 ? (
               <EmptyRow text="Sin OTs vencidas en el filtro actual." />
             ) : overdue.sort((a, b) => daysSince(b.fecha_termino!) - daysSince(a.fecha_termino!)).slice(0, 8).map(o => (
@@ -707,11 +821,9 @@ export default function AnaliticaPage() {
         </Card>
       </div>
 
-      <SectionLabel icon={Users} label="6. Personas y productividad" />
-      <Card>
+      <Card style={{ marginTop: 14 }}>
         <CardHeader
           title="Carga por tecnico"
-          subtitle={peopleMode === "open" ? "Backlog asignado, sub-OTs y vencidas" : "OTs cerradas por tecnico en el periodo"}
           action={(
             <div style={segmentedStyle}>
               <button type="button" onClick={() => setPeopleMode("open")} style={segmentButtonStyle(peopleMode === "open")}>Carga abierta</button>
@@ -774,94 +886,50 @@ export default function AnaliticaPage() {
         </div>
       </Card>
 
-      <SectionLabel icon={ShieldAlert} label="4. Activos y equipos" />
-      <Card>
-        <CardHeader title="Activos con mas riesgo operativo" subtitle="Reactivos, backlog, vencidas y horas de trabajo" />
-        <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
-            <thead>
-              <tr style={{ borderBottom: `1px solid ${C.border}` }}>
-                {["Activo", "Ubicacion", "Criticidad", "Reactivas", "Abiertas", "Vencidas", "Horas", "Score"].map(h => <th key={h} style={thStyle}>{h}</th>)}
-              </tr>
-            </thead>
-            <tbody>
-              {assetRisk.length === 0 ? (
-                <tr><td colSpan={8}><EmptyRow text="Sin activos con OTs reactivas en el periodo." /></td></tr>
-              ) : assetRisk.map(a => (
-                <tr key={a.id} style={{ borderBottom: `1px solid ${C.border}` }}>
-                  <td style={tdStrong}>{a.name}</td>
-                  <td style={tdMuted}>{a.location}</td>
-                  <td style={tdMuted}>{a.criticality ?? "-"}</td>
-                  <td style={tdStrong}>{a.reactive}</td>
-                  <td style={tdMuted}>{a.open}</td>
-                  <td style={{ ...tdStyle, color: a.overdue ? C.danger : C.text2, fontWeight: 800 }}>{a.overdue}</td>
-                  <td style={tdMuted}>{fmtHours(a.downtime)}</td>
-                  <td style={tdStyle}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 120 }}>
-                      <div style={{ flex: 1, height: 7, borderRadius: 4, background: C.bg, overflow: "hidden" }}>
-                        <div style={{ width: `${Math.min(100, Math.round(a.score))}%`, height: "100%", background: a.score >= 60 ? C.danger : a.score >= 30 ? C.warning : C.success }} />
-                      </div>
-                      <span style={{ fontSize: 12, fontWeight: 800 }}>{Math.round(a.score)}</span>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </Card>
-
-      <SectionLabel icon={BarChart2} label="5. Costos" />
-      <div style={{ display: "grid", gridTemplateColumns: "0.8fr 1.2fr", gap: 14, marginBottom: 14 }}>
-        <Card>
-          <CardHeader title="Preparacion para costos" subtitle="Hoy Pangui no tiene costo_total activo en OT" />
-          <div style={{ padding: 18 }}>
-            <div style={{ fontSize: 13, color: C.text2, lineHeight: 1.6 }}>
-              Hay referencias de presupuesto, pero las columnas historicas de costo monetario fueron retiradas. Este bloque queda como control de madurez: para costo por edificio, preventivo vs correctivo y activo mas costoso hay que registrar costo de materiales, mano de obra o terceros.
-            </div>
-          </div>
-        </Card>
-        <Card>
-          <CardHeader title="Cobertura de datos de costo" subtitle="Base para reportes financieros" />
-          <SimpleBars data={costReadiness.map(q => ({ name: q.label, count: q.count, color: q.count > 0 ? C.brand : C.warning }))} total={Math.max(1, periodOTs.length)} />
-        </Card>
-      </div>
-
-      <SectionLabel icon={CheckCircle2} label="Calidad de datos" />
-      <div style={{ display: "grid", gridTemplateColumns: "0.8fr 1.2fr", gap: 14 }}>
-        <Card>
-          <CardHeader title="Ejecucion de procedimientos" subtitle="Checklists iniciados en OTs del filtro" />
-          <div style={{ padding: 18 }}>
-            <div style={{ fontSize: 34, fontWeight: 850, color: C.text1, lineHeight: 1 }}>{procCompletion}</div>
-            <div style={{ fontSize: 12, color: C.text2, marginTop: 6 }}>{procCompleted}/{procInScope.length} ejecuciones completadas</div>
-            <div style={{ marginTop: 14, height: 8, background: C.bg, borderRadius: 5, overflow: "hidden" }}>
-              <div style={{ height: "100%", width: procInScope.length ? `${(procCompleted / procInScope.length) * 100}%` : "0%", background: C.success }} />
-            </div>
-          </div>
-        </Card>
-        <Card>
-          <CardHeader title="Calidad de datos" subtitle="Campos faltantes que reducen precision de reportes" />
-          <SimpleBars data={quality.map(q => ({ name: q.label, count: q.count, color: q.count > 0 ? C.warning : C.success }))} total={Math.max(1, periodOTs.length)} />
-        </Card>
-      </div>
     </div>
   );
 }
 
-function SimpleBars({ data, total }: { data: Array<{ name: string; count: number; color: string }>; total: number }) {
+/**
+ * Count chips beside a donut: the layout used for the categorical breakdowns
+ * (Estado, Prioridad, Repetitivo). Each chip is a big number over a tinted
+ * outline label, so the panel reads at a glance without a legend.
+ *
+ * Segments with count 0 are dropped from the donut but KEPT as chips -- "0 en
+ * espera" is information, while a zero-width arc is just noise.
+ */
+/** Big count over a tinted outline label -- the chip used in panel headers. */
+function StatChip({ value, label, color }: { value: number; label: string; color: string }) {
   return (
-    <div style={{ padding: 18, display: "grid", gap: 12 }}>
-      {data.map(d => (
-        <div key={d.name}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 5 }}>
-            <span style={{ fontSize: 12, color: C.text2, textTransform: "capitalize" }}>{d.name}</span>
-            <span style={{ fontSize: 12, fontWeight: 800, color: C.text1 }}>{d.count}</span>
-          </div>
-          <div style={{ height: 7, borderRadius: 4, background: C.bg, overflow: "hidden" }}>
-            <div style={{ height: "100%", width: `${Math.min(100, (d.count / total) * 100)}%`, background: d.color }} />
-          </div>
-        </div>
-      ))}
+    <div>
+      <div style={{ fontSize: 27, fontWeight: 850, color: C.text1, lineHeight: 1 }}>{value}</div>
+      <div style={{ marginTop: 6, display: "inline-block", padding: "2px 9px", borderRadius: 6, border: `1px solid ${color}`, color, fontSize: 12, fontWeight: 700 }}>{label}</div>
+    </div>
+  );
+}
+
+function DonutBreakdown({ data }: { data: Array<{ name: string; count: number; color: string }> }) {
+  const total = data.reduce((sum, d) => sum + d.count, 0);
+  const arcs = data.filter(d => d.count > 0);
+  return (
+    <div style={{ padding: 18, flex: 1, minHeight: 0, display: "grid", gridTemplateColumns: "0.85fr 1.15fr", gap: 18, alignItems: "center" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+        {data.map(d => <StatChip key={d.name} value={d.count} label={d.name} color={d.color} />)}
+      </div>
+      <div style={{ height: "100%", minHeight: 210 }}>
+        {total === 0 ? (
+          <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: C.text3, fontSize: 13 }}>Sin datos en el periodo</div>
+        ) : (
+          <ResponsiveContainer width="100%" height="100%">
+            <PieChart>
+              <Pie data={arcs} dataKey="count" nameKey="name" innerRadius="55%" outerRadius="85%" paddingAngle={2} stroke="none">
+                {arcs.map(d => <Cell key={d.name} fill={d.color} />)}
+              </Pie>
+              <Tooltip contentStyle={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12 }} />
+            </PieChart>
+          </ResponsiveContainer>
+        )}
+      </div>
     </div>
   );
 }
@@ -882,24 +950,30 @@ const selectStyle: React.CSSProperties = {
 };
 
 const segmentedStyle: React.CSSProperties = {
-  display: "flex",
-  padding: 3,
-  border: `1px solid ${C.border}`,
-  borderRadius: 8,
-  background: C.bg,
-  gap: 2,
+  display: "inline-flex",
+  overflow: "hidden",
+  border: "1px solid var(--divider)",
+  borderRadius: 9,
+  background: "var(--color-kumo-recessed)",
 };
 
+// Matches components/OrderViewTabs.tsx (the Lista/Calendario/Kanban switcher):
+// a recessed track with the active item raised as a light "thumb". The solid
+// brand-blue fill this used before was the only segmented control in the app
+// styled that way.
 function segmentButtonStyle(active: boolean): React.CSSProperties {
   return {
-    height: 28,
-    padding: "0 10px",
-    border: "none",
-    borderRadius: 6,
-    background: active ? C.brand : "transparent",
-    color: active ? "white" : C.text2,
-    fontSize: 12,
-    fontWeight: 800,
+    minHeight: 34,
+    padding: "0 11px",
+    display: "inline-flex",
+    alignItems: "center",
+    background: active ? "var(--surface-1)" : "transparent",
+    border: active ? "1px solid var(--border)" : "1px solid transparent",
+    borderRadius: active ? 7 : 0,
+    boxShadow: active ? "var(--shadow-sm)" : "none",
+    color: active ? "var(--fg-1)" : "var(--fg-3)",
+    fontSize: 13,
+    fontWeight: active ? 600 : 500,
     cursor: "pointer",
     whiteSpace: "nowrap",
   };
@@ -914,12 +988,11 @@ const tooltipStyle: React.CSSProperties = {
 
 const thStyle: React.CSSProperties = {
   padding: "10px 14px",
-  fontSize: 11,
+  fontSize: 12,
   fontWeight: 800,
   color: C.text3,
   textAlign: "left",
-  textTransform: "uppercase",
-  letterSpacing: "0.05em",
+  letterSpacing: "0.01em",
   whiteSpace: "nowrap",
 };
 

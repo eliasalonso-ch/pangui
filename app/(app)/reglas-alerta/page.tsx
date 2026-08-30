@@ -139,27 +139,6 @@ const RULE_META: Record<string, RuleMeta> = {
     color: "var(--danger)",
     preferredUnit: "diaria",
   },
-  timer_inactivo_tecnico: {
-    label: "Timer inactivo técnico",
-    description: "Recuerda al técnico iniciar el timer de una OT asignada.",
-    icon: Timer,
-    color: "var(--warning)",
-    preferredUnit: "horas",
-  },
-  timer_inactivo_supervisor: {
-    label: "Timer inactivo supervisor",
-    description: "Escala timers inactivos hacia supervisión.",
-    icon: Timer,
-    color: "var(--warning)",
-    preferredUnit: "horas",
-  },
-  timer_inactivo_manager: {
-    label: "Timer inactivo manager",
-    description: "Escala timers inactivos hacia administración.",
-    icon: Timer,
-    color: "var(--danger)",
-    preferredUnit: "horas",
-  },
 };
 
 function ruleMeta(tipo: string): RuleMeta {

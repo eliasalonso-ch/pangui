@@ -46,9 +46,6 @@ type AlertType =
   | "ot_bloqueada"
   | "ot_abierta_sin_progreso"
   | "ot_en_curso_inactiva"
-  | "timer_inactivo_tecnico"
-  | "timer_inactivo_supervisor"
-  | "timer_inactivo_manager";
 
 interface ReglaAlerta {
   id: string;
@@ -197,9 +194,6 @@ function evaluateCondition(
         age(orden.created_at) >= umbralMinutos
       );
 
-    case "timer_inactivo_tecnico":
-    case "timer_inactivo_supervisor":
-    case "timer_inactivo_manager":
     case "timer_sin_iniciar":
       return (
         ["pendiente", "en_curso"].includes(orden.estado) &&
@@ -253,9 +247,6 @@ function buildNotificationContent(
         titulo: "OT abierta sin progreso",
         mensaje: `"${orden.titulo}" lleva más de ${horas}h sin iniciar progreso.`,
       };
-    case "timer_inactivo_tecnico":
-    case "timer_inactivo_supervisor":
-    case "timer_inactivo_manager":
     case "timer_sin_iniciar":
       return {
         titulo: "OT no iniciada",
@@ -565,7 +556,11 @@ Deno.serve(async (req) => {
             titulo,
             mensaje,
             tipo: regla.tipo,
-            url: "/ordenes?vista=kanban",
+            // Carry the exact OT ids the alert fired for. "4 OTs vencidas"
+            // previously linked to the whole kanban, so the reader had to hunt
+            // for which four -- and the body only names three ("y 1 mas").
+            // Both clients filter on ?ids= and show just these.
+            url: `/ordenes?ids=${newlyTriggered.map((o) => o.id).join(",")}`,
           }));
 
           // Assignees get their own OT named and linked, rather than the
