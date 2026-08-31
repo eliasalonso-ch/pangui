@@ -132,6 +132,12 @@ export default function OrdenesBandeja({
   const queryClient = useQueryClient();
 
   const [ordenes, setOrdenes]   = useState<OrdenListItem[]>(initialOrdenes);
+  // Mirror of `ordenes` for callbacks that must read the current list without
+  // taking it as a dependency — notably the 60s poll, whose identity must stay
+  // stable or its setInterval would be torn down and restarted on every list
+  // update and effectively never fire.
+  const ordenesRef = useRef<OrdenListItem[]>(initialOrdenes);
+  useEffect(() => { ordenesRef.current = ordenes; }, [ordenes]);
   const [allOrdenesForCounts, setAllOrdenesForCounts] = useState<OrdenBulkItem[] | null>(
     () => initialOrdenes.length < ORDENES_PAGE_SIZE ? initialOrdenes : null,
   );
@@ -638,8 +644,30 @@ export default function OrdenesBandeja({
    */
   const refreshVisible = useCallback(async () => {
     const data = await fetchOrdenesPage(wsId);
-    setOrdenes(data);
-    setHasMoreOrdenes(data.length >= ORDENES_PAGE_SIZE);
+    // Merge instead of replace. `fetchOrdenesPage` returns only the FIRST page
+    // (20 newest rows), so assigning it wholesale threw away every extra page
+    // the user had pulled in with the infinite scroll: the list collapsed back
+    // to 20 rows mid-read and the scroll container jumped to the top, once a
+    // minute. Now the poll only refreshes the window it actually fetched.
+    //
+    // Only page 1 was ever loaded? Then the fetch IS the whole list, and it
+    // also re-answers "is there more?". Once later pages exist that question
+    // belongs to the last page the infinite scroll fetched — which this poll
+    // never asked for — so the flag is left alone.
+    const soloPrimeraPagina = ordenesRef.current.length <= data.length;
+    if (soloPrimeraPagina) setHasMoreOrdenes(data.length >= ORDENES_PAGE_SIZE);
+
+    setOrdenes(prev => {
+      if (prev.length <= data.length) return data;
+      // Rows are ordered created_at DESC, so the page we just fetched covers
+      // everything down to its last row's created_at. Within that window the
+      // server is authoritative (it reflects creations and deletions); older
+      // rows come from pages the poll didn't ask for and must be preserved.
+      const cutoff = data[data.length - 1]?.created_at ?? null;
+      const fresh = new Set(data.map(o => o.id));
+      const older = prev.filter(o => !fresh.has(o.id) && (cutoff === null || o.created_at < cutoff));
+      return [...data, ...older];
+    });
   }, [wsId]);
 
   /**
