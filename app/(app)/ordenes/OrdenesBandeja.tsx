@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Plus, Search, X, ChevronDown, Loader2, FileText, ArrowUpDown, Download, AlertTriangle, Calendar, Check, Copy, DatabaseArrowDown, Eye, EyeOff } from "lucide-react";
+import { Plus, Search, X, ChevronDown, Loader2, FileText, ArrowUp, ArrowUpDown, Download, AlertTriangle, Calendar, Check, Copy, DatabaseArrowDown, Eye, EyeOff } from "lucide-react";
 import { useTopBarAction } from "@/components/TopBarActions";
 import { createClient, logRealtimeChannel } from "@/lib/supabase";
 import { esAdmin } from "@/lib/roles";
@@ -94,6 +94,11 @@ const EMPTY_FILTROS: FiltrosState = {
 // How many rows to reveal per infinite-scroll step.
 const VISIBLE_CHUNK = 30;
 
+// A partir de cuánto scroll una OT nueva deja de insertarse sola. Arriba del
+// todo no hay nada que empujar y la fila entra sin molestar; más abajo,
+// insertarla correría el contenido que el usuario está leyendo.
+const NUEVA_OT_UMBRAL_PX = 400;
+
 // Resizable list/detail split (desktop list view).
 const LIST_WIDTH_KEY = "ordenes:listWidth";
 const DEFAULT_LIST_WIDTH = 400;
@@ -138,6 +143,9 @@ export default function OrdenesBandeja({
   // update and effectively never fire.
   const ordenesRef = useRef<OrdenListItem[]>(initialOrdenes);
   useEffect(() => { ordenesRef.current = ordenes; }, [ordenes]);
+  // El primer SUBSCRIBED del canal realtime no es una reconexión: la lista
+  // recién llegó por SSR. Solo los siguientes implican un hueco que rellenar.
+  const primeraSuscripcionRef = useRef(true);
   const [allOrdenesForCounts, setAllOrdenesForCounts] = useState<OrdenBulkItem[] | null>(
     () => initialOrdenes.length < ORDENES_PAGE_SIZE ? initialOrdenes : null,
   );
@@ -787,20 +795,32 @@ export default function OrdenesBandeja({
     }
   }, [hasMoreOrdenes, ordenes, wsId, search]);
 
-  // Poll the VISIBLE page every 60s — no realtime channel for ordenes_trabajo.
-  // Skipped while the tab is hidden: this is an all-day ops tool, and polling
-  // backgrounded tabs was a large share of the egress bill for no user benefit.
-  // The next tick after the user returns catches everything up.
+  // El poll de 60s se eliminó. La lista se mantiene fresca por el canal
+  // realtime de abajo, que ya cubre INSERT/UPDATE/DELETE sobre
+  // ordenes_trabajo y parcha SOLO la fila afectada — el comentario que decía
+  // "no realtime channel for ordenes_trabajo" quedó obsoleto cuando se agregó
+  // ese canal, y el timer sobrevivió por inercia.
   //
-  // Swallow transient network errors (e.g. the user's connection drops): the
-  // next poll recovers. Without this, a failed fetch becomes an unhandled
-  // promise rejection that surfaces as a crash.
+  // El poll no solo era redundante: era el que rompía la lectura. Refrescaba
+  // la lista entera cada minuto, reordenando filas bajo el cursor del usuario
+  // mientras revisaba una OT (y, con Electrilam en 743 OTs contra páginas de
+  // 20, era además la consulta de lista más repetida del proyecto).
+  //
+  // Lo único que el poll sí aportaba era recuperación: realtime NO reenvía los
+  // eventos perdidos mientras el socket estuvo caído, y el poll se saltaba las
+  // pestañas ocultas, así que el primer tick al volver era lo que reparaba la
+  // lista. Eso ahora se hace por evento, no por temporizador: al volver a la
+  // pestaña (visibilitychange) y al re-suscribirse el canal, que son los dos
+  // momentos exactos en que la lista puede haber quedado desfasada.
   useEffect(() => {
-    const id = setInterval(() => {
-      if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
-      refreshVisible().catch(() => { /* transient — next poll retries */ });
-    }, 60_000);
-    return () => clearInterval(id);
+    const onVisible = () => {
+      if (document.visibilityState !== "visible") return;
+      // Swallow transient network errors: la próxima vuelta a la pestaña
+      // reintenta. Sin esto un fetch fallido queda como unhandled rejection.
+      refreshVisible().catch(() => { /* transitorio — se reintenta al volver */ });
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
   }, [refreshVisible]);
 
   useEffect(() => {
@@ -850,7 +870,16 @@ export default function OrdenesBandeja({
           queryClient.invalidateQueries({ queryKey: ["orden", next.id] });
 
           if (payload.eventType === "INSERT") {
-            refreshList().catch(() => { /* transient — next event/poll retries */ });
+            // Una OT nueva entra por arriba (el orden es created_at DESC), así
+            // que insertarla al vuelo empuja hacia abajo todo lo que el usuario
+            // está leyendo. Si ya bajó en la lista se ignora: la verá al volver
+            // arriba, al cambiar de pestaña o al reentrar (visibilitychange).
+            // No se anuncia nada — normalmente la OT la está cargando él mismo
+            // o un compañero, así que un aviso sería ruido, y mover la lista
+            // bajo el cursor es peor que mostrarla un momento más tarde.
+            // Arriba del todo no hay nada que empujar, así que entra sola.
+            if ((listScrollRef.current?.scrollTop ?? 0) > NUEVA_OT_UMBRAL_PX) return;
+            refreshList().catch(() => { /* transitorio — reintenta al reconectar */ });
             return;
           }
 
@@ -884,6 +913,22 @@ export default function OrdenesBandeja({
       )
       .subscribe((status) => {
         logRealtimeChannel("status", { ...channelDetails, status }, sb);
+        // Realtime no reenvía lo que pasó mientras el socket estuvo caído, así
+        // que una re-suscripción implica un hueco: todo cambio ocurrido entre
+        // la caída y este momento no llegó nunca. Re-sincronizar aquí es lo que
+        // reemplaza al viejo poll de 60s como red de seguridad — con la
+        // diferencia de que solo corre cuando de verdad hubo una desconexión,
+        // no una vez por minuto pase lo que pase.
+        //
+        // `primeraSuscripcion` evita refrescar en el SUBSCRIBED inicial: la
+        // lista acaba de llegar por SSR y volver a pedirla sería un fetch
+        // redundante en cada carga de página.
+        if (status !== "SUBSCRIBED") return;
+        if (primeraSuscripcionRef.current) {
+          primeraSuscripcionRef.current = false;
+          return;
+        }
+        refreshVisible().catch(() => { /* transitorio — reintenta al reconectar */ });
       });
 
     return () => {
@@ -892,7 +937,7 @@ export default function OrdenesBandeja({
         logRealtimeChannel("remove:done", channelDetails, sb);
       });
     };
-  }, [refreshList, wsId, queryClient]);
+  }, [refreshList, refreshVisible, wsId, queryClient]);
 
   const deleteOT = async (id: string) => {
     await deleteOrden(id);
@@ -1855,6 +1900,9 @@ export default function OrdenesBandeja({
           {/* List */}
           {/* Gap + padding so each OTRow reads as a card floating on the canvas
               rather than a band in a continuous white sheet. */}
+          {/* position:relative para que la píldora de "nuevas OT" flote sobre
+              la lista sin ocupar espacio ni desplazar ninguna fila. */}
+          <div style={{ flex:1, minHeight:0, position:"relative", display:"flex", flexDirection:"column" }}>
           <div ref={listScrollRef} style={{ flex:1, minHeight:0, overflowY:"auto", display:"flex", flexDirection:"column", gap:8, padding:"8px 10px" }}>
             {searchPendiente && filtered.length === 0 ? (
               /* Buscando: ni la lista vieja ni "sin resultados", que serian las
@@ -1942,6 +1990,7 @@ export default function OrdenesBandeja({
                 )}
               </>
             )}
+          </div>
           </div>
           </>)}
         </div>
