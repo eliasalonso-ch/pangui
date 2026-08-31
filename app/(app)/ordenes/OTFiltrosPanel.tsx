@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { X, Check, Trash2, User, UserRoundX, Clock, MapPin, Flag, Search, Milestone, Plus, Wrench, Building2, Pause, RotateCw, ArrowUp, ArrowDown, AlertTriangle, Minus, type LucideIcon } from "lucide-react";
+import { X, Check, Trash2, User, UserRoundX, Clock, MapPin, Flag, Search, Zap, Plus, Wrench, Building2, Pause, RotateCw, ArrowUp, ArrowDown, AlertTriangle, Minus, type LucideIcon } from "lucide-react";
 
 import type { FiltrosState, Estado, Prioridad, TipoTrabajo, Usuario, Ubicacion, Sociedad } from "@/types/ordenes";
 import { FILTER_META, FILTER_ORDER, type FilterKey, type FilterMeta } from "./filter-registry";
@@ -343,7 +343,7 @@ const FILTER_ICONS: Record<FilterKey, React.ReactNode> = {
   sinAsignar:       <UserRoundX size={15} />,
   fechaVencimiento: <Clock size={15} />,
   ubicacionIds:     <MapPin size={15} />,
-  itos:             <Milestone size={15} />,
+  itos:             <Zap size={15} />,
   prioridades:      <Flag size={15} />,
   estados:          <Check size={15} />,
   tipos:            <Wrench size={15} />,
