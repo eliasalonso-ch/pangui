@@ -1101,14 +1101,51 @@ export default function OTDetail({
   }, [actividad]);
   const loadingAct = loadingActQuery;
 
-  // Poll only while the section is visible: an OT panel can stay open all day,
-  // and polling a section nobody is looking at spends egress for nothing.
+  // Actividad en vivo: reemplaza al poll de 30s que corria mientras la seccion
+  // estaba abierta. Un panel de OT puede quedar abierto todo el dia, asi que
+  // ese timer preguntaba "cambio algo?" 120 veces por hora para que casi
+  // siempre la respuesta fuera "no". Ahora Postgres avisa cuando de verdad
+  // pasa algo, y entre comentario y comentario no se gasta nada.
+  //
+  // Solo se suscribe con la seccion abierta, por la misma razon por la que el
+  // poll solo corria ahi: nadie esta mirando el historial de una OT cerrada.
+  //
+  // El filtro es por orden_id, asi que un comentario en otra OT no despierta
+  // este panel. RLS (actividad_select, via my_workspace_id()) se evalua igual
+  // sobre la conexion realtime, asi que no llega nada de otro workspace.
+  //
+  // Se invalida la query en vez de insertar la fila del payload: el feed
+  // muestra datos del autor que realtime no manda (solo trae columnas propias
+  // de actividad_ot, sin el join a usuarios), y un refetch de una sola OT es
+  // barato comparado con pintar un comentario sin nombre ni avatar.
   useEffect(() => {
     if (tab !== "actividad") return;
-    const pollId = setInterval(() => {
+    const sb = createClient();
+    const channel = sb
+      .channel(`actividad-ot-${orden.id}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "actividad_ot", filter: `orden_id=eq.${orden.id}` },
+        () => {
+          void queryClient.invalidateQueries({ queryKey: ["actividad", orden.id] });
+        },
+      )
+      .subscribe();
+
+    // Realtime no reenvia lo que paso mientras el socket estuvo caido, asi que
+    // al volver a la pestania se resincroniza: es justo cuando el usuario
+    // podria estar mirando un historial desfasado. Mismo criterio que en la
+    // bandeja al quitar su poll.
+    const onVisible = () => {
+      if (document.visibilityState !== "visible") return;
       void queryClient.invalidateQueries({ queryKey: ["actividad", orden.id] });
-    }, 30_000);
-    return () => clearInterval(pollId);
+    };
+    document.addEventListener("visibilitychange", onVisible);
+
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      void sb.removeChannel(channel);
+    };
   }, [tab, orden.id, queryClient]);
 
 
