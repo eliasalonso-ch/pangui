@@ -124,6 +124,10 @@ interface ActividadItem {
 
 const ACTIVIDAD_PAGE = 20;
 
+/** Filas de "Requieren atención" por tanda. Como la lista se ve dentro de un
+ *  contenedor de 192 px, con 20 ya sobra para llenar el scroll visible. */
+const ATENCION_PAGE = 20;
+
 const ACTIVIDAD_SELECT =
   "id, tipo, comentario, created_at, orden_id, usuario_id, " +
   "orden:ordenes_trabajo!orden_id(titulo), usuario:usuarios!usuario_id(nombre)";
@@ -655,6 +659,37 @@ export default function InicioDashboard() {
     });
   }, [allOTs, motivosPausa, atencionFiltro, atencionOrden]);
 
+  /**
+   * "Requieren atención" se renderiza de a tandas, como la actividad.
+   *
+   * La lista vive en un contenedor de 192 px con scroll propio: se ven unas
+   * cuatro filas, pero antes se montaban TODAS —una por OT abierta— y el
+   * navegador igual las pintaba y las incluía en el hit testing en cada
+   * scroll. Con 400 OTs cargadas eso era la mayor parte del Paint del perfil.
+   *
+   * A diferencia de la actividad, aquí no hay que ir a la red: `allOTs` ya
+   * está en memoria y `requierenAtencion` sale de un useMemo, así que basta
+   * con cortar el array y dejar que el sentinel vaya ampliando el corte.
+   */
+  const [atencionVistas, setAtencionVistas] = useState(ATENCION_PAGE);
+
+  // Al cambiar filtro u orden la lista es otra: volver a la primera tanda,
+  // o se quedaría mostrando el largo acumulado de la anterior.
+  useEffect(() => { setAtencionVistas(ATENCION_PAGE); }, [atencionFiltro, atencionOrden]);
+
+  const atencionVisible = useMemo(
+    () => requierenAtencion.slice(0, atencionVistas),
+    [requierenAtencion, atencionVistas],
+  );
+  const atencionFin = atencionVisible.length >= requierenAtencion.length;
+  // Se acota al largo actual: sin el tope, `atencionVistas` sigue creciendo con
+  // cada tirón del sentinel y queda muy por encima de la lista. Al completar
+  // OTs la lista se acorta, pero el contador se habría quedado arriba y la
+  // tanda dejaría de acotar nada durante el resto de la sesión.
+  const mostrarMasAtencion = useCallback(() => {
+    setAtencionVistas(n => Math.min(n + ATENCION_PAGE, requierenAtencion.length));
+  }, [requierenAtencion.length]);
+
   /** Conteo por tipo, para mostrarlo junto a cada opción del filtro. */
   const atencionConteos = useMemo(() => {
     const hoy = new Date().toISOString().slice(0, 10);
@@ -988,13 +1023,13 @@ export default function InicioDashboard() {
                 </>
               }
             >
-              <div style={{ maxHeight: 192, overflowY: "auto" }}>
+              <div data-scroll style={{ maxHeight: 192, overflowY: "auto" }}>
               {requierenAtencion.length === 0 && (
                 <p style={{ padding: "16px", margin: 0, fontSize: 14, color: "var(--fg-4)" }}>
                   Nada con ese filtro.
                 </p>
               )}
-              {requierenAtencion.map((r, i) => (
+              {atencionVisible.map((r, i) => (
                 <button
                   key={r.id}
                   className="inicio-row"
@@ -1020,6 +1055,7 @@ export default function InicioDashboard() {
                   }}>{r.motivo}</span>
                 </button>
               ))}
+              <InfiniteSentinel onHit={mostrarMasAtencion} disabled={atencionFin} />
               </div>
             </Card>
           )}
