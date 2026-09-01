@@ -1,7 +1,8 @@
 "use client";
 
 // PostHog analytics provider. Initializes once on the client and wraps the app.
-// Autocapture (clicks/inputs) + manual pageview tracking. Session replay off.
+// Solo eventos explicitos + pageview manual: autocapture y session replay
+// estan apagados a proposito (ver los comentarios en init).
 import { usePathname, useSearchParams } from "next/navigation";
 import { Suspense, useEffect } from "react";
 import posthog from "posthog-js";
@@ -17,7 +18,17 @@ if (typeof window !== "undefined" && POSTHOG_KEY && !posthog.__loaded) {
     // We track pageviews manually (below) so SPA navigations are captured.
     capture_pageview: false,
     capture_pageleave: true,
-    autocapture: true,
+    // Autocapture APAGADO. Instalaba listeners globales de click/input/scroll y,
+    // por cada evento, recorria el DOM hacia arriba para construir el selector
+    // CSS del elemento; sobre el DOM de /inicio ese recorrido es el tironeo que
+    // quedaba despues de apagar session replay (el stack de las peticiones a
+    // /e/ y /i/v0/e/ lo senalaba: capture -> enqueue -> _send_request).
+    //
+    // No se pierde nada que se use: los eventos de producto (ot_created,
+    // ot_completed, subscription_activated, trial_started, pdf_exported,
+    // signed_in) son todos explicitos —ver lib/analytics.ts— y el $pageview se
+    // manda a mano mas abajo. Autocapture solo agregaba clicks anonimos.
+    autocapture: false,
     persistence: "localStorage+cookie",
     // Session replay APAGADO, tambien en produccion.
     //
