@@ -1839,7 +1839,7 @@ export default function OrdenesBandeja({
                     scrollbarGutter:"stable both-edges",
                   }}>
                     {/* Mostrar — scope filter */}
-                    <div style={{ padding:"8px 14px 6px", fontSize:12, fontWeight:700, color:"var(--fg-4)", letterSpacing:"0.01em", borderBottom:"1px solid var(--border)", marginBottom:4 }}>
+                    <div style={{ padding:"8px 14px 6px", fontSize:13, fontWeight:600, color:"var(--fg-4)", letterSpacing:0, borderBottom:"1px solid var(--border)", marginBottom:4 }}>
                       Mostrar
                     </div>
                     {scopeOptions.map(o => {
@@ -1879,12 +1879,10 @@ export default function OrdenesBandeja({
                       );
                     })}
 
-                    {/* Ordenar por. El borderTop separa las dos secciones; el
-                        borderBottom del título es otra cosa (subraya el título),
-                        así que este necesita aire para no leerse como una raya
-                        doble. */}
-                    <div style={{ borderTop:"1px solid var(--border)", marginTop:6 }} />
-                    <div style={{ padding:"8px 14px 6px", fontSize:12, fontWeight:700, color:"var(--fg-4)", letterSpacing:"0.01em", borderBottom:"1px solid var(--border)", marginBottom:4 }}>
+                    {/* Ordenar por. Sin la línea separadora, el título necesita
+                        aire arriba para no pegarse a la última fila de arriba;
+                        16px es el mismo margen que usa SidebarGroupLabel. */}
+                    <div style={{ padding:"8px 14px 6px", marginTop:12, fontSize:13, fontWeight:600, color:"var(--fg-4)", letterSpacing:0, borderBottom:"1px solid var(--border)", marginBottom:4 }}>
                       Ordenar por
                     </div>
                     {SORT_OPTIONS.filter(o => !o.soloCompletas || tab === "completas").map(o => (
