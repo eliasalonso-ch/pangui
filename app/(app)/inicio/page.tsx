@@ -903,15 +903,14 @@ export default function InicioDashboard() {
             {enTerreno.map((t, i) => (
               <button
                 key={t.otId}
+                className="inicio-row"
                 onClick={() => abrirOT(t.otId)}
                 style={{
                   width: "100%", display: "flex", alignItems: "center", gap: 12,
-                  height: 48, boxSizing: "border-box", padding: "0 16px", background: "none", border: "none",
+                  height: 48, boxSizing: "border-box", padding: "0 16px", border: "none",
                   borderTop: i === 0 ? "none" : "1px solid var(--border)",
                   cursor: "pointer", fontFamily: "inherit", textAlign: "left",
                 }}
-                onMouseEnter={e => { e.currentTarget.style.background = "var(--surface-hover)"; }}
-                onMouseLeave={e => { e.currentTarget.style.background = "none"; }}
               >
                 <span style={{
                   width: 30, height: 30, borderRadius: "50%", flexShrink: 0,
@@ -998,16 +997,15 @@ export default function InicioDashboard() {
               {requierenAtencion.map((r, i) => (
                 <button
                   key={r.id}
+                  className="inicio-row"
                   onClick={() => abrirOT(r.id)}
                   style={{
                     width: "100%", display: "flex", alignItems: "center", gap: 12,
                     height: 48, boxSizing: "border-box",
-                    padding: "0 16px", background: "none", border: "none",
+                    padding: "0 16px", border: "none",
                     borderTop: i === 0 ? "none" : "1px solid var(--border)",
                     cursor: "pointer", fontFamily: "inherit", textAlign: "left",
                   }}
-                  onMouseEnter={e => { e.currentTarget.style.background = "var(--surface-hover)"; }}
-                  onMouseLeave={e => { e.currentTarget.style.background = "none"; }}
                 >
                   <span style={{ width: 8, height: 8, borderRadius: "50%", background: r.color, flexShrink: 0 }} />
                   <span style={{ flex: 1, minWidth: 0 }}>
@@ -1036,6 +1034,7 @@ export default function InicioDashboard() {
                 return (
                   <div
                     key={i}
+                    className={clickable ? "inicio-row-clickable" : undefined}
                     onClick={clickable ? () => insight.filtro === "inventario" ? router.push("/partes") : router.push(`/ordenes?filtro=${insight.filtro}`) : undefined}
                     style={{
                       display: "flex", alignItems: "center", gap: 12,
@@ -1043,8 +1042,6 @@ export default function InicioDashboard() {
                       borderBottom: isLast ? "none" : "1px solid var(--border)",
                       cursor: clickable ? "pointer" : "default",
                     }}
-                    onMouseEnter={e => { if (clickable) e.currentTarget.style.background = "var(--surface-hover)"; }}
-                    onMouseLeave={e => { if (clickable) e.currentTarget.style.background = ""; }}
                   >
                     <div style={{ width: 8, height: 8, borderRadius: "50%", background: dotColor, flexShrink: 0 }} />
                     <span style={{ flex: 1, fontSize: 14, fontWeight: 400, color: "var(--fg-1)", lineHeight: 1.5, minWidth: 0 }}>{insight.message}</span>
@@ -1088,14 +1085,13 @@ export default function InicioDashboard() {
                   return (
                     <div
                       key={a.id}
+                      className="inicio-row"
                       onClick={() => abrirOT(a.orden_id)}
                       style={{
                         display: "flex", alignItems: "center", gap: 12, height: 48, boxSizing: "border-box", padding: "0 16px",
                         borderTop: i === 0 ? "none" : "1px solid var(--border)",
                         cursor: "pointer",
                       }}
-                      onMouseEnter={e => { e.currentTarget.style.background = "var(--surface-hover)"; }}
-                      onMouseLeave={e => { e.currentTarget.style.background = ""; }}
                     >
                       <div style={{ flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--brand)" }}>
                         {cfg.icon}
@@ -1251,15 +1247,13 @@ function KpiCard({ label, value, sub, trend, onClick }: {
   const trendColor = trend === "bad" ? "var(--danger)" : trend === "warn" ? "var(--warning)" : trend === "good" ? "var(--success)" : "var(--fg-1)";
   return (
     <div
+      className={onClick ? "inicio-kpi inicio-kpi-clickable" : "inicio-kpi"}
       onClick={onClick}
       style={{
         background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: 10,
         padding: "18px 20px",
         cursor: onClick ? "pointer" : "default",
-        transition: "box-shadow 0.15s",
       }}
-      onMouseEnter={e => { if (onClick) e.currentTarget.style.boxShadow = "var(--shadow-sm)"; }}
-      onMouseLeave={e => { e.currentTarget.style.boxShadow = "none"; }}
     >
       <div style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", letterSpacing: "0.01em", marginBottom: 8 }}>{label}</div>
       {/* Sin fontFamily propio: pedía "Inter", que esta app no carga, así que

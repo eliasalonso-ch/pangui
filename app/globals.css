@@ -641,3 +641,35 @@ input, select, textarea { color-scheme: inherit; }
   }
   body { background: #fff !important; }
 }
+
+/* Hover de las filas y tarjetas del tablero (/inicio).
+ *
+ * Antes cada fila llevaba onMouseEnter/onMouseLeave escribiendo
+ * element.style.background a mano. Con cientos de filas —"Requieren
+ * atencion" no esta paginada— mover el mouse mientras se hacia scroll
+ * disparaba pointerover por todo el arbol de React y, en cada uno, una
+ * invalidacion de estilo y un repaint: en un perfil de 35 s eran 2,2 s de
+ * "Event: pointerover" mas ~1,8 s entre Paint, Recalculate style y Layerize.
+ *
+ * :hover lo resuelve el navegador sin pasar por JS ni por React. */
+.inicio-row {
+  background: none;
+  transition: background .12s;
+}
+.inicio-row:hover {
+  background: var(--surface-hover);
+}
+
+/* Igual que .inicio-row, pero para las tarjetas que solo son interactivas
+ * cuando tienen accion (los insights sin onClick no deben iluminarse). */
+.inicio-row-clickable:hover {
+  background: var(--surface-hover);
+}
+
+/* KpiCard: sombra en vez de fondo, y solo si la tarjeta es clickeable. */
+.inicio-kpi {
+  transition: box-shadow .12s;
+}
+.inicio-kpi-clickable:hover {
+  box-shadow: var(--shadow-sm);
+}
