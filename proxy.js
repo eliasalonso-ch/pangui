@@ -272,8 +272,10 @@ export async function proxy(request) {
     return isAppRoute(pathname) ? sendToLogin() : response;
   }
 
+  // Con sesión viva, /login no tiene nada que mostrar: al tablero, que es el
+  // mismo destino que usa LoginForm tras autenticar y el que recibe "/".
   if (user && isLogin) {
-    return NextResponse.redirect(new URL("/ordenes", request.url));
+    return NextResponse.redirect(new URL("/inicio", request.url));
   }
 
   return response;
