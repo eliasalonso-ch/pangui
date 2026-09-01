@@ -223,6 +223,10 @@ export default function OrdenesBandeja({
   });
   const [scope, setScope]       = useState<ScopeKey>(() => {
     const f = searchParams?.get("filtro");
+    // Nota: ?filtro=en_curso NO mapea a este scope. Ese deep link ya existe
+    // (lo usa la tarjeta de /inicio) y aplica un filtro de estado sobre "Todas";
+    // reapuntarlo al bucket filtraría dos veces y cambiaría lo que ya usa
+    // la gente. El bucket "En curso" se alcanza desde el desplegable.
     if (f === "sin_progreso")    return "sin_progreso";
     if (f === "vencidas")        return "vencidas";
     if (f === "reprogramadas")   return "reprogramadas";
@@ -1243,6 +1247,7 @@ export default function OrdenesBandeja({
     const active = countSource.filter(o => ACTIVE_ESTADOS.has(o.estado));
     const closed = countSource.filter(o => CLOSED_ESTADOS.has(o.estado));
     const activeByScope = {
+      en_curso: [] as OrdenBulkItem[],
       sin_asignar: [] as OrdenBulkItem[],
       sin_progreso: [] as OrdenBulkItem[],
       vencidas: [] as OrdenBulkItem[],
@@ -1260,6 +1265,7 @@ export default function OrdenesBandeja({
     return {
       pendientes: {
         todas:         applyFilters(active).length,
+        en_curso:       applyFilters(activeByScope.en_curso).length,
         sin_asignar:    applyFilters(activeByScope.sin_asignar).length,
         sin_progreso:   applyFilters(activeByScope.sin_progreso).length,
         vencidas:       applyFilters(activeByScope.vencidas).length,
@@ -1279,6 +1285,7 @@ export default function OrdenesBandeja({
   const currentSortLabel = SORT_OPTIONS.find(o => o.value === sort)?.label ?? "";
   const scopeLabel: Record<ScopeKey, string> = {
     todas: "Todas",
+    en_curso: "En curso",
     sin_asignar: "Sin asignar",
     sin_progreso: "Sin progreso",
     vencidas: "Vencidas",
@@ -1765,6 +1772,7 @@ export default function OrdenesBandeja({
               tab === "pendientes"
                 ? [
                     { value: "todas",          label: "Todas",                       count: filteredCounts.pendientes.todas },
+                    { value: "en_curso",       label: "En curso",                    count: filteredCounts.pendientes.en_curso },
                     { value: "sin_progreso",   label: "Sin progreso",                count: filteredCounts.pendientes.sin_progreso },
                     { value: "vencidas",       label: "Vencidas",                    count: filteredCounts.pendientes.vencidas },
                     { value: "reprogramadas",  label: "Reprogramadas",               count: filteredCounts.pendientes.reprogramadas },
@@ -1825,9 +1833,13 @@ export default function OrdenesBandeja({
                     borderRadius:8, boxShadow:"0 8px 24px rgba(15,23,42,0.12)",
                     maxHeight:"min(480px, calc(100vh - 260px))",
                     overflowX:"hidden", overflowY:"auto",
+                    // El scrollbar se come el inset derecho y deja el resaltado
+                    // de la fila activa descentrado. Reservar el canal en los
+                    // dos bordes lo mantiene simétrico haya scroll o no.
+                    scrollbarGutter:"stable both-edges",
                   }}>
                     {/* Mostrar — scope filter */}
-                    <div style={{ padding:"8px 14px 4px", fontSize:10, fontWeight:700, color:"var(--fg-4)", textTransform:"uppercase", letterSpacing:"0.06em" }}>
+                    <div style={{ padding:"8px 14px 6px", fontSize:12, fontWeight:700, color:"var(--fg-4)", letterSpacing:"0.01em", borderBottom:"1px solid var(--border)", marginBottom:4 }}>
                       Mostrar
                     </div>
                     {scopeOptions.map(o => {
@@ -1867,9 +1879,12 @@ export default function OrdenesBandeja({
                       );
                     })}
 
-                    {/* Ordenar por */}
-                    <div style={{ borderTop:"1px solid var(--border)" }} />
-                    <div style={{ padding:"8px 14px 4px", fontSize:10, fontWeight:700, color:"var(--fg-4)", textTransform:"uppercase", letterSpacing:"0.06em" }}>
+                    {/* Ordenar por. El borderTop separa las dos secciones; el
+                        borderBottom del título es otra cosa (subraya el título),
+                        así que este necesita aire para no leerse como una raya
+                        doble. */}
+                    <div style={{ borderTop:"1px solid var(--border)", marginTop:6 }} />
+                    <div style={{ padding:"8px 14px 6px", fontSize:12, fontWeight:700, color:"var(--fg-4)", letterSpacing:"0.01em", borderBottom:"1px solid var(--border)", marginBottom:4 }}>
                       Ordenar por
                     </div>
                     {SORT_OPTIONS.filter(o => !o.soloCompletas || tab === "completas").map(o => (
@@ -1923,6 +1938,7 @@ export default function OrdenesBandeja({
                 <p style={{ fontSize:13, color:"var(--fg-2)", fontWeight:500 }}>
                   {search
                     ? "Sin resultados para tu búsqueda"
+                    : scope === "en_curso"      ? "No hay órdenes en curso ahora"
                     : scope === "sin_progreso"  ? "No hay órdenes sin progreso"
                     : scope === "vencidas"      ? "No hay órdenes vencidas"
                     : scope === "reprogramadas" ? "No hay órdenes reprogramadas"

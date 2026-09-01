@@ -2,7 +2,7 @@ import type { OrdenListItem } from "@/types/ordenes";
 import { dateKey } from "./date-utils";
 
 export type PendingScopeKey =
-  | "sin_asignar" | "sin_progreso" | "vencidas" | "reprogramadas"
+  | "en_curso" | "sin_asignar" | "sin_progreso" | "vencidas" | "reprogramadas"
   | "materiales" | "levantamientos" | "presupuestos" | "otras";
 
 /**
@@ -46,13 +46,28 @@ export function esPresupuesto(o: ScopeableOrden): boolean {
 }
 
 /**
+ * "En curso": alguien la está trabajando ahora.
+ *
+ * Se define por `estado`, no por `en_ejecucion` (el cronómetro), a propósito:
+ * el chip de estado que se ve en cada tarjeta lee `estado`, así que atarlo al
+ * cronómetro dejaría OTs en este bucket mostrando "En espera" en su tarjeta.
+ */
+export function estaEnCurso(o: ScopeableOrden): boolean {
+  return o.estado === "en_curso";
+}
+
+/**
  * Bucket de una OT pendiente.
  *
  * Cadena de prioridad: cada OT cae en un solo bucket, el primero que calce,
  * así los contadores suman el total sin duplicar.
  *
  * El orden importa:
- *  - Levantamiento y presupuesto van primero porque describen QUÉ es el
+ *  - "En curso" va primero de todo: la pregunta que responde es "¿quién está
+ *    trabajando ahora?", y una OT que se está ejecutando no está detenida por
+ *    ningún motivo. Esto saca de "Vencidas" a las OTs vencidas que alguien ya
+ *    está resolviendo — que es correcto: ya no requieren acción del planner.
+ *  - Levantamiento y presupuesto van después porque describen QUÉ es el
  *    trabajo, no por qué está detenido.
  *  - "Faltan materiales" y "Reprogramada" van antes que vencida, sin asignar
  *    y sin progreso porque describen POR QUÉ está detenida, que es lo
@@ -65,6 +80,7 @@ export function pendingScopeFor(
   faltanMaterialesIds: Set<string>,
   todayKey: string,
 ): PendingScopeKey {
+  if (estaEnCurso(o)) return "en_curso";
   if (esLevantamiento(o)) return "levantamientos";
   if (esPresupuesto(o)) return "presupuestos";
   if (faltanMaterialesIds.has(o.id)) return "materiales";

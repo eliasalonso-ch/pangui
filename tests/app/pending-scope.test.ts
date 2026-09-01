@@ -91,4 +91,41 @@ describe("pendingScopeFor", () => {
     ]);
     expect(buckets).toHaveLength(ots.length);
   });
+
+  // "En curso" responde "¿quién está trabajando ahora?", así que gana sobre
+  // todo lo demás: una OT que se está ejecutando no está detenida por nada.
+  describe("en curso", () => {
+    it("una OT en_curso va a en_curso", () => {
+      expect(pendingScopeFor(ot({ estado: "en_curso" }), NONE, NONE, TODAY)).toBe("en_curso");
+    });
+
+    it("en curso gana sobre vencida", () => {
+      const o = ot({ estado: "en_curso", fecha_termino: "2026-06-22" });
+      expect(pendingScopeFor(o, NONE, NONE, TODAY)).toBe("en_curso");
+    });
+
+    it("en curso gana sobre levantamiento y presupuesto", () => {
+      const lev = ot({ estado: "en_curso", clasificacion: "levantamiento" });
+      const pre = ot({ estado: "en_curso", tipo_trabajo: "presupuesto" });
+      expect(pendingScopeFor(lev, NONE, NONE, TODAY)).toBe("en_curso");
+      expect(pendingScopeFor(pre, NONE, NONE, TODAY)).toBe("en_curso");
+    });
+
+    it("en curso gana sobre faltan materiales y reprogramada", () => {
+      const o = ot({ estado: "en_curso" });
+      expect(pendingScopeFor(o, new Set([o.id]), new Set([o.id]), TODAY)).toBe("en_curso");
+    });
+
+    // El bucket se define por `estado`, no por el cronómetro: si se atara a
+    // `en_ejecucion`, una OT aparecería acá mostrando "En espera" en su tarjeta.
+    it("el cronómetro corriendo NO basta si el estado no es en_curso", () => {
+      const o = ot({ estado: "en_espera", en_ejecucion: true });
+      expect(pendingScopeFor(o, NONE, NONE, TODAY)).toBe("otras");
+    });
+
+    it("una OT en_espera con progreso sigue cayendo en otras", () => {
+      const o = ot({ estado: "en_espera", iniciado_at: "2026-07-01T10:00:00Z" });
+      expect(pendingScopeFor(o, NONE, NONE, TODAY)).toBe("otras");
+    });
+  });
 });
