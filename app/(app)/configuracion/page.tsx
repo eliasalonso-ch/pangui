@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase";
 import { ROL_LABEL, esAdmin } from "@/lib/roles";
+import { resetPerfilUsuarioCache } from "@/lib/perfil-usuario";
 import {
   LogOut, KeyRound, Bell, User, Loader2, Check, Eye, EyeOff, ChevronRight,
   Pencil, MonitorSmartphone, X, ImagePlus, Trash2,
@@ -201,6 +202,9 @@ export default function ConfiguracionPage({ section }: { section?: Configuracion
     setSavingNombre(true);
     const sb = createClient();
     await sb.from("usuarios").update({ nombre: nombreDraft.trim() }).eq("id", myId);
+    // El nombre lo pinta la topbar desde el perfil cacheado: sin esto seguiria
+    // mostrando el anterior hasta recargar.
+    resetPerfilUsuarioCache();
     setNombre(nombreDraft.trim());
     setSavingNombre(false);
     setEditingNombre(false);

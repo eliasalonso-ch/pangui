@@ -17,6 +17,7 @@ import {
   type WorkOrderActionV1,
 } from "@/lib/work-orders/commands-v1";
 import { getWorkOrderRolloutV1 } from "@/lib/work-orders/rollout-v1";
+import { getPerfilUsuario } from "@/lib/perfil-usuario";
 
 // ITOs (inspector milestones) is an Electrilam-exclusive feature — the ITO field
 // is shown only for this workspace. Mirrors the mobile gate in constants/index.ts.
@@ -285,20 +286,12 @@ export async function getSoloAsignadasUserId(userId?: string): Promise<string | 
   if (visibilidadEnVuelo) return visibilidadEnVuelo;
 
   visibilidadEnVuelo = (async () => {
-    const sb = createClient();
-
-    let id = userId;
-    if (!id) {
-      const { data: { user } } = await sb.auth.getUser();
-      if (!user) return null;
-      id = user.id;
-    }
-
-    const { data } = await sb
-      .from("usuarios")
-      .select("rol, solo_asignadas")
-      .eq("id", id)
-      .maybeSingle();
+    // `rol` y `solo_asignadas` viven en la misma fila que ya trae
+    // getPerfilUsuario() para la topbar, el sidebar y el tablero: pedirla
+    // aparte era una quinta consulta al mismo id, con su preflight.
+    const data = await getPerfilUsuario();
+    const id = userId ?? data?.id;
+    if (!id) return null;
 
     // Only `member` is ever restricted. Owners/admins always see everything, and
     // a missing row must not accidentally hide a user's own work.
