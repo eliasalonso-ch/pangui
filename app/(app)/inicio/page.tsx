@@ -13,15 +13,10 @@ import {
   Zap, Brain, ChevronRight, TrendingDown,
   Package, Timer, Activity,
 } from "lucide-react";
-import {
-  Bar, BarChart, CartesianGrid, Cell, Legend, Line, LineChart,
-  ResponsiveContainer, Tooltip, XAxis, YAxis,
-} from "recharts";
+import dynamic from "next/dynamic";
 import { useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase";
 import { ordenQueryOptions } from "@/lib/queries";
-import OTDetail from "@/app/(app)/ordenes/OTDetail";
-import OTEditPanel from "@/app/(app)/ordenes/OTEditPanel";
 import type {
   Activo, CategoriaOT, LugarEspecifico, OrdenTrabajo, Sociedad, Ubicacion, Usuario,
 } from "@/types/ordenes";
@@ -36,6 +31,53 @@ import {
   aggregateTimeDistribution,
   avgResolutionTime,
 } from "@/lib/ot-metrics";
+
+/**
+ * Todo lo pesado de /inicio se carga aparte del bundle inicial.
+ *
+ * OTDetail (6.500 líneas, arrastra HojaSpreadsheet y la subida a R2) y
+ * OTEditPanel sólo se montan dentro del modal, después de que el usuario hace
+ * clic en una OT; recharts sólo se ve al bajar hasta los gráficos. Antes los
+ * tres se descargaban y parseaban antes de pintar el tablero.
+ *
+ * `ssr: false` en los tres: los modales no existen en el primer render y
+ * recharts mide el ancho del contenedor, que en el servidor es cero.
+ */
+const OTDetail = dynamic(() => import("@/app/(app)/ordenes/OTDetail"), { ssr: false });
+const OTEditPanel = dynamic(() => import("@/app/(app)/ordenes/OTEditPanel"), { ssr: false });
+
+/** Altos de las filas de gráficos. Duplicados a propósito desde InicioCharts:
+ *  importarlos de allá como valor volvería a meter recharts en este bundle. */
+const ALTO_FILA_1 = 150;
+const ALTO_FILA_2 = 200;
+
+const InicioCharts = dynamic(() => import("@/app/(app)/inicio/InicioCharts"), {
+  ssr: false,
+  loading: () => <ChartsSkeleton />,
+});
+
+/**
+ * Hueco del alto exacto de los gráficos mientras llega recharts, para que el
+ * contenido de abajo no salte cuando aparecen.
+ */
+function ChartsSkeleton() {
+  const bloque = (alto: number) => (
+    <div style={{
+      background: "var(--surface-1)", border: "1px solid var(--border)",
+      borderRadius: 10, height: alto + 84,
+    }} />
+  );
+  return (
+    <>
+      <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 12, marginBottom: 28 }}>
+        {bloque(ALTO_FILA_1)}{bloque(ALTO_FILA_1)}
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 12, marginBottom: 28 }}>
+        {bloque(ALTO_FILA_2)}{bloque(ALTO_FILA_2)}
+      </div>
+    </>
+  );
+}
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -475,6 +517,10 @@ export default function InicioDashboard() {
     return filas.sort((a, b) => b.horas - a.horas);
   }, [allOTs, equipo]);
 
+  // Un único tick para todos los cronómetros de la lista, y sólo mientras hay
+  // algo que contar: sin filas en terreno no corre ningún intervalo.
+  const ahoraTick = useRelojCompartido(esSupervisor && enTerreno.length > 0);
+
   // Escape cierra el modal, como en cualquier otro overlay de la app.
   useEffect(() => {
     if (!otAbierta) return;
@@ -844,98 +890,7 @@ export default function InicioDashboard() {
         />
       </div>
 
-      {/* ── Gráficos ──
-          Sólo dos, y sólo porque el número solo no basta: "246 completadas" no
-          dice si el backlog crece, y "16 preventivas" no dice que son el 2%.
-          Los contadores de estado de arriba se quedan como número. */}
-      <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 12, marginBottom: 28 }}>
-        <ChartCard title="Creadas vs completadas" hint="Últimos 14 días">
-          <ResponsiveContainer width="100%" height={150}>
-            <BarChart data={flujo} margin={{ top: 4, right: 4, left: -26, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
-              <XAxis dataKey="label" tick={{ fontSize: 11, fill: "var(--fg-4)" }} axisLine={false} tickLine={false} interval={2} />
-              <YAxis tick={{ fontSize: 11, fill: "var(--fg-4)" }} axisLine={false} tickLine={false} allowDecimals={false} />
-              <Tooltip contentStyle={{ background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 12 }} />
-              <Legend wrapperStyle={{ fontSize: 12 }} iconType="circle" iconSize={8} />
-              <Bar dataKey="creadas" name="Creadas" fill="var(--brand)" radius={[3, 3, 0, 0]} />
-              <Bar dataKey="completadas" name="Completadas" fill="var(--success)" radius={[3, 3, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </ChartCard>
-
-        <ChartCard
-          title="Planificado vs no planificado"
-          hint={plan.pctPlanificado == null ? "Sin mantenciones" : `${plan.pctPlanificado.toFixed(0)}% planificado`}
-        >
-          {plan.pctPlanificado == null ? (
-            <div style={{ height: 150, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--fg-4)", fontSize: 14 }}>
-              Sin datos
-            </div>
-          ) : (
-            /* Barra apilada, no torta: con un reparto 98/2 una torta es un
-               círculo con una astilla invisible. */
-            <div style={{ height: 150, display: "flex", flexDirection: "column", justifyContent: "center", gap: 16 }}>
-              <div style={{ display: "flex", height: 34, borderRadius: 6, overflow: "hidden", background: "var(--surface-hover)" }}>
-                <div style={{ width: `${plan.pctPlanificado}%`, background: "var(--success)", minWidth: plan.planificadas > 0 ? 3 : 0 }} />
-                <div style={{ flex: 1, background: "var(--danger)" }} />
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {[
-                  { c: "var(--success)", l: "Planificado (preventiva)", v: plan.planificadas },
-                  { c: "var(--danger)",  l: "No planificado (reactiva/emergencia)", v: plan.noPlanificadas },
-                ].map(r => (
-                  <div key={r.l} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, color: "var(--fg-2)" }}>
-                    <span style={{ width: 9, height: 9, borderRadius: "50%", background: r.c, flexShrink: 0 }} />
-                    <span style={{ flex: 1, minWidth: 0 }}>{r.l}</span>
-                    <span style={{ fontWeight: 400, color: "var(--fg-1)" }}>{r.v}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </ChartCard>
-      </div>
-
-      {/* Flujo y backlog — el mismo gráfico de /analitica/ordenes. Va debajo de
-          los otros dos y a ancho completo porque son tres series sobre 30 días:
-          en media columna las líneas se pisan. */}
-      <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 12, marginBottom: 28 }}>
-        <ChartCard title="Flujo de OTs" hint="Últimos 30 días">
-          <ResponsiveContainer width="100%" height={200}>
-            <LineChart data={flujoLargo} margin={{ top: 4, right: 8, left: -26, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
-              <XAxis dataKey="label" tick={{ fontSize: 11, fill: "var(--fg-4)" }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
-              <YAxis tick={{ fontSize: 11, fill: "var(--fg-4)" }} axisLine={false} tickLine={false} allowDecimals={false} />
-              <Tooltip contentStyle={{ background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 12 }} />
-              <Legend wrapperStyle={{ fontSize: 12 }} iconType="circle" iconSize={8} />
-              <Line type="monotone" dataKey="creadas" name="Creadas" stroke="var(--warning)" strokeWidth={2} dot={false} />
-              <Line type="monotone" dataKey="completadas" name="Completadas" stroke="var(--success)" strokeWidth={2} dot={false} />
-              {/* El backlog es la línea que importa: si sube, se abren más OTs
-                  de las que se cierran. */}
-              <Line type="monotone" dataKey="backlog" name="Backlog" stroke="var(--brand)" strokeWidth={2} dot={false} />
-            </LineChart>
-          </ResponsiveContainer>
-        </ChartCard>
-
-        {/* Antigüedad del backlog: dice cuánto lleva esperando la cola, no
-            sólo cuánta hay. Las barras se tiñen por tramo. */}
-        <ChartCard title="Antigüedad del backlog" hint={`${backlogEdad.reduce((n, b) => n + b.count, 0)} pendientes`}>
-          <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={backlogEdad} margin={{ top: 4, right: 4, left: -26, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
-              <XAxis dataKey="label" tick={{ fontSize: 11, fill: "var(--fg-4)" }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 11, fill: "var(--fg-4)" }} axisLine={false} tickLine={false} allowDecimals={false} />
-              <Tooltip contentStyle={{ background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 12 }}
-                       cursor={{ fill: "var(--surface-hover)" }} />
-              <Bar dataKey="count" name="OTs pendientes" radius={[3, 3, 0, 0]}>
-                {backlogEdad.map(b => (
-                  <Cell key={b.label} fill={b.tone === "bad" ? "var(--danger)" : b.tone === "warn" ? "var(--warning)" : "var(--brand)"} />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        </ChartCard>
-      </div>
+      <InicioCharts flujo={flujo} flujoLargo={flujoLargo} plan={plan} backlogEdad={backlogEdad} />
 
       {/* Cuadrilla en terreno. NO muestra "en línea/desconectado": last_active
           sólo lo escribe la web, así que los técnicos -- que trabajan desde el
@@ -979,7 +934,7 @@ export default function InicioDashboard() {
                   fontVariantNumeric: "tabular-nums",
                 }}>
                   {t.horas >= 12 && <AlertTriangle size={14} />}
-                  <LiveTimer desde={t.inicio} />
+                  <LiveTimer desde={t.inicio} ahora={ahoraTick} />
                 </span>
               </button>
             ))}
@@ -1285,19 +1240,6 @@ function InfiniteSentinel({ onHit, disabled }: { onHit: () => void; disabled: bo
   return <div ref={ref} style={{ height: 1 }} aria-hidden />;
 }
 
-/** Contenedor de gráfico: mismo lenguaje que Card, con una nota a la derecha. */
-function ChartCard({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
-  return (
-    <div style={{ background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: 10, overflow: "hidden" }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "14px 16px", borderBottom: "1px solid var(--border)" }}>
-        <span style={{ fontSize: 14, fontWeight: 600, color: "var(--fg-1)" }}>{title}</span>
-        {hint && <span style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-4)" }}>{hint}</span>}
-      </div>
-      <div style={{ padding: "12px 12px 8px" }}>{children}</div>
-    </div>
-  );
-}
-
 // ── KpiCard ────────────────────────────────────────────────────────────────────
 
 function KpiCard({ label, value, sub, trend, onClick }: {
@@ -1506,24 +1448,35 @@ function HeaderMultiSelect({ icon: Icon, label, values, options, onChange, singl
 // ── LiveTimer ──────────────────────────────────────────────────────────────────
 
 /**
- * Cronómetro que corre solo. Vive en su propio componente para que el tick de
- * cada segundo re-renderice este <span> y nada más: el dashboard maneja ~400
- * OTs, y re-renderizarlo entero una vez por segundo sería caro para lo que es.
+ * Un solo reloj para todos los cronómetros de "En terreno ahora".
  *
- * Arranca en null y sólo empieza a contar tras el montaje: `Date.now()` en el
- * servidor no coincide con el del cliente, así que pintar un valor en el
- * primer render daría error de hidratación.
+ * Antes cada fila tenía su propio setInterval de 1 s. Una fila es por técnico
+ * por OT en curso, así que una cuadrilla normal dejaba 20-30 intervalos
+ * corriendo en paralelo, cada uno con su re-render: la página quedaba
+ * ocupada para siempre compitiendo con el scroll y la navegación.
+ *
+ * Arranca en null y sólo cuenta tras el montaje: `Date.now()` en el servidor
+ * no coincide con el del cliente, así que pintar un valor en el primer render
+ * daría error de hidratación.
  */
-function LiveTimer({ desde }: { desde: number | null }) {
+function useRelojCompartido(activo: boolean): number | null {
   const [ahora, setAhora] = useState<number | null>(null);
 
   useEffect(() => {
-    if (desde == null) return;
+    if (!activo) return;
     setAhora(Date.now());
     const id = setInterval(() => setAhora(Date.now()), 1000);
     return () => clearInterval(id);
-  }, [desde]);
+  }, [activo]);
 
+  return ahora;
+}
+
+/**
+ * Cronómetro de una fila. No tiene estado propio: recibe el instante actual
+ * del reloj compartido de arriba.
+ */
+function LiveTimer({ desde, ahora }: { desde: number | null; ahora: number | null }) {
   if (desde == null) return <>—</>;
   // Antes del primer tick no hay nada que mostrar sin arriesgar la hidratación.
   if (ahora == null) return <>·</>;
