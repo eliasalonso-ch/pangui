@@ -233,7 +233,7 @@ export default function KanbanView({ ordenes, reprogramadaIds, selectedId, myId,
             Limpiar
           </button>
         )}
-        <div style={{ marginLeft: "auto", fontSize: 11, color: "var(--fg-4)" }}>
+        <div style={{ marginLeft: "auto", fontSize: 13, color: "var(--fg-4)" }}>
           {rangeActive ? `${totalShown} OT${totalShown === 1 ? "" : "s"} vencen en rango` : `${totalShown} OT${totalShown === 1 ? "" : "s"}`}
         </div>
       </div>
@@ -363,7 +363,7 @@ function KanbanColumn({
           </span>
         </div>
         <span style={{
-          fontSize: 11, fontWeight: 600, color: col.fg, background: col.bg,
+          fontSize: 13, fontWeight: 600, color: col.fg, background: col.bg,
           padding: "2px 8px", borderRadius: 999,
         }}>
           {items.length}
@@ -409,7 +409,7 @@ function KanbanColumn({
                   flexShrink: 0,
                   marginTop: 2, padding: "8px 10px", borderRadius: 8,
                   border: "1px dashed var(--border)", background: "transparent",
-                  color: "var(--fg-3)", fontSize: 11, fontWeight: 600,
+                  color: "var(--fg-3)", fontSize: 13, fontWeight: 600,
                   cursor: "pointer", fontFamily: "inherit",
                 }}
               >
@@ -497,7 +497,7 @@ function KanbanCard({ orden, isReprogramada, isSelected, isDragging, onDragStart
         )}
       </div>
 
-      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", fontSize: 11, color: "var(--fg-3)" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", fontSize: 13, color: "var(--fg-3)" }}>
         {orden.numero != null && (
           <span style={{ fontWeight: 600, color: "var(--fg-4)" }}>#{orden.numero}</span>
         )}

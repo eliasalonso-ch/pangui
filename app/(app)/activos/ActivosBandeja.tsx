@@ -8,10 +8,11 @@ import {
   Building2, User, MapPin, Calendar, Hash, GitBranch, FileText, Pencil,
   Maximize2, Inbox, Clock, Link2, CheckCircle2, RefreshCw, PlusCircle, ArrowDown,
   Check, Camera, Paperclip, File as FileIcon, Tag, Factory, Truck, AlertCircle,
+  MoreVertical,
 } from "lucide-react";
 import {
   ACTIVO_SELECT, createActivo, deleteActivo, updateActivo,
-  fetchActivoOTHistory, fetchActivoActividadPage,
+  fetchActivoOTHistoryPage, fetchActivoActividadPage,
   type ActivoOTHistoryRow, type ActivoActividadRow,
 } from "@/lib/activos-api";
 import { uploadToR2 } from "@/lib/r2";
@@ -86,6 +87,7 @@ const ESTADO_OPCIONES: AssetStatus[] = ["operativo", "mantencion", "fuera_servic
 
 type ActivoTab = "general" | "detalles" | "historial";
 const ACTIVIDAD_PAGE_SIZE = 20;
+const OT_PAGE_SIZE = 20;
 
 type CritFilter = AssetCriticality | "all";
 
@@ -226,7 +228,7 @@ function FieldRow({ icon, label, children }: {
         {icon}
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 12, fontWeight: 700, color: "var(--fg-3)", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: "var(--fg-3)", marginBottom: 10, letterSpacing: "0.01em" }}>
           {label}
         </div>
         {children}
@@ -694,7 +696,7 @@ function ActivoForm({
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                 <Paperclip size={13} style={{ color: "var(--fg-4)" }} />
-                <span style={{ fontSize: 11, fontWeight: 700, color: "var(--fg-3)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: "var(--fg-3)", letterSpacing: "0.01em" }}>
                   Adjuntos
                 </span>
               </div>
@@ -766,7 +768,7 @@ function ActivoForm({
 function SectionHeader({ title, action }: { title: string; action?: React.ReactNode }) {
   return (
     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 2px 8px" }}>
-      <p style={{ fontSize: 11, fontWeight: 700, color: "var(--fg-4)", textTransform: "uppercase", letterSpacing: "0.06em", margin: 0 }}>{title}</p>
+      <p style={{ fontSize: 11, fontWeight: 700, color: "var(--fg-4)", letterSpacing: "0.01em", margin: 0 }}>{title}</p>
       {action}
     </div>
   );
@@ -795,24 +797,75 @@ function ActivoOTRow({ ot, last, onOpen }: { ot: ActivoOTHistoryRow; last: boole
   );
 }
 
-// ── General tab: photo + linked-OTs preview (máx 5) ────────────────────────────
-const PREVIEW_LIMIT = 5;
+/**
+ * Sentinel that calls `onHit` when scrolled into view. Used for the infinite
+ * lists so the next page loads on approach rather than on a click.
+ */
+function InfiniteSentinel({ onHit, disabled, label }: {
+  onHit: () => void; disabled: boolean; label: string;
+}) {
+  const ref = useRef<HTMLDivElement | null>(null);
+  // Keep the callback in a ref so re-renders don't tear down the observer.
+  const hitRef = useRef(onHit);
+  hitRef.current = onHit;
+
+  useEffect(() => {
+    if (disabled) return;
+    const el = ref.current;
+    if (!el) return;
+    const io = new IntersectionObserver(
+      entries => { if (entries[0]?.isIntersecting) hitRef.current(); },
+      // Start fetching a bit before the sentinel is actually visible.
+      { rootMargin: "200px 0px" },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [disabled]);
+
+  if (disabled) return null;
+  return (
+    <div ref={ref} style={{ padding: "14px 0", display: "flex", alignItems: "center", justifyContent: "center", gap: 7, color: "var(--fg-4)", fontSize: 12 }}>
+      <Loader2 size={13} className="animate-spin" /> {label}
+    </div>
+  );
+}
+
+// ── General tab: metrics + photo + paginated linked OTs ───────────────────────
 function GeneralTab({ activo, onFullscreen }: { activo: Activo; onFullscreen: () => void }) {
   const router = useRouter();
-  const [history, setHistory] = useState<ActivoOTHistoryRow[]>([]);
+
+  const [rows, setRows] = useState<ActivoOTHistoryRow[]>([]);
+  const [nextPage, setNextPage] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    fetchActivoOTHistory(activo.id)
-      .then(rows => { if (!cancelled) setHistory(rows); })
-      .catch(() => { if (!cancelled) setHistory([]); })
+    setRows([]);
+    fetchActivoOTHistoryPage(activo.id, 0, OT_PAGE_SIZE)
+      .then(({ rows: r, nextPage: np }) => {
+        if (!cancelled) { setRows(r); setNextPage(np); }
+      })
+      .catch(() => { if (!cancelled) { setRows([]); setNextPage(null); } })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [activo.id]);
 
-  const preview = history.slice(0, PREVIEW_LIMIT);
+  const loadMore = useCallback(async () => {
+    if (nextPage == null || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const { rows: r, nextPage: np } = await fetchActivoOTHistoryPage(activo.id, nextPage, OT_PAGE_SIZE);
+      setRows(prev => [...prev, ...r]);
+      setNextPage(np);
+    } catch {
+      // Stop paging on error rather than spinning the sentinel forever.
+      setNextPage(null);
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [activo.id, nextPage, loadingMore]);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
@@ -827,8 +880,10 @@ function GeneralTab({ activo, onFullscreen }: { activo: Activo; onFullscreen: ()
       <div>
         <SectionHeader
           title="Órdenes de trabajo"
-          action={history.length > 0 ? (
-            <span style={{ fontSize: 13, fontWeight: 600, color: "var(--fg-4)" }}>{history.length} en total</span>
+          action={rows.length > 0 ? (
+            <span style={{ fontSize: 13, fontWeight: 600, color: "var(--fg-4)" }}>
+              {rows.length}{nextPage != null ? "+" : ""} en total
+            </span>
           ) : undefined}
         />
         <Card>
@@ -836,15 +891,18 @@ function GeneralTab({ activo, onFullscreen }: { activo: Activo; onFullscreen: ()
             <div style={{ padding: 24, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, color: "var(--fg-4)", fontSize: 13 }}>
               <Loader2 size={14} className="animate-spin" /> Cargando…
             </div>
-          ) : preview.length === 0 ? (
+          ) : rows.length === 0 ? (
             <div style={{ padding: "32px 24px", display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
               <span style={{ width: 52, height: 52, borderRadius: "var(--r-md)", background: "var(--brand-tint)", color: "var(--brand)", display: "inline-flex", alignItems: "center", justifyContent: "center" }}><Inbox size={26} /></span>
               <span style={{ fontSize: 14, color: "var(--fg-4)", textAlign: "center" }}>Aún no hay OTs asociadas a este activo.</span>
             </div>
           ) : (
-            preview.map((ot, idx) => (
-              <ActivoOTRow key={ot.id} ot={ot} last={idx === preview.length - 1} onOpen={() => router.push(`/ordenes?id=${encodeURIComponent(ot.id)}`)} />
-            ))
+            <>
+              {rows.map((ot, idx) => (
+                <ActivoOTRow key={ot.id} ot={ot} last={idx === rows.length - 1 && nextPage == null} onOpen={() => router.push(`/ordenes?id=${encodeURIComponent(ot.id)}`)} />
+              ))}
+              <InfiniteSentinel onHit={loadMore} disabled={nextPage == null} label="Cargando más OTs…" />
+            </>
           )}
         </Card>
       </div>
@@ -856,7 +914,7 @@ function GeneralTab({ activo, onFullscreen }: { activo: Activo; onFullscreen: ()
 function MetaField({ label, value, icon }: { label: string; value: string; icon: React.ReactNode }) {
   return (
     <div>
-      <p style={{ fontSize: 11, fontWeight: 700, color: "var(--fg-4)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 7, marginTop: 0 }}>{label}</p>
+      <p style={{ fontSize: 11, fontWeight: 700, color: "var(--fg-4)", letterSpacing: "0.01em", marginBottom: 7, marginTop: 0 }}>{label}</p>
       <p style={{ fontSize: 14, color: "var(--fg-1)", margin: 0, display: "flex", alignItems: "center", gap: 10, lineHeight: 1.45 }}>
         <span style={{
           width: 28, height: 28, borderRadius: "var(--r-sm)",
@@ -872,7 +930,7 @@ function MetaField({ label, value, icon }: { label: string; value: string; icon:
 // Section label (uppercase, no card) — matches OTDetail.
 function MetaSectionLabel({ children }: { children: string }) {
   return (
-    <p style={{ fontSize: 11, fontWeight: 700, color: "var(--fg-4)", textTransform: "uppercase", letterSpacing: "0.07em", margin: "0 0 14px" }}>{children}</p>
+    <p style={{ fontSize: 11, fontWeight: 700, color: "var(--fg-4)", letterSpacing: "0.01em", margin: "0 0 14px" }}>{children}</p>
   );
 }
 
@@ -908,7 +966,7 @@ function DetallesTab({ activo, hijos, onOpenActivo }: { activo: Activo; hijos: A
       {/* Description — plain flowing text, no card */}
       {activo.descripcion && (
         <div style={{ maxWidth: 1100, marginBottom: 4 }}>
-          <p style={{ fontSize: 11, fontWeight: 600, color: "var(--fg-4)", textTransform: "uppercase", letterSpacing: "0.07em", margin: "0 0 4px" }}>Descripción</p>
+          <p style={{ fontSize: 11, fontWeight: 600, color: "var(--fg-4)", letterSpacing: "0.01em", margin: "0 0 4px" }}>Descripción</p>
           <p style={{ fontSize: 14, color: "var(--fg-2)", lineHeight: 1.75, whiteSpace: "pre-wrap", margin: 0 }}>{activo.descripcion}</p>
         </div>
       )}
@@ -958,7 +1016,7 @@ function DetallesTab({ activo, hijos, onOpenActivo }: { activo: Activo; hijos: A
               <button onClick={() => onOpenActivo(activo.parent!.id)} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", border: "1px solid var(--border)", borderRadius: "var(--r-md)", background: "var(--surface-0)", cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}>
                 <span style={{ width: 30, height: 30, borderRadius: 8, background: "var(--brand-tint)", color: "var(--brand-fg)", display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><GitBranch size={15} /></span>
                 <span style={{ flex: 1, minWidth: 0 }}>
-                  <span style={{ display: "block", fontSize: 11, fontWeight: 700, color: "var(--fg-4)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Activo padre</span>
+                  <span style={{ display: "block", fontSize: 11, fontWeight: 700, color: "var(--fg-4)", letterSpacing: "0.01em" }}>Activo padre</span>
                   <span style={{ display: "block", marginTop: 2, fontSize: 13.5, fontWeight: 600, color: "var(--fg-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{activo.parent.nombre}</span>
                 </span>
                 <ChevronRight size={15} style={{ color: "var(--fg-4)", flexShrink: 0 }} />
@@ -966,7 +1024,7 @@ function DetallesTab({ activo, hijos, onOpenActivo }: { activo: Activo; hijos: A
             ) : (
               <div style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", border: "1px solid var(--border)", borderRadius: "var(--r-md)", background: "var(--surface-1)" }}>
                 <span style={{ width: 30, height: 30, borderRadius: 8, background: "var(--surface-hover)", color: "var(--fg-4)", display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><GitBranch size={15} /></span>
-                <span style={{ flex: 1, minWidth: 0 }}><span style={{ display: "block", fontSize: 11, fontWeight: 700, color: "var(--fg-4)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Activo padre</span><span style={{ display: "block", marginTop: 2, fontSize: 13.5, color: "var(--fg-3)" }}>Sin activo padre</span></span>
+                <span style={{ flex: 1, minWidth: 0 }}><span style={{ display: "block", fontSize: 11, fontWeight: 700, color: "var(--fg-4)", letterSpacing: "0.01em" }}>Activo padre</span><span style={{ display: "block", marginTop: 2, fontSize: 13.5, color: "var(--fg-3)" }}>Sin activo padre</span></span>
               </div>
             )}
             {hijos.map(h => (
@@ -989,7 +1047,6 @@ function estadoLabelRaw(e: string): string {
 
 function HistorialTab({ activoId, onOpenOT }: { activoId: string; onOpenOT: (otId: string) => void }) {
   const [rows, setRows] = useState<ActivoActividadRow[]>([]);
-  const [page, setPage] = useState(0);
   const [nextPage, setNextPage] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -999,24 +1056,25 @@ function HistorialTab({ activoId, onOpenOT }: { activoId: string; onOpenOT: (otI
     setLoading(true);
     setRows([]);
     fetchActivoActividadPage(activoId, 0, ACTIVIDAD_PAGE_SIZE)
-      .then(({ rows: r, nextPage: np }) => { if (!cancelled) { setRows(r); setNextPage(np); setPage(0); } })
+      .then(({ rows: r, nextPage: np }) => { if (!cancelled) { setRows(r); setNextPage(np); } })
       .catch(() => { if (!cancelled) setRows([]); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [activoId]);
 
-  async function loadMore() {
+  const loadMore = useCallback(async () => {
     if (nextPage == null || loadingMore) return;
     setLoadingMore(true);
     try {
       const { rows: r, nextPage: np } = await fetchActivoActividadPage(activoId, nextPage, ACTIVIDAD_PAGE_SIZE);
       setRows(prev => [...prev, ...r]);
       setNextPage(np);
-      setPage(nextPage);
+    } catch {
+      setNextPage(null);
     } finally {
       setLoadingMore(false);
     }
-  }
+  }, [activoId, nextPage, loadingMore]);
 
   if (loading) {
     return <div style={{ padding: 40, textAlign: "center", color: "var(--fg-4)", fontSize: 13 }}>Cargando historial…</div>;
@@ -1044,7 +1102,7 @@ function HistorialTab({ activoId, onOpenOT }: { activoId: string; onOpenOT: (otI
             ? `${estadoLabelRaw(a.meta.de as string)} → ${estadoLabelRaw(a.meta.a as string)}`
             : a.comentario;
           return (
-            <div key={a.id} style={{ display: "flex", gap: 12, alignItems: "flex-start", padding: "14px 16px", borderBottom: idx === rows.length - 1 ? "none" : "1px solid var(--border)" }}>
+            <div key={a.id} style={{ display: "flex", gap: 12, alignItems: "flex-start", padding: "14px 16px", borderBottom: idx === rows.length - 1 && nextPage == null ? "none" : "1px solid var(--border)" }}>
               <span style={{ width: 34, height: 34, borderRadius: "50%", background: cfg.color + "1A", color: cfg.color, display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 1 }}><Icon size={18} /></span>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: "var(--fg-1)" }}>{cfg.label}</p>
@@ -1063,12 +1121,8 @@ function HistorialTab({ activoId, onOpenOT }: { activoId: string; onOpenOT: (otI
             </div>
           );
         })}
+        <InfiniteSentinel onHit={loadMore} disabled={nextPage == null} label="Cargando más actividad…" />
       </Card>
-      {nextPage != null && (
-        <button onClick={loadMore} disabled={loadingMore} style={{ marginTop: 12, width: "100%", padding: "11px 0", border: "1px solid var(--border)", borderRadius: "var(--r-sm)", background: "var(--surface-1)", color: "var(--brand)", fontSize: 13, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, fontFamily: "inherit" }}>
-          {loadingMore ? <Loader2 size={14} className="animate-spin" /> : null} Mostrar más
-        </button>
-      )}
     </div>
   );
 }
@@ -1089,7 +1143,9 @@ function ActivoDetail({
   const [fullscreen, setFullscreen] = useState(false);
   const [estadoMenuOpen, setEstadoMenuOpen] = useState(false);
   const [changingEstado, setChangingEstado] = useState(false);
+  const [accionesMenuOpen, setAccionesMenuOpen] = useState(false);
   const estadoMenuRef = useRef<HTMLDivElement>(null);
+  const accionesMenuRef = useRef<HTMLDivElement>(null);
   const crit = (activo.criticidad ?? "no_critico") as AssetCriticality;
   const critCfg = CRITICIDAD_COLOR[crit];
   const hijos = activos.filter(a => a.activo_padre_id === activo.id);
@@ -1097,9 +1153,13 @@ function ActivoDetail({
   // Reset to the first tab whenever a different asset is opened.
   useEffect(() => { setTab("general"); }, [activo.id]);
 
-  // Close estado menu on outside click.
+  // Close the estado and acciones menus on outside click.
   useEffect(() => {
-    const h = (e: MouseEvent) => { if (estadoMenuRef.current && !estadoMenuRef.current.contains(e.target as Node)) setEstadoMenuOpen(false); };
+    const h = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (estadoMenuRef.current && !estadoMenuRef.current.contains(target)) setEstadoMenuOpen(false);
+      if (accionesMenuRef.current && !accionesMenuRef.current.contains(target)) setAccionesMenuOpen(false);
+    };
     document.addEventListener("mousedown", h);
     return () => document.removeEventListener("mousedown", h);
   }, []);
@@ -1134,12 +1194,25 @@ function ActivoDetail({
           <h1 style={{ flex: 1, minWidth: 0, fontSize: 26, fontWeight: 700, letterSpacing: "-0.02em", color: "var(--fg-1)", margin: 0, lineHeight: 1.25, overflowWrap: "break-word", wordBreak: "break-word" }}>
             {activo.nombre}
           </h1>
-          <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
-            <button onClick={onEdit} style={{ display: "inline-flex", alignItems: "center", gap: 7, height: 42, padding: "0 17px", border: "none", borderRadius: 6, background: "var(--brand)", color: "var(--fg-on-brand)", fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }} onMouseEnter={e => { e.currentTarget.style.background = "var(--brand-active)"; }} onMouseLeave={e => { e.currentTarget.style.background = "var(--brand)"; }}>
+          {/* Mirrors OTDetail's header: 34px Editar + overflow menu + close. */}
+          <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+            <button onClick={onEdit} style={{ flexShrink: 0, height: 34, padding: "0 13px", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, background: "var(--brand)", border: "1px solid var(--brand)", borderRadius: "var(--r-sm)", cursor: "pointer", color: "var(--fg-on-brand)", fontSize: 13, fontWeight: 700, fontFamily: "inherit" }} onMouseEnter={e => { e.currentTarget.style.filter = "brightness(0.96)"; }} onMouseLeave={e => { e.currentTarget.style.filter = "none"; }}>
               <Pencil size={14} /> Editar
             </button>
-            <button onClick={onClose} style={{ width: 42, height: 42, display: "flex", alignItems: "center", justifyContent: "center", background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: 6, cursor: "pointer", color: "var(--fg-3)", flexShrink: 0 }}>
-              <X size={18} />
+            <div ref={accionesMenuRef} style={{ position: "relative", flexShrink: 0 }}>
+              <button type="button" onClick={() => setAccionesMenuOpen(v => !v)} title="Más acciones" style={{ width: 34, height: 34, display: "flex", alignItems: "center", justifyContent: "center", background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: "var(--r-sm)", cursor: "pointer", color: "var(--fg-1)" }} onMouseEnter={e => { e.currentTarget.style.background = "var(--surface-hover)"; }} onMouseLeave={e => { e.currentTarget.style.background = "var(--surface-1)"; }}>
+                {deleting ? <Loader2 size={14} className="animate-spin" /> : <MoreVertical size={16} />}
+              </button>
+              {accionesMenuOpen && (
+                <div style={{ position: "absolute", top: "calc(100% + 6px)", right: 0, zIndex: 300, background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: "var(--r-sm)", boxShadow: "var(--shadow-sm)", width: 190, overflow: "hidden" }}>
+                  <button type="button" onClick={() => { setAccionesMenuOpen(false); handleDelete(); }} disabled={deleting} style={{ width: "100%", display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", background: "var(--surface-1)", border: "none", cursor: deleting ? "default" : "pointer", fontSize: 13, color: "var(--danger)", fontFamily: "inherit", textAlign: "left" }} onMouseEnter={e => { if (!deleting) e.currentTarget.style.background = "var(--surface-hover)"; }} onMouseLeave={e => { e.currentTarget.style.background = "var(--surface-1)"; }}>
+                    <Trash2 size={14} /> Eliminar
+                  </button>
+                </div>
+              )}
+            </div>
+            <button onClick={onClose} style={{ width: 34, height: 34, display: "flex", alignItems: "center", justifyContent: "center", background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: "var(--r-sm)", cursor: "pointer", color: "var(--fg-3)", flexShrink: 0 }}>
+              <X size={16} />
             </button>
           </div>
         </div>
@@ -1187,13 +1260,6 @@ function ActivoDetail({
         {tab === "general" && <GeneralTab activo={activo} onFullscreen={() => setFullscreen(true)} />}
         {tab === "detalles" && <DetallesTab activo={activo} hijos={hijos} onOpenActivo={openActivo} />}
         {tab === "historial" && <HistorialTab activoId={activo.id} onOpenOT={(otId) => router.push(`/ordenes?id=${encodeURIComponent(otId)}`)} />}
-
-        {/* Delete action (always available) */}
-        <div style={{ marginTop: 30, paddingTop: 24, borderTop: "1px solid var(--border)", display: "flex", justifyContent: "flex-end" }}>
-          <button onClick={handleDelete} disabled={deleting} style={{ height: 34, padding: "0 13px", borderRadius: 6, border: "1px solid var(--border)", background: "var(--surface-1)", color: "var(--danger)", cursor: "pointer", fontSize: 13, fontWeight: 500, display: "flex", alignItems: "center", gap: 6, fontFamily: "inherit" }}>
-            {deleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />} Eliminar
-          </button>
-        </div>
       </div>
 
       {/* Fullscreen photo viewer */}
@@ -1483,7 +1549,7 @@ export default function ActivosBandeja({ initialActivos, usuarios, ubicaciones, 
                 background: "var(--surface-1)", border: "1px solid var(--border)",
                 borderRadius: 8, boxShadow: "0 8px 24px rgba(15,23,42,0.12)", overflow: "hidden",
               }}>
-                <div style={{ padding: "8px 14px 4px", fontSize: 10, fontWeight: 700, color: "var(--fg-4)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                <div style={{ padding: "8px 14px 4px", fontSize: 10, fontWeight: 700, color: "var(--fg-4)", letterSpacing: "0.01em" }}>
                   Ordenar por
                 </div>
                 {ACTIVO_SORT_OPTIONS.map(o => (

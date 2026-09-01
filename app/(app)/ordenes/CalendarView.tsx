@@ -487,7 +487,7 @@ export default function CalendarView({ ordenes, loadingExtras, reprogramadaIds, 
                 }}>
                   <div style={{ padding:"10px 12px", borderBottom:"1px solid var(--border)", display:"flex", alignItems:"center", justifyContent:"space-between", gap:8 }}>
                     <span style={{ fontSize:12, fontWeight:750, color:"var(--fg-1)" }}>OTs reprogramadas</span>
-                    <span style={{ fontSize:11, fontWeight:700, color:"var(--danger)" }}>{reprogramadas.length}</span>
+                    <span style={{ fontSize:13, fontWeight:700, color:"var(--danger)" }}>{reprogramadas.length}</span>
                   </div>
                   <div style={{ maxHeight:300, overflowY:"auto", padding:6 }}>
                     {reprogramadas.map((orden) => {
@@ -514,7 +514,7 @@ export default function CalendarView({ ordenes, loadingExtras, reprogramadaIds, 
                             <span style={{ display:"block", fontSize:12, fontWeight:650, color:"var(--fg-1)", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
                               {orden.numero ? `#${orden.numero} · ` : ""}{orden.titulo || "Sin titulo"}
                             </span>
-                            <span style={{ display:"block", marginTop:2, fontSize:11, fontWeight:550, color:"var(--fg-3)" }}>
+                            <span style={{ display:"block", marginTop:2, fontSize:13, fontWeight:550, color:"var(--fg-3)" }}>
                               {date ? `Coordinada para ${format(date, "dd MMM yyyy", { locale: es })}` : "Sin fecha coordinada"}
                             </span>
                           </span>
@@ -591,7 +591,7 @@ export default function CalendarView({ ordenes, loadingExtras, reprogramadaIds, 
         {/* DoW header — capitalized full words like the reference */}
         <div style={{ display:"grid", gridTemplateColumns:"repeat(7, minmax(0, 1fr))", flexShrink:0, borderBottom:"1px solid var(--border)", background:"var(--surface-canvas)" }}>
           {dow.map(d => (
-            <div key={d} style={{ padding:"10px 12px", fontSize:11, fontWeight:700, color:"var(--fg-3)", textTransform:"uppercase", letterSpacing:"0.06em", textAlign:"left" }}>
+            <div key={d} style={{ padding:"10px 12px", fontSize:13, fontWeight:700, color:"var(--fg-3)", letterSpacing:"0.01em", textAlign:"left" }}>
               {d}
             </div>
           ))}
@@ -681,7 +681,7 @@ export default function CalendarView({ ordenes, loadingExtras, reprogramadaIds, 
                       style={{
                         minHeight:20, width:"100%",
                         display:"flex", alignItems:"center", justifyContent:"center",
-                        fontSize:11, color:"var(--brand-fg)", fontWeight:700,
+                        fontSize:13, color:"var(--brand-fg)", fontWeight:700,
                         background:"transparent", border:"none", borderRadius:6,
                         textAlign:"center", padding:"0 6px", cursor:"pointer", fontFamily:"inherit",
                         flexShrink:0,
@@ -1018,7 +1018,7 @@ function HoverPopover({ orden, left, top, usuarios, onMouseEnter, onMouseLeave, 
         <Row label="Estado" value={
           <span style={{
             display:"inline-flex", alignItems:"center", gap:5,
-            fontSize:11, fontWeight:600,
+            fontSize:13, fontWeight:600,
             padding:"3px 8px", borderRadius:6,
             background: ESTADO_BG[orden.estado] ?? "var(--surface-hover)",
             color: ESTADO_FG[orden.estado] ?? "var(--fg-2)",

@@ -10,7 +10,7 @@ import { describe, expect, it } from "vitest";
  * than splitting the tables into a module both can import.
  */
 const APP_SEGMENTS = [
-  "activos", "analitica", "analitica-materiales", "categorias", "configuracion",
+  "activos", "analitica", "categorias", "configuracion",
   "espacio-trabajo", "inicio", "itos", "mi-cuenta", "notificaciones", "ordenes",
   "papelera", "partes", "preferencias-notificaciones", "procedimientos",
   "reglas-alerta", "requisitos", "suscripcion", "ubicaciones", "usuarios",

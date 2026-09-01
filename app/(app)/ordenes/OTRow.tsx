@@ -63,12 +63,12 @@ function RowBadge({
   return (
     <span style={{
       display: "inline-flex", alignItems: "center", gap: 5,
-      fontSize: "var(--fs-xs)", fontWeight: 400,
-      padding: "2px 7px",
-      border: "1px solid var(--border-strong)",
+      fontSize: "var(--fs-base)", fontWeight: 400,
+      padding: "0 8px", minHeight: 22,
+      border: "1px solid var(--border)",
       borderRadius: "var(--r-sm)",
       color: "var(--fg-1)",
-      background: "transparent",
+      background: "var(--surface-1)",
       whiteSpace: "nowrap",
     }}>
       {Icon && <SolidIcon icon={Icon} color={iconColor ?? "var(--fg-3)"} />}
@@ -99,7 +99,7 @@ function dueLabel(fecha: string, todayKey: string): { text: string; overdue: boo
   return null;
 }
 
-// â”€â”€ HoverTooltip â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── HoverTooltip ──────────────────────────────────────────────────────────────
 
 function HoverTooltip({ label, body, children, triggerStyle }: {
   label: string;
@@ -159,10 +159,10 @@ function HoverTooltip({ label, body, children, triggerStyle }: {
             transform: pos.flipUp ? "translateY(-100%) translateY(-6px)" : "none",
           }}
         >
-          <p style={{ fontSize: "var(--fs-2xs)", fontWeight: 700, color: "var(--fg-4)", textTransform: "uppercase", letterSpacing: "0.07em", margin: "0 0 6px" }}>
+          <p style={{ fontSize: "var(--fs-base)", fontWeight: 600, color: "var(--fg-1)", letterSpacing: "0.01em", margin: "0 0 6px" }}>
             {label}
           </p>
-          <p style={{ fontSize: "var(--fs-sm)", color: "var(--fg-1)", lineHeight: 1.6, margin: 0, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+          <p style={{ fontSize: "var(--fs-base)", fontWeight: 400, color: "var(--fg-1)", lineHeight: 1.6, margin: 0, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
             {body}
           </p>
         </div>,
@@ -172,7 +172,7 @@ function HoverTooltip({ label, body, children, triggerStyle }: {
   );
 }
 
-// â”€â”€ AssignDropdown â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── AssignDropdown ────────────────────────────────────────────────────────────
 
 function AssignDropdown({ orden, usuarios, myId, onAssigned, onClose, anchorRect }: {
   orden:       OrdenBulkItem;
@@ -241,16 +241,16 @@ function AssignDropdown({ orden, usuarios, myId, onAssigned, onClose, anchorRect
       onMouseDown={e => e.stopPropagation()}
     >
       <div style={{ padding: "8px 12px 6px", borderBottom: "1px solid var(--divider)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <span style={{ fontSize: "var(--fs-2xs)", fontWeight: 700, color: "var(--fg-4)", textTransform: "uppercase", letterSpacing: "0.07em" }}>
+        <span style={{ fontSize: "var(--fs-base)", fontWeight: 600, color: "var(--fg-1)", letterSpacing: "0.01em" }}>
           Asignar
         </span>
         <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--fg-4)", padding: 2, display: "flex" }}>
-          <XIcon size={12} />
+          <XIcon size={14} />
         </button>
       </div>
       <div style={{ maxHeight: 200, overflowY: "auto" }}>
         {asignables.length === 0 && (
-          <p style={{ padding: "10px 12px", fontSize: "var(--fs-sm)", color: "var(--fg-4)", margin: 0 }}>Sin usuarios</p>
+          <p style={{ padding: "10px 12px", fontSize: "var(--fs-base)", color: "var(--fg-4)", margin: 0 }}>Sin usuarios</p>
         )}
         {asignables.map(u => {
           const isAssigned = currentIds.includes(u.id);
@@ -285,10 +285,10 @@ function AssignDropdown({ orden, usuarios, myId, onAssigned, onClose, anchorRect
               }}>
                 {iniciales(u.nombre)}
               </span>
-              <span style={{ flex: 1, fontSize: "var(--fs-sm)", color: "var(--fg-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              <span style={{ flex: 1, fontSize: "var(--fs-base)", fontWeight: 400, color: "var(--fg-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                 {u.nombre}
               </span>
-              {isAssigned && <CheckIcon size={13} color="var(--brand-fg)" />}
+              {isAssigned && <CheckIcon size={14} color="var(--brand-fg)" />}
             </button>
           );
         })}
@@ -298,7 +298,7 @@ function AssignDropdown({ orden, usuarios, myId, onAssigned, onClose, anchorRect
   );
 }
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────────────────────────────────────
 
 interface Props {
   orden:        OrdenBulkItem;
@@ -312,14 +312,14 @@ interface Props {
   // When set (only in the "Reprogramadas" tab), render a pill with the
   // coordinated date so the supervisor sees it without opening the OT.
   coordinadaPara?: string | null;
-  // Per-user "marcar como leÃ­da/vista" state + toggle.
+  // Per-user "marcar como leída/vista" state + toggle.
   isMarcada?:       boolean;
   onToggleMarcada?: (id: string, next: boolean) => void;
   todayKey?:         string;
 }
 
 // `rowNumber` sigue en Props porque el contenedor lo pasa, pero ya no se
-// muestra: el nÃºmero correlativo no aportaba y competÃ­a con el NÂ° de OT real.
+// muestra: el número correlativo no aportaba y competía con el N° de OT real.
 function OTRow({ orden, usuarios, isSelected, onClick, onPrefetch, myId, onAssigned, coordinadaPara, isMarcada, onToggleMarcada, todayKey }: Props) {
   const effectiveTodayKey = todayKey ?? chileDateKey();
   const isPending = Boolean(orden._pending);
@@ -331,7 +331,7 @@ function OTRow({ orden, usuarios, isSelected, onClick, onPrefetch, myId, onAssig
   // Parsing the description is non-trivial; memoize so it only re-runs when the
   // description text actually changes, not on every parent re-render.
   const meta      = useMemo(() => parseDescMeta(orden.descripcion ?? null), [orden.descripcion]);
-  const titulo    = orden.titulo || meta.descripcion?.slice(0, 80) || "Sin tÃ­tulo";
+  const titulo    = orden.titulo || meta.descripcion?.slice(0, 80) || "Sin título";
   const [copied, setCopied] = useState(false);
   const [dropOpen, setDropOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -375,9 +375,10 @@ function OTRow({ orden, usuarios, isSelected, onClick, onPrefetch, myId, onAssig
       onFocus={() => { if (!isPending) onPrefetch?.(orden.id); }}
       style={{
         padding: "16px 20px",
-        // Altura fija: todas las tarjetas miden lo mismo aunque el tÃ­tulo, la
-        // ubicaciÃ³n o el nÃºmero de etiquetas cambien.
-        height: 124,
+        // Altura fija: todas las tarjetas miden lo mismo aunque el título, la
+        // ubicación o el número de etiquetas cambien. Subió de 124 al crecer
+        // los chips (22) y los metadatos (12px): con 124 el contenido se salía.
+        height: 148,
         // The list is now a flex column; without this, rows would be squeezed
         // below their fixed height when the list overflows.
         flexShrink: 0,
@@ -385,8 +386,8 @@ function OTRow({ orden, usuarios, isSelected, onClick, onPrefetch, myId, onAssig
         display: "flex",
         flexDirection: "column",
         justifyContent: "center",
-        // El `gap` reemplaza a los mÃ¡rgenes sueltos de cada fila: separaciÃ³n
-        // uniforme entre cabecera, tÃ­tulo, ITO y etiquetas.
+        // El `gap` reemplaza a los márgenes sueltos de cada fila: separación
+        // uniforme entre cabecera, título, ITO y etiquetas.
         gap: 6,
         // Cards on the canvas, not a continuous white sheet: each row keeps its
         // own border and the list gaps them, so --surface-canvas shows between.
@@ -402,33 +403,33 @@ function OTRow({ orden, usuarios, isSelected, onClick, onPrefetch, myId, onAssig
       }}
       onMouseLeave={e => { if (!isSelected) e.currentTarget.style.background = "var(--surface-1)"; }}
     >
-      {/* Top: row number + NÂ°OT + due date */}
+      {/* Top: row number + N°OT + due date */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", }}>
         <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
           {meta.nOT && (
             <span style={{ display: "flex", alignItems: "center", gap: 3 }}>
-              <span style={{ fontSize: "var(--fs-xs)", fontWeight: 600, color: "var(--brand-fg)", fontFamily: "var(--font-mono)", letterSpacing: "0.02em" }}>
+              <span style={{ fontSize: "var(--fs-base)", fontWeight: 400, color: "var(--brand-fg)", fontFamily: "var(--font-mono)", letterSpacing: "0.02em" }}>
                 {meta.nOT}
               </span>
               <button
                 type="button"
                 onClick={copyNOT}
-                title="Copiar NÂ° OT"
+                title="Copiar N° OT"
                 style={{ display: "flex", alignItems: "center", background: "none", border: "none", cursor: "pointer", padding: 2, color: copied ? "var(--success)" : "var(--fg-4)", transition: "color var(--dur-fast) var(--ease)" }}
                 onMouseEnter={e => { if (!copied) e.currentTarget.style.color = "var(--fg-3)"; }}
                 onMouseLeave={e => { if (!copied) e.currentTarget.style.color = "var(--fg-4)"; }}
               >
-                {copied ? <CheckIcon size={10} /> : <Copy size={10} />}
+                {copied ? <CheckIcon size={14} /> : <Copy size={14} />}
               </button>
             </span>
           )}
         </span>
         <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
           {due && (
-            <span style={{ display: "flex", alignItems: "center", gap: 3, fontSize: "var(--fs-xs)", fontWeight: 400, color: "var(--fg-1)" }}>
+            <span style={{ display: "flex", alignItems: "center", gap: 3, fontSize: "var(--fs-base)", fontWeight: 400, color: "var(--fg-1)" }}>
               {due.overdue
-                ? <AlertCircle size={11} style={{ color: "var(--danger)", flexShrink: 0 }} />
-                : <Clock size={10} style={{ color: "var(--warning)", flexShrink: 0 }} />}
+                ? <AlertCircle size={14} style={{ color: "var(--danger)", flexShrink: 0 }} />
+                : <Clock size={14} style={{ color: "var(--warning)", flexShrink: 0 }} />}
               {due.text}
             </span>
           )}
@@ -436,7 +437,7 @@ function OTRow({ orden, usuarios, isSelected, onClick, onPrefetch, myId, onAssig
             <button
               type="button"
               onClick={e => { e.stopPropagation(); onToggleMarcada(orden.id, !isMarcada); }}
-              title={isMarcada ? "Marcada como leÃ­da â€” clic para desmarcar" : "Marcar como leÃ­da"}
+              title={isMarcada ? "Marcada como leída — clic para desmarcar" : "Marcar como leída"}
               aria-pressed={isMarcada}
               style={{
                 display: "flex", alignItems: "center", background: "none", border: "none",
@@ -447,17 +448,17 @@ function OTRow({ orden, usuarios, isSelected, onClick, onPrefetch, myId, onAssig
               onMouseEnter={e => { if (!isMarcada) e.currentTarget.style.color = "var(--fg-2)"; }}
               onMouseLeave={e => { if (!isMarcada) e.currentTarget.style.color = "var(--fg-4)"; }}
             >
-              {isMarcada ? <CheckCircle2 size={16} /> : <Circle size={16} />}
+              {isMarcada ? <CheckCircle2 size={14} /> : <Circle size={14} />}
             </button>
           )}
         </span>
       </div>
 
-      {/* Title â€” una sola lÃ­nea con elipsis. La descripciÃ³n se quitÃ³ a propÃ³sito:
-          era la fila de alto variable. El detalle completo estÃ¡ a un clic. */}
-      <HoverTooltip label="TÃ­tulo" body={titulo} triggerStyle={{ margin: 0 }}>
+      {/* Title — una sola línea con elipsis. La descripción se quitó a propósito:
+          era la fila de alto variable. El detalle completo está a un clic. */}
+      <HoverTooltip label="Título" body={titulo} triggerStyle={{ margin: 0 }}>
         <p style={{
-          fontSize: "var(--fs-base)", fontWeight: 600, color: "var(--fg-1)",
+          fontSize: "var(--fs-base)", fontWeight: 400, color: "var(--fg-1)",
           lineHeight: 1.4, margin: 0,
           overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
         }}>
@@ -465,11 +466,11 @@ function OTRow({ orden, usuarios, isSelected, onClick, onPrefetch, myId, onAssig
         </p>
       </HoverTooltip>
 
-      {/* ITO â€” altura reservada siempre, con o sin valor, para que las tarjetas
+      {/* ITO — altura reservada siempre, con o sin valor, para que las tarjetas
           con y sin ITO midan exactamente lo mismo. */}
       <p style={{
-        fontSize: "var(--fs-sm)", color: "var(--fg-3)", margin: 0,
-        height: 18, lineHeight: "18px",
+        fontSize: "var(--fs-base)", fontWeight: 400, color: "var(--fg-3)", margin: 0,
+        height: 20, lineHeight: "20px",
         overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
       }}>
         {meta.hito && <><span style={{ color: "var(--fg-4)" }}>ITO:</span> {meta.hito}</>}
@@ -478,7 +479,7 @@ function OTRow({ orden, usuarios, isSelected, onClick, onPrefetch, myId, onAssig
       {/* Bottom row */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6 }}>
         {/* `nowrap` + `overflow: hidden`: si las etiquetas se envolvieran a una
-            segunda lÃ­nea la tarjeta crecerÃ­a y se romperÃ­a la altura uniforme. */}
+            segunda línea la tarjeta crecería y se rompería la altura uniforme. */}
         <div style={{ display: "flex", alignItems: "center", gap: 5, flexWrap: "nowrap", flex: 1, minWidth: 0, overflow: "hidden" }}>
 
           {/* Status pill */}
@@ -486,7 +487,7 @@ function OTRow({ orden, usuarios, isSelected, onClick, onPrefetch, myId, onAssig
             {estado.label}
           </RowBadge>
 
-          {/* Coordinated date â€” only shown inside the Reprogramadas tab. */}
+          {/* Coordinated date — only shown inside the Reprogramadas tab. */}
           {coordinadaPara && (
             <RowBadge icon={Clock} iconColor="var(--success)">
               Coordinada para {new Date(coordinadaPara + "T00:00:00").toLocaleDateString("es-CL", { day: "numeric", month: "short" })}
@@ -502,9 +503,9 @@ function OTRow({ orden, usuarios, isSelected, onClick, onPrefetch, myId, onAssig
 
           {/* Location */}
           {orden.ubicaciones?.edificio && (
-            <HoverTooltip label="UbicaciÃ³n" body={orden.ubicaciones.edificio}>
-              <span style={{ display: "flex", alignItems: "center", gap: 3, fontSize: "var(--fs-xs)", color: "var(--fg-3)" }}>
-                <MapPin size={11} />
+            <HoverTooltip label="Ubicación" body={orden.ubicaciones.edificio}>
+              <span style={{ display: "flex", alignItems: "center", gap: 3, fontSize: "var(--fs-base)", fontWeight: 400, color: "var(--fg-3)" }}>
+                <MapPin size={14} />
                 <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 120 }}>
                   {orden.ubicaciones.edificio}
                 </span>
@@ -516,9 +517,9 @@ function OTRow({ orden, usuarios, isSelected, onClick, onPrefetch, myId, onAssig
 
         {/* Right: time + avatars */}
         <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
-          <span suppressHydrationWarning style={{ fontSize: "var(--fs-xs)", color: "var(--fg-4)" }}>{mounted ? timeAgo(orden.created_at) : ""}</span>
+          <span suppressHydrationWarning style={{ fontSize: "var(--fs-base)", fontWeight: 400, color: "var(--fg-4)" }}>{mounted ? timeAgo(orden.created_at) : ""}</span>
 
-          {/* Avatar trigger â€” always shown as a button when onAssigned is wired */}
+          {/* Avatar trigger — always shown as a button when onAssigned is wired */}
           <button
             ref={avatarRef}
             type="button"
@@ -536,7 +537,7 @@ function OTRow({ orden, usuarios, isSelected, onClick, onPrefetch, myId, onAssig
                 display: "flex", alignItems: "center", justifyContent: "center",
                 color: "var(--fg-4)",
               }}>
-                <UserPlus size={12} />
+                <UserPlus size={14} />
               </span>
             ) : (
               <span style={{ display: "flex" }}>
@@ -550,7 +551,7 @@ function OTRow({ orden, usuarios, isSelected, onClick, onPrefetch, myId, onAssig
                       color: "var(--fg-on-brand)",
                       border: "2px solid var(--surface-1)",
                       display: "flex", alignItems: "center", justifyContent: "center",
-                      fontSize: 9, fontWeight: 700, flexShrink: 0,
+                      fontSize: 11, fontWeight: 400, flexShrink: 0,
                       marginLeft: i > 0 ? -7 : 0,
                     }}
                   >
@@ -563,7 +564,7 @@ function OTRow({ orden, usuarios, isSelected, onClick, onPrefetch, myId, onAssig
                     background: "var(--surface-hover)", color: "var(--fg-2)",
                     border: "2px solid var(--surface-1)",
                     display: "flex", alignItems: "center", justifyContent: "center",
-                    fontSize: 9, fontWeight: 700, marginLeft: -7,
+                    fontSize: 11, fontWeight: 400, marginLeft: -7,
                   }}>
                     +{assigned.length - 3}
                   </span>
@@ -589,7 +590,7 @@ function OTRow({ orden, usuarios, isSelected, onClick, onPrefetch, myId, onAssig
 }
 
 // Memoized so a parent re-render (e.g. selecting another row, the 60s list
-// poll) only re-renders rows whose props actually changed â€” not all 70+. This
+// poll) only re-renders rows whose props actually changed — not all 70+. This
 // is the main lever for INP on the orders list. Requires the parent to pass
 // stable onClick/onAssigned callbacks (see OrdenesBandeja).
 export default memo(OTRow);

@@ -40,7 +40,8 @@ function pageTrail(pathname: string): string[] {
   if (pathname.startsWith("/activos")) return ["Operaciones", "Activos"];
   if (pathname.startsWith("/partes")) return ["Operaciones", "Materiales"];
   if (pathname.startsWith("/procedimientos")) return ["Operaciones", "Procedimientos"];
-  if (pathname.startsWith("/analitica-materiales")) return ["Operaciones", "Analítica de materiales"];
+  if (pathname.startsWith("/analitica/ordenes")) return ["Operaciones", "Analítica", "Órdenes"];
+  if (pathname.startsWith("/analitica/activos")) return ["Operaciones", "Analítica", "Activos"];
   if (pathname.startsWith("/analitica")) return ["Operaciones", "Analítica"];
   if (pathname.startsWith("/usuarios")) return ["Operaciones", "Equipo"];
   if (pathname.startsWith("/ubicaciones")) return ["Gestión", "Ubicaciones"];

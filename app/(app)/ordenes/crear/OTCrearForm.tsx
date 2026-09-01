@@ -148,7 +148,7 @@ function FieldRow({ icon, label, children }: {
         {icon}
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 11, fontWeight: 600, color: "var(--fg-3)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: "var(--fg-3)", letterSpacing: "0.01em", marginBottom: 6 }}>
           {label}
         </div>
         {children}
@@ -381,7 +381,7 @@ function AssigneeSelect({ usuarios, value, onChange }: {
                   </span>
                   <div style={{ flex: 1, textAlign: "left" }}>
                     <div style={{ fontSize: 13, fontWeight: 500, color: "var(--fg-1)" }}>{u.nombre}</div>
-                    <div style={{ fontSize: 11, color: "var(--fg-3)", textTransform: "capitalize" }}>{u.rol}</div>
+                    <div style={{ fontSize: 13, color: "var(--fg-3)", textTransform: "capitalize" }}>{u.rol}</div>
                   </div>
                   {sel && <Check size={14} style={{ color: "var(--brand)", flexShrink: 0 }} />}
                 </button>
@@ -670,7 +670,7 @@ export default function OTCrearForm({ usuarios, ubicaciones, activos, categorias
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
                 <Camera size={15} style={{ color: "var(--fg-3)" }} />
-                <span style={{ fontSize: 12, fontWeight: 700, color: "var(--fg-3)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                <span style={{ fontSize: 12, fontWeight: 700, color: "var(--fg-3)", letterSpacing: "0.01em" }}>
                   Grupos de fotos
                 </span>
               </div>
@@ -703,7 +703,7 @@ export default function OTCrearForm({ usuarios, ubicaciones, activos, categorias
               >
                 <ImagePlus size={22} strokeWidth={1.5} />
                 <span style={{ fontSize: 13 }}>Agrega un grupo de fotos con título y descripción</span>
-                <span style={{ fontSize: 11 }}>Ej: “Antes del trabajo”, “Instrucciones”, “Durante”</span>
+                <span style={{ fontSize: 13 }}>Ej: “Antes del trabajo”, “Instrucciones”, “Durante”</span>
               </button>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -800,7 +800,7 @@ export default function OTCrearForm({ usuarios, ubicaciones, activos, categorias
                         />
                       </div>
                       {g.fotos.length > 0 && (
-                        <div style={{ marginTop: 6, fontSize: 11, color: "var(--fg-3)" }}>
+                        <div style={{ marginTop: 6, fontSize: 13, color: "var(--fg-3)" }}>
                           {g.fotos.length} foto{g.fotos.length !== 1 ? "s" : ""} · Se subirán al crear la OT
                         </div>
                       )}
@@ -935,7 +935,7 @@ export default function OTCrearForm({ usuarios, ubicaciones, activos, categorias
 
           {/* Work type */}
           <div style={{ padding: "14px 0", borderBottom: "1px solid var(--border)" }}>
-            <div style={{ fontSize: 11, fontWeight: 600, color: "var(--fg-3)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: "var(--fg-3)", letterSpacing: "0.01em", marginBottom: 6 }}>
               Tipo de trabajo
             </div>
             <select
@@ -957,7 +957,7 @@ export default function OTCrearForm({ usuarios, ubicaciones, activos, categorias
 
           {/* Recurrence — Repetir + Terminar repetición (mirrors the mobile app) */}
           <div style={{ padding: "14px 0", borderBottom: "1px solid var(--border)" }}>
-            <div style={{ fontSize: 11, fontWeight: 600, color: "var(--fg-3)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: "var(--fg-3)", letterSpacing: "0.01em", marginBottom: 8 }}>
               Recurrencia
             </div>
             <RecurrenceControls
@@ -970,7 +970,7 @@ export default function OTCrearForm({ usuarios, ubicaciones, activos, categorias
           {/* Priority — segmented buttons */}
 
           <div style={{ padding: "14px 0", borderBottom: "1px solid var(--border)" }}>
-            <div style={{ fontSize: 11, fontWeight: 600, color: "var(--fg-3)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 10 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: "var(--fg-3)", letterSpacing: "0.01em", marginBottom: 10 }}>
               Prioridad
             </div>
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
@@ -1002,7 +1002,7 @@ export default function OTCrearForm({ usuarios, ubicaciones, activos, categorias
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                 <Paperclip size={14} style={{ color: "var(--fg-3)" }} />
-                <span style={{ fontSize: 11, fontWeight: 600, color: "var(--fg-3)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                <span style={{ fontSize: 13, fontWeight: 600, color: "var(--fg-3)", letterSpacing: "0.01em" }}>
                   Adjuntos
                 </span>
               </div>
@@ -1065,7 +1065,7 @@ export default function OTCrearForm({ usuarios, ubicaciones, activos, categorias
                           minWidth: 0,
                         }}
                       />
-                      <span style={{ fontSize: 11, color: "var(--fg-3)", flexShrink: 0 }}>
+                      <span style={{ fontSize: 13, color: "var(--fg-3)", flexShrink: 0 }}>
                         {(a.file.size / 1024).toFixed(0)} KB
                       </span>
                       <button
@@ -1102,7 +1102,7 @@ export default function OTCrearForm({ usuarios, ubicaciones, activos, categorias
           <div style={{ padding: "14px 0", borderBottom: "1px solid var(--border)" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
               <Link2 size={14} style={{ color: "var(--fg-3)" }} />
-              <span style={{ fontSize: 11, fontWeight: 600, color: "var(--fg-3)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+              <span style={{ fontSize: 13, fontWeight: 600, color: "var(--fg-3)", letterSpacing: "0.01em" }}>
                 Links
               </span>
             </div>

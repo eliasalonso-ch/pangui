@@ -310,7 +310,7 @@ function SearchSelect({ placeholder, value, options, onChange }: {
                 {value === o.id && <Check size={11} style={{ color: "var(--brand)", flexShrink: 0 }} />}
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ color: "var(--fg-1)" }}>{o.label}</div>
-                  {o.sub && <div style={{ fontSize: 11, color: "var(--fg-4)" }}>{o.sub}</div>}
+                  {o.sub && <div style={{ fontSize: 13, color: "var(--fg-4)" }}>{o.sub}</div>}
                 </div>
               </button>
             ))}
@@ -421,7 +421,7 @@ function AssigneeSelect({ usuarios, value, onChange }: {
               display: "flex", alignItems: "center", gap: 4,
               padding: "2px 7px 2px 4px",
               background: "var(--brand-tint)", borderRadius: 20,
-              fontSize: 11.5, color: "var(--brand)",
+              fontSize: 13.5, color: "var(--brand)",
             }}>
               <span style={{
                 width: 18, height: 18, borderRadius: "50%",
@@ -504,7 +504,7 @@ function AssigneeSelect({ usuarios, value, onChange }: {
                   </span>
                   <div style={{ flex: 1, textAlign: "left" }}>
                     <div style={{ fontSize: 13, fontWeight: 500, color: "var(--fg-1)" }}>{u.nombre}</div>
-                    <div style={{ fontSize: 11, color: "var(--fg-4)", textTransform: "capitalize" }}>{u.rol}</div>
+                    <div style={{ fontSize: 13, color: "var(--fg-4)", textTransform: "capitalize" }}>{u.rol}</div>
                   </div>
                   {sel && <Check size={13} style={{ color: "var(--brand)", flexShrink: 0 }} />}
                 </button>
@@ -774,7 +774,7 @@ function SolicitanteSelect({ value, telefono, email, onChange, wsId, catalog, on
                   <div style={{ flex: 1, minWidth: 0, textAlign: "left" }}>
                     <div>{s.nombre}</div>
                     {(s.telefono || s.email) && (
-                      <div style={{ fontSize: 11, color: "var(--fg-4)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      <div style={{ fontSize: 13, color: "var(--fg-4)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                         {[s.telefono, s.email].filter(Boolean).join(" · ")}
                       </div>
                     )}
@@ -831,7 +831,7 @@ function SolicitanteSelect({ value, telefono, email, onChange, wsId, catalog, on
             />
           </div>
           {(phoneLocked || emailLocked) && (
-            <span style={{ fontSize: 11, color: "var(--fg-4)" }}>
+            <span style={{ fontSize: 13, color: "var(--fg-4)" }}>
               Datos de contacto guardados para este solicitante.
             </span>
           )}
@@ -1629,7 +1629,7 @@ export default function OTCrearPanel({
               {/* Album strip */}
               {grupos.length > 0 && (
               <aside style={{ flexShrink: 0, display: "flex", flexDirection: "column", background: "var(--surface-1)", borderBottom: "1px solid var(--border)" }}>
-                <div style={{ padding: "12px 14px 8px", fontSize: 12, fontWeight: 700, color: "var(--fg-4)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                <div style={{ padding: "12px 14px 8px", fontSize: 12, fontWeight: 700, color: "var(--fg-4)", letterSpacing: "0.01em" }}>
                   Álbumes
                 </div>
                 <div style={{ overflowX: "auto", padding: "0 14px 12px", display: "flex", flexDirection: "row", alignItems: "center", gap: 8 }}>
@@ -1989,7 +1989,7 @@ export default function OTCrearPanel({
               placeholder="Ej: SF920260325921"
               value={form.n_ot}
               onChange={e => setF("n_ot", e.target.value)}
-              style={{ width:"100%", height:40, padding:"0 12px", border:`1px solid ${dupWarning ? "var(--warning)" : "var(--border)"}`, borderRadius:8, fontSize:13, color:"var(--fg-1)", outline:"none", fontFamily:"monospace", background:"var(--surface-1)" }}
+              style={{ width:"100%", height:40, padding:"0 12px", border:`1px solid ${dupWarning ? "var(--warning)" : "var(--border)"}`, borderRadius:8, fontSize:13, color:"var(--fg-1)", outline:"none", fontFamily:"var(--font-mono)", background:"var(--surface-1)" }}
             />
             {dupWarning && (
               <div style={{ display:"flex", alignItems:"center", gap:6, marginTop:6, padding:"6px 10px", borderRadius:6, background:"var(--warning-bg, #FFFBEB)", border:"1px solid var(--warning)" }}>

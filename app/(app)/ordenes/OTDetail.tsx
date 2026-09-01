@@ -131,13 +131,21 @@ function DetailBadge({
 }) {
   return (
     <span style={{
+      // minHeight + padding horizontal, igual que el chip "OT #": con padding
+      // vertical los dos chips quedaban de distinta altura.
       display: "inline-flex", alignItems: "center", gap: 6,
-      padding: "3px 9px",
-      border: "1px solid var(--border-strong)",
+      minHeight: 24, padding: "0 9px",
+      border: "1px solid var(--border)",
       borderRadius: "var(--r-sm)",
-      background: "transparent",
+      // Fondo propio, no transparente: al lado del chip "OT #" -- que sí usa
+      // --surface-1 -- un fondo transparente deja ver el lienzo y el chip se
+      // ve gris junto a uno blanco.
+      background: "var(--surface-1)",
       color: "var(--fg-1)",
-      fontWeight: 400,
+      // Tamaño propio en vez de heredarlo, y 13 igual que el chip "OT #" y
+      // que el resto de la fila de metadatos.
+      fontSize: 13,
+      fontWeight: 500,
       whiteSpace: "nowrap",
     }}>
       {Icon && <SolidIcon icon={Icon} color={iconColor ?? "var(--fg-3)"} />}
@@ -206,6 +214,13 @@ function fmtFechaLocal(value: string): string {
   return new Date(y, m - 1, d).toLocaleDateString("es-CL", { day: "numeric", month: "short", year: "numeric" });
 }
 
+/** Fecha + hora local para timestamps completos (created_at y similares). */
+function fmtFechaHora(value: string): string {
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return value;
+  return `${d.toLocaleDateString("es-CL", { day: "numeric", month: "short", year: "numeric" })}, ${d.toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit", hour12: false })}`;
+}
+
 function initials(n: string) {
   const p = n.trim().split(/\s+/);
   return p.length === 1 ? p[0].slice(0, 2).toUpperCase() : (p[0][0] + p[p.length - 1][0]).toUpperCase();
@@ -251,8 +266,7 @@ function NOTBadge({ nOT }: { nOT: string }) {
       onClick={copy}
       style={{
         display: "inline-flex", alignItems: "center", gap: 6,
-        marginBottom: 16,
-        fontSize: 14, fontFamily: "inherit", fontWeight: 500,
+        fontSize: 14, fontFamily: "inherit", fontWeight: 400,
         color: "var(--fg-1)", background: "none", border: "none", cursor: "pointer", padding: 0,
       }}
     >
@@ -529,6 +543,13 @@ interface Props {
   // Show an X button in the sticky header. Off by default (list view has its
   // own close affordances); on for calendar/kanban modal overlays.
   showCloseButton?: boolean;
+  /**
+   * Optional extra action rendered in the header, left of the close button.
+   * El modal de /inicio lo usa para "Ver en Órdenes"; se pasa como prop en vez
+   * de codificar ese caso acá, porque OTDetail no debería saber desde qué
+   * pantalla lo abrieron.
+   */
+  headerAction?: { icon: React.ReactNode; label: string; onClick: () => void };
   showBackButton?: boolean;
   // Per-user "marcar como leída/vista" state + toggle (owned by the parent list).
   isMarcada?:       boolean;
@@ -586,6 +607,7 @@ export default function OTDetail({
   orden, usuarios, myId, myRol, wsId,
   onEdit, onDelete, onClose, onOrdenUpdated, onOpenOrden,
   showCloseButton = false, showBackButton = false,
+  headerAction,
   isMarcada, onToggleMarcada,
 }: Props) {
   const router = useRouter();
@@ -2567,15 +2589,19 @@ export default function OTDetail({
     () => new Map(usuarios.map(u => [u.id, u.nombre])),
     [usuarios],
   );
+  // Sin `color`/`tint` por ítem: el botón se pinta según `active` (azul de
+  // marca o gris), y esos campos ya no los leía nadie. Además llevaban
+  // --brand-fg, que en modo oscuro es #5CADFF -- un azul grisáceo lavado,
+  // distinto del --brand real.
   const dashboardNav = ([
-    { tab: "detalle", label: "Detalles", value: "Ver", caption: "información de la OT", icon: <Info size={19} />, color: "var(--brand-fg)", tint: "var(--brand-tint)" },
-    { tab: "actividad", label: "Actividad", value: String(actividad.length), caption: "eventos", icon: <MessageSquare size={19} />, color: "var(--brand-fg)", tint: "var(--brand-tint)" },
-    { tab: "fotos", label: "Fotos", value: String(totalFotos), caption: "fotos", icon: <Camera size={19} />, color: "var(--brand-fg)", tint: "var(--brand-tint)" },
-    { tab: "materiales", label: "Materiales", value: String(ordenPartes.length), caption: "ítems usados", icon: <Package size={19} />, color: "var(--fg-2)", tint: "var(--surface-hover)" },
-    { tab: "hoja", label: "Hoja de cálculo", value: "Abrir", caption: "registros", icon: <Sheet size={19} />, color: "var(--success)", tint: "var(--success-bg)" },
+    { tab: "detalle", label: "Detalles", value: "Ver", caption: "información de la OT", icon: <Info size={16} /> },
+    { tab: "actividad", label: "Actividad", value: String(actividad.length), caption: "eventos", icon: <MessageSquare size={16} /> },
+    { tab: "fotos", label: "Fotos", value: String(totalFotos), caption: "fotos", icon: <Camera size={16} /> },
+    { tab: "materiales", label: "Materiales", value: String(ordenPartes.length), caption: "ítems usados", icon: <Package size={16} /> },
+    { tab: "hoja", label: "Hoja de cálculo", value: "Abrir", caption: "registros", icon: <Sheet size={16} /> },
   ] as Array<{
     tab: Tab | null; label: string; value: string; caption: string;
-    icon: React.ReactNode; color: string; tint: string;
+    icon: React.ReactNode;
   }>).filter((item) => {
     if (item.tab === "materiales" && modoRegistro === "hoja") return false;
     if (item.tab === "hoja" && modoRegistro === "materiales") return false;
@@ -2741,7 +2767,12 @@ export default function OTDetail({
                 aria-selected={active}
                 aria-label={item.label}
                 title={item.label}
-                onClick={() => { if (item.tab) setTab(item.tab); }}
+                onClick={e => {
+                  // Al hacer clic el puntero se queda encima y no dispara
+                  // onMouseLeave, así que el fondo de hover se limpia acá.
+                  e.currentTarget.style.background = "var(--surface-1)";
+                  if (item.tab) setTab(item.tab);
+                }}
                 style={{
                   height: 34,
                   width: 38,
@@ -2749,18 +2780,27 @@ export default function OTDetail({
                   display: "inline-flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  background: active ? "var(--brand-tint)" : "var(--surface-1)",
-                  border: `1px solid ${active ? "var(--brand)" : "var(--border)"}`,
+                  // Mismo lenguaje que los chips de filtro de /ordenes: el
+                  // ícono va SIEMPRE en azul de marca (es lo que identifica la
+                  // sección de un vistazo) y sólo cambian el borde y el grosor
+                  // al seleccionar. Sin relleno tintado.
+                  background: "var(--surface-1)",
+                  border: active ? "1.5px solid var(--brand)" : "1px solid var(--border)",
                   borderRadius: "var(--r-sm)",
-                  color: active ? "var(--brand)" : "var(--fg-2)",
+                  color: "var(--brand)",
                   cursor: "pointer",
                   fontFamily: "inherit",
                   whiteSpace: "nowrap",
                   flexShrink: 0,
                   transition: "background 0.12s, border-color 0.12s, color 0.12s",
                 }}
+                // El reset va SIN condicionar a `active`: el guard anterior
+                // capturaba el valor del render en curso, así que al pasar de
+                // una pestaña a otra el onMouseLeave de la que acababas de
+                // seleccionar se saltaba el reset y el fondo del hover quedaba
+                // pegado hasta el próximo hover.
                 onMouseEnter={e => { if (!active) e.currentTarget.style.background = "var(--surface-hover)"; }}
-                onMouseLeave={e => { if (!active) e.currentTarget.style.background = "var(--surface-1)"; }}
+                onMouseLeave={e => { e.currentTarget.style.background = "var(--surface-1)"; }}
                 onFocus={e => { e.currentTarget.style.outline = "none"; }}
               >
                 <span style={{ width: 18, height: 18, flexShrink: 0, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
@@ -2875,15 +2915,29 @@ export default function OTDetail({
             )}
           </div>
 
+          {headerAction && (
+            <button
+              type="button" onClick={headerAction.onClick}
+              aria-label={headerAction.label}
+              title={headerAction.label}
+              style={{ width: 34, height: 34, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: "var(--r-sm)", cursor: "pointer", color: "var(--fg-1)" }}
+              onMouseEnter={e => { e.currentTarget.style.background = "var(--surface-hover)"; }}
+              onMouseLeave={e => { e.currentTarget.style.background = "var(--surface-1)"; }}
+            >
+              {headerAction.icon}
+            </button>
+          )}
+
           {showCloseButton && (
             <button
               type="button" onClick={onClose}
               aria-label="Cerrar"
-              style={{ width: 32, height: 32, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", borderRadius: "var(--r-sm)", cursor: "pointer", color: "var(--fg-4)" }}
-              onMouseEnter={e => { e.currentTarget.style.background = "var(--surface-hover)"; }}
-              onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}
+              // 34 para igualar a Editar y al menú de acciones que van al lado.
+              style={{ width: 34, height: 34, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: "var(--r-sm)", cursor: "pointer", color: "var(--danger)" }}
+              onMouseEnter={e => { e.currentTarget.style.background = "var(--danger-bg)"; }}
+              onMouseLeave={e => { e.currentTarget.style.background = "var(--surface-1)"; }}
             >
-              <X size={15} />
+              <X size={16} />
             </button>
           )}
         </div>
@@ -2898,13 +2952,26 @@ export default function OTDetail({
             El padding inferior reserva espacio para el botón flotante "Ir a
             procedimientos", que se apoya abajo al centro. */}
         {tab === "detalle" && (
-          <div style={{ padding: "22px 28px 76px" }}>
+          <div style={{ padding: "0 28px 76px", display: "flex", flexDirection: "column", gap: 0 }}>
             {/* Título y metadatos: dentro del área con scroll, no en la cabecera
                 fija. Solo la barra de secciones se queda quieta; el título se va
                 con el contenido, que es lo que se espera al bajar. */}
-            <div style={{ minWidth: 0, paddingRight: 190, marginBottom: 22 }}>
+            {/* La línea va como borderBottom de este bloque, no como un <hr>
+                aparte: un hermano extra contaría como ítem del flex y recibiría
+                el gap de 40 por los dos lados, separándola del encabezado que
+                justamente tiene que cerrar.
+                El contenedor tiene 28 de padding lateral, así que la regla se
+                quedaba corta por ambos lados: los márgenes negativos la sacan
+                hasta el borde y el padding devuelve el texto a su sitio. */}
+            <div style={{
+              minWidth: 0,
+              marginLeft: -28, marginRight: -28,
+              paddingLeft: 28, paddingRight: 28,
+              paddingTop: 16, paddingBottom: 16,
+              borderBottom: "1px solid var(--border)",
+            }}>
               {orden.numero != null && (
-                <div style={{ display: "inline-flex", alignItems: "center", minHeight: 24, padding: "0 9px", border: "1px solid var(--border)", borderRadius: "var(--r-sm)", background: "var(--surface-1)", color: "var(--fg-1)", fontSize: 12, fontWeight: 500, marginBottom: 8 }}>
+                <div style={{ display: "inline-flex", alignItems: "center", minHeight: 24, padding: "0 9px", border: "1px solid var(--border)", borderRadius: "var(--r-sm)", background: "var(--surface-1)", color: "var(--fg-1)", fontSize: 13, fontWeight: 500, marginBottom: 8 }}>
                   OT #{orden.numero}
                 </div>
               )}
@@ -2960,13 +3027,18 @@ export default function OTDetail({
             )}
 
             {/* N° OT badge */}
-            {meta.nOT && <NOTBadge nOT={meta.nOT} />}
+            {meta.nOT && (
+              <div style={{ paddingTop: 16 }}>
+                <p style={{ fontSize: 14, fontWeight: 600, color: "var(--fg-1)", letterSpacing: "0.01em", margin: "0 0 8px" }}>N° de OT</p>
+                <NOTBadge nOT={meta.nOT} />
+              </div>
+            )}
 
             {/* Description */}
             {meta.descripcion && (
-              <div style={{ maxWidth: 1100 }}>
-                <p style={{ fontSize: 11, fontWeight: 600, color: "var(--fg-4)", textTransform: "uppercase", letterSpacing: "0.07em", margin: "0 0 4px" }}>Descripción</p>
-                <p style={{ fontSize: 14, color: "var(--fg-2)", lineHeight: 1.75, whiteSpace: "pre-wrap", margin: 0 }}>{meta.descripcion}</p>
+              <div style={{ paddingTop: 16 }}>
+                <p style={{ fontSize: 14, fontWeight: 600, color: "var(--fg-1)", letterSpacing: "0.01em", margin: "0 0 8px" }}>Descripción</p>
+                <p style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-2)", lineHeight: 1.75, whiteSpace: "pre-wrap", margin: 0 }}>{meta.descripcion}</p>
               </div>
             )}
 
@@ -2975,8 +3047,13 @@ export default function OTDetail({
               // Solid per-status fill when selected; the unselected state always
               // shows the brand blue (see button styles below).
               return (
-                <div style={{ marginTop: 28 }}>
-                  <p style={{ fontSize: 11, fontWeight: 700, color: "var(--fg-4)", textTransform: "uppercase", letterSpacing: "0.07em", margin: "0 0 12px" }}>Estado</p>
+                <div style={{
+                  marginLeft: -28, marginRight: -28,
+                  paddingLeft: 28, paddingRight: 28,
+                  paddingTop: 16, paddingBottom: 16,
+                  borderBottom: "1px solid var(--border)",
+                }}>
+                  <p style={{ fontSize: 14, fontWeight: 600, color: "var(--fg-1)", letterSpacing: "0.01em", margin: "0 0 12px" }}>Estado</p>
                   <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
                     {ESTADOS.map(e => {
                       // "pendiente" flips to "Asignada" once someone is assigned,
@@ -3084,18 +3161,23 @@ export default function OTDetail({
                           }}
                         >
                           {estadoEnCurso === e.value ? (
-                            <Loader2 size={18} className="animate-spin" style={{ color: isSelected && accent ? "#FFFFFF" : "var(--brand)" }} />
+                            <Loader2 size={20} className="animate-spin" style={{ color: isSelected && accent ? "#FFFFFF" : "var(--brand)" }} />
                           ) : (
-                            <Icon size={18} style={{ color: isSelected && accent ? "#FFFFFF" : "var(--brand)" }} />
+                            <Icon size={20} style={{ color: isSelected && accent ? "#FFFFFF" : "var(--brand)" }} />
                           )}
                           {estadoEnCurso === e.value ? (
-                            <span style={{ fontSize: 11, fontWeight: 700, textAlign: "center", lineHeight: 1.2 }}>{label}</span>
+                            <span style={{ fontSize: 13, fontWeight: 700, textAlign: "center", lineHeight: 1.2 }}>{label}</span>
                           ) : e.value === "en_curso" && orden.en_ejecucion ? (
-                            <span style={{ fontSize: 12, fontWeight: 700, fontFamily: "monospace", textAlign: "center", lineHeight: 1.2 }}>
+                            // `monospace` a secas cae en la mono por defecto del
+                            // navegador, no en la de la app (Geist Mono), así que
+                            // este cronómetro se veía con otra tipografía que el
+                            // resto. Y 13 como sus hermanos: con 12 la etiqueta
+                            // cambiaba de tamaño al arrancar el cronómetro.
+                            <span style={{ fontSize: 13, fontWeight: 700, fontFamily: "var(--font-mono)", textAlign: "center", lineHeight: 1.2 }}>
                               {fmtSecs(elapsed)}
                             </span>
                           ) : (
-                            <span style={{ fontSize: 11, fontWeight: 700, textAlign: "center", lineHeight: 1.2 }}>{label}</span>
+                            <span style={{ fontSize: 13, fontWeight: 700, textAlign: "center", lineHeight: 1.2 }}>{label}</span>
                           )}
                         </button>
                       );
@@ -3146,7 +3228,7 @@ export default function OTDetail({
                         : (c || "Esta orden está pausada.")}
                     </p>
                     {latestPause.created_at && (
-                      <p style={{ fontSize: 11, color: tone.fg, margin: "4px 0 0", opacity: 0.8 }}>
+                      <p style={{ fontSize: 13, color: tone.fg, margin: "4px 0 0", opacity: 0.8 }}>
                         {new Date(latestPause.created_at).toLocaleString("es-CL", {
                           day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit",
                         })}
@@ -3266,7 +3348,8 @@ export default function OTDetail({
                         <span style={{
                           width: 30, height: 30, borderRadius: "var(--r-sm)", flexShrink: 0,
                           display: "inline-flex", alignItems: "center", justifyContent: "center",
-                          background: "var(--brand-tint)", color: "var(--brand)",
+                          background: "var(--surface-1)", color: "var(--brand)",
+                          border: "1px solid var(--border)",
                         }}>
                           <FileText size={16} />
                         </span>
@@ -3291,16 +3374,16 @@ export default function OTDetail({
                     onChange={handleAdjuntosUpload}
                   />
                   {creationFiles.length > 0 && (
-                    <div style={{ marginTop: 12 }}>
-                      <div style={{ fontSize: 11, fontWeight: 600, color: "var(--fg-4)", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 6 }}>
+                    <div style={{ paddingTop: 16 }}>
+                      <div style={{ fontSize: 14, fontWeight: 600, color: "var(--fg-1)", letterSpacing: "0.01em", marginBottom: 8 }}>
                         Adjuntos de la OT
                       </div>
                       {renderFiles(creationFiles)}
                     </div>
                   )}
-                  <div style={{ marginTop: 12 }}>
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 6 }}>
-                      <div style={{ fontSize: 11, fontWeight: 600, color: "var(--fg-4)", textTransform: "uppercase", letterSpacing: "0.07em" }}>
+                  <div style={urlLinks.length > 0 ? undefined : { marginLeft: -28, marginRight: -28, paddingLeft: 28, paddingRight: 28, paddingTop: 16, paddingBottom: 16, borderBottom: "1px solid var(--border)" }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 8 }}>
+                      <div style={{ fontSize: 14, fontWeight: 600, color: "var(--fg-1)", letterSpacing: "0.01em" }}>
                         Adjuntos subidos
                       </div>
                       <button
@@ -3323,8 +3406,8 @@ export default function OTDetail({
                       : <div style={{ padding: "14px 12px", border: "1px dashed var(--border)", borderRadius: "var(--r-sm)", color: "var(--fg-4)", fontSize: 12 }}>Todavía no se han subido archivos durante la ejecución.</div>}
                   </div>
                   {urlLinks.length > 0 && (
-                    <div style={{ marginTop: 12 }}>
-                      <div style={{ fontSize: 11, fontWeight: 600, color: "var(--fg-4)", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 6 }}>
+                    <div style={{ marginLeft: -28, marginRight: -28, paddingLeft: 28, paddingRight: 28, paddingTop: 16, paddingBottom: 16, borderBottom: "1px solid var(--border)" }}>
+                      <div style={{ fontSize: 14, fontWeight: 600, color: "var(--fg-1)", letterSpacing: "0.01em", marginBottom: 6 }}>
                         Links
                       </div>
                       <LinksDisplay links={urlLinks} />
@@ -3335,7 +3418,7 @@ export default function OTDetail({
             })()}
 
             {/* Meta fields */}
-            <div style={{ marginTop: 32, paddingTop: 26, borderTop: "1px solid var(--border)", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "28px 72px", maxWidth: 1180 }}>
+            <div style={{ marginLeft: -28, marginRight: -28, paddingLeft: 28, paddingRight: 28, paddingTop: 16, paddingBottom: 16, borderBottom: "1px solid var(--border)", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "24px 72px" }}>
               {[
                 orden.tipo_trabajo && { label: "Tipo", value: TIPO_LABEL[orden.tipo_trabajo] ?? orden.tipo_trabajo, icon: <Settings2 size={16} /> },
                 orden.sociedad?.nombre && { label: "Sociedad", value: orden.sociedad.nombre, icon: <Building2 size={16} /> },
@@ -3352,11 +3435,12 @@ export default function OTDetail({
                 (orden.tiempo_total_segundos != null && orden.tiempo_total_segundos > 0) && { label: "Tiempo total", value: fmtSecs(orden.tiempo_total_segundos), icon: <RotateCcw size={16} /> },
               ].filter(Boolean).map((field: any) => (
                 <div key={field.label}>
-                  <p style={{ fontSize: 11, fontWeight: 700, color: "var(--fg-4)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 7, marginTop: 0 }}>{field.label}</p>
-                  <p style={{ fontSize: 14, color: "var(--fg-1)", margin: 0, display: "flex", alignItems: "center", gap: 10, lineHeight: 1.45 }}>
+                  <p style={{ fontSize: 14, fontWeight: 600, color: "var(--fg-1)", letterSpacing: "0.01em", marginBottom: 7, marginTop: 0 }}>{field.label}</p>
+                  <p style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", margin: 0, display: "flex", alignItems: "center", gap: 10, lineHeight: 1.45 }}>
                     <span style={{
-                      width: 28, height: 28, borderRadius: "var(--r-sm)",
-                      background: "var(--brand-tint)", color: "var(--brand)",
+                      width: 30, height: 30, borderRadius: "var(--r-sm)",
+                      background: "var(--surface-1)", color: "var(--brand)",
+                      border: "1px solid var(--border)",
                       display: "inline-flex", alignItems: "center", justifyContent: "center",
                       flexShrink: 0,
                     }}>{field.icon}</span>
@@ -3374,30 +3458,35 @@ export default function OTDetail({
                 las demás quedaban invisibles pese a estar guardadas, así que se
                 resuelven todas contra el catálogo del workspace. */}
             {categoriasVisibles.length > 0 && (
-              <div style={{ marginTop: 30, paddingTop: 24, borderTop: "1px solid var(--border)", display: "flex", flexWrap: "wrap", gap: 6 }}>
+              <div style={{ marginLeft: -28, marginRight: -28, paddingLeft: 28, paddingRight: 28, paddingTop: 16, paddingBottom: 16, borderBottom: "1px solid var(--border)" }}>
+                <p style={{ fontSize: 14, fontWeight: 600, color: "var(--fg-1)", letterSpacing: "0.01em", margin: "0 0 8px" }}>Categorías</p>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                 {categoriasVisibles.map(c => (
                   /* El color de la categoría solo tiñe el ícono. */
                   <span key={c.id} style={{
                     display: "inline-flex", alignItems: "center", gap: 5,
-                    fontSize: 12, fontWeight: 400, padding: "4px 10px",
-                    border: "1px solid var(--border-strong)",
+                    fontSize: 14, fontWeight: 400, padding: "0 9px", minHeight: 24,
+                    border: "1px solid var(--border)",
                     borderRadius: "var(--r-sm)",
-                    background: "transparent",
+                    // Fondo propio, no transparente: igual que los demás chips,
+                    // si no se ve el lienzo y salen grises al lado de uno blanco.
+                    background: "var(--surface-1)",
                     color: "var(--fg-1)",
                   }}>
                     <span style={{ display: "inline-flex", flexShrink: 0, color: c.color ?? "var(--fg-3)" }}>
-                      <CategoriaIcon icono={c.icono} size={13} />
+                      <CategoriaIcon icono={c.icono} size={16} />
                     </span>
                     {c.nombre}
                   </span>
                 ))}
+                </div>
               </div>
             )}
 
             {/* Assigned */}
             {assigned.length > 0 && (
-              <div style={{ marginTop: 30, paddingTop: 24, borderTop: "1px solid var(--border)" }}>
-                <p style={{ fontSize: 11, fontWeight: 700, color: "var(--fg-4)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 14, marginTop: 0 }}>Asignados</p>
+              <div style={{ marginLeft: -28, marginRight: -28, paddingLeft: 28, paddingRight: 28, paddingTop: 16, paddingBottom: 16, borderBottom: "1px solid var(--border)" }}>
+                <p style={{ fontSize: 14, fontWeight: 600, color: "var(--fg-1)", letterSpacing: "0.01em", marginBottom: 14, marginTop: 0 }}>Asignados</p>
                 <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
                   {assigned.map(u => (
                     <div key={u.id} style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -3405,7 +3494,7 @@ export default function OTDetail({
                         width: 38, height: 38, borderRadius: "50%",
                         background: "linear-gradient(135deg, var(--brand-active), var(--brand))", color: "var(--fg-on-brand)",
                         display: "flex", alignItems: "center", justifyContent: "center",
-                        fontSize: 11, fontWeight: 700, flexShrink: 0,
+                        fontSize: 13, fontWeight: 700, flexShrink: 0,
                       }}>
                         {initials(u.nombre)}
                       </span>
@@ -3419,19 +3508,31 @@ export default function OTDetail({
               </div>
             )}
 
-            {/* Creador */}
+
+            {/* Creado por — sección propia, con las mismas reglas que el
+                resto: título 14/600, regla al ancho completo y padding 16/16. */}
             {orden.creador?.nombre && (
-              <div style={{ marginTop: 30, paddingTop: 24, borderTop: "1px solid var(--border)", display: "flex", alignItems: "center", gap: 8 }}>
-                <User size={13} style={{ color: "var(--fg-4)" }} />
-                <span style={{ fontSize: 12, color: "var(--fg-4)" }}>Creado por</span>
-                <span style={{ fontSize: 12, fontWeight: 600, color: "var(--fg-2)" }}>{orden.creador.nombre}</span>
+              <div style={{ marginLeft: -28, marginRight: -28, paddingLeft: 28, paddingRight: 28, paddingTop: 16, paddingBottom: 16, borderBottom: "1px solid var(--border)" }}>
+                <p style={{ fontSize: 14, fontWeight: 600, color: "var(--fg-1)", letterSpacing: "0.01em", margin: "0 0 8px" }}>Creado por</p>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <span style={{
+                    width: 30, height: 30, borderRadius: "50%",
+                    background: "linear-gradient(135deg, var(--brand-active), var(--brand))",
+                    color: "var(--fg-on-brand)",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    fontSize: 11, fontWeight: 700, flexShrink: 0,
+                  }}>{initials(orden.creador.nombre)}</span>
+                  <span style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)" }}>
+                    {orden.creador.nombre}
+                    {orden.created_at ? ` · ${fmtFechaHora(orden.created_at)}` : ""}
+                  </span>
+                </div>
               </div>
             )}
 
-
             {/* ── Procedimientos — vive dentro de Detalles, debajo de
                  Asignados, en vez de una pestaña aparte. ── */}
-            <div ref={procSectionRef} style={{ marginTop: 30, paddingTop: 24, borderTop: "1px solid var(--border)" }}>
+            <div ref={procSectionRef} style={{ paddingTop: 16, paddingBottom: 16 }}>
               {/* Paginación junto al título: con varios procedimientos se
                   navega uno a uno en vez de apilarlos todos. */}
               {(() => {
@@ -3442,7 +3543,7 @@ export default function OTDetail({
                 };
                 return (
                   <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
-                    <p style={{ fontSize: 11, fontWeight: 700, color: "var(--fg-4)", textTransform: "uppercase", letterSpacing: "0.06em", margin: 0 }}>Procedimientos</p>
+                    <p style={{ fontSize: 14, fontWeight: 600, color: "var(--fg-1)", letterSpacing: "0.01em", margin: 0 }}>Procedimientos</p>
                     {otProcs.length > 1 && (
                       <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
                         <button
@@ -3459,7 +3560,7 @@ export default function OTDetail({
                         >
                           <ChevronLeft size={14} />
                         </button>
-                        <span style={{ fontSize: 11.5, color: "var(--fg-3)", minWidth: 46, textAlign: "center" }}>
+                        <span style={{ fontSize: 13.5, color: "var(--fg-3)", minWidth: 46, textAlign: "center" }}>
                           {idx + 1} de {otProcs.length}
                         </span>
                         <button
@@ -3803,7 +3904,7 @@ export default function OTDetail({
                           <span style={{ fontSize: 13.5, fontWeight: 600, color: "var(--fg-1)" }}>{nombre}</span>
                           <span style={{ fontSize: 13.5, color: "var(--fg-4)" }}>{fmtTs(act.created_at)}</span>
                           {isMine && (
-                            <span style={{ fontSize: 11, color: "var(--fg-4)" }}>· tú</span>
+                            <span style={{ fontSize: 13, color: "var(--fg-4)" }}>· tú</span>
                           )}
                         </div>
                         {cuerpo && (
@@ -3945,11 +4046,11 @@ export default function OTDetail({
                         <Package size={14} style={{ color: "var(--fg-4)", flexShrink: 0 }} />
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ fontSize: 13, fontWeight: 500, color: "var(--fg-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.nombre}</div>
-                          <div style={{ fontSize: 11, color: p.stock_actual <= 0 ? "var(--danger)" : "var(--fg-4)" }}>
+                          <div style={{ fontSize: 13, color: p.stock_actual <= 0 ? "var(--danger)" : "var(--fg-4)" }}>
                             {p.unidad} · Stock: {p.stock_actual}
                           </div>
                         </div>
-                        <span style={{ fontSize: 11, color: "var(--brand-fg)", fontWeight: 600, flexShrink: 0 }}>+ Agregar</span>
+                        <span style={{ fontSize: 13, color: "var(--brand-fg)", fontWeight: 600, flexShrink: 0 }}>+ Agregar</span>
                       </button>
                     ))}
                   </div>
@@ -3978,14 +4079,14 @@ export default function OTDetail({
               <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 90px 32px", gap: 8, padding: "6px 10px", borderBottom: "1px solid var(--border)" }}>
                   {["Material", "Cantidad", ""].map(h => (
-                    <span key={h} style={{ fontSize: 10, fontWeight: 600, color: "var(--fg-4)", textTransform: "uppercase", letterSpacing: "0.05em" }}>{h}</span>
+                    <span key={h} style={{ fontSize: 14, fontWeight: 600, color: "var(--fg-1)", letterSpacing: "0.01em" }}>{h}</span>
                   ))}
                 </div>
                 {ordenPartes.map(op => (
                   <div key={op.id} style={{ display: "grid", gridTemplateColumns: "1fr 90px 32px", gap: 8, alignItems: "center", padding: "8px 10px", borderBottom: "1px solid var(--divider)" }}>
                     <div>
                       <div style={{ fontSize: 13, fontWeight: 500, color: "var(--fg-1)" }}>{op.parte?.nombre ?? "—"}</div>
-                      <div style={{ fontSize: 11, color: "var(--fg-4)" }}>{op.parte?.unidad}</div>
+                      <div style={{ fontSize: 13, color: "var(--fg-4)" }}>{op.parte?.unidad}</div>
                     </div>
                     {(isActive || canManage) ? (
                       <input
@@ -4086,8 +4187,8 @@ export default function OTDetail({
               </div>
             ) : (
               <div style={{ padding: 20, display: "flex", flexDirection: "column", gap: 16 }}>
-                {pauseReason === "reprogramar" && <label style={{ display: "flex", flexDirection: "column", gap: 7, fontSize: 12, fontWeight: 650, color: "var(--fg-3)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Nueva fecha programada<input type="date" min={new Date().toISOString().slice(0, 10)} value={pauseDate} onChange={e => setPauseDate(e.target.value)} style={{ height: 42, padding: "0 12px", border: "1px solid var(--border)", borderRadius: "var(--r-md)", background: "var(--surface-0)", color: "var(--fg-1)", font: "inherit", textTransform: "none", letterSpacing: 0 }} /></label>}
-                {(pauseReason === "acceso" || pauseReason === "otro" || pauseReason === "reprogramar") && <label style={{ display: "flex", flexDirection: "column", gap: 7, fontSize: 12, fontWeight: 650, color: "var(--fg-3)", textTransform: "uppercase", letterSpacing: "0.05em" }}>{pauseReason === "reprogramar" ? "Comentario opcional" : "Motivo"}<textarea autoFocus value={pauseComment} onChange={e => setPauseComment(e.target.value)} placeholder={pauseReason === "acceso" ? "Ej: No había nadie en las instalaciones…" : "Describe el motivo…"} rows={4} style={{ resize: "vertical", minHeight: 96, padding: 12, border: "1px solid var(--border)", borderRadius: "var(--r-md)", background: "var(--surface-0)", color: "var(--fg-1)", font: "inherit", fontSize: 14, lineHeight: 1.45, textTransform: "none", letterSpacing: 0 }} /></label>}
+                {pauseReason === "reprogramar" && <label style={{ display: "flex", flexDirection: "column", gap: 7, fontSize: 12, fontWeight: 650, color: "var(--fg-3)", letterSpacing: "0.01em" }}>Nueva fecha programada<input type="date" min={new Date().toISOString().slice(0, 10)} value={pauseDate} onChange={e => setPauseDate(e.target.value)} style={{ height: 42, padding: "0 12px", border: "1px solid var(--border)", borderRadius: "var(--r-md)", background: "var(--surface-0)", color: "var(--fg-1)", font: "inherit", textTransform: "none", letterSpacing: 0 }} /></label>}
+                {(pauseReason === "acceso" || pauseReason === "otro" || pauseReason === "reprogramar") && <label style={{ display: "flex", flexDirection: "column", gap: 7, fontSize: 12, fontWeight: 650, color: "var(--fg-3)", letterSpacing: "0.01em" }}>{pauseReason === "reprogramar" ? "Comentario opcional" : "Motivo"}<textarea autoFocus value={pauseComment} onChange={e => setPauseComment(e.target.value)} placeholder={pauseReason === "acceso" ? "Ej: No había nadie en las instalaciones…" : "Describe el motivo…"} rows={4} style={{ resize: "vertical", minHeight: 96, padding: 12, border: "1px solid var(--border)", borderRadius: "var(--r-md)", background: "var(--surface-0)", color: "var(--fg-1)", font: "inherit", fontSize: 14, lineHeight: 1.45, textTransform: "none", letterSpacing: 0 }} /></label>}
                 {pauseReason === "materiales" && <p style={{ margin: 0, fontSize: 13.5, lineHeight: 1.5, color: "var(--fg-2)" }}>La OT quedará en espera y se abrirá la hoja de cálculo para registrar los materiales necesarios.</p>}
                 <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 4 }}>
                   <button type="button" onClick={() => { setPauseReason(null); setPauseComment(""); setPauseDate(""); }} disabled={timerBusy} style={{ height: 40, padding: "0 16px", border: "1px solid var(--border)", borderRadius: "var(--r-md)", background: "var(--surface-1)", color: "var(--fg-2)", font: "inherit", fontWeight: 600, cursor: "pointer" }}>Atrás</button>
@@ -4186,7 +4287,7 @@ export default function OTDetail({
                     como <strong style={{ color: "var(--fg-2)" }}>cierre forzado</strong> y el motivo
                     quedará registrado en su historial.
                   </p>
-                  <label style={{ display: "flex", flexDirection: "column", gap: 7, fontSize: 12, fontWeight: 650, color: "var(--fg-3)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                  <label style={{ display: "flex", flexDirection: "column", gap: 7, fontSize: 12, fontWeight: 650, color: "var(--fg-3)", letterSpacing: "0.01em" }}>
                     Motivo del cierre forzado
                     <textarea
                       autoFocus
@@ -4271,7 +4372,7 @@ export default function OTDetail({
             <div style={{ padding: "8px 20px 4px", maxHeight: 380, overflowY: "auto" }}>
               {Array.from(new Set(EXPORT_FIELDS.map(f => f.group))).map(group => (
                 <div key={group} style={{ marginBottom: 12 }}>
-                  <div style={{ fontSize: 10, fontWeight: 700, color: "var(--fg-4)", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 4, paddingLeft: 10 }}>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: "var(--fg-1)", letterSpacing: "0.01em", marginBottom: 4, paddingLeft: 10 }}>
                     {group}
                   </div>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1 }}>
@@ -4371,7 +4472,7 @@ export default function OTDetail({
             <div style={{ padding: "8px 20px 4px", maxHeight: 380, overflowY: "auto" }}>
               {Array.from(new Set(PDF_FIELDS.map(f => f.group))).map(group => (
                 <div key={group} style={{ marginBottom: 12 }}>
-                  <div style={{ fontSize: 10, fontWeight: 700, color: "var(--fg-4)", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 4, paddingLeft: 10 }}>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: "var(--fg-1)", letterSpacing: "0.01em", marginBottom: 4, paddingLeft: 10 }}>
                     {group}
                   </div>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1 }}>
@@ -5782,7 +5883,7 @@ function PasoInput({
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
         {fields.map(f => (
           <div key={f.key} style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-            <label style={{ fontSize: 11, color: "var(--fg-3)", fontWeight: 600 }}>{f.label}</label>
+            <label style={{ fontSize: 13, color: "var(--fg-3)", fontWeight: 600 }}>{f.label}</label>
             <input
               type="text"
               value={(val(f.key) as string | null | undefined) ?? ""}
@@ -6028,7 +6129,7 @@ function PasoImagenField({
         <div style={{ display: "flex", flexDirection: "column", alignItems: "stretch", width: "100%", border: "1px solid var(--border)", borderRadius: "var(--r-sm)", background: "var(--surface-canvas)", overflow: "hidden" }}>
           {urls.map((url, index) => (
             <div key={url} style={{ display: "flex", alignItems: "center", gap: 14, padding: 12, borderTop: index === 0 ? "none" : "1px solid var(--border)" }}>
-              <span style={{ flexShrink: 0, padding: "5px 8px", borderRadius: "var(--r-xs)", background: "var(--surface-1)", fontSize: 10.5, fontWeight: 600, color: "var(--fg-3)", textTransform: "uppercase" }}>
+              <span style={{ flexShrink: 0, padding: "5px 8px", borderRadius: "var(--r-xs)", background: "var(--surface-1)", fontSize: 10.5, fontWeight: 600, color: "var(--fg-3)" }}>
                 {(url.split("?")[0].split(".").pop() ?? "img").slice(0, 4)}
               </span>
               <button type="button" onClick={() => onPreview(urls, index)} style={{ padding: 0, border: 0, background: "transparent", cursor: "zoom-in", flexShrink: 0 }} aria-label="Ver imagen">
@@ -6069,7 +6170,7 @@ function PasoImagenField({
         {uploading ? <Loader2 size={20} className="animate-spin" /> : <Camera size={20} />}
         {uploading ? "Subiendo…" : "Agregar Imágenes/Archivos"}
       </button>
-      {err && <div style={{ fontSize: 11, color: "var(--danger)" }}>{err}</div>}
+      {err && <div style={{ fontSize: 13, color: "var(--danger)" }}>{err}</div>}
       <input
         ref={libraryInputRef}
         type="file"
@@ -6195,7 +6296,7 @@ function ProcEjecucionModal({
                           <div style={{ fontSize: 13.5, fontWeight: 600, color: "var(--fg-1)", lineHeight: 1.3 }}>
                             {paso.titulo}
                             {!paso.requerido && !isInfoOnly && (
-                              <span style={{ fontSize: 11, color: "var(--fg-4)", fontWeight: 400, marginLeft: 6 }}>(opcional)</span>
+                              <span style={{ fontSize: 13, color: "var(--fg-4)", fontWeight: 400, marginLeft: 6 }}>(opcional)</span>
                             )}
                           </div>
                           {paso.descripcion && (
@@ -6219,7 +6320,7 @@ function ProcEjecucionModal({
                               <div style={{ flex: 1, minWidth: 0 }}>
                                 <ReadonlyAnswer paso={paso} resp={saved} onPhotoClick={(url) => setLightboxImages({ urls: [url], idx: 0 })} />
                                 {saved.editado_at && (
-                                  <div style={{ fontSize: 11, color: "var(--fg-4)", marginTop: 4, fontStyle: "italic" }}>
+                                  <div style={{ fontSize: 13, color: "var(--fg-4)", marginTop: 4, fontStyle: "italic" }}>
                                     Editado {new Date(saved.editado_at!).toLocaleString()}
                                   </div>
                                 )}
@@ -6229,7 +6330,7 @@ function ProcEjecucionModal({
                                   onClick={() => setEditingPasos(prev => ({ ...prev, [paso.id]: true }))}
                                   style={{
                                     display: "flex", alignItems: "center", gap: 4,
-                                    padding: "4px 8px", fontSize: 11.5, fontWeight: 600,
+                                    padding: "4px 8px", fontSize: 13.5, fontWeight: 600,
                                     color: "var(--brand)", background: "var(--brand-tint)",
                                     border: "1px solid var(--brand)", borderRadius: "var(--r-sm)",
                                     cursor: "pointer", flexShrink: 0, fontFamily: "inherit",
@@ -6249,7 +6350,7 @@ function ProcEjecucionModal({
                                   onClick={() => setEditingPasos(prev => { const n = { ...prev }; delete n[paso.id]; return n; })}
                                   style={{
                                     display: "inline-flex", alignItems: "center", gap: 3,
-                                    fontSize: 11, color: "var(--fg-3)",
+                                    fontSize: 13, color: "var(--fg-3)",
                                     background: "transparent", border: "none", cursor: "pointer",
                                     marginBottom: 6, fontFamily: "inherit", padding: 0,
                                   }}

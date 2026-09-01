@@ -250,7 +250,6 @@ export default function OrdenesBandeja({
     if (f === "urgentes")         return { ...EMPTY_FILTROS, prioridades: ["urgente"] };
     if (f === "alta_prioridad")   return { ...EMPTY_FILTROS, prioridades: ["urgente", "alta"] };
     if (f === "en_curso")         return { ...EMPTY_FILTROS, estados: ["en_curso"] };
-    if (f === "abiertas")         return { ...EMPTY_FILTROS, estados: ["pendiente", "en_espera"] };
     if (f === "bloqueadas")       return { ...EMPTY_FILTROS, estados: ["en_espera"] };
     if (f === "reprogramadas")    return EMPTY_FILTROS;
     if (f === "materiales")       return EMPTY_FILTROS;
@@ -1549,7 +1548,7 @@ export default function OrdenesBandeja({
                 </button>
               )}
               {searchHitCap && (
-                <div style={{ position:"absolute", left:0, top:"calc(100% + 4px)", fontSize:11, color:"var(--fg-4)", whiteSpace:"nowrap" }}>
+                <div style={{ position:"absolute", left:0, top:"calc(100% + 4px)", fontSize:13, color:"var(--fg-4)", whiteSpace:"nowrap" }}>
                   {`Más de ${ORDENES_SEARCH_LIMIT} resultados · refina la búsqueda`}
                 </div>
               )}
@@ -1751,7 +1750,7 @@ export default function OrdenesBandeja({
                     {t.label}
                   </span>
                   <span style={{
-                    fontSize:11, fontWeight:700, padding:"2px 8px", borderRadius:4,
+                    fontSize:13, fontWeight:700, padding:"2px 8px", borderRadius:4,
                     background: isActive ? "var(--brand-tint)" : "var(--surface-hover)",
                     color: isActive ? "var(--brand-fg)" : "var(--fg-4)",
                   }}>
@@ -1870,7 +1869,7 @@ export default function OrdenesBandeja({
                             }} />
                           )}
                           <span style={{
-                            fontSize:11, fontWeight:600, minWidth:18, textAlign:"right",
+                            fontSize:13, fontWeight:600, minWidth:18, textAlign:"right",
                             color: isActive ? "var(--brand-fg)" : "var(--fg-4)",
                           }}>
                             {o.count}
@@ -2264,10 +2263,10 @@ export default function OrdenesBandeja({
             <div style={{ padding:"12px 20px 4px", borderBottom:"1px solid var(--border)" }}>
               <div style={{ marginBottom: 10 }}>
                 <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom: 6 }}>
-                  <span style={{ fontSize: 10, fontWeight: 700, color: "var(--fg-4)", textTransform: "uppercase", letterSpacing: "0.07em" }}>Filtrar por estado</span>
+                  <span style={{ fontSize: 10, fontWeight: 700, color: "var(--fg-4)", letterSpacing: "0.01em" }}>Filtrar por estado</span>
                   {exportFilterEstados.length > 0 && (
                     <button type="button" onClick={() => setExportFilterEstados([])}
-                      style={{ fontSize: 11, color: "var(--fg-4)", background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", padding: 0 }}>
+                      style={{ fontSize: 13, color: "var(--fg-4)", background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", padding: 0 }}>
                       Limpiar
                     </button>
                   )}
@@ -2302,10 +2301,10 @@ export default function OrdenesBandeja({
 
               <div style={{ marginBottom: 10 }}>
                 <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom: 6 }}>
-                  <span style={{ fontSize: 10, fontWeight: 700, color: "var(--fg-4)", textTransform: "uppercase", letterSpacing: "0.07em" }}>Filtrar por tipo de trabajo</span>
+                  <span style={{ fontSize: 10, fontWeight: 700, color: "var(--fg-4)", letterSpacing: "0.01em" }}>Filtrar por tipo de trabajo</span>
                   {exportFilterTipos.length > 0 && (
                     <button type="button" onClick={() => setExportFilterTipos([])}
-                      style={{ fontSize: 11, color: "var(--fg-4)", background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", padding: 0 }}>
+                      style={{ fontSize: 13, color: "var(--fg-4)", background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", padding: 0 }}>
                       Limpiar
                     </button>
                   )}
@@ -2342,7 +2341,7 @@ export default function OrdenesBandeja({
             <div style={{ padding:"8px 20px 4px" }}>
               {Array.from(new Set(EXPORT_COLS.map(c => c.group))).map(group => (
                 <div key={group} style={{ marginBottom:12 }}>
-                  <div style={{ fontSize:10, fontWeight:700, color:"var(--fg-4)", textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:4, paddingLeft:10 }}>
+                  <div style={{ fontSize:10, fontWeight:700, color:"var(--fg-4)", letterSpacing:"0.01em", marginBottom:4, paddingLeft:10 }}>
                     {group}
                   </div>
                   <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:1 }}>

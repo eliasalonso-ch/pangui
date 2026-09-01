@@ -115,7 +115,7 @@ function TokenSearch({ placeholder, value, onChange, tokens, onRemove, onClearAl
               display: "inline-flex", alignItems: "center", gap: 4, maxWidth: 190,
               padding: "2px 4px 2px 7px", borderRadius: 4,
               background: "var(--brand-tint)", color: "var(--brand)",
-              fontSize: 11.5, fontWeight: 600,
+              fontSize: 13.5, fontWeight: 600,
             }}
           >
             <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.label}</span>
@@ -199,12 +199,12 @@ function FilterDropdown({ label, icon, active, count, onClear, onRemove, childre
         onClick={() => setOpen(v => !v)}
         style={{
           display: "flex", alignItems: "center", gap: 6,
-          height: 32, padding: "0 11px",
+          height: 34, padding: "0 11px",
           border: active ? "1.5px solid var(--brand)" : "1px solid var(--border)",
-          borderRadius: 7,
+          borderRadius: "var(--r-sm)",
           background: active ? "var(--brand-tint)" : "var(--surface-1)",
           color: active ? "var(--brand)" : "var(--fg-2)",
-          fontSize: 12.5, fontWeight: active ? 600 : 500,
+          fontSize: 14, fontWeight: 400,
           cursor: "pointer", fontFamily: "inherit",
           whiteSpace: "nowrap",
         }}
@@ -227,13 +227,13 @@ function FilterDropdown({ label, icon, active, count, onClear, onRemove, childre
         }}>
           {/* Dropdown header */}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "8px 12px 6px", borderBottom: "1px solid var(--border)" }}>
-            <span style={{ fontSize: 11, fontWeight: 700, color: "var(--fg-3)", textTransform: "uppercase", letterSpacing: "0.06em" }}>{label}</span>
+            <span style={{ fontSize: 13, fontWeight: 700, color: "var(--fg-3)", letterSpacing: "0.01em" }}>{label}</span>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               {count > 0 && (
                 <button
                   type="button"
                   onClick={onClear}
-                  style={{ fontSize: 11, color: "var(--fg-4)", background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", padding: 0 }}
+                  style={{ fontSize: 13, color: "var(--fg-4)", background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", padding: 0 }}
                 >
                   Limpiar
                 </button>
@@ -288,13 +288,13 @@ function AddFilterMenu({ available, onAdd }: {
         type="button"
         onClick={() => setOpen(v => !v)}
         style={{
-          display: "flex", alignItems: "center", gap: 5, height: 32, padding: "0 11px",
-          border: "1px dashed var(--border)", borderRadius: 7,
+          display: "flex", alignItems: "center", gap: 5, height: 34, padding: "0 11px",
+          border: "1px dashed var(--border)", borderRadius: "var(--r-sm)",
           background: "transparent", color: "var(--fg-3)",
-          fontSize: 12.5, fontWeight: 500, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap",
+          fontSize: 14, fontWeight: 400, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap",
         }}
       >
-        <Plus size={15} />
+        <Plus size={16} />
         Añadir filtro
       </button>
 
@@ -339,15 +339,15 @@ function AddFilterMenu({ available, onAdd }: {
 
 /** Ícono por filtro. Vive acá porque es presentación, no lógica de filtrado. */
 const FILTER_ICONS: Record<FilterKey, React.ReactNode> = {
-  asignadoIds:      <User size={15} />,
-  sinAsignar:       <UserRoundX size={15} />,
-  fechaVencimiento: <Clock size={15} />,
-  ubicacionIds:     <MapPin size={15} />,
-  itos:             <Zap size={15} />,
-  prioridades:      <Flag size={15} />,
-  estados:          <Check size={15} />,
-  tipos:            <Wrench size={15} />,
-  sociedadIds:      <Building2 size={15} />,
+  asignadoIds:      <User size={16} />,
+  sinAsignar:       <UserRoundX size={16} />,
+  fechaVencimiento: <Clock size={16} />,
+  ubicacionIds:     <MapPin size={16} />,
+  itos:             <Zap size={16} />,
+  prioridades:      <Flag size={16} />,
+  estados:          <Check size={16} />,
+  tipos:            <Wrench size={16} />,
+  sociedadIds:      <Building2 size={16} />,
 };
 
 // ── FilterBar (inline toolbar) ────────────────────────────────────────────────
@@ -415,12 +415,12 @@ export function FilterBar({ filtros, onChange, usuarios, ubicaciones, sociedades
         aria-pressed={filtros.sinAsignar}
         style={{
           display: "flex", alignItems: "center", gap: 6,
-          height: 32, padding: "0 11px",
+          height: 34, padding: "0 11px",
           border: filtros.sinAsignar ? "1.5px solid var(--brand)" : "1px solid var(--border)",
-          borderRadius: 7,
+          borderRadius: "var(--r-sm)",
           background: filtros.sinAsignar ? "var(--brand-tint)" : "var(--surface-1)",
           color: filtros.sinAsignar ? "var(--brand)" : "var(--fg-2)",
-          fontSize: 12.5, fontWeight: filtros.sinAsignar ? 600 : 500,
+          fontSize: 14, fontWeight: 400,
           cursor: "pointer", fontFamily: "inherit",
           whiteSpace: "nowrap",
         }}
@@ -478,17 +478,17 @@ export function FilterBar({ filtros, onChange, usuarios, ubicaciones, sociedades
           title="OTs asignadas a usuarios que fueron dados de baja"
           style={{
             display: "flex", alignItems: "center", gap: 6,
-            height: 32, padding: "0 11px",
+            height: 34, padding: "0 11px",
             border: filtros.deUsuariosDadosDeBaja ? "1.5px solid var(--brand)" : "1px solid var(--border)",
-            borderRadius: 7,
+            borderRadius: "var(--r-sm)",
             background: filtros.deUsuariosDadosDeBaja ? "var(--brand-tint)" : "var(--surface-1)",
             color: filtros.deUsuariosDadosDeBaja ? "var(--brand)" : "var(--fg-2)",
-            fontSize: 12.5, fontWeight: filtros.deUsuariosDadosDeBaja ? 600 : 500,
+            fontSize: 14, fontWeight: 400,
             cursor: "pointer", fontFamily: "inherit",
             whiteSpace: "nowrap",
           }}
         >
-          <UserRoundX size={15} style={{ color: "var(--brand)" }} />
+          <UserRoundX size={16} style={{ color: "var(--brand)" }} />
           Dados de baja
           {filtros.deUsuariosDadosDeBaja && <Check size={11} />}
         </button>
@@ -700,7 +700,7 @@ export function FilterBar({ filtros, onChange, usuarios, ubicaciones, sociedades
             // padding propio se sumaba a ese gap, dejando este botón más
             // separado del último chip que los chips entre sí.
             display: "flex", alignItems: "center", justifyContent: "center",
-            height: 32, padding: 0, flexShrink: 0,
+            height: 34, padding: 0, flexShrink: 0,
             border: "none", background: "none", color: "var(--brand)",
             fontSize: 12.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap",
           }}
@@ -720,7 +720,7 @@ export function FilterBar({ filtros, onChange, usuarios, ubicaciones, sociedades
 function Section({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div style={{ borderBottom: "1px solid var(--border)", paddingBottom: 14, marginBottom: 14 }}>
-      <div style={{ fontSize: 11, fontWeight: 700, color: "var(--fg-3)", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 8 }}>
+      <div style={{ fontSize: 13, fontWeight: 700, color: "var(--fg-3)", letterSpacing: "0.01em", marginBottom: 8 }}>
         {label}
       </div>
       {children}

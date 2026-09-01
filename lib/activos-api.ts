@@ -135,6 +135,62 @@ export interface ActivoOTHistoryRow {
   completador?: { id: string; nombre: string } | null;
 }
 
+/**
+ * One page of OTs linked to this activo, newest completion first.
+ *
+ * The General tab renders the list incrementally so an asset with hundreds of
+ * OTs does not ship them all in the first payload. Metrics are computed from a
+ * separate, lighter query (`fetchActivoMetricsRows`) because averages need the
+ * whole window, not just the visible page.
+ */
+export async function fetchActivoOTHistoryPage(
+  activoId: string,
+  page: number,
+  pageSize: number,
+): Promise<{ rows: ActivoOTHistoryRow[]; nextPage: number | null }> {
+  const sb = createClient();
+  const from = page * pageSize;
+  const to = from + pageSize - 1;
+  const { data, error } = await sb
+    .from("ordenes_trabajo")
+    .select(HISTORY_SELECT)
+    .eq("activo_id", activoId)
+    .is("deleted_at", null)
+    .order("completado_en", { ascending: false, nullsFirst: false })
+    .order("created_at", { ascending: false })
+    .range(from, to);
+  if (error) throw error;
+  const rows = (data ?? []) as unknown as ActivoOTHistoryRow[];
+  return { rows, nextPage: rows.length === pageSize ? page + 1 : null };
+}
+
+/**
+ * Rows needed to compute reliability metrics for the last `days` days.
+ *
+ * Deliberately selects far fewer columns than HISTORY_SELECT and joins nothing:
+ * MTBF/MTTR/PM-compliance only need types, states and timestamps, so pulling
+ * creator/completer relations here would be wasted egress on every asset open.
+ */
+export async function fetchActivoMetricsRows(
+  activoId: string,
+  days = 365,
+): Promise<ActivoOTHistoryRow[]> {
+  const sb = createClient();
+  const since = new Date(Date.now() - days * 86_400_000).toISOString();
+  const { data, error } = await sb
+    .from("ordenes_trabajo")
+    .select(`id, estado, tipo_trabajo, fecha_termino, iniciado_at,
+             completado_en, tiempo_total_segundos, costo_total`)
+    .eq("activo_id", activoId)
+    .is("deleted_at", null)
+    // Pending PMs have no completion stamp but still matter for compliance, so
+    // the window filter has to accept either timestamp.
+    .or(`completado_en.gte.${since},fecha_termino.gte.${since.slice(0, 10)}`)
+    .order("completado_en", { ascending: false, nullsFirst: false });
+  if (error) throw error;
+  return (data ?? []) as unknown as ActivoOTHistoryRow[];
+}
+
 /** All OTs (incl. sub-OTs) that touched this activo, newest completion first. */
 export async function fetchActivoOTHistory(activoId: string, limit = 200): Promise<ActivoOTHistoryRow[]> {
   const sb = createClient();

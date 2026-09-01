@@ -515,6 +515,33 @@ body {
 
 a { color: inherit; text-decoration: none; }
 
+/* ── Geist en todo ───────────────────────────────────────────
+   El preflight de Tailwind pone `font-family: inherit` en button, input,
+   optgroup, select y textarea, pero no en todo: `option` en Windows sigue
+   pintándose con la fuente nativa del sistema, y los elementos de código
+   (`pre`, `code`, `kbd`, `samp`) traen monoespaciada del navegador -- no la
+   nuestra. Esta regla cierra esos huecos con la MISMA pila que body, así que
+   nada queda fuera de Geist salvo lo que pida mono a propósito.
+
+   Va después de la regla de `html, body` para ganar por orden, y usa
+   selectores explícitos en vez de `*` para no romper los íconos de fuente. */
+option,
+optgroup,
+button,
+input,
+select,
+textarea,
+::placeholder,
+::file-selector-button {
+  font-family: var(--font-sans, "Geist"), system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+/* Lo que sí debe ir monoespaciado usa la mono de la app (Geist Mono), no la
+   del navegador. */
+pre, code, kbd, samp {
+  font-family: var(--font-mono);
+}
+
 input, select, textarea { color-scheme: inherit; }
 
 /* Text selection — use brand blue */

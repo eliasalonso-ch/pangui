@@ -243,13 +243,12 @@ export function RecurrenceControls({
   );
 }
 
-// Label matches the form's uppercase sub-labels (e.g. "Tipo de trabajo").
+// Label matches the form's sub-labels (e.g. "Tipo de trabajo").
 function labelStyle(compact: boolean): React.CSSProperties {
   return {
     fontSize: compact ? 11 : 12,
     fontWeight: 600,
     color: "var(--fg-3)",
-    textTransform: "uppercase",
     letterSpacing: "0.06em",
   };
 }

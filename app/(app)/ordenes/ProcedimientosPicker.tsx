@@ -76,7 +76,7 @@ export default function ProcedimientosPicker({
 
   return (
     <div>
-      <div style={{ fontSize: 11, fontWeight: 600, color: "var(--fg-3)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 10 }}>
+      <div style={{ fontSize: 13, fontWeight: 600, color: "var(--fg-3)", letterSpacing: "0.01em", marginBottom: 10 }}>
         Procedimiento
       </div>
 

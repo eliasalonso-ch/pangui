@@ -44,7 +44,7 @@ export interface PlanDef {
     // Inventory module
     inventario:               boolean;   // /partes route + hojas in OT
     // Analytics & insights
-    analytics_pro:            boolean;   // advanced analytics dashboard + materials
+    analytics_pro:            boolean;   // advanced analytics dashboard (MTTR/MTBF)
     scheduler:                boolean;   // export schedules
     // Notifications — disponibles en todos los planes; se mantiene la bandera
     // para no romper llamadas existentes, pero ya no diferencia planes.
