@@ -31,7 +31,6 @@ import { sessionCookieOptions } from "./lib/supabase-cookies";
 const APP_SEGMENTS = [
   "activos",
   "analitica",
-  "analitica-materiales",
   "categorias",
   "configuracion",
   "espacio-trabajo",

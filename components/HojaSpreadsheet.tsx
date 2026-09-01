@@ -265,7 +265,9 @@ function SheetGrid({
                 else handleDeleteColumn(col);
               }}
             >
-              <span style={{ fontSize: 12, fontWeight: 700, color: "var(--fg-1)", textTransform: "uppercase", letterSpacing: "0.04em", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {/* Sin textTransform: el label lo escribe el usuario al crear la
+                  columna, así que se muestra tal cual lo tipeó. */}
+              <span style={{ fontSize: 12, fontWeight: 700, color: "var(--fg-1)", letterSpacing: "0.01em", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                 {col.label}
               </span>
               <span style={{ fontSize: 10, color: "var(--fg-4)" }}>{col.tipo === "numero" ? "123" : "Aa"}</span>

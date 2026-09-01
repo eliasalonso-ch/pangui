@@ -147,7 +147,7 @@ function ExportSchedulerInner({ defaultColumns, canManage }: Props) {
         <Mail size={14} style={{ color: "var(--brand-fg)" }} />
         Programar envíos automáticos
         {schedules.length > 0 && (
-          <span style={{ fontSize: 11, color: "var(--fg-4)", fontWeight: 400, marginLeft: "auto" }}>
+          <span style={{ fontSize: 13, color: "var(--fg-4)", fontWeight: 400, marginLeft: "auto" }}>
             {schedules.filter(s => s.active).length} activas
           </span>
         )}
@@ -257,11 +257,11 @@ function ScheduleRow({ s, runs, canManage, onEdit, onDelete, onToggle }: {
       <div style={{ display: "flex", alignItems: "flex-start", gap: 10, flexWrap: "wrap" }}>
         <div style={{ flex: "1 1 220px", minWidth: 0 }}>
           <div style={{ fontSize: 13.5, fontWeight: 600, color: "var(--fg-1)" }}>{s.nombre}</div>
-          <div style={{ fontSize: 11.5, color: "var(--fg-4)", marginTop: 3, lineHeight: 1.45 }}>
+          <div style={{ fontSize: 13.5, color: "var(--fg-4)", marginTop: 3, lineHeight: 1.45 }}>
             {cadenceLabel} · {presetLabel} · {s.recipients.length} destinatario{s.recipients.length !== 1 ? "s" : ""}
           </div>
           {lastRun && (
-            <div style={{ fontSize: 11, color: lastRun.ok ? "#15803D" : "#B91C1C", marginTop: 6, display: "flex", alignItems: "center", gap: 4 }}>
+            <div style={{ fontSize: 13, color: lastRun.ok ? "#15803D" : "#B91C1C", marginTop: 6, display: "flex", alignItems: "center", gap: 4 }}>
               {lastRun.ok ? <CheckCircle2 size={11} /> : <AlertCircle size={11} />}
               Último envío: {new Date(lastRun.started_at).toLocaleString("es-CL")}
               {lastRun.ok ? ` · ${lastRun.ordenes_count} órdenes` : ` · ${lastRun.error_message ?? "error"}`}
@@ -274,11 +274,11 @@ function ScheduleRow({ s, runs, canManage, onEdit, onDelete, onToggle }: {
             <button
               type="button" onClick={onToggle}
               title={s.active ? "Pausar" : "Activar"}
-              style={{ fontSize: 11.5, padding: "5px 10px", borderRadius: 6, border: "1px solid var(--border)", background: "transparent", cursor: "pointer", color: "var(--fg-2)", fontFamily: "inherit" }}
+              style={{ fontSize: 13.5, padding: "5px 10px", borderRadius: 6, border: "1px solid var(--border)", background: "transparent", cursor: "pointer", color: "var(--fg-2)", fontFamily: "inherit" }}
             >{s.active ? "Pausar" : "Activar"}</button>
             <button
               type="button" onClick={onEdit}
-              style={{ fontSize: 11.5, padding: "5px 10px", borderRadius: 6, border: "1px solid var(--border)", background: "transparent", cursor: "pointer", color: "var(--fg-2)", fontFamily: "inherit" }}
+              style={{ fontSize: 13.5, padding: "5px 10px", borderRadius: 6, border: "1px solid var(--border)", background: "transparent", cursor: "pointer", color: "var(--fg-2)", fontFamily: "inherit" }}
             >Editar</button>
             <button
               type="button" onClick={onDelete}
@@ -415,7 +415,7 @@ function ScheduleForm({ initial, defaultColumns, onClose, onSaved }: {
             <button
               key={p.key} type="button" onClick={() => setPreset(p.key)}
               style={{
-                fontSize: 11, padding: "5px 10px", borderRadius: 999,
+                fontSize: 13, padding: "5px 10px", borderRadius: 999,
                 border: preset === p.key ? "1px solid var(--brand)" : "1px solid var(--border)",
                 background: preset === p.key ? "var(--brand)" : "transparent",
                 color: preset === p.key ? "var(--surface-1)" : "var(--fg-2)",
@@ -429,7 +429,7 @@ function ScheduleForm({ initial, defaultColumns, onClose, onSaved }: {
       <Field label="Destinatarios (correos)">
         <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 4 }}>
           {recipients.map(r => (
-            <span key={r} style={{ fontSize: 11, padding: "3px 8px", borderRadius: 999, background: "var(--surface-hover)", color: "var(--fg-2)", display: "flex", alignItems: "center", gap: 4 }}>
+            <span key={r} style={{ fontSize: 13, padding: "3px 8px", borderRadius: 999, background: "var(--surface-hover)", color: "var(--fg-2)", display: "flex", alignItems: "center", gap: 4 }}>
               {r}
               <button type="button" onClick={() => setRecipients(recipients.filter(x => x !== r))}
                 style={{ border: "none", background: "transparent", cursor: "pointer", padding: 0, color: "var(--fg-4)" }}>
@@ -446,14 +446,14 @@ function ScheduleForm({ initial, defaultColumns, onClose, onSaved }: {
             style={{ ...inputStyle, flex: 1 }}
           />
           <button type="button" onClick={addRecipient}
-            style={{ fontSize: 11, padding: "0 10px", borderRadius: 6, border: "1px solid var(--border)", background: "transparent", cursor: "pointer", color: "var(--fg-2)" }}>
+            style={{ fontSize: 13, padding: "0 10px", borderRadius: 6, border: "1px solid var(--border)", background: "transparent", cursor: "pointer", color: "var(--fg-2)" }}>
             Agregar
           </button>
         </div>
       </Field>
 
       {error && (
-        <div style={{ padding: "6px 8px", marginTop: 6, background: "#FEE2E2", color: "#991B1B", borderRadius: 6, fontSize: 11, display: "flex", alignItems: "center", gap: 4 }}>
+        <div style={{ padding: "6px 8px", marginTop: 6, background: "#FEE2E2", color: "#991B1B", borderRadius: 6, fontSize: 13, display: "flex", alignItems: "center", gap: 4 }}>
           <AlertCircle size={11} /> {error}
         </div>
       )}
@@ -481,7 +481,7 @@ function ScheduleForm({ initial, defaultColumns, onClose, onSaved }: {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div style={{ marginBottom: 14 }}>
-      <div style={{ fontSize: 10.5, fontWeight: 700, color: "var(--fg-4)", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 6 }}>
+      <div style={{ fontSize: 10.5, fontWeight: 700, color: "var(--fg-4)", letterSpacing: "0.01em", marginBottom: 6 }}>
         {label}
       </div>
       {children}

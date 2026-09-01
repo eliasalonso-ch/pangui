@@ -64,7 +64,6 @@ const MATRIX_ROWS = [
     rows: [
       { label: "Historial de analítica",          value: (p) => limitLabel(p.limits.historial_meses, " meses") },
       { label: "Dashboard avanzado (MTTR/MTBF)",  feature: "analytics_pro" },
-      { label: "Analítica de materiales",         feature: "analytics_pro" },
       { label: "Exportes programados",            feature: "scheduler" },
     ],
   },

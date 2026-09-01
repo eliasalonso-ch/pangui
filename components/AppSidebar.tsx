@@ -10,12 +10,12 @@ import {
   ClipboardList,
   LogOut,
   ChevronUp,
+  ChevronDown,
   LayoutDashboard,
   MapPin,
   BarChart2,
   ClipboardCheck,
   Box,
-  PackageSearch,
   ListChecks,
   Bell,
   BellDot,
@@ -216,8 +216,8 @@ const NAV_ITEMS = [
   { href: "/inicio",             icon: LayoutDashboard, label: "Inicio"                                    },
   { href: "/ordenes",            icon: ClipboardList,  label: "Órdenes"                                   },
   { href: "/activos",            icon: Box,            label: "Activos"                                   },
-  { href: "/analitica",          icon: BarChart2,      label: "Analítica",               noMateriales: true},
-  { href: "/analitica-materiales", icon: PackageSearch, label: "Analítica de materiales", skipHoja: true   },
+  { href: "/analitica/ordenes",  icon: BarChart2,      label: "Analítica de órdenes",    noMateriales: true},
+  { href: "/analitica/activos",  icon: BarChart2,      label: "Analítica de activos",    noMateriales: true},
   { href: "/procedimientos",     icon: ClipboardCheck, label: "Procedimientos",          adminOnly: true   },
   { href: "/partes",             icon: Boxes,          label: "Materiales",              inventario: true, skipMateriales: true },
   { href: "/usuarios",           icon: Users,          label: "Equipo",                  adminOnly: true, usuariosOnly: true },
@@ -233,6 +233,9 @@ export default function AppSidebar() {
   const [workspaceId, setWorkspaceId] = useState<string | null>(null);
   const [workspaceLogo, setWorkspaceLogo] = useState<string | null | undefined>(undefined);
   const [mounted, setMounted] = useState(false);
+  // Analítica submenu starts open when the user is already inside the section,
+  // so a page load never hides the report they are looking at.
+  const [analiticaOpen, setAnaliticaOpen] = useState(() => pathname.startsWith("/analitica"));
   // userId sale del mismo `load()` de abajo; las notificaciones cuelgan del
   // hook compartido para que la campana de la topbar y esta comparta estado.
   const [notifUserId, setNotifUserId] = useState<string | null>(null);
@@ -246,8 +249,13 @@ export default function AppSidebar() {
   const planFeatures = suscripcion.data?.plan_features ?? null;
   // While the plan is loading, show items optimistically; once loaded, hide ones the plan blocks.
   const hasInventario   = !planFeatures || planFeatures.inventario;
-  const hasAnalyticsPro = !planFeatures || planFeatures.analytics_pro;
   const isAdmin = mounted && (effectiveRol === "jefe" || effectiveRol === "admin" || effectiveRol === "owner");
+
+  // Entering the section from anywhere else opens the submenu. Leaving it does
+  // not force it closed — a user who collapsed it deliberately keeps that.
+  useEffect(() => {
+    if (pathname.startsWith("/analitica")) setAnaliticaOpen(true);
+  }, [pathname]);
 
   useEffect(() => {
     setMounted(true);
@@ -308,7 +316,6 @@ export default function AppSidebar() {
   }, []);
 
   function isActive(href: string) {
-    if (href === "/analitica") return pathname === "/analitica" || (pathname.startsWith("/analitica") && !pathname.startsWith("/analitica-materiales"));
     return pathname === href || pathname.startsWith(href);
   }
 
@@ -427,25 +434,121 @@ export default function AppSidebar() {
                 </SidebarMenuButton>
               </SidebarMenuItem>
               {/* Analitica: admins/owners only. It reports across the whole
-                  workspace, so it is not a member-level view. */}
+                  workspace, so it is not a member-level view.
+                  Two reports live under it (órdenes and activos), so the item
+                  expands rather than linking straight to a page. */}
               {isAdmin && (
                 <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={isActive("/analitica")} tooltip="Analítica">
-                    <Link href="/analitica" prefetch={false} style={{ display: "flex", alignItems: "center", gap: collapsed ? 0 : 10 }}>
+                  {collapsed ? (
+                    // En el riel colapsado no cabe el submenú, pero navegar
+                    // tampoco sirve: /analitica redirige a Órdenes, así que el
+                    // clic terminaba abriendo un informe que nadie pidió.
+                    // Expande la barra y despliega el submenú, que es lo que el
+                    // ícono promete.
+                    <SidebarMenuButton
+                      isActive={isActive("/analitica")}
+                      tooltip="Analítica"
+                      onClick={() => { setCollapsed(false); setAnaliticaOpen(true); }}
+                      style={{ fontFamily: "inherit" }}
+                    >
                       <BarChart2 size={16} style={{ flexShrink: 0 }} />
-                      {!collapsed && <span>Analítica</span>}
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              )}
-              {isAdmin && modoRegistro !== "materiales" && hasAnalyticsPro && (
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={isActive("/analitica-materiales")} tooltip="Analítica de materiales">
-                    <Link href="/analitica-materiales" prefetch={false} style={{ display: "flex", alignItems: "center", gap: collapsed ? 0 : 10 }}>
-                      <PackageSearch size={16} style={{ flexShrink: 0 }} />
-                      {!collapsed && <span>Analítica de materiales</span>}
-                    </Link>
-                  </SidebarMenuButton>
+                    </SidebarMenuButton>
+                  ) : (
+                    <>
+                      {/* onMouseLeave re-asserts the resting colour: this is a
+                          button you click in place, so after toggling, the
+                          cursor is still on it and SidebarMenuButton's own
+                          hover handler has already written the darker --fg-1
+                          onto the inline style. */}
+                      <SidebarMenuButton
+                        onClick={() => setAnaliticaOpen(o => !o)}
+                        onMouseLeave={e => {
+                          e.currentTarget.style.color = "var(--fg-3)";
+                          e.currentTarget.style.background = "transparent";
+                        }}
+                        style={{
+                          // Same caveat as the sub-items: this replaces the
+                          // component's inline style, so the defaults are
+                          // restated rather than inherited.
+                          display: "flex", alignItems: "center", gap: 10,
+                          width: "100%",
+                          // This is the ONLY nav row that renders as a real
+                          // <button> (every other one is asChild + <Link>, so
+                          // Radix's Slot emits an <a>). Buttons carry the UA
+                          // font shorthand, which resets family and weight
+                          // together, so both are restated here explicitly.
+                          fontFamily: "inherit",
+                          fontSize: 13,
+                          fontWeight: 500,
+                          color: "var(--fg-3)",
+                          background: "transparent",
+                          borderRadius: 6,
+                          transition: "background 0.15s, color 0.15s, box-shadow 0.15s",
+                        }}
+                      >
+                        <BarChart2 size={16} style={{ flexShrink: 0 }} />
+                        <span>Analítica</span>
+                        <ChevronDown
+                          size={14}
+                          style={{
+                            flexShrink: 0,
+                            marginLeft: "auto",
+                            transition: "transform 140ms ease",
+                            transform: analiticaOpen ? "rotate(0deg)" : "rotate(-90deg)",
+                          }}
+                        />
+                      </SidebarMenuButton>
+                      {analiticaOpen && (
+                        // Same metrics as SidebarMenuButton (13px, medium, h-9,
+                        // radius 6, inset active bar) so the sub-items read as
+                        // the same control, just indented under the parent.
+                        <div style={{ position: "relative" }}>
+                          {/* Connector rule under the parent icon's centre:
+                              8px wrapper + 12px px-3 + half of the 16px icon. */}
+                          <span aria-hidden style={{
+                            position: "absolute", left: 28, top: 2, bottom: 2,
+                            width: 1, background: "var(--border)",
+                          }} />
+                          {[
+                            { href: "/analitica/ordenes", label: "Órdenes" },
+                            { href: "/analitica/activos", label: "Activos" },
+                          ].map(sub => {
+                            const active = pathname === sub.href || pathname.startsWith(`${sub.href}/`);
+                            return (
+                              // Same construction as every other nav item:
+                              // SidebarMenuButton + asChild + Link, so all the
+                              // sizing, hover and active treatment comes from
+                              // the shared component rather than being
+                              // reimplemented here.
+                              <SidebarMenuButton
+                                key={sub.href}
+                                asChild
+                                isActive={active}
+                                style={{
+                                  // Must restate the component's own inline
+                                  // style: `...props` spreads after it, so a
+                                  // bare {paddingLeft} wipes colour and size
+                                  // and the item renders black at 14px.
+                                  width: "100%",
+                                  fontSize: 13,
+                                  color: active ? "var(--brand)" : "var(--fg-3)",
+                                  background: active ? "var(--brand-tint)" : "transparent",
+                                  boxShadow: active ? "inset 3px 0 0 var(--brand)" : "none",
+                                  borderRadius: 6,
+                                  paddingLeft: 40,
+                                  transition: "background 0.15s, color 0.15s, box-shadow 0.15s",
+                                }}
+                              >
+                                <Link href={sub.href} prefetch={false}>
+                                  {sub.label}
+                                </Link>
+                              </SidebarMenuButton>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </>
+                  )}
                 </SidebarMenuItem>
               )}
               {isAdmin && (

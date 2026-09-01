@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import {
-  X, Loader2, User, MapPin, Settings2,
+  X, ArrowLeft, Loader2, User, MapPin, Settings2,
   CalendarDays, Tag, Check, ChevronDown, Building2, Hash, Plus, DollarSign,
   Paperclip, FileText, File,
 } from "lucide-react";
@@ -90,7 +90,7 @@ function FieldRow({ icon, label, children }: {
         {icon}
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 12, fontWeight: 700, color: "var(--fg-3)", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: "var(--fg-3)", marginBottom: 10, letterSpacing: "0.01em" }}>
           {label}
         </div>
         {children}
@@ -187,7 +187,7 @@ function SearchSelect({ placeholder, value, options, onChange }: {
                 {value === o.id && <Check size={11} style={{ color: "var(--brand)", flexShrink: 0 }} />}
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ color: "var(--fg-1)" }}>{o.label}</div>
-                  {o.sub && <div style={{ fontSize: 11, color: "var(--fg-4)" }}>{o.sub}</div>}
+                  {o.sub && <div style={{ fontSize: 13, color: "var(--fg-4)" }}>{o.sub}</div>}
                 </div>
               </button>
             ))}
@@ -237,7 +237,7 @@ function AssigneeSelect({ usuarios, value, onChange }: {
             <span key={u.id} style={{
               display: "flex", alignItems: "center", gap: 4,
               padding: "2px 7px 2px 4px", background: "var(--brand-tint)", borderRadius: 20,
-              fontSize: 11.5, color: "var(--brand)",
+              fontSize: 13.5, color: "var(--brand)",
             }}>
               <span style={{
                 width: 18, height: 18, borderRadius: "50%", background: "var(--brand)", color: "var(--fg-on-brand)",
@@ -288,7 +288,7 @@ function AssigneeSelect({ usuarios, value, onChange }: {
                   </span>
                   <div style={{ flex: 1, textAlign: "left" }}>
                     <div style={{ fontSize: 13, fontWeight: 500, color: "var(--fg-1)" }}>{u.nombre}</div>
-                    <div style={{ fontSize: 11, color: "var(--fg-4)", textTransform: "capitalize" }}>{u.rol}</div>
+                    <div style={{ fontSize: 13, color: "var(--fg-4)", textTransform: "capitalize" }}>{u.rol}</div>
                   </div>
                   {sel && <Check size={13} style={{ color: "var(--brand)", flexShrink: 0 }} />}
                 </button>
@@ -551,7 +551,7 @@ function SolicitanteSelect({ value, telefono, email, onChange, wsId }: {
                   <div style={{ flex: 1, minWidth: 0, textAlign: "left" }}>
                     <div>{s.nombre}</div>
                     {(s.telefono || s.email) && (
-                      <div style={{ fontSize: 11, color: "var(--fg-4)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      <div style={{ fontSize: 13, color: "var(--fg-4)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                         {[s.telefono, s.email].filter(Boolean).join(" · ")}
                       </div>
                     )}
@@ -790,15 +790,23 @@ export default function OTEditPanel({
         display: "flex", alignItems: "center", justifyContent: "space-between",
         padding: "0 28px", height: 64, borderBottom: "1px solid var(--border)", flexShrink: 0,
       }}>
-        <h2 style={{ fontSize: 17, fontWeight: 700, color: "var(--fg-1)", margin: 0 }}>
-          Editar Orden de Trabajo
-        </h2>
-        <button
-          type="button" onClick={onClose}
-          style={{ width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center", border: "1px solid var(--border)", borderRadius: 6, background: "var(--surface-1)", cursor: "pointer", color: "var(--fg-3)" }}
-        >
-          <X size={14} />
-        </button>
+        {/* La flecha va a la izquierda del título: es "volver", y volver se
+            lee de izquierda a derecha. */}
+        <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
+          <button
+            type="button" onClick={onClose}
+            aria-label="Volver"
+            title="Volver"
+            style={{ width: 28, height: 28, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", border: "1px solid var(--border)", borderRadius: 6, background: "var(--surface-1)", cursor: "pointer", color: "var(--fg-3)" }}
+            onMouseEnter={e => { e.currentTarget.style.background = "var(--surface-hover)"; }}
+            onMouseLeave={e => { e.currentTarget.style.background = "var(--surface-1)"; }}
+          >
+            <ArrowLeft size={14} />
+          </button>
+          <h2 style={{ fontSize: 17, fontWeight: 700, color: "var(--fg-1)", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            Editar Orden de Trabajo
+          </h2>
+        </div>
       </div>
 
       {/* Scrollable body */}
@@ -839,7 +847,7 @@ export default function OTEditPanel({
 
           {/* Work type — promoted near the top so it's set before scrolling. */}
           <div style={{ marginBottom: 18 }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: "var(--fg-3)", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.06em" }}>Tipo de trabajo</div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: "var(--fg-3)", marginBottom: 10, letterSpacing: "0.01em" }}>Tipo de trabajo</div>
             <select value={form.tipo_trabajo} onChange={e => setF("tipo_trabajo", e.target.value as TipoTrabajo | "")}
               style={{ width: "100%", height: 40, padding: "0 12px", border: "1px solid var(--border)", borderRadius: 8, fontSize: 13, color: "var(--fg-1)", outline: "none", background: "var(--surface-1)", fontFamily: "inherit" }}>
               {TIPOS.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
@@ -860,7 +868,7 @@ export default function OTEditPanel({
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                 <Paperclip size={13} style={{ color: "var(--fg-4)" }} />
-                <span style={{ fontSize: 11, fontWeight: 700, color: "var(--fg-3)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                <span style={{ fontSize: 13, fontWeight: 700, color: "var(--fg-3)", letterSpacing: "0.01em" }}>
                   Adjuntos
                 </span>
               </div>
@@ -926,7 +934,7 @@ export default function OTEditPanel({
                         onChange={e => setAdjuntos(prev => prev.map((x, idx) => idx === i ? { ...x, nombre: e.target.value } : x))}
                         style={{ flex: 1, fontSize: 12.5, color: "var(--fg-1)", border: "none", outline: "none", background: "transparent", fontFamily: "inherit", minWidth: 0 }}
                       />
-                      <span style={{ fontSize: 11, color: "var(--fg-3)", flexShrink: 0 }}>{(a.file.size / 1024).toFixed(0)} KB</span>
+                      <span style={{ fontSize: 13, color: "var(--fg-3)", flexShrink: 0 }}>{(a.file.size / 1024).toFixed(0)} KB</span>
                       <button
                         type="button"
                         onClick={() => setAdjuntos(prev => prev.filter((_, idx) => idx !== i))}
@@ -961,7 +969,7 @@ export default function OTEditPanel({
 
           {/* Links */}
           <div style={{ padding: "24px 0", borderBottom: "1px solid var(--border)" }}>
-            <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "var(--fg-3)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 10 }}>
+            <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: "var(--fg-3)", letterSpacing: "0.01em", marginBottom: 10 }}>
               Links
             </label>
             <LinksInput
@@ -976,7 +984,7 @@ export default function OTEditPanel({
               placeholder="Ej: SF920260325921"
               value={form.n_ot}
               onChange={e => setF("n_ot", e.target.value)}
-              style={{ width:"100%", height:40, padding:"0 12px", border:"1px solid var(--border)", borderRadius:8, fontSize:13, color:"var(--fg-1)", outline:"none", fontFamily:"monospace", background:"var(--surface-1)" }}
+              style={{ width:"100%", height:40, padding:"0 12px", border:"1px solid var(--border)", borderRadius:8, fontSize:13, color:"var(--fg-1)", outline:"none", fontFamily:"var(--font-mono)", background:"var(--surface-1)" }}
             />
           </FieldRow>
 
@@ -1082,7 +1090,7 @@ export default function OTEditPanel({
           {/* Recurrence */}
           {/* Recurrence — Repetir + Terminar repetición (mirrors the mobile app) */}
           <div style={{ padding: "24px 0", borderBottom: "1px solid var(--border)" }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: "var(--fg-3)", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.06em" }}>Recurrencia</div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: "var(--fg-3)", marginBottom: 10, letterSpacing: "0.01em" }}>Recurrencia</div>
             <RecurrenceControls
               value={form}
               onChange={next => setForm(prev => ({ ...prev, ...next }))}
@@ -1091,7 +1099,7 @@ export default function OTEditPanel({
 
           {/* Priority */}
           <div style={{ padding: "24px 0", borderBottom: "1px solid var(--border)" }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: "var(--fg-3)", marginBottom: 12, textTransform: "uppercase", letterSpacing: "0.06em" }}>Prioridad</div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: "var(--fg-3)", marginBottom: 12, letterSpacing: "0.01em" }}>Prioridad</div>
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
               {PRIORIDADES.map((p) => {
                 const active = form.prioridad === p.value;
