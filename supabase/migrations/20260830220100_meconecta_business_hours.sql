@@ -12,9 +12,24 @@
 --
 -- 18:00 is exclusive: the last scrape of the day starts at 17:45.
 
-SELECT cron.alter_job(
-  (SELECT jobid FROM cron.job WHERE jobname = 'meconecta-scrape-tick'),
-  command := $job$
+-- Se envuelve en un DO con guarda: `cron.alter_job` recibía el resultado de una
+-- subconsulta que en una base recién creada devuelve NULL (el job existe en
+-- producción, pero CI levanta el esquema sólo desde migraciones y ahí nunca se
+-- creó), y alter_job rechaza un jobid nulo con "job_id can not be NULL".
+DO $mig$
+DECLARE
+  v_jobid bigint;
+BEGIN
+  SELECT jobid INTO v_jobid FROM cron.job WHERE jobname = 'meconecta-scrape-tick';
+
+  IF v_jobid IS NULL THEN
+    RAISE NOTICE 'meconecta-scrape-tick no existe; se omite (esperado en CI).';
+    RETURN;
+  END IF;
+
+  PERFORM cron.alter_job(
+    v_jobid,
+    command := $job$
     WITH ahora AS (
       SELECT now() AT TIME ZONE 'America/Santiago' AS ts
     )
@@ -30,5 +45,7 @@ SELECT cron.alter_job(
     WHERE EXTRACT(ISODOW FROM ahora.ts) BETWEEN 1 AND 6  -- Mon(1) .. Sat(6)
       AND EXTRACT(HOUR  FROM ahora.ts) >= 7
       AND EXTRACT(HOUR  FROM ahora.ts) <  18;
-  $job$
-);
+    $job$
+  );
+END
+$mig$;
