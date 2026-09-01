@@ -16,6 +16,8 @@ import {
 import dynamic from "next/dynamic";
 import { useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase";
+import { getAuthUser } from "@/lib/auth-user";
+import { getPerfilUsuario } from "@/lib/perfil-usuario";
 import { ordenQueryOptions } from "@/lib/queries";
 import type {
   Activo, CategoriaOT, LugarEspecifico, OrdenTrabajo, Sociedad, Ubicacion, Usuario,
@@ -374,14 +376,13 @@ export default function InicioDashboard() {
     async function load() {
       try {
         const sb = createClient();
-        const { data: { user } } = await sb.auth.getUser();
+        // Ambos van por la cache compartida: el resto del layout (topbar,
+        // sidebar) pide lo mismo al montar, y sin esto cada uno hacia su
+        // propia ida y vuelta con su preflight.
+        const user = await getAuthUser();
         if (!user) return;
 
-        const { data: perfil } = await sb
-          .from("usuarios")
-          .select("nombre, workspace_id, rol")
-          .eq("id", user.id)
-          .maybeSingle();
+        const perfil = await getPerfilUsuario();
 
         if (perfil?.nombre) setUserName(perfil.nombre.split(" ")[0]);
         setMyId(user.id);

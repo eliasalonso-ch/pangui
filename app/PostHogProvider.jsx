@@ -1,7 +1,7 @@
 "use client";
 
 // PostHog analytics provider. Initializes once on the client and wraps the app.
-// Autocapture (clicks/inputs) + manual pageview tracking + session replay.
+// Autocapture (clicks/inputs) + manual pageview tracking. Session replay off.
 import { usePathname, useSearchParams } from "next/navigation";
 import { Suspense, useEffect } from "react";
 import posthog from "posthog-js";
@@ -19,12 +19,15 @@ if (typeof window !== "undefined" && POSTHOG_KEY && !posthog.__loaded) {
     capture_pageleave: true,
     autocapture: true,
     persistence: "localStorage+cookie",
-    // Session replay — mask user input by default for privacy.
-    session_recording: {
-      maskAllInputs: true,
-    },
-    // Only enable replay in production to avoid recording local dev.
-    disable_session_recording: process.env.NODE_ENV !== "production",
+    // Session replay APAGADO, tambien en produccion.
+    //
+    // rrweb observa mutaciones del DOM y scroll de forma continua y descarga a
+    // /s/ cada ~10 s. En /inicio —400 OTs, DOM grande— ese trabajo de captura
+    // cae en el main thread justo mientras se hace scroll: el tironeo aparecia
+    // exactamente en el instante de cada peticion a /s/, ni antes ni despues.
+    //
+    // Si se vuelve a activar, medir el scroll de /inicio antes y despues.
+    disable_session_recording: true,
     // Surveys are on by default and pull a separate 33KB surveys.js on every
     // page load. We don't use PostHog surveys, so don't ship the bundle.
     disable_surveys: true,

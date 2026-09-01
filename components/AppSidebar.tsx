@@ -30,6 +30,7 @@ import { useRouter } from "next/navigation";
 
 import { createClient } from "@/lib/supabase";
 import { getAuthUser } from "@/lib/auth-user";
+import { getPerfilUsuario } from "@/lib/perfil-usuario";
 import { usePermisos } from "@/lib/permisos";
 import { ROL_LABEL } from "@/lib/roles";
 import { tieneItos } from "@/lib/itos-gate";
@@ -281,13 +282,11 @@ export default function AppSidebar() {
       // recortado y solo se arreglaba recargando.
       let data: { workspace_id?: string | null; rol?: string | null; nombre?: string | null } | null = null;
       for (let intento = 1; intento <= 3; intento++) {
-        const res = await sb
-          .from("usuarios")
-          .select("workspace_id, rol, nombre")
-          .eq("id", user.id)
-          .maybeSingle();
+        // getPerfilUsuario() no cachea los fallos, asi que reintentar sigue
+        // yendo a la red; un exito posterior queda cacheado para los demas.
+        data = await getPerfilUsuario();
         if (!active) return;
-        if (!res.error && res.data) { data = res.data; break; }
+        if (data) break;
         if (intento < 3) await new Promise(r => setTimeout(r, 800 * intento));
       }
 
