@@ -86,7 +86,8 @@ function ChartsSkeleton() {
 interface OTDashboard {
   id: string;
   titulo: string | null;
-  descripcion: string;
+  /** Fuera del select del dashboard (payload); sólo llega en el detalle. */
+  descripcion?: string | null;
   estado: Estado;
   prioridad: Prioridad;
   created_at: string;
@@ -123,6 +124,22 @@ interface ActividadItem {
 }
 
 const ACTIVIDAD_PAGE = 20;
+
+/**
+ * Techo de OTs que carga el dashboard. Todos los KPIs y gráficos cuentan sobre
+ * este arreglo, así que un tope bajo no "recorta la vista": devuelve números
+ * derechamente equivocados. Con `.limit(400)` Electrilam (761 OTs) mostraba
+ * 331 completadas de 671 y 25 en espera de 29, porque el orden es
+ * `created_at desc` y lo que caía fuera eran las MÁS ANTIGUAS -- justo las que
+ * el panel debe delatar.
+ *
+ * PostgREST corta en 1000 filas por respuesta, así que se pagina de a
+ * `OT_PAGE_SIZE` hasta este techo. Se dejó `descripcion` fuera del select
+ * (~300 KB de los 573 KB del payload de Electrilam): sólo se usaba como
+ * fallback de título, y el modal de detalle pide la OT completa por id.
+ */
+const DASHBOARD_MAX_OTS = 5000;
+const OT_PAGE_SIZE = 1000;
 
 /** Filas de "Requieren atención" por tanda. Como la lista se ve dentro de un
  *  contenedor de 192 px, con 20 ya sobra para llenar el scroll visible. */
@@ -406,15 +423,30 @@ export default function InicioDashboard() {
         const soloMias = <T extends { contains: (c: string, v: any) => T }>(q: T): T =>
           soloAsignadas ? q.contains("asignados_ids", [soloAsignadas]) : q;
 
+        // PostgREST tope 1000 filas por respuesta: se pagina hasta
+        // DASHBOARD_MAX_OTS para que los KPIs cuenten sobre el total real.
+        const fetchTodasLasOTs = async () => {
+          const filas: any[] = [];
+          for (let desde = 0; desde < DASHBOARD_MAX_OTS; desde += OT_PAGE_SIZE) {
+            const hasta = Math.min(desde + OT_PAGE_SIZE, DASHBOARD_MAX_OTS) - 1;
+            const { data, error } = await soloMias(sb.from("ordenes_trabajo")
+              .select(`id, titulo, estado, prioridad, created_at, updated_at, completado_en, tipo_trabajo, fecha_termino, asignados_ids, numero, iniciado_at, pausado_at, tiempo_total_segundos, clasificacion`)
+              .eq("workspace_id", workspaceId)
+              .is("parent_id", null)
+              .is("deleted_at", null)
+              .neq("estado", "cancelado"))
+              .order("created_at", { ascending: false })
+              .range(desde, hasta);
+            if (error) throw error;
+            const lote = data ?? [];
+            filas.push(...lote);
+            if (lote.length < hasta - desde + 1) break;
+          }
+          return { data: filas };
+        };
+
         const [ordenesRes, actividadRes, partesRes, totalRes] = await Promise.all([
-          soloMias(sb.from("ordenes_trabajo")
-            .select(`id, titulo, descripcion, estado, prioridad, created_at, updated_at, completado_en, tipo_trabajo, fecha_termino, asignados_ids, numero, iniciado_at, pausado_at, tiempo_total_segundos, clasificacion`)
-            .eq("workspace_id", workspaceId)
-            .is("parent_id", null)
-            .is("deleted_at", null)
-            .neq("estado", "cancelado"))
-            .order("created_at", { ascending: false })
-            .limit(400),
+          fetchTodasLasOTs(),
           sb.from("actividad_ot")
             .select(ACTIVIDAD_SELECT)
             .eq("ordenes_trabajo.workspace_id", workspaceId)
