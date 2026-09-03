@@ -206,10 +206,22 @@ async function handle(req: Request) {
     }
 
     // 5. Mirror to usuarios.plan / plan_status (legacy gating)
-    await admin.from("usuarios").update({
-      plan:        planKey,
-      plan_status: estado === "active" ? "active" : "payment_failed",
-    }).eq("workspace_id", workspaceId);
+    //
+    // El plan solo se escribe si el cobro entró. `tieneAcceso` decide por
+    // `plan` y prácticamente ignora `plan_status`, así que escribir el plan
+    // pagado con la tarjeta rechazada regalaba las funciones del tier: el
+    // cliente quedaba en Pro con plan_status "payment_failed" y acceso
+    // completo. Si el cobro no entró, se conserva el plan que ya tenían.
+    if (estado === "active") {
+      await admin.from("usuarios").update({
+        plan:        planKey,
+        plan_status: "active",
+      }).eq("workspace_id", workspaceId);
+    } else {
+      await admin.from("usuarios").update({
+        plan_status: "payment_failed",
+      }).eq("workspace_id", workspaceId);
+    }
 
     // 6. Reconcile subscription items with current user count
     await syncSubscriptionToUserCount(workspaceId);

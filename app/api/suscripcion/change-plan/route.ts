@@ -11,6 +11,7 @@ import { flow, FlowError } from "@/lib/flow";
 import { flowPlanId, planByKey, type PlanKey } from "@/lib/flow-plans";
 import { syncSubscriptionToUserCount } from "@/lib/flow-sync";
 import { cuponClienteFundador } from "@/lib/flow-cupon";
+import { estadoDesdeFlow } from "@/lib/flow-status";
 
 export async function POST(req: Request) {
   const auth = await requireAdminOfWorkspace();
@@ -107,12 +108,16 @@ export async function POST(req: Request) {
         ...cuponClienteFundador(esFundador, workspaceId),
       });
       const refreshed = await flow.getSubscription(created.subscriptionId).catch(() => created);
+      // El estado lo dicta Flow, no un "active" optimista: si la tarjeta
+      // rechaza el cobro, Flow responde morose distinto de 0 y el workspace no
+      // puede quedar con acceso pagado. Ver lib/flow-status.ts.
+      const estado = estadoDesdeFlow({ status: refreshed.status, morose: refreshed.morose });
       await admin.from("subscriptions").update({
         plan_key: planKey,
         flow_subscription_id: created.subscriptionId,
         flow_plan_id: newFlowPlanId,
         price_per_user_clp: esFundador ? sub.price_per_user_clp : plan.pricePerUser,
-        status: "active",
+        status: estado,
         canceled_at: null,
         trial_end: null,
         // Una bajada agendada pertenece al mandato anterior: al crear uno nuevo
@@ -123,9 +128,15 @@ export async function POST(req: Request) {
         current_period_end: refreshed.period_end ?? refreshed.next_invoice_date ?? null,
         updated_at: new Date().toISOString(),
       }).eq("id", sub.id);
-      await admin.from("usuarios").update({ plan: planKey, plan_status: "active" }).eq("workspace_id", workspaceId);
+      // Igual que en register/callback: el plan pagado solo se escribe si el
+      // cobro entró, porque `tieneAcceso` decide por `plan` y no por el estado.
+      if (estado === "active") {
+        await admin.from("usuarios").update({ plan: planKey, plan_status: "active" }).eq("workspace_id", workspaceId);
+      } else {
+        await admin.from("usuarios").update({ plan_status: "payment_failed" }).eq("workspace_id", workspaceId);
+      }
       await syncSubscriptionToUserCount(workspaceId);
-      return NextResponse.json({ ok: true, plan_key: planKey });
+      return NextResponse.json({ ok: true, plan_key: planKey, status: estado });
     } catch (err) {
       const fe = err as FlowError;
       console.error("[suscripcion/change-plan] create with saved card", fe);

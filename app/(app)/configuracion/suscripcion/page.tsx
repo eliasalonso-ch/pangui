@@ -526,12 +526,19 @@ function SuscripcionPageInner() {
                     <button
                       type="button"
                       disabled={disabled}
-                      // Cambiar entre planes pagados pide confirmación: una
-                      // subida cobra la diferencia al instante. Contratar
-                      // desde prueba o Basic gratis no la pide — ahí el paso
-                      // siguiente es el formulario de tarjeta de Flow, que ya
-                      // es una confirmación en sí.
-                      onClick={() => (isBilled || customer?.has_card)
+                      // Cambiar entre planes ya cobrados pide confirmación: una
+                      // subida cobra la diferencia al instante. Contratar por
+                      // primera vez no la pide — ahí el paso siguiente es el
+                      // formulario de tarjeta de Flow, que ya es una
+                      // confirmación en sí.
+                      //
+                      // La condición mira `isBilled`, no `has_card`: un
+                      // workspace con cliente en Flow pero sin suscripción
+                      // cobrándose (tarjeta quitada, o alta manual) se iba a
+                      // change-plan, que respondía 402 "needs_card" y obligaba
+                      // a un segundo clic en "Agregar tarjeta" para recién ahí
+                      // llegar a Flow. Contratar tiene que ser un solo paso.
+                      onClick={() => isBilled
                         ? setPlanPorConfirmar(p.key)
                         : startCheckout(p.key)}
                       style={{
