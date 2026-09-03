@@ -261,6 +261,9 @@ export default function UsuariosPage() {
     const newVal = !(usuario.activo ?? true);
     const sb = createClient();
     await sb.from("usuarios").update({ activo: newVal }).eq("id", usuario.id);
+    // Flow cobra por usuario activo: hay que reflejar el cambio en la
+    // suscripción o el cobro sigue contando al desactivado.
+    void fetch("/api/suscripcion/sync-usuarios", { method: "POST" });
     setUsuarios(prev => prev.map(u => u.id === usuario.id ? { ...u, activo: newVal } : u));
     if (panelData && (panelData as Usuario).id === usuario.id) {
       setPanelData({ ...usuario, activo: newVal });
@@ -313,6 +316,7 @@ export default function UsuariosPage() {
     });
     setBajaBusy(false);
     if (error) { setBajaErr(error.message); return; }
+    void fetch("/api/suscripcion/sync-usuarios", { method: "POST" });
     setUsuarios(prev => prev.filter(u => u.id !== bajaUser.id));
     setBajaOpen(false);
     setBajaUser(null);

@@ -229,3 +229,88 @@ falta es emitir.
 - **Confirmar folio desde la UI.** Hoy se registra el folio con un `update`
   manual (ver arriba). `EmisorManual.confirmarEmision()` ya implementa la
   operación con sus validaciones; falta exponerla.
+
+## Verificación contra Flow real (2026-09-03)
+
+Lo consultado con `scripts/flow-probe.mjs`, para no volver a deducirlo de la
+documentación pública (que no cubre estos endpoints).
+
+### Las credenciales de producción son válidas y los planes existen
+
+`plans/list` en producción devuelve los 3 planes con
+`urlCallback = https://www.getpangui.com/api/suscripcion/webhook`, es decir el
+webhook apunta al dominio correcto. Los `FLOW_PLAN_*` son los mismos strings en
+ambos entornos (`basic` / `esencial` / `pro`), así que un `.env` con las claves
+de un entorno y los planes del otro NO falla por plan inexistente: falla por
+firma. Si Flow responde `501 apiKey not found`, casi siempre es que `FLOW_ENV`
+no corresponde a las claves, no que las claves estén malas.
+
+### El cupón de cliente fundador está bien configurado
+
+`coupon/get couponId=6747` en producción:
+
+```
+name: "Cliente fundador  Pro 3990"   amount: 6000   currency: CLP
+duration: 0 (indefinida)   max_redemptions: 1   expires: null   redemtions: 0
+```
+
+9.990 − 6.000 = 3.990, que es el precio pactado con Electrilam. `duration: 0`
+lo hace permanente y `max_redemptions: 1` impide que se filtre a otro cliente.
+Ojo: el cupón es **de monto fijo sobre el plan Pro**. Si un fundador cambiara a
+Esencial (6.990), el mismo cupón lo dejaría en 990, no en 3.990 — el descuento
+no se recalcula por tier.
+
+### Estado real de producción
+
+No hay ninguna suscripción viva: las 3 existentes están en `status: 4`
+(cancelada), todas de pruebas de julio. Los 3 clientes tienen
+`pay_mode: "manual"` y ninguno con tarjeta inscrita. Electrilam no tiene
+cliente ni suscripción en Flow: usa Pro por cortesía, dado de alta a mano en la
+base. Ese es exactamente el caso que cubre `isBilled` en la UI.
+
+### previewChangePlan no se pudo probar
+
+`subscription/previewChangePlan` responde `105 No services available` en
+producción, tanto sobre una suscripción cancelada como sin ella. La hipótesis
+más probable es que exige una suscripción **activa**, y hoy no hay ninguna.
+
+Queda pendiente, y es la decisión de diseño más importante que falta cerrar:
+**no sabemos si `changePlan` aplica de inmediato o al próximo período.** El
+objeto de suscripción expone `newPlanId`, `new_plan_scheduled_change_date` e
+`in_new_plan_next_attempt_date`, los tres en `null`, lo que sugiere que Flow
+**agenda** el cambio en vez de aplicarlo al instante. Si eso se confirma, hay
+dos consecuencias en el código actual:
+
+1. En una **subida**, el diálogo de confirmación dice "Flow.cl cobrará la
+   diferencia a tu tarjeta". Sería falso: el cliente pagaría el plan nuevo
+   recién en la próxima factura.
+2. En una **bajada**, `scheduled_plan_key` se materializa en el webhook, que
+   llega *después* de que Flow emitió la factura del período nuevo. El cliente
+   pagaría un mes extra al precio viejo.
+
+**Cómo cerrarlo** — apenas exista una suscripción activa (la primera real, o
+una de prueba en sandbox):
+
+```powershell
+node scripts/flow-probe.mjs .env.local subscription/get subscriptionId=sus_xxx
+node scripts/flow-probe.mjs .env.local subscription/previewChangePlan subscriptionId=sus_xxx newPlanId=esencial --post
+```
+
+Y tras un `changePlan` real, volver a leer `subscription/get`: si
+`new_plan_scheduled_change_date` queda con fecha, el cambio es diferido y hay
+que ajustar tanto el texto de la subida como el momento de la bajada.
+
+### Datos útiles del objeto suscripción
+
+Confirmado en una suscripción real: `days_until_due: 3` (días de gracia antes
+de considerar vencido el importe) y `charges_retries_number: 3` en el plan
+(Flow reintenta el cobro 3 veces). Cada `invoice` trae `attemp_count`,
+`attemped` y `next_attemp_date`, que es de dónde saldría un aviso de
+"reintentando tu cobro" si algún día se quiere mostrar.
+
+### Nota sobre Git Bash
+
+Un path que empieza con `/` es reescrito por MSYS a una ruta de Windows antes
+de llegar a Node. `scripts/flow-probe.mjs` ya lo normaliza, pero por costumbre
+conviene escribirlo sin barra inicial: `subscription/get`, no
+`/subscription/get`.

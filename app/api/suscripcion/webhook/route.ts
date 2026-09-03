@@ -117,7 +117,10 @@ export async function POST(req: Request) {
       updated_at:           new Date().toISOString(),
     };
     if (sub.next_invoice_date) updates.current_period_end   = sub.next_invoice_date;
-    if (sub.subscription_start) updates.current_period_start = sub.subscription_start;
+    // period_start es el inicio del período vigente; subscription_start es la
+    // fecha de alta y no cambia nunca, así que solo sirve de respaldo.
+    const periodStart = sub.period_start ?? sub.subscription_start;
+    if (periodStart) updates.current_period_start = periodStart;
     if (newStatus === "canceled") updates.canceled_at = new Date().toISOString();
 
     // Bajada de plan agendada que ya venció: este webhook marca el inicio de un

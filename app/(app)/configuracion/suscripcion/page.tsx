@@ -271,6 +271,12 @@ function SuscripcionPageInner() {
   const isTrial = sub?.status === "trialing";
   const isFree = sub?.status === "basic_free";
   const isPaid = sub?.status === "active" || sub?.status === "past_due";
+  // Cobrada de verdad: tiene mandato en Flow. Un workspace "active" sin
+  // mandato es una cortesía dada de alta a mano (p.ej. un cliente fundador
+  // antes de poder cobrar): usa el plan pero todavía no lo contrató, así que
+  // tiene que poder elegir ese mismo plan, y no hay cobros ni cancelación
+  // que mostrar.
+  const isBilled = isPaid && Boolean(sub?.flow_subscription_id);
   const trialDaysLeft = isTrial ? daysUntil(sub?.trial_end ?? null) : 0;
   const currentPlan = sub ? PLANS.find(p => p.key === sub.plan_key) : null;
   const currentPrice = sub?.price_per_user_clp ?? currentPlan?.pricePerUser ?? 0;
@@ -321,7 +327,7 @@ function SuscripcionPageInner() {
                 {sub.custom_price_note ?? `Precio especial de ${fmtCLP(sub.price_per_user_clp)} por usuario para siempre.`}
               </p>
               <p style={{ fontSize: 13, color: "var(--fg-2)", margin: "6px 0 0", lineHeight: 1.5 }}>
-                Este precio se mantiene mientras la suscripción siga activa.
+                Este precio se mantiene mientras la suscripción siga activa. Está acordado para tu plan actual: si quieres cambiarte de plan conservándolo, escríbenos a <a href="mailto:contacto@getpangui.com" style={linkStyle}>contacto@getpangui.com</a>.
               </p>
             </div>
           )}
@@ -376,6 +382,15 @@ function SuscripcionPageInner() {
             </div>
           )}
 
+          {isPaid && !isBilled && (
+            <div style={{ ...card, background: "var(--st-wait-bg)", border: "1px solid var(--border-strong)" }}>
+              <p style={{ ...sectionLabel, color: "var(--st-wait-fg)" }}>Plan {currentPlan?.name ?? sub?.plan_key} sin medio de pago</p>
+              <p style={{ fontSize: 14, color: "var(--fg-1)", margin: "6px 0 0", lineHeight: 1.5 }}>
+                Tu workspace usa {currentPlan?.name ?? sub?.plan_key} pero todavía no hay una suscripción cobrándose. Completa tus datos de cobro y elige tu plan abajo para inscribir la tarjeta.
+              </p>
+            </div>
+          )}
+
           {isFree && (
             <div style={{ ...card, background: "var(--st-wait-bg)", border: "1px solid var(--border-strong)" }}>
               <p style={{ ...sectionLabel, color: "var(--st-wait-fg)" }}>Estás en Basic (gratis)</p>
@@ -390,7 +405,7 @@ function SuscripcionPageInner() {
               canceló (o aún no contrata) no tiene fila en subscriptions pero sí
               necesita completarlos para volver a suscribirse. */}
           <div>
-            {!isPaid && <p style={{ ...sectionLabel, marginBottom: 12 }}>1 · Tus datos de cobro</p>}
+            {!isBilled && <p style={{ ...sectionLabel, marginBottom: 12 }}>1 · Tus datos de cobro</p>}
             <SubscriptionOverview
               planName={currentPlan?.name ?? sub?.plan_key ?? ""}
               status={sub?.status ?? "canceled"}
@@ -402,7 +417,7 @@ function SuscripcionPageInner() {
               cardBrand={customer?.card_brand ?? null}
               cardLast4={customer?.card_last4 ?? null}
               billingEmail={customer?.email ?? null}
-              showPlanSummary={isPaid}
+              showPlanSummary={isBilled}
               canceledAt={sub?.canceled_at ?? null}
               changingCard={submitting === "card_change"}
               removingCard={submitting === "card_remove"}
@@ -414,7 +429,7 @@ function SuscripcionPageInner() {
 
           <div>
             <p style={{ ...sectionLabel, marginBottom: 12 }}>
-              {sub?.canceled_at ? "Reactivar con un plan" : isPaid ? "Cambiar plan" : isTrial ? "2 · Elige tu plan para después de la prueba" : "2 · Elige un plan"}
+              {sub?.canceled_at ? "Reactivar con un plan" : isBilled ? "Cambiar plan" : "2 · Elige un plan"}
             </p>
             {!profileReady && (
               <div style={{ display: "flex", alignItems: "flex-start", gap: 9, marginBottom: 12, padding: "11px 13px", border: "1px solid var(--border-strong)", borderRadius: "var(--r-md)", background: "var(--surface-2)" }}>
@@ -458,9 +473,20 @@ function SuscripcionPageInner() {
               {SELF_SERVE_PLANS.map(p => {
                 // Cancelada: ningún plan cuenta como "actual", así el usuario
                 // puede reactivar el mismo que tenía sin quedar bloqueado.
-                const isCurrent = sub?.plan_key === p.key && isPaid && !sub?.canceled_at;
-                const disabled = isCurrent || submitting !== null || !profileReady;
-                const preview = p.pricePerUser * activeUsers;
+                const isCurrent = sub?.plan_key === p.key && isBilled && !sub?.canceled_at;
+                // El precio de fundador vive en un cupón de monto fijo atado a
+                // su tier: cambiarse de plan solo por la UI cobraría un precio
+                // que nadie pactó. El backend lo rechaza (409); acá se muestra
+                // apagado para no ofrecer un camino que va a fallar.
+                const bloqueadoPorFundador = Boolean(sub?.is_early_customer) && sub?.plan_key !== p.key;
+                const disabled = isCurrent || bloqueadoPorFundador || submitting !== null || !profileReady;
+                // El precio negociado solo aplica al tier pactado; en los demás
+                // se muestra el de catálogo para no prometer un descuento que
+                // ese plan no tiene.
+                const precioTarjeta = sub?.is_early_customer && sub.plan_key === p.key
+                  ? sub.price_per_user_clp
+                  : p.pricePerUser;
+                const preview = precioTarjeta * activeUsers;
                 return (
                   <div
                     key={p.key}
@@ -479,8 +505,11 @@ function SuscripcionPageInner() {
                     </div>
                     <div>
                       <div style={{ display: "flex", alignItems: "baseline", gap: 4, flexWrap: "wrap" }}>
-                        <p style={{ fontSize: 22, fontWeight: 700, color: "var(--fg-1)", margin: 0 }}>{fmtCLP(p.pricePerUser)}</p>
+                        <p style={{ fontSize: 22, fontWeight: 700, color: "var(--fg-1)", margin: 0 }}>{fmtCLP(precioTarjeta)}</p>
                         <p style={{ fontSize: 12, color: "var(--fg-4)", margin: 0 }}>/ usuario activo / mes</p>
+                        {precioTarjeta !== p.pricePerUser && (
+                          <p style={{ fontSize: 12, color: "var(--fg-4)", margin: 0, textDecoration: "line-through" }}>{fmtCLP(p.pricePerUser)}</p>
+                        )}
                       </div>
                       <p style={{ fontSize: 12, color: "var(--fg-3)", margin: "4px 0 0", overflowWrap: "anywhere" }}>
                         Hoy serían {fmtCLP(preview)} al mes con {activeUsers} {activeUsers === 1 ? "usuario" : "usuarios"}.
@@ -502,7 +531,7 @@ function SuscripcionPageInner() {
                       // desde prueba o Basic gratis no la pide — ahí el paso
                       // siguiente es el formulario de tarjeta de Flow, que ya
                       // es una confirmación en sí.
-                      onClick={() => (isPaid || customer?.has_card)
+                      onClick={() => (isBilled || customer?.has_card)
                         ? setPlanPorConfirmar(p.key)
                         : startCheckout(p.key)}
                       style={{
@@ -511,13 +540,14 @@ function SuscripcionPageInner() {
                         background: isCurrent ? "var(--surface-hover)" : "var(--brand)",
                         color: isCurrent ? "var(--fg-2)" : "var(--surface-1)",
                         cursor: disabled ? "default" : "pointer",
-                        opacity: !isCurrent && !profileReady ? 0.55 : 1,
+                        opacity: !isCurrent && (!profileReady || bloqueadoPorFundador) ? 0.55 : 1,
                       }}
                     >
                       {submitting === p.key
                         ? <Loader2 size={13} className="animate-spin" />
                         : isCurrent ? <><Check size={13} /> Plan actual</>
-                        : isPaid ? "Cambiar a este plan"
+                        : bloqueadoPorFundador ? "Escríbenos para cambiar"
+                        : isBilled ? "Cambiar a este plan"
                         : `Elegir ${p.name}`}
                     </button>
                   </div>
@@ -525,7 +555,7 @@ function SuscripcionPageInner() {
               })}
             </div>
             <p style={{ fontSize: 12, color: "var(--fg-4)", margin: "12px 0 0", display: "flex", alignItems: "center", gap: 6 }}>
-              <CreditCard size={12} /> Al elegir un plan te llevamos a Flow.cl para inscribir tu tarjeta. El primer cobro se hace al inscribirla y los siguientes se cargan automáticamente cada mes.
+              <CreditCard size={12} /> Al elegir un plan te llevamos a Flow.cl para inscribir tu tarjeta. El primer cobro se hace al inscribirla y los siguientes se cargan automáticamente cada mes.{isTrial ? " Al contratar termina la prueba gratis: el plan elegido se activa y se cobra de inmediato." : ""}
             </p>
           </div>
 
@@ -539,7 +569,7 @@ function SuscripcionPageInner() {
 
           {/* El historial solo aparece cuando ya hubo cobros: a un usuario en
               prueba una tabla vacía no le dice nada. */}
-          {isPaid && (
+          {isBilled && (
             <div>
               <p style={{ ...sectionLabel, marginBottom: 12 }}>Cobros</p>
               <InvoicesPanel />
@@ -551,7 +581,7 @@ function SuscripcionPageInner() {
               SII. Un período puede estar pagado y su factura aún pendiente de
               emisión, así que mezclarlos en una sola tabla haría creer que
               falta un cobro cuando lo que falta es emitir. */}
-          {isPaid && (
+          {isBilled && (
             <div>
               <p style={{ ...sectionLabel, marginBottom: 12 }}>Documentos tributarios</p>
               <DocumentosPanel />
@@ -559,7 +589,7 @@ function SuscripcionPageInner() {
           )}
 
           {/* Acción destructiva: siempre al final, nunca entre información. */}
-          {isPaid && !sub?.canceled_at && (
+          {isBilled && !sub?.canceled_at && (
             <div style={{ paddingTop: 4, borderTop: "1px solid var(--border)" }}>
               {confirmCancel ? (
                 <div style={{ ...card, borderColor: "var(--danger)", marginTop: 16 }}>

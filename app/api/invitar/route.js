@@ -66,7 +66,9 @@ export async function POST(request) {
       .eq("workspace_id", callerPerfil.workspace_id)
       .neq("status", "canceled")
       .maybeSingle();
-    if (sub?.status === "basic_free") {
+    // Sin fila no cancelada = la suscripción se canceló (el webhook la deja en
+    // "canceled" y el workspace baja a Basic gratis): mismo trato que basic_free.
+    if (!sub || sub.status === "basic_free") {
       return NextResponse.json({
         error: "Tu prueba terminó. Elige un plan en Configuración → Suscripción para invitar usuarios.",
       }, { status: 402 });
