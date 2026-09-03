@@ -15,6 +15,7 @@ import { adminSupabase, requireAdminOfWorkspace } from "../_helpers";
 import { flow, FlowError } from "@/lib/flow";
 import { flowPlanId, planByKey, type PlanKey } from "@/lib/flow-plans";
 import { urlDeRedireccion } from "@/lib/flow-redirect";
+import { cuponClienteFundador, precioEfectivo } from "@/lib/flow-cupon";
 
 export async function POST(req: Request) {
   const auth = await requireAdminOfWorkspace();
@@ -79,8 +80,7 @@ export async function POST(req: Request) {
     .eq("workspace_id", workspaceId)
     .maybeSingle();
 
-  const isEarly = prevSub?.is_early_customer === true && (prevSub.price_per_user_clp ?? 0) > 0;
-  const effectivePrice = isEarly ? prevSub!.price_per_user_clp! : plan.pricePerUser;
+  const { esFundador: isEarly, precio: effectivePrice } = precioEfectivo(prevSub, plan.pricePerUser);
 
   try {
     if (!flowCustomerId) {
@@ -188,19 +188,10 @@ export async function POST(req: Request) {
     // El cupón se aplica solo si la suscripción ya está marcada
     // `is_early_customer` en la base: no hay workspaces hardcodeados, y un
     // cliente nuevo no puede recibirlo sin que alguien marque esa fila a mano.
-    const couponId = isEarly ? process.env.FLOW_COUPON_EARLY_CUSTOMER : undefined;
-    if (isEarly && !couponId) {
-      console.warn(
-        "[suscripcion/register] workspace %s es cliente fundador pero FLOW_COUPON_EARLY_CUSTOMER no está configurado: " +
-        "Flow cobrará el usuario #1 a precio de lista.",
-        workspaceId,
-      );
-    }
-
     const created = await flow.createSubscription({
       planId:     flowPlanId(planKey),
       customerId: flowCustomerId,
-      ...(couponId ? { couponId } : {}),
+      ...cuponClienteFundador(isEarly, workspaceId),
     });
 
     const refreshed = await flow.getSubscription(created.subscriptionId).catch(() => created);

@@ -18,6 +18,7 @@ import { flowPlanId, planByKey, type PlanKey } from "@/lib/flow-plans";
 import { syncSubscriptionToUserCount } from "@/lib/flow-sync";
 import { estadoDesdeFlow } from "@/lib/flow-status";
 import { registrarPeriodoFacturado } from "@/lib/dte/registrar-periodo";
+import { cuponClienteFundador, precioEfectivo } from "@/lib/flow-cupon";
 
 const PLAN_KEYS: PlanKey[] = ["basic", "esencial", "pro"];
 
@@ -129,12 +130,20 @@ async function handle(req: Request) {
     // 3. Check existing subscription state
     const { data: existingSub } = await admin
       .from("subscriptions")
-      .select("id, status, flow_subscription_id, plan_key")
+      .select("id, status, flow_subscription_id, plan_key, canceled_at, is_early_customer, price_per_user_clp")
       .eq("workspace_id", workspaceId)
       .neq("status", "canceled")
       .maybeSingle();
 
-    let flowSubId = existingSub?.flow_subscription_id ?? null;
+    // Un cliente fundador conserva su precio negociado. Este callback es el
+    // camino real con cargo automático, y escribía el precio de catálogo
+    // (y no adjuntaba el cupón), dejando al fundador a precio de lista.
+    const { esFundador, precio } = precioEfectivo(existingSub, plan.pricePerUser);
+
+    // Una suscripción cancelada al fin del período sigue "active" localmente
+    // pero su mandato en Flow ya no cobra: hay que crear uno nuevo, no
+    // cambiarle el plan al viejo (ver change-plan).
+    let flowSubId = existingSub?.canceled_at ? null : (existingSub?.flow_subscription_id ?? null);
 
     if (flowSubId) {
       // Already had a Flow subscription (rare — re-registering card). Just change plan.
@@ -151,6 +160,7 @@ async function handle(req: Request) {
         planId:     flowPlan,
         customerId: reg.customerId,
         // No trial — they already finished theirs (or skipped it).
+        ...cuponClienteFundador(esFundador, workspaceId),
       });
       flowSubId = created.subscriptionId;
     }
@@ -171,9 +181,15 @@ async function handle(req: Request) {
       plan_key:             planKey,
       flow_subscription_id: flowSubId,
       flow_plan_id:         flowPlan,
-      price_per_user_clp:   plan.pricePerUser,
+      price_per_user_clp:   precio,
       status:               estado,
       trial_end:            null,
+      // Volver a contratar reactiva: sin esto la UI seguía mostrando la
+      // suscripción como cancelada, y una bajada agendada del mandato
+      // anterior se aplicaría sobre el nuevo.
+      canceled_at:          null,
+      scheduled_plan_key:   null,
+      scheduled_plan_at:    null,
       current_period_start: flowSub?.period_start ?? null,
       current_period_end:   flowSub?.period_end ?? flowSub?.next_invoice_date ?? null,
       updated_at:           new Date().toISOString(),
@@ -220,7 +236,7 @@ async function handle(req: Request) {
       await registrarPeriodoFacturado(admin, {
         workspaceId,
         subscriptionId:   subRow.id,
-        precioPorUsuario: plan.pricePerUser,
+        precioPorUsuario: precio,
         status:           estado,
         periodStart:      flowSub?.period_start ?? null,
         periodEnd:        flowSub?.period_end ?? null,

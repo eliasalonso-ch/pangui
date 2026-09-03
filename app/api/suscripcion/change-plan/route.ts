@@ -10,6 +10,7 @@ import { adminSupabase, requireAdminOfWorkspace } from "../_helpers";
 import { flow, FlowError } from "@/lib/flow";
 import { flowPlanId, planByKey, type PlanKey } from "@/lib/flow-plans";
 import { syncSubscriptionToUserCount } from "@/lib/flow-sync";
+import { cuponClienteFundador } from "@/lib/flow-cupon";
 
 export async function POST(req: Request) {
   const auth = await requireAdminOfWorkspace();
@@ -42,7 +43,30 @@ export async function POST(req: Request) {
 
   if (!sub) return NextResponse.json({ error: "No hay suscripción." }, { status: 404 });
 
-  if (sub.plan_key === planKey && sub.status === "active" && !sub.canceled_at) {
+  // Cliente fundador cambiando de tier.
+  //
+  // El descuento vive en un cupón de Flow de MONTO FIJO, calculado contra el
+  // plan con que se pactó (verificado 2026-09-03: cupón 6747 = $6.000 sobre
+  // Pro $9.990 → $3.990). Ese monto no se recalcula por tier: el mismo cupón
+  // sobre Esencial ($6.990) dejaría el primer usuario en $990, y sobre Basic
+  // ($4.990) el cobro quedaría bajo el descuento. Cambiar de tier por la vía
+  // automática cobraría un precio que nadie pactó, en cualquiera de las dos
+  // direcciones.
+  //
+  // Se bloquea en vez de "arreglarlo" acá: el precio de un fundador es un
+  // acuerdo comercial, y decidirlo en código sería inventar el trato. Requiere
+  // emitir un cupón nuevo para el tier de destino y actualizar la fila a mano.
+  if (sub.is_early_customer && sub.plan_key !== planKey) {
+    return NextResponse.json({
+      error: "Tu plan tiene un precio especial de cliente fundador acordado para este tier. " +
+             "Escríbenos a contacto@getpangui.com y lo cambiamos conservando tu precio.",
+    }, { status: 409 });
+  }
+
+  // "Sin cambios" solo si Flow ya cobra ese plan. Un workspace activo por
+  // cortesía (sin mandato en Flow, p.ej. un cliente fundador dado de alta a
+  // mano) tiene que poder contratar el mismo plan que ya usa.
+  if (sub.plan_key === planKey && sub.status === "active" && !sub.canceled_at && sub.flow_subscription_id) {
     return NextResponse.json({ ok: true, unchanged: true });
   }
 
@@ -76,13 +100,18 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "needs_card", redirect: "/suscripcion?action=upgrade" }, { status: 402 });
     }
     try {
-      const created = await flow.createSubscription({ planId: newFlowPlanId, customerId: customer.flow_customer_id });
+      const esFundador = sub.is_early_customer === true && (sub.price_per_user_clp ?? 0) > 0;
+      const created = await flow.createSubscription({
+        planId:     newFlowPlanId,
+        customerId: customer.flow_customer_id,
+        ...cuponClienteFundador(esFundador, workspaceId),
+      });
       const refreshed = await flow.getSubscription(created.subscriptionId).catch(() => created);
       await admin.from("subscriptions").update({
         plan_key: planKey,
         flow_subscription_id: created.subscriptionId,
         flow_plan_id: newFlowPlanId,
-        price_per_user_clp: sub.is_early_customer ? sub.price_per_user_clp : plan.pricePerUser,
+        price_per_user_clp: esFundador ? sub.price_per_user_clp : plan.pricePerUser,
         status: "active",
         canceled_at: null,
         trial_end: null,
