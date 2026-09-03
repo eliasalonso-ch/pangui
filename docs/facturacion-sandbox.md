@@ -15,19 +15,46 @@ un documento que la empresa no puede emitir, y afirmaba en
 `/configuracion/suscripcion` que *"no dan derecho a crédito fiscal de IVA"* —
 falso bajo el modelo nuevo.
 
-### Decisión de precios: IVA incluido
+### Decisión de precios: IVA por fuera (desde 2026-09-03)
 
-Los precios del catálogo (`lib/flow-plans.ts`) son **brutos, con IVA incluido**.
-El cliente sigue pagando lo mismo que antes; el IVA sale del margen.
+Los precios del catálogo (`lib/flow-plans.ts`) son **netos**: el IVA se agrega
+al momento del cobro y el cliente paga el bruto.
 
-| Plan     | Total (cliente) | Neto   | IVA    |
-|----------|-----------------|--------|--------|
-| Basic    | $4.990          | $4.193 | $797   |
-| Esencial | $6.990          | $5.874 | $1.116 |
-| Pro      | $9.990          | $8.395 | $1.595 |
+| Plan     | Neto (lista) | IVA    | Total a pagar |
+|----------|--------------|--------|---------------|
+| Basic    | $4.990       | $948   | $5.938        |
+| Esencial | $6.990       | $1.328 | $8.318        |
+| Pro      | $9.990       | $1.898 | $11.888       |
 
-Nadie recibe un aviso de subida de precio. La ley exige que el IVA esté
-correctamente calculado y declarado, no que se sume por fuera.
+**Esto reemplaza la política anterior**, en que los mismos números eran brutos
+y el IVA salía del margen (de $9.990 quedaban $8.395). El cambio se hizo al
+contratar el primer cliente real: con IVA incluido, un plan de 10 usuarios a
+$3.990 dejaba $33.529 en vez de los $39.900 de precio de lista.
+
+Implicancia: **es una subida de precio para el cliente final** (~19%). Hay que
+avisarle a cualquier cliente que haya contratado bajo la política anterior.
+
+#### Dónde vive la regla
+
+- `desglosarCobroSuscripcion(precioNeto, usuarios)` — usa `desglosarNeto`, no
+  `desglosarBruto`. Es la única función que deben llamar los cobros.
+- `montoParaFlow(precioNeto)` — **todo** monto que viaje a Flow pasa por acá.
+  Flow cobra el `amount` tal cual y no sabe de IVA, así que tanto el `amount`
+  de un plan (`seed-planes`) como el de cada item de usuario extra
+  (`flow-sync`) tienen que ir en bruto. Si algún día se agrega otro lugar que
+  mande montos a Flow, tiene que usar este helper.
+- `textoDesglose(neto)` — recibe el neto y revela el total con IVA.
+
+La regla de redondeo no cambió: el IVA sigue siendo una **resta** contra el
+bruto redondeado, para que `neto + iva = total` siempre cuadre.
+
+#### Los planes en Flow hay que resembrarlos
+
+Los planes creados en Flow con la política anterior tienen el `amount` en neto.
+Como Flow cobra ese valor tal cual, **seguirán cobrando sin IVA hasta que se
+actualicen**. `seed-planes` ya emite el bruto, pero `/plans/create` no
+sobrescribe un plan existente: hay que editarlos en el panel de Flow o crear
+planes nuevos con otro `planId` y apuntar los `FLOW_PLAN_*` a ellos.
 
 ### La regla de redondeo (no la cambies)
 

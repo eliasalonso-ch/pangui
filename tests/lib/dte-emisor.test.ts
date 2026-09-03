@@ -87,13 +87,13 @@ describe("EmisorManual.registrar", () => {
     const { admin, capturado } = fakeAdmin();
     const doc = await new EmisorManual(admin).registrar(solicitudBase);
 
-    // 10 usuarios × $4.990 = $49.900. Neto $41.933 (no $41.930, que sería
-    // desglosar cada línea por separado).
-    expect(doc.totalClp).toBe(49_900);
-    expect(doc.netoClp).toBe(41_933);
-    expect(doc.ivaClp).toBe(7_967);
+    // El precio de lista es NETO: 10 usuarios × $4.990 = $49.900 de base
+    // imponible, más IVA da $59.381 de total facturado.
+    expect(doc.netoClp).toBe(49_900);
+    expect(doc.ivaClp).toBe(9_481);
+    expect(doc.totalClp).toBe(59_381);
     expect(doc.netoClp + doc.ivaClp).toBe(doc.totalClp);
-    expect(capturado.insert?.neto_clp).toBe(41_933);
+    expect(capturado.insert?.neto_clp).toBe(49_900);
   });
 
   it("deja el documento pendiente y sin folio", async () => {

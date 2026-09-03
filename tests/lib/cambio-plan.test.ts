@@ -27,10 +27,10 @@ const base = {
 describe("resumirCambio — subida", () => {
   const r = resumirCambio({ ...base, planActual: "basic", planNuevo: "pro" });
 
-  it("calcula los totales con IVA incluido", () => {
+  it("calcula los totales con el IVA agregado por fuera", () => {
     // 3 × $4.990 = $14.970 → 3 × $9.990 = $29.970
-    expect(r.totalActual).toBe(14_970);
-    expect(r.totalNuevo).toBe(29_970);
+    expect(r.totalActual).toBe(17_814);
+    expect(r.totalNuevo).toBe(35_664);
   });
 
   it("avisa que el cambio es inmediato y cobra la diferencia", () => {
@@ -65,8 +65,8 @@ describe("resumirCambio — bajada", () => {
   });
 
   it("muestra la baja de precio", () => {
-    expect(r.totalActual).toBe(29_970);
-    expect(r.totalNuevo).toBe(14_970);
+    expect(r.totalActual).toBe(35_664);
+    expect(r.totalNuevo).toBe(17_814);
   });
 });
 
@@ -81,8 +81,8 @@ describe("resumirCambio — precio de cliente fundador", () => {
       usuariosActivos: 10,
       precioPorUsuario: 3990,
     });
-    expect(r.totalActual).toBe(39_900);
-    expect(r.totalNuevo).toBe(39_900);
+    expect(r.totalActual).toBe(47_481);
+    expect(r.totalNuevo).toBe(47_481);
   });
 });
 

@@ -11,6 +11,7 @@
 import { NextResponse } from "next/server";
 import { flow, FlowError } from "@/lib/flow";
 import { SELF_SERVE_PLANS } from "@/lib/flow-plans";
+import { montoParaFlow } from "@/lib/tributario";
 
 export async function GET() {
   if (!process.env.FLOW_API_KEY || !process.env.FLOW_SECRET_KEY) {
@@ -37,7 +38,9 @@ export async function GET() {
       const created = await flow.createPlan({
         planId:         plan.key,
         name:           plan.name,
-        amount:         plan.pricePerUser,
+        // Flow cobra el `amount` tal cual: los precios del catálogo son netos,
+        // así que acá viaja el bruto con IVA incluido.
+        amount:         montoParaFlow(plan.pricePerUser),
         currency:       "CLP",
         interval:       3,                // 3 = monthly
         interval_count: 1,

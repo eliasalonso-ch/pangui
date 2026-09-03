@@ -91,8 +91,8 @@ describe("registrarPeriodoFacturado", () => {
     const id = await registrarPeriodoFacturado(admin, ctxBase);
 
     expect(id).toBe("doc-9");
-    // 3 × $9.990 = $29.970 bruto.
-    expect(capturado.documento?.total_clp).toBe(29_970);
+    // 3 × $9.990 = $29.970 de neto; con IVA, $35.664 de total.
+    expect(capturado.documento?.total_clp).toBe(35_664);
     expect(capturado.documento?.usuarios_facturados).toBe(3);
     expect(capturado.documento?.periodo_inicio).toBe("2026-08-01");
     expect(capturado.documento?.estado).toBe("pendiente");

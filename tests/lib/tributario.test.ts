@@ -86,30 +86,40 @@ describe("desglosarNeto", () => {
 });
 
 describe("desglosarCobroSuscripcion", () => {
-  it("calcula el IVA sobre el total, no por usuario", () => {
-    // 7 usuarios a $9.990 = $69.930 bruto.
+  // Los precios del catálogo son NETOS desde 2026-09: el IVA se agrega por
+  // fuera en vez de salir del margen.
+  it("agrega el IVA sobre el precio de lista, que es neto", () => {
+    // 7 usuarios a $9.990 = $69.930 de base imponible.
     const total = desglosarCobroSuscripcion(9990, 7);
-    expect(total.bruto).toBe(69_930);
+    expect(total.neto).toBe(69_930);
+    expect(total.bruto).toBe(83_217);
     expect(total.neto + total.iva).toBe(total.bruto);
   });
 
+  // El caso real que motivó el cambio: Electrilam, 10 usuarios a $3.990.
+  it("cobra el IVA por fuera del precio de fundador", () => {
+    const total = desglosarCobroSuscripcion(3990, 10);
+    expect(total.neto).toBe(39_900);
+    expect(total.iva).toBe(7_581);
+    expect(total.bruto).toBe(47_481);
+  });
+
   it("no equivale a desglosar cada línea y sumar", () => {
-    // Con Basic ($4.990) y 10 usuarios, desglosar por línea y sumar arrastra
-    // el redondeo 10 veces: da $41.930 de neto contra los $41.933 correctos.
-    // Este test fija esa diferencia para que nadie "simplifique" el cálculo a
+    // Desglosar por línea y sumar arrastra el redondeo una vez por usuario.
+    // Este test fija la diferencia para que nadie "simplifique" el cálculo a
     // una suma de líneas — el total de la factura dejaría de cuadrar con sus
     // propias líneas y el SII la rechazaría.
-    const total = desglosarCobroSuscripcion(4990, 10);
-    const porLinea = desglosarBruto(4990);
+    const total = desglosarCobroSuscripcion(1008, 10);
+    const porLinea = desglosarNeto(1008);
 
-    expect(total.bruto).toBe(49_900);
-    expect(total.neto).toBe(41_933);
-    expect(porLinea.neto * 10).toBe(41_930);
+    expect(total.neto).toBe(10_080);
+    expect(total.bruto).toBe(11_995);
+    expect(porLinea.bruto * 10).toBe(12_000);  // 5 pesos de más
     expect(total.neto + total.iva).toBe(total.bruto);
   });
 
   it("un solo usuario equivale al desglose del precio de lista", () => {
-    expect(desglosarCobroSuscripcion(9990, 1)).toEqual(desglosarBruto(9990));
+    expect(desglosarCobroSuscripcion(9990, 1)).toEqual(desglosarNeto(9990));
   });
 
   it("cero usuarios no cobra nada", () => {
@@ -131,10 +141,11 @@ describe("formato", () => {
   });
 
   it("arma el texto de desglose para la UI", () => {
+    // Recibe el neto (el precio de lista) y revela el total a pagar.
     const texto = textoDesglose(9990);
-    expect(texto).toContain("9.990");
-    expect(texto).toContain("8.395");
-    expect(texto).toContain("1.595");
+    expect(texto).toContain("11.888");  // bruto
+    expect(texto).toContain("9.990");   // neto
+    expect(texto).toContain("1.898");   // IVA
     expect(texto).toContain("neto");
     expect(texto).toContain("IVA");
   });

@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { CreditCard, Loader2, Mail, Pencil, ReceiptText, X, type LucideIcon } from "lucide-react";
 import { CardPreview } from "@/components/CardPreview";
 import { GiroSelect } from "@/components/GiroSelect";
-import { rutEsValido, formatearRut } from "@/lib/tributario";
+import { rutEsValido, formatearRut, desglosarNeto } from "@/lib/tributario";
 import {
   NOMBRES_REGIONES, comunasDeRegion, comunaPerteneceARegion,
   comunaCanonica, regionCanonica,
@@ -179,7 +179,9 @@ export function SubscriptionOverview(props: Props) {
                     <Cell><strong>Pangui {props.planName}</strong><span style={subtext}>{props.activeUsers} {props.activeUsers === 1 ? "usuario activo" : "usuarios activos"}</span></Cell>
                     <Cell><span style={statusStyle(props.canceledAt ? "canceled" : props.status)}>{props.canceledAt ? "Cancelada" : props.statusLabel}</span></Cell>
                     <Cell>{date(props.renewalDate)}</Cell>
-                    <Cell><strong>{money(props.totalPrice)}/mes</strong><span style={subtext}>{money(props.unitPrice)} por usuario</span></Cell>
+                    {/* El precio de lista es neto; se muestra el total con IVA
+                        porque es lo que se le cobra a la tarjeta. */}
+                    <Cell><strong>{money(desglosarNeto(props.totalPrice).bruto)}/mes</strong><span style={subtext}>{money(props.unitPrice)} + IVA por usuario</span></Cell>
                   </tr>
                 </tbody>
               </table>

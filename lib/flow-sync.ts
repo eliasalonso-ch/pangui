@@ -12,6 +12,7 @@
  */
 import { adminSupabase } from "@/app/api/suscripcion/_helpers";
 import { flow } from "@/lib/flow";
+import { montoParaFlow } from "@/lib/tributario";
 
 export async function syncSubscriptionToUserCount(workspaceId: string): Promise<void> {
   const admin = adminSupabase();
@@ -62,7 +63,8 @@ export async function syncSubscriptionToUserCount(workspaceId: string): Promise<
       await flow.addSubscriptionItem({
         subscriptionId: sub.flow_subscription_id,
         name:           `Usuario extra #${existing.length + 1}`,
-        amount:         sub.price_per_user_clp,
+        // `price_per_user_clp` es neto; Flow cobra el bruto.
+        amount:         montoParaFlow(sub.price_per_user_clp),
         currency:       "CLP",
         interval:       3,
         interval_count: 1,
