@@ -28,6 +28,49 @@ import { adminSupabase } from "@/app/api/suscripcion/_helpers";
 import { flow } from "@/lib/flow";
 import { montoParaFlow } from "@/lib/tributario";
 
+/** Cliente Supabase con service role, en su forma mínima. */
+type Admin = { from(tabla: string): any };  // eslint-disable-line @typescript-eslint/no-explicit-any
+
+/**
+ * Usuarios que van como ítem de la suscripción: los cobrables menos el #1,
+ * que ya cubre el plan.
+ *
+ * `excluir_de_facturacion` deja fuera a las cuentas de staff de Pangui que
+ * viven dentro del workspace de un cliente: acceso completo, sin sumar al
+ * cobro. Ver 20260729180000_usuarios_excluir_de_facturacion.sql. Un usuario
+ * dado de baja conserva su fila para el historial, pero no se cobra.
+ */
+export async function usuariosExtra(admin: Admin, workspaceId: string): Promise<number> {
+  const { count } = await admin
+    .from("usuarios")
+    .select("id", { count: "exact", head: true })
+    .eq("workspace_id", workspaceId)
+    .eq("activo", true)
+    .eq("excluir_de_facturacion", false)
+    .is("deleted_at", null);
+  return Math.max(0, (count ?? 0) - 1);
+}
+
+/** Fecha de mañana en formato yyyy-mm-dd, que es lo que espera Flow. */
+export function manana(): string {
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * Deja la suscripción con un ítem "usuario adicional" al monto dado y con
+ * cantidad `extras`. Se usa al contratar, antes de que Flow emita la primera
+ * factura. `monto` es BRUTO (ya pasado por montoParaFlow).
+ */
+export async function asociarUsuariosExtra(
+  subscriptionId: string,
+  extras: number,
+  monto: number,
+): Promise<void> {
+  await reconciliarItems(subscriptionId, extras, monto);
+}
+
 export async function syncSubscriptionToUserCount(workspaceId: string): Promise<void> {
   const admin = adminSupabase();
 
@@ -44,19 +87,7 @@ export async function syncSubscriptionToUserCount(workspaceId: string): Promise<
   if (sub.plan_key === "enterprise")           return; // off-platform billing
   if (!sub.price_per_user_clp || sub.price_per_user_clp <= 0) return;
 
-  // `excluir_de_facturacion` deja fuera a las cuentas de staff de Pangui que
-  // viven dentro del workspace de un cliente: acceso completo, sin sumar al
-  // cobro. Ver 20260729180000_usuarios_excluir_de_facturacion.sql.
-  const { count: activeUsers } = await admin
-    .from("usuarios")
-    .select("id", { count: "exact", head: true })
-    .eq("workspace_id", workspaceId)
-    .eq("activo", true)
-    .eq("excluir_de_facturacion", false)
-    // Un usuario dado de baja conserva su fila para el historial, pero no se cobra.
-    .is("deleted_at", null);
-
-  const extras = Math.max(0, (activeUsers ?? 0) - 1); // el plan cubre al usuario #1
+  const extras = await usuariosExtra(admin, workspaceId);
   // `price_per_user_clp` es neto; Flow cobra el bruto.
   const monto = montoParaFlow(sub.price_per_user_clp);
 

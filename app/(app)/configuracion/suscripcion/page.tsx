@@ -26,6 +26,7 @@ interface SubStatus {
     price_per_user_clp: number;
     status: "trialing" | "active" | "past_due" | "canceled" | "unpaid" | "basic_free";
     trial_end: string | null;
+    current_period_start: string | null;
     current_period_end: string | null;
     canceled_at: string | null;
     flow_subscription_id: string | null;
@@ -263,6 +264,13 @@ function SuscripcionPageInner() {
   // tiene que poder elegir ese mismo plan, y no hay cobros ni cancelación
   // que mostrar.
   const isBilled = isPaid && Boolean(sub?.flow_subscription_id);
+  // Primer cobro agendado: hay tarjeta y mandato en Flow, pero el período aún
+  // no arranca. Es el estado normal entre inscribir la tarjeta y el cobro del
+  // día siguiente, no un pago fallido.
+  const cobroAgendado = Boolean(
+    sub?.status === "past_due" && customer?.has_card && sub?.current_period_start &&
+    new Date(sub.current_period_start).getTime() > Date.now()
+  );
   const trialDaysLeft = isTrial ? daysUntil(sub?.trial_end ?? null) : 0;
   const currentPlan = sub ? PLANS.find(p => p.key === sub.plan_key) : null;
   const currentPrice = sub?.price_per_user_clp ?? currentPlan?.pricePerUser ?? 0;
@@ -328,10 +336,24 @@ function SuscripcionPageInner() {
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
                 <AlertCircle size={16} style={{ color: "var(--warning)" }} />
                 <p style={{ ...sectionLabel, color: "var(--warning)" }}>
-                  {customer?.has_card ? "No pudimos cobrar tu tarjeta" : "Falta inscribir tu tarjeta"}
+                  {cobroAgendado ? "Tu primer cobro está agendado"
+                    : customer?.has_card ? "No pudimos cobrar tu tarjeta"
+                    : "Falta inscribir tu tarjeta"}
                 </p>
               </div>
-              {customer?.has_card ? (
+              {/* Primer cobro agendado: la suscripción se crea con inicio al
+                  día siguiente para que el cobro incluya a todos los usuarios
+                  (ver register/callback). No es un fallo de pago. */}
+              {cobroAgendado ? (
+                <>
+                  <p style={{ fontSize: 14, color: "var(--fg-1)", margin: 0, lineHeight: 1.5 }}>
+                    Tu tarjeta terminada en {customer?.card_last4 ?? "····"} quedó inscrita y el primer cobro de <strong>{currentPlan?.name ?? sub.plan_key}</strong> se realizará el {fmtDate(sub.current_period_start ?? null)}, por los {activeUsers} {activeUsers === 1 ? "usuario activo" : "usuarios activos"} del workspace.
+                  </p>
+                  <p style={{ fontSize: 13, color: "var(--fg-2)", margin: "6px 0 0", lineHeight: 1.5 }}>
+                    Ya tienes acceso a todas las funciones del plan.
+                  </p>
+                </>
+              ) : customer?.has_card ? (
                 <>
                   <p style={{ fontSize: 14, color: "var(--fg-1)", margin: 0, lineHeight: 1.5 }}>
                     El cobro de <strong>{currentPlan?.name ?? sub.plan_key}</strong> a tu tarjeta terminada en {customer.card_last4 ?? "····"} no se pudo procesar. Flow.cl reintentará automáticamente en los próximos días.

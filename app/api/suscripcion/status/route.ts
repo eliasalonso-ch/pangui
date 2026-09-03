@@ -36,7 +36,7 @@ export async function GET(req: Request) {
   const [{ data: subscriptionRow }, { data: customerRow }] = await Promise.all([
     admin
       .from("subscriptions")
-      .select("id, plan_key, price_per_user_clp, status, trial_end, current_period_end, canceled_at, flow_subscription_id, is_early_customer, custom_price_note, scheduled_plan_key, scheduled_plan_at")
+      .select("id, plan_key, price_per_user_clp, status, trial_end, current_period_start, current_period_end, canceled_at, flow_subscription_id, is_early_customer, custom_price_note, scheduled_plan_key, scheduled_plan_at")
       .eq("workspace_id", perfil.workspace_id)
       .neq("status", "canceled")
       .order("created_at", { ascending: false })

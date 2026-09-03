@@ -15,7 +15,8 @@ import { NextResponse } from "next/server";
 import { adminSupabase } from "../../_helpers";
 import { flow, FlowError } from "@/lib/flow";
 import { flowPlanId, planByKey, type PlanKey } from "@/lib/flow-plans";
-import { syncSubscriptionToUserCount } from "@/lib/flow-sync";
+import { syncSubscriptionToUserCount, usuariosExtra, asociarUsuariosExtra, manana } from "@/lib/flow-sync";
+import { montoParaFlow } from "@/lib/tributario";
 import { estadoDesdeFlow } from "@/lib/flow-status";
 import { registrarPeriodoFacturado } from "@/lib/dte/registrar-periodo";
 import { cuponClienteFundador, precioEfectivo } from "@/lib/flow-cupon";
@@ -155,14 +156,43 @@ async function handle(req: Request) {
       }
     }
 
+    // Usuarios extra que hay que reflejar en el cobro. Se cuentan ANTES de
+    // crear la suscripción porque determinan cómo se crea (ver abajo).
+    const extras = await usuariosExtra(admin, workspaceId);
+
     if (!flowSubId) {
+      // El primer cobro tiene que incluir a los usuarios extra, y Flow emite
+      // la factura en el mismo instante en que se crea la suscripción: los
+      // ítems agregados después solo alcanzan al ciclo siguiente. Verificado
+      // en sandbox — una suscripción creada hoy factura $9.990 y sigue en
+      // $9.990 aunque después se le asocie un ítem con quantity 9.
+      //
+      // Por eso, cuando hay usuarios extra, la suscripción se crea con
+      // `subscription_start` mañana: nace sin factura (status 0, invoices
+      // vacío), se le asocian los ítems, y Flow factura el total correcto al
+      // arrancar el período. El costo es que el primer cobro entra un día
+      // después; a cambio, nunca se cobra de menos.
+      //
+      // Con un solo usuario cobrable no hay ítems que esperar, así que se
+      // crea de inmediato y el cobro es al instante.
+      const inicioDiferido = extras > 0 ? manana() : undefined;
+
       const created = await flow.createSubscription({
         planId:     flowPlan,
         customerId: reg.customerId,
         // No trial — they already finished theirs (or skipped it).
+        ...(inicioDiferido ? { subscription_start: inicioDiferido } : {}),
         ...cuponClienteFundador(esFundador, workspaceId),
       });
       flowSubId = created.subscriptionId;
+
+      // Los ítems van antes de que Flow emita la primera factura. Si esto
+      // falla, el cobro saldría corto: se registra y el barrido de
+      // /api/suscripcion/reconciliar lo corrige antes del ciclo siguiente.
+      if (extras > 0) {
+        await asociarUsuariosExtra(flowSubId, extras, montoParaFlow(precio))
+          .catch(err => console.error("[register/callback] no se pudieron asociar los usuarios extra:", err));
+      }
     }
 
     // Fetch the canonical subscription detail so we can persist period dates.
@@ -173,9 +203,17 @@ async function handle(req: Request) {
     // automático el cobro es inmediato, pero si la tarjeta lo rechaza Flow
     // devuelve morose distinto de 0 y el workspace no debe quedar con acceso
     // pagado. Ver lib/flow-status.ts.
-    const estado = flowSub
+    //
+    // Excepción: una suscripción con inicio diferido (la que se crea cuando
+    // hay usuarios extra) reporta status 0 hasta que arranca su período, y
+    // `estadoDesdeFlow` lo traduce a "unpaid" — que la UI pinta en rojo como
+    // "Sin pagar". No es impago: es un cobro agendado para mañana. Se trata
+    // como past_due, que es el estado de "esperando el primer cobro" y ya
+    // tiene su propio aviso en la pantalla.
+    const flowEstado = flowSub
       ? estadoDesdeFlow({ status: flowSub.status, morose: flowSub.morose })
       : "past_due";
+    const estado = flowEstado === "unpaid" && extras > 0 ? "past_due" : flowEstado;
 
     const subUpdate: Record<string, unknown> = {
       plan_key:             planKey,
@@ -190,7 +228,10 @@ async function handle(req: Request) {
       canceled_at:          null,
       scheduled_plan_key:   null,
       scheduled_plan_at:    null,
-      current_period_start: flowSub?.period_start ?? null,
+      // Con inicio diferido `period_start` viene null hasta que el período
+      // arranca; `subscription_start` sí trae la fecha, y es la que la UI
+      // necesita para decir cuándo entra el primer cobro.
+      current_period_start: flowSub?.period_start ?? flowSub?.subscription_start ?? null,
       current_period_end:   flowSub?.period_end ?? flowSub?.next_invoice_date ?? null,
       updated_at:           new Date().toISOString(),
     };
