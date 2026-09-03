@@ -51,24 +51,22 @@ export async function usuariosExtra(admin: Admin, workspaceId: string): Promise<
   return Math.max(0, (count ?? 0) - 1);
 }
 
-/** Fecha de mañana en formato yyyy-mm-dd, que es lo que espera Flow. */
-export function manana(): string {
-  const d = new Date();
-  d.setDate(d.getDate() + 1);
-  return d.toISOString().slice(0, 10);
-}
-
 /**
- * Deja la suscripción con un ítem "usuario adicional" al monto dado y con
- * cantidad `extras`. Se usa al contratar, antes de que Flow emita la primera
- * factura. `monto` es BRUTO (ya pasado por montoParaFlow).
+ * Ítem que cubre a TODOS los usuarios extra en una sola línea, para adjuntar
+ * en `planAdditionalList` al crear la suscripción.
+ *
+ * Se usa solo al contratar: Flow rechaza el mismo itemId repetido en esa
+ * lista y no acepta cantidad al crear, así que el monto total va en el propio
+ * ítem. Después, la reconciliación en curso usa el modelo de `quantity`, que
+ * sí se puede ajustar sobre una suscripción viva.
+ *
+ * `montoPorUsuario` es BRUTO (ya pasado por montoParaFlow).
  */
-export async function asociarUsuariosExtra(
-  subscriptionId: string,
+export async function itemUsuariosExtra(
   extras: number,
-  monto: number,
-): Promise<void> {
-  await reconciliarItems(subscriptionId, extras, monto);
+  montoPorUsuario: number,
+): Promise<{ id: number }> {
+  return itemDeCatalogo(extras * montoPorUsuario, `${extras} usuarios adicionales`);
 }
 
 export async function syncSubscriptionToUserCount(workspaceId: string): Promise<void> {
@@ -131,20 +129,25 @@ async function reconciliarItems(subscriptionId: string, extras: number, monto: n
   }
 }
 
-/**
- * Ítem del catálogo de Flow para "un usuario adicional" a ese monto bruto.
- * Se busca por monto y se crea si no existe: hay uno por precio (un ítem por
- * tier del catálogo, más uno por cada precio negociado de cliente fundador).
- */
+/** Ítem del catálogo para un usuario adicional a ese monto bruto. */
 async function itemUsuarioAdicional(monto: number): Promise<{ id: number }> {
+  return itemDeCatalogo(monto, `Usuario adicional $${monto.toLocaleString("es-CL")}`);
+}
+
+/**
+ * Busca un ítem del catálogo de Flow por monto, y lo crea si no existe.
+ *
+ * El catálogo es del comercio, no del cliente: se reutiliza entre workspaces
+ * con el mismo monto. Por eso la búsqueda es por `amount` y no por nombre —
+ * hay un ítem por cada precio en circulación (uno por tier, más uno por cada
+ * precio negociado de cliente fundador, más uno por cada total de usuarios
+ * extra que se haya contratado).
+ */
+async function itemDeCatalogo(monto: number, nombre: string): Promise<{ id: number }> {
   const catalogo = await flow.listSubscriptionItemCatalog();
   const existente = catalogo.data?.find(i => Number(i.amount) === monto && i.status === 1);
   if (existente) return { id: existente.id };
 
-  const creado = await flow.createSubscriptionItem({
-    name:     `Usuario adicional $${monto.toLocaleString("es-CL")}`,
-    amount:   monto,
-    currency: "CLP",
-  });
+  const creado = await flow.createSubscriptionItem({ name: nombre, amount: monto, currency: "CLP" });
   return { id: creado.id };
 }

@@ -271,14 +271,23 @@ export const flow = {
     }>("/payment/getStatus", { token }),
 
   // Subscriptions
-  createSubscription: (p: {
+  createSubscription: ({ planAdditionalList, ...p }: {
     planId: string;
     customerId: string;
     subscription_start?: string;
     couponId?: string;
     trial_period_days?: number;
     periods_number?: number;
-  }) => flowPost<FlowSubscription>("/subscription/create", p),
+    /** Ids de ítems del catálogo a adjuntar. Entran en la PRIMERA factura;
+     *  asociarlos después con addItem solo alcanza al ciclo siguiente. */
+    planAdditionalList?: number[];
+  }) => flowPost<FlowSubscription>("/subscription/create", {
+    ...p,
+    // Flow espera el array serializado como JSON: "842" da HTTP 500 y la
+    // notación planAdditionalList[0] rompe la firma HMAC. Verificado en
+    // sandbox — "[842]" es lo único que funciona.
+    ...(planAdditionalList?.length ? { planAdditionalList: JSON.stringify(planAdditionalList) } : {}),
+  }),
   getSubscription: (subscriptionId: string) =>
     flowGet<FlowSubscription>("/subscription/get", { subscriptionId }),
 

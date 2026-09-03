@@ -15,7 +15,7 @@ import { NextResponse } from "next/server";
 import { adminSupabase } from "../../_helpers";
 import { flow, FlowError } from "@/lib/flow";
 import { flowPlanId, planByKey, type PlanKey } from "@/lib/flow-plans";
-import { syncSubscriptionToUserCount, usuariosExtra, asociarUsuariosExtra, manana } from "@/lib/flow-sync";
+import { syncSubscriptionToUserCount, usuariosExtra, itemUsuariosExtra } from "@/lib/flow-sync";
 import { montoParaFlow } from "@/lib/tributario";
 import { estadoDesdeFlow } from "@/lib/flow-status";
 import { registrarPeriodoFacturado } from "@/lib/dte/registrar-periodo";
@@ -162,37 +162,32 @@ async function handle(req: Request) {
 
     if (!flowSubId) {
       // El primer cobro tiene que incluir a los usuarios extra, y Flow emite
-      // la factura en el mismo instante en que se crea la suscripción: los
-      // ítems agregados después solo alcanzan al ciclo siguiente. Verificado
-      // en sandbox — una suscripción creada hoy factura $9.990 y sigue en
-      // $9.990 aunque después se le asocie un ítem con quantity 9.
+      // la factura en el mismo instante en que se crea la suscripción: un
+      // ítem agregado después solo alcanza al ciclo siguiente. Verificado en
+      // sandbox — una suscripción creada con un ítem asociado a posteriori
+      // factura solo el plan, y esa factura ya no cambia ni subiéndole la
+      // cantidad al ítem.
       //
-      // Por eso, cuando hay usuarios extra, la suscripción se crea con
-      // `subscription_start` mañana: nace sin factura (status 0, invoices
-      // vacío), se le asocian los ítems, y Flow factura el total correcto al
-      // arrancar el período. El costo es que el primer cobro entra un día
-      // después; a cambio, nunca se cobra de menos.
+      // La vía correcta es `planAdditionalList`: los ítems se adjuntan AL
+      // crear y entran en la primera factura. Como Flow rechaza el mismo
+      // itemId repetido ("The item is already added in the subscription") y
+      // la cantidad no se puede fijar en la creación, el ítem lleva el monto
+      // TOTAL de los usuarios extra en una sola línea.
       //
-      // Con un solo usuario cobrable no hay ítems que esperar, así que se
-      // crea de inmediato y el cobro es al instante.
-      const inicioDiferido = extras > 0 ? manana() : undefined;
+      // Verificado: plan $9.990 + ítem de $42.732 → factura inmediata de
+      // $52.722.
+      const item = extras > 0
+        ? await itemUsuariosExtra(extras, montoParaFlow(precio))
+        : null;
 
       const created = await flow.createSubscription({
         planId:     flowPlan,
         customerId: reg.customerId,
         // No trial — they already finished theirs (or skipped it).
-        ...(inicioDiferido ? { subscription_start: inicioDiferido } : {}),
+        ...(item ? { planAdditionalList: [item.id] } : {}),
         ...cuponClienteFundador(esFundador, workspaceId),
       });
       flowSubId = created.subscriptionId;
-
-      // Los ítems van antes de que Flow emita la primera factura. Si esto
-      // falla, el cobro saldría corto: se registra y el barrido de
-      // /api/suscripcion/reconciliar lo corrige antes del ciclo siguiente.
-      if (extras > 0) {
-        await asociarUsuariosExtra(flowSubId, extras, montoParaFlow(precio))
-          .catch(err => console.error("[register/callback] no se pudieron asociar los usuarios extra:", err));
-      }
     }
 
     // Fetch the canonical subscription detail so we can persist period dates.

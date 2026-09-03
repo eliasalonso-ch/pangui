@@ -32,7 +32,7 @@ vi.mock("@/app/api/suscripcion/_helpers", () => ({
   }),
 }));
 
-import { syncSubscriptionToUserCount } from "@/lib/flow-sync";
+import { syncSubscriptionToUserCount, itemUsuariosExtra } from "@/lib/flow-sync";
 
 const subCobrada = {
   id: "s1", flow_subscription_id: "sus_x", status: "active",
@@ -124,6 +124,27 @@ describe("syncSubscriptionToUserCount", () => {
     estado.sub = { ...subCobrada, flow_subscription_id: null };
     await syncSubscriptionToUserCount("ws");
     expect(flowMock.getSubscription).not.toHaveBeenCalled();
+  });
+
+  // El callback adjunta este ítem en planAdditionalList al crear: Flow rechaza
+  // el mismo itemId repetido y no acepta cantidad en la creación, así que el
+  // monto total de los usuarios extra va en una sola línea.
+  it("itemUsuariosExtra pide un ítem por el TOTAL, no por usuario", async () => {
+    flowMock.listSubscriptionItemCatalog.mockResolvedValue({ data: [] });
+    flowMock.createSubscriptionItem.mockResolvedValue({ id: 843 });
+
+    await expect(itemUsuariosExtra(9, 4748)).resolves.toEqual({ id: 843 });
+    expect(flowMock.createSubscriptionItem).toHaveBeenCalledWith(
+      expect.objectContaining({ amount: 42_732 }),  // 9 × 4.748
+    );
+  });
+
+  it("itemUsuariosExtra reutiliza el ítem del catálogo si ya existe", async () => {
+    flowMock.listSubscriptionItemCatalog.mockResolvedValue({
+      data: [{ id: 843, name: "9 usuarios", amount: 42732, currency: "CLP", status: 1 }],
+    });
+    await expect(itemUsuariosExtra(9, 4748)).resolves.toEqual({ id: 843 });
+    expect(flowMock.createSubscriptionItem).not.toHaveBeenCalled();
   });
 
   it("un fallo de Flow no se propaga al llamador", async () => {

@@ -353,32 +353,32 @@ sola asociación por suscripción con `quantity = usuarios cobrables − 1`.
 Los ítems afectan la **próxima** factura, no una ya emitida: por eso una
 suscripción creada sin ítems hay que cancelarla y recrearla, no parcharla.
 
-### El primer cobro y los ítems: por qué se difiere el inicio
+### El primer cobro y los ítems: `planAdditionalList`
 
 Flow emite la primera factura **en el mismo instante** en que se crea la
-suscripción, y los ítems asociados después solo alcanzan al ciclo siguiente.
-Verificado en sandbox:
+suscripción. Un ítem asociado después con `addItem` solo alcanza al ciclo
+siguiente, y esa factura ya no cambia. Verificado en sandbox:
 
-- Suscripción creada con inicio hoy → factura inmediata de $9.990. Se le
-  asocia un ítem con `quantity: 9` y la factura **sigue** en $9.990.
-- Suscripción creada con `subscription_start` = mañana → nace con
-  `status: 0`, `invoices: []` y `period_start: null`. Acepta ítems, y al
-  arrancar el período factura el total con ellos incluidos.
+- Suscripción creada, luego `addItem` + `updateItem quantity=9` → la factura
+  queda en $9.990 (solo el plan) aunque el ítem muestre `totalAmount: 42.732`.
+- Suscripción creada con `planAdditionalList` → la factura del momento incluye
+  el ítem: plan $9.990 + ítem $42.732 = **$52.722**.
 
-Por eso `register/callback` crea la suscripción con inicio al día siguiente
-**cuando hay usuarios extra**, asocia el ítem con su cantidad, y deja que
-Flow facture el total correcto. Con un solo usuario cobrable no hay nada que
-esperar y se crea de inmediato.
+Por eso `register/callback` adjunta los usuarios extra al **crear**, vía
+`planAdditionalList`. Dos restricciones que obligan a la forma actual:
 
-Costo: el primer cobro entra un día después de inscribir la tarjeta. A
-cambio, nunca se cobra de menos. Los tres primeros intentos con el primer
-cliente real salieron por un usuario ($4.748) en vez de diez ($47.481)
-exactamente por esto.
+- Flow rechaza el mismo `itemId` repetido en la lista: *"The item is already
+  added in the subscription"*.
+- No hay forma de fijar `quantity` en la creación.
 
-Efecto secundario: mientras espera, Flow reporta `status: 0`, que
-`estadoDesdeFlow` traduce a `unpaid`. El callback lo trata como `past_due`
-(cobro pendiente, no impago) y la UI muestra "Tu primer cobro está agendado"
-con la fecha, en vez de un rojo "Sin pagar" que sería falso.
+De ahí que el ítem lleve el **monto total** de los usuarios extra en una sola
+línea (`9 usuarios adicionales`, $42.732) en vez de nueve líneas de $4.748.
+La reconciliación posterior (`syncSubscriptionToUserCount`) sí usa el modelo
+de `quantity`, que se puede ajustar sobre una suscripción viva.
+
+**Serialización:** el array va como JSON — `planAdditionalList=[842]`. El
+valor plano (`842`) responde HTTP 500 y la notación `planAdditionalList[0]`
+rompe la firma HMAC.
 
 ### Datos útiles del objeto suscripción
 
