@@ -165,6 +165,27 @@ export interface FlowSubscription {
   cancel_at_period_end?: number;
   cancel_at?: string | null;
   morose?: number;              // 0 ok, 1 overdue, 2 pending but not overdue
+  /** Ítems asociados (usuarios adicionales). Única fuente fiable: /listItems
+   *  responde 105 aunque haya ítems. Ver lib/flow-sync.ts. */
+  items?: FlowSubscriptionItemAsociado[];
+}
+
+/** Ítem del catálogo del comercio (/subscription_item/*). */
+export interface FlowSubscriptionItem {
+  id:       number;
+  name:     string;
+  amount:   number | string;
+  currency: string;
+  status:   number;   // 1 activo
+}
+
+/** Ítem ya asociado a una suscripción, tal como viene en /subscription/get. */
+export interface FlowSubscriptionItemAsociado {
+  s_item_id: number;
+  item_id:   number;
+  name:      string;
+  amount:    number;
+  quantity:  number;
 }
 
 export interface FlowInvoiceItem {
@@ -291,25 +312,31 @@ export const flow = {
   changePlan: (p: { subscriptionId: string; newPlanId: string }) =>
     flowPost<FlowSubscription>("/subscription/changePlan", p),
 
-  // Subscription items — used to mirror user count onto the recurring charge.
-  // We add one item per "extra" active user beyond the first (the plan amount
-  // covers user #1; each extra user is one additional item at the same amount).
-  addSubscriptionItem: (p: {
-    subscriptionId: string;
-    name:           string;
-    amount:         number;
-    currency?:      string;
-    interval?:      number;
-    interval_count?: number;
-  }) => flowPost<{ subscription_item_id: string }>("/subscription/addItem", p),
-  removeSubscriptionItem: (p: {
-    subscriptionId: string;
-    subscription_item_id: string;
-  }) => flowPost("/subscription/removeItem", p),
-  listSubscriptionItems: (subscriptionId: string) =>
-    flowGet<{ data: Array<{ subscription_item_id: string; name: string; amount: number }> }>(
-      "/subscription/listItems", { subscriptionId }
+  // Subscription items — reflejan los usuarios extra en el cobro recurrente.
+  //
+  // Son un catálogo del comercio (se crean una vez, por precio) y se asocian a
+  // una suscripción por `itemId` con una `quantity`. Contrato verificado
+  // contra producción el 2026-09-03; ver lib/flow-sync.ts para el detalle.
+  createSubscriptionItem: (p: { name: string; amount: number; currency?: string }) =>
+    flowPost<FlowSubscriptionItem>("/subscription_item/create", p),
+  listSubscriptionItemCatalog: () =>
+    flowGet<{ total: number; hasMore: number; data: FlowSubscriptionItem[] }>(
+      "/subscription_item/list", { limit: 100 }
     ),
+  /** Asocia con quantity 1; la cantidad real se fija con updateSubscriptionItem. */
+  addSubscriptionItem: (p: { subscriptionId: string; itemId: number }) =>
+    flowPost<{ sub_id: string; item_id: number; quantity: number; success: boolean }>(
+      "/subscription/addItem", p
+    ),
+  updateSubscriptionItem: (p: { subscriptionId: string; itemId: number; quantity: number }) =>
+    flowPost<{ sub_id: string; item_id: number; quantity: number; success: boolean }>(
+      "/subscription/updateItem", p
+    ),
+  // El nombre del parámetro no está verificado: la única prueba respondió
+  // 105 sobre una suscripción que se estaba cancelando en paralelo. Se
+  // asume `itemId` por simetría con addItem/updateItem.
+  removeSubscriptionItem: (p: { subscriptionId: string; itemId: number }) =>
+    flowPost("/subscription/removeItem", p),
 };
 
 export { BASE_URL as FLOW_BASE_URL };

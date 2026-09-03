@@ -327,6 +327,32 @@ Y tras un `changePlan` real, volver a leer `subscription/get`: si
 `new_plan_scheduled_change_date` queda con fecha, el cambio es diferido y hay
 que ajustar tanto el texto de la subida como el momento de la bajada.
 
+### Ítems de suscripción: el contrato real (2026-09-03)
+
+`lib/flow-sync.ts` llamaba a `/subscription/addItem` con `name` y `amount`.
+Flow responde `104 Missing service params: itemId`: **nunca agregó un ítem**,
+y por eso los tres primeros cobros a Electrilam salieron por un solo usuario.
+
+Lo verificado contra producción:
+
+| Endpoint | Parámetros | Devuelve |
+|---|---|---|
+| `POST /subscription_item/create` | `name`, `amount` (≥ 350 CLP), `currency` | `{ id, name, amount, status }` |
+| `GET /subscription_item/list` | `limit` | `{ data: [...] }` — catálogo del comercio |
+| `POST /subscription/addItem` | `subscriptionId`, `itemId` | asocia con `quantity: 1` |
+| `POST /subscription/updateItem` | `subscriptionId`, `itemId`, `quantity` | fija la cantidad |
+| `POST /subscription/removeItem` | `subscriptionId`, `itemId` (*) | — |
+| `GET /subscription/get` | `subscriptionId` | trae `items[]` con `item_id`, `quantity`, `amount` |
+| `GET /subscription/listItems` | — | **`105 No services available` siempre**, con o sin ítems. No usar. |
+
+(*) El nombre del parámetro de `removeItem` no quedó verificado: la única
+prueba coincidió con una cancelación en paralelo y respondió 105.
+
+Modelo: un ítem de catálogo por precio ("Usuario adicional $4.748") y una
+sola asociación por suscripción con `quantity = usuarios cobrables − 1`.
+Los ítems afectan la **próxima** factura, no una ya emitida: por eso una
+suscripción creada sin ítems hay que cancelarla y recrearla, no parcharla.
+
 ### Datos útiles del objeto suscripción
 
 Confirmado en una suscripción real: `days_until_due: 3` (días de gracia antes

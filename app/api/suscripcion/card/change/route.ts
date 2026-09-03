@@ -16,15 +16,14 @@
 import { NextResponse } from "next/server";
 import { adminSupabase, requireAdminOfWorkspace } from "../../_helpers";
 import { flow, FlowError } from "@/lib/flow";
-import { urlDeRedireccion } from "@/lib/flow-redirect";
+import { urlDeRedireccion, urlPublica } from "@/lib/flow-redirect";
 
-export async function POST() {
+export async function POST(req: Request) {
   const auth = await requireAdminOfWorkspace();
   if (auth.error) return auth.error;
   const { workspaceId, userId, email } = auth.ctx;
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL;
-  if (!appUrl) return NextResponse.json({ error: "NEXT_PUBLIC_APP_URL no configurado." }, { status: 500 });
+  const appUrl = urlPublica(req);
 
   const admin = adminSupabase();
   const { data: customer } = await admin

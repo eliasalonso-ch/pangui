@@ -1,14 +1,28 @@
 /**
- * Sync the number of active users in a workspace to its Flow subscription.
+ * Sincroniza la cantidad de usuarios cobrables de un workspace con su
+ * suscripción en Flow.
  *
- * Strategy:
- *   - The Flow plan amount = price_per_user (covers user #1).
- *   - Each additional active user = one Flow subscription_item at the same amount.
- *   - On invite / deactivation, this function reconciles the items so the
- *     monthly charge always equals price_per_user × active_user_count.
+ * Modelo de cobro:
+ *   - El plan de Flow cubre al usuario #1 (precio por usuario, en bruto).
+ *   - Los usuarios extra van como UN ítem de suscripción con `quantity`.
  *
- * Idempotent: safe to call repeatedly. No-ops for trialing / basic_free / canceled
- * subscriptions and for the enterprise tier (billed off-platform).
+ * Contrato real de Flow, verificado contra producción el 2026-09-03 (la
+ * documentación pública no lo describe):
+ *
+ *   - Los ítems son un catálogo del comercio: se crean UNA vez con
+ *     /subscription_item/create {name, amount, currency} y devuelven un `id`.
+ *   - /subscription/addItem exige `itemId` de ese catálogo. Mandar `name` y
+ *     `amount` responde "104 Missing service params: itemId" — que es lo que
+ *     hacía la versión anterior, así que nunca agregó un ítem.
+ *   - La cantidad se fija con /subscription/updateItem {itemId, quantity}.
+ *   - Los ítems asociados se leen de /subscription/get → `items[]`.
+ *     /subscription/listItems responde "105 No services available" incluso
+ *     con ítems asociados: no sirve.
+ *   - Los ítems afectan la PRÓXIMA factura, no una ya emitida.
+ *
+ * Idempotente: se puede llamar cuantas veces haga falta. No hace nada en
+ * trial, basic_free, cancelada ni enterprise (facturación fuera de la
+ * plataforma).
  */
 import { adminSupabase } from "@/app/api/suscripcion/_helpers";
 import { flow } from "@/lib/flow";
@@ -24,7 +38,6 @@ export async function syncSubscriptionToUserCount(workspaceId: string): Promise<
     .neq("status", "canceled")
     .maybeSingle();
 
-  // Nothing to sync if the workspace isn't on a billed plan
   if (!sub) return;
   if (!sub.flow_subscription_id)               return; // trialing / basic_free
   if (!["active", "past_due"].includes(sub.status)) return;
@@ -43,48 +56,64 @@ export async function syncSubscriptionToUserCount(workspaceId: string): Promise<
     // Un usuario dado de baja conserva su fila para el historial, pero no se cobra.
     .is("deleted_at", null);
 
-  const extras = Math.max(0, (activeUsers ?? 0) - 1); // plan covers user #1
+  const extras = Math.max(0, (activeUsers ?? 0) - 1); // el plan cubre al usuario #1
+  // `price_per_user_clp` es neto; Flow cobra el bruto.
+  const monto = montoParaFlow(sub.price_per_user_clp);
 
   try {
-    // Flow responde "No services available" (HTTP 400) al listar los items de
-    // una suscripción que no tiene ninguno — el caso normal de un workspace con
-    // un solo usuario. Es una respuesta esperable, no un fallo, así que la
-    // tratamos como lista vacía en vez de dejar que ensucie los logs.
-    const items = await flow
-      .listSubscriptionItems(sub.flow_subscription_id)
-      .catch((err: unknown) => {
-        if ((err as { status?: number })?.status === 400) return { data: [] };
-        throw err;
-      });
-    const existing = items.data?.filter(i => i.name?.startsWith("Usuario extra")) ?? [];
-
-    // Add missing
-    while (existing.length < extras) {
-      await flow.addSubscriptionItem({
-        subscriptionId: sub.flow_subscription_id,
-        name:           `Usuario extra #${existing.length + 1}`,
-        // `price_per_user_clp` es neto; Flow cobra el bruto.
-        amount:         montoParaFlow(sub.price_per_user_clp),
-        currency:       "CLP",
-        interval:       3,
-        interval_count: 1,
-      });
-      existing.push({ subscription_item_id: "placeholder", name: "x", amount: 0 });
-    }
-
-    // Remove surplus
-    while (existing.length > extras) {
-      const last = existing.pop();
-      if (last?.subscription_item_id) {
-        await flow.removeSubscriptionItem({
-          subscriptionId:       sub.flow_subscription_id,
-          subscription_item_id: last.subscription_item_id,
-        });
-      }
-    }
+    await reconciliarItems(sub.flow_subscription_id, extras, monto);
   } catch (err) {
-    // Don't block user invitations on a Flow sync failure — log and move on.
-    // Next webhook or manual reconcile will catch up.
+    // No bloquea invitaciones ni contrataciones por un fallo de Flow: queda
+    // en el log y el barrido de /api/suscripcion/reconciliar lo reintenta.
     console.error("[flow-sync] error syncing items:", err);
   }
+}
+
+/**
+ * Deja la suscripción con exactamente un ítem "usuario adicional" al monto
+ * dado y con cantidad `extras`, o sin ítems si `extras` es 0.
+ */
+async function reconciliarItems(subscriptionId: string, extras: number, monto: number): Promise<void> {
+  const flowSub = await flow.getSubscription(subscriptionId);
+  const asociados = flowSub.items ?? [];
+
+  const item = extras > 0 ? await itemUsuarioAdicional(monto) : null;
+
+  // Cualquier ítem que no sea el correcto sobra: otro precio (cambio de plan
+  // o de precio) o ya no hay usuarios extra.
+  for (const a of asociados) {
+    if (item && a.item_id === item.id) continue;
+    await flow.removeSubscriptionItem({ subscriptionId, itemId: a.item_id });
+  }
+
+  if (!item) return;
+
+  const actual = asociados.find(a => a.item_id === item.id);
+  if (!actual) {
+    // addItem asocia con quantity 1; la cantidad real se fija aparte.
+    await flow.addSubscriptionItem({ subscriptionId, itemId: item.id });
+    if (extras !== 1) {
+      await flow.updateSubscriptionItem({ subscriptionId, itemId: item.id, quantity: extras });
+    }
+  } else if (actual.quantity !== extras) {
+    await flow.updateSubscriptionItem({ subscriptionId, itemId: item.id, quantity: extras });
+  }
+}
+
+/**
+ * Ítem del catálogo de Flow para "un usuario adicional" a ese monto bruto.
+ * Se busca por monto y se crea si no existe: hay uno por precio (un ítem por
+ * tier del catálogo, más uno por cada precio negociado de cliente fundador).
+ */
+async function itemUsuarioAdicional(monto: number): Promise<{ id: number }> {
+  const catalogo = await flow.listSubscriptionItemCatalog();
+  const existente = catalogo.data?.find(i => Number(i.amount) === monto && i.status === 1);
+  if (existente) return { id: existente.id };
+
+  const creado = await flow.createSubscriptionItem({
+    name:     `Usuario adicional $${monto.toLocaleString("es-CL")}`,
+    amount:   monto,
+    currency: "CLP",
+  });
+  return { id: creado.id };
 }

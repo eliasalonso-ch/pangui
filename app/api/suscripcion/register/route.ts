@@ -14,7 +14,7 @@ import { NextResponse } from "next/server";
 import { adminSupabase, requireAdminOfWorkspace } from "../_helpers";
 import { flow, FlowError } from "@/lib/flow";
 import { flowPlanId, planByKey, type PlanKey } from "@/lib/flow-plans";
-import { urlDeRedireccion } from "@/lib/flow-redirect";
+import { urlDeRedireccion, urlPublica } from "@/lib/flow-redirect";
 import { cuponClienteFundador, precioEfectivo } from "@/lib/flow-cupon";
 import { syncSubscriptionToUserCount } from "@/lib/flow-sync";
 
@@ -35,8 +35,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Enterprise requiere contactar a ventas." }, { status: 400 });
   }
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL;
-  if (!appUrl) return NextResponse.json({ error: "NEXT_PUBLIC_APP_URL no configurado." }, { status: 500 });
+  // Ver lib/flow-redirect.ts: cae al origen de la petición si la variable no
+  // llegó al build, en vez de dejar la contratación muerta.
+  const appUrl = urlPublica(req);
 
   const admin = adminSupabase();
 
@@ -175,9 +176,21 @@ export async function POST(req: Request) {
         console.error(
           sinContrato
             ? "[suscripcion/register] FLOW_CARGO_AUTOMATICO=true pero Flow no tiene el contrato habilitado (7001). Revisa el producto 148 en el panel de Flow."
-            : "[suscripcion/register] registerCard falló, se cae a link de pago:",
+            : "[suscripcion/register] registerCard falló:",
           fe,
         );
+
+        // Antes se seguía de largo al flujo de link de pago. Eso creaba una
+        // suscripción y "activaba" el plan sin haber llevado al usuario a
+        // inscribir la tarjeta: desde su lado, el botón no hacía nada visible
+        // y quedaba un cobro impago que nadie iba a pagar. Con cargo
+        // automático el único camino válido es el formulario de Flow, así que
+        // si no se puede abrir hay que fallar y no dejar basura en Flow.
+        return NextResponse.json({
+          error: sinContrato
+            ? "Flow.cl no tiene habilitado el cargo automático para este comercio. Escríbenos a contacto@getpangui.com."
+            : "No pudimos abrir el formulario de tarjeta de Flow.cl. Intenta de nuevo en unos minutos.",
+        }, { status: 502 });
       }
     }
 
