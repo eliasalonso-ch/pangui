@@ -16,6 +16,7 @@ import { flow, FlowError } from "@/lib/flow";
 import { flowPlanId, planByKey, type PlanKey } from "@/lib/flow-plans";
 import { urlDeRedireccion } from "@/lib/flow-redirect";
 import { cuponClienteFundador, precioEfectivo } from "@/lib/flow-cupon";
+import { syncSubscriptionToUserCount } from "@/lib/flow-sync";
 
 export async function POST(req: Request) {
   const auth = await requireAdminOfWorkspace();
@@ -226,6 +227,16 @@ export async function POST(req: Request) {
         error: "La suscripción se creó en Flow pero no se pudo registrar localmente. Contacta a soporte antes de reintentar.",
       }, { status: 500 });
     }
+
+    // Los usuarios extra van como items de la suscripción: el plan cubre solo
+    // al usuario #1. Sin esto Flow cobra un usuario aunque el workspace tenga
+    // diez — le pasó al primer cliente real, con una factura de $3.990 en vez
+    // de $39.900. Va después del upsert porque flow-sync lee la fila local
+    // para saber precio y estado.
+    //
+    // No lanza: flow-sync ya captura sus propios errores, y si el cobro quedara
+    // corto lo corrige el barrido de /api/suscripcion/reconciliar.
+    await syncSubscriptionToUserCount(workspaceId);
 
     // `email` es el de cobros: es el que Flow usa y el que el banner de
     // "esperando el pago" le muestra al usuario. Devolver el de la sesión

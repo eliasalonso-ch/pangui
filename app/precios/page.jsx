@@ -126,7 +126,7 @@ export default function PreciosPage() {
               ))}
             </div>
             <p className="mt-5 text-[13px] leading-[1.55] text-[var(--ink-3)]">
-              Los precios son mensuales por usuario activo. Sin compromiso anual; puedes cancelar cuando quieras.
+              Los precios son mensuales por usuario activo y no incluyen IVA (19%), que se agrega al momento del cobro. Sin compromiso anual; puedes cancelar cuando quieras.
             </p>
           </div>
         </section>
@@ -205,7 +205,7 @@ function PricingCard({ plan, featured }) {
         ) : (
           <>
             <p className="font-display text-[38px] font-bold leading-none tracking-[-0.03em]">{fmtCLP(plan.pricePerUser)}</p>
-            <p className="mt-2 text-[13px] text-[var(--ink-3)]">por usuario activo / mes</p>
+            <p className="mt-2 text-[13px] text-[var(--ink-3)]">+ IVA por usuario activo / mes</p>
           </>
         )}
       </div>

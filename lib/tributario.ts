@@ -62,8 +62,8 @@ export function desglosarBruto(bruto: number): DesgloseTributario {
 /**
  * Construye el desglose a partir de un monto neto conocido.
  *
- * Se usa cuando el precio de lista es neto (hoy no es el caso en Pangui, pero
- * un plan futuro o un cobro puntual podrían definirse así). Igual que arriba,
+ * Es el camino vigente: desde 2026-09 los precios del catálogo son NETOS y el
+ * IVA se agrega por fuera (ver `desglosarCobroSuscripcion`). Igual que arriba,
  * el IVA es una resta contra el bruto redondeado para que la suma cuadre.
  */
 export function desglosarNeto(neto: number): DesgloseTributario {
@@ -76,7 +76,12 @@ export function desglosarNeto(neto: number): DesgloseTributario {
 }
 
 /**
- * Desglose de un cobro de suscripción: precio bruto por usuario × cantidad.
+ * Desglose de un cobro de suscripción: precio NETO por usuario × cantidad.
+ *
+ * Los precios del catálogo (lib/flow-plans.ts) son netos y el IVA se agrega
+ * por fuera: quien contrata 10 usuarios a $3.990 paga $47.481, de los cuales
+ * $39.900 son la base imponible. Antes se interpretaban como brutos y el IVA
+ * salía del margen; el cambio es de 2026-09 y aplica a todos los planes.
  *
  * El IVA se calcula sobre el TOTAL, no por usuario. Desglosar cada línea y
  * sumar los IVA individuales arrastra el error de redondeo tantas veces como
@@ -84,13 +89,25 @@ export function desglosarNeto(neto: number): DesgloseTributario {
  * y el total de la factura no cuadraría con la suma de sus líneas.
  */
 export function desglosarCobroSuscripcion(
-  precioBrutoPorUsuario: number,
+  precioNetoPorUsuario: number,
   usuarios: number,
 ): DesgloseTributario {
   if (!Number.isInteger(usuarios) || usuarios < 0) {
     throw new Error(`Cantidad de usuarios inválida: ${usuarios}`);
   }
-  return desglosarBruto(Math.round(precioBrutoPorUsuario) * usuarios);
+  return desglosarNeto(Math.round(precioNetoPorUsuario) * usuarios);
+}
+
+/**
+ * Monto que hay que enviarle a Flow.cl a partir de un precio de lista neto.
+ *
+ * Flow cobra exactamente el `amount` que se le configura: no conoce el IVA ni
+ * lo agrega. Como los precios del catálogo son netos, todo lo que viaje a Flow
+ * —el `amount` de un plan y el de cada item de usuario extra— tiene que pasar
+ * por acá, o se cobraría la base imponible sin impuesto.
+ */
+export function montoParaFlow(precioNeto: number): number {
+  return desglosarNeto(precioNeto).bruto;
 }
 
 /** Formatea un monto CLP para mostrarlo en la UI: 9990 → "$9.990". */
@@ -103,11 +120,14 @@ export function formatearCLP(monto: number): string {
 }
 
 /**
- * Texto de desglose para la UI: "$9.990 (neto $8.395 + IVA $1.595)".
+ * Texto de desglose para la UI: "$11.888 (neto $9.990 + IVA $1.898)".
  * Un solo lugar que lo arma, para que la app no muestre dos formatos distintos.
+ *
+ * Recibe el NETO, que es el precio de lista: los planes se publican sin IVA y
+ * el total a pagar es lo que este texto revela.
  */
-export function textoDesglose(bruto: number): string {
-  const d = desglosarBruto(bruto);
+export function textoDesglose(neto: number): string {
+  const d = desglosarNeto(neto);
   return `${formatearCLP(d.bruto)} (neto ${formatearCLP(d.neto)} + IVA ${formatearCLP(d.iva)})`;
 }
 

@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { motion, useMotionValue, useSpring, useTransform } from "framer-motion";
 import { Loader2, Check, CreditCard, AlertCircle, ArrowLeft, X, Sparkles, ShieldCheck, Pencil, Trash2 } from "lucide-react";
 import { SELF_SERVE_PLANS, PLANS, type PlanKey } from "@/lib/flow-plans";
-import { textoDesglose } from "@/lib/tributario";
+import { textoDesglose, desglosarNeto } from "@/lib/tributario";
 import { resumirCambio, type ResumenCambio } from "@/lib/cambio-plan";
 import { resolveCardBrand } from "@/lib/card-brand";
 import { CardBrandLogo } from "@/components/CardBrandLogo";
@@ -324,7 +324,7 @@ function SuscripcionPageInner() {
                 <p style={{ ...sectionLabel, color: "var(--brand-fg)" }}>Cliente fundador</p>
               </div>
               <p style={{ fontSize: 14, color: "var(--fg-1)", margin: 0, lineHeight: 1.5 }}>
-                {sub.custom_price_note ?? `Precio especial de ${fmtCLP(sub.price_per_user_clp)} por usuario para siempre.`}
+                {sub.custom_price_note ?? `Precio especial de ${fmtCLP(sub.price_per_user_clp)} + IVA por usuario para siempre.`}
               </p>
               <p style={{ fontSize: 13, color: "var(--fg-2)", margin: "6px 0 0", lineHeight: 1.5 }}>
                 Este precio se mantiene mientras la suscripción siga activa. Está acordado para tu plan actual: si quieres cambiarte de plan conservándolo, escríbenos a <a href="mailto:contacto@getpangui.com" style={linkStyle}>contacto@getpangui.com</a>.
@@ -506,13 +506,13 @@ function SuscripcionPageInner() {
                     <div>
                       <div style={{ display: "flex", alignItems: "baseline", gap: 4, flexWrap: "wrap" }}>
                         <p style={{ fontSize: 22, fontWeight: 700, color: "var(--fg-1)", margin: 0 }}>{fmtCLP(precioTarjeta)}</p>
-                        <p style={{ fontSize: 12, color: "var(--fg-4)", margin: 0 }}>/ usuario activo / mes</p>
+                        <p style={{ fontSize: 12, color: "var(--fg-4)", margin: 0 }}>+ IVA / usuario activo / mes</p>
                         {precioTarjeta !== p.pricePerUser && (
                           <p style={{ fontSize: 12, color: "var(--fg-4)", margin: 0, textDecoration: "line-through" }}>{fmtCLP(p.pricePerUser)}</p>
                         )}
                       </div>
                       <p style={{ fontSize: 12, color: "var(--fg-3)", margin: "4px 0 0", overflowWrap: "anywhere" }}>
-                        Hoy serían {fmtCLP(preview)} al mes con {activeUsers} {activeUsers === 1 ? "usuario" : "usuarios"}.
+                        Hoy serían {fmtCLP(desglosarNeto(preview).bruto)} al mes con IVA, con {activeUsers} {activeUsers === 1 ? "usuario" : "usuarios"}.
                       </p>
                     </div>
                     <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 5 }}>
@@ -678,7 +678,7 @@ function BillingDisclosure({
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 10 }}>
         <MiniStat label="Modelo" value="Mensual por usuario activo" />
         <MiniStat label="Usuarios activos hoy" value={`${activeUsers}`} />
-        <MiniStat label="Total estimado hoy (IVA incl.)" value={estimatedCost > 0 ? fmtCLP(estimatedCost) : "-"} />
+        <MiniStat label="Total estimado hoy (IVA incl.)" value={estimatedCost > 0 ? fmtCLP(desglosarNeto(estimatedCost).bruto) : "-"} />
         <MiniStat label={canceled ? "Acceso hasta" : "Renovación"} value={periodEnd ? fmtDate(periodEnd) : "Mensual"} />
       </div>
       {estimatedCost > 0 && (
@@ -690,7 +690,7 @@ function BillingDisclosure({
         Al activar o cambiar un plan aceptas el cobro mensual en CLP según el plan elegido y la cantidad de usuarios activos del workspace. <strong>El cobro se carga automáticamente a la tarjeta que inscribas en Flow.cl</strong>, cada mes y sin acción de tu parte; el acceso se mantiene mientras el pago esté al día. Puedes desactivar usuarios antes del siguiente ciclo para ajustar el cobro, cambiar la tarjeta desde esta pantalla, y cancelar la suscripción manteniendo acceso hasta el fin del periodo pagado.
       </p>
       <p style={{ fontSize: 12.5, lineHeight: 1.55, color: "var(--fg-2)", margin: 0 }}>
-        Los pagos se procesan a través de Flow.cl. Por cada cobro emitimos una <strong>factura electrónica afecta a IVA</strong> ante el SII, que enviamos al email de cobros del workspace. <strong>Todos los precios publicados incluyen IVA (19%)</strong>: el monto que ves es el total a pagar. Si tu empresa es contribuyente de IVA, la factura da derecho a crédito fiscal por el impuesto desglosado en ella.
+        Los pagos se procesan a través de Flow.cl. Por cada cobro emitimos una <strong>factura electrónica afecta a IVA</strong> ante el SII, disponible para descargar desde esta pantalla. <strong>Los precios publicados no incluyen IVA (19%)</strong>: el impuesto se agrega al momento del cobro y el total a pagar aparece en el desglose de más arriba. Si tu empresa es contribuyente de IVA, la factura da derecho a crédito fiscal por el impuesto desglosado en ella.
       </p>
       {/* Sin checkbox: el consentimiento queda por acción. El aviso está a la
           vista y contratar es el acto de aceptación, que es como opera el resto
