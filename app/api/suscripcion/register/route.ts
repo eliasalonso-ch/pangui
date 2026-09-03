@@ -13,10 +13,8 @@
 import { NextResponse } from "next/server";
 import { adminSupabase, requireAdminOfWorkspace } from "../_helpers";
 import { flow, FlowError } from "@/lib/flow";
-import { flowPlanId, planByKey, type PlanKey } from "@/lib/flow-plans";
+import { planByKey, type PlanKey } from "@/lib/flow-plans";
 import { urlDeRedireccion, urlPublica } from "@/lib/flow-redirect";
-import { cuponClienteFundador, precioEfectivo } from "@/lib/flow-cupon";
-import { syncSubscriptionToUserCount } from "@/lib/flow-sync";
 
 export async function POST(req: Request) {
   const auth = await requireAdminOfWorkspace();
@@ -72,18 +70,6 @@ export async function POST(req: Request) {
 
   let flowCustomerId = existing?.flow_customer_id;
 
-  // Clientes fundadores: precio especial vitalicio. `change-plan` ya respeta
-  // `price_per_user_clp` cuando `is_early_customer`, pero acá se estaba
-  // pisando con el precio de catálogo, así que suscribirse volvía a dejar la
-  // fila en el precio de lista.
-  const { data: prevSub } = await admin
-    .from("subscriptions")
-    .select("is_early_customer, price_per_user_clp")
-    .eq("workspace_id", workspaceId)
-    .maybeSingle();
-
-  const { esFundador: isEarly, precio: effectivePrice } = precioEfectivo(prevSub, plan.pricePerUser);
-
   try {
     if (!flowCustomerId) {
       try {
@@ -138,128 +124,52 @@ export async function POST(req: Request) {
       }
     }
 
-    // ── Cargo automático vs. link de pago mensual ──────────────────────────
+    // ── Inscripción de tarjeta (cargo automático) ──────────────────────────
     //
-    // El medio de pago "Cargo automático" (producto 148 de Flow) exige una
-    // cuenta a nombre de un RUT de primera categoría. Mientras Pangui facturó
-    // como persona natural de segunda categoría eso no se cumplía y
-    // /customer/register respondía
-    //   code 7001: "Commerce has not automatic charge contract"
-    // así que el cobro se hacía por link de pago mensual: Flow crea el ciclo y
-    // envía un link por email en cada renovación.
+    // Contratar siempre pasa por el formulario de tarjeta de Flow. El resto
+    // del flujo vive en /register/callback: crea la suscripción, aplica el
+    // cupón, agrega los ítems de usuarios extra y cobra.
     //
-    // Con la SpA constituida el requisito se cumple, pero el contrato de cargo
-    // automático se habilita del lado de Flow, no del código. El flag permite
-    // activarlo cuando Flow confirme y volver atrás sin desplegar si responde
-    // 7001. Con el flag apagado el comportamiento es exactamente el anterior.
-    if (process.env.FLOW_CARGO_AUTOMATICO === "true") {
-      const urlReturn = `${appUrl}/api/suscripcion/register/callback?plan_key=${encodeURIComponent(planKey)}`;
-      try {
-        const registro = await flow.registerCard({
-          customerId: flowCustomerId,
-          url_return: urlReturn,
-        });
-        // Flow devuelve `url` y `token` POR SEPARADO y hay que concatenarlos;
-        // ver lib/flow-redirect.ts. El resto del flujo (callback →
-        // createSubscription → webhook) ya existe y está probado.
-        return NextResponse.json({
-          url: urlDeRedireccion(registro, "inscribir la tarjeta"),
-          pending_payment: false,
-        });
-      } catch (err) {
-        const fe = err as FlowError;
-        // 7001 = el comercio no tiene contrato de cargo automático. Es un
-        // problema de configuración en Flow, no del código: se avisa fuerte y
-        // se cae al flujo de link de pago para no dejar al cliente sin
-        // contratar.
-        const sinContrato = (fe.message ?? "").toLowerCase().includes("automatic charge");
-        console.error(
-          sinContrato
-            ? "[suscripcion/register] FLOW_CARGO_AUTOMATICO=true pero Flow no tiene el contrato habilitado (7001). Revisa el producto 148 en el panel de Flow."
-            : "[suscripcion/register] registerCard falló:",
-          fe,
-        );
-
-        // Antes se seguía de largo al flujo de link de pago. Eso creaba una
-        // suscripción y "activaba" el plan sin haber llevado al usuario a
-        // inscribir la tarjeta: desde su lado, el botón no hacía nada visible
-        // y quedaba un cobro impago que nadie iba a pagar. Con cargo
-        // automático el único camino válido es el formulario de Flow, así que
-        // si no se puede abrir hay que fallar y no dejar basura en Flow.
-        return NextResponse.json({
-          error: sinContrato
-            ? "Flow.cl no tiene habilitado el cargo automático para este comercio. Escríbenos a contacto@getpangui.com."
-            : "No pudimos abrir el formulario de tarjeta de Flow.cl. Intenta de nuevo en unos minutos.",
-        }, { status: 502 });
-      }
-    }
-
-    // El plan de Flow cobra el precio de lista por el usuario #1; los usuarios
-    // extra se agregan como items al precio real (ver lib/flow-sync.ts). Para
-    // un cliente fundador eso dejaría el primer usuario a precio de lista, así
-    // que se adjunta un cupón de Flow que cubre la diferencia.
-    //
-    // El cupón se aplica solo si la suscripción ya está marcada
-    // `is_early_customer` en la base: no hay workspaces hardcodeados, y un
-    // cliente nuevo no puede recibirlo sin que alguien marque esa fila a mano.
-    const created = await flow.createSubscription({
-      planId:     flowPlanId(planKey),
-      customerId: flowCustomerId,
-      ...cuponClienteFundador(isEarly, workspaceId),
-    });
-
-    const refreshed = await flow.getSubscription(created.subscriptionId).catch(() => created);
-
-    // La suscripción queda pendiente hasta que el webhook confirme el pago del
-    // primer link: nadie usa funciones pagadas antes de pagarlas.
-    const { error: upsertError } = await admin.from("subscriptions").upsert({
-      workspace_id:         workspaceId,
-      plan_key:             planKey,
-      flow_subscription_id: created.subscriptionId,
-      flow_plan_id:         flowPlanId(planKey),
-      price_per_user_clp:   effectivePrice,
-      is_early_customer:    isEarly,
-      status:               "past_due",
-      canceled_at:          null,
-      scheduled_plan_key:   null,
-      scheduled_plan_at:    null,
-      current_period_start: refreshed.period_start ?? null,
-      current_period_end:   refreshed.period_end ?? refreshed.next_invoice_date ?? null,
-      updated_at:           new Date().toISOString(),
-    }, { onConflict: "workspace_id" });
-
-    // Si esto falla, la suscripción existe en Flow pero la base local no tiene
-    // el flow_subscription_id — el webhook posterior no encuentra la fila y el
-    // pago queda huérfano. Mejor fallar fuerte y que el usuario reintente.
-    if (upsertError) {
-      console.error("[suscripcion/register] upsert falló tras crear la suscripción en Flow:", upsertError, {
-        workspaceId,
-        subscriptionId: created.subscriptionId,
+    // Esto estuvo detrás de un flag (FLOW_CARGO_AUTOMATICO) mientras Pangui
+    // facturaba como persona natural y Flow respondía 7001 "Commerce has not
+    // automatic charge contract"; el camino alternativo era un link de pago
+    // mensual por email. El flag se eliminó porque su ausencia en el entorno
+    // era indistinguible de apagarlo a propósito: en producción no estaba
+    // definido, el bloque se saltaba en silencio y cada intento de contratar
+    // creaba una suscripción por link de pago sin llevar al usuario a Flow —
+    // el botón parecía "activar el plan" y dejaba un cobro que nadie iba a
+    // pagar. Con el contrato ya habilitado, el link de pago no es un respaldo
+    // sino un modo que nadie quiere.
+    const urlReturn = `${appUrl}/api/suscripcion/register/callback?plan_key=${encodeURIComponent(planKey)}`;
+    try {
+      const registro = await flow.registerCard({
+        customerId: flowCustomerId,
+        url_return: urlReturn,
       });
+      // Flow devuelve `url` y `token` POR SEPARADO y hay que concatenarlos;
+      // ver lib/flow-redirect.ts.
       return NextResponse.json({
-        error: "La suscripción se creó en Flow pero no se pudo registrar localmente. Contacta a soporte antes de reintentar.",
-      }, { status: 500 });
+        url: urlDeRedireccion(registro, "inscribir la tarjeta"),
+      });
+    } catch (err) {
+      const fe = err as FlowError;
+      // 7001 = el comercio no tiene contrato de cargo automático. Es
+      // configuración de Flow, no del código: se avisa fuerte y se falla, en
+      // vez de dejar una suscripción impaga en Flow.
+      const sinContrato = (fe.message ?? "").toLowerCase().includes("automatic charge");
+      console.error(
+        sinContrato
+          ? "[suscripcion/register] Flow no tiene habilitado el cargo automático (7001). Revisa el producto 148 en el panel de Flow."
+          : "[suscripcion/register] registerCard falló:",
+        fe,
+      );
+      return NextResponse.json({
+        error: sinContrato
+          ? "Flow.cl no tiene habilitado el cargo automático para este comercio. Escríbenos a contacto@getpangui.com."
+          : "No pudimos abrir el formulario de tarjeta de Flow.cl. Intenta de nuevo en unos minutos.",
+      }, { status: 502 });
     }
 
-    // Los usuarios extra van como items de la suscripción: el plan cubre solo
-    // al usuario #1. Sin esto Flow cobra un usuario aunque el workspace tenga
-    // diez — le pasó al primer cliente real, con una factura de $3.990 en vez
-    // de $39.900. Va después del upsert porque flow-sync lee la fila local
-    // para saber precio y estado.
-    //
-    // No lanza: flow-sync ya captura sus propios errores, y si el cobro quedara
-    // corto lo corrige el barrido de /api/suscripcion/reconciliar.
-    await syncSubscriptionToUserCount(workspaceId);
-
-    // `email` es el de cobros: es el que Flow usa y el que el banner de
-    // "esperando el pago" le muestra al usuario. Devolver el de la sesión
-    // hacía que la UI dijera un correo distinto del que recibía el link.
-    return NextResponse.json({
-      ok: true,
-      pending_payment: true,
-      plan_key: planKey,
-      email: billingEmail,
-    });
   } catch (err) {
     const fe = err as FlowError;
     console.error("[suscripcion/register]", fe);

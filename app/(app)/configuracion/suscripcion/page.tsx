@@ -138,26 +138,12 @@ function SuscripcionPageInner() {
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "No se pudo crear la suscripción.");
 
-      // Dos caminos según FLOW_CARGO_AUTOMATICO (ver /api/suscripcion/register):
-      //   - con cargo automático: Flow devuelve la URL donde el usuario
-      //     inscribe su tarjeta, y hay que redirigir.
-      //   - con link de pago: la suscripción queda creada y Flow envía el link
-      //     por email, así que no hay a dónde redirigir.
-      if (json.url) {
-        setTimeout(() => window.location.assign(json.url), 600);
-        return;
-      }
-
-      setRedirecting(null);
-      setSubmitting(null);
-      setFlash({
-        kind: "ok",
-        msg: `Suscripción creada. Flow.cl envió el link de pago a ${json.email ?? "tu email de cobros"}. El plan se activa al confirmarse el pago.`,
-        // Nota: este mensaje solo aparece con FLOW_CARGO_AUTOMATICO apagado.
-        // Con cargo automático el flujo redirige a inscribir la tarjeta y
-        // nunca llega acá.
-      });
-      await reload();
+      // /register siempre devuelve la URL del formulario de tarjeta de Flow;
+      // si no puede abrirlo, responde error y no llegamos acá. Sin `url` no
+      // hay nada que hacer salvo avisar: seguir de largo dejaría al usuario
+      // creyendo que contrató.
+      if (!json.url) throw new Error("Flow.cl no devolvió el formulario de tarjeta. Intenta de nuevo.");
+      setTimeout(() => window.location.assign(json.url), 600);
     } catch (e) {
       setError((e as Error).message);
       setSubmitting(null);
