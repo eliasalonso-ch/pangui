@@ -1326,7 +1326,7 @@ function KpiCard({ label, value, sub, trend, onClick }: {
       <div style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", letterSpacing: "0.01em", marginBottom: 8 }}>{label}</div>
       {/* Sin fontFamily propio: pedía "Inter", que esta app no carga, así que
           caía en system-ui mientras el resto de la página va en Geist. */}
-      <div style={{ fontSize: 26, fontWeight: 700, color: trendColor, lineHeight: 1.15, letterSpacing: "-0.02em", marginBottom: 4, fontVariantNumeric: "tabular-nums" }}>{value}</div>
+      <div style={{ fontSize: 20, fontWeight: 500, color: trendColor, lineHeight: 1.15, letterSpacing: "-0.02em", marginBottom: 4, fontVariantNumeric: "tabular-nums" }}>{value}</div>
       <div style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)" }}>{sub}</div>
     </div>
   );

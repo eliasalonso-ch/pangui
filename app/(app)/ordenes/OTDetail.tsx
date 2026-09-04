@@ -2859,7 +2859,7 @@ export default function OTDetail({
               )}
               <h1
                 style={{
-                  fontSize: 14, fontWeight: 400, color: "var(--fg-1)",
+                  fontSize: 20, fontWeight: 500, color: "var(--fg-1)",
                   margin: 0, lineHeight: 1.3,
                   overflowWrap: "break-word",
                   wordBreak: "break-word",
