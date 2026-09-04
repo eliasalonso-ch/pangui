@@ -3365,50 +3365,53 @@ export default function OTDetail({
               </div>
             )}
 
-            {/* Assigned */}
-            {assigned.length > 0 && (
-              <div style={{ marginLeft: -28, marginRight: -28, paddingLeft: 28, paddingRight: 28, paddingTop: 16, paddingBottom: 16, borderBottom: "1px solid var(--border)" }}>
-                <p style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", letterSpacing: "0.01em", marginBottom: 14, marginTop: 0 }}>Asignados</p>
-                <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-                  {assigned.map(u => (
-                    <div key={u.id} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            {/* Personas — "Asignados" y "Creado por" comparten seccion: son
+                la misma clase de fila (avatar de 30 + nombre), asi que una
+                regla entre ambos los separaba sin motivo. Un solo contenedor
+                con el mismo gap: 14 que usan los asignados entre si, para que
+                el ritmo vertical no cambie al pasar de un grupo al otro. */}
+            {(assigned.length > 0 || orden.creador?.nombre) && (
+              <div style={{ marginLeft: -28, marginRight: -28, paddingLeft: 28, paddingRight: 28, paddingTop: 16, paddingBottom: 16, borderBottom: "1px solid var(--border)", display: "flex", flexDirection: "column", gap: 14 }}>
+                {assigned.length > 0 && (
+                  <>
+                    <p style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", letterSpacing: "0.01em", margin: 0 }}>Asignados</p>
+                    {assigned.map(u => (
+                      <div key={u.id} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                        <span style={{
+                          width: 30, height: 30, borderRadius: "50%",
+                          background: "linear-gradient(135deg, var(--brand-active), var(--brand))", color: "var(--fg-on-brand)",
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                          fontSize: 14, fontWeight: 400, flexShrink: 0,
+                        }}>
+                          {initials(u.nombre)}
+                        </span>
+                        <div>
+                          <p style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", margin: 0 }}>{u.nombre}</p>
+                          <p style={{ fontSize: 14, color: "var(--fg-4)", margin: "2px 0 0", textTransform: "capitalize" }}>{u.rol}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </>
+                )}
+
+                {orden.creador?.nombre && (
+                  <>
+                    <p style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", letterSpacing: "0.01em", margin: 0 }}>Creado por</p>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                       <span style={{
-                        width: 38, height: 38, borderRadius: "50%",
-                        background: "linear-gradient(135deg, var(--brand-active), var(--brand))", color: "var(--fg-on-brand)",
+                        width: 30, height: 30, borderRadius: "50%",
+                        background: "linear-gradient(135deg, var(--brand-active), var(--brand))",
+                        color: "var(--fg-on-brand)",
                         display: "flex", alignItems: "center", justifyContent: "center",
                         fontSize: 14, fontWeight: 400, flexShrink: 0,
-                      }}>
-                        {initials(u.nombre)}
+                      }}>{initials(orden.creador.nombre)}</span>
+                      <span style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)" }}>
+                        {orden.creador.nombre}
+                        {orden.created_at ? ` · ${fmtFechaHora(orden.created_at)}` : ""}
                       </span>
-                      <div>
-                        <p style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", margin: 0 }}>{u.nombre}</p>
-                        <p style={{ fontSize: 14, color: "var(--fg-4)", margin: "2px 0 0", textTransform: "capitalize" }}>{u.rol}</p>
-                      </div>
                     </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-
-            {/* Creado por — sección propia, con las mismas reglas que el
-                resto: título 14/600, regla al ancho completo y padding 16/16. */}
-            {orden.creador?.nombre && (
-              <div style={{ marginLeft: -28, marginRight: -28, paddingLeft: 28, paddingRight: 28, paddingTop: 16, paddingBottom: 16, borderBottom: "1px solid var(--border)" }}>
-                <p style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", letterSpacing: "0.01em", margin: "0 0 8px" }}>Creado por</p>
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <span style={{
-                    width: 30, height: 30, borderRadius: "50%",
-                    background: "linear-gradient(135deg, var(--brand-active), var(--brand))",
-                    color: "var(--fg-on-brand)",
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    fontSize: 14, fontWeight: 400, flexShrink: 0,
-                  }}>{initials(orden.creador.nombre)}</span>
-                  <span style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)" }}>
-                    {orden.creador.nombre}
-                    {orden.created_at ? ` · ${fmtFechaHora(orden.created_at)}` : ""}
-                  </span>
-                </div>
+                  </>
+                )}
               </div>
             )}
 
