@@ -39,7 +39,7 @@ function SectionHeader({ title, children }: { title: string; children?: React.Re
   return (
     <div style={{ marginTop: 28, marginBottom: 10 }}>
       <p style={{
-        fontSize: 12, fontWeight: 700, color: "var(--fg-2)",
+        fontSize: 14, fontWeight: 400, color: "var(--fg-2)",
         textTransform: "uppercase", letterSpacing: "0.06em", margin: 0,
       }}>
         {title}
@@ -75,9 +75,9 @@ function RowSwitch({
         {icon}
       </span>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: "var(--fg-1)" }}>{label}</p>
+        <p style={{ margin: 0, fontSize: 14, fontWeight: 400, color: "var(--fg-1)" }}>{label}</p>
         {sub && (
-          <p style={{ margin: "2px 0 0", fontSize: 12, color: "var(--fg-4)", lineHeight: 1.45 }}>{sub}</p>
+          <p style={{ margin: "2px 0 0", fontSize: 14, color: "var(--fg-4)", lineHeight: 1.45 }}>{sub}</p>
         )}
       </div>
       <button
@@ -111,7 +111,7 @@ const CARD: React.CSSProperties = {
 };
 
 const HELP_TEXT: React.CSSProperties = {
-  fontSize: 12, color: "var(--fg-4)", margin: "8px 4px 0", lineHeight: 1.5,
+  fontSize: 14, color: "var(--fg-4)", margin: "8px 4px 0", lineHeight: 1.5,
 };
 
 export default function RequisitosPage() {
@@ -205,7 +205,7 @@ export default function RequisitosPage() {
     return (
       <div style={{ height: "60dvh", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--fg-4)", gap: 8 }}>
         <Loader2 size={16} className="animate-spin" />
-        <span style={{ fontSize: 13 }}>Cargando…</span>
+        <span style={{ fontSize: 14 }}>Cargando…</span>
       </div>
     );
   }
@@ -225,12 +225,12 @@ export default function RequisitosPage() {
     <div style={{ minHeight: "100%", background: "var(--surface-canvas)" }}>
       <div style={{ padding: "28px 24px" }}>
         <div style={{ maxWidth: 720, margin: "0 auto" }}>
-        <p style={{ margin: 0, fontSize: 13, color: "var(--fg-4)" }}>
+        <p style={{ margin: 0, fontSize: 14, color: "var(--fg-4)" }}>
           Configura los requisitos por defecto y las reglas globales del workspace.
         </p>
 
         {err && (
-          <div style={{ marginTop: 16, padding: "10px 14px", borderRadius: "var(--r-md)", border: "1px solid var(--danger)", background: "var(--danger-bg, rgba(239,68,68,0.08))", color: "var(--danger)", fontSize: 13 }}>
+          <div style={{ marginTop: 16, padding: "10px 14px", borderRadius: "var(--r-md)", border: "1px solid var(--danger)", background: "var(--danger-bg, rgba(239,68,68,0.08))", color: "var(--danger)", fontSize: 14 }}>
             {err}
           </div>
         )}
@@ -293,10 +293,10 @@ export default function RequisitosPage() {
                   {selected && <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--surface-1)" }} />}
                 </span>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: selected ? "var(--brand-fg)" : "var(--fg-1)" }}>
+                  <p style={{ margin: 0, fontSize: 14, fontWeight: 400, color: selected ? "var(--brand-fg)" : "var(--fg-1)" }}>
                     {opt.label}
                   </p>
-                  <p style={{ margin: "2px 0 0", fontSize: 12, color: "var(--fg-4)", lineHeight: 1.5 }}>
+                  <p style={{ margin: "2px 0 0", fontSize: 14, color: "var(--fg-4)", lineHeight: 1.5 }}>
                     {opt.description}
                   </p>
                 </div>

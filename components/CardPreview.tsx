@@ -70,15 +70,15 @@ export function CardPreview({ brand, last4 }: { brand: string | null; last4: str
         <ChipIcon />
 
         <div style={{ display: "grid", gap: 5 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 11, fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: 15, letterSpacing: 2 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 11, fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: 14, letterSpacing: 2 }}>
             <span style={{ color: "var(--fg-4)" }}>••••</span>
             <span style={{ color: "var(--fg-4)" }}>••••</span>
             <span style={{ color: "var(--fg-4)" }}>••••</span>
             <span style={{ color: "var(--fg-1)" }}>{last4 || "••••"}</span>
           </div>
           <div style={{ display: "grid", gap: 1, fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}>
-            <p style={{ margin: 0, fontSize: 12.5, color: "var(--fg-2)" }}>{brand || "Tarjeta"}</p>
-            <p style={{ margin: 0, fontSize: 11.5, color: "var(--fg-4)" }}>Procesada por Flow.cl</p>
+            <p style={{ margin: 0, fontSize: 14, color: "var(--fg-2)" }}>{brand || "Tarjeta"}</p>
+            <p style={{ margin: 0, fontSize: 14, color: "var(--fg-4)" }}>Procesada por Flow.cl</p>
           </div>
         </div>
       </div>

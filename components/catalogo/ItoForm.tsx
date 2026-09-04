@@ -50,7 +50,7 @@ export default function ItoForm({ inicial, ordenesVinculadas, guardando, error, 
         <div style={{
           padding: "10px 12px", borderRadius: 8,
           background: "var(--st-wait-bg)", border: "1px solid var(--border)",
-          fontSize: 12.5, color: "var(--fg-2)", lineHeight: 1.6,
+          fontSize: 14, color: "var(--fg-2)", lineHeight: 1.6,
         }}>
           Se actualizará el ITO en {ordenesVinculadas}{" "}
           {ordenesVinculadas === 1 ? "orden de trabajo" : "órdenes de trabajo"} para conservar su historial.
@@ -58,7 +58,7 @@ export default function ItoForm({ inicial, ordenesVinculadas, guardando, error, 
       )}
 
       {!inicial && (
-        <div style={{ fontSize: 12.5, color: "var(--fg-3)", lineHeight: 1.6 }}>
+        <div style={{ fontSize: 14, color: "var(--fg-3)", lineHeight: 1.6 }}>
           El ITO quedará disponible para asociarlo al crear o editar una orden de trabajo.
         </div>
       )}

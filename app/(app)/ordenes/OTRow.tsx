@@ -63,7 +63,7 @@ function RowBadge({
   return (
     <span style={{
       display: "inline-flex", alignItems: "center", gap: 5,
-      fontSize: "var(--fs-base)", fontWeight: 400,
+      fontSize: 14, fontWeight: 400,
       padding: "0 8px", minHeight: 22,
       border: "1px solid var(--border)",
       borderRadius: "var(--r-sm)",
@@ -159,10 +159,10 @@ function HoverTooltip({ label, body, children, triggerStyle }: {
             transform: pos.flipUp ? "translateY(-100%) translateY(-6px)" : "none",
           }}
         >
-          <p style={{ fontSize: "var(--fs-base)", fontWeight: 600, color: "var(--fg-1)", letterSpacing: "0.01em", margin: "0 0 6px" }}>
+          <p style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", letterSpacing: "0.01em", margin: "0 0 6px" }}>
             {label}
           </p>
-          <p style={{ fontSize: "var(--fs-base)", fontWeight: 400, color: "var(--fg-1)", lineHeight: 1.6, margin: 0, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+          <p style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", lineHeight: 1.6, margin: 0, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
             {body}
           </p>
         </div>,
@@ -241,7 +241,7 @@ function AssignDropdown({ orden, usuarios, myId, onAssigned, onClose, anchorRect
       onMouseDown={e => e.stopPropagation()}
     >
       <div style={{ padding: "8px 12px 6px", borderBottom: "1px solid var(--divider)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <span style={{ fontSize: "var(--fs-base)", fontWeight: 600, color: "var(--fg-1)", letterSpacing: "0.01em" }}>
+        <span style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", letterSpacing: "0.01em" }}>
           Asignar
         </span>
         <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--fg-4)", padding: 2, display: "flex" }}>
@@ -250,7 +250,7 @@ function AssignDropdown({ orden, usuarios, myId, onAssigned, onClose, anchorRect
       </div>
       <div style={{ maxHeight: 200, overflowY: "auto" }}>
         {asignables.length === 0 && (
-          <p style={{ padding: "10px 12px", fontSize: "var(--fs-base)", color: "var(--fg-4)", margin: 0 }}>Sin usuarios</p>
+          <p style={{ padding: "10px 12px", fontSize: 14, color: "var(--fg-4)", margin: 0 }}>Sin usuarios</p>
         )}
         {asignables.map(u => {
           const isAssigned = currentIds.includes(u.id);
@@ -281,11 +281,11 @@ function AssignDropdown({ orden, usuarios, myId, onAssigned, onClose, anchorRect
                 background: isAssigned ? "linear-gradient(135deg, var(--brand-active), var(--brand))" : "var(--surface-hover)",
                 color: isAssigned ? "var(--fg-on-brand)" : "var(--fg-3)",
                 display: "flex", alignItems: "center", justifyContent: "center",
-                fontSize: "var(--fs-2xs)", fontWeight: 700,
+                fontSize: 14, fontWeight: 400,
               }}>
                 {iniciales(u.nombre)}
               </span>
-              <span style={{ flex: 1, fontSize: "var(--fs-base)", fontWeight: 400, color: "var(--fg-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              <span style={{ flex: 1, fontSize: 14, fontWeight: 400, color: "var(--fg-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                 {u.nombre}
               </span>
               {isAssigned && <CheckIcon size={14} color="var(--brand-fg)" />}
@@ -408,7 +408,7 @@ function OTRow({ orden, usuarios, isSelected, onClick, onPrefetch, myId, onAssig
         <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
           {meta.nOT && (
             <span style={{ display: "flex", alignItems: "center", gap: 3 }}>
-              <span style={{ fontSize: "var(--fs-base)", fontWeight: 400, color: "var(--brand-fg)", fontFamily: "var(--font-mono)", letterSpacing: "0.02em" }}>
+              <span style={{ fontSize: 14, fontWeight: 400, color: "var(--brand-fg)", fontFamily: "var(--font-mono)", letterSpacing: "0.02em" }}>
                 {meta.nOT}
               </span>
               <button
@@ -426,7 +426,7 @@ function OTRow({ orden, usuarios, isSelected, onClick, onPrefetch, myId, onAssig
         </span>
         <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
           {due && (
-            <span style={{ display: "flex", alignItems: "center", gap: 3, fontSize: "var(--fs-base)", fontWeight: 400, color: "var(--fg-1)" }}>
+            <span style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 14, fontWeight: 400, color: "var(--fg-1)" }}>
               {due.overdue
                 ? <AlertCircle size={14} style={{ color: "var(--danger)", flexShrink: 0 }} />
                 : <Clock size={14} style={{ color: "var(--warning)", flexShrink: 0 }} />}
@@ -458,7 +458,7 @@ function OTRow({ orden, usuarios, isSelected, onClick, onPrefetch, myId, onAssig
           era la fila de alto variable. El detalle completo está a un clic. */}
       <HoverTooltip label="Título" body={titulo} triggerStyle={{ margin: 0 }}>
         <p style={{
-          fontSize: "var(--fs-base)", fontWeight: 400, color: "var(--fg-1)",
+          fontSize: 14, fontWeight: 400, color: "var(--fg-1)",
           lineHeight: 1.4, margin: 0,
           overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
         }}>
@@ -469,7 +469,7 @@ function OTRow({ orden, usuarios, isSelected, onClick, onPrefetch, myId, onAssig
       {/* ITO — altura reservada siempre, con o sin valor, para que las tarjetas
           con y sin ITO midan exactamente lo mismo. */}
       <p style={{
-        fontSize: "var(--fs-base)", fontWeight: 400, color: "var(--fg-3)", margin: 0,
+        fontSize: 14, fontWeight: 400, color: "var(--fg-3)", margin: 0,
         height: 20, lineHeight: "20px",
         overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
       }}>
@@ -504,7 +504,7 @@ function OTRow({ orden, usuarios, isSelected, onClick, onPrefetch, myId, onAssig
           {/* Location */}
           {orden.ubicaciones?.edificio && (
             <HoverTooltip label="Ubicación" body={orden.ubicaciones.edificio}>
-              <span style={{ display: "flex", alignItems: "center", gap: 3, fontSize: "var(--fs-base)", fontWeight: 400, color: "var(--fg-3)" }}>
+              <span style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 14, fontWeight: 400, color: "var(--fg-3)" }}>
                 <MapPin size={14} />
                 <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 120 }}>
                   {orden.ubicaciones.edificio}
@@ -517,7 +517,7 @@ function OTRow({ orden, usuarios, isSelected, onClick, onPrefetch, myId, onAssig
 
         {/* Right: time + avatars */}
         <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
-          <span suppressHydrationWarning style={{ fontSize: "var(--fs-base)", fontWeight: 400, color: "var(--fg-4)" }}>{mounted ? timeAgo(orden.created_at) : ""}</span>
+          <span suppressHydrationWarning style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-4)" }}>{mounted ? timeAgo(orden.created_at) : ""}</span>
 
           {/* Avatar trigger — always shown as a button when onAssigned is wired */}
           <button
@@ -532,12 +532,12 @@ function OTRow({ orden, usuarios, isSelected, onClick, onPrefetch, myId, onAssig
           >
             {assigned.length === 0 ? (
               <span style={{
-                width: 26, height: 26, borderRadius: "50%",
+                width: 27, height: 27, borderRadius: "50%",
                 border: "1.5px dashed var(--border-strong)",
                 display: "flex", alignItems: "center", justifyContent: "center",
                 color: "var(--fg-4)",
               }}>
-                <UserPlus size={14} />
+                <UserPlus size={16} />
               </span>
             ) : (
               <span style={{ display: "flex" }}>
@@ -546,12 +546,11 @@ function OTRow({ orden, usuarios, isSelected, onClick, onPrefetch, myId, onAssig
                     key={u.id}
                     title={u.nombre}
                     style={{
-                      width: 26, height: 26, borderRadius: "50%",
+                      width: 30, height: 30, borderRadius: "50%",
                       background: "linear-gradient(135deg, var(--brand-active), var(--brand))",
                       color: "var(--fg-on-brand)",
-                      border: "2px solid var(--surface-1)",
                       display: "flex", alignItems: "center", justifyContent: "center",
-                      fontSize: 11, fontWeight: 400, flexShrink: 0,
+                      fontSize: 14, fontWeight: 400, flexShrink: 0,
                       marginLeft: i > 0 ? -7 : 0,
                     }}
                   >
@@ -560,11 +559,10 @@ function OTRow({ orden, usuarios, isSelected, onClick, onPrefetch, myId, onAssig
                 ))}
                 {assigned.length > 3 && (
                   <span style={{
-                    width: 26, height: 26, borderRadius: "50%",
+                    width: 30, height: 30, borderRadius: "50%",
                     background: "var(--surface-hover)", color: "var(--fg-2)",
-                    border: "2px solid var(--surface-1)",
                     display: "flex", alignItems: "center", justifyContent: "center",
-                    fontSize: 11, fontWeight: 400, marginLeft: -7,
+                    fontSize: 14, fontWeight: 400, marginLeft: -7,
                   }}>
                     +{assigned.length - 3}
                   </span>

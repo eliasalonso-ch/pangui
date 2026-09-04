@@ -183,8 +183,8 @@ export default function PreferenciasNotificacionesPage() {
   return (
     <div style={{ padding: "28px 32px 64px", maxWidth: 1280, margin: "0 auto" }}>
       {error && (
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 18, padding: "11px 14px", borderRadius: 9, background: "var(--danger-bg)", color: "var(--danger)", fontSize: 13 }}>
-          <AlertTriangle size={15} style={{ flexShrink: 0 }} />
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 18, padding: "11px 14px", borderRadius: 9, background: "var(--danger-bg)", color: "var(--danger)", fontSize: 14 }}>
+          <AlertTriangle size={16} style={{ flexShrink: 0 }} />
           {error}
         </div>
       )}
@@ -194,21 +194,21 @@ export default function PreferenciasNotificacionesPage() {
         {/* Delivery on THIS browser — separate from the shared event prefs. */}
         <div style={{ display: "flex", alignItems: "stretch", borderBottom: "1px solid var(--border)" }}>
           <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 12, padding: "18px 22px", minWidth: 0 }}>
-            <span style={{ width: 34, height: 34, flexShrink: 0, display: "grid", placeItems: "center", borderRadius: "50%", background: "var(--brand-tint)", color: "var(--brand)" }}>
-              <Monitor size={17} />
+            <span style={{ width: 34, height: 34, flexShrink: 0, display: "grid", placeItems: "center", border: "1px solid var(--border)", borderRadius: "var(--r-sm)", background: "var(--surface-1)", color: "var(--brand)" }}>
+              <Monitor size={16} />
             </span>
             <div style={{ minWidth: 0 }}>
-              <h2 style={{ display: "flex", alignItems: "center", gap: 9, fontSize: 17, fontWeight: 700, color: "var(--fg-1)", margin: 0 }}>
+              <h2 style={{ display: "flex", alignItems: "center", gap: 9, fontSize: 14, fontWeight: 400, color: "var(--fg-1)", margin: 0 }}>
                 Este navegador
                 <span style={{
-                  padding: "2px 9px", borderRadius: 999, fontSize: 11, fontWeight: 700,
+                  padding: "2px 9px", borderRadius: 999, fontSize: 14, fontWeight: 400,
                   background: subscribed ? "var(--brand-tint)" : "var(--surface-hover)",
                   color: subscribed ? "var(--brand)" : "var(--fg-3)",
                 }}>
                   {subscribed ? "Activo" : "Inactivo"}
                 </span>
               </h2>
-              <p style={{ fontSize: 13.5, color: "var(--fg-3)", margin: "3px 0 0" }}>
+              <p style={{ fontSize: 14, color: "var(--fg-3)", margin: "3px 0 0" }}>
                 {!supported
                   ? "Este navegador no admite push. En iPhone usa la app; seguirás viendo los avisos en la campana."
                   : blocked
@@ -227,13 +227,13 @@ export default function PreferenciasNotificacionesPage() {
                 padding: "0 18px", height: 38, borderRadius: 8, border: "none",
                 background: subscribed ? "var(--surface-hover)" : "var(--brand)",
                 color: subscribed ? "var(--fg-2)" : "var(--fg-on-brand)",
-                fontSize: 14, fontWeight: 500, whiteSpace: "nowrap",
+                fontSize: 14, fontWeight: 400, whiteSpace: "nowrap",
                 cursor: (!supported || blocked || busy) ? "not-allowed" : "pointer",
                 opacity: (!supported || blocked) ? 0.55 : 1,
                 fontFamily: "inherit",
               }}
             >
-              {busy ? <Loader2 size={15} className="animate-spin" /> : subscribed ? <BellOff size={15} /> : <Bell size={15} />}
+              {busy ? <Loader2 size={16} className="animate-spin" /> : subscribed ? <BellOff size={16} /> : <Bell size={16} />}
               {busy ? "…" : subscribed ? "Desactivar" : "Activar"}
             </button>
           </div>
@@ -246,13 +246,13 @@ export default function PreferenciasNotificacionesPage() {
             label="Recibir notificaciones push"
           />
           <div style={{ minWidth: 0, flex: 1 }}>
-            <span style={{ display: "block", fontSize: 13.5, fontWeight: 600, color: "var(--fg-1)" }}>Recibir push</span>
-            <span style={{ display: "block", fontSize: 12.5, color: "var(--fg-4)", marginTop: 1 }}>
+            <span style={{ display: "block", fontSize: 14, fontWeight: 400, color: "var(--fg-1)" }}>Recibir push</span>
+            <span style={{ display: "block", fontSize: 14, color: "var(--fg-4)", marginTop: 1 }}>
               Interruptor general para todos tus dispositivos. Al desactivarlo no recibirás push, pero los avisos
               seguirán apareciendo en la campana.
             </span>
           </div>
-          {saving && <Loader2 size={14} className="animate-spin" style={{ color: "var(--fg-4)", flexShrink: 0 }} />}
+          {saving && <Loader2 size={16} className="animate-spin" style={{ color: "var(--fg-4)", flexShrink: 0 }} />}
         </div>
 
         <div style={{ overflowX: "auto" }}>
@@ -260,8 +260,8 @@ export default function PreferenciasNotificacionesPage() {
             <thead>
               <tr style={{ background: "var(--surface-2)" }}>
                 <Th>Nombre</Th>
-                <Th>Evento</Th>
-                <Th>Método</Th>
+                <Th pad={12}>Evento</Th>
+                <Th pad={12}>Método</Th>
                 <Th align="right">Activo</Th>
               </tr>
             </thead>
@@ -270,17 +270,17 @@ export default function PreferenciasNotificacionesPage() {
                 <tr key={key} style={{ borderTop: "1px solid var(--border)", opacity: prefs.push_activo ? 1 : 0.5 }}>
                   <td style={{ padding: "13px 22px" }}>
                     <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                      <span style={{ width: 30, height: 30, flexShrink: 0, display: "grid", placeItems: "center", borderRadius: "50%", background: "var(--brand-tint)", color: "var(--brand)" }}>
-                        <Icon size={15} />
+                      <span style={{ width: 30, height: 30, flexShrink: 0, display: "grid", placeItems: "center", border: "1px solid var(--border)", borderRadius: "var(--r-sm)", background: "var(--surface-1)", color: "var(--brand)" }}>
+                        <Icon size={16} />
                       </span>
-                      <span style={{ fontSize: 13.5, fontWeight: 600, color: "var(--fg-1)" }}>{nombre}</span>
+                      <span style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)" }}>{nombre}</span>
                     </span>
                   </td>
                   <td style={{ padding: "13px 12px" }}>
-                    <span style={{ display: "block", fontSize: 13, color: "var(--fg-2)" }}>{evento}</span>
-                    <span style={{ display: "block", fontSize: 11.5, color: "var(--fg-4)", marginTop: 1 }}>{detalle}</span>
+                    <span style={{ display: "block", fontSize: 14, color: "var(--fg-2)" }}>{evento}</span>
+                    <span style={{ display: "block", fontSize: 14, color: "var(--fg-4)", marginTop: 1 }}>{detalle}</span>
                   </td>
-                  <td style={{ padding: "13px 12px", fontSize: 12.5, color: "var(--fg-3)" }}>Push + en la app</td>
+                  <td style={{ padding: "13px 12px", fontSize: 14, color: "var(--fg-3)" }}>Push + en la app</td>
                   <td style={{ padding: "13px 22px", textAlign: "right" }}>
                     <Switch
                       checked={prefs[key] && prefs.push_activo}
@@ -299,7 +299,7 @@ export default function PreferenciasNotificacionesPage() {
       {/* ── Notes ── */}
       <div style={{ display: "flex", gap: 10, marginTop: 18, padding: "13px 16px", border: "1px solid var(--border)", borderRadius: 10, background: "var(--surface-2)" }}>
         <ShieldCheck size={16} style={{ flexShrink: 0, marginTop: 1, color: "var(--fg-4)" }} />
-        <p style={{ fontSize: 12.5, color: "var(--fg-3)", margin: 0, lineHeight: 1.55 }}>
+        <p style={{ fontSize: 14, color: "var(--fg-3)", margin: 0, lineHeight: 1.55 }}>
           Estas preferencias se comparten con la app móvil: eliges una vez qué te interesa y decides en cada dispositivo
           dónde llega. Los avisos siempre quedan en la campana. Las alertas operacionales (vencimientos, órdenes sin
           asignar, escalaciones) y las emergencias las configura tu administrador en{" "}
@@ -311,9 +311,9 @@ export default function PreferenciasNotificacionesPage() {
   );
 }
 
-function Th({ children, align = "left" }: { children: React.ReactNode; align?: "left" | "right" }) {
+function Th({ children, align = "left", pad = 22 }: { children: React.ReactNode; align?: "left" | "right"; pad?: number }) {
   return (
-    <th style={{ padding: "10px 22px", textAlign: align, fontSize: 11.5, fontWeight: 700, color: "var(--fg-4)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+    <th style={{ padding: `10px ${pad}px`, textAlign: align, fontSize: 14, fontWeight: 400, color: "var(--fg-4)" }}>
       {children}
     </th>
   );
@@ -344,7 +344,7 @@ function Switch({
         cursor: disabled ? "not-allowed" : "pointer",
         opacity: disabled ? 0.5 : 1,
         transition: "background .15s, border-color .15s",
-        display: "flex", alignItems: "center",
+        display: "flex", alignItems: "center", marginLeft: "auto",
       }}
     >
       <span style={{

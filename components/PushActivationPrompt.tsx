@@ -128,7 +128,7 @@ export default function PushActivationPrompt() {
         borderBottom: "1px solid var(--border)",
         background: "var(--brand-tint)",
         color: "var(--fg-1)",
-        fontSize: 13.5,
+        fontSize: 14,
       }}
     >
       <span
@@ -147,7 +147,7 @@ export default function PushActivationPrompt() {
       </span>
 
       <div style={{ minWidth: 0, flex: 1 }}>
-        <strong style={{ fontWeight: 600 }}>Activa las notificaciones</strong>{" "}
+        <strong style={{ fontWeight: 400 }}>Activa las notificaciones</strong>{" "}
         <span style={{ color: "var(--fg-3)" }}>
           {error
             ? error
@@ -170,8 +170,8 @@ export default function PushActivationPrompt() {
           borderRadius: 7,
           background: "var(--brand)",
           color: "var(--fg-on-brand)",
-          fontSize: 13,
-          fontWeight: 600,
+          fontSize: 14,
+          fontWeight: 400,
           fontFamily: "inherit",
           cursor: busy ? "default" : "pointer",
           whiteSpace: "nowrap",

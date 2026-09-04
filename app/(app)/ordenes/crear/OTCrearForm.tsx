@@ -148,7 +148,7 @@ function FieldRow({ icon, label, children }: {
         {icon}
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 13, fontWeight: 600, color: "var(--fg-3)", letterSpacing: "0.01em", marginBottom: 6 }}>
+        <div style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-3)", letterSpacing: "0.01em", marginBottom: 6 }}>
           {label}
         </div>
         {children}
@@ -188,7 +188,7 @@ function SearchSelect({ placeholder, value, options, onChange }: {
         style={{
           width: "100%", height: 36, display: "flex", alignItems: "center", gap: 8,
           padding: "0 10px", border: "1px solid var(--border)", borderRadius: 6,
-          background: "var(--surface-1)", fontSize: 13.5, color: selected ? "var(--fg-1)" : "var(--fg-3)",
+          background: "var(--surface-1)", fontSize: 14, color: selected ? "var(--fg-1)" : "var(--fg-3)",
           cursor: "pointer", textAlign: "left",
         }}
       >
@@ -213,7 +213,7 @@ function SearchSelect({ placeholder, value, options, onChange }: {
               style={{
                 width: "100%", height: 32, padding: "0 8px",
                 border: "1px solid var(--border)", borderRadius: 4,
-                fontSize: 13, outline: "none", color: "var(--fg-1)", background: "var(--surface-1)",
+                fontSize: 14, outline: "none", color: "var(--fg-1)", background: "var(--surface-1)",
               }}
             />
           </div>
@@ -223,7 +223,7 @@ function SearchSelect({ placeholder, value, options, onChange }: {
               onClick={() => { onChange(""); setOpen(false); }}
               style={{
                 display: "block", width: "100%", textAlign: "left",
-                padding: "8px 12px", fontSize: 13, color: "var(--fg-3)",
+                padding: "8px 12px", fontSize: 14, color: "var(--fg-3)",
                 background: !value ? "var(--brand-tint)" : "transparent",
                 border: "none", cursor: "pointer",
               }}
@@ -238,7 +238,7 @@ function SearchSelect({ placeholder, value, options, onChange }: {
                 style={{
                   display: "flex", alignItems: "center", gap: 8,
                   width: "100%", textAlign: "left",
-                  padding: "8px 12px", fontSize: 13, color: "var(--fg-1)",
+                  padding: "8px 12px", fontSize: 14, color: "var(--fg-1)",
                   background: value === o.id ? "var(--brand-tint)" : "transparent",
                   border: "none", cursor: "pointer",
                 }}
@@ -248,7 +248,7 @@ function SearchSelect({ placeholder, value, options, onChange }: {
               </button>
             ))}
             {filtered.length === 0 && (
-              <div style={{ padding: "10px 12px", fontSize: 13, color: "var(--fg-3)" }}>Sin resultados</div>
+              <div style={{ padding: "10px 12px", fontSize: 14, color: "var(--fg-3)" }}>Sin resultados</div>
             )}
           </div>
         </div>
@@ -301,13 +301,13 @@ function AssigneeSelect({ usuarios, value, onChange }: {
             display: "flex", alignItems: "center", gap: 5,
             padding: "3px 8px 3px 5px",
             background: "var(--brand-tint)", borderRadius: 20,
-            fontSize: 12, color: "var(--brand)",
+            fontSize: 14, color: "var(--brand)",
           }}>
             <span style={{
               width: 20, height: 20, borderRadius: "50%",
               background: "var(--brand)", color: "var(--fg-on-brand)",
               display: "flex", alignItems: "center", justifyContent: "center",
-              fontSize: 9, fontWeight: 700,
+              fontSize: 14, fontWeight: 400,
             }}>
               {initials(u.nombre)}
             </span>
@@ -328,7 +328,7 @@ function AssigneeSelect({ usuarios, value, onChange }: {
         style={{
           height: 36, display: "flex", alignItems: "center", gap: 8,
           padding: "0 10px", border: "1px solid var(--border)", borderRadius: 6,
-          background: "var(--surface-1)", fontSize: 13.5, color: "var(--fg-3)",
+          background: "var(--surface-1)", fontSize: 14, color: "var(--fg-3)",
           cursor: "pointer",
         }}
       >
@@ -351,7 +351,7 @@ function AssigneeSelect({ usuarios, value, onChange }: {
               style={{
                 width: "100%", height: 32, padding: "0 8px",
                 border: "1px solid var(--border)", borderRadius: 4,
-                fontSize: 13, outline: "none", color: "var(--fg-1)", background: "var(--surface-1)",
+                fontSize: 14, outline: "none", color: "var(--fg-1)", background: "var(--surface-1)",
               }}
             />
           </div>
@@ -375,20 +375,20 @@ function AssigneeSelect({ usuarios, value, onChange }: {
                     background: sel ? "var(--brand)" : "var(--surface-hover)",
                     color: sel ? "var(--fg-on-brand)" : "var(--fg-3)",
                     display: "flex", alignItems: "center", justifyContent: "center",
-                    fontSize: 10, fontWeight: 700, flexShrink: 0,
+                    fontSize: 14, fontWeight: 400, flexShrink: 0,
                   }}>
                     {initials(u.nombre)}
                   </span>
                   <div style={{ flex: 1, textAlign: "left" }}>
-                    <div style={{ fontSize: 13, fontWeight: 500, color: "var(--fg-1)" }}>{u.nombre}</div>
-                    <div style={{ fontSize: 13, color: "var(--fg-3)", textTransform: "capitalize" }}>{u.rol}</div>
+                    <div style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)" }}>{u.nombre}</div>
+                    <div style={{ fontSize: 14, color: "var(--fg-3)", textTransform: "capitalize" }}>{u.rol}</div>
                   </div>
                   {sel && <Check size={14} style={{ color: "var(--brand)", flexShrink: 0 }} />}
                 </button>
               );
             })}
             {filtered.length === 0 && (
-              <div style={{ padding: "10px 12px", fontSize: 13, color: "var(--fg-3)" }}>Sin resultados</div>
+              <div style={{ padding: "10px 12px", fontSize: 14, color: "var(--fg-3)" }}>Sin resultados</div>
             )}
           </div>
         </div>
@@ -616,7 +616,7 @@ export default function OTCrearForm({ usuarios, ubicaciones, activos, categorias
         >
           <ChevronLeft size={18} />
         </button>
-        <h1 style={{ fontSize: 17, fontWeight: 600, color: "var(--fg-1)", margin: 0 }}>
+        <h1 style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", margin: 0 }}>
           Nueva Orden de Trabajo
         </h1>
         <button type="button" onClick={() => setAiOpen(true)} title="Crear borrador con IA" aria-label="Crear borrador con IA" style={{ marginLeft: "auto", width: 34, height: 34, display: "grid", placeItems: "center", borderRadius: 8, border: "1px solid var(--border)", background: "var(--brand-tint)", color: "var(--brand)", cursor: "pointer" }}>
@@ -637,7 +637,7 @@ export default function OTCrearForm({ usuarios, ubicaciones, activos, categorias
             </div>
             <div style={{ padding: "12px 18px", display: "flex", justifyContent: "flex-end", gap: 8, borderTop: "1px solid var(--border)" }}>
               <button type="button" onClick={() => setAiOpen(false)} disabled={aiGenerating} style={{ height: 36, padding: "0 14px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--surface-1)", color: "var(--fg-1)" }}>Cancelar</button>
-              <button type="button" onClick={generateFromMessage} disabled={aiGenerating || aiMessage.trim().length < 10} style={{ height: 36, padding: "0 15px", borderRadius: 8, border: 0, background: "var(--brand)", color: "white", fontWeight: 600, opacity: aiGenerating || aiMessage.trim().length < 10 ? .55 : 1, display: "flex", alignItems: "center", gap: 7 }}>{aiGenerating ? <Loader2 size={15} /> : <Sparkles size={15} />}{aiGenerating ? "Generando…" : "Crear borrador"}</button>
+              <button type="button" onClick={generateFromMessage} disabled={aiGenerating || aiMessage.trim().length < 10} style={{ height: 36, padding: "0 15px", borderRadius: 8, border: 0, background: "var(--brand)", color: "white", fontWeight: 400, opacity: aiGenerating || aiMessage.trim().length < 10 ? .55 : 1, display: "flex", alignItems: "center", gap: 7 }}>{aiGenerating ? <Loader2 size={15} /> : <Sparkles size={15} />}{aiGenerating ? "Generando…" : "Crear borrador"}</button>
             </div>
           </div>
         </div>
@@ -655,7 +655,7 @@ export default function OTCrearForm({ usuarios, ubicaciones, activos, categorias
               value={form.titulo}
               onChange={e => setF("titulo", e.target.value)}
               style={{
-                width: "100%", fontSize: 20, fontWeight: 400,
+                width: "100%", fontSize: 14, fontWeight: 400,
                 color: "var(--fg-1)", border: "none", outline: "none",
                 background: "transparent", padding: "4px 0",
                 borderBottom: "2px solid " + (form.titulo ? "var(--brand)" : "var(--border)"),
@@ -670,7 +670,7 @@ export default function OTCrearForm({ usuarios, ubicaciones, activos, categorias
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
                 <Camera size={15} style={{ color: "var(--fg-3)" }} />
-                <span style={{ fontSize: 12, fontWeight: 700, color: "var(--fg-3)", letterSpacing: "0.01em" }}>
+                <span style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-3)", letterSpacing: "0.01em" }}>
                   Grupos de fotos
                 </span>
               </div>
@@ -682,7 +682,7 @@ export default function OTCrearForm({ usuarios, ubicaciones, activos, categorias
                   height: 28, padding: "0 10px",
                   border: "1px solid var(--brand)", borderRadius: 6,
                   background: "var(--brand-tint)", color: "var(--brand)",
-                  fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
+                  fontSize: 14, fontWeight: 400, cursor: "pointer", fontFamily: "inherit",
                 }}
               >
                 <Plus size={12} />
@@ -702,8 +702,8 @@ export default function OTCrearForm({ usuarios, ubicaciones, activos, categorias
                 }}
               >
                 <ImagePlus size={22} strokeWidth={1.5} />
-                <span style={{ fontSize: 13 }}>Agrega un grupo de fotos con título y descripción</span>
-                <span style={{ fontSize: 13 }}>Ej: “Antes del trabajo”, “Instrucciones”, “Durante”</span>
+                <span style={{ fontSize: 14 }}>Agrega un grupo de fotos con título y descripción</span>
+                <span style={{ fontSize: 14 }}>Ej: “Antes del trabajo”, “Instrucciones”, “Durante”</span>
               </button>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -720,7 +720,7 @@ export default function OTCrearForm({ usuarios, ubicaciones, activos, categorias
                           style={{
                             width: "100%", height: 32, padding: "0 10px",
                             border: "1px solid var(--border)", borderRadius: 5,
-                            fontSize: 13, fontWeight: 600, color: "var(--fg-1)",
+                            fontSize: 14, fontWeight: 400, color: "var(--fg-1)",
                             outline: "none", fontFamily: "inherit", background: "var(--surface-1)",
                           }}
                           onFocus={e => { e.currentTarget.style.borderColor = "var(--brand)"; }}
@@ -734,7 +734,7 @@ export default function OTCrearForm({ usuarios, ubicaciones, activos, categorias
                           style={{
                             width: "100%", height: 30, padding: "0 10px",
                             border: "1px solid var(--border)", borderRadius: 5,
-                            fontSize: 12, color: "var(--fg-2)",
+                            fontSize: 14, color: "var(--fg-2)",
                             outline: "none", fontFamily: "inherit", background: "var(--surface-1)",
                           }}
                           onFocus={e => { e.currentTarget.style.borderColor = "var(--brand)"; }}
@@ -788,7 +788,7 @@ export default function OTCrearForm({ usuarios, ubicaciones, activos, categorias
                           onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.color = "var(--fg-3)"; }}
                         >
                           <Upload size={16} />
-                          <span style={{ fontSize: 10, fontWeight: 500 }}>Fotos</span>
+                          <span style={{ fontSize: 14, fontWeight: 400 }}>Fotos</span>
                         </button>
                         <input
                           ref={el => { grupoFileRefs.current[g.id] = el; }}
@@ -800,7 +800,7 @@ export default function OTCrearForm({ usuarios, ubicaciones, activos, categorias
                         />
                       </div>
                       {g.fotos.length > 0 && (
-                        <div style={{ marginTop: 6, fontSize: 13, color: "var(--fg-3)" }}>
+                        <div style={{ marginTop: 6, fontSize: 14, color: "var(--fg-3)" }}>
                           {g.fotos.length} foto{g.fotos.length !== 1 ? "s" : ""} · Se subirán al crear la OT
                         </div>
                       )}
@@ -812,7 +812,7 @@ export default function OTCrearForm({ usuarios, ubicaciones, activos, categorias
                   onClick={addGrupo}
                   style={{
                     width: "100%", padding: "10px", border: "1.5px dashed var(--border)", borderRadius: 8,
-                    background: "none", color: "var(--fg-3)", fontSize: 13, cursor: "pointer",
+                    background: "none", color: "var(--fg-3)", fontSize: 14, cursor: "pointer",
                     display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
                     fontFamily: "inherit",
                   }}
@@ -883,11 +883,11 @@ export default function OTCrearForm({ usuarios, ubicaciones, activos, categorias
                 style={{
                   width: 64, height: 36, padding: "0 10px",
                   border: "1px solid var(--border)", borderRadius: 6,
-                  fontSize: 13.5, textAlign: "center", color: "var(--fg-1)",
+                  fontSize: 14, textAlign: "center", color: "var(--fg-1)",
                   outline: "none", fontFamily: "inherit", background: "var(--surface-1)",
                 }}
               />
-              <span style={{ fontSize: 13, color: "var(--fg-3)" }}>h</span>
+              <span style={{ fontSize: 14, color: "var(--fg-3)" }}>h</span>
               <input
                 type="number" min="0" max="59" placeholder="0"
                 value={form.tiempo_m}
@@ -895,11 +895,11 @@ export default function OTCrearForm({ usuarios, ubicaciones, activos, categorias
                 style={{
                   width: 64, height: 36, padding: "0 10px",
                   border: "1px solid var(--border)", borderRadius: 6,
-                  fontSize: 13.5, textAlign: "center", color: "var(--fg-1)",
+                  fontSize: 14, textAlign: "center", color: "var(--fg-1)",
                   outline: "none", fontFamily: "inherit", background: "var(--surface-1)",
                 }}
               />
-              <span style={{ fontSize: 13, color: "var(--fg-3)" }}>min</span>
+              <span style={{ fontSize: 14, color: "var(--fg-3)" }}>min</span>
             </div>
           </FieldRow>
 
@@ -912,7 +912,7 @@ export default function OTCrearForm({ usuarios, ubicaciones, activos, categorias
               style={{
                 height: 36, padding: "0 10px",
                 border: "1px solid var(--border)", borderRadius: 6,
-                fontSize: 13.5, color: form.fecha_termino ? "var(--fg-1)" : "var(--fg-3)",
+                fontSize: 14, color: form.fecha_termino ? "var(--fg-1)" : "var(--fg-3)",
                 outline: "none", fontFamily: "inherit", background: "var(--surface-1)",
               }}
             />
@@ -927,7 +927,7 @@ export default function OTCrearForm({ usuarios, ubicaciones, activos, categorias
               style={{
                 height: 36, padding: "0 10px",
                 border: "1px solid var(--border)", borderRadius: 6,
-                fontSize: 13.5, color: form.fecha_inicio ? "var(--fg-1)" : "var(--fg-3)",
+                fontSize: 14, color: form.fecha_inicio ? "var(--fg-1)" : "var(--fg-3)",
                 outline: "none", fontFamily: "inherit", background: "var(--surface-1)",
               }}
             />
@@ -935,7 +935,7 @@ export default function OTCrearForm({ usuarios, ubicaciones, activos, categorias
 
           {/* Work type */}
           <div style={{ padding: "14px 0", borderBottom: "1px solid var(--border)" }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: "var(--fg-3)", letterSpacing: "0.01em", marginBottom: 6 }}>
+            <div style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-3)", letterSpacing: "0.01em", marginBottom: 6 }}>
               Tipo de trabajo
             </div>
             <select
@@ -944,7 +944,7 @@ export default function OTCrearForm({ usuarios, ubicaciones, activos, categorias
               style={{
                 width: "100%", height: 36, padding: "0 8px",
                 border: "1px solid var(--border)", borderRadius: 6,
-                fontSize: 13.5, color: "var(--fg-1)", outline: "none",
+                fontSize: 14, color: "var(--fg-1)", outline: "none",
                 background: "var(--surface-1)", fontFamily: "inherit",
               }}
             >
@@ -957,7 +957,7 @@ export default function OTCrearForm({ usuarios, ubicaciones, activos, categorias
 
           {/* Recurrence — Repetir + Terminar repetición (mirrors the mobile app) */}
           <div style={{ padding: "14px 0", borderBottom: "1px solid var(--border)" }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: "var(--fg-3)", letterSpacing: "0.01em", marginBottom: 8 }}>
+            <div style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-3)", letterSpacing: "0.01em", marginBottom: 8 }}>
               Recurrencia
             </div>
             <RecurrenceControls
@@ -970,7 +970,7 @@ export default function OTCrearForm({ usuarios, ubicaciones, activos, categorias
           {/* Priority — segmented buttons */}
 
           <div style={{ padding: "14px 0", borderBottom: "1px solid var(--border)" }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: "var(--fg-3)", letterSpacing: "0.01em", marginBottom: 10 }}>
+            <div style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-3)", letterSpacing: "0.01em", marginBottom: 10 }}>
               Prioridad
             </div>
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
@@ -984,7 +984,7 @@ export default function OTCrearForm({ usuarios, ubicaciones, activos, categorias
                     style={{
                       height: 32, padding: "0 14px",
                       border: active ? "none" : "1px solid var(--border)",
-                      borderRadius: 6, fontSize: 13, fontWeight: active ? 600 : 400,
+                      borderRadius: 6, fontSize: 14, fontWeight: 400,
                       background: active ? "var(--surface-hover)" : "var(--surface-1)",
                       color: active ? p.activeColor : "var(--fg-2)",
                       cursor: "pointer", transition: "all 0.1s",
@@ -1002,7 +1002,7 @@ export default function OTCrearForm({ usuarios, ubicaciones, activos, categorias
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                 <Paperclip size={14} style={{ color: "var(--fg-3)" }} />
-                <span style={{ fontSize: 13, fontWeight: 600, color: "var(--fg-3)", letterSpacing: "0.01em" }}>
+                <span style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-3)", letterSpacing: "0.01em" }}>
                   Adjuntos
                 </span>
               </div>
@@ -1014,7 +1014,7 @@ export default function OTCrearForm({ usuarios, ubicaciones, activos, categorias
                   height: 28, padding: "0 10px",
                   border: "1px solid var(--brand)", borderRadius: 6,
                   background: "var(--brand-tint)", color: "var(--brand)",
-                  fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
+                  fontSize: 14, fontWeight: 400, cursor: "pointer", fontFamily: "inherit",
                 }}
               >
                 <Plus size={12} />
@@ -1045,7 +1045,7 @@ export default function OTCrearForm({ usuarios, ubicaciones, activos, categorias
                 }}
               >
                 <Paperclip size={20} strokeWidth={1.5} />
-                <span style={{ fontSize: 13 }}>PDF, Word, Excel, TXT, CSV, DWG…</span>
+                <span style={{ fontSize: 14 }}>PDF, Word, Excel, TXT, CSV, DWG…</span>
               </button>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
@@ -1060,12 +1060,12 @@ export default function OTCrearForm({ usuarios, ubicaciones, activos, categorias
                         value={a.nombre}
                         onChange={e => setAdjuntos(prev => prev.map((x, idx) => idx === i ? { ...x, nombre: e.target.value } : x))}
                         style={{
-                          flex: 1, fontSize: 13, color: "var(--fg-1)", border: "none",
+                          flex: 1, fontSize: 14, color: "var(--fg-1)", border: "none",
                           outline: "none", background: "transparent", fontFamily: "inherit",
                           minWidth: 0,
                         }}
                       />
-                      <span style={{ fontSize: 13, color: "var(--fg-3)", flexShrink: 0 }}>
+                      <span style={{ fontSize: 14, color: "var(--fg-3)", flexShrink: 0 }}>
                         {(a.file.size / 1024).toFixed(0)} KB
                       </span>
                       <button
@@ -1086,7 +1086,7 @@ export default function OTCrearForm({ usuarios, ubicaciones, activos, categorias
                   style={{
                     display: "flex", alignItems: "center", gap: 5,
                     padding: "6px 0", background: "none", border: "none",
-                    cursor: "pointer", fontSize: 12, color: "var(--fg-3)", fontFamily: "inherit",
+                    cursor: "pointer", fontSize: 14, color: "var(--fg-3)", fontFamily: "inherit",
                   }}
                   onMouseEnter={e => { e.currentTarget.style.color = "var(--brand)"; }}
                   onMouseLeave={e => { e.currentTarget.style.color = "var(--fg-3)"; }}
@@ -1102,7 +1102,7 @@ export default function OTCrearForm({ usuarios, ubicaciones, activos, categorias
           <div style={{ padding: "14px 0", borderBottom: "1px solid var(--border)" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
               <Link2 size={14} style={{ color: "var(--fg-3)" }} />
-              <span style={{ fontSize: 13, fontWeight: 600, color: "var(--fg-3)", letterSpacing: "0.01em" }}>
+              <span style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-3)", letterSpacing: "0.01em" }}>
                 Links
               </span>
             </div>
@@ -1126,7 +1126,7 @@ export default function OTCrearForm({ usuarios, ubicaciones, activos, categorias
                         height: 28, padding: "0 10px",
                         border: "none", borderRadius: 4,
                         background: bg, color,
-                        fontSize: 12, fontWeight: active ? 600 : 400,
+                        fontSize: 14, fontWeight: 400,
                         cursor: "pointer", display: "flex", alignItems: "center", gap: 4,
                         transition: "all 0.1s",
                       }}
@@ -1153,7 +1153,7 @@ export default function OTCrearForm({ usuarios, ubicaciones, activos, categorias
       }}>
         <div style={{ flex: 1 }}>
           {error && (
-            <span style={{ fontSize: 13, color: "var(--danger)" }}>{error}</span>
+            <span style={{ fontSize: 14, color: "var(--danger)" }}>{error}</span>
           )}
         </div>
         <div style={{ display: "flex", gap: 8 }}>
@@ -1165,7 +1165,7 @@ export default function OTCrearForm({ usuarios, ubicaciones, activos, categorias
               height: 38, padding: "0 18px",
               border: "1px solid var(--border)", borderRadius: 6,
               background: "var(--surface-1)", color: "var(--fg-2)",
-              fontSize: 13.5, fontWeight: 500, cursor: "pointer",
+              fontSize: 14, fontWeight: 400, cursor: "pointer",
             }}
           >
             Cancelar
@@ -1179,7 +1179,7 @@ export default function OTCrearForm({ usuarios, ubicaciones, activos, categorias
               border: "none", borderRadius: 6,
               background: saving ? "var(--fg-3)" : "linear-gradient(135deg, var(--brand-active), var(--brand))",
               color: "var(--fg-on-brand)",
-              fontSize: 13.5, fontWeight: 600,
+              fontSize: 14, fontWeight: 400,
               cursor: saving ? "default" : "pointer",
               display: "flex", alignItems: "center", gap: 8,
               transition: "background 0.15s",

@@ -140,14 +140,14 @@ function ExportSchedulerInner({ defaultColumns, canManage }: Props) {
           width: "100%", display: "flex", alignItems: "center", gap: 8,
           padding: "12px 20px", background: "transparent", border: "none",
           cursor: "pointer", fontFamily: "inherit", color: "var(--fg-1)",
-          fontSize: 13, fontWeight: 600, textAlign: "left",
+          fontSize: 14, fontWeight: 400, textAlign: "left",
         }}
       >
         {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
         <Mail size={14} style={{ color: "var(--brand-fg)" }} />
         Programar envíos automáticos
         {schedules.length > 0 && (
-          <span style={{ fontSize: 13, color: "var(--fg-4)", fontWeight: 400, marginLeft: "auto" }}>
+          <span style={{ fontSize: 14, color: "var(--fg-4)", fontWeight: 400, marginLeft: "auto" }}>
             {schedules.filter(s => s.active).length} activas
           </span>
         )}
@@ -156,7 +156,7 @@ function ExportSchedulerInner({ defaultColumns, canManage }: Props) {
       {expanded && (
         <div style={{ padding: "0 20px 14px" }}>
           {!canManage && (
-            <div style={{ fontSize: 12, color: "var(--fg-4)", padding: "8px 0" }}>
+            <div style={{ fontSize: 14, color: "var(--fg-4)", padding: "8px 0" }}>
               Solo los administradores del workspace pueden crear o editar programaciones.
             </div>
           )}
@@ -164,7 +164,7 @@ function ExportSchedulerInner({ defaultColumns, canManage }: Props) {
           {error && (
             <div style={{
               padding: "8px 10px", background: "#FEE2E2", color: "#991B1B",
-              borderRadius: 6, fontSize: 12, marginBottom: 8,
+              borderRadius: 6, fontSize: 14, marginBottom: 8,
               display: "flex", alignItems: "center", gap: 6,
             }}>
               <AlertCircle size={13} /> {error}
@@ -172,13 +172,13 @@ function ExportSchedulerInner({ defaultColumns, canManage }: Props) {
           )}
 
           {loading && (
-            <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--fg-4)", padding: "8px 0" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 14, color: "var(--fg-4)", padding: "8px 0" }}>
               <Loader2 size={12} className="animate-spin" /> Cargando…
             </div>
           )}
 
           {!loading && schedules.length === 0 && !formOpen && (
-            <div style={{ fontSize: 12, color: "var(--fg-4)", padding: "6px 0 8px" }}>
+            <div style={{ fontSize: 14, color: "var(--fg-4)", padding: "6px 0 8px" }}>
               No hay programaciones aún. Las programaciones envían el reporte por correo automáticamente; los archivos
               quedan en la bandeja de los destinatarios y no dependen de que Pangui esté en línea.
             </div>
@@ -214,7 +214,7 @@ function ExportSchedulerInner({ defaultColumns, canManage }: Props) {
               style={{
                 marginTop: 8, display: "flex", alignItems: "center", gap: 6,
                 padding: "7px 12px", borderRadius: 7, border: "1px dashed var(--border)",
-                background: "transparent", fontSize: 12, color: "var(--brand-fg)",
+                background: "transparent", fontSize: 14, color: "var(--brand-fg)",
                 cursor: "pointer", fontFamily: "inherit",
               }}
             >
@@ -256,12 +256,12 @@ function ScheduleRow({ s, runs, canManage, onEdit, onDelete, onToggle }: {
       {/* Top row: name + actions. Actions wrap below if the dialog is narrow. */}
       <div style={{ display: "flex", alignItems: "flex-start", gap: 10, flexWrap: "wrap" }}>
         <div style={{ flex: "1 1 220px", minWidth: 0 }}>
-          <div style={{ fontSize: 13.5, fontWeight: 600, color: "var(--fg-1)" }}>{s.nombre}</div>
-          <div style={{ fontSize: 13.5, color: "var(--fg-4)", marginTop: 3, lineHeight: 1.45 }}>
+          <div style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)" }}>{s.nombre}</div>
+          <div style={{ fontSize: 14, color: "var(--fg-4)", marginTop: 3, lineHeight: 1.45 }}>
             {cadenceLabel} · {presetLabel} · {s.recipients.length} destinatario{s.recipients.length !== 1 ? "s" : ""}
           </div>
           {lastRun && (
-            <div style={{ fontSize: 13, color: lastRun.ok ? "#15803D" : "#B91C1C", marginTop: 6, display: "flex", alignItems: "center", gap: 4 }}>
+            <div style={{ fontSize: 14, color: lastRun.ok ? "#15803D" : "#B91C1C", marginTop: 6, display: "flex", alignItems: "center", gap: 4 }}>
               {lastRun.ok ? <CheckCircle2 size={11} /> : <AlertCircle size={11} />}
               Último envío: {new Date(lastRun.started_at).toLocaleString("es-CL")}
               {lastRun.ok ? ` · ${lastRun.ordenes_count} órdenes` : ` · ${lastRun.error_message ?? "error"}`}
@@ -274,11 +274,11 @@ function ScheduleRow({ s, runs, canManage, onEdit, onDelete, onToggle }: {
             <button
               type="button" onClick={onToggle}
               title={s.active ? "Pausar" : "Activar"}
-              style={{ fontSize: 13.5, padding: "5px 10px", borderRadius: 6, border: "1px solid var(--border)", background: "transparent", cursor: "pointer", color: "var(--fg-2)", fontFamily: "inherit" }}
+              style={{ fontSize: 14, padding: "5px 10px", borderRadius: 6, border: "1px solid var(--border)", background: "transparent", cursor: "pointer", color: "var(--fg-2)", fontFamily: "inherit" }}
             >{s.active ? "Pausar" : "Activar"}</button>
             <button
               type="button" onClick={onEdit}
-              style={{ fontSize: 13.5, padding: "5px 10px", borderRadius: 6, border: "1px solid var(--border)", background: "transparent", cursor: "pointer", color: "var(--fg-2)", fontFamily: "inherit" }}
+              style={{ fontSize: 14, padding: "5px 10px", borderRadius: 6, border: "1px solid var(--border)", background: "transparent", cursor: "pointer", color: "var(--fg-2)", fontFamily: "inherit" }}
             >Editar</button>
             <button
               type="button" onClick={onDelete}
@@ -361,7 +361,7 @@ function ScheduleForm({ initial, defaultColumns, onClose, onSaved }: {
       border: "1px solid var(--brand-fg)", background: "var(--surface-2, var(--surface-1))",
     }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-        <div style={{ fontSize: 14, fontWeight: 700, color: "var(--fg-1)" }}>
+        <div style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)" }}>
           {initial ? "Editar programación" : "Nueva programación"}
         </div>
         <button type="button" onClick={onClose}
@@ -415,7 +415,7 @@ function ScheduleForm({ initial, defaultColumns, onClose, onSaved }: {
             <button
               key={p.key} type="button" onClick={() => setPreset(p.key)}
               style={{
-                fontSize: 13, padding: "5px 10px", borderRadius: 999,
+                fontSize: 14, padding: "5px 10px", borderRadius: 999,
                 border: preset === p.key ? "1px solid var(--brand)" : "1px solid var(--border)",
                 background: preset === p.key ? "var(--brand)" : "transparent",
                 color: preset === p.key ? "var(--surface-1)" : "var(--fg-2)",
@@ -429,7 +429,7 @@ function ScheduleForm({ initial, defaultColumns, onClose, onSaved }: {
       <Field label="Destinatarios (correos)">
         <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 4 }}>
           {recipients.map(r => (
-            <span key={r} style={{ fontSize: 13, padding: "3px 8px", borderRadius: 999, background: "var(--surface-hover)", color: "var(--fg-2)", display: "flex", alignItems: "center", gap: 4 }}>
+            <span key={r} style={{ fontSize: 14, padding: "3px 8px", borderRadius: 999, background: "var(--surface-hover)", color: "var(--fg-2)", display: "flex", alignItems: "center", gap: 4 }}>
               {r}
               <button type="button" onClick={() => setRecipients(recipients.filter(x => x !== r))}
                 style={{ border: "none", background: "transparent", cursor: "pointer", padding: 0, color: "var(--fg-4)" }}>
@@ -446,28 +446,28 @@ function ScheduleForm({ initial, defaultColumns, onClose, onSaved }: {
             style={{ ...inputStyle, flex: 1 }}
           />
           <button type="button" onClick={addRecipient}
-            style={{ fontSize: 13, padding: "0 10px", borderRadius: 6, border: "1px solid var(--border)", background: "transparent", cursor: "pointer", color: "var(--fg-2)" }}>
+            style={{ fontSize: 14, padding: "0 10px", borderRadius: 6, border: "1px solid var(--border)", background: "transparent", cursor: "pointer", color: "var(--fg-2)" }}>
             Agregar
           </button>
         </div>
       </Field>
 
       {error && (
-        <div style={{ padding: "6px 8px", marginTop: 6, background: "#FEE2E2", color: "#991B1B", borderRadius: 6, fontSize: 13, display: "flex", alignItems: "center", gap: 4 }}>
+        <div style={{ padding: "6px 8px", marginTop: 6, background: "#FEE2E2", color: "#991B1B", borderRadius: 6, fontSize: 14, display: "flex", alignItems: "center", gap: 4 }}>
           <AlertCircle size={11} /> {error}
         </div>
       )}
 
       <div style={{ display: "flex", justifyContent: "flex-end", gap: 6, marginTop: 10 }}>
         <button type="button" onClick={onClose}
-          style={{ fontSize: 12, padding: "6px 12px", borderRadius: 6, border: "1px solid var(--border)", background: "transparent", cursor: "pointer", color: "var(--fg-2)" }}>
+          style={{ fontSize: 14, padding: "6px 12px", borderRadius: 6, border: "1px solid var(--border)", background: "transparent", cursor: "pointer", color: "var(--fg-2)" }}>
           Cancelar
         </button>
         <button type="button" onClick={handleSave} disabled={saving || recipients.length === 0 || !nombre.trim()}
           style={{
-            fontSize: 12, padding: "6px 14px", borderRadius: 6, border: "none",
+            fontSize: 14, padding: "6px 14px", borderRadius: 6, border: "none",
             background: saving || recipients.length === 0 || !nombre.trim() ? "var(--border-strong)" : "var(--brand)",
-            color: "var(--surface-1)", fontWeight: 600,
+            color: "var(--surface-1)", fontWeight: 400,
             cursor: saving || recipients.length === 0 || !nombre.trim() ? "default" : "pointer",
             display: "flex", alignItems: "center", gap: 4,
           }}>
@@ -481,7 +481,7 @@ function ScheduleForm({ initial, defaultColumns, onClose, onSaved }: {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div style={{ marginBottom: 14 }}>
-      <div style={{ fontSize: 10.5, fontWeight: 700, color: "var(--fg-4)", letterSpacing: "0.01em", marginBottom: 6 }}>
+      <div style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-4)", letterSpacing: "0.01em", marginBottom: 6 }}>
         {label}
       </div>
       {children}
@@ -491,7 +491,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 const inputStyle: React.CSSProperties = {
   width: "100%", height: 34, padding: "0 10px",
-  fontSize: 13, fontFamily: "inherit",
+  fontSize: 14, fontFamily: "inherit",
   borderRadius: 7, border: "1px solid var(--border)",
   background: "var(--surface-1)", color: "var(--fg-1)",
 };

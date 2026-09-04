@@ -1,14 +1,16 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   AlertTriangle, Bell, CalendarClock, Check, CheckCheck, Circle,
-  ExternalLink, Info, Package, PackageSearch, Search, Trash2, Wrench,
+  ExternalLink, Info, Loader2, Package, PackageSearch, Search, Square,
+  SquareCheckBig, Trash2, Wrench, X,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase";
 import AppLoadingState from "@/components/AppLoadingState";
-import { useNotificaciones, type NotificationRow as Notif } from "@/hooks/useNotificaciones";
+import { NOTIFICACIONES_PAGE_SIZE, useNotificaciones, type NotificationRow as Notif } from "@/hooks/useNotificaciones";
+import ConfirmDeleteModal from "@/components/ConfirmDeleteModal";
 
 const TYPE_ICON: Record<string, React.ElementType> = {
   emergencia: AlertTriangle, ot: Wrench, orden: Wrench, asignado: Wrench,
@@ -16,12 +18,6 @@ const TYPE_ICON: Record<string, React.ElementType> = {
   preventivo: CalendarClock, inventario: Package, inventario_stock_bajo: Package,
   solicitud_materiales: PackageSearch, tipo_trabajo_actualizado: Search,
   ot_vencida: AlertTriangle, ot_urgente_sin_asignar: AlertTriangle,
-};
-
-const TYPE_COLOR: Record<string, string> = {
-  emergencia: "var(--danger)", ot_vencida: "var(--danger)",
-  ot_urgente_sin_asignar: "var(--danger)", inventario: "var(--warning)",
-  inventario_stock_bajo: "var(--warning)", solicitud_materiales: "var(--warning)",
 };
 
 function relativeTime(value: string) {
@@ -48,14 +44,30 @@ export default function NotificacionesPage() {
   const router = useRouter();
   const [userId, setUserId] = useState<string | null>(null);
   const [onlyUnread, setOnlyUnread] = useState(false);
+  // Modo seleccion: apagado por defecto. `selected` solo tiene sentido con
+  // `selecting` encendido, pero se guarda aparte para poder vaciarlo al salir.
+  const [selecting, setSelecting] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  /**
+   * Confirmacion de los dos borrados. Ninguno se puede deshacer -- no hay
+   * papelera ni undo -- asi que los dos pasan por un modal. Marcar como leida
+   * no: es reversible con el mismo boton.
+   */
+  const [confirming, setConfirming] = useState<null | "seleccion" | "todo">(null);
 
   // Mismo cache que la campana de la topbar y el item del sidebar: marcar leida
-  // aca apaga el punto alla sin esperar un evento realtime. Sin `realtime`, el
-  // canal unico lo abre AppSidebar.
+  // aca apaga el punto alla sin esperar un evento realtime. El canal realtime
+  // unico lo abre AppSidebar.
+  //
+  // `onlyUnread` va a la query, no a un filter() local. Con paginacion filtrar
+  // en el cliente romperia el scroll: una pagina de 30 con 3 sin leer pintaria
+  // 3 filas y el sentinel nunca volveria a entrar en viewport.
   const {
     items, unreadCount, loading,
-    setRead: setReadById, markAllRead: markAll, remove: removeById, clearAll: clearAllItems,
-  } = useNotificaciones(userId);
+    hasNextPage, isFetchingNextPage, fetchNextPage,
+    setRead: setReadById, markAllRead: markAll, clearAll: clearAllItems,
+    setReadMany, removeMany,
+  } = useNotificaciones(userId, { onlyUnread });
 
   useEffect(() => {
     let active = true;
@@ -67,7 +79,25 @@ export default function NotificacionesPage() {
     return () => { active = false; };
   }, [router]);
 
-  const visible = useMemo(() => onlyUnread ? items.filter(item => !item.leida) : items, [items, onlyUnread]);
+  // El filtro ya viene aplicado desde el servidor.
+  const visible = items;
+
+  /**
+   * Scroll infinito. `rootMargin` dispara la carga 300px antes de que el
+   * centinela sea visible, asi que la pagina siguiente suele estar lista antes
+   * de que el usuario llegue al fondo. Mismo patron que /ubicaciones.
+   */
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const node = sentinelRef.current;
+    if (!node || !hasNextPage) return;
+    const observer = new IntersectionObserver(
+      entries => { if (entries[0]?.isIntersecting) fetchNextPage(); },
+      { rootMargin: "300px" },
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [hasNextPage, fetchNextPage]);
 
   function setRead(item: Notif, leida: boolean) {
     setReadById(item.id, leida);
@@ -77,12 +107,62 @@ export default function NotificacionesPage() {
     markAll();
   }
 
-  function remove(item: Notif) {
-    removeById(item.id);
-  }
-
   function clearAll() {
     clearAllItems();
+  }
+
+  // ── Seleccion ────────────────────────────────────────────────────────────
+
+  function toggleSelected(id: string) {
+    setSelected(current => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  function exitSelecting() {
+    setSelecting(false);
+    setSelected(new Set());
+  }
+
+  /**
+   * Solo cuentan las filas cargadas. "Seleccionar todo" no puede abarcar lo que
+   * todavia no se ha traido: prometeria borrar cosas que el usuario no vio.
+   */
+  const selectedIds = useMemo(
+    () => visible.filter(item => selected.has(item.id)).map(item => item.id),
+    [visible, selected],
+  );
+  const allSelected = visible.length > 0 && selectedIds.length === visible.length;
+
+  function toggleSelectAll() {
+    setSelected(allSelected ? new Set() : new Set(visible.map(item => item.id)));
+  }
+
+  /**
+   * Si todas las seleccionadas ya estan leidas, el boton las marca como NO
+   * leidas. Con una mezcla, marcarlas como leidas es lo que se espera.
+   */
+  const selectedAllRead =
+    selectedIds.length > 0 &&
+    selectedIds.every(id => visible.find(item => item.id === id)?.leida);
+
+  function applyRead() {
+    setReadMany(selectedIds, !selectedAllRead);
+    exitSelecting();
+  }
+
+  function applyDelete() {
+    removeMany(selectedIds);
+    exitSelecting();
+    setConfirming(null);
+  }
+
+  function applyClearAll() {
+    clearAll();
+    exitSelecting();
+    setConfirming(null);
   }
 
   function open(item: Notif) {
@@ -98,16 +178,48 @@ export default function NotificacionesPage() {
       <section style={{ border: "1px solid var(--border)", borderRadius: 12, overflow: "hidden", background: "var(--surface-1)" }}>
         <div style={{ minHeight: 66, padding: "0 22px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, borderBottom: "1px solid var(--border)" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <span style={{ width: 34, height: 34, display: "grid", placeItems: "center", borderRadius: "50%", background: "var(--brand-tint)", color: "var(--brand)" }}><Bell size={17} /></span>
+            <span style={{ width: 34, height: 34, display: "grid", placeItems: "center", border: "1px solid var(--border)", borderRadius: "var(--r-sm)", background: "var(--surface-1)", color: "var(--brand)" }}><Bell size={16} /></span>
             <div>
-              <h2 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: "var(--fg-1)" }}>Bandeja de notificaciones</h2>
-              <p style={{ margin: "2px 0 0", fontSize: 12.5, color: "var(--fg-4)" }}>{unreadCount} sin leer · {items.length} en total</p>
+              <h2 style={{ margin: 0, fontSize: 14, fontWeight: 400, color: "var(--fg-1)" }}>Bandeja de notificaciones</h2>
+              <p style={{ margin: "2px 0 0", fontSize: 14, fontWeight: 400, color: "var(--fg-4)" }}>{unreadCount} sin leer</p>
             </div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <button type="button" onClick={() => setOnlyUnread(value => !value)} style={{ height: 32, padding: "0 11px", border: `1px solid ${onlyUnread ? "var(--brand)" : "var(--border)"}`, borderRadius: 7, background: onlyUnread ? "var(--brand-tint)" : "var(--surface-1)", color: onlyUnread ? "var(--brand)" : "var(--fg-3)", font: "inherit", fontSize: 12, cursor: "pointer" }}>Solo no leídas</button>
-            {unreadCount > 0 && <button type="button" onClick={markAllRead} style={buttonStyle}><CheckCheck size={14} /> Marcar todas como leídas</button>}
-            {items.length > 0 && <button type="button" onClick={clearAll} style={buttonStyle}><Trash2 size={13} /> Limpiar todo</button>}
+            {/* En modo seleccion la barra cambia entera: las acciones globales
+                ("todas", "limpiar todo") conviven mal con una seleccion, y las
+                de la seleccion ocupan su lugar. */}
+            {selecting ? (
+              <>
+                <span style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-3)" }}>
+                  {selectedIds.length} seleccionada{selectedIds.length === 1 ? "" : "s"}
+                </span>
+                {visible.length > 0 && (
+                  <button type="button" onClick={toggleSelectAll} style={buttonStyle}>
+                    {allSelected ? <Square size={16} /> : <SquareCheckBig size={16} />}
+                    {allSelected ? "Deseleccionar todo" : "Seleccionar todo"}
+                  </button>
+                )}
+                {selectedIds.length > 0 && (
+                  <>
+                    <button type="button" onClick={applyRead} style={buttonStyle}>
+                      {selectedAllRead ? <Circle size={16} /> : <Check size={16} />}
+                      {selectedAllRead ? "Marcar como no leídas" : "Marcar como leídas"}
+                    </button>
+                    <button type="button" onClick={() => setConfirming("seleccion")} style={dangerButtonStyle}>
+                      <Trash2 size={16} /> Eliminar
+                    </button>
+                  </>
+                )}
+                <button type="button" onClick={exitSelecting} style={buttonStyle}><X size={16} /> Cancelar</button>
+              </>
+            ) : (
+              <>
+                <button type="button" onClick={() => setOnlyUnread(value => !value)} style={{ height: 32, padding: "0 11px", border: `1px solid ${onlyUnread ? "var(--brand)" : "var(--border)"}`, borderRadius: 7, background: onlyUnread ? "var(--brand-tint)" : "var(--surface-1)", color: onlyUnread ? "var(--brand)" : "var(--fg-3)", font: "inherit", fontSize: 14, fontWeight: 400, cursor: "pointer" }}>Solo no leídas</button>
+                {visible.length > 0 && <button type="button" onClick={() => setSelecting(true)} style={buttonStyle}><SquareCheckBig size={16} /> Seleccionar</button>}
+                {unreadCount > 0 && <button type="button" onClick={markAllRead} style={buttonStyle}><CheckCheck size={16} /> Marcar todas como leídas</button>}
+                {visible.length > 0 && <button type="button" onClick={() => setConfirming("todo")} style={buttonStyle}><Trash2 size={16} color="var(--danger)" /> Limpiar todo</button>}
+              </>
+            )}
           </div>
         </div>
 
@@ -116,37 +228,87 @@ export default function NotificacionesPage() {
         ) : visible.length === 0 ? (
           <div style={{ height: 260, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10, color: "var(--fg-4)" }}>
             <CheckCheck size={36} style={{ opacity: .35 }} />
-            <span style={{ fontSize: 13 }}>{onlyUnread ? "No tienes notificaciones sin leer" : "No tienes notificaciones"}</span>
+            <span style={{ fontSize: 14, fontWeight: 400 }}>{onlyUnread ? "No tienes notificaciones sin leer" : "No tienes notificaciones"}</span>
           </div>
-        ) : visible.map(item => {
+        ) : (<>
+          {visible.map(item => {
           const Icon = TYPE_ICON[item.tipo] ?? Info;
-          const color = TYPE_COLOR[item.tipo] ?? "var(--brand)";
           const target = destination(item.url);
+          const isSelected = selected.has(item.id);
           return (
-            <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "13px 22px", borderBottom: "1px solid var(--border)", background: item.leida ? "var(--surface-1)" : "var(--brand-tint)" }}>
-              <span style={{ width: 34, height: 34, flexShrink: 0, display: "grid", placeItems: "center", borderRadius: "50%", background: `color-mix(in srgb, ${color} 14%, transparent)`, color }}><Icon size={16} /></span>
-              <button type="button" onClick={() => void open(item)} style={{ minWidth: 0, flex: 1, padding: 0, border: 0, background: "transparent", textAlign: "left", cursor: target ? "pointer" : "default", fontFamily: "inherit" }}>
+            <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "13px 22px", borderBottom: "1px solid var(--border)", background: isSelected ? "var(--surface-hover)" : item.leida ? "var(--surface-1)" : "var(--brand-tint)" }}>
+              {/* La casilla va ANTES del icono, y solo existe en modo seleccion. */}
+              {selecting && (
+                <input
+                  type="checkbox"
+                  checked={isSelected}
+                  onChange={() => toggleSelected(item.id)}
+                  aria-label={`Seleccionar ${item.titulo}`}
+                  style={{ width: 16, height: 16, flexShrink: 0, accentColor: "var(--brand)", cursor: "pointer" }}
+                />
+              )}
+              <span style={{ width: 34, height: 34, flexShrink: 0, display: "grid", placeItems: "center", border: "1px solid var(--border)", borderRadius: "var(--r-sm)", background: "var(--surface-1)", color: "var(--brand)" }}><Icon size={16} /></span>
+              {/* Seleccionando, la fila entera alterna la casilla en vez de
+                  navegar: abrir una OT a media seleccion pierde el trabajo. */}
+              <button type="button" onClick={() => selecting ? toggleSelected(item.id) : void open(item)} style={{ minWidth: 0, flex: 1, padding: 0, border: 0, background: "transparent", textAlign: "left", cursor: selecting || target ? "pointer" : "default", fontFamily: "inherit" }}>
                 <span style={{ display: "flex", alignItems: "center", gap: 7 }}>
-                  <strong style={{ color: "var(--fg-1)", fontSize: 13.5, fontWeight: item.leida ? 600 : 700 }}>{item.titulo}</strong>
-                  {target?.external && <ExternalLink size={11} color="var(--fg-4)" />}
+                  <strong style={{ color: "var(--fg-1)", fontSize: 14, fontWeight: 400 }}>{item.titulo}</strong>
+                  {target?.external && <ExternalLink size={12} color="var(--fg-4)" />}
                 </span>
-                {item.mensaje && <span style={{ display: "block", marginTop: 2, color: "var(--fg-3)", fontSize: 12.5, lineHeight: 1.4 }}>{item.mensaje}</span>}
-                <span style={{ display: "block", marginTop: 4, color: "var(--fg-4)", fontSize: 11.5 }}>{relativeTime(item.created_at)}</span>
+                {item.mensaje && <span style={{ display: "block", marginTop: 2, color: "var(--fg-3)", fontSize: 14, fontWeight: 400, lineHeight: 1.4 }}>{item.mensaje}</span>}
+                <span style={{ display: "block", marginTop: 4, color: "var(--fg-4)", fontSize: 14, fontWeight: 400 }}>{relativeTime(item.created_at)}</span>
               </button>
-              <div style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
-                <button type="button" onClick={() => void setRead(item, !item.leida)} title={item.leida ? "Marcar como no leída" : "Marcar como leída"} aria-label={item.leida ? "Marcar como no leída" : "Marcar como leída"} className="notif-row-action">{item.leida ? <Circle size={14} /> : <Check size={15} />}</button>
-                <button type="button" onClick={() => void remove(item)} title="Eliminar notificación" aria-label="Eliminar notificación" className="notif-row-action"><Trash2 size={14} /></button>
-              </div>
             </div>
           );
-        })}
+          })}
+          {/* Centinela: entra en viewport 300px antes del fondo y pide la
+              pagina siguiente. Solo se pinta si queda algo por traer, si no
+              el observer se re-suscribiria para siempre sobre un nodo muerto. */}
+          {hasNextPage && (
+            <div ref={sentinelRef} style={{ padding: 16, display: "flex", justifyContent: "center" }}>
+              {isFetchingNextPage && <Loader2 size={16} className="animate-spin" style={{ color: "var(--fg-4)" }} />}
+            </div>
+          )}
+          {!hasNextPage && visible.length > NOTIFICACIONES_PAGE_SIZE && (
+            <div style={{ padding: "14px 16px 20px", textAlign: "center", fontSize: 14, fontWeight: 400, color: "var(--fg-4)" }}>
+              {visible.length} en total
+            </div>
+          )}
+        </>)}
       </section>
+
+      {/* Mismo dialogo que usa OTDetail para borrar una OT. No es el
+          AlertDialog de shadcn a proposito: ese pinta su overlay con z-50 y la
+          topbar es zIndex 100, asi que la barra superior se quedaba iluminada
+          por encima del fondo oscuro. */}
+      <ConfirmDeleteModal
+        pending={confirming === null ? null : confirming === "todo" ? {
+          title: "¿Limpiar todas las notificaciones?",
+          description: "Se eliminarán todas tus notificaciones, incluidas las que aún no se han cargado en pantalla. Esta acción no se puede deshacer.",
+          confirmLabel: "Eliminar",
+          onConfirm: applyClearAll,
+        } : {
+          title: "¿Eliminar las notificaciones seleccionadas?",
+          description: `Se eliminará${selectedIds.length === 1 ? "" : "n"} ${selectedIds.length} notificación${selectedIds.length === 1 ? "" : "es"}. Esta acción no se puede deshacer.`,
+          confirmLabel: "Eliminar",
+          onConfirm: applyDelete,
+        }}
+        onClose={() => setConfirming(null)}
+      />
     </div>
   );
 }
 
+/** Eliminar es destructivo y no se puede deshacer: se marca en rojo. */
+const dangerButtonStyle: React.CSSProperties = {
+  height: 32, padding: "0 11px", display: "inline-flex", alignItems: "center", gap: 6,
+  border: "1px solid color-mix(in srgb, var(--danger) 45%, transparent)", borderRadius: 7,
+  background: "color-mix(in srgb, var(--danger) 10%, transparent)",
+  color: "var(--danger)", fontSize: 14, fontWeight: 400, cursor: "pointer", fontFamily: "inherit",
+};
+
 const buttonStyle: React.CSSProperties = {
   height: 32, padding: "0 11px", display: "inline-flex", alignItems: "center", gap: 6,
   border: "1px solid var(--border)", borderRadius: 7, background: "var(--surface-1)",
-  color: "var(--fg-3)", fontSize: 12, cursor: "pointer", fontFamily: "inherit",
+  color: "var(--fg-3)", fontSize: 14, fontWeight: 400, cursor: "pointer", fontFamily: "inherit",
 };

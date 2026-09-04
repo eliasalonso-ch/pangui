@@ -96,7 +96,7 @@ export default function ProcedimientosPage() {
               onChange={e => setSearch(e.target.value)}
               style={{
                 width: "100%", height: 36, paddingLeft: 32, paddingRight: search ? 32 : 12,
-                border: "1px solid var(--border)", borderRadius: "var(--r-md)", fontSize: 13,
+                border: "1px solid var(--border)", borderRadius: "var(--r-md)", fontSize: 14,
                 background: "var(--surface-1)", outline: "none", fontFamily: "inherit", color: "var(--fg-1)",
                 boxSizing: "border-box",
               }}
@@ -121,7 +121,7 @@ export default function ProcedimientosPage() {
                 display: "flex", alignItems: "center", gap: 6,
                 height: 36, padding: "0 14px",
                 background: "var(--brand)", border: "none", borderRadius: "var(--r-md)", cursor: "pointer",
-                fontSize: 13, fontWeight: 600, color: "var(--fg-on-brand)", fontFamily: "inherit",
+                fontSize: 14, fontWeight: 400, color: "var(--fg-on-brand)", fontFamily: "inherit",
                 whiteSpace: "nowrap",
               }}
             >
@@ -142,7 +142,7 @@ export default function ProcedimientosPage() {
                 style={{
                   height: 32, padding: "0 11px", borderRadius: "var(--r-md)", cursor: "pointer", fontFamily: "inherit",
                   display: "inline-flex", alignItems: "center", gap: 6,
-                  fontSize: 12.5, fontWeight: active ? 600 : 500,
+                  fontSize: 14, fontWeight: 400,
                   border: `1px solid ${active ? "var(--brand)" : "var(--border)"}`,
                   background: active ? "var(--brand-tint)" : "var(--surface-1)",
                   color: active ? "var(--brand-fg)" : "var(--fg-2)",
@@ -177,11 +177,11 @@ export default function ProcedimientosPage() {
               height: 240, color: "var(--fg-4)", gap: 8, padding: 24, textAlign: "center",
             }}>
               <ClipboardCheck size={32} style={{ color: "var(--fg-4)" }} />
-              <div style={{ fontSize: 14, fontWeight: 500, color: "var(--fg-3)" }}>
+              <div style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-3)" }}>
                 {search || filtro !== "todos" ? "Sin resultados" : "No hay procedimientos aún"}
               </div>
               {!search && filtro === "todos" && isAdmin && (
-                <div style={{ fontSize: 12.5, color: "var(--fg-4)" }}>Crea el primero con el botón de arriba</div>
+                <div style={{ fontSize: 14, color: "var(--fg-4)" }}>Crea el primero con el botón de arriba</div>
               )}
             </div>
           ) : (
@@ -214,8 +214,8 @@ export default function ProcedimientosPage() {
               alignItems: "center", justifyContent: "center", gap: 10, color: "var(--fg-4)",
             }}>
               <FileText size={40} style={{ opacity: 0.5 }} />
-              <div style={{ fontSize: 14, fontWeight: 600, color: "var(--fg-3)" }}>Selecciona un procedimiento</div>
-              <div style={{ fontSize: 12.5 }}>El detalle aparecerá aquí</div>
+              <div style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-3)" }}>Selecciona un procedimiento</div>
+              <div style={{ fontSize: 14 }}>El detalle aparecerá aquí</div>
             </div>
           )}
         </div>
@@ -225,21 +225,21 @@ export default function ProcedimientosPage() {
       {confirmArchive && (
         <div style={{ position: "fixed", inset: 0, zIndex: 60, background: "rgba(15,23,42,0.45)", display: "flex", alignItems: "center", justifyContent: "center" }}>
           <div style={{ background: "var(--surface-1)", borderRadius: 12, padding: 24, maxWidth: 400, width: "90%", boxShadow: "var(--shadow-lg)" }}>
-            <div style={{ fontSize: 15, fontWeight: 600, color: "var(--fg-1)", marginBottom: 8 }}>Archivar procedimiento</div>
-            <div style={{ fontSize: 13, color: "var(--fg-2)", marginBottom: 20 }}>
+            <div style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", marginBottom: 8 }}>Archivar procedimiento</div>
+            <div style={{ fontSize: 14, color: "var(--fg-2)", marginBottom: 20 }}>
               Se ocultará <strong>{confirmArchive.nombre}</strong> de la biblioteca. Las ejecuciones existentes no se borrarán.
             </div>
             <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
               <button
                 onClick={() => setConfirmArchive(null)}
-                style={{ height: 36, padding: "0 14px", border: "1px solid var(--border)", borderRadius: 8, background: "var(--surface-1)", fontSize: 13, fontWeight: 500, cursor: "pointer", fontFamily: "inherit", color: "var(--fg-2)" }}
+                style={{ height: 36, padding: "0 14px", border: "1px solid var(--border)", borderRadius: 8, background: "var(--surface-1)", fontSize: 14, fontWeight: 400, cursor: "pointer", fontFamily: "inherit", color: "var(--fg-2)" }}
               >
                 Cancelar
               </button>
               <button
                 onClick={() => handleArchive(confirmArchive)}
                 disabled={archiving === confirmArchive.id}
-                style={{ height: 36, padding: "0 14px", border: "none", borderRadius: 8, background: "var(--danger)", color: "var(--fg-on-brand)", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 6 }}
+                style={{ height: 36, padding: "0 14px", border: "none", borderRadius: 8, background: "var(--danger)", color: "var(--fg-on-brand)", fontSize: 14, fontWeight: 400, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 6 }}
               >
                 {archiving === confirmArchive.id ? <Loader2 size={12} className="animate-spin" /> : null}
                 Archivar
@@ -282,12 +282,12 @@ function ProcRow({
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }}>
         <div style={{ minWidth: 0, flex: 1 }}>
           <div style={{
-            fontSize: 13.5, fontWeight: 600, color: "var(--fg-1)",
+            fontSize: 14, fontWeight: 400, color: "var(--fg-1)",
             overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
           }}>
             {proc.nombre}
           </div>
-          <div style={{ fontSize: 11.5, color: "var(--fg-4)", marginTop: 2 }}>
+          <div style={{ fontSize: 14, color: "var(--fg-4)", marginTop: 2 }}>
             {pasos} {pasos === 1 ? "campo" : "campos"}
             {proc.categoria ? ` · ${proc.categoria}` : ""}
           </div>
@@ -328,7 +328,7 @@ function ProcRow({
 function Chip({ label, color }: { label: string; color: string }) {
   return (
     <span style={{
-      fontSize: 10.5, fontWeight: 600, color, border: `1px solid ${color}`,
+      fontSize: 14, fontWeight: 400, color, border: `1px solid ${color}`,
       borderRadius: 4, padding: "1px 5px", opacity: 0.9, whiteSpace: "nowrap",
     }}>
       {label}

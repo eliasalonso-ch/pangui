@@ -325,7 +325,7 @@ export default function ConfiguracionPage({ section }: { section?: Configuracion
     return (
       <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100dvh", gap: 8, color: "var(--fg-4)" }}>
         <Loader2 size={18} className="animate-spin" />
-        <span style={{ fontSize: 13 }}>Cargando…</span>
+        <span style={{ fontSize: 14 }}>Cargando…</span>
       </div>
     );
   }
@@ -343,10 +343,10 @@ export default function ConfiguracionPage({ section }: { section?: Configuracion
 
         {/* ── Page header: title, identity line, section tabs ── */}
         <div style={{ maxWidth: 720, margin: "0 auto 26px" }}>
-          <h1 style={{ fontSize: 34, fontWeight: 700, color: "var(--fg-1)", margin: 0, letterSpacing: "-0.02em" }}>
+          <h1 style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", margin: 0, letterSpacing: "-0.02em" }}>
             {SECTION_TITLES[tab]}
           </h1>
-          <p style={{ fontSize: 13.5, color: "var(--fg-3)", margin: "6px 0 0" }}>
+          <p style={{ fontSize: 14, color: "var(--fg-3)", margin: "6px 0 0" }}>
             {email}{memberSince ? ` · Miembro desde ${memberSince}` : ""}
           </p>
         </div>
@@ -385,11 +385,11 @@ export default function ConfiguracionPage({ section }: { section?: Configuracion
                     width: 34, height: 34, borderRadius: "50%", flexShrink: 0,
                     background: "linear-gradient(135deg, var(--brand-active), var(--brand))",
                     color: "var(--fg-on-brand)", display: "flex", alignItems: "center", justifyContent: "center",
-                    fontSize: 13, fontWeight: 700,
+                    fontSize: 14, fontWeight: 400,
                   }}>
                     {initials ?? <User size={16} />}
                   </span>
-                  <span style={{ fontSize: 13.5, color: "var(--fg-2)" }}>{nombre || "—"}</span>
+                  <span style={{ fontSize: 14, color: "var(--fg-2)" }}>{nombre || "—"}</span>
                   <button type="button" onClick={() => { setNombreDraft(nombre); setEditingNombre(true); }}
                     style={{ background: "none", border: "none", cursor: "pointer", color: "var(--fg-4)", display: "flex", padding: 4 }}>
                     <Pencil size={14} />
@@ -402,7 +402,7 @@ export default function ConfiguracionPage({ section }: { section?: Configuracion
                 no "Guardar cambios" step. */}
 
             <SettingCard label="Correo" hint="Tu correo de acceso, no se puede cambiar aquí">
-              <span style={{ fontSize: 13.5, color: "var(--fg-2)" }}>{email}</span>
+              <span style={{ fontSize: 14, color: "var(--fg-2)" }}>{email}</span>
             </SettingCard>
 
             <SettingCard label="Apariencia" hint="Cómo se ve Pangui en este dispositivo">
@@ -442,7 +442,7 @@ export default function ConfiguracionPage({ section }: { section?: Configuracion
             {/* Security card */}
             <div style={{ background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: 12, overflow: "hidden", boxShadow: "0 1px 3px rgba(15,23,42,0.06)" }}>
               <div style={{ padding: "14px 20px 0", borderBottom: "1px solid #F1F5F9" }}>
-                <p style={{ fontSize: 12, fontWeight: 700, color: "var(--fg-2)", margin: "0 0 14px", textTransform: "uppercase", letterSpacing: "0.06em" }}>Seguridad</p>
+                <p style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-2)", margin: "0 0 14px", textTransform: "uppercase", letterSpacing: "0.06em" }}>Seguridad</p>
               </div>
 
               {/* Change password row */}
@@ -460,8 +460,8 @@ export default function ConfiguracionPage({ section }: { section?: Configuracion
                       <KeyRound size={15} style={{ color: "var(--fg-2)" }} />
                     </div>
                     <div style={{ textAlign: "left" }}>
-                      <p style={{ fontSize: 13, fontWeight: 600, color: "var(--fg-1)", margin: 0 }}>Cambiar contraseña</p>
-                      <p style={{ fontSize: 11, color: "var(--fg-4)", margin: 0 }}>Actualiza tu contraseña de acceso</p>
+                      <p style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", margin: 0 }}>Cambiar contraseña</p>
+                      <p style={{ fontSize: 14, color: "var(--fg-4)", margin: 0 }}>Actualiza tu contraseña de acceso</p>
                     </div>
                   </div>
                   <ChevronRight size={15} style={{ color: "var(--border-strong)", transform: pwOpen ? "rotate(90deg)" : "none", transition: "transform 0.15s", flexShrink: 0 }} />
@@ -471,7 +471,7 @@ export default function ConfiguracionPage({ section }: { section?: Configuracion
                   <div style={{ padding: "0 20px 16px", display: "flex", flexDirection: "column", gap: 10 }}>
                     {(["Nueva contraseña", "Confirmar contraseña"] as const).map((label, i) => (
                       <div key={label}>
-                        <label style={{ fontSize: 12, fontWeight: 600, color: "var(--fg-1)", display: "block", marginBottom: 5 }}>{label}</label>
+                        <label style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", display: "block", marginBottom: 5 }}>{label}</label>
                         <div style={{ position: "relative" }}>
                           <input
                             type={showPw ? "text" : "password"}
@@ -491,7 +491,7 @@ export default function ConfiguracionPage({ section }: { section?: Configuracion
                         </div>
                       </div>
                     ))}
-                    {pwError && <p style={{ fontSize: 12, color: "var(--danger)", margin: 0 }}>{pwError}</p>}
+                    {pwError && <p style={{ fontSize: 14, color: "var(--danger)", margin: 0 }}>{pwError}</p>}
                     <button
                       type="button"
                       onClick={handleChangePassword}
@@ -499,7 +499,7 @@ export default function ConfiguracionPage({ section }: { section?: Configuracion
                       style={{
                         height: 38, border: "none", borderRadius: "var(--r-md)",
                         background: pwOk ? "var(--success)" : "var(--brand)",
-                        color: "var(--surface-1)", fontSize: 13, fontWeight: 600,
+                        color: "var(--surface-1)", fontSize: 14, fontWeight: 400,
                         cursor: pwSaving || pwOk ? "default" : "pointer",
                         fontFamily: "inherit", display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
                         transition: "background 0.2s",
@@ -515,14 +515,14 @@ export default function ConfiguracionPage({ section }: { section?: Configuracion
               <div style={{ borderBottom: "1px solid #F1F5F9" }}>
                 {confirmSignOutAll ? (
                   <div style={{ padding: "14px 20px", display: "flex", flexDirection: "column", gap: 10 }}>
-                    <p style={{ fontSize: 13, color: "var(--fg-1)", margin: 0 }}>¿Cerrar sesión en todos los dispositivos? Tendrás que volver a iniciar sesión.</p>
+                    <p style={{ fontSize: 14, color: "var(--fg-1)", margin: 0 }}>¿Cerrar sesión en todos los dispositivos? Tendrás que volver a iniciar sesión.</p>
                     <div style={{ display: "flex", gap: 8 }}>
                       <button type="button" onClick={handleSignOutAll} disabled={signingOutAll}
-                        style={{ flex: 1, height: 36, border: "none", borderRadius: "var(--r-md)", background: "var(--danger)", color: "var(--surface-1)", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}>
+                        style={{ flex: 1, height: 36, border: "none", borderRadius: "var(--r-md)", background: "var(--danger)", color: "var(--surface-1)", fontSize: 14, fontWeight: 400, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}>
                         {signingOutAll ? <Loader2 size={13} className="animate-spin" /> : "Sí, cerrar todo"}
                       </button>
                       <button type="button" onClick={() => setConfirmSignOutAll(false)}
-                        style={{ flex: 1, height: 36, border: "1px solid var(--border)", borderRadius: "var(--r-md)", background: "var(--surface-1)", color: "var(--fg-1)", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+                        style={{ flex: 1, height: 36, border: "1px solid var(--border)", borderRadius: "var(--r-md)", background: "var(--surface-1)", color: "var(--fg-1)", fontSize: 14, fontWeight: 400, cursor: "pointer", fontFamily: "inherit" }}>
                         Cancelar
                       </button>
                     </div>
@@ -534,8 +534,8 @@ export default function ConfiguracionPage({ section }: { section?: Configuracion
                       <MonitorSmartphone size={15} style={{ color: "var(--fg-2)" }} />
                     </div>
                     <div style={{ textAlign: "left" }}>
-                      <p style={{ fontSize: 13, fontWeight: 600, color: "var(--fg-1)", margin: 0 }}>Cerrar en todos los dispositivos</p>
-                      <p style={{ fontSize: 11, color: "var(--fg-4)", margin: 0 }}>Invalida todas las sesiones activas</p>
+                      <p style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", margin: 0 }}>Cerrar en todos los dispositivos</p>
+                      <p style={{ fontSize: 14, color: "var(--fg-4)", margin: 0 }}>Invalida todas las sesiones activas</p>
                     </div>
                   </button>
                 )}
@@ -552,8 +552,8 @@ export default function ConfiguracionPage({ section }: { section?: Configuracion
                   {signingOut ? <Loader2 size={15} style={{ color: "var(--danger)" }} className="animate-spin" /> : <LogOut size={15} style={{ color: "var(--danger)" }} />}
                 </div>
                 <div style={{ textAlign: "left" }}>
-                  <p style={{ fontSize: 13, fontWeight: 600, color: "var(--danger)", margin: 0 }}>Cerrar sesión</p>
-                  <p style={{ fontSize: 11, color: "var(--fg-4)", margin: 0 }}>Salir de esta sesión</p>
+                  <p style={{ fontSize: 14, fontWeight: 400, color: "var(--danger)", margin: 0 }}>Cerrar sesión</p>
+                  <p style={{ fontSize: 14, color: "var(--fg-4)", margin: 0 }}>Salir de esta sesión</p>
                 </div>
               </button>
             </div>
@@ -567,7 +567,7 @@ export default function ConfiguracionPage({ section }: { section?: Configuracion
             {loadingWs ? (
               <div style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--fg-4)", padding: "20px 0" }}>
                 <Loader2 size={16} className="animate-spin" />
-                <span style={{ fontSize: 13 }}>Cargando…</span>
+                <span style={{ fontSize: 14 }}>Cargando…</span>
               </div>
             ) : (
               <>
@@ -603,7 +603,7 @@ export default function ConfiguracionPage({ section }: { section?: Configuracion
                         </div>
                       ) : (
                         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                          <span style={{ fontSize: 13.5, color: "var(--fg-2)" }}>{ws[field] || "—"}</span>
+                          <span style={{ fontSize: 14, color: "var(--fg-2)" }}>{ws[field] || "—"}</span>
                           <button type="button" onClick={() => { setWsFieldDraft(ws[field]); setWsEditField(field); }}
                             style={{ background: "none", border: "none", cursor: "pointer", color: "var(--fg-4)", display: "flex", padding: 4 }}>
                             <Pencil size={14} />
@@ -632,8 +632,8 @@ export default function ConfiguracionPage({ section }: { section?: Configuracion
 
                 {/* Logo card */}
                 <div style={{ background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: 12, padding: 20, boxShadow: "0 1px 3px rgba(15,23,42,0.06)" }}>
-                  <p style={{ fontSize: 12, fontWeight: 700, color: "var(--fg-2)", margin: "0 0 6px", textTransform: "uppercase", letterSpacing: "0.06em" }}>Logo del workspace</p>
-                  <p style={{ fontSize: 12, color: "var(--fg-4)", margin: "0 0 16px" }}>Aparecerá en los PDFs generados. Recomendado: PNG o SVG cuadrado, máx. 2 MB.</p>
+                  <p style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-2)", margin: "0 0 6px", textTransform: "uppercase", letterSpacing: "0.06em" }}>Logo del workspace</p>
+                  <p style={{ fontSize: 14, color: "var(--fg-4)", margin: "0 0 16px" }}>Aparecerá en los PDFs generados. Recomendado: PNG o SVG cuadrado, máx. 2 MB.</p>
                   <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
                     <div style={{
                       width: 72, height: 72, border: "1px solid var(--border)", borderRadius: "var(--r-md)",
@@ -658,7 +658,7 @@ export default function ConfiguracionPage({ section }: { section?: Configuracion
                         disabled={uploadingLogo}
                         style={{
                           height: 36, padding: "0 14px", border: "1px solid var(--border)", borderRadius: "var(--r-md)",
-                          background: "var(--surface-1)", fontSize: 12, fontWeight: 600, color: "var(--fg-1)",
+                          background: "var(--surface-1)", fontSize: 14, fontWeight: 400, color: "var(--fg-1)",
                           cursor: uploadingLogo ? "default" : "pointer", fontFamily: "inherit",
                           display: "flex", alignItems: "center", gap: 6,
                         }}
@@ -676,7 +676,7 @@ export default function ConfiguracionPage({ section }: { section?: Configuracion
                           onClick={handleLogoDelete}
                           style={{
                             height: 32, padding: "0 12px", border: "1px solid #FECACA", borderRadius: "var(--r-md)",
-                            background: "var(--danger-bg)", fontSize: 12, fontWeight: 600, color: "var(--danger)",
+                            background: "var(--danger-bg)", fontSize: 14, fontWeight: 400, color: "var(--danger)",
                             cursor: "pointer", fontFamily: "inherit",
                             display: "flex", alignItems: "center", gap: 5,
                           }}
@@ -686,7 +686,7 @@ export default function ConfiguracionPage({ section }: { section?: Configuracion
                       )}
                     </div>
                   </div>
-                  {logoError && <p style={{ fontSize: 12, color: "var(--danger)", margin: "10px 0 0" }}>{logoError}</p>}
+                  {logoError && <p style={{ fontSize: 14, color: "var(--danger)", margin: "10px 0 0" }}>{logoError}</p>}
                 </div>
 
               </>
@@ -734,8 +734,8 @@ function SettingCard({
       boxShadow: "0 1px 3px rgba(15,23,42,0.06)",
     }}>
       <div style={{ minWidth: 0 }}>
-        <p style={{ fontSize: 15, fontWeight: 600, color: "var(--fg-1)", margin: 0 }}>{label}</p>
-        {hint && <p style={{ fontSize: 13, color: "var(--fg-3)", margin: "4px 0 0" }}>{hint}</p>}
+        <p style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", margin: 0 }}>{label}</p>
+        {hint && <p style={{ fontSize: 14, color: "var(--fg-3)", margin: "4px 0 0" }}>{hint}</p>}
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
         {saving && <Loader2 size={14} className="animate-spin" style={{ color: "var(--fg-4)" }} />}
@@ -762,15 +762,15 @@ function NotificacionesTab() {
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <Bell size={18} style={{ color: stateInfo.color }} />
             <div>
-              <p style={{ fontSize: 13, fontWeight: 600, color: "var(--fg-1)", margin: 0 }}>Notificaciones web</p>
-              <p style={{ fontSize: 11, margin: "2px 0 0", color: stateInfo.color, fontWeight: 600 }}>{stateInfo.label}</p>
+              <p style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", margin: 0 }}>Notificaciones web</p>
+              <p style={{ fontSize: 14, margin: "2px 0 0", color: stateInfo.color, fontWeight: 400 }}>{stateInfo.label}</p>
             </div>
           </div>
         </div>
 
         <div style={{ padding: "4px 0" }}>
           <div style={{ padding: "8px 20px 4px" }}>
-            <p style={{ fontSize: 11, fontWeight: 700, color: "var(--fg-4)", textTransform: "uppercase", letterSpacing: "0.06em", margin: 0 }}>
+            <p style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-4)", textTransform: "uppercase", letterSpacing: "0.06em", margin: 0 }}>
               Te notificamos cuando
             </p>
           </div>
@@ -781,13 +781,13 @@ function NotificacionesTab() {
             "Se crea una orden urgente en el workspace",
           ].map((label) => (
             <div key={label} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "11px 20px", borderBottom: "1px solid #F8FAFC" }}>
-              <p style={{ fontSize: 13, color: "var(--fg-1)", margin: 0 }}>{label}</p>
+              <p style={{ fontSize: 14, color: "var(--fg-1)", margin: 0 }}>{label}</p>
               <span style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--success)", flexShrink: 0 }} />
             </div>
           ))}
         </div>
       </div>
-      <p style={{ fontSize: 12.5, color: "var(--fg-3)", margin: 0 }}>
+      <p style={{ fontSize: 14, color: "var(--fg-3)", margin: 0 }}>
         Las alertas del navegador fueron retiradas. En web verás notificaciones dentro de Pangui; la app móvil usa push nativo.
       </p>
     </div>
@@ -837,8 +837,8 @@ function AparienciaTab({ themePref, onSelect }: { themePref: ThemePref; onSelect
   return (
     <div style={{ maxWidth: 500, display: "flex", flexDirection: "column", gap: 20 }}>
       <div>
-        <h2 style={{ fontSize: 15, fontWeight: 700, color: "var(--fg-1)", margin: "0 0 4px" }}>Apariencia</h2>
-        <p style={{ fontSize: 13, color: "var(--fg-4)", margin: 0 }}>Elige cómo se ve Pangui en este dispositivo.</p>
+        <h2 style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", margin: "0 0 4px" }}>Apariencia</h2>
+        <p style={{ fontSize: 14, color: "var(--fg-4)", margin: 0 }}>Elige cómo se ve Pangui en este dispositivo.</p>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
@@ -861,8 +861,8 @@ function AparienciaTab({ themePref, onSelect }: { themePref: ThemePref; onSelect
               <ThemePreviewTile pref={pref} />
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                 <div>
-                  <p style={{ fontSize: 13, fontWeight: 600, color: "var(--fg-1)", margin: 0 }}>{label}</p>
-                  <p style={{ fontSize: 11, color: "var(--fg-4)", margin: "2px 0 0" }}>{desc}</p>
+                  <p style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", margin: 0 }}>{label}</p>
+                  <p style={{ fontSize: 14, color: "var(--fg-4)", margin: "2px 0 0" }}>{desc}</p>
                 </div>
                 {selected && (
                   <span style={{
@@ -887,7 +887,7 @@ function AparienciaTab({ themePref, onSelect }: { themePref: ThemePref; onSelect
 const inputStyle: React.CSSProperties = {
   width: "100%", height: 40, padding: "0 12px",
   border: "1px solid var(--border)", borderRadius: "var(--r-md)",
-  fontSize: 13, color: "var(--fg-1)", outline: "none",
+  fontSize: 14, color: "var(--fg-1)", outline: "none",
   fontFamily: "inherit", background: "var(--surface-1)",
   boxSizing: "border-box", transition: "border-color 0.15s, box-shadow 0.15s",
 };

@@ -91,8 +91,8 @@ function CardHeader({ title, subtitle, action }: { title: string; subtitle?: str
   return (
     <div style={{ padding: "15px 18px", borderBottom: `1px solid ${C.border}`, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexShrink: 0 }}>
       <div>
-        <div style={{ fontSize: 14, fontWeight: 800, color: C.text1 }}>{title}</div>
-        {subtitle && <div style={{ fontSize: 12, color: C.text3, marginTop: 2 }}>{subtitle}</div>}
+        <div style={{ fontSize: 14, fontWeight: 400, color: C.text1 }}>{title}</div>
+        {subtitle && <div style={{ fontSize: 14, color: C.text3, marginTop: 2 }}>{subtitle}</div>}
       </div>
       {action}
     </div>
@@ -103,7 +103,7 @@ function CardHeader({ title, subtitle, action }: { title: string; subtitle?: str
 function ChartValue({ value, tone = C.text1 }: { value: string; tone?: string }) {
   return (
     <div style={{ padding: "12px 18px 4px" }}>
-      <div style={{ fontSize: 26, fontWeight: 850, color: tone, lineHeight: 1.1 }}>{value}</div>
+      <div style={{ fontSize: 14, fontWeight: 400, color: tone, lineHeight: 1.1 }}>{value}</div>
     </div>
   );
 }
@@ -150,14 +150,14 @@ function FilterChip({ icon: Icon, label, value, options, onChange }: {
           borderRadius: 7,
           background: active ? "var(--brand-tint)" : "var(--surface-1)",
           color: active ? "var(--brand)" : "var(--fg-2)",
-          fontSize: 12.5, fontWeight: active ? 600 : 500,
+          fontSize: 14, fontWeight: 400,
           cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap",
         }}
       >
         <span style={{ display: "flex", color: "var(--brand)" }}><Icon size={15} /></span>
         {label}
         {active && (
-          <span style={{ fontSize: 10, fontWeight: 700, background: "var(--brand)", color: "var(--fg-on-brand)", borderRadius: "50%", width: 15, height: 15, display: "flex", alignItems: "center", justifyContent: "center" }}>1</span>
+          <span style={{ fontSize: 14, fontWeight: 400, background: "var(--brand)", color: "var(--fg-on-brand)", borderRadius: "50%", width: 15, height: 15, display: "flex", alignItems: "center", justifyContent: "center" }}>1</span>
         )}
       </button>
 
@@ -169,12 +169,12 @@ function FilterChip({ icon: Icon, label, value, options, onChange }: {
           boxShadow: "var(--shadow-md)", overflow: "hidden",
         }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "8px 12px 6px", borderBottom: "1px solid var(--border)" }}>
-            <span style={{ fontSize: 11, fontWeight: 700, color: "var(--fg-3)", letterSpacing: "0.01em" }}>{label}</span>
+            <span style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-3)", letterSpacing: "0.01em" }}>{label}</span>
             {active && (
               <button
                 type="button"
                 onClick={() => { onChange("all"); setOpen(false); }}
-                style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontSize: 11, fontWeight: 600, color: "var(--brand)", fontFamily: "inherit" }}
+                style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontSize: 14, fontWeight: 400, color: "var(--brand)", fontFamily: "inherit" }}
               >
                 Limpiar
               </button>
@@ -196,7 +196,7 @@ function FilterChip({ icon: Icon, label, value, options, onChange }: {
                   onMouseEnter={e => { e.currentTarget.style.background = "var(--surface-hover)"; }}
                   onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}
                 >
-                  <span style={{ flex: 1, minWidth: 0, fontSize: 13, color: "var(--fg-1)", fontWeight: selected ? 600 : 400, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{o.label}</span>
+                  <span style={{ flex: 1, minWidth: 0, fontSize: 14, color: "var(--fg-1)", fontWeight: 400, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{o.label}</span>
                   {selected && <Check size={13} style={{ color: "var(--brand)", flexShrink: 0 }} />}
                 </button>
               );
@@ -215,7 +215,7 @@ const selectStyle: React.CSSProperties = {
   border: `1px solid ${C.border}`,
   background: C.surface,
   color: C.text1,
-  fontSize: 13,
+  fontSize: 14,
   cursor: "pointer",
 };
 
@@ -391,10 +391,10 @@ export default function AnaliticaActivosPage() {
     : null;
 
   if (loading) {
-    return <div style={{ padding: 40, color: C.text3, fontSize: 13 }}>Cargando analítica...</div>;
+    return <div style={{ padding: 40, color: C.text3, fontSize: 14 }}>Cargando analítica...</div>;
   }
   if (!workspaceId) {
-    return <div style={{ padding: 40, color: C.text3, fontSize: 13 }}>No se pudo cargar el workspace.</div>;
+    return <div style={{ padding: 40, color: C.text3, fontSize: 14 }}>No se pudo cargar el workspace.</div>;
   }
 
   const availTone = fleet.availabilityPct == null ? "neutral"
@@ -442,9 +442,9 @@ export default function AnaliticaActivosPage() {
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
             <Activity size={15} style={{ color: C.brand, flexShrink: 0 }} />
-            <span style={{ fontSize: 13, fontWeight: 800, color: C.text1 }}>Estado actual</span>
+            <span style={{ fontSize: 14, fontWeight: 400, color: C.text1 }}>Estado actual</span>
           </div>
-          <span style={{ fontSize: 12, color: C.text3 }}>
+          <span style={{ fontSize: 14, color: C.text3 }}>
             {filteredAssets.length} {filteredAssets.length === 1 ? "activo" : "activos"} en el filtro
           </span>
         </div>
@@ -485,8 +485,8 @@ export default function AnaliticaActivosPage() {
             display: "flex", flexDirection: "column", justifyContent: "center", gap: 8,
             minWidth: 0,
           }}>
-            <div style={{ fontSize: 12.5, color: C.text2, minWidth: 0 }}>
-              <span style={{ fontWeight: 600, color: C.text1 }}>{cell.label}</span>
+            <div style={{ fontSize: 14, color: C.text2, minWidth: 0 }}>
+              <span style={{ fontWeight: 400, color: C.text1 }}>{cell.label}</span>
               {cell.qualifier && (
                 <span style={{ color: C.text3 }}> ({cell.qualifier})</span>
               )}
@@ -496,7 +496,7 @@ export default function AnaliticaActivosPage() {
                 <span style={{ width: 9, height: 9, borderRadius: "50%", background: cell.dot, flexShrink: 0 }} />
               )}
               <span style={{
-                fontSize: cell.muted ? 15 : 23, fontWeight: 850, lineHeight: 1.1,
+                fontSize: 14, fontWeight: 400, lineHeight: 1.1,
                 color: cell.muted ? C.text3 : C.text1,
               }}>{cell.value}</span>
             </div>
@@ -523,10 +523,10 @@ export default function AnaliticaActivosPage() {
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke={C.border} vertical={false} />
-                  <XAxis dataKey="label" tick={{ fontSize: 11, fill: C.text3 }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 11, fill: C.text3 }} axisLine={false} tickLine={false}
+                  <XAxis dataKey="label" tick={{ fontSize: 14, fill: C.text3 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 14, fill: C.text3 }} axisLine={false} tickLine={false}
                          domain={["dataMin - 1", 100]} tickFormatter={(v) => `${Number(v).toFixed(0)}%`} />
-                  <Tooltip contentStyle={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12 }}
+                  <Tooltip contentStyle={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 14 }}
                            formatter={(v) => [v == null ? "Sin datos" : `${Number(v)}%`, "Disponibilidad"]} />
                   <Area type="monotone" dataKey="availabilityPct" name="Disponibilidad"
                         stroke={C.success} strokeWidth={2} fill="url(#availFill)"
@@ -554,15 +554,15 @@ export default function AnaliticaActivosPage() {
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke={C.border} vertical={false} />
-                  <XAxis dataKey="label" tick={{ fontSize: 11, fill: C.text3 }} axisLine={false} tickLine={false} />
-                  <YAxis domain={[0, 100]} tick={{ fontSize: 11, fill: C.text3 }} axisLine={false} tickLine={false}
+                  <XAxis dataKey="label" tick={{ fontSize: 14, fill: C.text3 }} axisLine={false} tickLine={false} />
+                  <YAxis domain={[0, 100]} tick={{ fontSize: 14, fill: C.text3 }} axisLine={false} tickLine={false}
                          tickFormatter={(v) => `${v}%`} />
-                  <Tooltip contentStyle={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12 }}
+                  <Tooltip contentStyle={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 14 }}
                            formatter={(v) => [v == null ? "Sin datos" : `${Number(v)}%`, "Cumplimiento"]} />
                   {/* The 90% "world class" benchmark, drawn so a month can be
                       read against the goal and not just against itself. */}
                   <ReferenceLine y={90} yAxisId={0} stroke={C.success} strokeDasharray="4 4"
-                                 label={{ value: "meta 90%", position: "insideTopRight", fontSize: 10, fill: C.success }} />
+                                 label={{ value: "meta 90%", position: "insideTopRight", fontSize: 14, fill: C.success }} />
                   <Area type="monotone" dataKey="pmCompliancePct" name="Cumplimiento"
                         stroke={C.brand} strokeWidth={2} fill="url(#pmFill)" dot={{ r: 3 }} connectNulls />
                 </AreaChart>
@@ -585,10 +585,10 @@ export default function AnaliticaActivosPage() {
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={series} margin={{ left: -10, right: 20 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke={C.border} vertical={false} />
-                  <XAxis dataKey="label" tick={{ fontSize: 11, fill: C.text3 }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 11, fill: C.text3 }} axisLine={false} tickLine={false} allowDecimals={false} />
-                  <Tooltip contentStyle={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12 }} />
-                  <Legend wrapperStyle={{ fontSize: 12 }} iconType="circle" iconSize={8} />
+                  <XAxis dataKey="label" tick={{ fontSize: 14, fill: C.text3 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 14, fill: C.text3 }} axisLine={false} tickLine={false} allowDecimals={false} />
+                  <Tooltip contentStyle={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 14 }} />
+                  <Legend wrapperStyle={{ fontSize: 14 }} iconType="circle" iconSize={8} />
                   <Bar dataKey="preventives" name="Preventivas" stackId="a" fill={C.success} />
                   <Bar dataKey="failures" name="Correctivas" stackId="a" fill={C.danger} radius={[4, 4, 0, 0]} />
                 </BarChart>
@@ -613,17 +613,17 @@ export default function AnaliticaActivosPage() {
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={series} margin={{ left: -10, right: 8 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke={C.border} vertical={false} />
-                  <XAxis dataKey="label" tick={{ fontSize: 11, fill: C.text3 }} axisLine={false} tickLine={false} />
-                  <YAxis yAxisId="mtbf" tick={{ fontSize: 11, fill: C.text3 }} axisLine={false} tickLine={false} />
-                  <YAxis yAxisId="mttr" orientation="right" tick={{ fontSize: 11, fill: C.text3 }} axisLine={false} tickLine={false} />
+                  <XAxis dataKey="label" tick={{ fontSize: 14, fill: C.text3 }} axisLine={false} tickLine={false} />
+                  <YAxis yAxisId="mtbf" tick={{ fontSize: 14, fill: C.text3 }} axisLine={false} tickLine={false} />
+                  <YAxis yAxisId="mttr" orientation="right" tick={{ fontSize: 14, fill: C.text3 }} axisLine={false} tickLine={false} />
                   <Tooltip
-                    contentStyle={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12 }}
+                    contentStyle={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 14 }}
                     formatter={(v, name) => [
                       v == null ? "Sin datos" : `${Number(v)} ${name === "MTBF" ? "días" : "h"}`,
                       name,
                     ]}
                   />
-                  <Legend wrapperStyle={{ fontSize: 12 }} iconType="circle" iconSize={8} />
+                  <Legend wrapperStyle={{ fontSize: 14 }} iconType="circle" iconSize={8} />
                   <Line yAxisId="mtbf" type="monotone" dataKey="mtbfDays" name="MTBF"
                         stroke={C.brand} strokeWidth={2} dot={{ r: 3 }} connectNulls />
                   <Line yAxisId="mttr" type="monotone" dataKey="mttrHours" name="MTTR"
@@ -647,9 +647,9 @@ export default function AnaliticaActivosPage() {
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={series} margin={{ left: -10, right: 20 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke={C.border} vertical={false} />
-                  <XAxis dataKey="label" tick={{ fontSize: 11, fill: C.text3 }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 11, fill: C.text3 }} axisLine={false} tickLine={false} />
-                  <Tooltip contentStyle={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12 }}
+                  <XAxis dataKey="label" tick={{ fontSize: 14, fill: C.text3 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 14, fill: C.text3 }} axisLine={false} tickLine={false} />
+                  <Tooltip contentStyle={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 14 }}
                            formatter={(v) => [`${Number(v ?? 0)} h`, "Detenido"]} />
                   <Bar dataKey="downtimeHours" name="Horas" radius={[4, 4, 0, 0]}>
                     {series.map(p => (
@@ -674,8 +674,8 @@ export default function AnaliticaActivosPage() {
                   <Pie data={critSplit} dataKey="value" nameKey="name" innerRadius={58} outerRadius={92} paddingAngle={2}>
                     {critSplit.map(s => <Cell key={s.key} fill={CRIT_FILL[s.key]} />)}
                   </Pie>
-                  <Tooltip contentStyle={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12 }} />
-                  <Legend wrapperStyle={{ fontSize: 12 }} iconType="circle" iconSize={8} />
+                  <Tooltip contentStyle={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 14 }} />
+                  <Legend wrapperStyle={{ fontSize: 14 }} iconType="circle" iconSize={8} />
                 </PieChart>
               </ResponsiveContainer>
             ) : <EmptyChart text="Sin activos que coincidan con el filtro." />}
@@ -687,16 +687,16 @@ export default function AnaliticaActivosPage() {
       <Card style={{ marginTop: 14 }}>
         <CardHeader title="Activos con más fallas" />
         {ranked.length === 0 ? (
-          <div style={{ padding: 28, color: C.text3, fontSize: 13, textAlign: "center" }}>
+          <div style={{ padding: 28, color: C.text3, fontSize: 14, textAlign: "center" }}>
             Sin fallas registradas en el período para los activos filtrados.
           </div>
         ) : (
           <div style={{ overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
               <thead>
                 <tr style={{ background: "var(--surface-hover)" }}>
                   {["Activo", "Criticidad", "Fallas", "MTBF", "MTTR", "Detenido", "Disponibilidad"].map((h, i) => (
-                    <th key={h} style={{ padding: "10px 14px", textAlign: i === 0 || i === 1 ? "left" : "right", fontWeight: 700, color: C.text3, whiteSpace: "nowrap" }}>{h}</th>
+                    <th key={h} style={{ padding: "10px 14px", textAlign: i === 0 || i === 1 ? "left" : "right", fontWeight: 400, color: C.text3, whiteSpace: "nowrap" }}>{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -705,9 +705,9 @@ export default function AnaliticaActivosPage() {
                   <tr key={asset.id}
                       onClick={() => router.push(`/activos?id=${encodeURIComponent(asset.id)}`)}
                       style={{ borderTop: `1px solid ${C.border}`, cursor: "pointer" }}>
-                    <td style={{ padding: "10px 14px", color: C.text1, fontWeight: 600 }}>{asset.nombre}</td>
+                    <td style={{ padding: "10px 14px", color: C.text1, fontWeight: 400 }}>{asset.nombre}</td>
                     <td style={{ padding: "10px 14px" }}>
-                      <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 6,
+                      <span style={{ fontSize: 14, fontWeight: 400, padding: "2px 8px", borderRadius: 6,
                         background: asset.criticidad === "critico" ? C.dangerBg : asset.criticidad === "semi_critico" ? C.warningBg : C.successBg,
                         color: CRIT_FILL[asset.criticidad ?? "no_critico"] }}>
                         {CRIT_LABEL[asset.criticidad ?? "no_critico"]}
@@ -717,7 +717,7 @@ export default function AnaliticaActivosPage() {
                     <td style={{ padding: "10px 14px", textAlign: "right", color: C.text2 }}>{fmtHours(m.mtbfHours)}</td>
                     <td style={{ padding: "10px 14px", textAlign: "right", color: C.text2 }}>{fmtHours(m.mttrHours)}</td>
                     <td style={{ padding: "10px 14px", textAlign: "right", color: C.text2 }}>{m.repairHours.toFixed(1)} h</td>
-                    <td style={{ padding: "10px 14px", textAlign: "right", fontWeight: 700,
+                    <td style={{ padding: "10px 14px", textAlign: "right", fontWeight: 400,
                       color: m.availabilityPct == null ? C.text3 : m.availabilityPct >= 99 ? C.success : m.availabilityPct >= 95 ? C.warning : C.danger }}>
                       {fmtPct(m.availabilityPct, 2)}
                     </td>
@@ -734,7 +734,7 @@ export default function AnaliticaActivosPage() {
 
 function EmptyChart({ text }: { text: string }) {
   return (
-    <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", padding: "0 28px", textAlign: "center", color: C.text3, fontSize: 13 }}>
+    <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", padding: "0 28px", textAlign: "center", color: C.text3, fontSize: 14 }}>
       {text}
     </div>
   );

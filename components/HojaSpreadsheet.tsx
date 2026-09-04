@@ -74,7 +74,7 @@ function Cell({
           autoFocus
           style={{
             width: "100%", height: "100%", border: "none", outline: "2px solid var(--brand)",
-            outlineOffset: -2, padding: "0 10px", fontSize: 13, fontFamily: "inherit",
+            outlineOffset: -2, padding: "0 10px", fontSize: 14, fontFamily: "inherit",
             background: "var(--surface-1)", color: "var(--fg-1)", textAlign: tipo === "numero" ? "right" : "left",
             boxSizing: "border-box",
           }}
@@ -91,7 +91,7 @@ function Cell({
         ...cellStyle,
         padding: "0 10px",
         cursor: readOnly ? "default" : "text",
-        fontSize: 13,
+        fontSize: 14,
         color: "var(--fg-1)",
         justifyContent: tipo === "numero" ? "flex-end" : "flex-start",
         userSelect: "none",
@@ -99,7 +99,7 @@ function Cell({
         textOverflow: "ellipsis",
       }}
     >
-      {value || <span style={{ color: "var(--fg-4)", fontSize: 12 }}>—</span>}
+      {value || <span style={{ color: "var(--fg-4)", fontSize: 14 }}>—</span>}
     </div>
   );
 }
@@ -250,7 +250,7 @@ function SheetGrid({
         {/* Header row */}
         <div style={{ display: "flex", borderBottom: "2px solid var(--border)", background: "var(--surface-0)", position: "sticky", top: 0, zIndex: 1 }}>
           <div style={{ width: ROW_NUM_WIDTH, height: HEADER_HEIGHT, display: "flex", alignItems: "center", justifyContent: "center", borderRight: "1px solid var(--border)", flexShrink: 0 }}>
-            <span style={{ fontSize: 11, fontWeight: 600, color: "var(--fg-4)" }}>#</span>
+            <span style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-4)" }}>#</span>
           </div>
           {cols.map(col => (
             <div
@@ -267,16 +267,16 @@ function SheetGrid({
             >
               {/* Sin textTransform: el label lo escribe el usuario al crear la
                   columna, así que se muestra tal cual lo tipeó. */}
-              <span style={{ fontSize: 12, fontWeight: 700, color: "var(--fg-1)", letterSpacing: "0.01em", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              <span style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", letterSpacing: "0.01em", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                 {col.label}
               </span>
-              <span style={{ fontSize: 10, color: "var(--fg-4)" }}>{col.tipo === "numero" ? "123" : "Aa"}</span>
+              <span style={{ fontSize: 14, color: "var(--fg-4)" }}>{col.tipo === "numero" ? "123" : "Aa"}</span>
             </div>
           ))}
           {!readOnly && (
             <button
               onClick={handleAddColumn}
-              style={{ width: COL_WIDTH, height: HEADER_HEIGHT, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, border: "none", borderLeft: "1px solid var(--border)", background: "var(--surface-0)", cursor: "pointer", fontSize: 12, color: "var(--brand-fg)", fontFamily: "inherit", flexShrink: 0 }}
+              style={{ width: COL_WIDTH, height: HEADER_HEIGHT, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, border: "none", borderLeft: "1px solid var(--border)", background: "var(--surface-0)", cursor: "pointer", fontSize: 14, color: "var(--brand-fg)", fontFamily: "inherit", flexShrink: 0 }}
               onMouseEnter={e => { e.currentTarget.style.background = "var(--surface-hover)"; }}
               onMouseLeave={e => { e.currentTarget.style.background = "var(--surface-0)"; }}
             >
@@ -303,7 +303,7 @@ function SheetGrid({
                   <Trash2 size={12} />
                 </button>
               ) : (
-                <span style={{ fontSize: 11, color: "var(--fg-4)" }}>{rowIdx + 1}</span>
+                <span style={{ fontSize: 14, color: "var(--fg-4)" }}>{rowIdx + 1}</span>
               )}
             </div>
             {cols.map(col => (
@@ -324,7 +324,7 @@ function SheetGrid({
         {!readOnly && (
           <button
             onClick={handleAddRow}
-            style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "10px 14px", background: "var(--surface-1)", border: "none", borderBottom: "1px solid var(--divider)", cursor: "pointer", fontSize: 13, color: "var(--brand-fg)", fontFamily: "inherit", textAlign: "left" }}
+            style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "10px 14px", background: "var(--surface-1)", border: "none", borderBottom: "1px solid var(--divider)", cursor: "pointer", fontSize: 14, color: "var(--brand-fg)", fontFamily: "inherit", textAlign: "left" }}
             onMouseEnter={e => { e.currentTarget.style.background = "var(--surface-hover)"; }}
             onMouseLeave={e => { e.currentTarget.style.background = "var(--surface-1)"; }}
           >
@@ -334,7 +334,7 @@ function SheetGrid({
 
         {/* Empty state */}
         {filas.length === 0 && readOnly && (
-          <div style={{ padding: "32px 0", textAlign: "center", color: "var(--fg-4)", fontSize: 13 }}>Sin filas registradas</div>
+          <div style={{ padding: "32px 0", textAlign: "center", color: "var(--fg-4)", fontSize: 14 }}>Sin filas registradas</div>
         )}
       </div>
     </div>
@@ -444,7 +444,7 @@ export default function HojaSpreadsheet({
               onDoubleClick={() => canEdit && handleRenameSheet(h)}
               style={{
                 padding: "4px 12px", border: "1px solid", borderRadius: 6, cursor: "pointer",
-                fontSize: 12, fontWeight: 600, fontFamily: "inherit", whiteSpace: "nowrap",
+                fontSize: 14, fontWeight: 400, fontFamily: "inherit", whiteSpace: "nowrap",
                 background: h.id === activeId ? "var(--brand)" : "var(--surface-1)",
                 borderColor: h.id === activeId ? "var(--brand)" : "var(--border)",
                 color: h.id === activeId ? "var(--fg-on-brand)" : "var(--fg-2)",
@@ -454,7 +454,7 @@ export default function HojaSpreadsheet({
               {canEdit && h.id === activeId && (
                 <span
                   onClick={e => { e.stopPropagation(); handleDeleteSheet(h); }}
-                  style={{ marginLeft: 6, opacity: 0.6, cursor: "pointer", fontSize: 11 }}
+                  style={{ marginLeft: 6, opacity: 0.6, cursor: "pointer", fontSize: 14 }}
                   title="Eliminar hoja"
                 >✕</span>
               )}
@@ -475,7 +475,7 @@ export default function HojaSpreadsheet({
         {canEdit && activeHoja && (
           <button
             onClick={startCopySheet}
-            style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 12px", background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: 6, cursor: "pointer", fontSize: 12, color: "var(--fg-2)", fontWeight: 600, fontFamily: "inherit", flexShrink: 0 }}
+            style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 12px", background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: 6, cursor: "pointer", fontSize: 14, color: "var(--fg-2)", fontWeight: 400, fontFamily: "inherit", flexShrink: 0 }}
             onMouseEnter={e => { e.currentTarget.style.opacity = "0.85"; }}
             onMouseLeave={e => { e.currentTarget.style.opacity = "1"; }}
             title="Copiar esta hoja a otra OT"
@@ -488,7 +488,7 @@ export default function HojaSpreadsheet({
         {canExport && activeHoja && (
           <button
             onClick={() => exportFnRef.current?.()}
-            style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 12px", background: "var(--success-bg)", border: "1px solid var(--st-progress-dot)", borderRadius: 6, cursor: "pointer", fontSize: 12, color: "var(--success)", fontWeight: 600, fontFamily: "inherit", flexShrink: 0 }}
+            style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 12px", background: "var(--success-bg)", border: "1px solid var(--st-progress-dot)", borderRadius: 6, cursor: "pointer", fontSize: 14, color: "var(--success)", fontWeight: 400, fontFamily: "inherit", flexShrink: 0 }}
             onMouseEnter={e => { e.currentTarget.style.opacity = "0.85"; }}
             onMouseLeave={e => { e.currentTarget.style.opacity = "1"; }}
           >
@@ -500,7 +500,7 @@ export default function HojaSpreadsheet({
       {/* Hint */}
       {canEdit && activeHoja && (
         <div style={{ padding: "6px 14px", background: "var(--surface-0)", borderBottom: "1px solid var(--divider)" }}>
-          <span style={{ fontSize: 11, color: "var(--fg-4)" }}>
+          <span style={{ fontSize: 14, color: "var(--fg-4)" }}>
             Doble clic en encabezado para renombrar · Clic derecho para cambiar tipo o eliminar columna
           </span>
         </div>
@@ -510,11 +510,11 @@ export default function HojaSpreadsheet({
       {hojas.length === 0 && (
         <div style={{ padding: "40px 0", textAlign: "center", color: "var(--fg-4)" }}>
           <FileSpreadsheet size={36} style={{ margin: "0 auto 12px", opacity: 0.3 }} />
-          <p style={{ fontSize: 13, margin: "0 0 12px" }}>Sin hojas de cálculo</p>
+          <p style={{ fontSize: 14, margin: "0 0 12px" }}>Sin hojas de cálculo</p>
           {canEdit && (
             <button
               onClick={() => setCreateOpen(true)}
-              style={{ padding: "8px 20px", background: "var(--brand)", color: "var(--fg-on-brand)", border: "none", borderRadius: 8, cursor: "pointer", fontSize: 13, fontWeight: 600, fontFamily: "inherit" }}
+              style={{ padding: "8px 20px", background: "var(--brand)", color: "var(--fg-on-brand)", border: "none", borderRadius: 8, cursor: "pointer", fontSize: 14, fontWeight: 400, fontFamily: "inherit" }}
             >
               Crear hoja
             </button>
@@ -538,7 +538,7 @@ export default function HojaSpreadsheet({
       {/* Footer */}
       {activeHoja && (
         <div style={{ padding: "8px 14px", borderTop: "1px solid var(--divider)", background: "var(--surface-0)", display: "flex", justifyContent: "center" }}>
-          <span style={{ fontSize: 11, color: "var(--fg-4)" }}>
+          <span style={{ fontSize: 14, color: "var(--fg-4)" }}>
             {activeHoja.columnas.length} columna{activeHoja.columnas.length !== 1 ? "s" : ""}
             {" · "}hoja {hojas.findIndex(h => h.id === activeHoja.id) + 1} de {hojas.length}
           </span>
@@ -549,15 +549,15 @@ export default function HojaSpreadsheet({
         <div role="presentation" onMouseDown={e => { if (e.target === e.currentTarget && !creating) setCreateOpen(false); }} style={{ position: "fixed", inset: 0, zIndex: 800, display: "grid", placeItems: "center", padding: 24, background: "rgba(15,23,42,.45)" }}>
           <div role="dialog" aria-modal="true" aria-label="Crear hoja" style={{ width: "min(480px, 100%)", overflow: "hidden", border: "1px solid var(--border)", borderRadius: "var(--r-xl)", background: "var(--surface-1)", boxShadow: "var(--shadow-lg)" }}>
             <div style={{ height: 58, padding: "0 14px 0 20px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid var(--border)" }}>
-              <strong style={{ fontSize: 16, color: "var(--fg-1)" }}>Nueva hoja de cálculo</strong>
+              <strong style={{ fontSize: 14, color: "var(--fg-1)" }}>Nueva hoja de cálculo</strong>
               <button type="button" aria-label="Cerrar" disabled={creating} onClick={() => setCreateOpen(false)} style={{ width: 34, height: 34, borderRadius: "50%", border: "1px solid var(--border)", background: "var(--surface-0)", color: "var(--fg-1)", display: "grid", placeItems: "center", cursor: "pointer" }}><X size={18} /></button>
             </div>
             <div style={{ padding: 18, display: "grid", gap: 10 }}>
-              <p style={{ margin: "0 0 2px", fontSize: 13, color: "var(--fg-3)" }}>Selecciona la plantilla que necesitas. Podrás renombrarla después.</p>
+              <p style={{ margin: "0 0 2px", fontSize: 14, color: "var(--fg-3)" }}>Selecciona la plantilla que necesitas. Podrás renombrarla después.</p>
               {SHEET_TYPES.map(option => (
                 <button key={option.tipo} type="button" disabled={creating} onClick={() => handleCreateSheet(option.tipo)} style={{ padding: "14px 16px", border: "1px solid var(--border)", borderRadius: "var(--r-lg)", background: "var(--surface-1)", textAlign: "left", cursor: "pointer", fontFamily: "inherit" }}>
-                  <span style={{ display: "block", fontSize: 14, fontWeight: 650, color: "var(--fg-1)" }}>{option.title}</span>
-                  <span style={{ display: "block", marginTop: 3, fontSize: 12.5, color: "var(--fg-3)" }}>{option.description}</span>
+                  <span style={{ display: "block", fontSize: 14, fontWeight: 400, color: "var(--fg-1)" }}>{option.title}</span>
+                  <span style={{ display: "block", marginTop: 3, fontSize: 14, color: "var(--fg-3)" }}>{option.description}</span>
                 </button>
               ))}
             </div>

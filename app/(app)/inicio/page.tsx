@@ -840,7 +840,7 @@ export default function InicioDashboard() {
 
   if (loading) {
     return (
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", color: "var(--fg-4)", fontSize: 13 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", color: "var(--fg-4)", fontSize: 14 }}>
         Cargando…
       </div>
     );
@@ -848,14 +848,14 @@ export default function InicioDashboard() {
 
   if (loadError) {
     return (
-      <div style={{ display: "flex", flexDirection: "column", gap: 12, alignItems: "center", justifyContent: "center", height: "100vh", color: "var(--fg-2)", fontSize: 13 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 12, alignItems: "center", justifyContent: "center", height: "100vh", color: "var(--fg-2)", fontSize: 14 }}>
         <span>No se pudo cargar el inicio.</span>
         <button
           onClick={() => window.location.reload()}
           style={{
             height: 34, padding: "0 16px", border: "1px solid var(--border-1)",
             borderRadius: "var(--r-md)", background: "var(--surface-2)",
-            color: "var(--fg-1)", fontSize: 13, fontFamily: "inherit", cursor: "pointer",
+            color: "var(--fg-1)", fontSize: 14, fontFamily: "inherit", cursor: "pointer",
           }}
         >
           Reintentar
@@ -874,7 +874,7 @@ export default function InicioDashboard() {
           <p style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-3)", letterSpacing: "0.01em", margin: "0 0 6px", minHeight: 18 }}>
             {dateLabel}
           </p>
-          <h1 style={{ fontSize: 26, fontWeight: 700, color: "var(--fg-1)", letterSpacing: "-0.02em", margin: 0 }}>
+          <h1 style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", letterSpacing: "-0.02em", margin: 0 }}>
             {greetingText}{greetingText && userName ? `, ${userName}` : ""}
           </h1>
         </div>
@@ -888,7 +888,7 @@ export default function InicioDashboard() {
             padding: "0 16px", height: 38,
             background: "var(--brand)", color: "var(--fg-on-brand)",
             border: "none", borderRadius: 8,
-            fontSize: 14, fontWeight: 500,
+            fontSize: 14, fontWeight: 400,
             cursor: "pointer", fontFamily: "inherit",
             whiteSpace: "nowrap", flexShrink: 0,
           }}
@@ -984,7 +984,7 @@ export default function InicioDashboard() {
                   background: "linear-gradient(135deg, var(--brand-active), var(--brand))",
                   color: "var(--fg-on-brand)",
                   display: "flex", alignItems: "center", justifyContent: "center",
-                  fontSize: 11, fontWeight: 700,
+                  fontSize: 14, fontWeight: 400,
                 }}>{t.iniciales}</span>
                 <span style={{ flex: 1, minWidth: 0 }}>
                   <span style={{ display: "block", fontSize: 14, fontWeight: 400, color: "var(--fg-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
@@ -1209,7 +1209,7 @@ export default function InicioDashboard() {
                      apilado sobre la etiqueta, no un spinner gris en línea. */
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: 280, gap: 12, color: "var(--fg-4)" }}>
                     <Loader2 size={22} className="animate-spin" style={{ color: "var(--brand)" }} />
-                    <p style={{ fontSize: 13, color: "var(--fg-2)", fontWeight: 500, margin: 0 }}>Cargando…</p>
+                    <p style={{ fontSize: 14, color: "var(--fg-2)", fontWeight: 400, margin: 0 }}>Cargando…</p>
                   </div>
                 ) : (
                   <OTEditPanel
@@ -1326,7 +1326,7 @@ function KpiCard({ label, value, sub, trend, onClick }: {
       <div style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", letterSpacing: "0.01em", marginBottom: 8 }}>{label}</div>
       {/* Sin fontFamily propio: pedía "Inter", que esta app no carga, así que
           caía en system-ui mientras el resto de la página va en Geist. */}
-      <div style={{ fontSize: 26, fontWeight: 700, color: trendColor, lineHeight: 1.15, letterSpacing: "-0.02em", marginBottom: 4, fontVariantNumeric: "tabular-nums" }}>{value}</div>
+      <div style={{ fontSize: 14, fontWeight: 400, color: trendColor, lineHeight: 1.15, letterSpacing: "-0.02em", marginBottom: 4, fontVariantNumeric: "tabular-nums" }}>{value}</div>
       <div style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)" }}>{sub}</div>
     </div>
   );
@@ -1343,11 +1343,11 @@ function Card({ title, action, onAction, controls, children }: {
   return (
     <div style={{ background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: 10, overflow: "hidden" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", borderBottom: "1px solid var(--border)" }}>
-        <span style={{ fontSize: 14, fontWeight: 600, color: "var(--fg-1)", flexShrink: 0 }}>{title}</span>
+        <span style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", flexShrink: 0 }}>{title}</span>
         <span style={{ flex: 1 }} />
         {controls}
         {action && (
-          <button onClick={onAction} style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: "var(--brand)", fontWeight: 500, background: "none", border: "none", cursor: "pointer", fontFamily: "inherit" }}>
+          <button onClick={onAction} style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 14, color: "var(--brand)", fontWeight: 400, background: "none", border: "none", cursor: "pointer", fontFamily: "inherit" }}>
             {action} <ArrowRight size={11} />
           </button>
         )}
@@ -1459,12 +1459,12 @@ function HeaderMultiSelect({ icon: Icon, label, values, options, onChange, singl
         }}>
           {/* Cabecera igual a la de los filtros de /ordenes. */}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "8px 12px 6px", borderBottom: "1px solid var(--border)" }}>
-            <span style={{ fontSize: 13, fontWeight: 700, color: "var(--fg-3)", letterSpacing: "0.01em" }}>{label}</span>
+            <span style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-3)", letterSpacing: "0.01em" }}>{label}</span>
             {active && (
               <button
                 type="button"
                 onClick={() => onChange([])}
-                style={{ fontSize: 13, color: "var(--fg-4)", background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", padding: 0 }}
+                style={{ fontSize: 14, color: "var(--fg-4)", background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", padding: 0 }}
               >
                 Limpiar
               </button>
@@ -1562,6 +1562,6 @@ function LiveTimer({ desde, ahora }: { desde: number | null; ahora: number | nul
 
 function EmptyState({ label }: { label: string }) {
   return (
-    <div style={{ padding: "28px 16px", textAlign: "center", color: "var(--fg-4)", fontSize: 13 }}>{label}</div>
+    <div style={{ padding: "28px 16px", textAlign: "center", color: "var(--fg-4)", fontSize: 14 }}>{label}</div>
   );
 }

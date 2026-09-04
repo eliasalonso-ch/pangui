@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Plus, Search, X, ChevronDown, Loader2, FileText, ArrowUp, ArrowUpDown, Download, AlertTriangle, Calendar, Check, Copy, DatabaseArrowDown, Eye, EyeOff } from "lucide-react";
-import { useTopBarAction } from "@/components/TopBarActions";
 import { createClient, logRealtimeChannel } from "@/lib/supabase";
 import { esAdmin } from "@/lib/roles";
 import { fetchOrdenesPage, fetchAllOrdenesForExport, fetchAllOrdenesBulk, fetchOrdenesCalendarExtras, fetchOrdenListItem, searchOrdenes, ORDENES_SEARCH_LIMIT, deleteOrden, ORDENES_PAGE_SIZE, parseDescMeta, fetchMarcadasIds, toggleMarcada, matchesSearch, ELECTRILAM_WORKSPACE_ID } from "@/lib/ordenes-api";
@@ -1341,26 +1340,15 @@ export default function OrdenesBandeja({
         ? filteredCounts.completas.presupuestos
         : 0;
 
-  // Excel export lives in the global top bar (left of the bell) rather than in
-  // this page's toolbar, so the search row stays uncluttered.
+  // El export vivia en la topbar global (a la izquierda de la campana). Se
+  // movio junto al buscador de esta pagina: la topbar es compartida por toda la
+  // app, asi que un boton que solo funciona en /ordenes ahi parecia una funcion
+  // global rota -- exporta ORDENES, y no hay equivalente para activos, usuarios
+  // ni el resto. Junto al buscador queda claro sobre que actua.
   //
-  // Admins/owners only: the workbook serialises the whole workspace's OTs plus
-  // their hojas, fotos and materiales, which is not a member-level capability.
-  // Passing null unregisters the action entirely rather than showing it disabled.
-  useTopBarAction(
-    !esAdmin(myRol) ? null : {
-      id: "ordenes-export-excel",
-      label: ordenes.length === 0
-        ? "No hay órdenes para exportar"
-        : `Exportar todas las órdenes a Excel (${ordenes.length})`,
-      icon: exporting
-        ? <Loader2 size={18} className="animate-spin" />
-        : <DatabaseArrowDown size={18} />,
-      disabled: exporting || ordenes.length === 0,
-      onClick: () => { if (ordenes.length > 0 && !exporting) setExportConfigOpen(true); },
-    },
-    [ordenes.length, exporting, myRol],
-  );
+  // Sigue siendo solo admin/owner: el libro serializa las OTs del workspace
+  // entero con sus hojas, fotos y materiales, que no es una capacidad de member.
+  const puedeExportar = esAdmin(myRol);
 
   // ── Excel export (all OTs across tabs, respecting filters/search) ─────────
   //
@@ -1533,7 +1521,7 @@ export default function OrdenesBandeja({
                   paddingLeft:34, paddingRight:search ? 28 : 10,
                   height:38, width:"100%",
                   border:"1px solid var(--border)", borderRadius:8,
-                  fontSize:14, fontWeight:500, color:"var(--fg-1)", background:"var(--surface-1)",
+                  fontSize: 14, fontWeight: 400, color:"var(--fg-1)", background:"var(--surface-1)",
                   outline:"none", fontFamily:"inherit",
                 }}
                 onFocus={e => { e.currentTarget.style.borderColor = "var(--brand)"; }}
@@ -1548,11 +1536,38 @@ export default function OrdenesBandeja({
                 </button>
               )}
               {searchHitCap && (
-                <div style={{ position:"absolute", left:0, top:"calc(100% + 4px)", fontSize:13, color:"var(--fg-4)", whiteSpace:"nowrap" }}>
+                <div style={{ position:"absolute", left:0, top:"calc(100% + 4px)", fontSize: 14, color:"var(--fg-4)", whiteSpace:"nowrap" }}>
                   {`Más de ${ORDENES_SEARCH_LIMIT} resultados · refina la búsqueda`}
                 </div>
               )}
             </div>
+
+            {/* Exportar Excel. Junto al buscador porque actua sobre lo que el
+                buscador y los filtros dejan a la vista, no sobre toda la app. */}
+            {puedeExportar && (
+              <button
+                type="button"
+                onClick={() => { if (ordenes.length > 0 && !exporting) setExportConfigOpen(true); }}
+                disabled={exporting || ordenes.length === 0}
+                title={ordenes.length === 0
+                  ? "No hay órdenes para exportar"
+                  : `Exportar órdenes a Excel (${ordenes.length})`}
+                style={{
+                  flexShrink: 0, height: 38, padding: "0 12px",
+                  display: "inline-flex", alignItems: "center", gap: 7,
+                  border: "1px solid var(--border)", borderRadius: 8,
+                  background: "var(--surface-1)",
+                  color: ordenes.length === 0 || exporting ? "var(--fg-4)" : "var(--fg-2)",
+                  fontSize: 14, fontWeight: 400, fontFamily: "inherit",
+                  cursor: exporting || ordenes.length === 0 ? "default" : "pointer",
+                }}
+              >
+                {exporting
+                  ? <Loader2 size={16} className="animate-spin" />
+                  : <DatabaseArrowDown size={16} />}
+                Exportar
+              </button>
+            )}
 
 
             {/* Revisar MeConecta — Electrilam-exclusive (same single-tenant gate
@@ -1573,7 +1588,7 @@ export default function OrdenesBandeja({
                 background:"var(--brand)", color:"var(--fg-on-brand)",
                 border:"none", borderRadius:8,
                 // Matches the search input's type: 14px / 500.
-                fontSize:14, fontWeight:500,
+                fontSize: 14, fontWeight: 400,
                 cursor:"pointer", fontFamily:"inherit",
                 whiteSpace:"nowrap", flexShrink:0,
               }}
@@ -1596,7 +1611,7 @@ export default function OrdenesBandeja({
             borderTop: "1px solid var(--border-strong)", borderBottom: "1px solid var(--border-strong)",
           }}>
             <Copy size={14} style={{ color: "var(--st-wait-fg)", flexShrink: 0 }} />
-            <span style={{ fontSize: 13, color: "var(--st-wait-fg)", flex: 1 }}>
+            <span style={{ fontSize: 14, color: "var(--st-wait-fg)", flex: 1 }}>
               {copyingSheet
                 ? <>Copiando <strong>{pendingCopy.hoja.nombre}</strong>…</>
                 : <>Selecciona la OT donde copiar <strong>{pendingCopy.hoja.nombre}</strong>. Puedes filtrar y buscar normalmente.</>}
@@ -1608,7 +1623,7 @@ export default function OrdenesBandeja({
               style={{
                 padding: "5px 12px", border: "1px solid var(--border-strong)", borderRadius: 6,
                 background: "var(--surface-1)", color: "var(--fg-2)", cursor: copyingSheet ? "default" : "pointer",
-                fontSize: 12, fontWeight: 600, fontFamily: "inherit", flexShrink: 0, opacity: copyingSheet ? 0.6 : 1,
+                fontSize: 14, fontWeight: 400, fontFamily: "inherit", flexShrink: 0, opacity: copyingSheet ? 0.6 : 1,
               }}
             >
               Cancelar
@@ -1746,11 +1761,11 @@ export default function OrdenesBandeja({
                   onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = "var(--surface-hover)"; }}
                   onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = "var(--surface-canvas)"; }}
                 >
-                  <span style={{ fontSize:13, fontWeight: isActive ? 700 : 500, color: isActive ? "var(--brand-fg)" : "var(--fg-2)" }}>
+                  <span style={{ fontSize: 14, fontWeight: 400, color: isActive ? "var(--brand-fg)" : "var(--fg-2)" }}>
                     {t.label}
                   </span>
                   <span style={{
-                    fontSize:13, fontWeight:700, padding:"2px 8px", borderRadius:4,
+                    fontSize: 14, fontWeight: 400, padding:"2px 8px", borderRadius:4,
                     background: isActive ? "var(--brand-tint)" : "var(--surface-hover)",
                     color: isActive ? "var(--brand-fg)" : "var(--fg-4)",
                   }}>
@@ -1800,17 +1815,17 @@ export default function OrdenesBandeja({
                     // vertical que el primer chip.
                     width:"100%", padding:"10px 20px",
                     background:"var(--surface-canvas)", border:"none",
-                    fontSize:13, color:"var(--fg-2)",
+                    fontSize: 14, color:"var(--fg-2)",
                     cursor:"pointer", fontFamily:"inherit", textAlign:"left",
                   }}
                   onMouseEnter={e => { e.currentTarget.style.background = "var(--surface-hover)"; }}
                   onMouseLeave={e => { e.currentTarget.style.background = "var(--surface-canvas)"; }}
                 >
                   <span style={{ color:"var(--fg-3)" }}>Mostrando:</span>
-                  <span style={{ maxWidth:220, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", fontWeight:600, color:"var(--brand-fg)" }} title={currentViewLabel}>{currentViewLabel}</span>
+                  <span style={{ maxWidth:220, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", fontWeight: 400, color:"var(--brand-fg)" }} title={currentViewLabel}>{currentViewLabel}</span>
                   <span aria-hidden="true" style={{ color:"var(--border-strong)", margin:"0 2px" }}>·</span>
                   <span style={{ color:"var(--fg-3)" }}>Orden:</span>
-                  <span style={{ maxWidth:180, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", fontWeight:600, color:"var(--fg-2)" }} title={currentSortLabel}>{currentSortLabel}</span>
+                  <span style={{ maxWidth:180, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", fontWeight: 400, color:"var(--fg-2)" }} title={currentSortLabel}>{currentSortLabel}</span>
                   <ChevronDown size={14} style={{ color:"var(--brand-fg)", transform: sortOpen ? "rotate(180deg)" : "none", transition:"transform 0.15s" }} />
                   {triggerHasAttention && (
                     <span aria-label="Hay órdenes que requieren atención"
@@ -1838,7 +1853,7 @@ export default function OrdenesBandeja({
                     scrollbarGutter:"stable both-edges",
                   }}>
                     {/* Mostrar — scope filter */}
-                    <div style={{ padding:"8px 14px 6px", fontSize:13, fontWeight:600, color:"var(--fg-4)", letterSpacing:0, borderBottom:"1px solid var(--border)", marginBottom:4 }}>
+                    <div style={{ padding:"8px 14px 6px", fontSize: 14, fontWeight: 400, color:"var(--fg-4)", letterSpacing:0, borderBottom:"1px solid var(--border)", marginBottom:4 }}>
                       Mostrar
                     </div>
                     {scopeOptions.map(o => {
@@ -1853,9 +1868,9 @@ export default function OrdenesBandeja({
                             display:"flex", alignItems:"center", gap:8,
                             width:"100%", textAlign:"left",
                             padding:"9px 14px", background: isActive ? "var(--brand-tint)" : "transparent",
-                            border:"none", fontSize:13,
+                            border:"none", fontSize: 14,
                             color: isActive ? "var(--brand-fg)" : "var(--fg-1)",
-                            fontWeight: isActive ? 600 : 400,
+                            fontWeight: 400,
                             cursor:"pointer", fontFamily:"inherit",
                           }}
                           onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = "var(--surface-hover)"; }}
@@ -1869,7 +1884,7 @@ export default function OrdenesBandeja({
                             }} />
                           )}
                           <span style={{
-                            fontSize:13, fontWeight:600, minWidth:18, textAlign:"right",
+                            fontSize: 14, fontWeight: 400, minWidth:18, textAlign:"right",
                             color: isActive ? "var(--brand-fg)" : "var(--fg-4)",
                           }}>
                             {o.count}
@@ -1881,7 +1896,7 @@ export default function OrdenesBandeja({
                     {/* Ordenar por. Sin la línea separadora, el título necesita
                         aire arriba para no pegarse a la última fila de arriba;
                         16px es el mismo margen que usa SidebarGroupLabel. */}
-                    <div style={{ padding:"8px 14px 6px", marginTop:12, fontSize:13, fontWeight:600, color:"var(--fg-4)", letterSpacing:0, borderBottom:"1px solid var(--border)", marginBottom:4 }}>
+                    <div style={{ padding:"8px 14px 6px", marginTop:12, fontSize: 14, fontWeight: 400, color:"var(--fg-4)", letterSpacing:0, borderBottom:"1px solid var(--border)", marginBottom:4 }}>
                       Ordenar por
                     </div>
                     {SORT_OPTIONS.filter(o => !o.soloCompletas || tab === "completas").map(o => (
@@ -1892,9 +1907,9 @@ export default function OrdenesBandeja({
                         style={{
                           display:"block", width:"100%", textAlign:"left",
                           padding:"9px 14px", background: sort === o.value ? "var(--brand-tint)" : "transparent",
-                          border:"none", fontSize:13,
+                          border:"none", fontSize: 14,
                           color: sort === o.value ? "var(--brand-fg)" : "var(--fg-1)",
-                          fontWeight: sort === o.value ? 600 : 400,
+                          fontWeight: 400,
                           cursor:"pointer", fontFamily:"inherit",
                         }}
                         onMouseEnter={e => { if (sort !== o.value) e.currentTarget.style.background = "var(--surface-hover)"; }}
@@ -1921,7 +1936,7 @@ export default function OrdenesBandeja({
                  dos respuestas equivocadas mientras la consulta viaja. */
               <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", height:280, gap:12, color:"var(--fg-4)" }}>
                 <Loader2 size={22} className="animate-spin" style={{ color:"var(--brand)" }} />
-                <p style={{ fontSize:13, color:"var(--fg-2)", fontWeight:500, margin:0 }}>Buscando…</p>
+                <p style={{ fontSize: 14, color:"var(--fg-2)", fontWeight: 400, margin:0 }}>Buscando…</p>
               </div>
             ) : filtered.length === 0 ? (
               <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", height:280, gap:12, color:"var(--fg-4)" }}>
@@ -1932,7 +1947,7 @@ export default function OrdenesBandeja({
                   <circle cx="19" cy="4" r="1" fill="#B29930"/>
                   <path d="M17 30a1 1 0 0 1-.707-.293l-4-4a1 1 0 1 1 1.414-1.414L17 27.586l7.293-7.293a1 1 0 1 1 1.414 1.414l-8 8A1 1 0 0 1 17 30z" fill="#72C472"/>
                 </svg>
-                <p style={{ fontSize:13, color:"var(--fg-2)", fontWeight:500 }}>
+                <p style={{ fontSize: 14, color:"var(--fg-2)", fontWeight: 400 }}>
                   {search
                     ? "Sin resultados para tu búsqueda"
                     : scope === "en_curso"      ? "No hay órdenes en curso ahora"
@@ -1950,7 +1965,7 @@ export default function OrdenesBandeja({
                   <a
                     href="#"
                     onClick={e => { e.preventDefault(); openCreate(); }}
-                    style={{ fontSize:13, color:"var(--brand-fg)", fontWeight:500, textDecoration:"underline" }}
+                    style={{ fontSize: 14, color:"var(--brand-fg)", fontWeight: 400, textDecoration:"underline" }}
                   >
                     Crea la primera Orden de Trabajo
                   </a>
@@ -1992,7 +2007,7 @@ export default function OrdenesBandeja({
                       style={{
                         height: 34, padding: "0 14px", border: "1px solid var(--border)",
                         borderRadius: 8, background: "var(--surface-1)", color: "var(--fg-2)",
-                        fontSize: 12, fontWeight: 700, cursor: loadingMoreOrdenes ? "default" : "pointer",
+                        fontSize: 14, fontWeight: 400, cursor: loadingMoreOrdenes ? "default" : "pointer",
                         fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 7,
                       }}
                     >
@@ -2080,7 +2095,7 @@ export default function OrdenesBandeja({
               />
             ) : selected ? (
               loadingDetail ? (
-                <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100%", gap:8, color:"var(--fg-4)", fontSize:13 }}>
+                <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100%", gap:8, color:"var(--fg-4)", fontSize: 14 }}>
                   <Loader2 size={16} className="animate-spin" />
                   Cargando…
                 </div>
@@ -2115,8 +2130,8 @@ export default function OrdenesBandeja({
                   <FileText size={28} style={{ color:"var(--border-strong)" }} />
                 </div>
                 <div style={{ textAlign:"center" }}>
-                  <p style={{ fontSize:14, fontWeight:600, color:"var(--fg-2)" }}>Selecciona una orden</p>
-                  <p style={{ fontSize:12, color:"var(--fg-4)", marginTop:4 }}>El detalle aparecerá aquí</p>
+                  <p style={{ fontSize: 14, fontWeight: 400, color:"var(--fg-2)" }}>Selecciona una orden</p>
+                  <p style={{ fontSize: 14, color:"var(--fg-4)", marginTop:4 }}>El detalle aparecerá aquí</p>
                 </div>
               </div>
             )}
@@ -2182,7 +2197,7 @@ export default function OrdenesBandeja({
                 }}
               />
             ) : loadingDetail ? (
-              <div style={{ display:"flex", alignItems:"center", justifyContent:"center", padding:"80px 20px", gap:8, color:"var(--fg-4)", fontSize:13 }}>
+              <div style={{ display:"flex", alignItems:"center", justifyContent:"center", padding:"80px 20px", gap:8, color:"var(--fg-4)", fontSize: 14 }}>
                 <Loader2 size={16} className="animate-spin" />
                 Cargando…
               </div>
@@ -2236,8 +2251,8 @@ export default function OrdenesBandeja({
             {/* Header */}
             <div style={{ padding:"18px 20px 14px", borderBottom:"1px solid var(--border)", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
               <div>
-                <div style={{ fontSize:15, fontWeight:700, color:"var(--fg-1)" }}>Exportar Excel</div>
-                <div style={{ fontSize:12, color:"var(--fg-4)", marginTop:2 }}>
+                <div style={{ fontSize: 14, fontWeight: 400, color:"var(--fg-1)" }}>Exportar Excel</div>
+                <div style={{ fontSize: 14, color:"var(--fg-4)", marginTop:2 }}>
                   {(exportFilterEstados.length > 0 || exportFilterTipos.length > 0)
                     ? `Coinciden con los filtros de ${totalOrdenesCount ?? ordenes.length} órdenes`
                     : `${totalOrdenesCount ?? ordenes.length} órdenes en total · selecciona las columnas a incluir`}
@@ -2263,10 +2278,10 @@ export default function OrdenesBandeja({
             <div style={{ padding:"12px 20px 4px", borderBottom:"1px solid var(--border)" }}>
               <div style={{ marginBottom: 10 }}>
                 <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom: 6 }}>
-                  <span style={{ fontSize: 10, fontWeight: 700, color: "var(--fg-4)", letterSpacing: "0.01em" }}>Filtrar por estado</span>
+                  <span style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-4)", letterSpacing: "0.01em" }}>Filtrar por estado</span>
                   {exportFilterEstados.length > 0 && (
                     <button type="button" onClick={() => setExportFilterEstados([])}
-                      style={{ fontSize: 13, color: "var(--fg-4)", background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", padding: 0 }}>
+                      style={{ fontSize: 14, color: "var(--fg-4)", background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", padding: 0 }}>
                       Limpiar
                     </button>
                   )}
@@ -2287,7 +2302,7 @@ export default function OrdenesBandeja({
                           borderRadius: 4,
                           background: active ? e.color + "20" : "var(--surface-1)",
                           color: active ? e.color : "var(--fg-2)",
-                          fontSize: 12, fontWeight: active ? 600 : 400,
+                          fontSize: 14, fontWeight: 400,
                           cursor: "pointer", fontFamily: "inherit",
                           display: "flex", alignItems: "center", gap: 3,
                         }}
@@ -2301,10 +2316,10 @@ export default function OrdenesBandeja({
 
               <div style={{ marginBottom: 10 }}>
                 <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom: 6 }}>
-                  <span style={{ fontSize: 10, fontWeight: 700, color: "var(--fg-4)", letterSpacing: "0.01em" }}>Filtrar por tipo de trabajo</span>
+                  <span style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-4)", letterSpacing: "0.01em" }}>Filtrar por tipo de trabajo</span>
                   {exportFilterTipos.length > 0 && (
                     <button type="button" onClick={() => setExportFilterTipos([])}
-                      style={{ fontSize: 13, color: "var(--fg-4)", background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", padding: 0 }}>
+                      style={{ fontSize: 14, color: "var(--fg-4)", background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", padding: 0 }}>
                       Limpiar
                     </button>
                   )}
@@ -2325,7 +2340,7 @@ export default function OrdenesBandeja({
                           borderRadius: 4,
                           background: active ? "var(--brand-tint)" : "var(--surface-1)",
                           color: active ? "var(--brand)" : "var(--fg-2)",
-                          fontSize: 12, fontWeight: active ? 600 : 400,
+                          fontSize: 14, fontWeight: 400,
                           cursor: "pointer", fontFamily: "inherit",
                           display: "flex", alignItems: "center", gap: 3,
                         }}
@@ -2341,7 +2356,7 @@ export default function OrdenesBandeja({
             <div style={{ padding:"8px 20px 4px" }}>
               {Array.from(new Set(EXPORT_COLS.map(c => c.group))).map(group => (
                 <div key={group} style={{ marginBottom:12 }}>
-                  <div style={{ fontSize:10, fontWeight:700, color:"var(--fg-4)", letterSpacing:"0.01em", marginBottom:4, paddingLeft:10 }}>
+                  <div style={{ fontSize: 14, fontWeight: 400, color:"var(--fg-4)", letterSpacing:"0.01em", marginBottom:4, paddingLeft:10 }}>
                     {group}
                   </div>
                   <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:1 }}>
@@ -2358,7 +2373,7 @@ export default function OrdenesBandeja({
                           onChange={e => setExportCols(prev => ({ ...prev, [col.key]: e.target.checked }))}
                           style={{ width:14, height:14, accentColor:"var(--brand)", cursor:"pointer", flexShrink:0 }}
                         />
-                        <span style={{ fontSize:12.5, color: exportCols[col.key] ? "var(--fg-1)" : "var(--fg-4)" }}>{col.label}</span>
+                        <span style={{ fontSize: 14, color: exportCols[col.key] ? "var(--fg-1)" : "var(--fg-4)" }}>{col.label}</span>
                       </label>
                     ))}
                   </div>
@@ -2369,15 +2384,15 @@ export default function OrdenesBandeja({
             {/* Select all / none */}
             <div style={{ padding:"8px 20px 10px", display:"flex", gap:8, borderTop:"1px solid #F1F5F9" }}>
               <button type="button" onClick={() => setExportCols(ALL_COLS_ON)}
-                style={{ fontSize:12, color:"var(--brand-fg)", background:"transparent", border:"none", cursor:"pointer", padding:"2px 0", fontFamily:"inherit" }}>
+                style={{ fontSize: 14, color:"var(--brand-fg)", background:"transparent", border:"none", cursor:"pointer", padding:"2px 0", fontFamily:"inherit" }}>
                 Seleccionar todo
               </button>
               <span style={{ color:"var(--border)" }}>·</span>
               <button type="button" onClick={() => setExportCols(ALL_COLS_OFF)}
-                style={{ fontSize:12, color:"var(--fg-4)", background:"transparent", border:"none", cursor:"pointer", padding:"2px 0", fontFamily:"inherit" }}>
+                style={{ fontSize: 14, color:"var(--fg-4)", background:"transparent", border:"none", cursor:"pointer", padding:"2px 0", fontFamily:"inherit" }}>
                 Limpiar
               </button>
-              <span style={{ marginLeft:"auto", fontSize:12, color:"var(--fg-4)" }}>
+              <span style={{ marginLeft:"auto", fontSize: 14, color:"var(--fg-4)" }}>
                 {Object.values(exportCols).filter(Boolean).length} seleccionados
               </span>
             </div>
@@ -2395,7 +2410,7 @@ export default function OrdenesBandeja({
               <button
                 type="button"
                 onClick={() => setExportConfigOpen(false)}
-                style={{ height:36, padding:"0 16px", borderRadius:8, border:"1px solid var(--border)", background:"var(--surface-1)", fontSize:13, color:"var(--fg-2)", cursor:"pointer", fontFamily:"inherit" }}
+                style={{ height:36, padding:"0 16px", borderRadius:8, border:"1px solid var(--border)", background:"var(--surface-1)", fontSize: 14, color:"var(--fg-2)", cursor:"pointer", fontFamily:"inherit" }}
                 onMouseEnter={e => { e.currentTarget.style.background = "var(--surface-hover)"; }}
                 onMouseLeave={e => { e.currentTarget.style.background = "var(--surface-1)"; }}
               >Cancelar</button>
@@ -2406,7 +2421,7 @@ export default function OrdenesBandeja({
                 style={{
                   height:36, padding:"0 18px", borderRadius:8, border:"none",
                   background: Object.values(exportCols).some(Boolean) ? "var(--brand)" : "var(--border-strong)",
-                  fontSize:13, fontWeight:600, color:"var(--surface-1)",
+                  fontSize: 14, fontWeight: 400, color:"var(--surface-1)",
                   cursor: Object.values(exportCols).some(Boolean) ? "pointer" : "default",
                   fontFamily:"inherit", display:"flex", alignItems:"center", gap:6,
                 }}

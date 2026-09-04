@@ -161,7 +161,7 @@ function AssetFilterDropdown({ label, icon, active, children }: { label: string;
     setOpen(value => !value);
   };
   return <div style={{ position: "relative" }}>
-    <button ref={buttonRef} type="button" onClick={toggleMenu} style={{ display: "flex", alignItems: "center", gap: 5, height: 28, padding: "0 10px", border: active ? "1.5px solid var(--brand)" : "1px solid var(--border)", borderRadius: 6, background: active ? "var(--brand-tint)" : "var(--surface-1)", color: active ? "var(--brand)" : "var(--fg-2)", fontSize: 12, fontWeight: active ? 600 : 500, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" }}>
+    <button ref={buttonRef} type="button" onClick={toggleMenu} style={{ display: "flex", alignItems: "center", gap: 5, height: 28, padding: "0 10px", border: active ? "1.5px solid var(--brand)" : "1px solid var(--border)", borderRadius: 6, background: active ? "var(--brand-tint)" : "var(--surface-1)", color: active ? "var(--brand)" : "var(--fg-2)", fontSize: 14, fontWeight: 400, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" }}>
       {icon}{label}<ChevronDown size={11} style={{ opacity: 0.5 }} />
     </button>
     {open && createPortal(<div ref={menuRef} style={{ position: "fixed", top: menuPosition.top, left: menuPosition.left, zIndex: 10000, minWidth: 220, padding: 6, background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: 8, boxShadow: "var(--shadow-md)" }}>{children}</div>, document.body)}
@@ -199,16 +199,16 @@ function ActivoRow({ activo, selected, onClick }: { activo: Activo; selected: bo
         </span>
       )}
       <span style={{ flex: 1, minWidth: 0 }}>
-        <span style={{ display: "block", fontSize: 14, fontWeight: 600, lineHeight: 1.35, color: "var(--fg-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{activo.nombre}</span>
-        <span style={{ display: "block", marginTop: 3, fontSize: 12, color: "var(--fg-3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        <span style={{ display: "block", fontSize: 14, fontWeight: 400, lineHeight: 1.35, color: "var(--fg-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{activo.nombre}</span>
+        <span style={{ display: "block", marginTop: 3, fontSize: 14, color: "var(--fg-3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
           {[activo.numero_serie, location].filter(Boolean).join(" · ") || "Sin n° de serie"}
         </span>
         <span style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginTop: 7 }}>
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, color: "var(--fg-3)" }}>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 14, color: "var(--fg-3)" }}>
             <span style={{ width: 6, height: 6, borderRadius: "50%", background: estadoColor(activo.estado) }} />
             {estadoLabel(activo.estado)}
           </span>
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "1px 6px", borderRadius: "var(--r-sm)", border: "1px solid var(--border-strong)", background: "transparent", color: "var(--fg-1)", fontSize: 11, fontWeight: 400 }}>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "1px 6px", borderRadius: "var(--r-sm)", border: "1px solid var(--border-strong)", background: "transparent", color: "var(--fg-1)", fontSize: 14, fontWeight: 400 }}>
             <AlertCircle size={11} style={{ color: critCfg.color }} />{CRITICIDAD_LABEL[crit]}
           </span>
         </span>
@@ -228,7 +228,7 @@ function FieldRow({ icon, label, children }: {
         {icon}
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 12, fontWeight: 700, color: "var(--fg-3)", marginBottom: 10, letterSpacing: "0.01em" }}>
+        <div style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-3)", marginBottom: 10, letterSpacing: "0.01em" }}>
           {label}
         </div>
         {children}
@@ -271,7 +271,7 @@ function SearchSelect({ placeholder, value, options, onChange, disabled, emptyLa
         style={{
           width: "100%", height: 40, display: "flex", alignItems: "center", gap: 8,
           padding: "0 12px", border: "1px solid var(--border)", borderRadius: 8,
-          background: "var(--surface-1)", fontSize: 13, color: selected ? "var(--fg-1)" : "var(--fg-4)",
+          background: "var(--surface-1)", fontSize: 14, color: selected ? "var(--fg-1)" : "var(--fg-4)",
           cursor: disabled ? "not-allowed" : "pointer", textAlign: "left", opacity: disabled ? 0.6 : 1,
           fontFamily: "inherit",
         }}
@@ -296,7 +296,7 @@ function SearchSelect({ placeholder, value, options, onChange, disabled, emptyLa
               style={{
                 width: "100%", height: 36, padding: "0 10px",
                 border: "1px solid var(--border)", borderRadius: 8,
-                fontSize: 12.5, outline: "none", color: "var(--fg-1)", fontFamily: "inherit",
+                fontSize: 14, outline: "none", color: "var(--fg-1)", fontFamily: "inherit",
                 background: "var(--surface-1)", boxSizing: "border-box",
               }}
             />
@@ -307,7 +307,7 @@ function SearchSelect({ placeholder, value, options, onChange, disabled, emptyLa
               onClick={() => { onChange(""); setOpen(false); }}
               style={{
                 display: "block", width: "100%", textAlign: "left",
-                padding: "10px 12px", fontSize: 13, color: "var(--fg-4)",
+                padding: "10px 12px", fontSize: 14, color: "var(--fg-4)",
                 background: !value ? "var(--brand-tint)" : "transparent",
                 border: "none", cursor: "pointer", fontFamily: "inherit",
               }}
@@ -321,7 +321,7 @@ function SearchSelect({ placeholder, value, options, onChange, disabled, emptyLa
                 onClick={() => { onChange(o.id); setOpen(false); }}
                 style={{
                   display: "flex", alignItems: "center", gap: 6,
-                  width: "100%", padding: "10px 12px", fontSize: 13,
+                  width: "100%", padding: "10px 12px", fontSize: 14,
                   background: value === o.id ? "var(--brand-tint)" : "transparent",
                   border: "none", cursor: "pointer", fontFamily: "inherit",
                 }}
@@ -329,12 +329,12 @@ function SearchSelect({ placeholder, value, options, onChange, disabled, emptyLa
                 {value === o.id && <Check size={11} style={{ color: "var(--brand)", flexShrink: 0 }} />}
                 <div style={{ flex: 1, minWidth: 0, textAlign: "left" }}>
                   <div style={{ color: "var(--fg-1)" }}>{o.label}</div>
-                  {o.sub && <div style={{ fontSize: 11, color: "var(--fg-4)" }}>{o.sub}</div>}
+                  {o.sub && <div style={{ fontSize: 14, color: "var(--fg-4)" }}>{o.sub}</div>}
                 </div>
               </button>
             ))}
             {filtered.length === 0 && (
-              <div style={{ padding: "8px 10px", fontSize: 12.5, color: "var(--fg-4)" }}>Sin resultados</div>
+              <div style={{ padding: "8px 10px", fontSize: 14, color: "var(--fg-4)" }}>Sin resultados</div>
             )}
           </div>
         </div>
@@ -347,7 +347,7 @@ function SearchSelect({ placeholder, value, options, onChange, disabled, emptyLa
 const otInputStyle: React.CSSProperties = {
   width: "100%", height: 40, padding: "0 12px",
   border: "1px solid var(--border)", borderRadius: 8,
-  fontSize: 13, color: "var(--fg-1)", outline: "none",
+  fontSize: 14, color: "var(--fg-1)", outline: "none",
   fontFamily: "inherit", background: "var(--surface-1)", boxSizing: "border-box",
 };
 
@@ -534,7 +534,7 @@ function ActivoForm({
         display: "flex", alignItems: "center", justifyContent: "space-between",
         padding: "0 28px", height: 64, borderBottom: "1px solid var(--border)", flexShrink: 0,
       }}>
-        <h2 style={{ fontSize: 17, fontWeight: 700, color: "var(--fg-1)", margin: 0 }}>
+        <h2 style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", margin: 0 }}>
           {activo ? "Editar Activo" : "Nuevo Activo"}
         </h2>
         <button
@@ -557,7 +557,7 @@ function ActivoForm({
               value={form.nombre}
               onChange={e => set("nombre", e.target.value)}
               style={{
-                width: "100%", fontSize: 22, fontWeight: 400, color: "var(--fg-1)",
+                width: "100%", fontSize: 14, fontWeight: 400, color: "var(--fg-1)",
                 border: "none", outline: "none", background: "transparent", padding: "8px 0",
                 borderBottom: form.nombre ? "2px solid var(--brand)" : "2px solid var(--border)",
                 fontFamily: "inherit", transition: "border-color 0.15s",
@@ -576,11 +576,11 @@ function ActivoForm({
                 </div>
                 <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
                   <button type="button" onClick={() => imageInputRef.current?.click()} disabled={uploadingImage}
-                    style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, height: 38, border: "1px solid var(--border)", borderRadius: 8, background: "var(--surface-1)", color: "var(--fg-2)", fontSize: 13, fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}>
+                    style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, height: 38, border: "1px solid var(--border)", borderRadius: 8, background: "var(--surface-1)", color: "var(--fg-2)", fontSize: 14, fontWeight: 400, cursor: "pointer", fontFamily: "inherit" }}>
                     {uploadingImage ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />} Reemplazar
                   </button>
                   <button type="button" onClick={() => setImagenUrl(null)}
-                    style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, height: 38, border: "1px solid var(--border)", borderRadius: 8, background: "var(--surface-1)", color: "var(--danger)", fontSize: 13, fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}>
+                    style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, height: 38, border: "1px solid var(--border)", borderRadius: 8, background: "var(--surface-1)", color: "var(--danger)", fontSize: 14, fontWeight: 400, cursor: "pointer", fontFamily: "inherit" }}>
                     <Trash2 size={14} /> Eliminar
                   </button>
                 </div>
@@ -589,7 +589,7 @@ function ActivoForm({
               <button type="button" onClick={() => imageInputRef.current?.click()} disabled={uploadingImage}
                 style={{ width: "100%", border: "1.5px dashed var(--brand)", borderRadius: 8, padding: "18px", display: "flex", flexDirection: "column", alignItems: "center", gap: 6, color: "var(--brand)", cursor: "pointer", background: "var(--brand-tint)", fontFamily: "inherit" }}>
                 {uploadingImage ? <Loader2 size={18} className="animate-spin" /> : <Camera size={18} strokeWidth={1.5} />}
-                <span style={{ fontSize: 13, fontWeight: 600 }}>Agregar foto del activo</span>
+                <span style={{ fontSize: 14, fontWeight: 400 }}>Agregar foto del activo</span>
               </button>
             )}
           </div>
@@ -696,12 +696,12 @@ function ActivoForm({
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                 <Paperclip size={13} style={{ color: "var(--fg-4)" }} />
-                <span style={{ fontSize: 11, fontWeight: 700, color: "var(--fg-3)", letterSpacing: "0.01em" }}>
+                <span style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-3)", letterSpacing: "0.01em" }}>
                   Adjuntos
                 </span>
               </div>
               <button type="button" onClick={() => adjuntoInputRef.current?.click()} disabled={uploadingAdjunto}
-                style={{ display: "flex", alignItems: "center", gap: 4, height: 32, padding: "0 12px", border: "1px solid var(--brand)", borderRadius: 5, background: "var(--brand-tint)", color: "var(--brand)", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+                style={{ display: "flex", alignItems: "center", gap: 4, height: 32, padding: "0 12px", border: "1px solid var(--brand)", borderRadius: 5, background: "var(--brand-tint)", color: "var(--brand)", fontSize: 14, fontWeight: 400, cursor: "pointer", fontFamily: "inherit" }}>
                 {uploadingAdjunto ? <Loader2 size={11} className="animate-spin" /> : <Plus size={11} />}
                 Adjuntar archivo
               </button>
@@ -718,7 +718,7 @@ function ActivoForm({
                       {isImage
                         ? <FileIcon size={13} style={{ color: "var(--brand)", flexShrink: 0 }} />
                         : <FileText size={13} style={{ color: "var(--brand)", flexShrink: 0 }} />}
-                      <span style={{ flex: 1, fontSize: 12.5, color: "var(--fg-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      <span style={{ flex: 1, fontSize: 14, color: "var(--fg-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                         {a.nombre}
                       </span>
                       <button type="button" onClick={() => setAdjuntos(prev => prev.filter((_, idx) => idx !== i))}
@@ -733,7 +733,7 @@ function ActivoForm({
               <button type="button" onClick={() => adjuntoInputRef.current?.click()} disabled={uploadingAdjunto}
                 style={{ width: "100%", border: "1.5px dashed var(--brand)", borderRadius: 8, padding: "18px", display: "flex", flexDirection: "column", alignItems: "center", gap: 6, color: "var(--brand)", cursor: "pointer", background: "var(--brand-tint)", fontFamily: "inherit" }}>
                 <Paperclip size={18} strokeWidth={1.5} />
-                <span style={{ fontSize: 12 }}>PDF, Word, Excel, manuales, imágenes…</span>
+                <span style={{ fontSize: 14 }}>PDF, Word, Excel, manuales, imágenes…</span>
               </button>
             )}
           </div>
@@ -744,15 +744,15 @@ function ActivoForm({
       {/* Footer */}
       <div style={{ borderTop: "1px solid var(--border)", padding: "16px 28px", display: "flex", alignItems: "center", justifyContent: "space-between", background: "var(--surface-1)", flexShrink: 0 }}>
         <div style={{ flex: 1 }}>
-          {error && <span style={{ fontSize: 12.5, color: "var(--danger)" }}>{error}</span>}
+          {error && <span style={{ fontSize: 14, color: "var(--danger)" }}>{error}</span>}
         </div>
         <div style={{ display: "flex", gap: 8 }}>
           <button type="button" onClick={onClose} disabled={saving}
-            style={{ height: 40, padding: "0 18px", border: "1px solid var(--border)", borderRadius: 8, background: "var(--surface-1)", color: "var(--fg-2)", fontSize: 13, fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}>
+            style={{ height: 40, padding: "0 18px", border: "1px solid var(--border)", borderRadius: 8, background: "var(--surface-1)", color: "var(--fg-2)", fontSize: 14, fontWeight: 400, cursor: "pointer", fontFamily: "inherit" }}>
             Cancelar
           </button>
           <button type="submit" disabled={!canSave}
-            style={{ height: 40, padding: "0 24px", border: "none", borderRadius: 8, background: !canSave ? "var(--fg-3)" : "linear-gradient(135deg, var(--brand-active), var(--brand))", color: "var(--fg-on-brand)", fontSize: 13, fontWeight: 600, cursor: canSave ? "pointer" : "default", display: "flex", alignItems: "center", gap: 7, fontFamily: "inherit", boxShadow: !canSave ? "none" : "0 2px 6px rgba(37,99,235,0.25)" }}>
+            style={{ height: 40, padding: "0 24px", border: "none", borderRadius: 8, background: !canSave ? "var(--fg-3)" : "linear-gradient(135deg, var(--brand-active), var(--brand))", color: "var(--fg-on-brand)", fontSize: 14, fontWeight: 400, cursor: canSave ? "pointer" : "default", display: "flex", alignItems: "center", gap: 7, fontFamily: "inherit", boxShadow: !canSave ? "none" : "0 2px 6px rgba(37,99,235,0.25)" }}>
             {saving && <Loader2 size={13} className="animate-spin" />}
             Guardar
           </button>
@@ -768,7 +768,7 @@ function ActivoForm({
 function SectionHeader({ title, action }: { title: string; action?: React.ReactNode }) {
   return (
     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 2px 8px" }}>
-      <p style={{ fontSize: 11, fontWeight: 700, color: "var(--fg-4)", letterSpacing: "0.01em", margin: 0 }}>{title}</p>
+      <p style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-4)", letterSpacing: "0.01em", margin: 0 }}>{title}</p>
       {action}
     </div>
   );
@@ -788,11 +788,11 @@ function ActivoOTRow({ ot, last, onOpen }: { ot: ActivoOTHistoryRow; last: boole
   const color = otEstadoColor(ot.estado);
   return (
     <button onClick={onOpen} style={{ width: "100%", display: "flex", flexDirection: "column", gap: 6, textAlign: "left", padding: "13px 16px", border: "none", borderBottom: last ? "none" : "1px solid var(--border)", background: "transparent", cursor: "pointer", fontFamily: "inherit" }}>
-      <span style={{ fontSize: 14, fontWeight: 500, color: "var(--fg-1)" }}>{ot.titulo || "Sin título"}</span>
-      {ot.numero != null && <span style={{ fontSize: 13, color: "var(--fg-4)" }}>N° {ot.numero}</span>}
-      <span style={{ alignSelf: "flex-start", padding: "2px 8px", borderRadius: "var(--r-xs)", fontSize: 11, fontWeight: 700, background: color + "22", color }}>{label}</span>
-      {ot.creador?.nombre && <span style={{ fontSize: 13, color: "var(--fg-4)" }}>Creada por {ot.creador.nombre}</span>}
-      {ot.estado === "completado" && ot.completador?.nombre && <span style={{ fontSize: 13, color: "var(--fg-4)" }}>Completada por {ot.completador.nombre}</span>}
+      <span style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)" }}>{ot.titulo || "Sin título"}</span>
+      {ot.numero != null && <span style={{ fontSize: 14, color: "var(--fg-4)" }}>N° {ot.numero}</span>}
+      <span style={{ alignSelf: "flex-start", padding: "2px 8px", borderRadius: "var(--r-xs)", fontSize: 14, fontWeight: 400, background: color + "22", color }}>{label}</span>
+      {ot.creador?.nombre && <span style={{ fontSize: 14, color: "var(--fg-4)" }}>Creada por {ot.creador.nombre}</span>}
+      {ot.estado === "completado" && ot.completador?.nombre && <span style={{ fontSize: 14, color: "var(--fg-4)" }}>Completada por {ot.completador.nombre}</span>}
     </button>
   );
 }
@@ -824,7 +824,7 @@ function InfiniteSentinel({ onHit, disabled, label }: {
 
   if (disabled) return null;
   return (
-    <div ref={ref} style={{ padding: "14px 0", display: "flex", alignItems: "center", justifyContent: "center", gap: 7, color: "var(--fg-4)", fontSize: 12 }}>
+    <div ref={ref} style={{ padding: "14px 0", display: "flex", alignItems: "center", justifyContent: "center", gap: 7, color: "var(--fg-4)", fontSize: 14 }}>
       <Loader2 size={13} className="animate-spin" /> {label}
     </div>
   );
@@ -881,14 +881,14 @@ function GeneralTab({ activo, onFullscreen }: { activo: Activo; onFullscreen: ()
         <SectionHeader
           title="Órdenes de trabajo"
           action={rows.length > 0 ? (
-            <span style={{ fontSize: 13, fontWeight: 600, color: "var(--fg-4)" }}>
+            <span style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-4)" }}>
               {rows.length}{nextPage != null ? "+" : ""} en total
             </span>
           ) : undefined}
         />
         <Card>
           {loading ? (
-            <div style={{ padding: 24, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, color: "var(--fg-4)", fontSize: 13 }}>
+            <div style={{ padding: 24, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, color: "var(--fg-4)", fontSize: 14 }}>
               <Loader2 size={14} className="animate-spin" /> Cargando…
             </div>
           ) : rows.length === 0 ? (
@@ -914,7 +914,7 @@ function GeneralTab({ activo, onFullscreen }: { activo: Activo; onFullscreen: ()
 function MetaField({ label, value, icon }: { label: string; value: string; icon: React.ReactNode }) {
   return (
     <div>
-      <p style={{ fontSize: 11, fontWeight: 700, color: "var(--fg-4)", letterSpacing: "0.01em", marginBottom: 7, marginTop: 0 }}>{label}</p>
+      <p style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-4)", letterSpacing: "0.01em", marginBottom: 7, marginTop: 0 }}>{label}</p>
       <p style={{ fontSize: 14, color: "var(--fg-1)", margin: 0, display: "flex", alignItems: "center", gap: 10, lineHeight: 1.45 }}>
         <span style={{
           width: 28, height: 28, borderRadius: "var(--r-sm)",
@@ -930,7 +930,7 @@ function MetaField({ label, value, icon }: { label: string; value: string; icon:
 // Section label (uppercase, no card) — matches OTDetail.
 function MetaSectionLabel({ children }: { children: string }) {
   return (
-    <p style={{ fontSize: 11, fontWeight: 700, color: "var(--fg-4)", letterSpacing: "0.01em", margin: "0 0 14px" }}>{children}</p>
+    <p style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-4)", letterSpacing: "0.01em", margin: "0 0 14px" }}>{children}</p>
   );
 }
 
@@ -966,7 +966,7 @@ function DetallesTab({ activo, hijos, onOpenActivo }: { activo: Activo; hijos: A
       {/* Description — plain flowing text, no card */}
       {activo.descripcion && (
         <div style={{ maxWidth: 1100, marginBottom: 4 }}>
-          <p style={{ fontSize: 11, fontWeight: 600, color: "var(--fg-4)", letterSpacing: "0.01em", margin: "0 0 4px" }}>Descripción</p>
+          <p style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-4)", letterSpacing: "0.01em", margin: "0 0 4px" }}>Descripción</p>
           <p style={{ fontSize: 14, color: "var(--fg-2)", lineHeight: 1.75, whiteSpace: "pre-wrap", margin: 0 }}>{activo.descripcion}</p>
         </div>
       )}
@@ -1000,7 +1000,7 @@ function DetallesTab({ activo, hijos, onOpenActivo }: { activo: Activo; hijos: A
               <a key={`${a.url}-${idx}`} href={a.url} target="_blank" rel="noreferrer"
                 style={{ display: "inline-flex", alignItems: "center", gap: 10, padding: "8px 14px 8px 8px", border: "1px solid var(--border)", borderRadius: 8, background: "var(--surface-0)", textDecoration: "none", color: "var(--fg-1)", maxWidth: "100%" }}>
                 <span style={{ width: 28, height: 28, borderRadius: "var(--r-sm)", background: "var(--brand-tint)", color: "var(--brand)", display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><FileText size={16} /></span>
-                <span style={{ fontSize: 13, color: "var(--fg-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.nombre ?? a.tipo ?? "Adjunto"}</span>
+                <span style={{ fontSize: 14, color: "var(--fg-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.nombre ?? a.tipo ?? "Adjunto"}</span>
                 <ExternalLink size={14} style={{ color: "var(--fg-4)", flexShrink: 0 }} />
               </a>
             ))}
@@ -1016,21 +1016,21 @@ function DetallesTab({ activo, hijos, onOpenActivo }: { activo: Activo; hijos: A
               <button onClick={() => onOpenActivo(activo.parent!.id)} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", border: "1px solid var(--border)", borderRadius: "var(--r-md)", background: "var(--surface-0)", cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}>
                 <span style={{ width: 30, height: 30, borderRadius: 8, background: "var(--brand-tint)", color: "var(--brand-fg)", display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><GitBranch size={15} /></span>
                 <span style={{ flex: 1, minWidth: 0 }}>
-                  <span style={{ display: "block", fontSize: 11, fontWeight: 700, color: "var(--fg-4)", letterSpacing: "0.01em" }}>Activo padre</span>
-                  <span style={{ display: "block", marginTop: 2, fontSize: 13.5, fontWeight: 600, color: "var(--fg-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{activo.parent.nombre}</span>
+                  <span style={{ display: "block", fontSize: 14, fontWeight: 400, color: "var(--fg-4)", letterSpacing: "0.01em" }}>Activo padre</span>
+                  <span style={{ display: "block", marginTop: 2, fontSize: 14, fontWeight: 400, color: "var(--fg-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{activo.parent.nombre}</span>
                 </span>
                 <ChevronRight size={15} style={{ color: "var(--fg-4)", flexShrink: 0 }} />
               </button>
             ) : (
               <div style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", border: "1px solid var(--border)", borderRadius: "var(--r-md)", background: "var(--surface-1)" }}>
                 <span style={{ width: 30, height: 30, borderRadius: 8, background: "var(--surface-hover)", color: "var(--fg-4)", display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><GitBranch size={15} /></span>
-                <span style={{ flex: 1, minWidth: 0 }}><span style={{ display: "block", fontSize: 11, fontWeight: 700, color: "var(--fg-4)", letterSpacing: "0.01em" }}>Activo padre</span><span style={{ display: "block", marginTop: 2, fontSize: 13.5, color: "var(--fg-3)" }}>Sin activo padre</span></span>
+                <span style={{ flex: 1, minWidth: 0 }}><span style={{ display: "block", fontSize: 14, fontWeight: 400, color: "var(--fg-4)", letterSpacing: "0.01em" }}>Activo padre</span><span style={{ display: "block", marginTop: 2, fontSize: 14, color: "var(--fg-3)" }}>Sin activo padre</span></span>
               </div>
             )}
             {hijos.map(h => (
               <button key={h.id} onClick={() => onOpenActivo(h.id)} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", border: "1px solid var(--border)", borderRadius: "var(--r-md)", background: "var(--surface-0)", cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}>
                 <span style={{ width: 30, height: 30, borderRadius: 8, background: "var(--surface-hover)", color: "var(--fg-3)", display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><ArrowDown size={15} /></span>
-                <span style={{ flex: 1, fontSize: 13.5, fontWeight: 600, color: "var(--fg-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{h.nombre}</span>
+                <span style={{ flex: 1, fontSize: 14, fontWeight: 400, color: "var(--fg-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{h.nombre}</span>
                 <ChevronRight size={15} style={{ color: "var(--fg-4)", flexShrink: 0 }} />
               </button>
             ))}
@@ -1077,15 +1077,15 @@ function HistorialTab({ activoId, onOpenOT }: { activoId: string; onOpenOT: (otI
   }, [activoId, nextPage, loadingMore]);
 
   if (loading) {
-    return <div style={{ padding: 40, textAlign: "center", color: "var(--fg-4)", fontSize: 13 }}>Cargando historial…</div>;
+    return <div style={{ padding: 40, textAlign: "center", color: "var(--fg-4)", fontSize: 14 }}>Cargando historial…</div>;
   }
 
   if (rows.length === 0) {
     return (
       <div style={{ padding: "48px 24px", display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
         <span style={{ width: 64, height: 64, borderRadius: "var(--r-md)", background: "var(--brand-tint)", color: "var(--brand)", display: "inline-flex", alignItems: "center", justifyContent: "center" }}><Clock size={30} /></span>
-        <span style={{ fontSize: 16, fontWeight: 700, color: "var(--fg-1)" }}>Sin actividad</span>
-        <span style={{ fontSize: 13, color: "var(--fg-4)", textAlign: "center" }}>Los cambios y las OTs de este activo se registrarán aquí.</span>
+        <span style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)" }}>Sin actividad</span>
+        <span style={{ fontSize: 14, color: "var(--fg-4)", textAlign: "center" }}>Los cambios y las OTs de este activo se registrarán aquí.</span>
       </div>
     );
   }
@@ -1105,13 +1105,13 @@ function HistorialTab({ activoId, onOpenOT }: { activoId: string; onOpenOT: (otI
             <div key={a.id} style={{ display: "flex", gap: 12, alignItems: "flex-start", padding: "14px 16px", borderBottom: idx === rows.length - 1 && nextPage == null ? "none" : "1px solid var(--border)" }}>
               <span style={{ width: 34, height: 34, borderRadius: "50%", background: cfg.color + "1A", color: cfg.color, display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 1 }}><Icon size={18} /></span>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: "var(--fg-1)" }}>{cfg.label}</p>
+                <p style={{ margin: 0, fontSize: 14, fontWeight: 400, color: "var(--fg-1)" }}>{cfg.label}</p>
                 {detalle && (isOT && otId ? (
-                  <button onClick={() => onOpenOT(otId)} style={{ margin: "2px 0 0", padding: 0, border: "none", background: "none", fontSize: 13, fontWeight: 500, color: "var(--brand)", cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}>{detalle}</button>
+                  <button onClick={() => onOpenOT(otId)} style={{ margin: "2px 0 0", padding: 0, border: "none", background: "none", fontSize: 14, fontWeight: 400, color: "var(--brand)", cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}>{detalle}</button>
                 ) : (
-                  <p style={{ margin: "2px 0 0", fontSize: 13, color: "var(--fg-1)" }}>{detalle}</p>
+                  <p style={{ margin: "2px 0 0", fontSize: 14, color: "var(--fg-1)" }}>{detalle}</p>
                 ))}
-                <div style={{ marginTop: 4, fontSize: 12, color: "var(--fg-4)" }}>
+                <div style={{ marginTop: 4, fontSize: 14, color: "var(--fg-4)" }}>
                   {new Date(a.created_at).toLocaleDateString("es-CL", { day: "2-digit", month: "short", year: "numeric" })}
                   {" · "}
                   {new Date(a.created_at).toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" })}
@@ -1191,12 +1191,12 @@ function ActivoDetail({
       {/* ── Header ── */}
       <div style={{ flexShrink: 0, borderBottom: "1px solid var(--border)", background: "var(--surface-canvas)", padding: "22px 27px 21px" }}>
         <div style={{ display: "flex", alignItems: "flex-start", minHeight: 42, gap: 12 }}>
-          <h1 style={{ flex: 1, minWidth: 0, fontSize: 26, fontWeight: 700, letterSpacing: "-0.02em", color: "var(--fg-1)", margin: 0, lineHeight: 1.25, overflowWrap: "break-word", wordBreak: "break-word" }}>
+          <h1 style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: 400, letterSpacing: "-0.02em", color: "var(--fg-1)", margin: 0, lineHeight: 1.25, overflowWrap: "break-word", wordBreak: "break-word" }}>
             {activo.nombre}
           </h1>
           {/* Mirrors OTDetail's header: 34px Editar + overflow menu + close. */}
           <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
-            <button onClick={onEdit} style={{ flexShrink: 0, height: 34, padding: "0 13px", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, background: "var(--brand)", border: "1px solid var(--brand)", borderRadius: "var(--r-sm)", cursor: "pointer", color: "var(--fg-on-brand)", fontSize: 13, fontWeight: 700, fontFamily: "inherit" }} onMouseEnter={e => { e.currentTarget.style.filter = "brightness(0.96)"; }} onMouseLeave={e => { e.currentTarget.style.filter = "none"; }}>
+            <button onClick={onEdit} style={{ flexShrink: 0, height: 34, padding: "0 13px", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, background: "var(--brand)", border: "1px solid var(--brand)", borderRadius: "var(--r-sm)", cursor: "pointer", color: "var(--fg-on-brand)", fontSize: 14, fontWeight: 400, fontFamily: "inherit" }} onMouseEnter={e => { e.currentTarget.style.filter = "brightness(0.96)"; }} onMouseLeave={e => { e.currentTarget.style.filter = "none"; }}>
               <Pencil size={14} /> Editar
             </button>
             <div ref={accionesMenuRef} style={{ position: "relative", flexShrink: 0 }}>
@@ -1205,7 +1205,7 @@ function ActivoDetail({
               </button>
               {accionesMenuOpen && (
                 <div style={{ position: "absolute", top: "calc(100% + 6px)", right: 0, zIndex: 300, background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: "var(--r-sm)", boxShadow: "var(--shadow-sm)", width: 190, overflow: "hidden" }}>
-                  <button type="button" onClick={() => { setAccionesMenuOpen(false); handleDelete(); }} disabled={deleting} style={{ width: "100%", display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", background: "var(--surface-1)", border: "none", cursor: deleting ? "default" : "pointer", fontSize: 13, color: "var(--danger)", fontFamily: "inherit", textAlign: "left" }} onMouseEnter={e => { if (!deleting) e.currentTarget.style.background = "var(--surface-hover)"; }} onMouseLeave={e => { e.currentTarget.style.background = "var(--surface-1)"; }}>
+                  <button type="button" onClick={() => { setAccionesMenuOpen(false); handleDelete(); }} disabled={deleting} style={{ width: "100%", display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", background: "var(--surface-1)", border: "none", cursor: deleting ? "default" : "pointer", fontSize: 14, color: "var(--danger)", fontFamily: "inherit", textAlign: "left" }} onMouseEnter={e => { if (!deleting) e.currentTarget.style.background = "var(--surface-hover)"; }} onMouseLeave={e => { e.currentTarget.style.background = "var(--surface-1)"; }}>
                     <Trash2 size={14} /> Eliminar
                   </button>
                 </div>
@@ -1218,18 +1218,18 @@ function ActivoDetail({
         </div>
         {/* Estado — click to change (saved instantly) + criticidad chip */}
         <div style={{ display: "flex", gap: 12, marginTop: 12, flexWrap: "wrap", alignItems: "center", color: "var(--fg-3)" }}>
-          {activo.ubicacion && <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12 }}><MapPin size={14} />{activo.ubicacion.edificio}</span>}
-          {activo.sociedad && <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12 }}><Building2 size={14} />{activo.sociedad.nombre}</span>}
+          {activo.ubicacion && <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 14 }}><MapPin size={14} />{activo.ubicacion.edificio}</span>}
+          {activo.sociedad && <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 14 }}><Building2 size={14} />{activo.sociedad.nombre}</span>}
           <div ref={estadoMenuRef} style={{ position: "relative" }}>
             <button onClick={() => setEstadoMenuOpen(o => !o)} disabled={changingEstado} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: 0, background: "none", border: "none", cursor: "pointer", fontFamily: "inherit" }}>
               <span style={{ width: 8, height: 8, borderRadius: "50%", background: estadoColor(activo.estado) }} />
-              <span style={{ fontSize: 14, fontWeight: 600, color: estadoColor(activo.estado) }}>{estadoLabel(activo.estado)}</span>
+              <span style={{ fontSize: 14, fontWeight: 400, color: estadoColor(activo.estado) }}>{estadoLabel(activo.estado)}</span>
               {changingEstado ? <Loader2 size={13} className="animate-spin" style={{ color: estadoColor(activo.estado) }} /> : <ChevronDown size={14} style={{ color: estadoColor(activo.estado) }} />}
             </button>
             {estadoMenuOpen && (
               <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, zIndex: 20, minWidth: 180, background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: "var(--r-sm)", boxShadow: "0 8px 24px rgba(0,0,0,0.12)", overflow: "hidden" }}>
                 {ESTADO_OPCIONES.map(e => (
-                  <button key={e} onClick={() => handleChangeEstado(e)} style={{ width: "100%", display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", border: "none", background: e === activo.estado ? "var(--surface-hover)" : "transparent", cursor: "pointer", fontFamily: "inherit", fontSize: 13, color: "var(--fg-1)", textAlign: "left" }}>
+                  <button key={e} onClick={() => handleChangeEstado(e)} style={{ width: "100%", display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", border: "none", background: e === activo.estado ? "var(--surface-hover)" : "transparent", cursor: "pointer", fontFamily: "inherit", fontSize: 14, color: "var(--fg-1)", textAlign: "left" }}>
                     <span style={{ width: 8, height: 8, borderRadius: "50%", background: ESTADO_COLOR[e] }} />
                     {ESTADO_LABEL[e]}
                   </button>
@@ -1237,7 +1237,7 @@ function ActivoDetail({
               </div>
             )}
           </div>
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "2px 7px", borderRadius: "var(--r-sm)", border: "1px solid var(--border-strong)", background: "transparent", color: "var(--fg-1)", fontSize: 12, fontWeight: 400 }}><AlertCircle size={12} style={{ color: critCfg.color }} />{CRITICIDAD_LABEL[crit]}</span>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "2px 7px", borderRadius: "var(--r-sm)", border: "1px solid var(--border-strong)", background: "transparent", color: "var(--fg-1)", fontSize: 14, fontWeight: 400 }}><AlertCircle size={12} style={{ color: critCfg.color }} />{CRITICIDAD_LABEL[crit]}</span>
         </div>
 
         {/* Tabs */}
@@ -1247,7 +1247,7 @@ function ActivoDetail({
             const label = t === "general" ? "General" : t === "detalles" ? "Detalles" : "Historial";
             const Icon = t === "general" ? Box : t === "detalles" ? FileText : Clock;
             return (
-              <button key={t} onClick={() => setTab(t)} style={{ display: "inline-flex", alignItems: "center", gap: 7, height: 33, padding: "0 13px", background: active ? "var(--brand-tint)" : "var(--surface-1)", border: "1px solid var(--brand)", borderRadius: 4, color: "var(--brand)", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+              <button key={t} onClick={() => setTab(t)} style={{ display: "inline-flex", alignItems: "center", gap: 7, height: 33, padding: "0 13px", background: active ? "var(--brand-tint)" : "var(--surface-1)", border: "1px solid var(--brand)", borderRadius: 4, color: "var(--brand)", fontSize: 14, fontWeight: 400, cursor: "pointer", fontFamily: "inherit" }}>
                 <Icon size={16} />{label}
               </button>
             );
@@ -1463,7 +1463,7 @@ export default function ActivosBandeja({ initialActivos, usuarios, ubicaciones, 
                   paddingLeft: 34, paddingRight: search ? 28 : 10,
                   height: 38, width: "100%",
                   border: "1px solid var(--border)", borderRadius: 8,
-                  fontSize: 14, fontWeight: 500, color: "var(--fg-1)", background: "var(--surface-1)",
+                  fontSize: 14, fontWeight: 400, color: "var(--fg-1)", background: "var(--surface-1)",
                   outline: "none", fontFamily: "inherit",
                 }}
                 onFocus={e => { e.currentTarget.style.borderColor = "var(--brand)"; }}
@@ -1486,7 +1486,7 @@ export default function ActivosBandeja({ initialActivos, usuarios, ubicaciones, 
                   padding: "0 16px", height: 38,
                   background: "var(--brand)", color: "var(--fg-on-brand)",
                   border: "none", borderRadius: 8,
-                  fontSize: 14, fontWeight: 500,
+                  fontSize: 14, fontWeight: 400,
                   cursor: "pointer", fontFamily: "inherit",
                   whiteSpace: "nowrap", flexShrink: 0,
                 }}
@@ -1533,14 +1533,14 @@ export default function ActivosBandeja({ initialActivos, usuarios, ubicaciones, 
                 display: "flex", alignItems: "center", gap: 6,
                 width: "100%", padding: "10px 16px",
                 background: "var(--surface-canvas)", border: "none",
-                fontSize: 13, color: "var(--fg-2)",
+                fontSize: 14, color: "var(--fg-2)",
                 cursor: "pointer", fontFamily: "inherit", textAlign: "left",
               }}
               onMouseEnter={e => { e.currentTarget.style.background = "var(--surface-hover)"; }}
               onMouseLeave={e => { e.currentTarget.style.background = "var(--surface-canvas)"; }}
             >
               <span style={{ color: "var(--fg-3)" }}>Ordenar por:</span>
-              <span style={{ fontWeight: 600, color: "var(--brand-fg)" }}>{currentSortLabel}</span>
+              <span style={{ fontWeight: 400, color: "var(--brand-fg)" }}>{currentSortLabel}</span>
               <ChevronDown size={14} style={{ color: "var(--brand-fg)", transform: sortOpen ? "rotate(180deg)" : "none", transition: "transform 0.15s" }} />
             </button>
             {sortOpen && (
@@ -1549,7 +1549,7 @@ export default function ActivosBandeja({ initialActivos, usuarios, ubicaciones, 
                 background: "var(--surface-1)", border: "1px solid var(--border)",
                 borderRadius: 8, boxShadow: "0 8px 24px rgba(15,23,42,0.12)", overflow: "hidden",
               }}>
-                <div style={{ padding: "8px 14px 4px", fontSize: 10, fontWeight: 700, color: "var(--fg-4)", letterSpacing: "0.01em" }}>
+                <div style={{ padding: "8px 14px 4px", fontSize: 14, fontWeight: 400, color: "var(--fg-4)", letterSpacing: "0.01em" }}>
                   Ordenar por
                 </div>
                 {ACTIVO_SORT_OPTIONS.map(o => (
@@ -1560,9 +1560,9 @@ export default function ActivosBandeja({ initialActivos, usuarios, ubicaciones, 
                     style={{
                       display: "block", width: "100%", textAlign: "left",
                       padding: "9px 14px", background: sort === o.value ? "var(--brand-tint)" : "transparent",
-                      border: "none", fontSize: 13,
+                      border: "none", fontSize: 14,
                       color: sort === o.value ? "var(--brand-fg)" : "var(--fg-1)",
-                      fontWeight: sort === o.value ? 600 : 400,
+                      fontWeight: 400,
                       cursor: "pointer", fontFamily: "inherit",
                     }}
                     onMouseEnter={e => { if (sort !== o.value) e.currentTarget.style.background = "var(--surface-hover)"; }}
@@ -1580,18 +1580,18 @@ export default function ActivosBandeja({ initialActivos, usuarios, ubicaciones, 
             {locationsView ? assetLocations.map(location => (
               <button key={location.id} type="button" onClick={() => router.push(`/ubicaciones/ubicaciones?id=${encodeURIComponent(location.id)}`)} style={{ width: "100%", minHeight: 76, padding: "12px 14px", display: "flex", alignItems: "center", gap: 12, border: "1px solid var(--border)", borderRadius: 9, background: "var(--surface-1)", boxShadow: "var(--shadow-xs)", color: "var(--fg-1)", textAlign: "left", cursor: "pointer", fontFamily: "inherit" }}>
                 <span style={{ width: 44, height: 44, borderRadius: 9, background: "var(--brand-tint)", color: "var(--brand-fg)", display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><MapPin size={21} /></span>
-                <span style={{ flex: 1, minWidth: 0 }}><strong style={{ display: "block", fontSize: 14, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{location.edificio}</strong><span style={{ display: "block", marginTop: 4, fontSize: 12, color: "var(--fg-3)" }}>{location.count} {location.count === 1 ? "activo" : "activos"}</span></span>
+                <span style={{ flex: 1, minWidth: 0 }}><strong style={{ display: "block", fontSize: 14, fontWeight: 400, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{location.edificio}</strong><span style={{ display: "block", marginTop: 4, fontSize: 14, color: "var(--fg-3)" }}>{location.count} {location.count === 1 ? "activo" : "activos"}</span></span>
                 <ChevronRight size={17} style={{ color: "var(--fg-4)" }} />
               </button>
             )) : filtered.length === 0 ? (
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: 280, gap: 12, color: "var(--fg-4)" }}>
                 <Box size={38} strokeWidth={1.5} />
-                <p style={{ fontSize: 13, color: "var(--fg-2)", fontWeight: 500 }}>
+                <p style={{ fontSize: 14, color: "var(--fg-2)", fontWeight: 400 }}>
                   {search || filterCrit !== "all" || filterSociedadId !== "all" ? "Sin resultados para tu búsqueda" : "Aún no hay activos"}
                 </p>
                 {!search && filterCrit === "all" && filterSociedadId === "all" && canCreate && (
                   <a href="#" onClick={e => { e.preventDefault(); openCreate(); }}
-                    style={{ fontSize: 13, color: "var(--brand-fg)", fontWeight: 500, textDecoration: "underline" }}>
+                    style={{ fontSize: 14, color: "var(--brand-fg)", fontWeight: 400, textDecoration: "underline" }}>
                     Crea el primer activo
                   </a>
                 )}
@@ -1599,7 +1599,7 @@ export default function ActivosBandeja({ initialActivos, usuarios, ubicaciones, 
             ) : filtered.map(activo => (
               <ActivoRow key={activo.id} activo={activo} selected={selected === activo.id} onClick={() => { setEditing(null); setSelected(prev => prev === activo.id ? null : activo.id); }} />
             ))}
-            {locationsView && assetLocations.length === 0 && <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: 280, gap: 10, color: "var(--fg-4)" }}><MapPin size={38} strokeWidth={1.5} /><p style={{ fontSize: 13, color: "var(--fg-2)", fontWeight: 500 }}>{search ? "Sin resultados" : "Sin ubicaciones con activos"}</p></div>}
+            {locationsView && assetLocations.length === 0 && <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: 280, gap: 10, color: "var(--fg-4)" }}><MapPin size={38} strokeWidth={1.5} /><p style={{ fontSize: 14, color: "var(--fg-2)", fontWeight: 400 }}>{search ? "Sin resultados" : "Sin ubicaciones con activos"}</p></div>}
           </div>
         </div>
 
@@ -1607,7 +1607,7 @@ export default function ActivosBandeja({ initialActivos, usuarios, ubicaciones, 
         {(isDesktop || showRight) && (
           <div style={{ flex: 1, minWidth: 0, overflow: "hidden", background: "var(--c-bg, var(--surface-canvas))" }}>
             {locationsView ? (
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: 12, color: "var(--fg-4)" }}><div style={{ width: 64, height: 64, borderRadius: 12, background: "var(--surface-hover)", display: "flex", alignItems: "center", justifyContent: "center" }}><MapPin size={28} style={{ color: "var(--border-strong)" }} /></div><div style={{ textAlign: "center" }}><p style={{ fontSize: 14, fontWeight: 600, color: "var(--fg-2)" }}>Selecciona una ubicación</p><p style={{ fontSize: 12, color: "var(--fg-4)", marginTop: 4 }}>Abre una ubicación para ver sus activos</p></div></div>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: 12, color: "var(--fg-4)" }}><div style={{ width: 64, height: 64, borderRadius: 12, background: "var(--surface-hover)", display: "flex", alignItems: "center", justifyContent: "center" }}><MapPin size={28} style={{ color: "var(--border-strong)" }} /></div><div style={{ textAlign: "center" }}><p style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-2)" }}>Selecciona una ubicación</p><p style={{ fontSize: 14, color: "var(--fg-4)", marginTop: 4 }}>Abre una ubicación para ver sus activos</p></div></div>
             ) : editing ? (
               <ActivoForm
                 activo={editing === "new" ? null : editing}
@@ -1638,8 +1638,8 @@ export default function ActivosBandeja({ initialActivos, usuarios, ubicaciones, 
                   <Box size={28} style={{ color: "var(--border-strong)" }} />
                 </div>
                 <div style={{ textAlign: "center" }}>
-                  <p style={{ fontSize: 14, fontWeight: 600, color: "var(--fg-2)" }}>Selecciona un activo</p>
-                  <p style={{ fontSize: 12, color: "var(--fg-4)", marginTop: 4 }}>El detalle aparecerá aquí</p>
+                  <p style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-2)" }}>Selecciona un activo</p>
+                  <p style={{ fontSize: 14, color: "var(--fg-4)", marginTop: 4 }}>El detalle aparecerá aquí</p>
                 </div>
               </div>
             )}

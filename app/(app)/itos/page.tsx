@@ -166,8 +166,8 @@ export default function ItosPage() {
         color: "var(--fg-4)", background: "var(--surface-canvas)",
       }}>
         <Zap size={40} style={{ opacity: 0.5 }} />
-        <div style={{ fontSize: 14, fontWeight: 600, color: "var(--fg-3)" }}>ITOs no está disponible</div>
-        <div style={{ fontSize: 12.5 }}>Esta sección no está habilitada para tu espacio de trabajo</div>
+        <div style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-3)" }}>ITOs no está disponible</div>
+        <div style={{ fontSize: 14 }}>Esta sección no está habilitada para tu espacio de trabajo</div>
       </div>
     );
   }
@@ -187,7 +187,7 @@ export default function ItosPage() {
               onChange={e => setSearch(e.target.value)}
               style={{
                 width: "100%", height: 36, paddingLeft: 32, paddingRight: search ? 32 : 12,
-                border: "1px solid var(--border)", borderRadius: "var(--r-md)", fontSize: 13,
+                border: "1px solid var(--border)", borderRadius: "var(--r-md)", fontSize: 14,
                 background: "var(--surface-1)", outline: "none", fontFamily: "inherit", color: "var(--fg-1)",
                 boxSizing: "border-box",
               }}
@@ -212,7 +212,7 @@ export default function ItosPage() {
                 display: "flex", alignItems: "center", gap: 6,
                 height: 36, padding: "0 14px",
                 background: "var(--brand)", border: "none", borderRadius: "var(--r-md)", cursor: "pointer",
-                fontSize: 13, fontWeight: 600, color: "var(--fg-on-brand)", fontFamily: "inherit",
+                fontSize: 14, fontWeight: 400, color: "var(--fg-on-brand)", fontFamily: "inherit",
                 whiteSpace: "nowrap",
               }}
             >
@@ -225,7 +225,7 @@ export default function ItosPage() {
 
       {error && (
         <div style={{
-          flexShrink: 0, padding: "8px 16px", fontSize: 12.5,
+          flexShrink: 0, padding: "8px 16px", fontSize: 14,
           background: "var(--danger-bg)", color: "var(--danger)",
           borderBottom: "1px solid var(--border)",
         }}>
@@ -251,11 +251,11 @@ export default function ItosPage() {
               height: 240, color: "var(--fg-4)", gap: 8, padding: 24, textAlign: "center",
             }}>
               <Zap size={32} />
-              <div style={{ fontSize: 14, fontWeight: 500, color: "var(--fg-3)" }}>
+              <div style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-3)" }}>
                 {search ? "Sin resultados" : "No hay ITOs aún"}
               </div>
               {!search && isAdmin && (
-                <div style={{ fontSize: 12.5 }}>Crea el primero con el botón de arriba</div>
+                <div style={{ fontSize: 14 }}>Crea el primero con el botón de arriba</div>
               )}
             </div>
           ) : (
@@ -281,13 +281,13 @@ export default function ItosPage() {
               border: "1px dashed var(--border-strong)", borderRadius: "var(--r-lg)",
               background: "var(--surface-1)",
             }}>
-              <div style={{ fontSize: 11.5, fontWeight: 600, color: "var(--fg-3)", marginBottom: 6 }}>
+              <div style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-3)", marginBottom: 6 }}>
                 Sin catálogo
               </div>
               {sinCatalogo.map(s => (
                 <div key={s.nombre} style={{
                   display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8,
-                  padding: "3px 0", fontSize: 12, color: "var(--fg-2)",
+                  padding: "3px 0", fontSize: 14, color: "var(--fg-2)",
                 }}>
                   <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     {s.nombre}
@@ -297,7 +297,7 @@ export default function ItosPage() {
                   </span>
                 </div>
               ))}
-              <div style={{ fontSize: 11, color: "var(--fg-4)", marginTop: 6, lineHeight: 1.5 }}>
+              <div style={{ fontSize: 14, color: "var(--fg-4)", marginTop: 6, lineHeight: 1.5 }}>
                 Escrituras usadas en OTs que no existen en el catálogo. Créalas para ver su historial.
               </div>
             </div>
@@ -338,8 +338,8 @@ export default function ItosPage() {
               alignItems: "center", justifyContent: "center", gap: 10, color: "var(--fg-4)",
             }}>
               <Zap size={40} style={{ opacity: 0.5 }} />
-              <div style={{ fontSize: 14, fontWeight: 600, color: "var(--fg-3)" }}>Selecciona un ITO</div>
-              <div style={{ fontSize: 12.5 }}>El detalle aparecerá aquí</div>
+              <div style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-3)" }}>Selecciona un ITO</div>
+              <div style={{ fontSize: 14 }}>El detalle aparecerá aquí</div>
             </div>
           )}
         </div>
@@ -348,8 +348,8 @@ export default function ItosPage() {
       {confirmDelete && (
         <div style={{ position: "fixed", inset: 0, zIndex: 60, background: "rgba(15,23,42,0.45)", display: "flex", alignItems: "center", justifyContent: "center" }}>
           <div style={{ background: "var(--surface-1)", borderRadius: 12, padding: 24, maxWidth: 400, width: "90%", boxShadow: "var(--shadow-lg)" }}>
-            <div style={{ fontSize: 15, fontWeight: 600, color: "var(--fg-1)", marginBottom: 8 }}>Eliminar ITO</div>
-            <div style={{ fontSize: 13, color: "var(--fg-2)", marginBottom: 20 }}>
+            <div style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", marginBottom: 8 }}>Eliminar ITO</div>
+            <div style={{ fontSize: 14, color: "var(--fg-2)", marginBottom: 20 }}>
               <strong>{confirmDelete.hito.nombre}</strong> dejará de estar disponible al crear o editar órdenes.{" "}
               {confirmDelete.enUso > 0
                 ? `${confirmDelete.enUso === 1 ? "La orden que lo usa lo conservará" : `Las ${confirmDelete.enUso} órdenes que lo usan lo conservarán`}.`
@@ -358,14 +358,14 @@ export default function ItosPage() {
             <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
               <button
                 onClick={() => setConfirmDelete(null)}
-                style={{ height: 36, padding: "0 14px", border: "1px solid var(--border)", borderRadius: 8, background: "var(--surface-1)", fontSize: 13, fontWeight: 500, cursor: "pointer", fontFamily: "inherit", color: "var(--fg-2)" }}
+                style={{ height: 36, padding: "0 14px", border: "1px solid var(--border)", borderRadius: 8, background: "var(--surface-1)", fontSize: 14, fontWeight: 400, cursor: "pointer", fontFamily: "inherit", color: "var(--fg-2)" }}
               >
                 Cancelar
               </button>
               <button
                 onClick={handleDelete}
                 disabled={guardando}
-                style={{ height: 36, padding: "0 14px", border: "none", borderRadius: 8, background: "var(--danger)", color: "var(--fg-on-brand)", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 6 }}
+                style={{ height: 36, padding: "0 14px", border: "none", borderRadius: 8, background: "var(--danger)", color: "var(--fg-on-brand)", fontSize: 14, fontWeight: 400, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 6 }}
               >
                 {guardando && <Loader2 size={12} className="animate-spin" />}
                 Eliminar
@@ -409,7 +409,7 @@ function ItoRow({ hito, selected, isAdmin, onSelect, onEdit, onDelete }: {
         <Zap size={16} />
       </div>
       <div style={{
-        flex: 1, minWidth: 0, fontSize: 13.5, fontWeight: 600, color: "var(--fg-1)",
+        flex: 1, minWidth: 0, fontSize: 14, fontWeight: 400, color: "var(--fg-1)",
         overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
       }}>
         {hito.nombre}
@@ -466,7 +466,7 @@ function ItoDetalle({ hito, isAdmin, workspaceId, onEdit, onDelete, onNuevaOT }:
           }}>
             <Zap size={18} />
           </div>
-          <div style={{ flex: 1, minWidth: 0, fontSize: 16, fontWeight: 600, color: "var(--fg-1)" }}>
+          <div style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: 400, color: "var(--fg-1)" }}>
             {hito.nombre}
           </div>
           <AccionesCatalogo
@@ -477,7 +477,7 @@ function ItoDetalle({ hito, isAdmin, workspaceId, onEdit, onDelete, onNuevaOT }:
           />
         </div>
 
-        <div style={{ padding: "12px 18px", borderBottom: "1px solid var(--border)", fontSize: 12.5, color: "var(--fg-3)" }}>
+        <div style={{ padding: "12px 18px", borderBottom: "1px solid var(--border)", fontSize: 14, color: "var(--fg-3)" }}>
           Creado el {new Date(hito.created_at).toLocaleDateString("es-CL", { day: "2-digit", month: "2-digit", year: "numeric" })}
         </div>
 
@@ -501,7 +501,7 @@ function ItoDetalle({ hito, isAdmin, workspaceId, onEdit, onDelete, onNuevaOT }:
               display: "flex", alignItems: "center", gap: 8, height: 36, padding: "0 16px",
               border: "1px solid var(--brand)", borderRadius: "var(--r-md)",
               background: "var(--surface-1)", cursor: "pointer",
-              fontSize: 13, fontWeight: 600, color: "var(--brand)", fontFamily: "inherit",
+              fontSize: 14, fontWeight: 400, color: "var(--brand)", fontFamily: "inherit",
             }}
           >
             <Inbox size={14} />

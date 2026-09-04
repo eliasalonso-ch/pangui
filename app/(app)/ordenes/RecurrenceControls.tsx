@@ -246,8 +246,8 @@ export function RecurrenceControls({
 // Label matches the form's sub-labels (e.g. "Tipo de trabajo").
 function labelStyle(compact: boolean): React.CSSProperties {
   return {
-    fontSize: compact ? 11 : 12,
-    fontWeight: 600,
+    fontSize: 14,
+    fontWeight: 400,
     color: "var(--fg-3)",
     letterSpacing: "0.06em",
   };
@@ -261,7 +261,7 @@ function controlStyle(compact: boolean): React.CSSProperties {
     padding: compact ? "0 8px" : "0 12px",
     border: "1px solid var(--border)",
     borderRadius: compact ? 6 : 8,
-    fontSize: compact ? 13.5 : 13,
+    fontSize: 14,
     color: "var(--fg-1)",
     outline: "none",
     background: "var(--surface-1)",

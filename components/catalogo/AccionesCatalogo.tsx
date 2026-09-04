@@ -41,7 +41,7 @@ export default function AccionesCatalogo({ puedeEditar, puedeEliminar, onEdit, o
             display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
             background: "var(--brand)", border: "1px solid var(--brand)",
             borderRadius: "var(--r-sm)", cursor: "pointer",
-            color: "var(--fg-on-brand)", fontSize: 13, fontWeight: 700, fontFamily: "inherit",
+            color: "var(--fg-on-brand)", fontSize: 14, fontWeight: 400, fontFamily: "inherit",
           }}
           onMouseEnter={e => { e.currentTarget.style.filter = "brightness(0.96)"; }}
           onMouseLeave={e => { e.currentTarget.style.filter = "none"; }}
@@ -80,7 +80,7 @@ export default function AccionesCatalogo({ puedeEditar, puedeEliminar, onEdit, o
                 style={{
                   width: "100%", display: "flex", alignItems: "center", gap: 10,
                   padding: "10px 12px", background: "none", border: "none", cursor: "pointer",
-                  fontSize: 13, fontWeight: 500, color: "var(--danger)", fontFamily: "inherit", textAlign: "left",
+                  fontSize: 14, fontWeight: 400, color: "var(--danger)", fontFamily: "inherit", textAlign: "left",
                 }}
                 onMouseEnter={e => { e.currentTarget.style.background = "var(--danger-bg)"; }}
                 onMouseLeave={e => { e.currentTarget.style.background = "none"; }}

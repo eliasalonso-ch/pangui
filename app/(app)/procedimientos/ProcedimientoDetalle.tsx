@@ -37,7 +37,7 @@ export default function ProcedimientoDetalle({
 
   if (!proc) {
     return (
-      <div style={{ padding: 32, color: "var(--danger)", fontSize: 13 }}>
+      <div style={{ padding: 32, color: "var(--danger)", fontSize: 14 }}>
         {error ?? "No se pudo cargar el procedimiento."}
       </div>
     );
@@ -54,14 +54,14 @@ export default function ProcedimientoDetalle({
         flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
       }}>
         <div style={{ minWidth: 0 }}>
-          <h1 style={{ fontSize: 16, fontWeight: 700, color: "var(--fg-1)", margin: 0 }}>{proc.nombre}</h1>
+          <h1 style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", margin: 0 }}>{proc.nombre}</h1>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 3 }}>
             {proc.categoria && (
-              <span style={{ fontSize: 11, fontWeight: 600, color: "var(--brand)", background: "var(--brand-tint)", borderRadius: 4, padding: "2px 6px" }}>
+              <span style={{ fontSize: 14, fontWeight: 400, color: "var(--brand)", background: "var(--brand-tint)", borderRadius: 4, padding: "2px 6px" }}>
                 {proc.categoria}
               </span>
             )}
-            <span style={{ fontSize: 11.5, color: "var(--fg-4)" }}>
+            <span style={{ fontSize: 14, color: "var(--fg-4)" }}>
               {pasos.length} {pasos.length === 1 ? "campo" : "campos"}
             </span>
           </div>
@@ -73,7 +73,7 @@ export default function ProcedimientoDetalle({
               display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
               height: 40, padding: "0 15px", flexShrink: 0,
               background: "var(--brand)", border: "1px solid var(--brand)", borderRadius: "var(--r-sm)",
-              cursor: "pointer", color: "var(--fg-on-brand)", fontSize: 13, fontWeight: 700, fontFamily: "inherit",
+              cursor: "pointer", color: "var(--fg-on-brand)", fontSize: 14, fontWeight: 400, fontFamily: "inherit",
             }}
           >
             <Pencil size={13} />
@@ -88,7 +88,7 @@ export default function ProcedimientoDetalle({
 
           {proc.descripcion && (
             <div style={{ background: "var(--surface-1)", borderRadius: "var(--r-lg)", border: "1px solid var(--border)", padding: "14px 18px" }}>
-              <div style={{ fontSize: 13, color: "var(--fg-2)", lineHeight: 1.6 }}>{proc.descripcion}</div>
+              <div style={{ fontSize: 14, color: "var(--fg-2)", lineHeight: 1.6 }}>{proc.descripcion}</div>
             </div>
           )}
 
@@ -97,7 +97,7 @@ export default function ProcedimientoDetalle({
           {pasos.length === 0 ? (
             <div style={{
               background: "var(--surface-1)", borderRadius: "var(--r-lg)", border: "1px solid var(--border)",
-              padding: "28px 18px", textAlign: "center", color: "var(--fg-4)", fontSize: 13,
+              padding: "28px 18px", textAlign: "center", color: "var(--fg-4)", fontSize: 14,
             }}>
               Sin campos definidos
             </div>
@@ -123,7 +123,7 @@ function CampoPreview({ paso }: { paso: ProcedimientoPaso }) {
       return (
         <div style={{ display: "flex", gap: 6 }}>
           {["Sí", "No", "N/A"].map(o => (
-            <span key={o} style={{ ...fieldBox, padding: "6px 14px", fontSize: 12.5 }}>{o}</span>
+            <span key={o} style={{ ...fieldBox, padding: "6px 14px", fontSize: 14 }}>{o}</span>
           ))}
         </div>
       );
@@ -134,7 +134,7 @@ function CampoPreview({ paso }: { paso: ProcedimientoPaso }) {
       return (
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           {(opts.length ? opts : ["Opción 1", "Opción 2"]).map((o, i) => (
-            <label key={i} style={{ display: "flex", alignItems: "center", gap: 9, fontSize: 13, color: "var(--fg-3)" }}>
+            <label key={i} style={{ display: "flex", alignItems: "center", gap: 9, fontSize: 14, color: "var(--fg-3)" }}>
               <input
                 type={paso.tipo === "opcion_multiple" ? "radio" : "checkbox"}
                 disabled
@@ -149,7 +149,7 @@ function CampoPreview({ paso }: { paso: ProcedimientoPaso }) {
 
     if (paso.tipo === "firma") {
       return (
-        <div style={{ ...fieldBox, height: 72, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12.5 }}>
+        <div style={{ ...fieldBox, height: 72, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14 }}>
           Espacio para la firma
         </div>
       );
@@ -157,7 +157,7 @@ function CampoPreview({ paso }: { paso: ProcedimientoPaso }) {
 
     if (paso.tipo === "imagen" || paso.tipo === "archivo") {
       return (
-        <div style={{ ...fieldBox, display: "flex", alignItems: "center", gap: 8, fontSize: 12.5 }}>
+        <div style={{ ...fieldBox, display: "flex", alignItems: "center", gap: 8, fontSize: 14 }}>
           {paso.tipo === "imagen" ? <Camera size={14} /> : <Info size={14} />}
           {paso.tipo === "imagen" ? "Se adjuntará una foto" : "Se adjuntará un archivo"}
         </div>
@@ -186,16 +186,16 @@ function CampoPreview({ paso }: { paso: ProcedimientoPaso }) {
     }}>
       <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginBottom: control ? 9 : 0 }}>
         <span style={{
-          fontSize: 13.5, fontWeight: isInfoOnly ? 400 : 600,
+          fontSize: 14, fontWeight: 400,
           color: isInfoOnly ? "var(--fg-2)" : "var(--fg-1)",
           fontStyle: isInfoOnly ? "italic" : "normal", lineHeight: 1.4,
         }}>
           {paso.titulo}
         </span>
-        {paso.requerido && !isInfoOnly && <span style={{ fontSize: 12, color: "var(--danger)" }}>*</span>}
+        {paso.requerido && !isInfoOnly && <span style={{ fontSize: 14, color: "var(--danger)" }}>*</span>}
       </div>
       {paso.descripcion && (
-        <div style={{ fontSize: 12.5, color: "var(--fg-3)", lineHeight: 1.5, marginBottom: control ? 9 : 0 }}>
+        <div style={{ fontSize: 14, color: "var(--fg-3)", lineHeight: 1.5, marginBottom: control ? 9 : 0 }}>
           {paso.descripcion}
         </div>
       )}
@@ -207,6 +207,6 @@ function CampoPreview({ paso }: { paso: ProcedimientoPaso }) {
 const fieldBox: React.CSSProperties = {
   border: "1px solid var(--border)", borderRadius: "var(--r-md)",
   background: "var(--surface-0)", padding: "10px 12px",
-  fontSize: 13, color: "var(--fg-4)",
+  fontSize: 14, color: "var(--fg-4)",
 };
 

@@ -27,10 +27,10 @@ export default function SesionNoDisponible() {
         textAlign: "center",
       }}
     >
-      <h2 style={{ margin: 0, fontSize: 17, fontWeight: 600, color: "var(--fg-1)" }}>
+      <h2 style={{ margin: 0, fontSize: 14, fontWeight: 400, color: "var(--fg-1)" }}>
         No pudimos verificar tu sesión
       </h2>
-      <p style={{ margin: 0, maxWidth: 380, fontSize: 13.5, lineHeight: 1.5, color: "var(--fg-3)" }}>
+      <p style={{ margin: 0, maxWidth: 380, fontSize: 14, lineHeight: 1.5, color: "var(--fg-3)" }}>
         Es un problema temporal de conexión, no cerramos tu sesión. Tu trabajo
         sigue guardado. Reintenta en unos segundos.
       </p>
@@ -48,8 +48,8 @@ export default function SesionNoDisponible() {
           background: "var(--surface-1)",
           color: "var(--fg-1)",
           fontFamily: "inherit",
-          fontSize: 13,
-          fontWeight: 600,
+          fontSize: 14,
+          fontWeight: 400,
           cursor: "pointer",
         }}
       >

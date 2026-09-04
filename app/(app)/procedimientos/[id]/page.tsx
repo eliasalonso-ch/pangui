@@ -32,7 +32,7 @@ export default function ProcedimientoDetailPage({ params }: { params: Promise<{ 
           style={{
             display: "flex", alignItems: "center", gap: 6, height: 30, padding: "0 8px",
             background: "none", border: "none", borderRadius: 6, cursor: "pointer",
-            color: "var(--fg-2)", fontSize: 12.5, fontWeight: 600, fontFamily: "inherit",
+            color: "var(--fg-2)", fontSize: 14, fontWeight: 400, fontFamily: "inherit",
           }}
         >
           <ArrowLeft size={14} />

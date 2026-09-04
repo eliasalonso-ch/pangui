@@ -160,8 +160,8 @@ function ProcSettingCard({
       boxShadow: "0 1px 3px rgba(15,23,42,0.06)",
     }}>
       <div style={{ minWidth: 0 }}>
-        <p style={{ fontSize: 15, fontWeight: 600, color: "var(--fg-1)", margin: 0 }}>{label}</p>
-        {hint && <p style={{ fontSize: 13, color: "var(--fg-3)", margin: "4px 0 0", lineHeight: 1.45 }}>{hint}</p>}
+        <p style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", margin: 0 }}>{label}</p>
+        {hint && <p style={{ fontSize: 14, color: "var(--fg-3)", margin: "4px 0 0", lineHeight: 1.45 }}>{hint}</p>}
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
         {children}
@@ -206,14 +206,14 @@ function ProcSwitch({
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const lbl: React.CSSProperties = {
-  fontSize: 11, fontWeight: 700, textTransform: "uppercase",
+  fontSize: 14, fontWeight: 400, textTransform: "uppercase",
   letterSpacing: "0.06em", color: "var(--fg-3)", marginBottom: 5, display: "block",
 };
 function inp(focus = false): React.CSSProperties {
   return {
     width: "100%", height: 36, padding: "0 10px",
     border: `1px solid ${focus ? "var(--brand)" : "var(--border)"}`,
-    borderRadius: 6, fontSize: 13, fontFamily: "inherit", color: "var(--fg-1)",
+    borderRadius: 6, fontSize: 14, fontFamily: "inherit", color: "var(--fg-1)",
     background: "var(--surface-1)", outline: "none", boxSizing: "border-box",
     boxShadow: focus ? "0 0 0 3px rgba(37,99,235,0.10)" : "none",
   };
@@ -421,7 +421,7 @@ export default function ProcedimientoBuilder({ editId, initialNombre, initialDes
             <ArrowLeft size={16} />
           </button>
           <h1 style={{
-            fontSize: 17, fontWeight: 700, color: "var(--fg-1)", margin: 0,
+            fontSize: 14, fontWeight: 400, color: "var(--fg-1)", margin: 0,
             overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
           }}>
             {form.nombre || (editId ? "Editar procedimiento" : "Nuevo procedimiento")}
@@ -437,7 +437,7 @@ export default function ProcedimientoBuilder({ editId, initialNombre, initialDes
               display: "flex", alignItems: "center", gap: 6, flexShrink: 0,
               height: 36, padding: "0 18px",
               background: "var(--brand)", border: "none", borderRadius: 8, cursor: "pointer",
-              fontSize: 13, fontWeight: 600, color: "var(--fg-on-brand)", fontFamily: "inherit",
+              fontSize: 14, fontWeight: 400, color: "var(--fg-on-brand)", fontFamily: "inherit",
             }}
           >
             Continuar
@@ -451,7 +451,7 @@ export default function ProcedimientoBuilder({ editId, initialNombre, initialDes
               height: 36, padding: "0 16px",
               background: saving ? "var(--border-strong)" : "var(--brand)",
               border: "none", borderRadius: 8, cursor: saving ? "default" : "pointer",
-              fontSize: 13, fontWeight: 600, color: "var(--fg-on-brand)", fontFamily: "inherit",
+              fontSize: 14, fontWeight: 400, color: "var(--fg-on-brand)", fontFamily: "inherit",
             }}
           >
             {saving ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
@@ -480,7 +480,7 @@ export default function ProcedimientoBuilder({ editId, initialNombre, initialDes
                   borderRadius: selected ? 7 : 0,
                   boxShadow: selected ? "var(--shadow-sm)" : "none",
                   color: selected ? "var(--fg-1)" : "var(--fg-3)",
-                  fontSize: 13, fontWeight: selected ? 600 : 500,
+                  fontSize: 14, fontWeight: 400,
                   cursor: "pointer", fontFamily: "inherit",
                 }}
               >
@@ -541,7 +541,7 @@ export default function ProcedimientoBuilder({ editId, initialNombre, initialDes
               {form.pasos.length === 0 ? (
                 <div style={{
                   background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: 12,
-                  padding: "40px 24px", textAlign: "center", color: "var(--fg-4)", fontSize: 13.5,
+                  padding: "40px 24px", textAlign: "center", color: "var(--fg-4)", fontSize: 14,
                 }}>
                   Agrega tu primer campo desde el panel de la derecha.
                 </div>
@@ -568,7 +568,7 @@ export default function ProcedimientoBuilder({ editId, initialNombre, initialDes
                 </div>
               )}
 
-              <div style={{ marginTop: 14, fontSize: 12, color: "var(--fg-4)" }}>
+              <div style={{ marginTop: 14, fontSize: 14, color: "var(--fg-4)" }}>
                 Recuento de campos: {form.pasos.length}
               </div>
             </div>
@@ -581,7 +581,7 @@ export default function ProcedimientoBuilder({ editId, initialNombre, initialDes
               boxShadow: "0 1px 3px rgba(15,23,42,0.06)",
             }}>
               <div style={{
-                fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em",
+                fontSize: 14, fontWeight: 400, textTransform: "uppercase", letterSpacing: "0.07em",
                 color: "var(--fg-4)", textAlign: "center", marginBottom: 12,
               }}>
                 Campo nuevo
@@ -590,7 +590,7 @@ export default function ProcedimientoBuilder({ editId, initialNombre, initialDes
                 {TIPO_GROUPS.map(group => (
                   <div key={group.label}>
                     <div style={{
-                      fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em",
+                      fontSize: 14, fontWeight: 400, textTransform: "uppercase", letterSpacing: "0.07em",
                       color: "var(--fg-4)", margin: "8px 0 4px", paddingLeft: 6,
                     }}>
                       {group.label}
@@ -606,7 +606,7 @@ export default function ProcedimientoBuilder({ editId, initialNombre, initialDes
                             display: "flex", alignItems: "center", gap: 8, width: "100%",
                             padding: "7px 8px", border: "none", borderRadius: 8,
                             background: "none", cursor: "pointer", textAlign: "left",
-                            fontFamily: "inherit", fontSize: 12.5, color: "var(--fg-1)",
+                            fontFamily: "inherit", fontSize: 14, color: "var(--fg-1)",
                           }}
                           onMouseEnter={e => { e.currentTarget.style.background = "var(--surface-hover)"; }}
                           onMouseLeave={e => { e.currentTarget.style.background = "none"; }}
@@ -641,12 +641,12 @@ function FieldPreview({ paso }: { paso: PasoFormItem }) {
   const box: React.CSSProperties = {
     border: "1px solid var(--border)", borderRadius: 8,
     background: "var(--surface-0)", padding: "10px 12px",
-    fontSize: 13, color: "var(--fg-4)",
+    fontSize: 14, color: "var(--fg-4)",
   };
 
   if (paso.tipo === "seccion" || paso.tipo === "instruccion" || paso.tipo === "advertencia") {
     return (
-      <div style={{ fontSize: 12.5, color: "var(--fg-3)", lineHeight: 1.5 }}>
+      <div style={{ fontSize: 14, color: "var(--fg-3)", lineHeight: 1.5 }}>
         {paso.descripcion || (paso.tipo === "seccion" ? "Encabezado de sección" : "Texto informativo para el técnico")}
       </div>
     );
@@ -656,7 +656,7 @@ function FieldPreview({ paso }: { paso: PasoFormItem }) {
     return (
       <div style={{ display: "flex", gap: 6 }}>
         {["Sí", "No", "N/A"].map(o => (
-          <span key={o} style={{ ...box, padding: "6px 14px", fontSize: 12.5 }}>{o}</span>
+          <span key={o} style={{ ...box, padding: "6px 14px", fontSize: 14 }}>{o}</span>
         ))}
       </div>
     );
@@ -667,7 +667,7 @@ function FieldPreview({ paso }: { paso: PasoFormItem }) {
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
         {(opts.length ? opts : ["Opción 1", "Opción 2"]).slice(0, 4).map((o, i) => (
-          <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, color: "var(--fg-3)" }}>
+          <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, color: "var(--fg-3)" }}>
             <span style={{
               width: 14, height: 14, flexShrink: 0,
               border: "1px solid var(--border-strong)",
@@ -766,14 +766,14 @@ function PasoEditor({
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
             <span style={{
-              fontSize: 13.5, fontWeight: 500,
+              fontSize: 14, fontWeight: 400,
               color: paso.titulo ? "var(--fg-1)" : "var(--fg-4)",
               overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
             }}>
               {paso.titulo || meta.label}
             </span>
             {paso.requerido && !isInfoOnly && (
-              <span style={{ fontSize: 11, color: "var(--danger)" }}>*</span>
+              <span style={{ fontSize: 14, color: "var(--danger)" }}>*</span>
             )}
             <span style={{ marginLeft: "auto", color: meta.color, display: "flex", flexShrink: 0 }}>
               {meta.icon}
@@ -845,7 +845,7 @@ function PasoEditor({
                   onChange={e => onChange({ multilinea: e.target.checked })}
                   style={{ width: 14, height: 14, accentColor: "var(--brand)", cursor: "pointer" }}
                 />
-                <span style={{ fontSize: 12.5, color: "var(--fg-2)" }}>Texto multilínea</span>
+                <span style={{ fontSize: 14, color: "var(--fg-2)" }}>Texto multilínea</span>
               </label>
             )}
 
@@ -875,7 +875,7 @@ function PasoEditor({
                       key={m}
                       onClick={() => onChange({ moneda: m })}
                       style={{
-                        padding: "4px 12px", borderRadius: 6, fontSize: 12.5, fontWeight: 600,
+                        padding: "4px 12px", borderRadius: 6, fontSize: 14, fontWeight: 400,
                         cursor: "pointer", fontFamily: "inherit",
                         border: paso.moneda === m ? "1px solid var(--brand)" : "1px solid var(--border)",
                         background: paso.moneda === m ? "#EFF6FF" : "var(--surface-1)",
@@ -934,13 +934,13 @@ function PasoEditor({
             )}
 
             {(paso.tipo === "archivo") && (
-              <div style={{ fontSize: 12, color: "var(--fg-3)" }}>
+              <div style={{ fontSize: 14, color: "var(--fg-3)" }}>
                 El técnico podrá adjuntar un archivo (PDF, docx, etc.) al ejecutar este paso.
               </div>
             )}
 
             {(paso.tipo === "fecha" || paso.tipo === "hora" || paso.tipo === "fecha_hora") && (
-              <div style={{ fontSize: 12, color: "var(--fg-3)" }}>
+              <div style={{ fontSize: 14, color: "var(--fg-3)" }}>
                 Captura una {paso.tipo === "fecha" ? "fecha" : paso.tipo === "hora" ? "hora" : "fecha y hora"} con el reloj del dispositivo.
               </div>
             )}
@@ -959,7 +959,7 @@ function PasoEditor({
                     onChange={e => onChange({ requerido: e.target.checked })}
                     style={{ width: 13, height: 13, accentColor: "var(--brand)", cursor: "pointer" }}
                   />
-                  <span style={{ fontSize: 12.5, color: "var(--fg-2)" }}>Campo requerido</span>
+                  <span style={{ fontSize: 14, color: "var(--fg-2)" }}>Campo requerido</span>
                 </label>
               ) : <span />}
               <div style={{ display: "flex", gap: 4 }}>
@@ -1038,7 +1038,7 @@ function OpcionesEditor({
       <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
         {opciones.map((op, i) => (
           <div key={i} style={{ display: "flex", gap: 6, alignItems: "center" }}>
-            <span style={{ fontSize: 12, color: "var(--fg-4)", width: 18, textAlign: "right", flexShrink: 0 }}>{i + 1}.</span>
+            <span style={{ fontSize: 14, color: "var(--fg-4)", width: 18, textAlign: "right", flexShrink: 0 }}>{i + 1}.</span>
             <FocusInput
               type="text"
               value={op}
@@ -1066,7 +1066,7 @@ function OpcionesEditor({
         style={{
           marginTop: 6, display: "flex", alignItems: "center", gap: 5,
           background: "none", border: "none", cursor: "pointer", padding: "2px 0",
-          fontSize: 12, color: "var(--fg-3)", fontFamily: "inherit",
+          fontSize: 14, color: "var(--fg-3)", fontFamily: "inherit",
         }}
         onMouseEnter={e => { e.currentTarget.style.color = "var(--brand)"; }}
         onMouseLeave={e => { e.currentTarget.style.color = "var(--fg-3)"; }}

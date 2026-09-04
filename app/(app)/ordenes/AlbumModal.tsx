@@ -89,7 +89,7 @@ export function AlbumModal({
           {isEdit
             ? <Pencil size={34} strokeWidth={1.6} style={{ color: "var(--brand)" }} />
             : <FolderPlus size={38} strokeWidth={1.6} style={{ color: "var(--brand)" }} />}
-          <div style={{ fontSize: 19, fontWeight: 700, color: "var(--fg-1)", letterSpacing: "-0.01em" }}>{isEdit ? "Editar álbum" : "Nuevo álbum"}</div>
+          <div style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", letterSpacing: "-0.01em" }}>{isEdit ? "Editar álbum" : "Nuevo álbum"}</div>
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
@@ -113,7 +113,7 @@ export function AlbumModal({
                   ? "Fotos del supervisor para guiar al técnico"
                   : "Fotos que el técnico debe subir en campo"}
                 style={{
-                  flex: 1, height: 40, borderRadius: 9, fontSize: 13, fontWeight: 600,
+                  flex: 1, height: 40, borderRadius: 9, fontSize: 14, fontWeight: 400,
                   border: `1.5px solid ${tipo === t ? "var(--brand)" : "var(--border)"}`,
                   background: tipo === t ? "var(--brand-tint)" : "var(--surface-1)",
                   color: tipo === t ? "var(--brand-fg)" : "var(--fg-2)",
@@ -133,7 +133,7 @@ export function AlbumModal({
               height: 44, marginTop: 4, border: "none", borderRadius: 9,
               background: valid ? "var(--brand)" : "var(--border)",
               color: valid ? "var(--fg-on-brand)" : "var(--fg-4)",
-              fontSize: 14.5, fontWeight: 600, cursor: valid && !saving ? "pointer" : "default",
+              fontSize: 14, fontWeight: 400, cursor: valid && !saving ? "pointer" : "default",
               display: "flex", alignItems: "center", justifyContent: "center", gap: 7, fontFamily: "inherit",
               transition: "opacity 0.12s", opacity: valid && !saving ? 1 : 0.75,
             }}

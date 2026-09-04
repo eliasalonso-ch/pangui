@@ -327,7 +327,7 @@ function MaterialEditor({ state, workspaceId, onClose, onSaved }: { state: NonNu
         display: "flex", alignItems: "center", justifyContent: "space-between",
         padding: "0 28px", height: 64, borderBottom: "1px solid var(--border)", flexShrink: 0,
       }}>
-        <h2 style={{ fontSize: 18, fontWeight: 700, color: "var(--fg-1)", margin: 0 }}>
+        <h2 style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", margin: 0 }}>
           {isCreate ? "Nuevo material" : "Editar material"}
         </h2>
         <button
@@ -371,7 +371,7 @@ function MaterialEditor({ state, workspaceId, onClose, onSaved }: { state: NonNu
             onChange={e => set("nombre", e.target.value)}
             placeholder="Nombre del material"
             style={{
-              width: "100%", fontSize: 22, fontWeight: 400,
+              width: "100%", fontSize: 14, fontWeight: 400,
               color: "var(--fg-1)", border: "none", outline: "none",
               background: "transparent", padding: "8px 0",
               borderBottom: "2px solid " + (form.nombre ? "var(--brand)" : "var(--border)"),
@@ -406,7 +406,7 @@ function MaterialEditor({ state, workspaceId, onClose, onSaved }: { state: NonNu
             height: 40, padding: "0 18px",
             border: "1px solid var(--border)", borderRadius: 8,
             background: "var(--surface-1)", color: "var(--fg-2)",
-            fontSize: 13, fontWeight: 500, cursor: saving ? "default" : "pointer", fontFamily: "inherit",
+            fontSize: 14, fontWeight: 400, cursor: saving ? "default" : "pointer", fontFamily: "inherit",
           }}
         >
           Cancelar
@@ -419,7 +419,7 @@ function MaterialEditor({ state, workspaceId, onClose, onSaved }: { state: NonNu
             height: 40, padding: "0 20px",
             border: 0, borderRadius: 8,
             background: "var(--brand)", color: "var(--fg-on-brand)",
-            fontSize: 13, fontWeight: 600,
+            fontSize: 14, fontWeight: 400,
             cursor: (saving || !form.nombre.trim()) ? "default" : "pointer",
             opacity: (saving || !form.nombre.trim()) ? 0.6 : 1,
             fontFamily: "inherit", display: "flex", alignItems: "center", gap: 7,

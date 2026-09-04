@@ -209,7 +209,7 @@ function FieldRow({ label, children }: {
 }) {
   return (
     <div style={{ marginBottom: 20 }}>
-      <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--fg-2)", marginBottom: 6 }}>
+      <label style={{ display: "block", fontSize: 14, fontWeight: 400, color: "var(--fg-2)", marginBottom: 6 }}>
         {label}
       </label>
       {children}
@@ -251,7 +251,7 @@ function SearchSelect({ placeholder, value, options, onChange }: {
         style={{
           width: "100%", height: 40, display: "flex", alignItems: "center", gap: 8,
           padding: "0 12px", border: "1px solid var(--border)", borderRadius: 8,
-          background: "var(--surface-1)", fontSize: 13, color: selected ? "var(--fg-1)" : "var(--fg-4)",
+          background: "var(--surface-1)", fontSize: 14, color: selected ? "var(--fg-1)" : "var(--fg-4)",
           cursor: "pointer", textAlign: "left",
         }}
       >
@@ -276,7 +276,7 @@ function SearchSelect({ placeholder, value, options, onChange }: {
               style={{
                 width: "100%", height: 36, padding: "0 10px",
                 border: "1px solid var(--border)", borderRadius: 6,
-                fontSize: 13, outline: "none", color: "var(--fg-1)", fontFamily: "inherit",
+                fontSize: 14, outline: "none", color: "var(--fg-1)", fontFamily: "inherit",
                 background: "var(--surface-1)",
               }}
             />
@@ -287,7 +287,7 @@ function SearchSelect({ placeholder, value, options, onChange }: {
               onClick={() => { onChange(""); setOpen(false); }}
               style={{
                 display: "block", width: "100%", textAlign: "left",
-                padding: "10px 12px", fontSize: 13, color: "var(--fg-4)",
+                padding: "10px 12px", fontSize: 14, color: "var(--fg-4)",
                 background: !value ? "var(--brand-tint)" : "transparent",
                 border: "none", cursor: "pointer", fontFamily: "inherit",
               }}
@@ -302,7 +302,7 @@ function SearchSelect({ placeholder, value, options, onChange }: {
                 style={{
                   display: "flex", alignItems: "center", gap: 6,
                   width: "100%", textAlign: "left",
-                  padding: "10px 12px", fontSize: 13,
+                  padding: "10px 12px", fontSize: 14,
                   background: value === o.id ? "var(--brand-tint)" : "transparent",
                   border: "none", cursor: "pointer", fontFamily: "inherit",
                 }}
@@ -310,12 +310,12 @@ function SearchSelect({ placeholder, value, options, onChange }: {
                 {value === o.id && <Check size={11} style={{ color: "var(--brand)", flexShrink: 0 }} />}
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ color: "var(--fg-1)" }}>{o.label}</div>
-                  {o.sub && <div style={{ fontSize: 13, color: "var(--fg-4)" }}>{o.sub}</div>}
+                  {o.sub && <div style={{ fontSize: 14, color: "var(--fg-4)" }}>{o.sub}</div>}
                 </div>
               </button>
             ))}
             {filtered.length === 0 && (
-              <div style={{ padding: "8px 10px", fontSize: 12.5, color: "var(--fg-4)" }}>Sin resultados</div>
+              <div style={{ padding: "8px 10px", fontSize: 14, color: "var(--fg-4)" }}>Sin resultados</div>
             )}
           </div>
         </div>
@@ -350,7 +350,7 @@ function PdfSuggestion({
     <div style={{ marginTop: 10, padding: "10px 12px", background: "var(--warning-bg, #FFFBEB)", border: "1px solid var(--warning, #F59E0B)", borderRadius: 8 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: usable.length > 0 ? 8 : 0 }}>
         <AlertTriangle size={12} style={{ color: "var(--warning, #F59E0B)", flexShrink: 0 }} />
-        <span style={{ flex: 1, fontSize: 12, color: "var(--fg-2)" }}>
+        <span style={{ flex: 1, fontSize: 14, color: "var(--fg-2)" }}>
           IA detectó <strong>"{field.extracted ?? extractedLabel}"</strong>
           {usable.length > 0 ? " — ¿es alguno de estos?" : " — sin coincidencias"}
         </span>
@@ -363,17 +363,17 @@ function PdfSuggestion({
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
           {usable.map(c => (
             <button key={c.id} type="button" onClick={() => onPick(c.id)}
-              style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", border: "1px solid var(--border)", borderRadius: 6, background: "var(--surface-1)", cursor: "pointer", textAlign: "left", fontFamily: "inherit", fontSize: 12.5, color: "var(--fg-1)" }}>
+              style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", border: "1px solid var(--border)", borderRadius: 6, background: "var(--surface-1)", cursor: "pointer", textAlign: "left", fontFamily: "inherit", fontSize: 14, color: "var(--fg-1)" }}>
               <Check size={11} style={{ color: "var(--brand)", flexShrink: 0 }} />
               <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.name}</span>
-              <span style={{ fontSize: 10.5, color: "var(--fg-4)", flexShrink: 0 }}>{Math.round(c.confidence * 100)}%</span>
+              <span style={{ fontSize: 14, color: "var(--fg-4)", flexShrink: 0 }}>{Math.round(c.confidence * 100)}%</span>
             </button>
           ))}
         </div>
       )}
       {canCreate && field.extracted && onCreate && (
         <button type="button" onClick={onCreate}
-          style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 5, height: 30, padding: "0 10px", border: "1px dashed var(--brand)", borderRadius: 6, background: "transparent", color: "var(--brand)", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+          style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 5, height: 30, padding: "0 10px", border: "1px dashed var(--brand)", borderRadius: 6, background: "transparent", color: "var(--brand)", fontSize: 14, fontWeight: 400, cursor: "pointer", fontFamily: "inherit" }}>
           <Plus size={11} /> Crear «{field.extracted}»
         </button>
       )}
@@ -421,13 +421,13 @@ function AssigneeSelect({ usuarios, value, onChange }: {
               display: "flex", alignItems: "center", gap: 4,
               padding: "2px 7px 2px 4px",
               background: "var(--brand-tint)", borderRadius: 20,
-              fontSize: 13.5, color: "var(--brand)",
+              fontSize: 14, color: "var(--brand)",
             }}>
               <span style={{
                 width: 18, height: 18, borderRadius: "50%",
                 background: "var(--brand)", color: "var(--fg-on-brand)",
                 display: "flex", alignItems: "center", justifyContent: "center",
-                fontSize: 8, fontWeight: 700,
+                fontSize: 14, fontWeight: 400,
               }}>
                 {initials(u.nombre)}
               </span>
@@ -449,7 +449,7 @@ function AssigneeSelect({ usuarios, value, onChange }: {
         style={{
           height: 40, display: "flex", alignItems: "center", gap: 8,
           padding: "0 12px", border: "1px solid var(--border)", borderRadius: 8,
-          background: "var(--surface-1)", fontSize: 13, color: "var(--fg-4)",
+          background: "var(--surface-1)", fontSize: 14, color: "var(--fg-4)",
           cursor: "pointer", fontFamily: "inherit",
         }}
       >
@@ -473,7 +473,7 @@ function AssigneeSelect({ usuarios, value, onChange }: {
               style={{
                 width: "100%", height: 36, padding: "0 10px",
                 border: "1px solid var(--border)", borderRadius: 6,
-                fontSize: 13, outline: "none", color: "var(--fg-1)", fontFamily: "inherit",
+                fontSize: 14, outline: "none", color: "var(--fg-1)", fontFamily: "inherit",
                 background: "var(--surface-1)",
               }}
             />
@@ -498,20 +498,20 @@ function AssigneeSelect({ usuarios, value, onChange }: {
                     background: sel ? "var(--brand)" : "var(--surface-hover)",
                     color: sel ? "var(--fg-on-brand)" : "var(--fg-3)",
                     display: "flex", alignItems: "center", justifyContent: "center",
-                    fontSize: 9, fontWeight: 700, flexShrink: 0,
+                    fontSize: 14, fontWeight: 400, flexShrink: 0,
                   }}>
                     {initials(u.nombre)}
                   </span>
                   <div style={{ flex: 1, textAlign: "left" }}>
-                    <div style={{ fontSize: 13, fontWeight: 500, color: "var(--fg-1)" }}>{u.nombre}</div>
-                    <div style={{ fontSize: 13, color: "var(--fg-4)", textTransform: "capitalize" }}>{u.rol}</div>
+                    <div style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)" }}>{u.nombre}</div>
+                    <div style={{ fontSize: 14, color: "var(--fg-4)", textTransform: "capitalize" }}>{u.rol}</div>
                   </div>
                   {sel && <Check size={13} style={{ color: "var(--brand)", flexShrink: 0 }} />}
                 </button>
               );
             })}
             {filtered.length === 0 && (
-              <div style={{ padding: "8px 10px", fontSize: 12.5, color: "var(--fg-4)" }}>Sin resultados</div>
+              <div style={{ padding: "8px 10px", fontSize: 14, color: "var(--fg-4)" }}>Sin resultados</div>
             )}
           </div>
         </div>
@@ -581,7 +581,7 @@ function HitoSelect({ value, onChange, wsId }: {
         style={{
           width: "100%", height: 40, display: "flex", alignItems: "center", gap: 8,
           padding: "0 10px", border: "1px solid var(--border)", borderRadius: 8,
-          background: "var(--surface-1)", fontSize: 13, color: value ? "var(--fg-1)" : "var(--fg-4)",
+          background: "var(--surface-1)", fontSize: 14, color: value ? "var(--fg-1)" : "var(--fg-4)",
           cursor: "pointer", textAlign: "left", fontFamily: "inherit",
         }}
       >
@@ -605,7 +605,7 @@ function HitoSelect({ value, onChange, wsId }: {
               style={{
                 width: "100%", height: 36, padding: "0 10px",
                 border: "1px solid var(--border)", borderRadius: 8,
-                fontSize: 12.5, outline: "none", color: "var(--fg-1)",
+                fontSize: 14, outline: "none", color: "var(--fg-1)",
                 fontFamily: "inherit", boxSizing: "border-box", background: "var(--surface-1)",
               }}
             />
@@ -615,7 +615,7 @@ function HitoSelect({ value, onChange, wsId }: {
               <button
                 type="button"
                 onClick={() => { onChange(""); setOpen(false); }}
-                style={{ display: "block", width: "100%", textAlign: "left", padding: "10px 12px", fontSize: 13, color: "var(--fg-4)", background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}
+                style={{ display: "block", width: "100%", textAlign: "left", padding: "10px 12px", fontSize: 14, color: "var(--fg-4)", background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}
               >
                 Quitar hito
               </button>
@@ -627,7 +627,7 @@ function HitoSelect({ value, onChange, wsId }: {
                 onClick={() => { onChange(h.nombre); setOpen(false); }}
                 style={{
                   display: "flex", alignItems: "center", gap: 6,
-                  width: "100%", padding: "10px 12px", fontSize: 13,
+                  width: "100%", padding: "10px 12px", fontSize: 14,
                   background: value === h.nombre ? "var(--brand-tint)" : "transparent",
                   border: "none", cursor: "pointer", fontFamily: "inherit", color: "var(--fg-1)",
                 }}
@@ -643,7 +643,7 @@ function HitoSelect({ value, onChange, wsId }: {
                 disabled={creating}
                 style={{
                   display: "flex", alignItems: "center", gap: 6,
-                  width: "100%", padding: "10px 12px", fontSize: 13, fontWeight: 600,
+                  width: "100%", padding: "10px 12px", fontSize: 14, fontWeight: 400,
                   background: "var(--brand-tint)", color: "var(--brand)",
                   border: "none", borderTop: "1px solid var(--border)",
                   cursor: creating ? "default" : "pointer", fontFamily: "inherit",
@@ -654,7 +654,7 @@ function HitoSelect({ value, onChange, wsId }: {
               </button>
             )}
             {filtered.length === 0 && !canCreate && (
-              <div style={{ padding: "10px 12px", fontSize: 12.5, color: "var(--fg-4)" }}>Sin ITOs</div>
+              <div style={{ padding: "10px 12px", fontSize: 14, color: "var(--fg-4)" }}>Sin ITOs</div>
             )}
           </div>
         </div>
@@ -719,7 +719,7 @@ function SolicitanteSelect({ value, telefono, email, onChange, wsId, catalog, on
           style={{
             width: "100%", height: 40, display: "flex", alignItems: "center", gap: 8,
             padding: "0 12px", border: "1px solid var(--border)", borderRadius: 8,
-            background: "var(--surface-1)", fontSize: 13, color: value ? "var(--fg-1)" : "var(--fg-4)",
+            background: "var(--surface-1)", fontSize: 14, color: value ? "var(--fg-1)" : "var(--fg-4)",
             cursor: "pointer", textAlign: "left", fontFamily: "inherit",
           }}
         >
@@ -743,7 +743,7 @@ function SolicitanteSelect({ value, telefono, email, onChange, wsId, catalog, on
                 style={{
                   width: "100%", height: 36, padding: "0 10px",
                   border: "1px solid var(--border)", borderRadius: 8,
-                  fontSize: 12.5, outline: "none", color: "var(--fg-1)",
+                  fontSize: 14, outline: "none", color: "var(--fg-1)",
                   fontFamily: "inherit", boxSizing: "border-box", background: "var(--surface-1)",
                 }}
               />
@@ -753,7 +753,7 @@ function SolicitanteSelect({ value, telefono, email, onChange, wsId, catalog, on
                 <button
                   type="button"
                   onClick={() => { onChange("", "", ""); setOpen(false); }}
-                  style={{ display: "block", width: "100%", textAlign: "left", padding: "10px 12px", fontSize: 13, color: "var(--fg-4)", background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}
+                  style={{ display: "block", width: "100%", textAlign: "left", padding: "10px 12px", fontSize: 14, color: "var(--fg-4)", background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}
                 >
                   Quitar solicitante
                 </button>
@@ -765,7 +765,7 @@ function SolicitanteSelect({ value, telefono, email, onChange, wsId, catalog, on
                   onClick={() => { onChange(s.nombre, s.telefono ?? "", s.email ?? ""); setOpen(false); }}
                   style={{
                     display: "flex", alignItems: "flex-start", gap: 6,
-                    width: "100%", padding: "10px 12px", fontSize: 13,
+                    width: "100%", padding: "10px 12px", fontSize: 14,
                     background: value === s.nombre ? "var(--brand-tint)" : "transparent",
                     border: "none", cursor: "pointer", fontFamily: "inherit", color: "var(--fg-1)",
                   }}
@@ -774,7 +774,7 @@ function SolicitanteSelect({ value, telefono, email, onChange, wsId, catalog, on
                   <div style={{ flex: 1, minWidth: 0, textAlign: "left" }}>
                     <div>{s.nombre}</div>
                     {(s.telefono || s.email) && (
-                      <div style={{ fontSize: 13, color: "var(--fg-4)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      <div style={{ fontSize: 14, color: "var(--fg-4)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                         {[s.telefono, s.email].filter(Boolean).join(" · ")}
                       </div>
                     )}
@@ -787,7 +787,7 @@ function SolicitanteSelect({ value, telefono, email, onChange, wsId, catalog, on
                   onClick={() => { onChange(query.trim(), telefono, email); setQuery(""); setOpen(false); }}
                   style={{
                     display: "flex", alignItems: "center", gap: 6,
-                    width: "100%", padding: "10px 12px", fontSize: 13, fontWeight: 600,
+                    width: "100%", padding: "10px 12px", fontSize: 14, fontWeight: 400,
                     background: "var(--brand-tint)", color: "var(--brand)",
                     border: "none", borderTop: "1px solid var(--border)",
                     cursor: "pointer", fontFamily: "inherit",
@@ -798,7 +798,7 @@ function SolicitanteSelect({ value, telefono, email, onChange, wsId, catalog, on
                 </button>
               )}
               {filtered.length === 0 && !canCreate && (
-                <div style={{ padding: "10px 12px", fontSize: 12.5, color: "var(--fg-4)" }}>Sin solicitantes</div>
+                <div style={{ padding: "10px 12px", fontSize: 14, color: "var(--fg-4)" }}>Sin solicitantes</div>
               )}
             </div>
           </div>
@@ -818,7 +818,7 @@ function SolicitanteSelect({ value, telefono, email, onChange, wsId, catalog, on
               readOnly={phoneLocked}
               onChange={phoneLocked ? undefined : e => onChange(value, e.target.value, email)}
               title={phoneLocked ? "Teléfono guardado para este solicitante" : undefined}
-              style={{ height: 38, padding: "0 12px", border: "1px solid var(--border)", borderRadius: 8, fontSize: 13, color: phoneLocked ? "var(--fg-3)" : "var(--fg-1)", outline: "none", fontFamily: "inherit", background: phoneLocked ? "var(--surface-0)" : "var(--surface-1)", cursor: phoneLocked ? "default" : "text" }}
+              style={{ height: 38, padding: "0 12px", border: "1px solid var(--border)", borderRadius: 8, fontSize: 14, color: phoneLocked ? "var(--fg-3)" : "var(--fg-1)", outline: "none", fontFamily: "inherit", background: phoneLocked ? "var(--surface-0)" : "var(--surface-1)", cursor: phoneLocked ? "default" : "text" }}
             />
             <input
               type="email"
@@ -827,11 +827,11 @@ function SolicitanteSelect({ value, telefono, email, onChange, wsId, catalog, on
               readOnly={emailLocked}
               onChange={emailLocked ? undefined : e => onChange(value, telefono, e.target.value)}
               title={emailLocked ? "Email guardado para este solicitante" : undefined}
-              style={{ height: 38, padding: "0 12px", border: "1px solid var(--border)", borderRadius: 8, fontSize: 13, color: emailLocked ? "var(--fg-3)" : "var(--fg-1)", outline: "none", fontFamily: "inherit", background: emailLocked ? "var(--surface-0)" : "var(--surface-1)", cursor: emailLocked ? "default" : "text" }}
+              style={{ height: 38, padding: "0 12px", border: "1px solid var(--border)", borderRadius: 8, fontSize: 14, color: emailLocked ? "var(--fg-3)" : "var(--fg-1)", outline: "none", fontFamily: "inherit", background: emailLocked ? "var(--surface-0)" : "var(--surface-1)", cursor: emailLocked ? "default" : "text" }}
             />
           </div>
           {(phoneLocked || emailLocked) && (
-            <span style={{ fontSize: 13, color: "var(--fg-4)" }}>
+            <span style={{ fontSize: 14, color: "var(--fg-4)" }}>
               Datos de contacto guardados para este solicitante.
             </span>
           )}
@@ -1468,7 +1468,7 @@ export default function OTCrearPanel({
         display: "flex", alignItems: "center", justifyContent: "space-between",
         padding: "0 28px", height: 64, borderBottom: "1px solid var(--border)", flexShrink: 0,
       }}>
-        <h2 style={{ fontSize: 18, fontWeight: 700, color: "var(--fg-1)", margin: 0 }}>
+        <h2 style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", margin: 0 }}>
           Nueva Orden de Trabajo
         </h2>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -1497,7 +1497,7 @@ export default function OTCrearPanel({
               height: 36, padding: "0 12px",
               border: "1px solid var(--border)", borderRadius: 8,
               background: "var(--brand-tint)", color: "var(--brand)",
-              fontSize: 12, fontWeight: 600, cursor: parsing ? "default" : "pointer",
+              fontSize: 14, fontWeight: 400, cursor: parsing ? "default" : "pointer",
               fontFamily: "inherit", transition: "background 0.1s",
             }}
             onMouseEnter={e => { if (!parsing) e.currentTarget.style.background = "var(--brand-tint)"; }}
@@ -1516,17 +1516,17 @@ export default function OTCrearPanel({
         <div role="dialog" aria-modal="true" aria-label="Crear orden con IA" style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(0,0,0,.38)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
           <div style={{ width: "min(560px, 100%)", borderRadius: 14, border: "1px solid var(--border)", background: "var(--surface-1)", boxShadow: "0 24px 70px rgba(0,0,0,.28)", overflow: "hidden" }}>
             <div style={{ height: 56, padding: "0 18px", display: "flex", alignItems: "center", justifyContent: "space-between", background: "var(--surface-canvas)", borderBottom: "1px solid var(--border)" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 9 }}><Sparkles size={18} color="var(--brand)" /><strong style={{ fontSize: 16, color: "var(--fg-1)" }}>Crear con IA</strong></div>
+              <div style={{ display: "flex", alignItems: "center", gap: 9 }}><Sparkles size={18} color="var(--brand)" /><strong style={{ fontSize: 14, color: "var(--fg-1)" }}>Crear con IA</strong></div>
               <button type="button" onClick={() => !aiGenerating && setAiOpen(false)} aria-label="Cerrar" style={{ width: 32, height: 32, display: "grid", placeItems: "center", borderRadius: 8, border: "1px solid var(--border)", background: "var(--surface-1)", color: "var(--fg-2)", cursor: "pointer" }}><X size={16} /></button>
             </div>
             <div style={{ padding: 18 }}>
               <p style={{ margin: "0 0 12px", color: "var(--fg-2)", fontSize: 14, lineHeight: 1.5 }}>Pega el mensaje del solicitante o escribe un resumen. Pangui relacionará la información con los registros reales del espacio de trabajo.</p>
               <textarea autoFocus value={aiMessage} onChange={event => setAiMessage(event.target.value)} maxLength={6000} placeholder="Ej.: Emergencia en sala de bombas. Ana Pérez solicita revisión hoy y debe asignarse a Juan..." style={{ width: "100%", minHeight: 180, resize: "vertical", border: "1px solid var(--border)", borderRadius: 10, padding: 12, background: "var(--surface-1)", color: "var(--fg-1)", font: "inherit", fontSize: 14, outline: "none" }} />
-              <p style={{ margin: "8px 0 0", color: "var(--fg-3)", fontSize: 12 }}>La orden no se guardará automáticamente. Podrás revisar y corregir todos los campos.</p>
+              <p style={{ margin: "8px 0 0", color: "var(--fg-3)", fontSize: 14 }}>La orden no se guardará automáticamente. Podrás revisar y corregir todos los campos.</p>
             </div>
             <div style={{ padding: "12px 18px", display: "flex", justifyContent: "flex-end", gap: 8, borderTop: "1px solid var(--border)" }}>
               <button type="button" onClick={() => setAiOpen(false)} disabled={aiGenerating} style={{ height: 36, padding: "0 14px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--surface-1)", color: "var(--fg-1)", cursor: "pointer" }}>Cancelar</button>
-              <button type="button" onClick={generateFromMessage} disabled={aiGenerating || aiMessage.trim().length < 10} style={{ height: 36, padding: "0 15px", borderRadius: 8, border: 0, background: "var(--brand)", color: "white", fontWeight: 600, cursor: "pointer", opacity: aiGenerating || aiMessage.trim().length < 10 ? .55 : 1, display: "flex", alignItems: "center", gap: 7 }}>
+              <button type="button" onClick={generateFromMessage} disabled={aiGenerating || aiMessage.trim().length < 10} style={{ height: 36, padding: "0 15px", borderRadius: 8, border: 0, background: "var(--brand)", color: "white", fontWeight: 400, cursor: "pointer", opacity: aiGenerating || aiMessage.trim().length < 10 ? .55 : 1, display: "flex", alignItems: "center", gap: 7 }}>
                 {aiGenerating ? <Loader2 size={15} style={{ animation: "spin 1s linear infinite" }} /> : <Sparkles size={15} />}{aiGenerating ? "Generando…" : "Crear borrador"}
               </button>
             </div>
@@ -1537,7 +1537,7 @@ export default function OTCrearPanel({
       {/* Parse feedback banner */}
       {parseMsg && (
         <div style={{
-          padding: "10px 28px", fontSize: 12.5, flexShrink: 0,
+          padding: "10px 28px", fontSize: 14, flexShrink: 0,
           background: parseMsg.startsWith("No se") || parseMsg.startsWith("Error") ? "var(--danger-bg)" : "var(--success-bg)",
           color: parseMsg.startsWith("No se") || parseMsg.startsWith("Error") ? "var(--danger)" : "var(--success)",
           borderBottom: "1px solid var(--border)",
@@ -1562,7 +1562,7 @@ export default function OTCrearPanel({
               value={form.titulo}
               onChange={e => setF("titulo", e.target.value)}
               style={{
-                width: "100%", fontSize: 22, fontWeight: 400,
+                width: "100%", fontSize: 14, fontWeight: 400,
                 color: "var(--fg-1)", border: "none", outline: "none",
                 background: "transparent", padding: "8px 0",
                 borderBottom: "2px solid " + (form.titulo ? "var(--brand)" : "var(--border)"),
@@ -1589,7 +1589,7 @@ export default function OTCrearPanel({
 
           {/* Work type — promoted near the top so it's set before scrolling. */}
           <div style={{ marginBottom: 18 }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: "var(--fg-2)", marginBottom: 8 }}>
+            <div style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-2)", marginBottom: 8 }}>
               Tipo de trabajo
             </div>
             <select
@@ -1598,7 +1598,7 @@ export default function OTCrearPanel({
               style={{
                 width: "100%", height: 40, padding: "0 12px",
                 border: "1px solid var(--border)", borderRadius: 8,
-                fontSize: 13, color: "var(--fg-1)", outline: "none",
+                fontSize: 14, color: "var(--fg-1)", outline: "none",
                 background: "var(--surface-1)", fontFamily: "inherit",
               }}
             >
@@ -1614,7 +1614,7 @@ export default function OTCrearPanel({
           <div style={{ marginBottom: 24 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 12 }}>
               <Camera size={13} style={{ color: "var(--fg-3)" }} />
-              <span style={{ fontSize: 14, fontWeight: 600, color: "var(--fg-2)" }}>Álbumes de fotos</span>
+              <span style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-2)" }}>Álbumes de fotos</span>
             </div>
 
             {/* Sin álbumes la barra lateral no lista nada, así que se oculta: el
@@ -1629,7 +1629,7 @@ export default function OTCrearPanel({
               {/* Album strip */}
               {grupos.length > 0 && (
               <aside style={{ flexShrink: 0, display: "flex", flexDirection: "column", background: "var(--surface-1)", borderBottom: "1px solid var(--border)" }}>
-                <div style={{ padding: "12px 14px 8px", fontSize: 12, fontWeight: 700, color: "var(--fg-4)", letterSpacing: "0.01em" }}>
+                <div style={{ padding: "12px 14px 8px", fontSize: 14, fontWeight: 400, color: "var(--fg-4)", letterSpacing: "0.01em" }}>
                   Álbumes
                 </div>
                 <div style={{ overflowX: "auto", padding: "0 14px 12px", display: "flex", flexDirection: "row", alignItems: "center", gap: 8 }}>
@@ -1638,7 +1638,7 @@ export default function OTCrearPanel({
                     if (delTipo.length === 0) return null;
                     return (
                       <div key={t} style={{ display: "flex", flexDirection: "row", alignItems: "center", gap: 8 }}>
-                        <div style={{ fontSize: 13.5, fontWeight: 600, color: "var(--fg-4)", flexShrink: 0 }}>
+                        <div style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-4)", flexShrink: 0 }}>
                           {t === "referencia" ? "Referencia" : "Evidencia"}
                         </div>
                         {delTipo.map(g => {
@@ -1658,7 +1658,7 @@ export default function OTCrearPanel({
                                 borderRadius: "var(--r-sm)",
                                 background: on ? "var(--brand-tint)" : "var(--surface-1)",
                                 color: on ? "var(--brand)" : "var(--fg-2)",
-                                fontSize: 13.5, fontWeight: on ? 600 : 500,
+                                fontSize: 14, fontWeight: 400,
                                 cursor: "pointer", fontFamily: "inherit", textAlign: "left",
                               }}
                               onMouseEnter={e => { if (!on) e.currentTarget.style.background = "var(--surface-hover)"; }}
@@ -1670,7 +1670,7 @@ export default function OTCrearPanel({
                               <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                                 {g.titulo.charAt(0).toUpperCase() + g.titulo.slice(1)}
                               </span>
-                              <span style={{ flexShrink: 0, fontSize: 13, color: on ? "var(--brand)" : "var(--fg-4)", fontVariantNumeric: "tabular-nums" }}>
+                              <span style={{ flexShrink: 0, fontSize: 14, color: on ? "var(--brand)" : "var(--fg-4)", fontVariantNumeric: "tabular-nums" }}>
                                 {g.fotos.length}
                               </span>
                             </button>
@@ -1688,7 +1688,7 @@ export default function OTCrearPanel({
                       display: "flex", alignItems: "center", gap: 6, padding: "0 12px",
                       border: "1px dashed var(--border-strong)", borderRadius: "var(--r-sm)",
                       background: "transparent", color: "var(--fg-3)",
-                      fontSize: 13.5, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
+                      fontSize: 14, fontWeight: 400, cursor: "pointer", fontFamily: "inherit",
                     }}
                     onMouseEnter={e => { e.currentTarget.style.background = "var(--surface-hover)"; e.currentTarget.style.color = "var(--brand)"; }}
                     onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "var(--fg-3)"; }}
@@ -1706,7 +1706,7 @@ export default function OTCrearPanel({
                   <>
                     <div style={{ padding: "12px 14px", borderBottom: "1px solid var(--border)", background: "var(--surface-1)", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }}>
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 14, fontWeight: 700, color: "var(--fg-1)", lineHeight: 1.3 }}>
+                        <div style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", lineHeight: 1.3 }}>
                           {activeGrupo.titulo}
                         </div>
                         <div style={{ fontSize: 14, color: "var(--fg-4)", marginTop: 4 }}>
@@ -1733,7 +1733,7 @@ export default function OTCrearPanel({
                                   height: 30, padding: "0 11px", border: "none", borderRadius: 5,
                                   background: on ? "var(--brand)" : "transparent",
                                   color: on ? "var(--fg-on-brand)" : "var(--fg-3)",
-                                  fontSize: 14, fontWeight: 600,
+                                  fontSize: 14, fontWeight: 400,
                                   cursor: on ? "default" : "pointer", fontFamily: "inherit",
                                 }}
                               >
@@ -1781,14 +1781,14 @@ export default function OTCrearPanel({
                         // Mismo vacío que Procedimiento y Adjuntos: ícono en
                         // azul junto al texto y botón de contorno de marca.
                         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10, padding: "18px 12px", border: "1px dashed var(--border-strong)", borderRadius: "var(--r-md)", background: "var(--surface-canvas)" }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 13, color: "var(--fg-3)" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 14, color: "var(--fg-3)" }}>
                             <ImageIcon size={15} style={{ color: "var(--brand)" }} />
                             Sin fotos en este álbum
                           </div>
                           <button
                             type="button"
                             onClick={() => grupoFileRefs.current[activeGrupo.id]?.click()}
-                            style={{ height: 38, padding: "0 18px", display: "flex", alignItems: "center", gap: 7, border: "1px solid var(--brand)", borderRadius: "var(--r-sm)", background: "var(--surface-1)", color: "var(--brand)", fontSize: 13.5, fontWeight: 700, fontFamily: "inherit", cursor: "pointer" }}
+                            style={{ height: 38, padding: "0 18px", display: "flex", alignItems: "center", gap: 7, border: "1px solid var(--brand)", borderRadius: "var(--r-sm)", background: "var(--surface-1)", color: "var(--brand)", fontSize: 14, fontWeight: 400, fontFamily: "inherit", cursor: "pointer" }}
                           >
                             <ImageUp size={15} />
                             Agregar fotos
@@ -1833,7 +1833,7 @@ export default function OTCrearPanel({
                   </>
                 ) : (
                   <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10, color: "var(--fg-3)", padding: 24 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 13 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 14 }}>
                       <ImagePlus size={15} style={{ color: "var(--brand)" }} />
                       {grupos.length === 0 ? "Crea un álbum para agregar fotos" : "Selecciona un álbum"}
                     </div>
@@ -1841,7 +1841,7 @@ export default function OTCrearPanel({
                       <button
                         type="button"
                         onClick={() => { setAlbumTitulo(""); setAlbumTipo("referencia"); setAlbumModal({ mode: "crear" }); }}
-                        style={{ height: 38, padding: "0 18px", display: "flex", alignItems: "center", gap: 7, border: "1px solid var(--brand)", borderRadius: "var(--r-sm)", background: "var(--surface-1)", color: "var(--brand)", fontSize: 13.5, fontWeight: 700, fontFamily: "inherit", cursor: "pointer" }}
+                        style={{ height: 38, padding: "0 18px", display: "flex", alignItems: "center", gap: 7, border: "1px solid var(--brand)", borderRadius: "var(--r-sm)", background: "var(--surface-1)", color: "var(--brand)", fontSize: 14, fontWeight: 400, fontFamily: "inherit", cursor: "pointer" }}
                       >
                         <Plus size={15} />
                         Nuevo álbum
@@ -1867,7 +1867,7 @@ export default function OTCrearPanel({
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                 <Paperclip size={13} style={{ color: "var(--fg-3)" }} />
-                <span style={{ fontSize: 13, fontWeight: 600, color: "var(--fg-2)" }}>
+                <span style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-2)" }}>
                   Adjuntos
                 </span>
               </div>
@@ -1883,7 +1883,7 @@ export default function OTCrearPanel({
                   height: 32, padding: "0 12px",
                   border: "1px solid var(--brand)", borderRadius: 8,
                   background: "var(--brand-tint)", color: "var(--brand)",
-                  fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
+                  fontSize: 14, fontWeight: 400, cursor: "pointer", fontFamily: "inherit",
                 }}
               >
                 <Plus size={11} />
@@ -1907,14 +1907,14 @@ export default function OTCrearPanel({
               // Mismo vacío que Procedimiento: borde tenue y un botón sólido con
               // la acción, en vez de una zona azul que pesa más que el contenido.
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, padding: "18px 12px", border: "1px dashed var(--border-strong)", borderRadius: "var(--r-md)", background: "var(--surface-canvas)" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 13, color: "var(--fg-3)" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 14, color: "var(--fg-3)" }}>
                   <Paperclip size={15} style={{ color: "var(--brand)" }} />
                   PDF, Word, Excel, TXT, CSV, DWG, MP3, M4A…
                 </div>
                 <button
                   type="button"
                   onClick={() => adjuntoInputRef.current?.click()}
-                  style={{ height: 38, padding: "0 18px", display: "flex", alignItems: "center", gap: 7, border: "1px solid var(--brand)", borderRadius: "var(--r-sm)", background: "var(--surface-1)", color: "var(--brand)", fontSize: 13.5, fontWeight: 700, fontFamily: "inherit", cursor: "pointer" }}
+                  style={{ height: 38, padding: "0 18px", display: "flex", alignItems: "center", gap: 7, border: "1px solid var(--brand)", borderRadius: "var(--r-sm)", background: "var(--surface-1)", color: "var(--brand)", fontSize: 14, fontWeight: 400, fontFamily: "inherit", cursor: "pointer" }}
                 >
                   <Plus size={15} /> Adjuntar archivo
                 </button>
@@ -1934,11 +1934,11 @@ export default function OTCrearPanel({
                         value={a.nombre}
                         onChange={e => setAdjuntos(prev => prev.map((x, idx) => idx === i ? { ...x, nombre: e.target.value } : x))}
                         style={{
-                          flex: 1, fontSize: 12.5, color: "var(--fg-1)", border: "none",
+                          flex: 1, fontSize: 14, color: "var(--fg-1)", border: "none",
                           outline: "none", background: "transparent", fontFamily: "inherit", minWidth: 0,
                         }}
                       />
-                      <span style={{ fontSize: 10.5, color: "var(--fg-4)", flexShrink: 0 }}>
+                      <span style={{ fontSize: 14, color: "var(--fg-4)", flexShrink: 0 }}>
                         {(a.file.size / 1024).toFixed(0)} KB
                       </span>
                       <button
@@ -1959,7 +1959,7 @@ export default function OTCrearPanel({
                   style={{
                     display: "flex", alignItems: "center", gap: 4,
                     padding: "10px 0", background: "none", border: "none",
-                    cursor: "pointer", fontSize: 12, fontWeight: 600, color: "var(--fg-4)", fontFamily: "inherit",
+                    cursor: "pointer", fontSize: 14, fontWeight: 400, color: "var(--fg-4)", fontFamily: "inherit",
                   }}
                   onMouseEnter={e => { e.currentTarget.style.color = "var(--brand)"; }}
                   onMouseLeave={e => { e.currentTarget.style.color = "var(--fg-4)"; }}
@@ -1973,7 +1973,7 @@ export default function OTCrearPanel({
 
           {/* Links */}
           <div style={{ marginBottom: 24 }}>
-            <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--fg-2)", marginBottom: 10 }}>
+            <label style={{ display: "block", fontSize: 14, fontWeight: 400, color: "var(--fg-2)", marginBottom: 10 }}>
               Links
             </label>
             <LinksInput
@@ -1989,12 +1989,12 @@ export default function OTCrearPanel({
               placeholder="Ej: SF920260325921"
               value={form.n_ot}
               onChange={e => setF("n_ot", e.target.value)}
-              style={{ width:"100%", height:40, padding:"0 12px", border:`1px solid ${dupWarning ? "var(--warning)" : "var(--border)"}`, borderRadius:8, fontSize:13, color:"var(--fg-1)", outline:"none", fontFamily:"var(--font-mono)", background:"var(--surface-1)" }}
+              style={{ width:"100%", height:40, padding:"0 12px", border:`1px solid ${dupWarning ? "var(--warning)" : "var(--border)"}`, borderRadius:8, fontSize: 14, color:"var(--fg-1)", outline:"none", fontFamily:"var(--font-mono)", background:"var(--surface-1)" }}
             />
             {dupWarning && (
               <div style={{ display:"flex", alignItems:"center", gap:6, marginTop:6, padding:"6px 10px", borderRadius:6, background:"var(--warning-bg, #FFFBEB)", border:"1px solid var(--warning)" }}>
                 <AlertTriangle size={13} style={{ color:"var(--warning)", flexShrink:0 }} />
-                <span style={{ fontSize:12, color:"var(--fg-2)" }}>
+                <span style={{ fontSize: 14, color:"var(--fg-2)" }}>
                   Ya existe una OT con este número: <strong>"{dupWarning}"</strong>. Verifica antes de continuar.
                 </span>
               </div>
@@ -2036,7 +2036,7 @@ export default function OTCrearPanel({
               placeholder="Ej: PRE-2025-001"
               value={form.presupuesto}
               onChange={e => setF("presupuesto", e.target.value)}
-              style={{ width:"100%", height:40, padding:"0 12px", border:"1px solid var(--border)", borderRadius:8, fontSize:13, color:"var(--fg-1)", outline:"none", fontFamily:"inherit", background:"var(--surface-1)" }}
+              style={{ width:"100%", height:40, padding:"0 12px", border:"1px solid var(--border)", borderRadius:8, fontSize: 14, color:"var(--fg-1)", outline:"none", fontFamily:"inherit", background:"var(--surface-1)" }}
             />
           </FieldRow>
 
@@ -2173,7 +2173,7 @@ export default function OTCrearPanel({
               style={{
                 height: 40, padding: "0 12px",
                 border: "1px solid var(--border)", borderRadius: 8,
-                fontSize: 13, color: form.fecha_inicio ? "var(--fg-1)" : "var(--fg-4)",
+                fontSize: 14, color: form.fecha_inicio ? "var(--fg-1)" : "var(--fg-4)",
                 outline: "none", fontFamily: "inherit", background: "var(--surface-1)",
               }}
             />
@@ -2188,7 +2188,7 @@ export default function OTCrearPanel({
               style={{
                 height: 40, padding: "0 12px",
                 border: "1px solid var(--border)", borderRadius: 8,
-                fontSize: 13, color: form.fecha_termino ? "var(--fg-1)" : "var(--fg-4)",
+                fontSize: 14, color: form.fecha_termino ? "var(--fg-1)" : "var(--fg-4)",
                 outline: "none", fontFamily: "inherit", background: "var(--surface-1)",
               }}
             />
@@ -2196,7 +2196,7 @@ export default function OTCrearPanel({
 
           {/* Recurrence — Repetir + Terminar repetición (mirrors the mobile app) */}
           <div style={{ marginBottom: 24 }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: "var(--fg-2)", marginBottom: 8 }}>
+            <div style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-2)", marginBottom: 8 }}>
               Recurrencia
             </div>
             <RecurrenceControls
@@ -2207,7 +2207,7 @@ export default function OTCrearPanel({
 
           {/* Priority — connected segmented control (MaintainX style) */}
           <div style={{ marginBottom: 24 }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: "var(--fg-2)", marginBottom: 8 }}>
+            <div style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-2)", marginBottom: 8 }}>
               Prioridad
             </div>
             <div style={{ display: "inline-flex", border: "1px solid var(--border)", borderRadius: 8, overflow: "hidden" }}>
@@ -2223,7 +2223,7 @@ export default function OTCrearPanel({
                       border: "none",
                       borderLeft: i === 0 ? "none" : "1px solid var(--border)",
                       background: active ? "var(--surface-hover)" : "var(--surface-1)",
-                      fontSize: 13, fontWeight: active ? 700 : 500,
+                      fontSize: 14, fontWeight: 400,
                       color: active ? p.activeColor : "var(--fg-2)",
                       cursor: "pointer", transition: "all 0.12s",
                       fontFamily: "inherit",
@@ -2269,10 +2269,10 @@ export default function OTCrearPanel({
             style={{ width: "min(420px, 100%)", borderRadius: 14, border: "1px solid var(--border)", background: "var(--surface-1)", boxShadow: "0 24px 70px rgba(0,0,0,.28)", overflow: "hidden" }}
           >
             <div style={{ padding: "20px 20px 8px" }}>
-              <strong id="cancelar-ot-titulo" style={{ fontSize: 16, color: "var(--fg-1)" }}>
+              <strong id="cancelar-ot-titulo" style={{ fontSize: 14, color: "var(--fg-1)" }}>
                 ¿Descartar esta orden?
               </strong>
-              <p style={{ margin: "8px 0 0", color: "var(--fg-2)", fontSize: 13.5, lineHeight: 1.5 }}>
+              <p style={{ margin: "8px 0 0", color: "var(--fg-2)", fontSize: 14, lineHeight: 1.5 }}>
                 Se borrará lo que llevas escrito y no podrás recuperarlo.
               </p>
             </div>
@@ -2280,7 +2280,7 @@ export default function OTCrearPanel({
               <button
                 type="button"
                 onClick={() => setConfirmarCancelar(false)}
-                style={{ height: 38, padding: "0 14px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--surface-1)", color: "var(--fg-1)", fontSize: 13, fontWeight: 500, fontFamily: "inherit", cursor: "pointer" }}
+                style={{ height: 38, padding: "0 14px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--surface-1)", color: "var(--fg-1)", fontSize: 14, fontWeight: 400, fontFamily: "inherit", cursor: "pointer" }}
               >
                 Seguir editando
               </button>
@@ -2294,7 +2294,7 @@ export default function OTCrearPanel({
                   setForm(BLANK);
                   onClose();
                 }}
-                style={{ height: 38, padding: "0 15px", borderRadius: 8, border: 0, background: "var(--danger)", color: "white", fontSize: 13, fontWeight: 600, fontFamily: "inherit", cursor: "pointer" }}
+                style={{ height: 38, padding: "0 15px", borderRadius: 8, border: 0, background: "var(--danger)", color: "white", fontSize: 14, fontWeight: 400, fontFamily: "inherit", cursor: "pointer" }}
               >
                 Descartar
               </button>
@@ -2310,7 +2310,7 @@ export default function OTCrearPanel({
         background: "var(--surface-canvas)", flexShrink: 0,
       }}>
         <div style={{ flex: 1 }}>
-          {error && <span style={{ fontSize: 12.5, color: "var(--danger)" }}>{error}</span>}
+          {error && <span style={{ fontSize: 14, color: "var(--danger)" }}>{error}</span>}
         </div>
         <div style={{ display: "flex", gap: 8 }}>
           <button
@@ -2325,7 +2325,7 @@ export default function OTCrearPanel({
               height: 40, padding: "0 18px",
               border: "1px solid var(--border)", borderRadius: 8,
               background: "var(--surface-1)", color: "var(--fg-2)",
-              fontSize: 13, fontWeight: 500, cursor: "pointer", fontFamily: "inherit",
+              fontSize: 14, fontWeight: 400, cursor: "pointer", fontFamily: "inherit",
             }}
           >
             Cancelar
@@ -2339,7 +2339,7 @@ export default function OTCrearPanel({
               border: "none", borderRadius: 8,
               background: saving ? "var(--fg-3)" : "linear-gradient(135deg, var(--brand-active), var(--brand))",
               color: "var(--fg-on-brand)",
-              fontSize: 13, fontWeight: 600,
+              fontSize: 14, fontWeight: 400,
               cursor: saving ? "default" : "pointer",
               display: "flex", alignItems: "center", gap: 7,
               transition: "opacity 0.15s", fontFamily: "inherit",

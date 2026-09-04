@@ -59,6 +59,7 @@ import type {
 import { notifyClasificacionCambiada } from "@/lib/notificar";
 import { esElevado, esAdmin } from "@/lib/roles";
 import { CategoriaIcon } from "@/components/ordenes/categoria-icon";
+import ConfirmDeleteModal, { type ConfirmDelete } from "@/components/ConfirmDeleteModal";
 import type {
   OTProcedimiento, ProcedimientoEjecucion,
   PasoRespuesta, TipoPasoProc, ProcedimientoPaso,
@@ -144,8 +145,8 @@ function DetailBadge({
       color: "var(--fg-1)",
       // Tamaño propio en vez de heredarlo, y 13 igual que el chip "OT #" y
       // que el resto de la fila de metadatos.
-      fontSize: 13,
-      fontWeight: 500,
+      fontSize: 14,
+      fontWeight: 400,
       whiteSpace: "nowrap",
     }}>
       {Icon && <SolidIcon icon={Icon} color={iconColor ?? "var(--fg-3)"} />}
@@ -310,8 +311,8 @@ function SubOrdenesSection({
           <GitBranch size={17} />
         </span>
         <div style={{ flex: 1 }}>
-          <p style={{ margin: 0, fontSize: 15, fontWeight: 800, color: "var(--fg-1)" }}>Sub-OTs</p>
-          <p style={{ margin: "3px 0 0", fontSize: 13, color: "var(--fg-4)" }}>
+          <p style={{ margin: 0, fontSize: 14, fontWeight: 400, color: "var(--fg-1)" }}>Sub-OTs</p>
+          <p style={{ margin: "3px 0 0", fontSize: 14, color: "var(--fg-4)" }}>
             {total > 0 ? `${completed}/${total} completadas` : "Crea una sub-OT por equipo, sala o tarea."}
           </p>
         </div>
@@ -327,7 +328,7 @@ function SubOrdenesSection({
               flex: 1, minWidth: 0, height: 40, padding: "0 12px",
               border: "1px solid var(--border)", borderRadius: "var(--r-sm)",
               background: "var(--surface-1)", color: "var(--fg-1)",
-              fontSize: 13, outline: "none", fontFamily: "inherit",
+              fontSize: 14, outline: "none", fontFamily: "inherit",
             }}
             onKeyDown={e => {
               if (e.key === "Enter") {
@@ -344,7 +345,7 @@ function SubOrdenesSection({
               height: 40, padding: "0 16px", border: "none",
               borderRadius: "var(--r-sm)",
               background: newTitle.trim() && !isCreating ? "var(--brand)" : "var(--border-strong)",
-              color: "var(--fg-on-brand)", fontSize: 12, fontWeight: 700,
+              color: "var(--fg-on-brand)", fontSize: 14, fontWeight: 400,
               cursor: newTitle.trim() && !isCreating ? "pointer" : "default",
               display: "flex", alignItems: "center", gap: 6, fontFamily: "inherit",
             }}
@@ -356,12 +357,12 @@ function SubOrdenesSection({
       )}
 
       {isLoading && total === 0 ? (
-        <div style={{ padding: 14, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--fg-4)", gap: 8, fontSize: 12 }}>
+        <div style={{ padding: 14, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--fg-4)", gap: 8, fontSize: 14 }}>
           <Loader2 size={14} className="animate-spin" />
           Cargando sub-OTs...
         </div>
       ) : total === 0 ? (
-        <div style={{ padding: 16, border: "1px solid var(--border)", borderRadius: "var(--r-md)", background: "var(--surface-0)", color: "var(--fg-2)", fontSize: 13, lineHeight: 1.65 }}>
+        <div style={{ padding: 16, border: "1px solid var(--border)", borderRadius: "var(--r-md)", background: "var(--surface-0)", color: "var(--fg-2)", fontSize: 14, lineHeight: 1.65 }}>
           Las sub-OTs funcionan como OTs completas, pero quedan agrupadas bajo esta orden principal.
         </div>
       ) : (
@@ -385,10 +386,10 @@ function SubOrdenesSection({
                   {done ? <Check size={14} /> : <Wrench size={14} />}
                 </span>
                 <span style={{ flex: 1, minWidth: 0 }}>
-                  <span style={{ display: "block", fontSize: 13.5, fontWeight: 700, color: "var(--fg-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  <span style={{ display: "block", fontSize: 14, fontWeight: 400, color: "var(--fg-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     {sub.titulo ?? "Sub-OT sin título"}
                   </span>
-                  <span style={{ display: "block", marginTop: 2, fontSize: 12, color: "var(--fg-4)" }}>
+                  <span style={{ display: "block", marginTop: 2, fontSize: 14, color: "var(--fg-4)" }}>
                     {sub.estado === "pendiente" && (sub.asignados_ids ?? []).length > 0
                       ? "Asignada"
                       : ESTADOS.find(e => e.value === sub.estado)?.label ?? sub.estado}
@@ -409,125 +410,6 @@ function SubOrdenesSection({
 // the top-right, a centered question, and stacked full-width buttons — a red
 // "Confirmar" over a borderless "Cancelar". Guards against accidental clicks.
 
-interface ConfirmDelete {
-  /** The thing being deleted, interpolated into the default question (e.g. a
-   *  name). Ignored when `title` is provided. */
-  label?: string;
-  /** Overrides the auto-generated question, e.g. "Eliminar esta orden?". */
-  title?: string;
-  /** Optional secondary warning line under the title. */
-  description?: string;
-  /** Confirm button text. Defaults to "Confirmar". */
-  confirmLabel?: string;
-  /** Runs on confirm. May be async. If it throws, the message is shown in the
-   *  modal and the dialog stays open (so the user can retry). */
-  onConfirm: () => void | Promise<void>;
-}
-
-function ConfirmDeleteModal({ pending, onClose }: {
-  pending: ConfirmDelete | null;
-  onClose: () => void;
-}) {
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  // Reset the inline error whenever a new confirmation is opened/closed.
-  useEffect(() => { setError(null); }, [pending]);
-  if (!pending) return null;
-
-  const close = () => { if (!busy) onClose(); };
-
-  const run = async () => {
-    setBusy(true);
-    setError(null);
-    try {
-      await pending.onConfirm();
-      onClose();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo completar la acción.");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const title = pending.title ?? `¿Seguro que quieres eliminar “${pending.label ?? "esto"}”?`;
-
-  return (
-    <div
-      role="presentation"
-      onClick={close}
-      style={{ position: "fixed", inset: 0, zIndex: 500, background: "rgba(15,23,42,0.45)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}
-    >
-      <div
-        role="dialog"
-        aria-modal="true"
-        onClick={e => e.stopPropagation()}
-        style={{ width: "100%", maxWidth: 420, background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: "var(--r-lg, 12px)", boxShadow: "var(--shadow-lg)", overflow: "hidden" }}
-      >
-        <div style={{ display: "flex", justifyContent: "flex-end", padding: "10px 10px 0" }}>
-          <button
-            type="button"
-            aria-label="Cerrar"
-            disabled={busy}
-            onClick={onClose}
-            style={{ width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", borderRadius: "var(--r-sm)", cursor: busy ? "default" : "pointer", color: "var(--fg-3)" }}
-            onMouseEnter={e => { if (!busy) e.currentTarget.style.background = "var(--surface-hover)"; }}
-            onMouseLeave={e => { e.currentTarget.style.background = "none"; }}
-          >
-            <X size={18} />
-          </button>
-        </div>
-        <div style={{ padding: "4px 24px 24px", display: "flex", flexDirection: "column", gap: 18 }}>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8, textAlign: "center" }}>
-            <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: "var(--fg-1)", lineHeight: 1.4 }}>
-              {title}
-            </h3>
-            {pending.description && (
-              <p style={{ margin: 0, fontSize: 13, color: "var(--fg-3)", lineHeight: 1.5 }}>
-                {pending.description}
-              </p>
-            )}
-          </div>
-          {error && (
-            <div style={{ padding: "10px 12px", border: "1px solid var(--danger)", borderRadius: 8, background: "var(--danger-bg)", color: "var(--danger)", fontSize: 13 }}>
-              {error}
-            </div>
-          )}
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            <button
-              type="button"
-              disabled={busy}
-              onClick={run}
-              style={{
-                height: 44, width: "100%", border: "none", borderRadius: 8,
-                background: "var(--danger)", color: "#fff", fontSize: 14, fontWeight: 600,
-                cursor: busy ? "default" : "pointer", fontFamily: "inherit",
-                display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8,
-                opacity: busy ? 0.75 : 1,
-              }}
-            >
-              {busy && <Loader2 size={14} className="animate-spin" />}
-              {pending.confirmLabel ?? "Confirmar"}
-            </button>
-            <button
-              type="button"
-              disabled={busy}
-              onClick={onClose}
-              style={{
-                height: 44, width: "100%", border: "none", borderRadius: 8,
-                background: "transparent", color: "var(--brand-fg)", fontSize: 14, fontWeight: 600,
-                cursor: busy ? "default" : "pointer", fontFamily: "inherit",
-              }}
-              onMouseEnter={e => { if (!busy) e.currentTarget.style.background = "var(--surface-hover)"; }}
-              onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}
-            >
-              Cancelar
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 interface Props {
   orden:          OrdenTrabajo;
@@ -2634,7 +2516,7 @@ export default function OTDetail({
             display: "inline-flex", alignItems: "center", gap: 7,
             background: "var(--brand)", color: "var(--fg-on-brand)",
             border: "none", borderRadius: 999, cursor: "pointer",
-            fontSize: 13, fontWeight: 600, fontFamily: "inherit",
+            fontSize: 14, fontWeight: 400, fontFamily: "inherit",
             boxShadow: "var(--shadow-lg)",
           }}
         >
@@ -2727,7 +2609,7 @@ export default function OTDetail({
       {orden.cierre_forzado && (
         <div style={{ display: "flex", gap: 10, padding: "12px 28px", borderBottom: "1px solid var(--border)", background: "var(--surface-canvas)" }}>
           <AlertTriangle size={15} style={{ color: "var(--warning)", flexShrink: 0, marginTop: 2 }} />
-          <div style={{ minWidth: 0, fontSize: 13, lineHeight: 1.5, color: "var(--fg-2)" }}>
+          <div style={{ minWidth: 0, fontSize: 14, lineHeight: 1.5, color: "var(--fg-2)" }}>
             <strong style={{ color: "var(--fg-1)" }}>Cierre forzado</strong>
             {" — se cerró con requisitos pendientes."}
             {orden.cierre_forzado_motivo && (
@@ -2818,7 +2700,7 @@ export default function OTDetail({
           {(canManage || orden.creado_por === myId) && (
             <button
               type="button" onClick={onEdit}
-              style={{ flexShrink: 0, height: 34, padding: "0 13px", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, background: "var(--brand)", border: "1px solid var(--brand)", borderRadius: "var(--r-sm)", cursor: "pointer", color: "var(--fg-on-brand)", fontSize: 13, fontWeight: 700, fontFamily: "inherit" }}
+              style={{ flexShrink: 0, height: 34, padding: "0 13px", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, background: "var(--brand)", border: "1px solid var(--brand)", borderRadius: "var(--r-sm)", cursor: "pointer", color: "var(--fg-on-brand)", fontSize: 14, fontWeight: 400, fontFamily: "inherit" }}
               onMouseEnter={e => { e.currentTarget.style.filter = "brightness(0.96)"; }}
               onMouseLeave={e => { e.currentTarget.style.filter = "none"; }}
             >
@@ -2852,9 +2734,9 @@ export default function OTDetail({
                     style={{
                       width: "100%", display: "flex", alignItems: "center", gap: 8,
                       padding: "10px 12px", background: "var(--surface-1)", border: "none",
-                      borderBottom: "1px solid var(--border)", cursor: "pointer", fontSize: 13,
+                      borderBottom: "1px solid var(--border)", cursor: "pointer", fontSize: 14,
                       color: isMarcada ? "var(--brand-fg)" : "var(--fg-1)", fontFamily: "inherit", textAlign: "left",
-                      fontWeight: isMarcada ? 700 : 400,
+                      fontWeight: 400,
                     }}
                     onMouseEnter={e => { e.currentTarget.style.background = "var(--surface-hover)"; }}
                     onMouseLeave={e => { e.currentTarget.style.background = "var(--surface-1)"; }}
@@ -2876,7 +2758,7 @@ export default function OTDetail({
                     style={{
                       width: "100%", display: "flex", alignItems: "center",
                       padding: "10px 12px", background: "var(--surface-1)", border: "none",
-                      cursor: exporting ? "default" : "pointer", fontSize: 13,
+                      cursor: exporting ? "default" : "pointer", fontSize: 14,
                       color: "var(--fg-1)", fontFamily: "inherit", textAlign: "left",
                       opacity: exporting && exporting !== item.key ? 0.5 : 1,
                     }}
@@ -2902,7 +2784,7 @@ export default function OTDetail({
                     style={{
                       width: "100%", display: "flex", alignItems: "center",
                       padding: "10px 12px", background: "var(--surface-1)", border: "none",
-                      borderTop: "1px solid var(--border)", cursor: "pointer", fontSize: 13,
+                      borderTop: "1px solid var(--border)", cursor: "pointer", fontSize: 14,
                       color: "var(--danger)", fontFamily: "inherit", textAlign: "left",
                     }}
                     onMouseEnter={e => { e.currentTarget.style.background = "var(--surface-hover)"; }}
@@ -2971,13 +2853,13 @@ export default function OTDetail({
               borderBottom: "1px solid var(--border)",
             }}>
               {orden.numero != null && (
-                <div style={{ display: "inline-flex", alignItems: "center", minHeight: 24, padding: "0 9px", border: "1px solid var(--border)", borderRadius: "var(--r-sm)", background: "var(--surface-1)", color: "var(--fg-1)", fontSize: 13, fontWeight: 500, marginBottom: 8 }}>
+                <div style={{ display: "inline-flex", alignItems: "center", minHeight: 24, padding: "0 9px", border: "1px solid var(--border)", borderRadius: "var(--r-sm)", background: "var(--surface-1)", color: "var(--fg-1)", fontSize: 14, fontWeight: 400, marginBottom: 8 }}>
                   OT #{orden.numero}
                 </div>
               )}
               <h1
                 style={{
-                  fontSize: 27, fontWeight: 700, color: "var(--fg-1)",
+                  fontSize: 14, fontWeight: 400, color: "var(--fg-1)",
                   margin: 0, lineHeight: 1.3,
                   overflowWrap: "break-word",
                   wordBreak: "break-word",
@@ -2986,7 +2868,7 @@ export default function OTDetail({
                 {orden.titulo || "Sin título"}
                 <CopyOTUrlButton ordenId={orden.id} />
               </h1>
-              <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: "7px 12px", marginTop: 12, color: "var(--fg-3)", fontSize: 13 }}>
+              <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: "7px 12px", marginTop: 12, color: "var(--fg-3)", fontSize: 14 }}>
                 {orden.ubicaciones?.edificio && (
                   <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><MapPin size={15} />{orden.ubicaciones.edificio}</span>
                 )}
@@ -3015,9 +2897,9 @@ export default function OTDetail({
               >
                 <GitBranch size={15} style={{ flexShrink: 0 }} />
                 <span style={{ flex: 1, minWidth: 0 }}>
-                  <span style={{ display: "block", fontSize: 12, fontWeight: 700 }}>Sub-OT · Ver orden principal</span>
+                  <span style={{ display: "block", fontSize: 14, fontWeight: 400 }}>Sub-OT · Ver orden principal</span>
                   {parentOrden?.titulo && (
-                    <span style={{ display: "block", marginTop: 2, fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    <span style={{ display: "block", marginTop: 2, fontSize: 14, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       {parentOrden.titulo}
                     </span>
                   )}
@@ -3029,7 +2911,7 @@ export default function OTDetail({
             {/* N° OT badge */}
             {meta.nOT && (
               <div style={{ paddingTop: 16 }}>
-                <p style={{ fontSize: 14, fontWeight: 600, color: "var(--fg-1)", letterSpacing: "0.01em", margin: "0 0 8px" }}>N° de OT</p>
+                <p style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", letterSpacing: "0.01em", margin: "0 0 8px" }}>N° de OT</p>
                 <NOTBadge nOT={meta.nOT} />
               </div>
             )}
@@ -3037,7 +2919,7 @@ export default function OTDetail({
             {/* Description */}
             {meta.descripcion && (
               <div style={{ paddingTop: 16 }}>
-                <p style={{ fontSize: 14, fontWeight: 600, color: "var(--fg-1)", letterSpacing: "0.01em", margin: "0 0 8px" }}>Descripción</p>
+                <p style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", letterSpacing: "0.01em", margin: "0 0 8px" }}>Descripción</p>
                 <p style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-2)", lineHeight: 1.75, whiteSpace: "pre-wrap", margin: 0 }}>{meta.descripcion}</p>
               </div>
             )}
@@ -3053,7 +2935,7 @@ export default function OTDetail({
                   paddingTop: 16, paddingBottom: 16,
                   borderBottom: "1px solid var(--border)",
                 }}>
-                  <p style={{ fontSize: 14, fontWeight: 600, color: "var(--fg-1)", letterSpacing: "0.01em", margin: "0 0 12px" }}>Estado</p>
+                  <p style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", letterSpacing: "0.01em", margin: "0 0 12px" }}>Estado</p>
                   <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
                     {ESTADOS.map(e => {
                       // "pendiente" flips to "Asignada" once someone is assigned,
@@ -3166,18 +3048,18 @@ export default function OTDetail({
                             <Icon size={20} style={{ color: isSelected && accent ? "#FFFFFF" : "var(--brand)" }} />
                           )}
                           {estadoEnCurso === e.value ? (
-                            <span style={{ fontSize: 13, fontWeight: 700, textAlign: "center", lineHeight: 1.2 }}>{label}</span>
+                            <span style={{ fontSize: 14, fontWeight: 400, textAlign: "center", lineHeight: 1.2 }}>{label}</span>
                           ) : e.value === "en_curso" && orden.en_ejecucion ? (
                             // `monospace` a secas cae en la mono por defecto del
                             // navegador, no en la de la app (Geist Mono), así que
                             // este cronómetro se veía con otra tipografía que el
                             // resto. Y 13 como sus hermanos: con 12 la etiqueta
                             // cambiaba de tamaño al arrancar el cronómetro.
-                            <span style={{ fontSize: 13, fontWeight: 700, fontFamily: "var(--font-mono)", textAlign: "center", lineHeight: 1.2 }}>
+                            <span style={{ fontSize: 14, fontWeight: 400, fontFamily: "var(--font-mono)", textAlign: "center", lineHeight: 1.2 }}>
                               {fmtSecs(elapsed)}
                             </span>
                           ) : (
-                            <span style={{ fontSize: 13, fontWeight: 700, textAlign: "center", lineHeight: 1.2 }}>{label}</span>
+                            <span style={{ fontSize: 14, fontWeight: 400, textAlign: "center", lineHeight: 1.2 }}>{label}</span>
                           )}
                         </button>
                       );
@@ -3217,18 +3099,18 @@ export default function OTDetail({
                     : <PauseCircle size={16} style={{ color: tone.fg, flexShrink: 0, marginTop: 1 }} />
                   }
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{ fontSize: 13, fontWeight: 700, color: tone.fg, margin: 0 }}>
+                    <p style={{ fontSize: 14, fontWeight: 400, color: tone.fg, margin: 0 }}>
                       {isReprogramar
                         ? `Reprogramada${fechaTxt ? ` para ${fechaTxt}` : ""}`
                         : "En espera"}
                     </p>
-                    <p style={{ fontSize: 12, color: tone.fg, margin: "2px 0 0", lineHeight: 1.5 }}>
+                    <p style={{ fontSize: 14, color: tone.fg, margin: "2px 0 0", lineHeight: 1.5 }}>
                       {isReprogramar
                         ? (extraTxt ?? "El solicitante coordinó otra fecha para esta orden.")
                         : (c || "Esta orden está pausada.")}
                     </p>
                     {latestPause.created_at && (
-                      <p style={{ fontSize: 13, color: tone.fg, margin: "4px 0 0", opacity: 0.8 }}>
+                      <p style={{ fontSize: 14, color: tone.fg, margin: "4px 0 0", opacity: 0.8 }}>
                         {new Date(latestPause.created_at).toLocaleString("es-CL", {
                           day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit",
                         })}
@@ -3251,8 +3133,8 @@ export default function OTDetail({
               }}>
                 <Search size={16} style={{ color: "var(--brand-fg)", flexShrink: 0, marginTop: 1 }} />
                 <div style={{ flex: 1 }}>
-                  <p style={{ fontSize: 13, fontWeight: 700, color: "var(--brand-fg)", margin: 0 }}>Levantamiento</p>
-                  <p style={{ fontSize: 12, color: "var(--brand-fg)", margin: "2px 0 0", lineHeight: 1.5 }}>
+                  <p style={{ fontSize: 14, fontWeight: 400, color: "var(--brand-fg)", margin: 0 }}>Levantamiento</p>
+                  <p style={{ fontSize: 14, color: "var(--brand-fg)", margin: "2px 0 0", lineHeight: 1.5 }}>
                     Esta orden está marcada como levantamiento. El temporizador no corre hasta cambiarla a ejecución.
                   </p>
                   {canManage && (
@@ -3265,7 +3147,7 @@ export default function OTDetail({
                         height: 30, padding: "0 12px",
                         background: "var(--brand-hover)", color: "var(--fg-on-brand)",
                         border: "none", borderRadius: "var(--r-sm)",
-                        fontSize: 12, fontWeight: 600,
+                        fontSize: 14, fontWeight: 400,
                         cursor: changingClasif ? "default" : "pointer",
                         display: "flex", alignItems: "center", gap: 6,
                         opacity: changingClasif ? 0.7 : 1,
@@ -3294,8 +3176,8 @@ export default function OTDetail({
               }}>
                 <DollarSign size={16} style={{ color: "var(--st-wait-fg)", flexShrink: 0, marginTop: 1 }} />
                 <div style={{ flex: 1 }}>
-                  <p style={{ fontSize: 13, fontWeight: 700, color: "var(--st-wait-fg)", margin: 0 }}>Presupuesto</p>
-                  <p style={{ fontSize: 12, color: "var(--st-wait-fg)", margin: "2px 0 0", lineHeight: 1.5 }}>
+                  <p style={{ fontSize: 14, fontWeight: 400, color: "var(--st-wait-fg)", margin: 0 }}>Presupuesto</p>
+                  <p style={{ fontSize: 14, color: "var(--st-wait-fg)", margin: "2px 0 0", lineHeight: 1.5 }}>
                     Esta orden es un presupuesto: trabajo planificado, normalmente asociado a una licitación.
                   </p>
                 </div>
@@ -3353,7 +3235,7 @@ export default function OTDetail({
                         }}>
                           <FileText size={16} />
                         </span>
-                        <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 13, fontWeight: 500 }}>
+                        <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 14, fontWeight: 400 }}>
                           {name}
                         </span>
                         <Download size={15} style={{ color: "var(--fg-4)", flexShrink: 0 }} />
@@ -3375,7 +3257,7 @@ export default function OTDetail({
                   />
                   {creationFiles.length > 0 && (
                     <div style={{ paddingTop: 16 }}>
-                      <div style={{ fontSize: 14, fontWeight: 600, color: "var(--fg-1)", letterSpacing: "0.01em", marginBottom: 8 }}>
+                      <div style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", letterSpacing: "0.01em", marginBottom: 8 }}>
                         Adjuntos de la OT
                       </div>
                       {renderFiles(creationFiles)}
@@ -3383,7 +3265,7 @@ export default function OTDetail({
                   )}
                   <div style={urlLinks.length > 0 ? undefined : { marginLeft: -28, marginRight: -28, paddingLeft: 28, paddingRight: 28, paddingTop: 16, paddingBottom: 16, borderBottom: "1px solid var(--border)" }}>
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 8 }}>
-                      <div style={{ fontSize: 14, fontWeight: 600, color: "var(--fg-1)", letterSpacing: "0.01em" }}>
+                      <div style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", letterSpacing: "0.01em" }}>
                         Adjuntos subidos
                       </div>
                       <button
@@ -3393,7 +3275,7 @@ export default function OTDetail({
                         style={{
                           minHeight: 34, padding: "0 12px", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7,
                           border: "1px solid var(--border)", borderRadius: "var(--r-sm)", background: "var(--surface-1)",
-                          color: "var(--brand-fg)", cursor: uploadingAdjuntos ? "default" : "pointer", fontSize: 12, fontWeight: 600,
+                          color: "var(--brand-fg)", cursor: uploadingAdjuntos ? "default" : "pointer", fontSize: 14, fontWeight: 400,
                           opacity: uploadingAdjuntos ? 0.65 : 1, fontFamily: "inherit",
                         }}
                       >
@@ -3403,11 +3285,11 @@ export default function OTDetail({
                     </div>
                     {executionFiles.length > 0
                       ? renderFiles(executionFiles)
-                      : <div style={{ padding: "14px 12px", border: "1px dashed var(--border)", borderRadius: "var(--r-sm)", color: "var(--fg-4)", fontSize: 12 }}>Todavía no se han subido archivos durante la ejecución.</div>}
+                      : <div style={{ padding: "14px 12px", border: "1px dashed var(--border)", borderRadius: "var(--r-sm)", color: "var(--fg-4)", fontSize: 14 }}>Todavía no se han subido archivos durante la ejecución.</div>}
                   </div>
                   {urlLinks.length > 0 && (
                     <div style={{ marginLeft: -28, marginRight: -28, paddingLeft: 28, paddingRight: 28, paddingTop: 16, paddingBottom: 16, borderBottom: "1px solid var(--border)" }}>
-                      <div style={{ fontSize: 14, fontWeight: 600, color: "var(--fg-1)", letterSpacing: "0.01em", marginBottom: 6 }}>
+                      <div style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", letterSpacing: "0.01em", marginBottom: 6 }}>
                         Links
                       </div>
                       <LinksDisplay links={urlLinks} />
@@ -3435,7 +3317,7 @@ export default function OTDetail({
                 (orden.tiempo_total_segundos != null && orden.tiempo_total_segundos > 0) && { label: "Tiempo total", value: fmtSecs(orden.tiempo_total_segundos), icon: <RotateCcw size={16} /> },
               ].filter(Boolean).map((field: any) => (
                 <div key={field.label}>
-                  <p style={{ fontSize: 14, fontWeight: 600, color: "var(--fg-1)", letterSpacing: "0.01em", marginBottom: 7, marginTop: 0 }}>{field.label}</p>
+                  <p style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", letterSpacing: "0.01em", marginBottom: 7, marginTop: 0 }}>{field.label}</p>
                   <p style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", margin: 0, display: "flex", alignItems: "center", gap: 10, lineHeight: 1.45 }}>
                     <span style={{
                       width: 30, height: 30, borderRadius: "var(--r-sm)",
@@ -3459,7 +3341,7 @@ export default function OTDetail({
                 resuelven todas contra el catálogo del workspace. */}
             {categoriasVisibles.length > 0 && (
               <div style={{ marginLeft: -28, marginRight: -28, paddingLeft: 28, paddingRight: 28, paddingTop: 16, paddingBottom: 16, borderBottom: "1px solid var(--border)" }}>
-                <p style={{ fontSize: 14, fontWeight: 600, color: "var(--fg-1)", letterSpacing: "0.01em", margin: "0 0 8px" }}>Categorías</p>
+                <p style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", letterSpacing: "0.01em", margin: "0 0 8px" }}>Categorías</p>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                 {categoriasVisibles.map(c => (
                   /* El color de la categoría solo tiñe el ícono. */
@@ -3486,7 +3368,7 @@ export default function OTDetail({
             {/* Assigned */}
             {assigned.length > 0 && (
               <div style={{ marginLeft: -28, marginRight: -28, paddingLeft: 28, paddingRight: 28, paddingTop: 16, paddingBottom: 16, borderBottom: "1px solid var(--border)" }}>
-                <p style={{ fontSize: 14, fontWeight: 600, color: "var(--fg-1)", letterSpacing: "0.01em", marginBottom: 14, marginTop: 0 }}>Asignados</p>
+                <p style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", letterSpacing: "0.01em", marginBottom: 14, marginTop: 0 }}>Asignados</p>
                 <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
                   {assigned.map(u => (
                     <div key={u.id} style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -3494,13 +3376,13 @@ export default function OTDetail({
                         width: 38, height: 38, borderRadius: "50%",
                         background: "linear-gradient(135deg, var(--brand-active), var(--brand))", color: "var(--fg-on-brand)",
                         display: "flex", alignItems: "center", justifyContent: "center",
-                        fontSize: 13, fontWeight: 700, flexShrink: 0,
+                        fontSize: 14, fontWeight: 400, flexShrink: 0,
                       }}>
                         {initials(u.nombre)}
                       </span>
                       <div>
-                        <p style={{ fontSize: 14, fontWeight: 700, color: "var(--fg-1)", margin: 0 }}>{u.nombre}</p>
-                        <p style={{ fontSize: 12, color: "var(--fg-4)", margin: "2px 0 0", textTransform: "capitalize" }}>{u.rol}</p>
+                        <p style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", margin: 0 }}>{u.nombre}</p>
+                        <p style={{ fontSize: 14, color: "var(--fg-4)", margin: "2px 0 0", textTransform: "capitalize" }}>{u.rol}</p>
                       </div>
                     </div>
                   ))}
@@ -3513,14 +3395,14 @@ export default function OTDetail({
                 resto: título 14/600, regla al ancho completo y padding 16/16. */}
             {orden.creador?.nombre && (
               <div style={{ marginLeft: -28, marginRight: -28, paddingLeft: 28, paddingRight: 28, paddingTop: 16, paddingBottom: 16, borderBottom: "1px solid var(--border)" }}>
-                <p style={{ fontSize: 14, fontWeight: 600, color: "var(--fg-1)", letterSpacing: "0.01em", margin: "0 0 8px" }}>Creado por</p>
+                <p style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", letterSpacing: "0.01em", margin: "0 0 8px" }}>Creado por</p>
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                   <span style={{
                     width: 30, height: 30, borderRadius: "50%",
                     background: "linear-gradient(135deg, var(--brand-active), var(--brand))",
                     color: "var(--fg-on-brand)",
                     display: "flex", alignItems: "center", justifyContent: "center",
-                    fontSize: 11, fontWeight: 700, flexShrink: 0,
+                    fontSize: 14, fontWeight: 400, flexShrink: 0,
                   }}>{initials(orden.creador.nombre)}</span>
                   <span style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)" }}>
                     {orden.creador.nombre}
@@ -3543,7 +3425,7 @@ export default function OTDetail({
                 };
                 return (
                   <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
-                    <p style={{ fontSize: 14, fontWeight: 600, color: "var(--fg-1)", letterSpacing: "0.01em", margin: 0 }}>Procedimientos</p>
+                    <p style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", letterSpacing: "0.01em", margin: 0 }}>Procedimientos</p>
                     {otProcs.length > 1 && (
                       <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
                         <button
@@ -3560,7 +3442,7 @@ export default function OTDetail({
                         >
                           <ChevronLeft size={14} />
                         </button>
-                        <span style={{ fontSize: 13.5, color: "var(--fg-3)", minWidth: 46, textAlign: "center" }}>
+                        <span style={{ fontSize: 14, color: "var(--fg-3)", minWidth: 46, textAlign: "center" }}>
                           {idx + 1} de {otProcs.length}
                         </span>
                         <button
@@ -3590,7 +3472,7 @@ export default function OTDetail({
               <>
                 {/* Attached procedures */}
                 {otProcs.length === 0 ? (
-                  <div style={{ textAlign: "center", padding: "32px 0", color: "var(--fg-4)", fontSize: 13 }}>
+                  <div style={{ textAlign: "center", padding: "32px 0", color: "var(--fg-4)", fontSize: 14 }}>
                     <ClipboardCheck size={28} style={{ color: "var(--border-strong)", margin: "0 auto 8px" }} />
                     <div>No hay procedimientos adjuntos</div>
                   </div>
@@ -3646,8 +3528,8 @@ export default function OTDetail({
               {recording && (
                 <div style={{ display: "flex", alignItems: "center", gap: 8, background: "var(--danger-bg)", borderRadius: 8, padding: "6px 10px", marginBottom: 8 }}>
                   <span style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--danger)", display: "inline-block", animation: "pulse 1s ease-in-out infinite" }} />
-                  <span style={{ fontSize: 13, color: "var(--danger)", flex: 1 }}>Grabando… {fmtRecDuration(recordingElapsed)}</span>
-                  <button type="button" onClick={stopRecording} style={{ fontSize: 12, fontWeight: 600, color: "#fff", background: "var(--danger)", border: "none", borderRadius: 6, padding: "3px 10px", cursor: "pointer" }}>Detener</button>
+                  <span style={{ fontSize: 14, color: "var(--danger)", flex: 1 }}>Grabando… {fmtRecDuration(recordingElapsed)}</span>
+                  <button type="button" onClick={stopRecording} style={{ fontSize: 14, fontWeight: 400, color: "#fff", background: "var(--danger)", border: "none", borderRadius: 6, padding: "3px 10px", cursor: "pointer" }}>Detener</button>
                 </div>
               )}
               {/* Pending audio preview */}
@@ -3713,7 +3595,7 @@ export default function OTDetail({
                   <span
                     title={pendingPhoto.file.name}
                     style={{
-                      flex: 1, minWidth: 0, fontSize: 13, color: "var(--fg-1)",
+                      flex: 1, minWidth: 0, fontSize: 14, color: "var(--fg-1)",
                       overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
                     }}
                   >
@@ -3741,7 +3623,7 @@ export default function OTDetail({
                     onClick={sendComment}
                     disabled={sending}
                     style={{
-                      flexShrink: 0, fontSize: 12, fontWeight: 600,
+                      flexShrink: 0, fontSize: 14, fontWeight: 400,
                       color: "#fff", background: "var(--brand)",
                       border: "none", borderRadius: 6, padding: "4px 12px",
                       cursor: sending ? "default" : "pointer",
@@ -3770,7 +3652,7 @@ export default function OTDetail({
                   style={{
                     display: "block", width: "100%", boxSizing: "border-box",
                     minHeight: 60, maxHeight: 160, resize: "none",
-                    fontSize: 13, border: "none", outline: "none", fontFamily: "inherit",
+                    fontSize: 14, border: "none", outline: "none", fontFamily: "inherit",
                     padding: "9px 11px", background: "transparent",
                     color: "var(--fg-1)", lineHeight: 1.5,
                   }}
@@ -3846,8 +3728,8 @@ export default function OTDetail({
             ) : actividad.length === 0 ? (
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "48px 0", gap: 10, color: "var(--fg-4)" }}>
                 <MessageSquare size={30} style={{ opacity: 0.25 }} />
-                <p style={{ fontSize: 13, margin: 0, fontWeight: 600, color: "var(--fg-1)" }}>Aún no hay comentarios</p>
-                <p style={{ fontSize: 12, margin: 0 }}>Escribe abajo para dejar el primero.</p>
+                <p style={{ fontSize: 14, margin: 0, fontWeight: 400, color: "var(--fg-1)" }}>Aún no hay comentarios</p>
+                <p style={{ fontSize: 14, margin: 0 }}>Escribe abajo para dejar el primero.</p>
               </div>
             ) : (
               <>
@@ -3901,15 +3783,15 @@ export default function OTDetail({
                       )}
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
-                          <span style={{ fontSize: 13.5, fontWeight: 600, color: "var(--fg-1)" }}>{nombre}</span>
-                          <span style={{ fontSize: 13.5, color: "var(--fg-4)" }}>{fmtTs(act.created_at)}</span>
+                          <span style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)" }}>{nombre}</span>
+                          <span style={{ fontSize: 14, color: "var(--fg-4)" }}>{fmtTs(act.created_at)}</span>
                           {isMine && (
-                            <span style={{ fontSize: 13, color: "var(--fg-4)" }}>· tú</span>
+                            <span style={{ fontSize: 14, color: "var(--fg-4)" }}>· tú</span>
                           )}
                         </div>
                         {cuerpo && (
                           <div style={{
-                            marginTop: 2, fontSize: 13.5, lineHeight: 1.6, color: "var(--fg-1)",
+                            marginTop: 2, fontSize: 14, lineHeight: 1.6, color: "var(--fg-1)",
                             whiteSpace: "pre-wrap", wordBreak: "break-word",
                           }}>
                             {cuerpo}
@@ -4017,7 +3899,7 @@ export default function OTDetail({
                     onChange={e => setCatalogSearch(e.target.value)}
                     style={{
                       width: "100%", height: 38, paddingLeft: 32, paddingRight: 12,
-                      fontSize: 13, border: "1px solid var(--border)", borderRadius: "var(--r-md)",
+                      fontSize: 14, border: "1px solid var(--border)", borderRadius: "var(--r-md)",
                       background: "var(--surface-0)", outline: "none", fontFamily: "inherit",
                       boxSizing: "border-box", color: "var(--fg-1)",
                     }}
@@ -4045,19 +3927,19 @@ export default function OTDetail({
                       >
                         <Package size={14} style={{ color: "var(--fg-4)", flexShrink: 0 }} />
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontSize: 13, fontWeight: 500, color: "var(--fg-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.nombre}</div>
-                          <div style={{ fontSize: 13, color: p.stock_actual <= 0 ? "var(--danger)" : "var(--fg-4)" }}>
+                          <div style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.nombre}</div>
+                          <div style={{ fontSize: 14, color: p.stock_actual <= 0 ? "var(--danger)" : "var(--fg-4)" }}>
                             {p.unidad} · Stock: {p.stock_actual}
                           </div>
                         </div>
-                        <span style={{ fontSize: 13, color: "var(--brand-fg)", fontWeight: 600, flexShrink: 0 }}>+ Agregar</span>
+                        <span style={{ fontSize: 14, color: "var(--brand-fg)", fontWeight: 400, flexShrink: 0 }}>+ Agregar</span>
                       </button>
                     ))}
                   </div>
                 )}
-                {loadingCatalog && <div style={{ marginTop: 4, padding: "8px 0", fontSize: 12, color: "var(--fg-4)" }}>Cargando inventario…</div>}
+                {loadingCatalog && <div style={{ marginTop: 4, padding: "8px 0", fontSize: 14, color: "var(--fg-4)" }}>Cargando inventario…</div>}
                 {catalogSearch.length >= 1 && filteredCatalog.length === 0 && !loadingCatalog && (
-                  <div style={{ marginTop: 4, padding: "8px 0", fontSize: 12, color: "var(--fg-4)" }}>
+                  <div style={{ marginTop: 4, padding: "8px 0", fontSize: 14, color: "var(--fg-4)" }}>
                     Sin resultados. Agrega la parte en <a href="/partes" style={{ color: "var(--brand-fg)" }}>Inventario</a> primero.
                   </div>
                 )}
@@ -4072,21 +3954,21 @@ export default function OTDetail({
             ) : ordenPartes.length === 0 ? (
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "40px 0", gap: 8, color: "var(--pr-low)" }}>
                 <Package size={32} style={{ opacity: 0.2 }} />
-                <p style={{ fontSize: 13, margin: 0 }}>Sin materiales registrados</p>
-                {(isActive || canManage) && <p style={{ fontSize: 12, margin: 0 }}>Busca un material del inventario arriba</p>}
+                <p style={{ fontSize: 14, margin: 0 }}>Sin materiales registrados</p>
+                {(isActive || canManage) && <p style={{ fontSize: 14, margin: 0 }}>Busca un material del inventario arriba</p>}
               </div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 90px 32px", gap: 8, padding: "6px 10px", borderBottom: "1px solid var(--border)" }}>
                   {["Material", "Cantidad", ""].map(h => (
-                    <span key={h} style={{ fontSize: 14, fontWeight: 600, color: "var(--fg-1)", letterSpacing: "0.01em" }}>{h}</span>
+                    <span key={h} style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", letterSpacing: "0.01em" }}>{h}</span>
                   ))}
                 </div>
                 {ordenPartes.map(op => (
                   <div key={op.id} style={{ display: "grid", gridTemplateColumns: "1fr 90px 32px", gap: 8, alignItems: "center", padding: "8px 10px", borderBottom: "1px solid var(--divider)" }}>
                     <div>
-                      <div style={{ fontSize: 13, fontWeight: 500, color: "var(--fg-1)" }}>{op.parte?.nombre ?? "—"}</div>
-                      <div style={{ fontSize: 13, color: "var(--fg-4)" }}>{op.parte?.unidad}</div>
+                      <div style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)" }}>{op.parte?.nombre ?? "—"}</div>
+                      <div style={{ fontSize: 14, color: "var(--fg-4)" }}>{op.parte?.unidad}</div>
                     </div>
                     {(isActive || canManage) ? (
                       <input
@@ -4095,10 +3977,10 @@ export default function OTDetail({
                         step="any"
                         value={op.cantidad}
                         onChange={e => handleUpdateCantidad(op.id, parseFloat(e.target.value) || op.cantidad)}
-                        style={{ height: 30, padding: "0 8px", fontSize: 13, border: "1px solid var(--border)", borderRadius: "var(--r-sm)", outline: "none", fontFamily: "inherit", background: "var(--surface-1)", width: "100%" }}
+                        style={{ height: 30, padding: "0 8px", fontSize: 14, border: "1px solid var(--border)", borderRadius: "var(--r-sm)", outline: "none", fontFamily: "inherit", background: "var(--surface-1)", width: "100%" }}
                       />
                     ) : (
-                      <span style={{ fontSize: 13, color: "var(--fg-2)" }}>{op.cantidad}</span>
+                      <span style={{ fontSize: 14, color: "var(--fg-2)" }}>{op.cantidad}</span>
                     )}
                     {(isActive || canManage) ? (
                       <button
@@ -4141,7 +4023,7 @@ export default function OTDetail({
                 background: "var(--st-wait-bg)", border: "1px solid var(--border-strong)", borderRadius: "var(--r-md)",
               }}>
                 <AlertTriangle size={14} style={{ color: "var(--warning)", flexShrink: 0 }} />
-                <span style={{ fontSize: 12, color: "var(--st-wait-fg)" }}>
+                <span style={{ fontSize: 14, color: "var(--st-wait-fg)" }}>
                   Esta OT requiere completar la hoja de cálculo antes de poder cerrarse.
                 </span>
               </div>
@@ -4163,12 +4045,12 @@ export default function OTDetail({
         <div role="presentation" onMouseDown={e => { if (e.target === e.currentTarget) closePause(); }} style={{ position: "fixed", inset: 0, zIndex: 650, background: "rgba(15,23,42,0.45)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
           <div role="dialog" aria-modal="true" aria-label="Pausar trabajo" style={{ width: "min(520px, 100%)", maxHeight: "min(720px, calc(100vh - 48px))", overflowY: "auto", background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: "var(--r-xl)", boxShadow: "var(--shadow-lg)" }}>
             <div style={{ height: 58, padding: "0 16px 0 20px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid var(--border)" }}>
-              <div style={{ fontSize: 16, fontWeight: 700, color: "var(--fg-1)" }}>{pauseReason ? ({ acceso: "Sin acceso", materiales: "Faltan materiales", reprogramar: "Reprogramar", otro: "Otro motivo" } as const)[pauseReason] : "Pausar trabajo"}</div>
+              <div style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)" }}>{pauseReason ? ({ acceso: "Sin acceso", materiales: "Faltan materiales", reprogramar: "Reprogramar", otro: "Otro motivo" } as const)[pauseReason] : "Pausar trabajo"}</div>
               <button type="button" onClick={closePause} disabled={timerBusy} aria-label="Cerrar" style={{ width: 34, height: 34, borderRadius: "50%", border: "1px solid var(--border)", background: "var(--surface-0)", color: "var(--fg-1)", display: "grid", placeItems: "center", cursor: "pointer" }}><X size={18} /></button>
             </div>
             {!pauseReason ? (
               <div style={{ padding: 20 }}>
-                <p style={{ margin: "0 0 14px", fontSize: 13, color: "var(--fg-3)" }}>¿Por qué se detiene el trabajo?</p>
+                <p style={{ margin: "0 0 14px", fontSize: 14, color: "var(--fg-3)" }}>¿Por qué se detiene el trabajo?</p>
                 <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                   {([
                     { id: "acceso" as const, label: "Sin acceso", description: "No se pudo ingresar al lugar de trabajo", icon: XCircle },
@@ -4179,7 +4061,7 @@ export default function OTDetail({
                     const ReasonIcon = reason.icon;
                     return <button key={reason.id} type="button" onClick={() => setPauseReason(reason.id)} style={{ width: "100%", padding: "14px 16px", display: "flex", alignItems: "center", gap: 14, textAlign: "left", border: "1px solid var(--border)", borderRadius: "var(--r-lg)", background: "var(--surface-1)", cursor: "pointer", fontFamily: "inherit" }}>
                       <span style={{ width: 40, height: 40, borderRadius: "50%", display: "grid", placeItems: "center", color: "var(--brand-fg)", background: "var(--brand-tint)", flexShrink: 0 }}><ReasonIcon size={19} /></span>
-                      <span style={{ flex: 1, minWidth: 0 }}><span style={{ display: "block", fontSize: 14, fontWeight: 650, color: "var(--fg-1)" }}>{reason.label}</span><span style={{ display: "block", marginTop: 2, fontSize: 12.5, color: "var(--fg-3)" }}>{reason.description}</span></span>
+                      <span style={{ flex: 1, minWidth: 0 }}><span style={{ display: "block", fontSize: 14, fontWeight: 400, color: "var(--fg-1)" }}>{reason.label}</span><span style={{ display: "block", marginTop: 2, fontSize: 14, color: "var(--fg-3)" }}>{reason.description}</span></span>
                       <ChevronRight size={17} style={{ color: "var(--fg-4)" }} />
                     </button>;
                   })}
@@ -4187,12 +4069,12 @@ export default function OTDetail({
               </div>
             ) : (
               <div style={{ padding: 20, display: "flex", flexDirection: "column", gap: 16 }}>
-                {pauseReason === "reprogramar" && <label style={{ display: "flex", flexDirection: "column", gap: 7, fontSize: 12, fontWeight: 650, color: "var(--fg-3)", letterSpacing: "0.01em" }}>Nueva fecha programada<input type="date" min={new Date().toISOString().slice(0, 10)} value={pauseDate} onChange={e => setPauseDate(e.target.value)} style={{ height: 42, padding: "0 12px", border: "1px solid var(--border)", borderRadius: "var(--r-md)", background: "var(--surface-0)", color: "var(--fg-1)", font: "inherit", textTransform: "none", letterSpacing: 0 }} /></label>}
-                {(pauseReason === "acceso" || pauseReason === "otro" || pauseReason === "reprogramar") && <label style={{ display: "flex", flexDirection: "column", gap: 7, fontSize: 12, fontWeight: 650, color: "var(--fg-3)", letterSpacing: "0.01em" }}>{pauseReason === "reprogramar" ? "Comentario opcional" : "Motivo"}<textarea autoFocus value={pauseComment} onChange={e => setPauseComment(e.target.value)} placeholder={pauseReason === "acceso" ? "Ej: No había nadie en las instalaciones…" : "Describe el motivo…"} rows={4} style={{ resize: "vertical", minHeight: 96, padding: 12, border: "1px solid var(--border)", borderRadius: "var(--r-md)", background: "var(--surface-0)", color: "var(--fg-1)", font: "inherit", fontSize: 14, lineHeight: 1.45, textTransform: "none", letterSpacing: 0 }} /></label>}
-                {pauseReason === "materiales" && <p style={{ margin: 0, fontSize: 13.5, lineHeight: 1.5, color: "var(--fg-2)" }}>La OT quedará en espera y se abrirá la hoja de cálculo para registrar los materiales necesarios.</p>}
+                {pauseReason === "reprogramar" && <label style={{ display: "flex", flexDirection: "column", gap: 7, fontSize: 14, fontWeight: 400, color: "var(--fg-3)", letterSpacing: "0.01em" }}>Nueva fecha programada<input type="date" min={new Date().toISOString().slice(0, 10)} value={pauseDate} onChange={e => setPauseDate(e.target.value)} style={{ height: 42, padding: "0 12px", border: "1px solid var(--border)", borderRadius: "var(--r-md)", background: "var(--surface-0)", color: "var(--fg-1)", font: "inherit", textTransform: "none", letterSpacing: 0 }} /></label>}
+                {(pauseReason === "acceso" || pauseReason === "otro" || pauseReason === "reprogramar") && <label style={{ display: "flex", flexDirection: "column", gap: 7, fontSize: 14, fontWeight: 400, color: "var(--fg-3)", letterSpacing: "0.01em" }}>{pauseReason === "reprogramar" ? "Comentario opcional" : "Motivo"}<textarea autoFocus value={pauseComment} onChange={e => setPauseComment(e.target.value)} placeholder={pauseReason === "acceso" ? "Ej: No había nadie en las instalaciones…" : "Describe el motivo…"} rows={4} style={{ resize: "vertical", minHeight: 96, padding: 12, border: "1px solid var(--border)", borderRadius: "var(--r-md)", background: "var(--surface-0)", color: "var(--fg-1)", font: "inherit", fontSize: 14, lineHeight: 1.45, textTransform: "none", letterSpacing: 0 }} /></label>}
+                {pauseReason === "materiales" && <p style={{ margin: 0, fontSize: 14, lineHeight: 1.5, color: "var(--fg-2)" }}>La OT quedará en espera y se abrirá la hoja de cálculo para registrar los materiales necesarios.</p>}
                 <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 4 }}>
-                  <button type="button" onClick={() => { setPauseReason(null); setPauseComment(""); setPauseDate(""); }} disabled={timerBusy} style={{ height: 40, padding: "0 16px", border: "1px solid var(--border)", borderRadius: "var(--r-md)", background: "var(--surface-1)", color: "var(--fg-2)", font: "inherit", fontWeight: 600, cursor: "pointer" }}>Atrás</button>
-                  <button type="button" onClick={confirmPause} disabled={timerBusy || ((pauseReason === "acceso" || pauseReason === "otro") && !pauseComment.trim()) || (pauseReason === "reprogramar" && !pauseDate)} style={{ height: 40, padding: "0 18px", border: "none", borderRadius: "var(--r-md)", background: "var(--brand)", color: "var(--fg-on-brand)", font: "inherit", fontWeight: 700, cursor: "pointer", opacity: timerBusy || ((pauseReason === "acceso" || pauseReason === "otro") && !pauseComment.trim()) || (pauseReason === "reprogramar" && !pauseDate) ? 0.5 : 1 }}>{timerBusy ? "Guardando…" : "Confirmar pausa"}</button>
+                  <button type="button" onClick={() => { setPauseReason(null); setPauseComment(""); setPauseDate(""); }} disabled={timerBusy} style={{ height: 40, padding: "0 16px", border: "1px solid var(--border)", borderRadius: "var(--r-md)", background: "var(--surface-1)", color: "var(--fg-2)", font: "inherit", fontWeight: 400, cursor: "pointer" }}>Atrás</button>
+                  <button type="button" onClick={confirmPause} disabled={timerBusy || ((pauseReason === "acceso" || pauseReason === "otro") && !pauseComment.trim()) || (pauseReason === "reprogramar" && !pauseDate)} style={{ height: 40, padding: "0 18px", border: "none", borderRadius: "var(--r-md)", background: "var(--brand)", color: "var(--fg-on-brand)", font: "inherit", fontWeight: 400, cursor: "pointer", opacity: timerBusy || ((pauseReason === "acceso" || pauseReason === "otro") && !pauseComment.trim()) || (pauseReason === "reprogramar" && !pauseDate) ? 0.5 : 1 }}>{timerBusy ? "Guardando…" : "Confirmar pausa"}</button>
                 </div>
               </div>
             )}
@@ -4210,7 +4092,7 @@ export default function OTDetail({
             position: "fixed", top: 18, left: "50%", transform: "translateX(-50%)",
             zIndex: 900, display: "flex", alignItems: "center", gap: 9,
             padding: "11px 18px", borderRadius: "var(--r-md)",
-            boxShadow: "var(--shadow-lg)", fontSize: 13.5, fontWeight: 600,
+            boxShadow: "var(--shadow-lg)", fontSize: 14, fontWeight: 400,
             color: "#FFFFFF", pointerEvents: "none",
             background: saveToast === "error" ? "var(--danger)" : saveToast === "saved" ? "var(--success)" : "var(--fg-1)",
           }}
@@ -4230,7 +4112,7 @@ export default function OTDetail({
             position: "fixed", top: 18, left: "50%", transform: "translateX(-50%)",
             zIndex: 901, display: "flex", alignItems: "center", gap: 9,
             padding: "11px 18px", borderRadius: "var(--r-md)",
-            boxShadow: "var(--shadow-lg)", fontSize: 13.5, fontWeight: 600,
+            boxShadow: "var(--shadow-lg)", fontSize: 14, fontWeight: 400,
             color: "#FFFFFF", background: "var(--danger)",
           }}
         >
@@ -4258,7 +4140,7 @@ export default function OTDetail({
         >
           <div role="dialog" aria-modal="true" aria-label="Requisitos pendientes" style={{ width: "min(540px, 100%)", maxHeight: "min(720px, calc(100vh - 48px))", overflowY: "auto", background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: "var(--r-xl)", boxShadow: "var(--shadow-lg)" }}>
             <div style={{ height: 58, padding: "0 16px 0 20px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid var(--border)" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 9, fontSize: 16, fontWeight: 700, color: "var(--fg-1)" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 9, fontSize: 14, fontWeight: 400, color: "var(--fg-1)" }}>
                 <AlertTriangle size={18} style={{ color: "var(--warning)", flexShrink: 0 }} />
                 No se puede cerrar la OT
               </div>
@@ -4266,14 +4148,14 @@ export default function OTDetail({
             </div>
 
             <div style={{ padding: 20, display: "flex", flexDirection: "column", gap: 16 }}>
-              <p style={{ margin: 0, fontSize: 13.5, lineHeight: 1.5, color: "var(--fg-2)" }}>
+              <p style={{ margin: 0, fontSize: 14, lineHeight: 1.5, color: "var(--fg-2)" }}>
                 {gate.missing.length === 1
                   ? "Esta OT tiene un requisito pendiente:"
                   : `Esta OT tiene ${gate.missing.length} requisitos pendientes:`}
               </p>
               <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 8 }}>
                 {gate.missing.map((item, i) => (
-                  <li key={i} style={{ display: "flex", gap: 10, padding: "11px 13px", border: "1px solid var(--border)", borderRadius: "var(--r-md)", background: "var(--surface-0)", fontSize: 13, lineHeight: 1.45, color: "var(--fg-2)" }}>
+                  <li key={i} style={{ display: "flex", gap: 10, padding: "11px 13px", border: "1px solid var(--border)", borderRadius: "var(--r-md)", background: "var(--surface-0)", fontSize: 14, lineHeight: 1.45, color: "var(--fg-2)" }}>
                     <AlertTriangle size={14} style={{ color: "var(--warning)", flexShrink: 0, marginTop: 2 }} />
                     <span>{item}</span>
                   </li>
@@ -4282,12 +4164,12 @@ export default function OTDetail({
 
               {canForceClose ? (
                 <>
-                  <p style={{ margin: 0, fontSize: 13, lineHeight: 1.5, color: "var(--fg-3)" }}>
+                  <p style={{ margin: 0, fontSize: 14, lineHeight: 1.5, color: "var(--fg-3)" }}>
                     Como administrador puedes cerrarla de todas formas. La OT quedará marcada
                     como <strong style={{ color: "var(--fg-2)" }}>cierre forzado</strong> y el motivo
                     quedará registrado en su historial.
                   </p>
-                  <label style={{ display: "flex", flexDirection: "column", gap: 7, fontSize: 12, fontWeight: 650, color: "var(--fg-3)", letterSpacing: "0.01em" }}>
+                  <label style={{ display: "flex", flexDirection: "column", gap: 7, fontSize: 14, fontWeight: 400, color: "var(--fg-3)", letterSpacing: "0.01em" }}>
                     Motivo del cierre forzado
                     <textarea
                       autoFocus
@@ -4304,12 +4186,12 @@ export default function OTDetail({
                     />
                   </label>
                   <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 4 }}>
-                    <button type="button" onClick={() => setGate(null)} disabled={gateBusy} style={{ height: 40, padding: "0 16px", border: "1px solid var(--border)", borderRadius: "var(--r-md)", background: "var(--surface-1)", color: "var(--fg-2)", font: "inherit", fontWeight: 600, cursor: gateBusy ? "default" : "pointer" }}>Cancelar</button>
+                    <button type="button" onClick={() => setGate(null)} disabled={gateBusy} style={{ height: 40, padding: "0 16px", border: "1px solid var(--border)", borderRadius: "var(--r-md)", background: "var(--surface-1)", color: "var(--fg-2)", font: "inherit", fontWeight: 400, cursor: gateBusy ? "default" : "pointer" }}>Cancelar</button>
                     <button
                       type="button"
                       onClick={confirmForceClose}
                       disabled={gateBusy || !gateReason.trim()}
-                      style={{ height: 40, padding: "0 18px", border: "none", borderRadius: "var(--r-md)", background: "var(--brand)", color: "var(--fg-on-brand)", font: "inherit", fontWeight: 700, cursor: gateBusy || !gateReason.trim() ? "default" : "pointer", opacity: gateBusy || !gateReason.trim() ? 0.5 : 1 }}
+                      style={{ height: 40, padding: "0 18px", border: "none", borderRadius: "var(--r-md)", background: "var(--brand)", color: "var(--fg-on-brand)", font: "inherit", fontWeight: 400, cursor: gateBusy || !gateReason.trim() ? "default" : "pointer", opacity: gateBusy || !gateReason.trim() ? 0.5 : 1 }}
                     >
                       {gateBusy ? "Cerrando…" : "Cerrar de todas formas"}
                     </button>
@@ -4317,7 +4199,7 @@ export default function OTDetail({
                 </>
               ) : (
                 <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 4 }}>
-                  <button type="button" onClick={() => setGate(null)} style={{ height: 40, padding: "0 18px", border: "none", borderRadius: "var(--r-md)", background: "var(--brand)", color: "var(--fg-on-brand)", font: "inherit", fontWeight: 700, cursor: "pointer" }}>Entendido</button>
+                  <button type="button" onClick={() => setGate(null)} style={{ height: 40, padding: "0 18px", border: "none", borderRadius: "var(--r-md)", background: "var(--brand)", color: "var(--fg-on-brand)", font: "inherit", fontWeight: 400, cursor: "pointer" }}>Entendido</button>
                 </div>
               )}
             </div>
@@ -4354,8 +4236,8 @@ export default function OTDetail({
             {/* Header */}
             <div style={{ padding: "18px 20px 14px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <div>
-                <div style={{ fontSize: 15, fontWeight: 700, color: "var(--fg-1)" }}>Exportar Excel</div>
-                <div style={{ fontSize: 12, color: "var(--fg-4)", marginTop: 2 }}>Selecciona las secciones a incluir</div>
+                <div style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)" }}>Exportar Excel</div>
+                <div style={{ fontSize: 14, color: "var(--fg-4)", marginTop: 2 }}>Selecciona las secciones a incluir</div>
               </div>
               <button
                 type="button"
@@ -4372,7 +4254,7 @@ export default function OTDetail({
             <div style={{ padding: "8px 20px 4px", maxHeight: 380, overflowY: "auto" }}>
               {Array.from(new Set(EXPORT_FIELDS.map(f => f.group))).map(group => (
                 <div key={group} style={{ marginBottom: 12 }}>
-                  <div style={{ fontSize: 14, fontWeight: 600, color: "var(--fg-1)", letterSpacing: "0.01em", marginBottom: 4, paddingLeft: 10 }}>
+                  <div style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", letterSpacing: "0.01em", marginBottom: 4, paddingLeft: 10 }}>
                     {group}
                   </div>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1 }}>
@@ -4389,7 +4271,7 @@ export default function OTDetail({
                           onChange={e => setExportFields(prev => ({ ...prev, [field.key]: e.target.checked }))}
                           style={{ width: 14, height: 14, accentColor: "var(--brand)", cursor: "pointer", flexShrink: 0 }}
                         />
-                        <span style={{ fontSize: 12.5, color: exportFields[field.key] ? "var(--fg-1)" : "var(--fg-4)" }}>{field.label}</span>
+                        <span style={{ fontSize: 14, color: exportFields[field.key] ? "var(--fg-1)" : "var(--fg-4)" }}>{field.label}</span>
                       </label>
                     ))}
                   </div>
@@ -4400,15 +4282,15 @@ export default function OTDetail({
             {/* Select all / none */}
             <div style={{ padding: "0 20px 10px", display: "flex", gap: 8, borderTop: "1px solid var(--divider)", paddingTop: 8 }}>
               <button type="button" onClick={() => setExportFields(ALL_FIELDS_ON)}
-                style={{ fontSize: 12, color: "var(--brand-fg)", background: "none", border: "none", cursor: "pointer", padding: "2px 0", fontFamily: "inherit" }}>
+                style={{ fontSize: 14, color: "var(--brand-fg)", background: "none", border: "none", cursor: "pointer", padding: "2px 0", fontFamily: "inherit" }}>
                 Seleccionar todo
               </button>
               <span style={{ color: "var(--border)" }}>·</span>
               <button type="button" onClick={() => setExportFields(ALL_FIELDS_OFF)}
-                style={{ fontSize: 12, color: "var(--fg-4)", background: "none", border: "none", cursor: "pointer", padding: "2px 0", fontFamily: "inherit" }}>
+                style={{ fontSize: 14, color: "var(--fg-4)", background: "none", border: "none", cursor: "pointer", padding: "2px 0", fontFamily: "inherit" }}>
                 Limpiar
               </button>
-              <span style={{ marginLeft: "auto", fontSize: 12, color: "var(--fg-4)" }}>
+              <span style={{ marginLeft: "auto", fontSize: 14, color: "var(--fg-4)" }}>
                 {Object.values(exportFields).filter(Boolean).length} seleccionados
               </span>
             </div>
@@ -4418,7 +4300,7 @@ export default function OTDetail({
               <button
                 type="button"
                 onClick={() => setExportConfigOpen(false)}
-                style={{ height: 36, padding: "0 16px", borderRadius: "var(--r-md)", border: "1px solid var(--border)", background: "var(--surface-1)", fontSize: 13, color: "var(--fg-2)", cursor: "pointer", fontFamily: "inherit" }}
+                style={{ height: 36, padding: "0 16px", borderRadius: "var(--r-md)", border: "1px solid var(--border)", background: "var(--surface-1)", fontSize: 14, color: "var(--fg-2)", cursor: "pointer", fontFamily: "inherit" }}
                 onMouseEnter={e => { e.currentTarget.style.background = "var(--surface-hover)"; }}
                 onMouseLeave={e => { e.currentTarget.style.background = "var(--surface-1)"; }}
               >Cancelar</button>
@@ -4429,7 +4311,7 @@ export default function OTDetail({
                 style={{
                   height: 36, padding: "0 18px", borderRadius: "var(--r-md)", border: "none",
                   background: Object.values(exportFields).some(Boolean) ? "var(--brand)" : "var(--border-strong)",
-                  fontSize: 13, fontWeight: 600, color: "var(--fg-on-brand)",
+                  fontSize: 14, fontWeight: 400, color: "var(--fg-on-brand)",
                   cursor: Object.values(exportFields).some(Boolean) ? "pointer" : "default",
                   fontFamily: "inherit", display: "flex", alignItems: "center", gap: 6,
                 }}
@@ -4454,8 +4336,8 @@ export default function OTDetail({
             {/* Header */}
             <div style={{ padding: "18px 20px 14px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <div>
-                <div style={{ fontSize: 15, fontWeight: 700, color: "var(--fg-1)" }}>Exportar PDF</div>
-                <div style={{ fontSize: 12, color: "var(--fg-4)", marginTop: 2 }}>Selecciona las secciones a incluir</div>
+                <div style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)" }}>Exportar PDF</div>
+                <div style={{ fontSize: 14, color: "var(--fg-4)", marginTop: 2 }}>Selecciona las secciones a incluir</div>
               </div>
               <button
                 type="button"
@@ -4472,7 +4354,7 @@ export default function OTDetail({
             <div style={{ padding: "8px 20px 4px", maxHeight: 380, overflowY: "auto" }}>
               {Array.from(new Set(PDF_FIELDS.map(f => f.group))).map(group => (
                 <div key={group} style={{ marginBottom: 12 }}>
-                  <div style={{ fontSize: 14, fontWeight: 600, color: "var(--fg-1)", letterSpacing: "0.01em", marginBottom: 4, paddingLeft: 10 }}>
+                  <div style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", letterSpacing: "0.01em", marginBottom: 4, paddingLeft: 10 }}>
                     {group}
                   </div>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1 }}>
@@ -4489,7 +4371,7 @@ export default function OTDetail({
                           onChange={e => setPdfFields(prev => ({ ...prev, [field.key]: e.target.checked }))}
                           style={{ width: 14, height: 14, accentColor: "var(--brand)", cursor: "pointer", flexShrink: 0 }}
                         />
-                        <span style={{ fontSize: 12.5, color: pdfFields[field.key] ? "var(--fg-1)" : "var(--fg-4)" }}>{field.label}</span>
+                        <span style={{ fontSize: 14, color: pdfFields[field.key] ? "var(--fg-1)" : "var(--fg-4)" }}>{field.label}</span>
                       </label>
                     ))}
                   </div>
@@ -4500,15 +4382,15 @@ export default function OTDetail({
             {/* Select all / none */}
             <div style={{ padding: "0 20px 10px", display: "flex", gap: 8, borderTop: "1px solid var(--divider)", paddingTop: 8 }}>
               <button type="button" onClick={() => setPdfFields(ALL_PDF_ON)}
-                style={{ fontSize: 12, color: "var(--brand-fg)", background: "none", border: "none", cursor: "pointer", padding: "2px 0", fontFamily: "inherit" }}>
+                style={{ fontSize: 14, color: "var(--brand-fg)", background: "none", border: "none", cursor: "pointer", padding: "2px 0", fontFamily: "inherit" }}>
                 Seleccionar todo
               </button>
               <span style={{ color: "var(--border)" }}>·</span>
               <button type="button" onClick={() => setPdfFields(ALL_PDF_OFF)}
-                style={{ fontSize: 12, color: "var(--fg-4)", background: "none", border: "none", cursor: "pointer", padding: "2px 0", fontFamily: "inherit" }}>
+                style={{ fontSize: 14, color: "var(--fg-4)", background: "none", border: "none", cursor: "pointer", padding: "2px 0", fontFamily: "inherit" }}>
                 Limpiar
               </button>
-              <span style={{ marginLeft: "auto", fontSize: 12, color: "var(--fg-4)" }}>
+              <span style={{ marginLeft: "auto", fontSize: 14, color: "var(--fg-4)" }}>
                 {Object.values(pdfFields).filter(Boolean).length} seleccionados
               </span>
             </div>
@@ -4523,7 +4405,7 @@ export default function OTDetail({
                   style={{
                     height: 36, padding: "0 18px", borderRadius: "var(--r-md)", border: "1px solid var(--brand)",
                     background: Object.values(pdfFields).some(Boolean) ? "var(--surface-1)" : "var(--surface-2)",
-                    fontSize: 13, fontWeight: 600, color: Object.values(pdfFields).some(Boolean) ? "var(--brand-fg)" : "var(--fg-4)",
+                    fontSize: 14, fontWeight: 400, color: Object.values(pdfFields).some(Boolean) ? "var(--brand-fg)" : "var(--fg-4)",
                     cursor: Object.values(pdfFields).some(Boolean) ? "pointer" : "default",
                     fontFamily: "inherit", display: "flex", alignItems: "center", gap: 6,
                   }}
@@ -4534,7 +4416,7 @@ export default function OTDetail({
               <button
                 type="button"
                 onClick={() => setPdfConfigOpen(false)}
-                style={{ height: 36, padding: "0 16px", borderRadius: "var(--r-md)", border: "1px solid var(--border)", background: "var(--surface-1)", fontSize: 13, color: "var(--fg-2)", cursor: "pointer", fontFamily: "inherit" }}
+                style={{ height: 36, padding: "0 16px", borderRadius: "var(--r-md)", border: "1px solid var(--border)", background: "var(--surface-1)", fontSize: 14, color: "var(--fg-2)", cursor: "pointer", fontFamily: "inherit" }}
                 onMouseEnter={e => { e.currentTarget.style.background = "var(--surface-hover)"; }}
                 onMouseLeave={e => { e.currentTarget.style.background = "var(--surface-1)"; }}
               >Cancelar</button>
@@ -4545,7 +4427,7 @@ export default function OTDetail({
                 style={{
                   height: 36, padding: "0 18px", borderRadius: "var(--r-md)", border: "none",
                   background: Object.values(pdfFields).some(Boolean) ? "var(--brand)" : "var(--border-strong)",
-                  fontSize: 13, fontWeight: 600, color: "var(--fg-on-brand)",
+                  fontSize: 14, fontWeight: 400, color: "var(--fg-on-brand)",
                   cursor: Object.values(pdfFields).some(Boolean) ? "pointer" : "default",
                   fontFamily: "inherit", display: "flex", alignItems: "center", gap: 6,
                 }}
@@ -4749,16 +4631,16 @@ function ProcedimientoEjecutado({
   return (
     <div style={{ border: "1px solid var(--border)", borderRadius: "var(--r-md)", overflow: "hidden", background: "var(--surface-1)", marginBottom: 12 }}>
       {/* Encabezado del procedimiento */}
-      <div style={{ background: "var(--brand)", color: "var(--fg-on-brand)", padding: "14px 18px", fontSize: 15, fontWeight: 700 }}>
+      <div style={{ background: "var(--brand)", color: "var(--fg-on-brand)", padding: "14px 18px", fontSize: 14, fontWeight: 400 }}>
         {proc?.nombre ?? "Procedimiento"}
       </div>
 
       {/* Contador de campos */}
       <div style={{ padding: "16px 18px", borderBottom: "1px solid var(--border)", textAlign: "center" }}>
-        <div style={{ fontSize: 20, fontWeight: 700, color: "var(--fg-1)" }}>
+        <div style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)" }}>
           {answered} | {answerable.length}
         </div>
-        <div style={{ fontSize: 12.5, color: "var(--fg-3)", marginTop: 2 }}>Campos completados</div>
+        <div style={{ fontSize: 14, color: "var(--fg-3)", marginTop: 2 }}>Campos completados</div>
       </div>
 
       <div style={{ padding: "14px 18px", display: "flex", flexDirection: "column", gap: 12 }}>
@@ -4768,10 +4650,10 @@ function ProcedimientoEjecutado({
           // Secciones/instrucciones: encabezado en negrita, sin tarjeta.
           if (paso.tipo === "seccion" || paso.tipo === "instruccion" || paso.tipo === "advertencia") {
             return (
-              <div key={paso.id} style={{ fontSize: 14.5, fontWeight: 700, color: "var(--fg-1)", lineHeight: 1.4, marginTop: 4 }}>
+              <div key={paso.id} style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", lineHeight: 1.4, marginTop: 4 }}>
                 {paso.titulo}
                 {paso.descripcion && (
-                  <div style={{ fontSize: 13, fontWeight: 400, color: "var(--fg-2)", marginTop: 4, lineHeight: 1.5 }}>
+                  <div style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-2)", marginTop: 4, lineHeight: 1.5 }}>
                     {paso.descripcion}
                   </div>
                 )}
@@ -4781,7 +4663,7 @@ function ProcedimientoEjecutado({
 
           return (
             <div key={paso.id} style={{ border: "1px solid var(--border)", borderRadius: "var(--r-md)", padding: "12px 14px" }}>
-              <div style={{ fontSize: 13, fontWeight: 600, color: "var(--fg-1)", lineHeight: 1.45 }}>
+              <div style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", lineHeight: 1.45 }}>
                 {paso.titulo?.trim() || TIPO_FALLBACK_LABEL[paso.tipo] || "Campo"}
                 {paso.requerido && (
                   <span aria-hidden="true" style={{ color: "var(--danger)", marginLeft: 2 }}>*</span>
@@ -4793,7 +4675,7 @@ function ProcedimientoEjecutado({
                 )}
               </div>
               {paso.descripcion && (
-                <div style={{ fontSize: 12.5, color: "var(--fg-3)", marginTop: 3, lineHeight: 1.45 }}>{paso.descripcion}</div>
+                <div style={{ fontSize: 14, color: "var(--fg-3)", marginTop: 3, lineHeight: 1.45 }}>{paso.descripcion}</div>
               )}
 
               <div style={{ marginTop: 10 }}>
@@ -4813,7 +4695,7 @@ function ProcedimientoEjecutado({
                   ? <EstadoSegmento valor={resp?.valor_texto ?? null} variante="si_no_na" />
                   : resp
                     ? <ReadonlyAnswer paso={paso} resp={resp} onPhotoClick={onPhotoClick} />
-                    : <div style={{ fontSize: 12.5, color: "var(--fg-4)" }}>Sin respuesta</div>}
+                    : <div style={{ fontSize: 14, color: "var(--fg-4)" }}>Sin respuesta</div>}
 
                 {/* La evidencia va aparte de la respuesta: cualquier tipo de
                     paso puede llevar fotos, no solo los de tipo imagen.
@@ -4836,7 +4718,7 @@ function ProcedimientoEjecutado({
                 if (!autor && !fecha) return null;
                 const verbo = paso.tipo === "firma" ? "Firmado" : "Rellenado";
                 return (
-                  <div style={{ fontSize: 12, color: "var(--fg-3)", marginTop: 10 }}>
+                  <div style={{ fontSize: 14, color: "var(--fg-3)", marginTop: 10 }}>
                     {verbo} por <strong style={{ color: "var(--fg-2)" }}>{autor ?? "—"}</strong>
                     {fecha ? ` el ${new Date(fecha).toLocaleString("es-CL")}` : ""}
                   </div>
@@ -4916,7 +4798,7 @@ function EstadoSegmento({ valor, variante = "inspeccion" }: { valor: string | nu
             key={o.label}
             style={{
               flex: 1, textAlign: "center", padding: "9px 6px",
-              borderRadius: "var(--r-sm)", fontSize: 12, fontWeight: 600,
+              borderRadius: "var(--r-sm)", fontSize: 14, fontWeight: 400,
               border: `1px solid ${active ? o.color : "var(--border)"}`,
               background: active ? o.bg : "transparent",
               color: active ? o.color : "var(--fg-4)",
@@ -4934,14 +4816,14 @@ function ReadonlyAnswer({ paso, resp, onPhotoClick }: { paso: ProcedimientoPaso;
   const currency = paso.moneda ?? "CLP";
   switch (paso.tipo) {
     case "texto":
-      return <div style={{ fontSize: 12.5, color: "var(--fg-2)", marginTop: 4, whiteSpace: "pre-wrap" }}>{resp.valor_texto}</div>;
+      return <div style={{ fontSize: 14, color: "var(--fg-2)", marginTop: 4, whiteSpace: "pre-wrap" }}>{resp.valor_texto}</div>;
     case "numero":
-      return <div style={{ fontSize: 12.5, color: "var(--fg-2)", marginTop: 4 }}>{resp.valor_medido} {paso.unidad}</div>;
+      return <div style={{ fontSize: 14, color: "var(--fg-2)", marginTop: 4 }}>{resp.valor_medido} {paso.unidad}</div>;
     case "monto":
-      return <div style={{ fontSize: 12.5, color: "var(--fg-2)", marginTop: 4 }}>{currency} {resp.valor_medido?.toLocaleString("es-CL")}</div>;
+      return <div style={{ fontSize: 14, color: "var(--fg-2)", marginTop: 4 }}>{currency} {resp.valor_medido?.toLocaleString("es-CL")}</div>;
     case "si_no_na":
     case "opcion_multiple":
-      return <div style={{ fontSize: 12.5, color: "var(--fg-2)", marginTop: 4 }}>{resp.valor_texto}</div>;
+      return <div style={{ fontSize: 14, color: "var(--fg-2)", marginTop: 4 }}>{resp.valor_texto}</div>;
     case "lista_verificacion": {
       // "N de M marcados" escondía justo lo que interesa: cuáles. Se listan
       // todos los ítems con su estado.
@@ -4954,7 +4836,7 @@ function ReadonlyAnswer({ paso, resp, onPhotoClick }: { paso: ProcedimientoPaso;
           {lista.map((op, i) => {
             const done = checked.includes(op);
             return (
-              <div key={i} style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 12.5, color: done ? "var(--fg-1)" : "var(--fg-3)" }}>
+              <div key={i} style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 14, color: done ? "var(--fg-1)" : "var(--fg-3)" }}>
                 {done
                   ? <CheckCircle2 size={13} style={{ color: "var(--success)", flexShrink: 0 }} />
                   : <Circle size={13} style={{ color: "var(--fg-4)", flexShrink: 0 }} />}
@@ -4975,7 +4857,7 @@ function ReadonlyAnswer({ paso, resp, onPhotoClick }: { paso: ProcedimientoPaso;
         <div style={{ display: "flex", flexDirection: "column", gap: 16, marginTop: 8 }}>
           {items.map((it, i) => (
             <div key={i} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              <div style={{ fontSize: 13, fontWeight: 600, color: "var(--fg-1)" }}>{it.item}</div>
+              <div style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)" }}>{it.item}</div>
               <EstadoSegmento valor={it.result} />
               {(it.foto_urls ?? []).length > 0 && (
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -5031,7 +4913,7 @@ function ReadonlyAnswer({ paso, resp, onPhotoClick }: { paso: ProcedimientoPaso;
           <span style={{
             position: "absolute", top: 4, right: 4,
             display: "inline-flex", alignItems: "center", gap: 3,
-            padding: "2px 6px", fontSize: 10, fontWeight: 600,
+            padding: "2px 6px", fontSize: 14, fontWeight: 400,
             color: "#fff", background: "rgba(0,0,0,0.55)", borderRadius: 10,
           }}>
             <Image size={10} /> Ver
@@ -5071,23 +4953,23 @@ function ReadonlyAnswer({ paso, resp, onPhotoClick }: { paso: ProcedimientoPaso;
             <FirmaImagen src={src} altoBase={200} />
           </button>
         )
-        : <div style={{ fontSize: 12.5, color: "var(--success)", marginTop: 4 }}>✓ Firmado</div>;
+        : <div style={{ fontSize: 14, color: "var(--success)", marginTop: 4 }}>✓ Firmado</div>;
     }
     case "medidor":
-      return <div style={{ fontSize: 12.5, color: "var(--fg-2)", marginTop: 4 }}>{resp.valor_medido} {paso.unidad}{resp.lectura_delta != null ? ` (Δ ${resp.lectura_delta})` : ""}</div>;
+      return <div style={{ fontSize: 14, color: "var(--fg-2)", marginTop: 4 }}>{resp.valor_medido} {paso.unidad}{resp.lectura_delta != null ? ` (Δ ${resp.lectura_delta})` : ""}</div>;
     case "fecha":
     case "hora":
     case "fecha_hora":
-      return <div style={{ fontSize: 12.5, color: "var(--fg-2)", marginTop: 4 }}>{resp.valor_fecha ? new Date(resp.valor_fecha).toLocaleString() : ""}</div>;
+      return <div style={{ fontSize: 14, color: "var(--fg-2)", marginTop: 4 }}>{resp.valor_fecha ? new Date(resp.valor_fecha).toLocaleString() : ""}</div>;
     case "archivo":
       return resp.archivo_url
-        ? <a href={resp.archivo_url} target="_blank" rel="noreferrer" style={{ fontSize: 12.5, color: "var(--brand)", marginTop: 4, display: "inline-block" }}>📎 {resp.archivo_nombre ?? "Archivo"}</a>
+        ? <a href={resp.archivo_url} target="_blank" rel="noreferrer" style={{ fontSize: 14, color: "var(--brand)", marginTop: 4, display: "inline-block" }}>📎 {resp.archivo_nombre ?? "Archivo"}</a>
         : null;
     case "escaneo":
-      return <div style={{ fontSize: 12.5, color: "var(--fg-2)", marginTop: 4, fontFamily: "var(--font-mono)" }}>{resp.escaneo_valor}</div>;
+      return <div style={{ fontSize: 14, color: "var(--fg-2)", marginTop: 4, fontFamily: "var(--font-mono)" }}>{resp.escaneo_valor}</div>;
     case "falla_iso14224":
       return (
-        <div style={{ fontSize: 12, color: "var(--fg-2)", marginTop: 4, display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <div style={{ fontSize: 14, color: "var(--fg-2)", marginTop: 4, display: "flex", gap: 8, flexWrap: "wrap" }}>
           {resp.iso14224_modo && <span><strong>Modo:</strong> {resp.iso14224_modo}</span>}
           {resp.iso14224_causa && <span><strong>Causa:</strong> {resp.iso14224_causa}</span>}
           {resp.iso14224_mecanismo && <span><strong>Mec:</strong> {resp.iso14224_mecanismo}</span>}
@@ -5098,10 +4980,10 @@ function ReadonlyAnswer({ paso, resp, onPhotoClick }: { paso: ProcedimientoPaso;
       return null;
     case "puntuacion":
       return resp.puntaje_obtenido != null
-        ? <div style={{ fontSize: 12.5, color: "var(--fg-2)", marginTop: 4 }}>Puntaje: <strong>{resp.puntaje_obtenido}</strong></div>
+        ? <div style={{ fontSize: 14, color: "var(--fg-2)", marginTop: 4 }}>Puntaje: <strong>{resp.puntaje_obtenido}</strong></div>
         : null;
     case "sub_procedimiento":
-      return <div style={{ fontSize: 12, color: "var(--fg-3)", marginTop: 4 }}>Sub-procedimiento referenciado.</div>;
+      return <div style={{ fontSize: 14, color: "var(--fg-3)", marginTop: 4 }}>Sub-procedimiento referenciado.</div>;
     default:
       return null;
   }
@@ -5350,7 +5232,7 @@ function SignatureCanvas({
           <button
             onClick={() => setConfirmClear(true)}
             disabled={isSaving}
-            style={{ marginTop: 8, background: "none", border: "none", padding: 0, cursor: isSaving ? "default" : "pointer", fontSize: 13, fontWeight: 600, color: "var(--brand)", fontFamily: "inherit" }}
+            style={{ marginTop: 8, background: "none", border: "none", padding: 0, cursor: isSaving ? "default" : "pointer", fontSize: 14, fontWeight: 400, color: "var(--brand)", fontFamily: "inherit" }}
           >
             Limpiar
           </button>
@@ -5362,7 +5244,7 @@ function SignatureCanvas({
             width: "100%", minHeight: 96, display: "grid", placeItems: "center",
             border: "1px solid var(--border)", borderRadius: "var(--r-sm)",
             background: "var(--surface-0)", cursor: "pointer",
-            fontSize: 13.5, fontWeight: 600, color: "var(--brand)", fontFamily: "inherit",
+            fontSize: 14, fontWeight: 400, color: "var(--brand)", fontFamily: "inherit",
           }}
         >
           Haz clic aquí para firmar
@@ -5376,19 +5258,19 @@ function SignatureCanvas({
           style={{ position: "fixed", inset: 0, zIndex: 810, background: "rgba(15,23,42,0.45)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}
         >
           <div role="dialog" aria-modal="true" aria-label="Eliminar firma" style={{ width: "min(420px, 100%)", background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: "var(--r-xl)", boxShadow: "var(--shadow-lg)", padding: 24 }}>
-            <p style={{ margin: "0 0 20px", fontSize: 14.5, lineHeight: 1.5, color: "var(--fg-1)", textAlign: "center" }}>
+            <p style={{ margin: "0 0 20px", fontSize: 14, lineHeight: 1.5, color: "var(--fg-1)", textAlign: "center" }}>
               ¿Estás seguro de que quieres eliminar la firma?
             </p>
             <div style={{ display: "flex", flexDirection: "column", gap: 10, alignItems: "center" }}>
               <button
                 onClick={() => { setHasStrokes(false); setSaved(false); onSave(""); setConfirmClear(false); }}
-                style={{ width: "100%", height: 42, border: "none", borderRadius: "var(--r-md)", background: "var(--brand)", color: "var(--fg-on-brand)", fontSize: 14, fontWeight: 700, fontFamily: "inherit", cursor: "pointer" }}
+                style={{ width: "100%", height: 42, border: "none", borderRadius: "var(--r-md)", background: "var(--brand)", color: "var(--fg-on-brand)", fontSize: 14, fontWeight: 400, fontFamily: "inherit", cursor: "pointer" }}
               >
                 Confirmar
               </button>
               <button
                 onClick={() => setConfirmClear(false)}
-                style={{ background: "none", border: "none", padding: 4, cursor: "pointer", fontSize: 13.5, fontWeight: 600, color: "var(--brand)", fontFamily: "inherit" }}
+                style={{ background: "none", border: "none", padding: 4, cursor: "pointer", fontSize: 14, fontWeight: 400, color: "var(--brand)", fontFamily: "inherit" }}
               >
                 Cancelar
               </button>
@@ -5405,7 +5287,7 @@ function SignatureCanvas({
         >
           <div role="dialog" aria-modal="true" aria-label="Firma" style={{ width: "min(720px, 100%)", background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: "var(--r-xl)", boxShadow: "var(--shadow-lg)" }}>
             <div style={{ height: 58, padding: "0 16px 0 20px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid var(--border)" }}>
-              <div style={{ fontSize: 16, fontWeight: 700, color: "var(--fg-1)" }}>Firma a continuación:</div>
+              <div style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)" }}>Firma a continuación:</div>
               <button type="button" onClick={() => setOpen(false)} aria-label="Cerrar" style={{ width: 34, height: 34, borderRadius: "50%", border: "1px solid var(--border)", background: "var(--surface-0)", color: "var(--fg-1)", display: "grid", placeItems: "center", cursor: "pointer" }}><X size={18} /></button>
             </div>
             <div style={{ padding: 20 }}>
@@ -5430,7 +5312,7 @@ function SignatureCanvas({
             <div style={{ padding: "0 20px 20px", display: "flex", gap: 14, alignItems: "center", justifyContent: "flex-end" }}>
               <button
                 onClick={clear}
-                style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontSize: 13.5, fontWeight: 600, color: "var(--brand)", fontFamily: "inherit" }}
+                style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontSize: 14, fontWeight: 400, color: "var(--brand)", fontFamily: "inherit" }}
               >
                 Limpiar
               </button>
@@ -5442,7 +5324,7 @@ function SignatureCanvas({
                   background: hasStrokes ? "var(--brand)" : "var(--surface-2)",
                   color: hasStrokes ? "var(--fg-on-brand)" : "var(--fg-4)",
                   cursor: hasStrokes && !isSaving && !uploading ? "pointer" : "default",
-                  fontSize: 13.5, fontWeight: 700, fontFamily: "inherit",
+                  fontSize: 14, fontWeight: 400, fontFamily: "inherit",
                   display: "flex", alignItems: "center", gap: 6,
                 }}
               >
@@ -5499,7 +5381,7 @@ function PasoInput({
       style={{
         height: 30, padding: "0 14px", background: "var(--brand-tint)",
         border: "1px solid var(--brand)", borderRadius: "var(--r-sm)", cursor: disabled || isSaving ? "default" : "pointer",
-        fontSize: 12, fontWeight: 600, color: "var(--brand-fg)", fontFamily: "inherit",
+        fontSize: 14, fontWeight: 400, color: "var(--brand-fg)", fontFamily: "inherit",
         display: "flex", alignItems: "center", gap: 4, opacity: disabled ? 0.5 : 1,
       }}
     >
@@ -5517,7 +5399,7 @@ function PasoInput({
       <button
         onClick={() => onSave({})}
         disabled={isAck || isSaving}
-        style={{ height: 28, padding: "0 12px", background: isAck ? "var(--success-bg)" : bg, border: `1px solid ${isAck ? "var(--success)" : bc}`, borderRadius: "var(--r-sm)", cursor: isAck ? "default" : "pointer", fontSize: 12, fontWeight: 600, color: isAck ? "var(--success)" : tc, fontFamily: "inherit", display: "flex", alignItems: "center", gap: 5 }}
+        style={{ height: 28, padding: "0 12px", background: isAck ? "var(--success-bg)" : bg, border: `1px solid ${isAck ? "var(--success)" : bc}`, borderRadius: "var(--r-sm)", cursor: isAck ? "default" : "pointer", fontSize: 14, fontWeight: 400, color: isAck ? "var(--success)" : tc, fontFamily: "inherit", display: "flex", alignItems: "center", gap: 5 }}
       >
         {isSaving ? <Loader2 size={11} className="animate-spin" /> : <Check size={11} />}
         {isAck ? (paso.tipo === "instruccion" ? "Confirmado" : "Leído y entendido") : (paso.tipo === "instruccion" ? "Confirmar lectura" : "Leído y entendido")}
@@ -5540,7 +5422,7 @@ function PasoInput({
             style={{
               flex: 1, minWidth: 0,
               minHeight: 42, padding: "0 16px", borderRadius: "var(--r-sm)", cursor: "pointer",
-              fontSize: 14, fontWeight: 500, fontFamily: "inherit",
+              fontSize: 14, fontWeight: 400, fontFamily: "inherit",
               // La opción elegida se marca con el azul de marca, no con
               // semáforo: "No" y "N/A" son respuestas válidas, no errores.
               border: `1px solid ${cur === opt ? "var(--brand)" : "var(--border)"}`,
@@ -5646,7 +5528,7 @@ function PasoInput({
       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
         {items.map(({ item, result }) => (
           <div key={item} style={{ display: "flex", flexDirection: "column", gap: 8, paddingBottom: 10 }}>
-            <span style={{ fontSize: 14, fontWeight: 600, color: "var(--fg-1)" }}>{item}</span>
+            <span style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)" }}>{item}</span>
             {/* Fila de celdas iguales, como el resto de los selectores cortos.
                 Cada opción lleva siempre su color: el estado se lee de un
                 vistazo aunque el ítem todavía no tenga respuesta. */}
@@ -5664,7 +5546,7 @@ function PasoInput({
                   style={{
                     flex: 1, minWidth: 0,
                     minHeight: 42, padding: "0 10px", borderRadius: "var(--r-sm)", cursor: "pointer",
-                    fontSize: 13, fontWeight: 600, fontFamily: "inherit", letterSpacing: "0.02em",
+                    fontSize: 14, fontWeight: 400, fontFamily: "inherit", letterSpacing: "0.02em",
                     border: `1px solid ${result === r ? colors[r] : "var(--border)"}`,
                     background: result === r ? colors[r] + "15" : "var(--surface-1)",
                     color: colors[r],
@@ -5758,7 +5640,7 @@ function PasoInput({
     return (
       <div>
         {paso.rol_firmante && (
-          <div style={{ fontSize: 12, color: "var(--fg-2)", marginBottom: 6 }}>
+          <div style={{ fontSize: 14, color: "var(--fg-2)", marginBottom: 6 }}>
             Firma de: <strong>{paso.rol_firmante}</strong>
           </div>
         )}
@@ -5830,7 +5712,7 @@ function PasoInput({
     const name = (val("archivo_nombre") as string | null | undefined) ?? null;
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        {url && <a href={url} target="_blank" rel="noreferrer" style={{ fontSize: 12.5, color: "var(--brand)" }}>📎 {name ?? "Archivo subido"}</a>}
+        {url && <a href={url} target="_blank" rel="noreferrer" style={{ fontSize: 14, color: "var(--brand)" }}>📎 {name ?? "Archivo subido"}</a>}
         <input
           type="file"
           onChange={async e => {
@@ -5846,7 +5728,7 @@ function PasoInput({
               e.target.value = "";
             }
           }}
-          style={{ fontSize: 12 }}
+          style={{ fontSize: 14 }}
         />
       </div>
     );
@@ -5883,7 +5765,7 @@ function PasoInput({
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
         {fields.map(f => (
           <div key={f.key} style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-            <label style={{ fontSize: 13, color: "var(--fg-3)", fontWeight: 600 }}>{f.label}</label>
+            <label style={{ fontSize: 14, color: "var(--fg-3)", fontWeight: 400 }}>{f.label}</label>
             <input
               type="text"
               value={(val(f.key) as string | null | undefined) ?? ""}
@@ -5906,7 +5788,7 @@ function PasoInput({
 
   if (paso.tipo === "puntuacion") {
     return (
-      <div style={{ fontSize: 12, color: "var(--fg-3)", fontStyle: "italic" }}>
+      <div style={{ fontSize: 14, color: "var(--fg-3)", fontStyle: "italic" }}>
         Puntaje calculado automáticamente al completar.
       </div>
     );
@@ -5914,7 +5796,7 @@ function PasoInput({
 
   if (paso.tipo === "sub_procedimiento") {
     return (
-      <div style={{ fontSize: 12, color: "var(--fg-3)", fontStyle: "italic" }}>
+      <div style={{ fontSize: 14, color: "var(--fg-3)", fontStyle: "italic" }}>
         Este paso embebe un sub-procedimiento (selector próximamente).
       </div>
     );
@@ -5974,7 +5856,7 @@ function NumericInputField({
         borderRadius: "var(--r-sm)", background: "var(--surface-1)",
       }}
     >
-      {prefix && <span style={{ fontSize: 14, fontWeight: 600, color: "var(--fg-3)", flexShrink: 0 }}>{prefix}</span>}
+      {prefix && <span style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-3)", flexShrink: 0 }}>{prefix}</span>}
       <input
         type="text"
         inputMode="decimal"
@@ -5998,8 +5880,8 @@ function NumericInputField({
         onFocus={() => setFocused(true)}
         onBlur={() => { setFocused(false); onCommit?.(); }}
       />
-      {suffix && <span style={{ fontSize: 13, color: "var(--fg-3)", flexShrink: 0 }}>{suffix}</span>}
-      {rangeHint && <span style={{ fontSize: 12, color: "var(--fg-4)", flexShrink: 0 }}>({rangeHint})</span>}
+      {suffix && <span style={{ fontSize: 14, color: "var(--fg-3)", flexShrink: 0 }}>{suffix}</span>}
+      {rangeHint && <span style={{ fontSize: 14, color: "var(--fg-4)", flexShrink: 0 }}>({rangeHint})</span>}
       {renderSaveBtn?.(!draft || draft === "." || draft === "-")}
     </div>
   );
@@ -6034,7 +5916,7 @@ function PasoExtras({
 
   const linkStyle: React.CSSProperties = {
     background: "none", border: "none", padding: 0, cursor: "pointer",
-    fontSize: 13, fontWeight: 500, color: "var(--brand)", fontFamily: "inherit",
+    fontSize: 14, fontWeight: 400, color: "var(--brand)", fontFamily: "inherit",
   };
 
   return (
@@ -6129,7 +6011,7 @@ function PasoImagenField({
         <div style={{ display: "flex", flexDirection: "column", alignItems: "stretch", width: "100%", border: "1px solid var(--border)", borderRadius: "var(--r-sm)", background: "var(--surface-canvas)", overflow: "hidden" }}>
           {urls.map((url, index) => (
             <div key={url} style={{ display: "flex", alignItems: "center", gap: 14, padding: 12, borderTop: index === 0 ? "none" : "1px solid var(--border)" }}>
-              <span style={{ flexShrink: 0, padding: "5px 8px", borderRadius: "var(--r-xs)", background: "var(--surface-1)", fontSize: 10.5, fontWeight: 600, color: "var(--fg-3)" }}>
+              <span style={{ flexShrink: 0, padding: "5px 8px", borderRadius: "var(--r-xs)", background: "var(--surface-1)", fontSize: 14, fontWeight: 400, color: "var(--fg-3)" }}>
                 {(url.split("?")[0].split(".").pop() ?? "img").slice(0, 4)}
               </span>
               <button type="button" onClick={() => onPreview(urls, index)} style={{ padding: 0, border: 0, background: "transparent", cursor: "zoom-in", flexShrink: 0 }} aria-label="Ver imagen">
@@ -6164,13 +6046,13 @@ function PasoImagenField({
           border: "1px dashed var(--border-strong)", borderRadius: "var(--r-md)",
           background: "var(--surface-canvas)",
           cursor: busy ? "default" : "pointer", opacity: busy ? 0.6 : 1,
-          fontSize: 13, fontWeight: 500, color: "var(--brand)", fontFamily: "inherit",
+          fontSize: 14, fontWeight: 400, color: "var(--brand)", fontFamily: "inherit",
         }}
       >
         {uploading ? <Loader2 size={20} className="animate-spin" /> : <Camera size={20} />}
         {uploading ? "Subiendo…" : "Agregar Imágenes/Archivos"}
       </button>
-      {err && <div style={{ fontSize: 13, color: "var(--danger)" }}>{err}</div>}
+      {err && <div style={{ fontSize: 14, color: "var(--danger)" }}>{err}</div>}
       <input
         ref={libraryInputRef}
         type="file"
@@ -6186,21 +6068,21 @@ function PasoImagenField({
           style={{ position: "fixed", inset: 0, zIndex: 820, background: "rgba(15,23,42,0.45)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}
         >
           <div role="dialog" aria-modal="true" aria-label="Eliminar archivo adjunto" style={{ width: "min(440px, 100%)", background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: "var(--r-xl)", boxShadow: "var(--shadow-lg)", padding: 24, textAlign: "left" }}>
-            <p style={{ margin: "0 0 22px", fontSize: 15, fontWeight: 600, lineHeight: 1.45, color: "var(--fg-1)" }}>
+            <p style={{ margin: "0 0 22px", fontSize: 14, fontWeight: 400, lineHeight: 1.45, color: "var(--fg-1)" }}>
               ¿Estás seguro de que quieres eliminar el archivo adjunto?
             </p>
             <div style={{ display: "flex", gap: 14, alignItems: "center", justifyContent: "flex-end" }}>
               <button
                 type="button"
                 onClick={() => setConfirmDelete(null)}
-                style={{ background: "none", border: "none", padding: 4, cursor: "pointer", fontSize: 13.5, fontWeight: 600, color: "var(--brand)", fontFamily: "inherit" }}
+                style={{ background: "none", border: "none", padding: 4, cursor: "pointer", fontSize: 14, fontWeight: 400, color: "var(--brand)", fontFamily: "inherit" }}
               >
                 Cancelar
               </button>
               <button
                 type="button"
                 onClick={() => { onClear(confirmDelete); setConfirmDelete(null); }}
-                style={{ height: 40, padding: "0 20px", border: "none", borderRadius: "var(--r-md)", background: "var(--brand)", color: "var(--fg-on-brand)", fontSize: 13.5, fontWeight: 700, fontFamily: "inherit", cursor: "pointer" }}
+                style={{ height: 40, padding: "0 20px", border: "none", borderRadius: "var(--r-md)", background: "var(--brand)", color: "var(--fg-on-brand)", fontSize: 14, fontWeight: 400, fontFamily: "inherit", cursor: "pointer" }}
               >
                 Confirmar
               </button>
@@ -6255,8 +6137,8 @@ function ProcEjecucionModal({
         {/* Header */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px", flexShrink: 0, background: "var(--surface-0)", borderRadius: "16px 16px 0 0" }}>
           <div>
-            <div style={{ fontSize: 15, fontWeight: 700, color: "var(--fg-1)" }}>Procedimiento</div>
-            <div style={{ fontSize: 12, color: "var(--fg-4)" }}>{proc?.nombre ?? "Sin título"}</div>
+            <div style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)" }}>Procedimiento</div>
+            <div style={{ fontSize: 14, color: "var(--fg-4)" }}>{proc?.nombre ?? "Sin título"}</div>
           </div>
           <button
             onClick={onClose}
@@ -6271,7 +6153,7 @@ function ProcEjecucionModal({
         {/* Body */}
         <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "14px 20px 20px" }}>
           {pasos.length === 0 ? (
-            <div style={{ textAlign: "center", padding: "32px 0", color: "var(--fg-4)", fontSize: 13 }}>Sin campos definidos</div>
+            <div style={{ textAlign: "center", padding: "32px 0", color: "var(--fg-4)", fontSize: 14 }}>Sin campos definidos</div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               {pasos.map((paso) => {
@@ -6293,14 +6175,14 @@ function ProcEjecucionModal({
                       {/* Step header */}
                       <div style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: (paso.descripcion || !isInfoOnly) ? 8 : 0 }}>
                         <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: 13.5, fontWeight: 600, color: "var(--fg-1)", lineHeight: 1.3 }}>
+                          <div style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", lineHeight: 1.3 }}>
                             {paso.titulo}
                             {!paso.requerido && !isInfoOnly && (
-                              <span style={{ fontSize: 13, color: "var(--fg-4)", fontWeight: 400, marginLeft: 6 }}>(opcional)</span>
+                              <span style={{ fontSize: 14, color: "var(--fg-4)", fontWeight: 400, marginLeft: 6 }}>(opcional)</span>
                             )}
                           </div>
                           {paso.descripcion && (
-                            <div style={{ fontSize: 12.5, color: "var(--fg-2)", lineHeight: 1.5, marginTop: 3 }}>{paso.descripcion}</div>
+                            <div style={{ fontSize: 14, color: "var(--fg-2)", lineHeight: 1.5, marginTop: 3 }}>{paso.descripcion}</div>
                           )}
                         </div>
                       </div>
@@ -6320,7 +6202,7 @@ function ProcEjecucionModal({
                               <div style={{ flex: 1, minWidth: 0 }}>
                                 <ReadonlyAnswer paso={paso} resp={saved} onPhotoClick={(url) => setLightboxImages({ urls: [url], idx: 0 })} />
                                 {saved.editado_at && (
-                                  <div style={{ fontSize: 13, color: "var(--fg-4)", marginTop: 4, fontStyle: "italic" }}>
+                                  <div style={{ fontSize: 14, color: "var(--fg-4)", marginTop: 4, fontStyle: "italic" }}>
                                     Editado {new Date(saved.editado_at!).toLocaleString()}
                                   </div>
                                 )}
@@ -6330,7 +6212,7 @@ function ProcEjecucionModal({
                                   onClick={() => setEditingPasos(prev => ({ ...prev, [paso.id]: true }))}
                                   style={{
                                     display: "flex", alignItems: "center", gap: 4,
-                                    padding: "4px 8px", fontSize: 13.5, fontWeight: 600,
+                                    padding: "4px 8px", fontSize: 14, fontWeight: 400,
                                     color: "var(--brand)", background: "var(--brand-tint)",
                                     border: "1px solid var(--brand)", borderRadius: "var(--r-sm)",
                                     cursor: "pointer", flexShrink: 0, fontFamily: "inherit",
@@ -6350,7 +6232,7 @@ function ProcEjecucionModal({
                                   onClick={() => setEditingPasos(prev => { const n = { ...prev }; delete n[paso.id]; return n; })}
                                   style={{
                                     display: "inline-flex", alignItems: "center", gap: 3,
-                                    fontSize: 13, color: "var(--fg-3)",
+                                    fontSize: 14, color: "var(--fg-3)",
                                     background: "transparent", border: "none", cursor: "pointer",
                                     marginBottom: 6, fontFamily: "inherit", padding: 0,
                                   }}
@@ -6390,7 +6272,7 @@ function ProcEjecucionModal({
         {!isCompleted && (
           <div style={{ padding: "12px 20px", borderTop: "1px solid var(--border)", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "space-between", background: "var(--surface-0)" }}>
             <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-              <div style={{ fontSize: 12, color: "var(--fg-4)" }}>
+              <div style={{ fontSize: 14, color: "var(--fg-4)" }}>
                 {answeredRequired.length}/{allRequired.length} campos requeridos completados
               </div>
             </div>
@@ -6401,7 +6283,7 @@ function ProcEjecucionModal({
                 height: 36, padding: "0 18px",
                 background: canComplete ? "var(--success)" : "var(--border)",
                 border: "none", borderRadius: "var(--r-md)", cursor: canComplete ? "pointer" : "default",
-                fontSize: 13, fontWeight: 600, color: canComplete ? "var(--fg-on-brand)" : "var(--fg-4)",
+                fontSize: 14, fontWeight: 400, color: canComplete ? "var(--fg-on-brand)" : "var(--fg-4)",
                 fontFamily: "inherit", display: "flex", alignItems: "center", gap: 6,
               }}
             >
@@ -6463,7 +6345,7 @@ function ProcEjecucionModal({
             style={{
               position: "absolute", bottom: 20, left: "50%",
               transform: "translateX(-50%)",
-              padding: "8px 16px", fontSize: 12, fontWeight: 600,
+              padding: "8px 16px", fontSize: 14, fontWeight: 400,
               color: "#fff", background: "rgba(255,255,255,0.15)",
               borderRadius: "var(--r-md)", textDecoration: "none",
             }}

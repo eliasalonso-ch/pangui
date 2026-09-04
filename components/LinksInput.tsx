@@ -61,7 +61,7 @@ export default function LinksInput({ links, onChange, disabled }: Props) {
                 style={{
                   width: "100%", height: 36, padding: "0 10px",
                   border: `1px solid ${!urlValid && link.url ? "#EF4444" : "#E2E8F0"}`,
-                  borderRadius: 7, fontSize: 13, color: "#0F172A",
+                  borderRadius: 7, fontSize: 14, color: "#0F172A",
                   background: disabled ? "#F8FAFC" : "#fff",
                   outline: "none", fontFamily: "inherit", boxSizing: "border-box",
                 }}
@@ -81,7 +81,7 @@ export default function LinksInput({ links, onChange, disabled }: Props) {
                 style={{
                   width: "100%", height: 36, padding: "0 10px",
                   border: "1px solid #E2E8F0", borderRadius: 7,
-                  fontSize: 13, color: "#0F172A",
+                  fontSize: 14, color: "#0F172A",
                   background: disabled ? "#F8FAFC" : "#fff",
                   outline: "none", fontFamily: "inherit", boxSizing: "border-box",
                 }}
@@ -120,7 +120,7 @@ export default function LinksInput({ links, onChange, disabled }: Props) {
             height: 32, padding: "0 10px", alignSelf: "flex-start",
             background: "none", border: "1px dashed #CBD5E1",
             borderRadius: 7, cursor: "pointer",
-            fontSize: 12, fontWeight: 500, color: "#64748B",
+            fontSize: 14, fontWeight: 400, color: "#64748B",
             fontFamily: "inherit", transition: "all 0.12s",
           }}
           onMouseEnter={e => { e.currentTarget.style.borderColor = "#2563EB"; e.currentTarget.style.color = "#2563EB"; e.currentTarget.style.background = "#EFF6FF"; }}
@@ -165,7 +165,7 @@ export function LinksDisplay({ links }: { links: OTLink[] }) {
                   display: "inline-flex", alignItems: "center", gap: 5,
                   padding: "4px 10px", borderRadius: 6,
                   background: "#EFF6FF", border: "1px solid #BFDBFE",
-                  fontSize: 12, fontWeight: 500, color: "#1D4ED8",
+                  fontSize: 14, fontWeight: 400, color: "#1D4ED8",
                   textDecoration: "none", transition: "all 0.12s",
                   maxWidth: 260, overflow: "hidden",
                 }}
@@ -196,7 +196,7 @@ export function LinksDisplay({ links }: { links: OTLink[] }) {
                   display: "inline-flex", alignItems: "center", gap: 7,
                   padding: "6px 10px", borderRadius: 6,
                   background: "#F8FAFC", border: "1px solid #E2E8F0",
-                  fontSize: 12.5, fontWeight: 500, color: "#334155",
+                  fontSize: 14, fontWeight: 400, color: "#334155",
                   textDecoration: "none", transition: "all 0.12s",
                   maxWidth: "100%",
                 }}

@@ -51,7 +51,7 @@ export default function CategoriaMultiSelect({ categorias, value, onChange }: {
         {selected.map(c => (
           <span key={c.id} style={{
             display: "inline-flex", alignItems: "center", gap: 5,
-            padding: "2px 6px 2px 8px", borderRadius: 6, fontSize: 12, fontWeight: 600,
+            padding: "2px 6px 2px 8px", borderRadius: 6, fontSize: 14, fontWeight: 400,
             background: c.color ?? "var(--brand-tint)",
             color: c.color ? "var(--fg-on-brand)" : "var(--brand)",
           }}>
@@ -73,7 +73,7 @@ export default function CategoriaMultiSelect({ categorias, value, onChange }: {
           placeholder={selected.length === 0 ? "Empiece a escribir…" : ""}
           style={{
             flex: 1, minWidth: 60, height: 26, border: "none", outline: "none",
-            background: "transparent", fontSize: 13, color: "var(--fg-1)", fontFamily: "inherit",
+            background: "transparent", fontSize: 14, color: "var(--fg-1)", fontFamily: "inherit",
           }}
         />
         <ChevronDown size={14} style={{ color: "var(--fg-4)", flexShrink: 0 }} />
@@ -95,7 +95,7 @@ export default function CategoriaMultiSelect({ categorias, value, onChange }: {
                 onClick={() => toggle(c.id)}
                 style={{
                   display: "flex", alignItems: "center", gap: 8,
-                  width: "100%", padding: "9px 12px", fontSize: 13, textAlign: "left",
+                  width: "100%", padding: "9px 12px", fontSize: 14, textAlign: "left",
                   background: sel ? "var(--brand-tint)" : "transparent",
                   border: "none", cursor: "pointer", fontFamily: "inherit", color: "var(--fg-1)",
                 }}
@@ -114,7 +114,7 @@ export default function CategoriaMultiSelect({ categorias, value, onChange }: {
             );
           })}
           {filtered.length === 0 && (
-            <div style={{ padding: "10px 12px", fontSize: 12.5, color: "var(--fg-4)" }}>Sin categorías</div>
+            <div style={{ padding: "10px 12px", fontSize: 14, color: "var(--fg-4)" }}>Sin categorías</div>
           )}
         </div>
       )}

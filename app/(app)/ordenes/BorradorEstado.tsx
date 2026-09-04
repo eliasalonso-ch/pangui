@@ -22,8 +22,8 @@ export default function BorradorEstado({
     display: "inline-flex",
     alignItems: "center",
     gap: 5,
-    fontSize: 12,
-    fontWeight: 500,
+    fontSize: 14,
+    fontWeight: 400,
     fontFamily: "inherit",
     whiteSpace: "nowrap" as const,
   };

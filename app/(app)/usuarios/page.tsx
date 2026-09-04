@@ -119,20 +119,20 @@ function timeAgo(iso?: string) {
 
 // ── Inline form field helpers ──────────────────────────────────────────────────
 const labelStyle: React.CSSProperties = {
-  fontSize: 11, fontWeight: 700, textTransform: "uppercase",
+  fontSize: 14, fontWeight: 400, textTransform: "uppercase",
   letterSpacing: "0.06em", color: "var(--fg-4)", marginBottom: 5, display: "block",
 };
 const inputStyle: React.CSSProperties = {
   width: "100%", height: 36, padding: "0 12px",
   border: "1px solid var(--border)", borderRadius: 6,
-  fontSize: 13, fontFamily: "inherit", color: "var(--fg-1)",
+  fontSize: 14, fontFamily: "inherit", color: "var(--fg-1)",
   background: "var(--surface-1)", outline: "none", boxSizing: "border-box",
 };
 /** Item de los menús ⋮ de cada fila de la tabla de miembros. */
 const rowMenuItemStyle: React.CSSProperties = {
   display: "block", width: "100%", padding: "9px 10px",
   border: "none", borderRadius: 7, background: "transparent",
-  color: "var(--fg-1)", fontSize: 13, fontFamily: "inherit",
+  color: "var(--fg-1)", fontSize: 14, fontFamily: "inherit",
   textAlign: "left", cursor: "pointer",
 };
 
@@ -494,7 +494,7 @@ export default function UsuariosPage() {
     return (
       <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100dvh", gap: 8, color: "var(--fg-4)" }}>
         <Loader2 size={18} className="animate-spin" />
-        <span style={{ fontSize: 13 }}>Cargando equipo…</span>
+        <span style={{ fontSize: 14 }}>Cargando equipo…</span>
       </div>
     );
   }
@@ -532,7 +532,7 @@ export default function UsuariosPage() {
                 height: 36, padding: "0 16px",
                 display: "flex", alignItems: "center", gap: 7,
                 background: "var(--brand)", border: "none", borderRadius: 8,
-                fontSize: 14, fontWeight: 500, color: "var(--fg-on-brand)",
+                fontSize: 14, fontWeight: 400, color: "var(--fg-on-brand)",
                 cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap",
               }}
             >
@@ -552,7 +552,7 @@ export default function UsuariosPage() {
               clicking the row opens /usuarios/[id]. */}
           {activeTab === "equipo" && (
             filteredUsers.length === 0 ? (
-              <div style={{ padding: 40, textAlign: "center", color: "var(--fg-4)", fontSize: 13 }}>
+              <div style={{ padding: 40, textAlign: "center", color: "var(--fg-4)", fontSize: 14 }}>
                 {busqueda ? "Sin resultados." : "No hay miembros aun."}
               </div>
             ) : (
@@ -579,7 +579,7 @@ export default function UsuariosPage() {
                                 style={{
                                   display: "inline-flex", alignItems: "center", gap: 4,
                                   background: "none", border: "none", padding: 0, cursor: "pointer",
-                                  fontFamily: "inherit", fontSize: 11.5, fontWeight: 700,
+                                  fontFamily: "inherit", fontSize: 14, fontWeight: 400,
                                   color: sortKey === key ? "var(--fg-2)" : "var(--fg-4)",
                                   textTransform: "uppercase", letterSpacing: "0.05em",
                                 }}
@@ -609,20 +609,20 @@ export default function UsuariosPage() {
                                     display: "grid", placeItems: "center",
                                     background: isActive ? "var(--brand)" : "var(--border)",
                                     color: isActive ? "var(--fg-on-brand)" : "var(--fg-4)",
-                                    fontSize: 12, fontWeight: 700,
+                                    fontSize: 14, fontWeight: 400,
                                   }}>
                                     {u.nombre?.charAt(0)?.toUpperCase() ?? "?"}
                                   </span>
-                                  <span style={{ fontSize: 13.5, fontWeight: 600, color: "var(--fg-1)" }}>{u.nombre}</span>
+                                  <span style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)" }}>{u.nombre}</span>
                                 </span>
                               </td>
-                              <td style={{ padding: "12px 16px", fontSize: 13, color: "var(--fg-2)" }}>
+                              <td style={{ padding: "12px 16px", fontSize: 14, color: "var(--fg-2)" }}>
                                 {(ROL_LABEL as Record<string, string>)[u.rol] ?? u.rol}
                               </td>
-                              <td style={{ padding: "12px 16px", fontSize: 13, color: u.cargo ? "var(--fg-2)" : "var(--fg-4)" }}>
+                              <td style={{ padding: "12px 16px", fontSize: 14, color: u.cargo ? "var(--fg-2)" : "var(--fg-4)" }}>
                                 {u.cargo || "\u2014"}
                               </td>
-                              <td style={{ padding: "12px 16px", fontSize: 13, color: u.oficio ? "var(--fg-2)" : "var(--fg-4)" }}>
+                              <td style={{ padding: "12px 16px", fontSize: 14, color: u.oficio ? "var(--fg-2)" : "var(--fg-4)" }}>
                                 {u.oficio || "\u2014"}
                               </td>
                               <td style={{ padding: "12px 16px" }}>
@@ -630,7 +630,7 @@ export default function UsuariosPage() {
                                   display: "inline-flex", alignItems: "center", gap: 6,
                                   padding: "3px 10px", borderRadius: 999,
                                   border: "1px solid var(--border)", background: "var(--surface-1)",
-                                  fontSize: 12, fontWeight: 600, color: "var(--fg-2)",
+                                  fontSize: 14, fontWeight: 400, color: "var(--fg-2)",
                                 }}>
                                   <span style={{
                                     width: 6, height: 6, borderRadius: "50%",
@@ -719,7 +719,7 @@ export default function UsuariosPage() {
               display: "flex", alignItems: "center", justifyContent: "space-between",
               borderBottom: "1px solid var(--border)",
             }}>
-              <span style={{ fontSize: 13, fontWeight: 600, color: "var(--fg-1)" }}>
+              <span style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)" }}>
                 {panelMode === "create-user" ? "Nuevo miembro" :
                  panelMode === "create-cuadrilla" ? "Nueva cuadrilla" :
                  panelMode === "view-user" ? (panelData as Usuario)?.nombre :
@@ -737,17 +737,17 @@ export default function UsuariosPage() {
                 {inviteOk ? (
                   <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                     <div style={{ padding: "12px 16px", background: "var(--success-bg)", border: "1px solid var(--success)", borderRadius: 8 }}>
-                      <p style={{ fontSize: 13, fontWeight: 600, color: "var(--success)", margin: "0 0 8px" }}>
+                      <p style={{ fontSize: 14, fontWeight: 400, color: "var(--success)", margin: "0 0 8px" }}>
                         ¡Invitación enviada!
                       </p>
-                      <p style={{ fontSize: 12, color: "var(--fg-2)", margin: 0, lineHeight: 1.5 }}>
+                      <p style={{ fontSize: 14, color: "var(--fg-2)", margin: 0, lineHeight: 1.5 }}>
                         Le enviamos un correo a <strong>{inviteOk.email}</strong> para que{" "}
                         <strong>{inviteOk.nombre}</strong> cree su contraseña. Ya aparece en el equipo
                         y puedes asignarle órdenes.
                       </p>
                     </div>
                     <button type="button" onClick={closePanel}
-                      style={{ height: 36, border: "none", borderRadius: 6, background: "var(--brand)", color: "var(--fg-on-brand)", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+                      style={{ height: 36, border: "none", borderRadius: 6, background: "var(--brand)", color: "var(--fg-on-brand)", fontSize: 14, fontWeight: 400, cursor: "pointer", fontFamily: "inherit" }}>
                       Listo
                     </button>
                   </div>
@@ -759,29 +759,29 @@ export default function UsuariosPage() {
                         width: 44, height: 44, borderRadius: "50%", flexShrink: 0,
                         background: (panelData as Usuario).activo !== false ? "var(--brand)" : "var(--border)",
                         display: "flex", alignItems: "center", justifyContent: "center",
-                        fontSize: 18, fontWeight: 700,
+                        fontSize: 14, fontWeight: 400,
                         color: (panelData as Usuario).activo !== false ? "var(--fg-on-brand)" : "var(--fg-4)",
                       }}>
                         {(panelData as Usuario).nombre?.charAt(0)?.toUpperCase()}
                       </div>
                       <div>
-                        <p style={{ fontSize: 14, fontWeight: 700, color: "var(--fg-1)", margin: 0 }}>{(panelData as Usuario).nombre}</p>
+                        <p style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", margin: 0 }}>{(panelData as Usuario).nombre}</p>
                         <div style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 3 }}>
-                          <span style={{ fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 20, background: "var(--brand-tint)", color: "var(--brand)" }}>
+                          <span style={{ fontSize: 14, fontWeight: 400, padding: "2px 8px", borderRadius: 20, background: "var(--brand-tint)", color: "var(--brand)" }}>
                             {(ROL_LABEL as Record<string, string>)[(panelData as Usuario).rol] ?? (panelData as Usuario).rol}
                           </span>
                           {(panelData as Usuario).activo === false && (
-                            <span style={{ fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 20, background: "var(--surface-hover)", color: "var(--fg-4)" }}>
+                            <span style={{ fontSize: 14, fontWeight: 400, padding: "2px 8px", borderRadius: 20, background: "var(--surface-hover)", color: "var(--fg-4)" }}>
                               Inactivo
                             </span>
                           )}
                         </div>
                         {(panelData as Usuario).oficio && (
-                          <p style={{ fontSize: 11, color: "var(--fg-3)", margin: "3px 0 0" }}>{(panelData as Usuario).oficio}</p>
+                          <p style={{ fontSize: 14, color: "var(--fg-3)", margin: "3px 0 0" }}>{(panelData as Usuario).oficio}</p>
                         )}
                       </div>
                     </div>
-                    <div style={{ fontSize: 12, color: "var(--fg-3)", display: "flex", flexDirection: "column", gap: 4 }}>
+                    <div style={{ fontSize: 14, color: "var(--fg-3)", display: "flex", flexDirection: "column", gap: 4 }}>
                       {(panelData as Usuario).created_at && (
                         <div><strong>Desde:</strong> {formatDate((panelData as Usuario).created_at)}</div>
                       )}
@@ -797,7 +797,7 @@ export default function UsuariosPage() {
                           onClick={() => toggleActivo(panelData as Usuario)}
                           style={{
                             flex: 1, height: 34, border: "1px solid var(--border)", borderRadius: 6,
-                            background: "none", fontSize: 12, fontWeight: 600,
+                            background: "none", fontSize: 14, fontWeight: 400,
                             color: (panelData as Usuario).activo !== false ? "var(--danger)" : "var(--success)",
                             cursor: "pointer", fontFamily: "inherit",
                           }}
@@ -812,7 +812,7 @@ export default function UsuariosPage() {
                           onClick={() => openBaja(panelData as Usuario)}
                           style={{
                             flex: 1, height: 34, border: "1px solid var(--danger)", borderRadius: 6,
-                            background: "none", fontSize: 12, fontWeight: 600,
+                            background: "none", fontSize: 14, fontWeight: 400,
                             color: "var(--danger)", cursor: "pointer", fontFamily: "inherit",
                           }}
                         >
@@ -884,12 +884,12 @@ export default function UsuariosPage() {
                       </select>
                     </div>
 
-                    <p style={{ fontSize: 12, color: "var(--fg-4)", margin: 0, lineHeight: 1.5 }}>
+                    <p style={{ fontSize: 14, color: "var(--fg-4)", margin: 0, lineHeight: 1.5 }}>
                       Le enviaremos un correo para que cree su propia contrasena.
                       Aparecera en el equipo de inmediato y podras asignarle ordenes.
                     </p>
 
-                    {saveErr && <p style={{ fontSize: 12, color: "var(--danger)", margin: 0 }}>{saveErr}</p>}
+                    {saveErr && <p style={{ fontSize: 14, color: "var(--danger)", margin: 0 }}>{saveErr}</p>}
                     <button
                       type="button"
                       onClick={inviteUser}
@@ -897,7 +897,7 @@ export default function UsuariosPage() {
                       style={{
                         height: 38, border: "none", borderRadius: 8,
                         background: "var(--brand)", color: "var(--fg-on-brand)",
-                        fontSize: 14, fontWeight: 500,
+                        fontSize: 14, fontWeight: 400,
                         cursor: saving ? "default" : "pointer", fontFamily: "inherit",
                         display: "flex", alignItems: "center", justifyContent: "center", gap: 7,
                         opacity: saving ? 0.7 : 1,
@@ -954,7 +954,7 @@ export default function UsuariosPage() {
                           }}
                         >
                           <DynamicIcon name={t.icono} size={13} style={{ color: t.color, flexShrink: 0 }} />
-                          <span style={{ fontSize: 11, fontWeight: 600, color: sel ? t.color : "var(--fg-2)" }}>{t.label}</span>
+                          <span style={{ fontSize: 14, fontWeight: 400, color: sel ? t.color : "var(--fg-2)" }}>{t.label}</span>
                         </button>
                       );
                     })}
@@ -982,14 +982,14 @@ export default function UsuariosPage() {
                             )}
                             style={{ accentColor: "var(--brand)" }}
                           />
-                          <span style={{ fontSize: 12, color: "var(--fg-2)" }}>{u.nombre}</span>
-                          <span style={{ fontSize: 11, color: "var(--fg-4)", marginLeft: "auto" }}>{(ROL_LABEL as Record<string, string>)[u.rol] ?? u.rol}</span>
+                          <span style={{ fontSize: 14, color: "var(--fg-2)" }}>{u.nombre}</span>
+                          <span style={{ fontSize: 14, color: "var(--fg-4)", marginLeft: "auto" }}>{(ROL_LABEL as Record<string, string>)[u.rol] ?? u.rol}</span>
                         </label>
                       );
                     })}
                   </div>
                 </div>
-                {saveErr && <p style={{ fontSize: 12, color: "var(--danger)", margin: 0 }}>{saveErr}</p>}
+                {saveErr && <p style={{ fontSize: 14, color: "var(--danger)", margin: 0 }}>{saveErr}</p>}
                 <div style={{ display: "flex", gap: 8 }}>
                   {panelMode === "view-cuadrilla" && esAdmin(myRol) && (
                     <button
@@ -997,7 +997,7 @@ export default function UsuariosPage() {
                       onClick={() => deleteCuadrilla((panelData as Cuadrilla).id)}
                       style={{
                         height: 36, padding: "0 14px", border: "1px solid var(--danger-bg)", borderRadius: 6,
-                        background: "none", fontSize: 12, fontWeight: 600, color: "var(--danger)",
+                        background: "none", fontSize: 14, fontWeight: 400, color: "var(--danger)",
                         cursor: "pointer", fontFamily: "inherit",
                       }}
                     >
@@ -1011,7 +1011,7 @@ export default function UsuariosPage() {
                     style={{
                       flex: 1, height: 36, border: "none", borderRadius: 6,
                       background: "var(--brand)", color: "var(--fg-on-brand)",
-                      fontSize: 13, fontWeight: 600,
+                      fontSize: 14, fontWeight: 400,
                       cursor: saving ? "default" : "pointer", fontFamily: "inherit",
                       display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
                       opacity: saving ? 0.7 : 1,
@@ -1043,27 +1043,27 @@ export default function UsuariosPage() {
             boxShadow: "0 20px 60px rgba(0,0,0,0.15)",
           }}>
             <div style={{ padding: "18px 20px", borderBottom: "1px solid var(--border)" }}>
-              <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: "var(--fg-1)" }}>
+              <h2 style={{ margin: 0, fontSize: 14, fontWeight: 400, color: "var(--fg-1)" }}>
                 Dar de baja a {bajaUser.nombre}
               </h2>
             </div>
 
             <div style={{ padding: 20, display: "grid", gap: 16 }}>
               {bajaAbiertas === null ? (
-                <p style={{ margin: 0, fontSize: 13, color: "var(--fg-3)" }}>Revisando trabajo asignado…</p>
+                <p style={{ margin: 0, fontSize: 14, color: "var(--fg-3)" }}>Revisando trabajo asignado…</p>
               ) : bajaAbiertas > 0 ? (
                 <>
-                  <p style={{ margin: 0, fontSize: 13.5, color: "var(--fg-1)", lineHeight: 1.55 }}>
+                  <p style={{ margin: 0, fontSize: 14, color: "var(--fg-1)", lineHeight: 1.55 }}>
                     Tiene <strong>{bajaAbiertas} OT{bajaAbiertas === 1 ? "" : "s"} abierta{bajaAbiertas === 1 ? "" : "s"}</strong>.
                     Elegí a quién pasarle ese trabajo antes de darlo de baja.
                   </p>
                   <div style={{ display: "grid", gap: 6 }}>
-                    <label style={{ fontSize: 12, fontWeight: 600, color: "var(--fg-2)" }}>Reasignar a</label>
+                    <label style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-2)" }}>Reasignar a</label>
                     <select
                       value={bajaDestino}
                       onChange={e => setBajaDestino(e.target.value)}
                       style={{
-                        height: 36, padding: "0 10px", fontSize: 13.5, fontFamily: "inherit",
+                        height: 36, padding: "0 10px", fontSize: 14, fontFamily: "inherit",
                         border: "1px solid var(--border)", borderRadius: "var(--r-sm)",
                         background: "var(--surface-1)", color: "var(--fg-1)",
                       }}
@@ -1081,7 +1081,7 @@ export default function UsuariosPage() {
                     style={{
                       height: 36, border: "1px solid var(--brand)", borderRadius: "var(--r-sm)",
                       background: "var(--brand)", color: "var(--fg-on-brand)",
-                      fontSize: 13, fontWeight: 600, fontFamily: "inherit",
+                      fontSize: 14, fontWeight: 400, fontFamily: "inherit",
                       cursor: (!bajaDestino || bajaBusy) ? "default" : "pointer",
                       opacity: (!bajaDestino || bajaBusy) ? 0.55 : 1,
                     }}
@@ -1090,7 +1090,7 @@ export default function UsuariosPage() {
                   </button>
                 </>
               ) : (
-                <p style={{ margin: 0, fontSize: 13.5, color: "var(--fg-1)", lineHeight: 1.55 }}>
+                <p style={{ margin: 0, fontSize: 14, color: "var(--fg-1)", lineHeight: 1.55 }}>
                   No le queda trabajo abierto. Al darlo de baja no va a poder entrar ni aparecer
                   en los selectores, y deja de contar para la facturación. Su historial —
                   comentarios, fotos y firmas — se conserva tal cual.
@@ -1098,7 +1098,7 @@ export default function UsuariosPage() {
               )}
 
               {bajaErr && (
-                <p style={{ margin: 0, fontSize: 12.5, color: "var(--danger)", lineHeight: 1.5 }}>{bajaErr}</p>
+                <p style={{ margin: 0, fontSize: 14, color: "var(--danger)", lineHeight: 1.5 }}>{bajaErr}</p>
               )}
             </div>
 
@@ -1111,7 +1111,7 @@ export default function UsuariosPage() {
                 onClick={() => { setBajaOpen(false); setBajaUser(null); setBajaErr(null); }}
                 disabled={bajaBusy}
                 style={{
-                  height: 34, padding: "0 14px", fontSize: 13, fontWeight: 600, fontFamily: "inherit",
+                  height: 34, padding: "0 14px", fontSize: 14, fontWeight: 400, fontFamily: "inherit",
                   border: "1px solid var(--border)", borderRadius: "var(--r-sm)",
                   background: "var(--surface-1)", color: "var(--fg-2)", cursor: "pointer",
                 }}
@@ -1124,7 +1124,7 @@ export default function UsuariosPage() {
                 disabled={bajaBusy || !puedeDarDeBaja(bajaAbiertas)}
                 title={bajaAbiertas ? "Reasigná el trabajo abierto primero" : undefined}
                 style={{
-                  height: 34, padding: "0 14px", fontSize: 13, fontWeight: 600, fontFamily: "inherit",
+                  height: 34, padding: "0 14px", fontSize: 14, fontWeight: 400, fontFamily: "inherit",
                   border: "1px solid var(--danger)", borderRadius: "var(--r-sm)",
                   background: "var(--danger)", color: "#FFFFFF",
                   cursor: (bajaBusy || !!bajaAbiertas) ? "default" : "pointer",

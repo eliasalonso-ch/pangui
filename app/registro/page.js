@@ -1,5 +1,5 @@
 "use client";
-import { MARKETING_URL } from "@/lib/app-urls";
+import { MARKETING_URL, marketingUrl } from "@/lib/app-urls";
 import { Suspense, useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
@@ -529,9 +529,9 @@ function RegistroPageInner() {
             </div>
             <p style={{ margin: "10px 0 0", fontSize: 11, color: "#94A3B8", textAlign: "center", lineHeight: 1.5 }}>
               Al registrarte aceptas nuestros{" "}
-              <a href={`${MARKETING_URL}/terminos`} style={{ color: "#64748B", textDecoration: "underline" }}>Términos</a>
+              <a href={marketingUrl("terminos")} style={{ color: "#64748B", textDecoration: "underline" }}>Términos</a>
               {" "}y{" "}
-              <a href={`${MARKETING_URL}/privacidad`} style={{ color: "#64748B", textDecoration: "underline" }}>Política de Privacidad</a>.
+              <a href={marketingUrl("privacidad")} style={{ color: "#64748B", textDecoration: "underline" }}>Política de Privacidad</a>.
             </p>
           </div>
         </div>

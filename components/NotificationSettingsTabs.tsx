@@ -33,8 +33,8 @@ export default function NotificationSettingsTabs({ active }: { active?: Notifica
               background: selected ? "var(--surface-1)" : "transparent",
               boxShadow: selected ? "var(--shadow-sm)" : "none",
               color: selected ? "var(--fg-1)" : "var(--fg-3)",
-              fontSize: 13,
-              fontWeight: selected ? 600 : 500,
+              fontSize: 14,
+              fontWeight: 400,
               textDecoration: "none",
             }}
           >

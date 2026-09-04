@@ -183,7 +183,7 @@ export default function MiembroDetallePage() {
     return (
       <div style={{ padding: "32px 24px", maxWidth: 720, margin: "0 auto" }}>
         <p style={{ fontSize: 14, color: "var(--fg-3)" }}>No se encontró este miembro.</p>
-        <Link href="/usuarios" style={{ fontSize: 13.5, color: "var(--brand)" }}>Volver a Equipo</Link>
+        <Link href="/usuarios" style={{ fontSize: 14, color: "var(--brand)" }}>Volver a Equipo</Link>
       </div>
     );
   }
@@ -193,18 +193,18 @@ export default function MiembroDetallePage() {
       <div style={{ padding: "28px 24px 64px", maxWidth: 900, margin: "0 auto" }}>
 
         {/* Breadcrumb */}
-        <div style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 13, color: "var(--fg-3)", marginBottom: 14 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 14, color: "var(--fg-3)", marginBottom: 14 }}>
           <Link href="/usuarios" style={{ display: "inline-flex", alignItems: "center", gap: 5, color: "var(--brand)", textDecoration: "none" }}>
             <ArrowLeft size={14} /> Equipo
           </Link>
           <ChevronRight size={13} style={{ color: "var(--fg-4)" }} />
-          <span style={{ color: "var(--fg-1)", fontWeight: 600 }}>{miembro.nombre || "Miembro"}</span>
+          <span style={{ color: "var(--fg-1)", fontWeight: 400 }}>{miembro.nombre || "Miembro"}</span>
         </div>
 
-        <h1 style={{ fontSize: 28, fontWeight: 700, color: "var(--fg-1)", margin: "0 0 4px", letterSpacing: "-0.02em" }}>
+        <h1 style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", margin: "0 0 4px", letterSpacing: "-0.02em" }}>
           {miembro.nombre || "Sin nombre"}
         </h1>
-        <p style={{ fontSize: 13.5, color: "var(--fg-3)", margin: 0 }}>
+        <p style={{ fontSize: 14, color: "var(--fg-3)", margin: 0 }}>
           {(ROL_LABEL as Record<string, string>)[miembro.rol] ?? miembro.rol}
           {miembro.deleted_at ? " · Dado de baja" : miembro.activo ? "" : " · Inactivo"}
         </p>
@@ -223,7 +223,7 @@ export default function MiembroDetallePage() {
                   border: `1px solid ${active ? "var(--border-strong)" : "transparent"}`,
                   background: active ? "var(--surface-1)" : "transparent",
                   color: active ? "var(--fg-1)" : "var(--fg-3)",
-                  fontSize: 13.5, fontWeight: active ? 600 : 500,
+                  fontSize: 14, fontWeight: 400,
                   cursor: "pointer", fontFamily: "inherit",
                 }}
               >
@@ -236,7 +236,7 @@ export default function MiembroDetallePage() {
         {!canManage && (
           <div style={{ display: "flex", gap: 9, padding: "11px 14px", marginBottom: 16, borderRadius: 10, background: "var(--surface-2)", border: "1px solid var(--border)" }}>
             <UserCog size={15} style={{ flexShrink: 0, marginTop: 1, color: "var(--fg-4)" }} />
-            <p style={{ fontSize: 12.5, color: "var(--fg-3)", margin: 0 }}>
+            <p style={{ fontSize: 14, color: "var(--fg-3)", margin: 0 }}>
               {isMe
                 ? "Este es tu propio perfil. Edítalo desde Mi cuenta."
                 : "No tienes permiso para editar a este miembro."}
@@ -245,7 +245,7 @@ export default function MiembroDetallePage() {
         )}
 
         {error && (
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16, padding: "11px 14px", borderRadius: 9, background: "var(--danger-bg)", color: "var(--danger)", fontSize: 13 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16, padding: "11px 14px", borderRadius: 9, background: "var(--danger-bg)", color: "var(--danger)", fontSize: 14 }}>
             <AlertTriangle size={15} style={{ flexShrink: 0 }} /> {error}
           </div>
         )}
@@ -259,8 +259,8 @@ export default function MiembroDetallePage() {
                 <UserCog size={17} />
               </span>
               <div style={{ minWidth: 0 }}>
-                <h2 style={{ fontSize: 17, fontWeight: 700, color: "var(--fg-1)", margin: 0 }}>Perfil</h2>
-                <p style={{ fontSize: 13.5, color: "var(--fg-3)", margin: "3px 0 0" }}>
+                <h2 style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", margin: 0 }}>Perfil</h2>
+                <p style={{ fontSize: 14, color: "var(--fg-3)", margin: "3px 0 0" }}>
                   El cargo y el oficio describen la función de esta persona dentro del equipo.
                 </p>
               </div>
@@ -300,8 +300,8 @@ export default function MiembroDetallePage() {
                   <Shield size={17} />
                 </span>
                 <div style={{ minWidth: 0 }}>
-                  <h2 style={{ fontSize: 17, fontWeight: 700, color: "var(--fg-1)", margin: 0 }}>Rol</h2>
-                  <p style={{ fontSize: 13.5, color: "var(--fg-3)", margin: "3px 0 0" }}>
+                  <h2 style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", margin: 0 }}>Rol</h2>
+                  <p style={{ fontSize: 14, color: "var(--fg-3)", margin: "3px 0 0" }}>
                     {canChangeRole
                       ? "Define qué puede hacer dentro del espacio de trabajo."
                       : miembro.rol === "owner"
@@ -332,8 +332,8 @@ export default function MiembroDetallePage() {
                       <Icon size={15} />
                     </span>
                     <span style={{ flex: 1, minWidth: 0 }}>
-                      <span style={{ display: "block", fontSize: 13.5, fontWeight: 600, color: "var(--fg-1)" }}>{label}</span>
-                      <span style={{ display: "block", fontSize: 12, color: "var(--fg-4)", marginTop: 1 }}>{description}</span>
+                      <span style={{ display: "block", fontSize: 14, fontWeight: 400, color: "var(--fg-1)" }}>{label}</span>
+                      <span style={{ display: "block", fontSize: 14, color: "var(--fg-4)", marginTop: 1 }}>{description}</span>
                     </span>
                     {active && <Check size={16} style={{ color: "var(--brand)", flexShrink: 0 }} />}
                   </button>
@@ -349,8 +349,8 @@ export default function MiembroDetallePage() {
                     <Eye size={17} />
                   </span>
                   <div style={{ minWidth: 0 }}>
-                    <h2 style={{ fontSize: 17, fontWeight: 700, color: "var(--fg-1)", margin: 0 }}>Visibilidad</h2>
-                    <p style={{ fontSize: 13.5, color: "var(--fg-3)", margin: "3px 0 0" }}>
+                    <h2 style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", margin: 0 }}>Visibilidad</h2>
+                    <p style={{ fontSize: 14, color: "var(--fg-3)", margin: "3px 0 0" }}>
                       {soloAsignadas
                         ? "Solo verá las órdenes que tenga asignadas."
                         : "Podrá consultar todas las órdenes del espacio de trabajo."}
@@ -376,7 +376,7 @@ export default function MiembroDetallePage() {
                 height: 38, padding: "0 18px", borderRadius: 8, border: "none",
                 background: saved ? "var(--brand)" : dirty ? "var(--brand)" : "var(--surface-hover)",
                 color: dirty || saved ? "var(--fg-on-brand)" : "var(--fg-4)",
-                fontSize: 14, fontWeight: 500,
+                fontSize: 14, fontWeight: 400,
                 cursor: dirty && !saving ? "pointer" : "default",
                 fontFamily: "inherit",
               }}
@@ -385,7 +385,7 @@ export default function MiembroDetallePage() {
               {saving ? "Guardando…" : saved ? "Guardado" : "Guardar cambios"}
             </button>
             {dirty && !saving && (
-              <span style={{ fontSize: 12.5, color: "var(--fg-4)" }}>Tienes cambios sin guardar.</span>
+              <span style={{ fontSize: 14, color: "var(--fg-4)" }}>Tienes cambios sin guardar.</span>
             )}
           </div>
         )}
@@ -400,7 +400,7 @@ function fieldStyle(disabled: boolean): React.CSSProperties {
     border: "1px solid var(--border)", borderRadius: "var(--r-md)",
     background: disabled ? "var(--surface-hover)" : "var(--surface-1)",
     color: disabled ? "var(--fg-4)" : "var(--fg-1)",
-    fontSize: 13.5, fontFamily: "inherit", outline: "none",
+    fontSize: 14, fontFamily: "inherit", outline: "none",
   };
 }
 
@@ -419,8 +419,8 @@ function Row({ label, hint, children, last = false }: {
       borderBottom: last ? "none" : "1px solid var(--border)",
     }}>
       <div style={{ minWidth: 0 }}>
-        <p style={{ fontSize: 14.5, fontWeight: 600, color: "var(--fg-1)", margin: 0 }}>{label}</p>
-        {hint && <p style={{ fontSize: 12.5, color: "var(--fg-3)", margin: "3px 0 0" }}>{hint}</p>}
+        <p style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", margin: 0 }}>{label}</p>
+        {hint && <p style={{ fontSize: 14, color: "var(--fg-3)", margin: "3px 0 0" }}>{hint}</p>}
       </div>
       <div style={{ flexShrink: 0 }}>{children}</div>
     </div>

@@ -43,7 +43,7 @@ function Avatar({ src, name, size = 40 }: { src: string | null; name: string; si
       width: size, height: size, borderRadius: 8, flexShrink: 0,
       background: "var(--brand-tint)", color: "var(--brand)",
       display: "flex", alignItems: "center", justifyContent: "center",
-      fontSize: size * 0.35, fontWeight: 700,
+      fontSize: size * 0.35, fontWeight: 400,
     }}>
       {initials || <Building2 size={size * 0.5} />}
     </div>
@@ -52,7 +52,7 @@ function Avatar({ src, name, size = 40 }: { src: string | null; name: string; si
 
 function FieldLabel({ children }: { children: React.ReactNode }) {
   return (
-    <p style={{ fontSize: 11, fontWeight: 600, color: "var(--fg-4)", textTransform: "uppercase", letterSpacing: "0.06em", margin: "0 0 5px" }}>
+    <p style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-4)", textTransform: "uppercase", letterSpacing: "0.06em", margin: "0 0 5px" }}>
       {children}
     </p>
   );
@@ -71,7 +71,7 @@ function FieldInput({
       style={{
         width: "100%", height: 36, padding: "0 10px",
         border: "1px solid var(--border)", borderRadius: 6,
-        fontSize: 13, color: "var(--fg-1)", outline: "none",
+        fontSize: 14, color: "var(--fg-1)", outline: "none",
         fontFamily: "inherit", background: disabled ? "var(--surface-0)" : "var(--surface-1)",
         boxSizing: "border-box",
       }}
@@ -93,7 +93,7 @@ function FieldTextarea({
       style={{
         width: "100%", padding: "8px 10px",
         border: "1px solid var(--border)", borderRadius: 6,
-        fontSize: 13, color: "var(--fg-1)", outline: "none",
+        fontSize: 14, color: "var(--fg-1)", outline: "none",
         fontFamily: "inherit", background: "var(--surface-1)", resize: "vertical",
         boxSizing: "border-box",
       }}
@@ -115,7 +115,7 @@ function Btn({
   const base: React.CSSProperties = {
     display: "inline-flex", alignItems: "center", gap: 6,
     height: 34, padding: "0 14px", border: "none", borderRadius: 6,
-    fontSize: 13, fontWeight: 600, cursor: disabled ? "default" : "pointer",
+    fontSize: 14, fontWeight: 400, cursor: disabled ? "default" : "pointer",
     fontFamily: "inherit", transition: "background 0.1s, opacity 0.1s",
     opacity: disabled ? 0.6 : 1,
   };
@@ -519,7 +519,7 @@ export default function UbicacionesPage() {
                 placeholder={searchPlaceholder}
                 style={{
                   width: "100%", height: 36, paddingLeft: 32, paddingRight: search ? 32 : 12,
-                  border: "1px solid var(--border)", borderRadius: "var(--r-md)", fontSize: 13,
+                  border: "1px solid var(--border)", borderRadius: "var(--r-md)", fontSize: 14,
                   background: "var(--surface-1)", outline: "none", fontFamily: "inherit", color: "var(--fg-1)",
                   boxSizing: "border-box",
                 }}
@@ -546,7 +546,7 @@ export default function UbicacionesPage() {
                   display: "flex", alignItems: "center", gap: 6,
                   height: 36, padding: "0 14px",
                   background: "var(--brand)", border: "none", borderRadius: "var(--r-md)", cursor: "pointer",
-                  fontSize: 13, fontWeight: 600, color: "var(--fg-on-brand)", fontFamily: "inherit",
+                  fontSize: 14, fontWeight: 400, color: "var(--fg-on-brand)", fontFamily: "inherit",
                   whiteSpace: "nowrap",
                 }}
               >
@@ -616,7 +616,7 @@ export default function UbicacionesPage() {
             </div>
           )}
           {!hasMore && currentList.length > pageSize && (
-            <div style={{ padding: "14px 16px 20px", textAlign: "center", fontSize: 12, color: "var(--fg-4)" }}>
+            <div style={{ padding: "14px 16px 20px", textAlign: "center", fontSize: 14, color: "var(--fg-4)" }}>
               {currentList.length} en total
             </div>
           )}
@@ -629,12 +629,12 @@ export default function UbicacionesPage() {
           alignItems: "center", justifyContent: "center", gap: 10, color: "var(--fg-4)",
         }}>
           {section === "lugares" ? <MapPin size={40} style={{ opacity: 0.5 }} /> : <Building2 size={40} style={{ opacity: 0.5 }} />}
-          <div style={{ fontSize: 14, fontWeight: 600, color: "var(--fg-3)" }}>
+          <div style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-3)" }}>
             {section === "ubicaciones" ? "Selecciona una ubicación"
              : section === "lugares"   ? "Selecciona un lugar"
              : "Selecciona una asociación"}
           </div>
-          <div style={{ fontSize: 12.5 }}>El detalle aparecerá aquí</div>
+          <div style={{ fontSize: 14 }}>El detalle aparecerá aquí</div>
         </div>
       ) : (
         // El panel va sobre el lienzo (--surface-canvas) y la tarjeta de adentro
@@ -650,7 +650,7 @@ export default function UbicacionesPage() {
           }}>
           {/* Panel header */}
           <div style={{ flexShrink: 0, borderBottom: "1px solid var(--border)", padding: "0 20px", height: 56, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <span style={{ fontSize: 15, fontWeight: 700, color: "var(--fg-1)" }}>{panelTitle}</span>
+            <span style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)" }}>{panelTitle}</span>
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
               {/* Mismo par Editar + ⋮ que /categorias e /itos. */}
               {panel.mode === "view" && selectedItem && (
@@ -746,7 +746,7 @@ export default function UbicacionesPage() {
                       style={{
                         width: "100%", height: 36, padding: "0 10px",
                         border: "1px solid var(--border)", borderRadius: 6,
-                        fontSize: 13, color: form.sociedad_id ? "var(--fg-1)" : "var(--fg-4)",
+                        fontSize: 14, color: form.sociedad_id ? "var(--fg-1)" : "var(--fg-4)",
                         outline: "none", fontFamily: "inherit", background: "var(--surface-1)",
                         boxSizing: "border-box", cursor: "pointer",
                       }}
@@ -785,7 +785,7 @@ export default function UbicacionesPage() {
                       style={{
                         width: "100%", height: 36, padding: "0 10px",
                         border: "1px solid var(--border)", borderRadius: 6,
-                        fontSize: 13, color: form.ubicacion_id ? "var(--fg-1)" : "var(--fg-4)",
+                        fontSize: 14, color: form.ubicacion_id ? "var(--fg-1)" : "var(--fg-4)",
                         outline: "none", fontFamily: "inherit", background: "var(--surface-1)",
                         boxSizing: "border-box", cursor: "pointer",
                       }}
@@ -812,7 +812,7 @@ export default function UbicacionesPage() {
               <div>
                 <FieldLabel>Código QR</FieldLabel>
                 <FieldInput value={form.qr_code ?? ""} onChange={v => setForm(f => ({ ...f, qr_code: v }))} placeholder="Código personalizado (opcional)" />
-                <p style={{ margin: "5px 0 0", fontSize: 11.5, color: "var(--fg-4)" }}>Si lo dejas vacío, Pangui asignará un código automáticamente.</p>
+                <p style={{ margin: "5px 0 0", fontSize: 14, color: "var(--fg-4)" }}>Si lo dejas vacío, Pangui asignará un código automáticamente.</p>
               </div>
 
             </div>
@@ -857,8 +857,8 @@ export default function UbicacionesPage() {
                 <Trash2 size={18} style={{ color: "var(--danger)" }} />
               </div>
               <div>
-                <p style={{ fontSize: 15, fontWeight: 700, color: "var(--fg-1)", margin: "0 0 4px" }}>¿Desactivar?</p>
-                <p style={{ fontSize: 13, color: "var(--fg-3)", margin: 0 }}>
+                <p style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", margin: "0 0 4px" }}>¿Desactivar?</p>
+                <p style={{ fontSize: 14, color: "var(--fg-3)", margin: 0 }}>
                   Se desactivará <strong>“{confirmDel.name}”</strong>. No se eliminará, pero dejará de aparecer.
                 </p>
               </div>
@@ -921,14 +921,14 @@ function QrModal({ name, code, onClose }: { name: string; code: string; onClose:
       <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 200, background: "rgba(0,0,0,0.5)", backdropFilter: "blur(3px)" }} />
       <div role="dialog" aria-modal="true" aria-label={`Código QR de ${name}`} style={{ position: "fixed", zIndex: 201, left: "50%", top: "50%", transform: "translate(-50%, -50%)", width: 430, maxWidth: "calc(100vw - 32px)", borderRadius: 20, overflow: "hidden", background: "var(--surface-1)", boxShadow: "var(--shadow-lg)", border: "1px solid var(--border)" }}>
         <div style={{ height: 56, padding: "0 18px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid var(--border)" }}>
-          <strong style={{ fontSize: 15, color: "var(--fg-1)" }}>Código QR</strong>
+          <strong style={{ fontSize: 14, color: "var(--fg-1)" }}>Código QR</strong>
           <button type="button" onClick={onClose} aria-label="Cerrar" style={{ width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", border: "none", borderRadius: 8, background: "transparent", color: "var(--fg-3)", cursor: "pointer" }}><X size={17} /></button>
         </div>
         <div style={{ padding: "28px", display: "flex", flexDirection: "column", alignItems: "center" }}>
           <div style={{ width: "100%", padding: 24, borderRadius: 18, background: "#fff", display: "flex", flexDirection: "column", alignItems: "center", boxSizing: "border-box" }}>
             {dataUrl ? <img src={dataUrl} alt={`Código QR de ${name}`} style={{ width: 260, height: 260, maxWidth: "100%" }} /> : <Loader2 size={28} className="animate-spin" style={{ color: "#666", margin: 116 }} />}
-            <h2 style={{ margin: "16px 0 6px", fontSize: 19, color: "#111", textAlign: "center" }}>{name}</h2>
-            <p style={{ margin: 0, fontSize: 13, color: "#555", textAlign: "center", wordBreak: "break-all" }}>{code}</p>
+            <h2 style={{ margin: "16px 0 6px", fontSize: 14, color: "#111", textAlign: "center" }}>{name}</h2>
+            <p style={{ margin: 0, fontSize: 14, color: "#555", textAlign: "center", wordBreak: "break-all" }}>{code}</p>
           </div>
           <div style={{ width: "100%", display: "flex", gap: 10, marginTop: 18 }}>
             <Btn variant="ghost" onClick={printQr} disabled={!dataUrl} style={{ flex: 1, justifyContent: "center" }}><Printer size={14} /> Imprimir</Btn>
@@ -997,8 +997,8 @@ function EntityDetail({ type, item, ubicaciones, lugares, sociedades, activos, r
           )}
           {fields.filter(([, value]) => value).map(([label, value]) => (
             <div key={label} style={{ display: "flex", justifyContent: "space-between", gap: 16, padding: "7px 0" }}>
-              <span style={{ fontSize: 13, fontWeight: 600, color: "var(--fg-2)" }}>{label}</span>
-              <span style={{ fontSize: 13, color: "var(--fg-3)", textAlign: "right" }}>{value}</span>
+              <span style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-2)" }}>{label}</span>
+              <span style={{ fontSize: 14, color: "var(--fg-3)", textAlign: "right" }}>{value}</span>
             </div>
           ))}
         </div>
@@ -1048,7 +1048,7 @@ function DetailGroup({ title, first, children }: { title: string; first?: boolea
       // El primer grupo no lleva linea arriba: no separa de nada.
       borderTop: first ? "none" : "1px solid var(--border)",
     }}>
-      <h3 style={{ margin: "0 0 4px", fontSize: 13, fontWeight: 600, color: "var(--fg-1)" }}>{title}</h3>
+      <h3 style={{ margin: "0 0 4px", fontSize: 14, fontWeight: 400, color: "var(--fg-1)" }}>{title}</h3>
       <div>{children}</div>
     </section>
   );
@@ -1100,8 +1100,8 @@ function DetailLink({ name, sub, icon, img, first, onClick }: {
         </div>
       )}
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 13, color: "var(--fg-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{name}</div>
-        {sub && <div style={{ fontSize: 11.5, color: "var(--fg-4)", marginTop: 1 }}>{sub}</div>}
+        <div style={{ fontSize: 14, color: "var(--fg-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{name}</div>
+        {sub && <div style={{ fontSize: 14, color: "var(--fg-4)", marginTop: 1 }}>{sub}</div>}
       </div>
       {onClick && <ChevronRight size={15} style={{ color: "var(--fg-4)", flexShrink: 0 }} />}
     </Tag>
@@ -1142,8 +1142,8 @@ function ListRow({
     >
       <Avatar src={img} name={name} size={38} />
       <div style={{ flex: 1, minWidth: 0 }}>
-        <p style={{ fontSize: 13.5, fontWeight: 600, color: "var(--fg-1)", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{name}</p>
-        {sub && <p style={{ fontSize: 12, color: "var(--fg-4)", margin: "2px 0 0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{sub}</p>}
+        <p style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{name}</p>
+        {sub && <p style={{ fontSize: 14, color: "var(--fg-4)", margin: "2px 0 0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{sub}</p>}
       </div>
     </div>
   );
@@ -1157,8 +1157,8 @@ function Empty({ icon, title, hint }: { icon: React.ReactNode; title: string; hi
       height: 240, color: "var(--fg-4)", gap: 8, padding: 24, textAlign: "center",
     }}>
       {icon}
-      <div style={{ fontSize: 14, fontWeight: 500, color: "var(--fg-3)" }}>{title}</div>
-      {hint && <div style={{ fontSize: 12.5 }}>{hint}</div>}
+      <div style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-3)" }}>{title}</div>
+      {hint && <div style={{ fontSize: 14 }}>{hint}</div>}
     </div>
   );
 }

@@ -18,7 +18,7 @@ export function FieldRow({ label, children }: {
 }) {
   return (
     <div style={{ marginBottom: 20 }}>
-      <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--fg-2)", marginBottom: 6 }}>
+      <label style={{ display: "block", fontSize: 14, fontWeight: 400, color: "var(--fg-2)", marginBottom: 6 }}>
         {label}
       </label>
       {children}
@@ -32,7 +32,7 @@ export function FieldRow({ label, children }: {
  */
 export function tituloInputStyle(valor: string): React.CSSProperties {
   return {
-    width: "100%", fontSize: 22, fontWeight: 400,
+    width: "100%", fontSize: 14, fontWeight: 400,
     color: "var(--fg-1)", border: "none", outline: "none",
     background: "transparent", padding: "8px 0",
     borderBottom: "2px solid " + (valor ? "var(--brand)" : "var(--border)"),
@@ -60,7 +60,7 @@ export function PanelCatalogo({
         display: "flex", alignItems: "center", justifyContent: "space-between",
         padding: "0 28px", height: 64, borderBottom: "1px solid var(--border)", flexShrink: 0,
       }}>
-        <h2 style={{ fontSize: 18, fontWeight: 700, color: "var(--fg-1)", margin: 0 }}>
+        <h2 style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", margin: 0 }}>
           {titulo}
         </h2>
       </div>
@@ -82,7 +82,7 @@ export function PanelCatalogo({
         background: "var(--surface-1)", flexShrink: 0,
       }}>
         <div style={{ flex: 1 }}>
-          {error && <span style={{ fontSize: 12.5, color: "var(--danger)" }}>{error}</span>}
+          {error && <span style={{ fontSize: 14, color: "var(--danger)" }}>{error}</span>}
         </div>
         <div style={{ display: "flex", gap: 8 }}>
           <button
@@ -93,7 +93,7 @@ export function PanelCatalogo({
               height: 40, padding: "0 18px",
               border: "1px solid var(--border)", borderRadius: 8,
               background: "var(--surface-1)", color: "var(--fg-2)",
-              fontSize: 13, fontWeight: 500, cursor: "pointer", fontFamily: "inherit",
+              fontSize: 14, fontWeight: 400, cursor: "pointer", fontFamily: "inherit",
             }}
           >
             Cancelar
@@ -109,7 +109,7 @@ export function PanelCatalogo({
                 ? "var(--fg-3)"
                 : "linear-gradient(135deg, var(--brand-active), var(--brand))",
               color: "var(--fg-on-brand)",
-              fontSize: 13, fontWeight: 600,
+              fontSize: 14, fontWeight: 400,
               cursor: guardando || !puedeGuardar ? "default" : "pointer",
               display: "flex", alignItems: "center", gap: 7,
               transition: "opacity 0.15s", fontFamily: "inherit",

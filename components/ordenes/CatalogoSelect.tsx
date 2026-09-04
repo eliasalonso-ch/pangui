@@ -118,7 +118,7 @@ export default function CatalogoSelect<T>({
           setQuery("");
           setError(null);
         }}
-        style={{ width: "100%", height: 40, display: "flex", alignItems: "center", gap: 8, padding: "0 12px", border: "1px solid var(--border)", borderRadius: 8, background: "var(--surface-1)", fontSize: 13, color: selected ? "var(--fg-1)" : "var(--fg-4)", cursor: "pointer", textAlign: "left" }}
+        style={{ width: "100%", height: 40, display: "flex", alignItems: "center", gap: 8, padding: "0 12px", border: "1px solid var(--border)", borderRadius: 8, background: "var(--surface-1)", fontSize: 14, color: selected ? "var(--fg-1)" : "var(--fg-4)", cursor: "pointer", textAlign: "left" }}
       >
         <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
           {selected ? selected.label : emptyLabel}
@@ -133,7 +133,7 @@ export default function CatalogoSelect<T>({
               placeholder={placeholder}
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              style={{ width: "100%", height: 36, padding: "0 10px", border: "1px solid var(--border)", borderRadius: 8, fontSize: 13, outline: "none", color: "var(--fg-1)", fontFamily: "inherit", background: "var(--surface-1)" }}
+              style={{ width: "100%", height: 36, padding: "0 10px", border: "1px solid var(--border)", borderRadius: 8, fontSize: 14, outline: "none", color: "var(--fg-1)", fontFamily: "inherit", background: "var(--surface-1)" }}
             />
           </div>
           <div style={{ maxHeight: 200, overflowY: "auto" }}>
@@ -143,7 +143,7 @@ export default function CatalogoSelect<T>({
                 onChange("");
                 setOpen(false);
               }}
-              style={{ display: "block", width: "100%", textAlign: "left", padding: "10px 12px", fontSize: 13, color: "var(--fg-4)", background: !value ? "var(--brand-tint)" : "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}
+              style={{ display: "block", width: "100%", textAlign: "left", padding: "10px 12px", fontSize: 14, color: "var(--fg-4)", background: !value ? "var(--brand-tint)" : "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}
             >
               Sin asignar
             </button>
@@ -155,12 +155,12 @@ export default function CatalogoSelect<T>({
                   onChange(o.id);
                   setOpen(false);
                 }}
-                style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", textAlign: "left", padding: "10px 12px", fontSize: 13, background: value === o.id ? "var(--brand-tint)" : "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}
+                style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", textAlign: "left", padding: "10px 12px", fontSize: 14, background: value === o.id ? "var(--brand-tint)" : "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}
               >
                 {value === o.id && <Check size={11} style={{ color: "var(--brand)", flexShrink: 0 }} />}
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ color: "var(--fg-1)" }}>{o.label}</div>
-                  {o.sub && <div style={{ fontSize: 11, color: "var(--fg-4)" }}>{o.sub}</div>}
+                  {o.sub && <div style={{ fontSize: 14, color: "var(--fg-4)" }}>{o.sub}</div>}
                 </div>
               </button>
             ))}
@@ -169,19 +169,19 @@ export default function CatalogoSelect<T>({
                 type="button"
                 onClick={handleCreate}
                 disabled={creating}
-                style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "10px 12px", fontSize: 13, fontWeight: 600, background: "var(--brand-tint)", color: "var(--brand)", border: "none", borderTop: "1px solid var(--border)", cursor: creating ? "default" : "pointer", fontFamily: "inherit" }}
+                style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "10px 12px", fontSize: 14, fontWeight: 400, background: "var(--brand-tint)", color: "var(--brand)", border: "none", borderTop: "1px solid var(--border)", cursor: creating ? "default" : "pointer", fontFamily: "inherit" }}
               >
                 {creating ? <Loader2 size={11} className="animate-spin" /> : <Plus size={11} />}
                 Crear &quot;{query.trim()}&quot;
               </button>
             )}
             {error && (
-              <div style={{ padding: "8px 12px", fontSize: 12, color: "var(--danger)", borderTop: "1px solid var(--border)" }}>
+              <div style={{ padding: "8px 12px", fontSize: 14, color: "var(--danger)", borderTop: "1px solid var(--border)" }}>
                 {error}
               </div>
             )}
             {filtered.length === 0 && !showCreate && !error && (
-              <div style={{ padding: "10px 12px", fontSize: 12.5, color: "var(--fg-4)" }}>Sin resultados</div>
+              <div style={{ padding: "10px 12px", fontSize: 14, color: "var(--fg-4)" }}>Sin resultados</div>
             )}
           </div>
         </div>

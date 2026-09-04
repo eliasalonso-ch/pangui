@@ -98,7 +98,7 @@ export default function GlobalTopBar() {
         {trail.map((label, index) => (
           <span key={`${label}-${index}`} style={{ minWidth: 0, display: "inline-flex", alignItems: "center", gap: 8 }}>
             {index > 0 && <ChevronRight size={14} color="var(--fg-4)" />}
-            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 14, fontWeight: index === trail.length - 1 ? 600 : 400, color: index === trail.length - 1 ? "var(--fg-1)" : "var(--fg-3)" }}>{label}</span>
+            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 14, fontWeight: 400, color: index === trail.length - 1 ? "var(--fg-1)" : "var(--fg-3)" }}>{label}</span>
           </span>
         ))}
       </nav>
@@ -144,24 +144,24 @@ export default function GlobalTopBar() {
             <button type="button" onClick={() => { setOpen(false); router.push("/mi-cuenta"); }} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "10px", border: 0, borderRadius: 8, background: "transparent", color: "inherit", cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}>
               <CircleUserRound size={17} />
               <span style={{ minWidth: 0, flex: 1 }}>
-                <span style={{ display: "block", fontSize: 13, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{name || "Mi cuenta"}</span>
-                {email && <span style={{ display: "block", marginTop: 2, fontSize: 11, color: "var(--fg-4)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{email}</span>}
+                <span style={{ display: "block", fontSize: 14, fontWeight: 400, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{name || "Mi cuenta"}</span>
+                {email && <span style={{ display: "block", marginTop: 2, fontSize: 14, color: "var(--fg-4)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{email}</span>}
               </span>
             </button>
 
             {role === "owner" && (
-              <button type="button" onClick={() => { setOpen(false); router.push("/suscripcion"); }} style={{ width: "100%", minHeight: 38, display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", border: 0, borderRadius: 8, background: "transparent", color: "var(--fg-1)", cursor: "pointer", fontFamily: "inherit", fontSize: 13, textAlign: "left" }}>
+              <button type="button" onClick={() => { setOpen(false); router.push("/suscripcion"); }} style={{ width: "100%", minHeight: 38, display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", border: 0, borderRadius: 8, background: "transparent", color: "var(--fg-1)", cursor: "pointer", fontFamily: "inherit", fontSize: 14, textAlign: "left" }}>
                 <CreditCard size={16} color="var(--fg-3)" />
                 Suscripción
               </button>
             )}
 
             <div style={{ height: 1, margin: "4px 8px", background: "var(--divider)" }} />
-            <div style={{ padding: "7px 10px 5px", fontSize: 11, fontWeight: 600, color: "var(--fg-4)" }}>Apariencia</div>
+            <div style={{ padding: "7px 10px 5px", fontSize: 14, fontWeight: 400, color: "var(--fg-4)" }}>Apariencia</div>
             {THEMES.map((option) => {
               const Icon = option.icon;
               return (
-                <button key={option.value} type="button" onClick={() => { setTheme(option.value); applyTheme(option.value); }} style={{ width: "100%", minHeight: 36, display: "flex", alignItems: "center", gap: 10, padding: "7px 10px", border: 0, borderRadius: 8, background: theme === option.value ? "var(--surface-hover)" : "transparent", color: "var(--fg-1)", cursor: "pointer", fontFamily: "inherit", fontSize: 13, textAlign: "left" }}>
+                <button key={option.value} type="button" onClick={() => { setTheme(option.value); applyTheme(option.value); }} style={{ width: "100%", minHeight: 36, display: "flex", alignItems: "center", gap: 10, padding: "7px 10px", border: 0, borderRadius: 8, background: theme === option.value ? "var(--surface-hover)" : "transparent", color: "var(--fg-1)", cursor: "pointer", fontFamily: "inherit", fontSize: 14, textAlign: "left" }}>
                   <Icon size={16} color="var(--fg-3)" />
                   <span style={{ flex: 1 }}>{option.label}</span>
                   {theme === option.value && <Check size={15} color="var(--brand)" />}
@@ -170,7 +170,7 @@ export default function GlobalTopBar() {
             })}
 
             <div style={{ height: 1, margin: "4px 8px", background: "var(--divider)" }} />
-            <button type="button" onClick={signOut} style={{ width: "100%", minHeight: 38, display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", border: 0, borderRadius: 8, background: "transparent", color: "var(--danger)", cursor: "pointer", fontFamily: "inherit", fontSize: 13, textAlign: "left" }}>
+            <button type="button" onClick={signOut} style={{ width: "100%", minHeight: 38, display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", border: 0, borderRadius: 8, background: "transparent", color: "var(--danger)", cursor: "pointer", fontFamily: "inherit", fontSize: 14, textAlign: "left" }}>
               <LogOut size={16} />
               Cerrar sesión
             </button>

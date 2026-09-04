@@ -35,7 +35,7 @@ import { usePermisos } from "@/lib/permisos";
 import { ROL_LABEL } from "@/lib/roles";
 import { tieneItos } from "@/lib/itos-gate";
 import { useSuscripcion } from "@/hooks/useSuscripcion";
-import { useNotificaciones } from "@/hooks/useNotificaciones";
+import { useNotificacionesCount, useNotificacionesRealtime } from "@/hooks/useNotificaciones";
 
 import {
   Sidebar,
@@ -74,8 +74,8 @@ const menuBtnBase: React.CSSProperties = {
   background: "none",
   border: "none",
   cursor: "pointer",
-  fontSize: "var(--fs-sm)",
-  fontWeight: 500,
+  fontSize: 14,
+  fontWeight: 400,
   fontFamily: "inherit",
   color: "var(--fg-1)",
 };
@@ -117,8 +117,8 @@ function SidebarUserFooter({ user }: { user: UserData | null }) {
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    fontSize: "var(--fs-xs)",
-    fontWeight: 700,
+    fontSize: 14,
+    fontWeight: 400,
     border: "none",
     cursor: "pointer",
     flexShrink: 0,
@@ -204,8 +204,8 @@ function SidebarUserFooter({ user }: { user: UserData | null }) {
           {initials(user.nombre)}
         </span>
         <div style={{ flex: 1, minWidth: 0, textAlign: "left" }}>
-          <div style={{ fontSize: "var(--fs-sm)", fontWeight: 600, color: "var(--fg-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{user.nombre}</div>
-          <div style={{ fontSize: "var(--fs-xs)", color: "var(--fg-3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{rolLabel}</div>
+          <div style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{user.nombre}</div>
+          <div style={{ fontSize: 14, color: "var(--fg-3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{rolLabel}</div>
         </div>
         <ChevronUp size={14} style={{ color: "var(--fg-4)", flexShrink: 0, transform: open ? "rotate(0deg)" : "rotate(180deg)", transition: "transform 0.15s" }} />
       </button>
@@ -244,9 +244,15 @@ export default function AppSidebar() {
   const { puedeVer, userRol: permisosRol } = usePermisos();
   const effectiveRol = userRol ?? permisosRol;
   const suscripcion = useSuscripcion();
-  // realtime: true -- el sidebar esta siempre montado, asi que es el que abre
-  // el unico canal de `notifications`. Los demas consumidores leen del cache.
-  const { hasUnread } = useNotificaciones(notifUserId, { realtime: true });
+  // El sidebar esta siempre montado, asi que es el que abre el unico canal de
+  // `notifications`; los demas consumidores leen del cache que este parchea.
+  //
+  // Y solo pide el CONTADOR, no la lista. Antes usaba el hook completo, o sea
+  // que cada carga de cualquier pagina de la app se traia 100 filas enteras
+  // (titulo, mensaje, url) para decidir si pintaba un punto. Ahora es un count
+  // con `head: true`: cero filas en el payload.
+  useNotificacionesRealtime(notifUserId);
+  const { hasUnread } = useNotificacionesCount(notifUserId);
   const planFeatures = suscripcion.data?.plan_features ?? null;
   // While the plan is loading, show items optimistically; once loaded, hide ones the plan blocks.
   const hasInventario   = !planFeatures || planFeatures.inventario;
@@ -477,8 +483,8 @@ export default function AppSidebar() {
                           // font shorthand, which resets family and weight
                           // together, so both are restated here explicitly.
                           fontFamily: "inherit",
-                          fontSize: 13,
-                          fontWeight: 500,
+                          fontSize: 14,
+                          fontWeight: 400,
                           color: "var(--fg-3)",
                           background: "transparent",
                           borderRadius: 6,
@@ -529,7 +535,7 @@ export default function AppSidebar() {
                                   // bare {paddingLeft} wipes colour and size
                                   // and the item renders black at 14px.
                                   width: "100%",
-                                  fontSize: 13,
+                                  fontSize: 14,
                                   color: active ? "var(--brand)" : "var(--fg-3)",
                                   background: active ? "var(--brand-tint)" : "transparent",
                                   boxShadow: active ? "inset 3px 0 0 var(--brand)" : "none",

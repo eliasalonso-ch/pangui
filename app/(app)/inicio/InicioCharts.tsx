@@ -46,10 +46,10 @@ export default function InicioCharts({ flujo, flujoLargo, plan, backlogEdad }: I
           <ResponsiveContainer width="100%" height={ALTO_FILA_1}>
             <BarChart data={flujo} margin={{ top: 4, right: 4, left: -26, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
-              <XAxis dataKey="label" tick={{ fontSize: 11, fill: "var(--fg-4)" }} axisLine={false} tickLine={false} interval={2} />
-              <YAxis tick={{ fontSize: 11, fill: "var(--fg-4)" }} axisLine={false} tickLine={false} allowDecimals={false} />
-              <Tooltip contentStyle={{ background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 12 }} />
-              <Legend wrapperStyle={{ fontSize: 12 }} iconType="circle" iconSize={8} />
+              <XAxis dataKey="label" tick={{ fontSize: 14, fill: "var(--fg-4)" }} axisLine={false} tickLine={false} interval={2} />
+              <YAxis tick={{ fontSize: 14, fill: "var(--fg-4)" }} axisLine={false} tickLine={false} allowDecimals={false} />
+              <Tooltip contentStyle={{ background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 14 }} />
+              <Legend wrapperStyle={{ fontSize: 14 }} iconType="circle" iconSize={8} />
               <Bar dataKey="creadas" name="Creadas" fill="var(--brand)" radius={[3, 3, 0, 0]} />
               <Bar dataKey="completadas" name="Completadas" fill="var(--success)" radius={[3, 3, 0, 0]} />
             </BarChart>
@@ -97,10 +97,10 @@ export default function InicioCharts({ flujo, flujoLargo, plan, backlogEdad }: I
           <ResponsiveContainer width="100%" height={ALTO_FILA_2}>
             <LineChart data={flujoLargo} margin={{ top: 4, right: 8, left: -26, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
-              <XAxis dataKey="label" tick={{ fontSize: 11, fill: "var(--fg-4)" }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
-              <YAxis tick={{ fontSize: 11, fill: "var(--fg-4)" }} axisLine={false} tickLine={false} allowDecimals={false} />
-              <Tooltip contentStyle={{ background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 12 }} />
-              <Legend wrapperStyle={{ fontSize: 12 }} iconType="circle" iconSize={8} />
+              <XAxis dataKey="label" tick={{ fontSize: 14, fill: "var(--fg-4)" }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
+              <YAxis tick={{ fontSize: 14, fill: "var(--fg-4)" }} axisLine={false} tickLine={false} allowDecimals={false} />
+              <Tooltip contentStyle={{ background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 14 }} />
+              <Legend wrapperStyle={{ fontSize: 14 }} iconType="circle" iconSize={8} />
               <Line type="monotone" dataKey="creadas" name="Creadas" stroke="var(--warning)" strokeWidth={2} dot={false} />
               <Line type="monotone" dataKey="completadas" name="Completadas" stroke="var(--success)" strokeWidth={2} dot={false} />
               {/* El backlog es la línea que importa: si sube, se abren más OTs
@@ -116,9 +116,9 @@ export default function InicioCharts({ flujo, flujoLargo, plan, backlogEdad }: I
           <ResponsiveContainer width="100%" height={ALTO_FILA_2}>
             <BarChart data={backlogEdad} margin={{ top: 4, right: 4, left: -26, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
-              <XAxis dataKey="label" tick={{ fontSize: 11, fill: "var(--fg-4)" }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 11, fill: "var(--fg-4)" }} axisLine={false} tickLine={false} allowDecimals={false} />
-              <Tooltip contentStyle={{ background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 12 }}
+              <XAxis dataKey="label" tick={{ fontSize: 14, fill: "var(--fg-4)" }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 14, fill: "var(--fg-4)" }} axisLine={false} tickLine={false} allowDecimals={false} />
+              <Tooltip contentStyle={{ background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 14 }}
                        cursor={{ fill: "var(--surface-hover)" }} />
               <Bar dataKey="count" name="OTs pendientes" radius={[3, 3, 0, 0]}>
                 {backlogEdad.map(b => (
@@ -140,7 +140,7 @@ function ChartCard({ title, hint, children }: { title: string; hint?: string; ch
   return (
     <div style={{ background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: 10, overflow: "hidden" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "14px 16px", borderBottom: "1px solid var(--border)" }}>
-        <span style={{ fontSize: 14, fontWeight: 600, color: "var(--fg-1)" }}>{title}</span>
+        <span style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)" }}>{title}</span>
         {hint && <span style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-4)" }}>{hint}</span>}
       </div>
       <div style={{ padding: "12px 12px 8px" }}>{children}</div>

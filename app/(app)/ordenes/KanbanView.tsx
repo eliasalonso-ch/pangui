@@ -171,7 +171,7 @@ export default function KanbanView({ ordenes, reprogramadaIds, selectedId, myId,
         padding: "6px 20px", minHeight: 40, borderBottom: "1px solid var(--border)",
         background: "var(--surface-canvas)",
       }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 6, color: "var(--fg-3)", fontSize: 12, fontWeight: 600 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, color: "var(--fg-3)", fontSize: 14, fontWeight: 400 }}>
           <CalendarRange size={14} />
           Vencen entre
         </div>
@@ -182,10 +182,10 @@ export default function KanbanView({ ordenes, reprogramadaIds, selectedId, myId,
           onChange={e => setRangeFrom(e.target.value)}
           style={{
             height: 28, padding: "0 8px", border: "1px solid var(--border)", borderRadius: 6,
-            background: "var(--surface-1)", color: "var(--fg-1)", fontSize: 12, fontWeight: 500, fontFamily: "inherit",
+            background: "var(--surface-1)", color: "var(--fg-1)", fontSize: 14, fontWeight: 400, fontFamily: "inherit",
           }}
         />
-        <span style={{ color: "var(--fg-4)", fontSize: 12 }}>â†’</span>
+        <span style={{ color: "var(--fg-4)", fontSize: 14 }}>â†’</span>
         <input
           type="date"
           value={rangeTo}
@@ -193,7 +193,7 @@ export default function KanbanView({ ordenes, reprogramadaIds, selectedId, myId,
           onChange={e => setRangeTo(e.target.value)}
           style={{
             height: 28, padding: "0 8px", border: "1px solid var(--border)", borderRadius: 6,
-            background: "var(--surface-1)", color: "var(--fg-1)", fontSize: 12, fontWeight: 500, fontFamily: "inherit",
+            background: "var(--surface-1)", color: "var(--fg-1)", fontSize: 14, fontWeight: 400, fontFamily: "inherit",
           }}
         />
         <div style={{ display: "flex", gap: 4 }}>
@@ -209,7 +209,7 @@ export default function KanbanView({ ordenes, reprogramadaIds, selectedId, myId,
               style={{
                 height: 28, padding: "0 10px", borderRadius: 6,
                 border: "1px solid var(--border)", background: "var(--surface-1)",
-                fontSize: 12, fontWeight: 500, color: "var(--fg-2)",
+                fontSize: 14, fontWeight: 400, color: "var(--fg-2)",
                 cursor: "pointer", fontFamily: "inherit",
               }}
             >
@@ -225,7 +225,7 @@ export default function KanbanView({ ordenes, reprogramadaIds, selectedId, myId,
               display: "flex", alignItems: "center", gap: 4,
               height: 28, padding: "0 10px", borderRadius: 6,
               border: "1px solid var(--border)", background: "var(--surface-1)",
-              fontSize: 12, fontWeight: 500, color: "var(--fg-3)",
+              fontSize: 14, fontWeight: 400, color: "var(--fg-3)",
               cursor: "pointer", fontFamily: "inherit",
             }}
           >
@@ -233,7 +233,7 @@ export default function KanbanView({ ordenes, reprogramadaIds, selectedId, myId,
             Limpiar
           </button>
         )}
-        <div style={{ marginLeft: "auto", fontSize: 13, color: "var(--fg-4)" }}>
+        <div style={{ marginLeft: "auto", fontSize: 14, color: "var(--fg-4)" }}>
           {rangeActive ? `${totalShown} OT${totalShown === 1 ? "" : "s"} vencen en rango` : `${totalShown} OT${totalShown === 1 ? "" : "s"}`}
         </div>
       </div>
@@ -358,12 +358,12 @@ function KanbanColumn({
             display: "inline-block", width: 8, height: 8, borderRadius: "50%",
             background: col.fg,
           }} />
-          <span style={{ fontSize: 13, fontWeight: 700, color: "var(--fg-1)" }}>
+          <span style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)" }}>
             {col.label}
           </span>
         </div>
         <span style={{
-          fontSize: 13, fontWeight: 600, color: col.fg, background: col.bg,
+          fontSize: 14, fontWeight: 400, color: col.fg, background: col.bg,
           padding: "2px 8px", borderRadius: 999,
         }}>
           {items.length}
@@ -382,7 +382,7 @@ function KanbanColumn({
           <div style={{
             display: "flex", alignItems: "center", justifyContent: "center",
             padding: "24px 12px", textAlign: "center",
-            fontSize: 12, color: "var(--fg-4)",
+            fontSize: 14, color: "var(--fg-4)",
             border: "1px dashed var(--border)", borderRadius: 8,
           }}>
             {rangeActive ? "Sin OTs con vencimiento en este rango" : "Sin OTs en esta columna"}
@@ -409,7 +409,7 @@ function KanbanColumn({
                   flexShrink: 0,
                   marginTop: 2, padding: "8px 10px", borderRadius: 8,
                   border: "1px dashed var(--border)", background: "transparent",
-                  color: "var(--fg-3)", fontSize: 13, fontWeight: 600,
+                  color: "var(--fg-3)", fontSize: 14, fontWeight: 400,
                   cursor: "pointer", fontFamily: "inherit",
                 }}
               >
@@ -484,7 +484,7 @@ function KanbanCard({ orden, isReprogramada, isSelected, isDragging, onDragStart
       <div style={{ display: "flex", alignItems: "flex-start", gap: 6 }}>
         {LeadingIcon && <LeadingIcon size={12} style={{ color: iconColor, flexShrink: 0, marginTop: 2 }} />}
         <span style={{
-          flex: 1, minWidth: 0, fontSize: 12.5, fontWeight: 600, color: "var(--fg-1)",
+          flex: 1, minWidth: 0, fontSize: 14, fontWeight: 400, color: "var(--fg-1)",
           lineHeight: 1.35,
           display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical",
           overflow: "hidden",
@@ -497,16 +497,16 @@ function KanbanCard({ orden, isReprogramada, isSelected, isDragging, onDragStart
         )}
       </div>
 
-      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", fontSize: 13, color: "var(--fg-3)" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", fontSize: 14, color: "var(--fg-3)" }}>
         {orden.numero != null && (
-          <span style={{ fontWeight: 600, color: "var(--fg-4)" }}>#{orden.numero}</span>
+          <span style={{ fontWeight: 400, color: "var(--fg-4)" }}>#{orden.numero}</span>
         )}
         <span style={{
           display: "inline-flex",
           alignItems: "center",
           gap: 3,
           color: overdue ? "var(--danger)" : "var(--fg-3)",
-          fontWeight: overdue ? 600 : 500,
+          fontWeight: 400,
         }}>
           <CalendarRange size={10} style={{ flexShrink: 0 }} />
           {formatShortYmd(dueYmd)}

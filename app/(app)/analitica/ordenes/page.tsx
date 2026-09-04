@@ -121,8 +121,8 @@ function CardHeader({ title, subtitle, action }: { title: string; subtitle?: str
   return (
     <div style={{ padding: "15px 18px", borderBottom: `1px solid ${C.border}`, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexShrink: 0 }}>
       <div>
-        <div style={{ fontSize: 14, fontWeight: 800, color: C.text1 }}>{title}</div>
-        {subtitle && <div style={{ fontSize: 12, color: C.text3, marginTop: 2 }}>{subtitle}</div>}
+        <div style={{ fontSize: 14, fontWeight: 400, color: C.text1 }}>{title}</div>
+        {subtitle && <div style={{ fontSize: 14, color: C.text3, marginTop: 2 }}>{subtitle}</div>}
       </div>
       {action}
     </div>
@@ -149,9 +149,9 @@ function StatCard({
     <Card style={{ padding: 18 }}>
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
         <div style={{ minWidth: 0 }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: C.text3, letterSpacing: "0.01em", marginBottom: 8 }}>{label}</div>
-          <div style={{ fontSize: 29, fontWeight: 850, color: C.text1, lineHeight: 1, letterSpacing: 0 }}>{value}</div>
-          {sub && <div style={{ fontSize: 12, color: C.text2, marginTop: 7 }}>{sub}</div>}
+          <div style={{ fontSize: 14, fontWeight: 400, color: C.text3, letterSpacing: "0.01em", marginBottom: 8 }}>{label}</div>
+          <div style={{ fontSize: 14, fontWeight: 400, color: C.text1, lineHeight: 1, letterSpacing: 0 }}>{value}</div>
+          {sub && <div style={{ fontSize: 14, color: C.text2, marginTop: 7 }}>{sub}</div>}
         </div>
         <div style={{ width: 42, height: 42, borderRadius: 9, background: bg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
           <Icon size={20} color={color} />
@@ -170,7 +170,7 @@ function PriorityBadge({ p }: { p: string }) {
     ninguna: { bg: C.bg, color: C.text3, label: "-" },
   };
   const s = map[p] ?? map.ninguna;
-  return <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 6, background: s.bg, color: s.color }}>{s.label}</span>;
+  return <span style={{ fontSize: 14, fontWeight: 400, padding: "2px 8px", borderRadius: 6, background: s.bg, color: s.color }}>{s.label}</span>;
 }
 
 function dayKey(d: Date) {
@@ -620,18 +620,18 @@ export default function AnaliticaPage() {
   }, [allOTs]);
 
   if (loading) {
-    return <div style={{ padding: 40, color: C.text3, fontSize: 13 }}>Cargando analitica...</div>;
+    return <div style={{ padding: 40, color: C.text3, fontSize: 14 }}>Cargando analitica...</div>;
   }
 
   if (!workspaceId) {
-    return <div style={{ padding: 40, color: C.text3, fontSize: 13 }}>No se pudo cargar el workspace.</div>;
+    return <div style={{ padding: 40, color: C.text3, fontSize: 14 }}>No se pudo cargar el workspace.</div>;
   }
 
   return (
     <div style={{ padding: "28px 32px 64px", minHeight: "100vh", background: C.bg }}>
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, flexWrap: "wrap", marginBottom: 22 }}>
         <div>
-          <p style={{ margin: "5px 0 0", color: C.text3, fontSize: 13 }}>
+          <p style={{ margin: "5px 0 0", color: C.text3, fontSize: 14 }}>
             KPIs basados en OTs reales, sub-OTs, asignacion, vencimientos y ejecucion en terreno.
           </p>
         </div>
@@ -678,7 +678,7 @@ export default function AnaliticaPage() {
       <Card style={{ marginTop: 14 }}>
         <div style={{ padding: 16, display: "grid", gap: 10 }}>
           {insights.map((i, idx) => (
-            <div key={idx} style={{ padding: "11px 12px", borderRadius: 8, border: `1px solid ${i.tone === "bad" ? C.danger : i.tone === "warn" ? C.warning : C.success}`, background: i.tone === "bad" ? C.dangerBg : i.tone === "warn" ? C.warningBg : C.successBg, color: C.text1, fontSize: 13 }}>
+            <div key={idx} style={{ padding: "11px 12px", borderRadius: 8, border: `1px solid ${i.tone === "bad" ? C.danger : i.tone === "warn" ? C.warning : C.success}`, background: i.tone === "bad" ? C.dangerBg : i.tone === "warn" ? C.warningBg : C.successBg, color: C.text1, fontSize: 14 }}>
               {i.text}
             </div>
           ))}
@@ -699,10 +699,10 @@ export default function AnaliticaPage() {
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={flow} margin={{ left: -10, right: 20 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
-                <XAxis dataKey="label" tick={{ fontSize: 11, fill: C.text3 }} interval="preserveStartEnd" />
-                <YAxis tick={{ fontSize: 12, fill: C.text3 }} allowDecimals={false} />
+                <XAxis dataKey="label" tick={{ fontSize: 14, fill: C.text3 }} interval="preserveStartEnd" />
+                <YAxis tick={{ fontSize: 14, fill: C.text3 }} allowDecimals={false} />
                 <Tooltip contentStyle={tooltipStyle} />
-                <Legend wrapperStyle={{ fontSize: 12 }} />
+                <Legend wrapperStyle={{ fontSize: 14 }} />
                 <Line type="monotone" dataKey="creadas" stroke={C.warning} strokeWidth={2} name="Creadas" dot={false} />
                 <Line type="monotone" dataKey="completadas" stroke={C.success} strokeWidth={2} name="Completadas" dot={false} />
                 <Line type="monotone" dataKey="backlog" stroke={C.brand} strokeWidth={2} name="Backlog" dot={false} />
@@ -717,8 +717,8 @@ export default function AnaliticaPage() {
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={backlogAge} margin={{ left: -10 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
-                <XAxis dataKey="label" tick={{ fontSize: 11, fill: C.text3 }} />
-                <YAxis tick={{ fontSize: 12, fill: C.text3 }} allowDecimals={false} />
+                <XAxis dataKey="label" tick={{ fontSize: 14, fill: C.text3 }} />
+                <YAxis tick={{ fontSize: 14, fill: C.text3 }} allowDecimals={false} />
                 <Tooltip contentStyle={tooltipStyle} />
                 <Bar dataKey="count" name="OTs" radius={[4, 4, 0, 0]}>
                   {backlogAge.map((_, i) => <Cell key={i} fill={i >= 3 ? C.danger : i === 2 ? C.warning : C.brand} />)}
@@ -738,16 +738,16 @@ export default function AnaliticaPage() {
             ))}
             <div style={{ width: 1, alignSelf: "stretch", background: C.border }} />
             <div>
-              <div style={{ fontSize: 27, fontWeight: 850, color: C.text1, lineHeight: 1 }}>{plannedRatio}</div>
-              <div style={{ fontSize: 12, color: C.text2, marginTop: 6 }}>Proporcion de prevencion</div>
+              <div style={{ fontSize: 14, fontWeight: 400, color: C.text1, lineHeight: 1 }}>{plannedRatio}</div>
+              <div style={{ fontSize: 14, color: C.text2, marginTop: 6 }}>Proporcion de prevencion</div>
             </div>
           </div>
           <div style={{ padding: "8px 8px 16px", flex: 1, minHeight: 0 }}>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={tipoSeries} margin={{ left: -10 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke={C.border} vertical={false} />
-                <XAxis dataKey="label" tick={{ fontSize: 11, fill: C.text3 }} interval="preserveStartEnd" />
-                <YAxis tick={{ fontSize: 12, fill: C.text3 }} allowDecimals={false} />
+                <XAxis dataKey="label" tick={{ fontSize: 14, fill: C.text3 }} interval="preserveStartEnd" />
+                <YAxis tick={{ fontSize: 14, fill: C.text3 }} allowDecimals={false} />
                 <Tooltip contentStyle={tooltipStyle} />
                 {TIPO_SERIES.map((t, i) => (
                   <Bar
@@ -771,16 +771,16 @@ export default function AnaliticaPage() {
             <StatChip value={repetitivas.length} label="Repetitivo" color={C.success} />
             <div style={{ width: 1, alignSelf: "stretch", background: C.border }} />
             <div>
-              <div style={{ fontSize: 27, fontWeight: 850, color: C.text1, lineHeight: 1 }}>{repetitionRatio}</div>
-              <div style={{ fontSize: 12, color: C.text2, marginTop: 6 }}>Proporcion de repeticion</div>
+              <div style={{ fontSize: 14, fontWeight: 400, color: C.text1, lineHeight: 1 }}>{repetitionRatio}</div>
+              <div style={{ fontSize: 14, color: C.text2, marginTop: 6 }}>Proporcion de repeticion</div>
             </div>
           </div>
           <div style={{ padding: "8px 8px 16px", flex: 1, minHeight: 0 }}>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={recurrenceSeries} margin={{ left: -10 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke={C.border} vertical={false} />
-                <XAxis dataKey="label" tick={{ fontSize: 11, fill: C.text3 }} interval="preserveStartEnd" />
-                <YAxis tick={{ fontSize: 12, fill: C.text3 }} allowDecimals={false} />
+                <XAxis dataKey="label" tick={{ fontSize: 14, fill: C.text3 }} interval="preserveStartEnd" />
+                <YAxis tick={{ fontSize: 14, fill: C.text3 }} allowDecimals={false} />
                 <Tooltip contentStyle={tooltipStyle} />
                 <Bar dataKey="noRepetitivo" name="No repetitivo" stackId="r" fill={C.brand} />
                 <Bar dataKey="repetitivo" name="Repetitivo" stackId="r" fill={C.success} radius={[4, 4, 0, 0]} />
@@ -810,11 +810,11 @@ export default function AnaliticaPage() {
             ) : overdue.sort((a, b) => daysSince(b.fecha_termino!) - daysSince(a.fecha_termino!)).slice(0, 8).map(o => (
               <div key={o.id} style={listRowStyle}>
                 <div style={{ minWidth: 0, flex: 1 }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: C.text1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{o.titulo ?? "Sin titulo"}</div>
-                  <div style={{ fontSize: 11, color: C.text3, marginTop: 2 }}>{o.activos?.nombre ?? o.ubicaciones?.edificio ?? "Sin activo/ubicacion"}</div>
+                  <div style={{ fontSize: 14, fontWeight: 400, color: C.text1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{o.titulo ?? "Sin titulo"}</div>
+                  <div style={{ fontSize: 14, color: C.text3, marginTop: 2 }}>{o.activos?.nombre ?? o.ubicaciones?.edificio ?? "Sin activo/ubicacion"}</div>
                 </div>
                 <PriorityBadge p={o.prioridad} />
-                <span style={{ fontSize: 12, fontWeight: 800, color: C.danger, minWidth: 40, textAlign: "right" }}>+{daysSince(o.fecha_termino!)}d</span>
+                <span style={{ fontSize: 14, fontWeight: 400, color: C.danger, minWidth: 40, textAlign: "right" }}>+{daysSince(o.fecha_termino!)}d</span>
               </div>
             ))}
           </div>
@@ -847,8 +847,8 @@ export default function AnaliticaPage() {
               {techRows.map(t => (
                 <tr key={t.id} style={{ borderBottom: `1px solid ${C.border}`, background: t.overdue > 0 ? C.dangerBg : t.blocked > 0 ? C.warningBg : "transparent" }}>
                   <td style={tdStyle}>
-                    <div style={{ fontWeight: 750, color: C.text1 }}>{t.nombre}</div>
-                    {t.oficio && <div style={{ fontSize: 11, color: C.text3, marginTop: 2 }}>{t.oficio}</div>}
+                    <div style={{ fontWeight: 400, color: C.text1 }}>{t.nombre}</div>
+                    {t.oficio && <div style={{ fontSize: 14, color: C.text3, marginTop: 2 }}>{t.oficio}</div>}
                   </td>
                   <td style={tdMuted}>{t.rol}</td>
                   <td style={tdStrong}>{peopleMode === "open" ? t.open : t.completed}</td>
@@ -856,13 +856,13 @@ export default function AnaliticaPage() {
                   <td style={tdMuted}>{peopleMode === "open" ? t.subOpen : t.subCompleted}</td>
                   {peopleMode === "open" ? (
                     <>
-                      <td style={{ ...tdStyle, color: t.overdue ? C.danger : C.text2, fontWeight: 800 }}>{t.overdue}</td>
-                      <td style={{ ...tdStyle, color: t.blocked ? C.warning : C.text2, fontWeight: 800 }}>{t.blocked}</td>
+                      <td style={{ ...tdStyle, color: t.overdue ? C.danger : C.text2, fontWeight: 400 }}>{t.overdue}</td>
+                      <td style={{ ...tdStyle, color: t.blocked ? C.warning : C.text2, fontWeight: 400 }}>{t.blocked}</td>
                     </>
                   ) : (
                     <>
                       <td style={tdMuted}>{t.open}</td>
-                      <td style={{ ...tdStyle, color: t.overdue ? C.danger : C.text2, fontWeight: 800 }}>{t.overdue}</td>
+                      <td style={{ ...tdStyle, color: t.overdue ? C.danger : C.text2, fontWeight: 400 }}>{t.overdue}</td>
                     </>
                   )}
                   {peopleMode === "open" ? (
@@ -876,7 +876,7 @@ export default function AnaliticaPage() {
                       <div style={{ flex: 1, height: 7, borderRadius: 4, background: C.bg, overflow: "hidden" }}>
                         <div style={{ width: `${peopleMode === "open" ? t.share : t.completionShare}%`, height: "100%", background: peopleMode === "open" ? (t.share >= 35 ? C.danger : t.share >= 20 ? C.warning : C.success) : C.success }} />
                       </div>
-                      <span style={{ fontSize: 12, fontWeight: 800, color: C.text1, minWidth: 32 }}>{peopleMode === "open" ? t.share : t.completionShare}%</span>
+                      <span style={{ fontSize: 14, fontWeight: 400, color: C.text1, minWidth: 32 }}>{peopleMode === "open" ? t.share : t.completionShare}%</span>
                     </div>
                   </td>
                 </tr>
@@ -902,8 +902,8 @@ export default function AnaliticaPage() {
 function StatChip({ value, label, color }: { value: number; label: string; color: string }) {
   return (
     <div>
-      <div style={{ fontSize: 27, fontWeight: 850, color: C.text1, lineHeight: 1 }}>{value}</div>
-      <div style={{ marginTop: 6, display: "inline-block", padding: "2px 9px", borderRadius: 6, border: `1px solid ${color}`, color, fontSize: 12, fontWeight: 700 }}>{label}</div>
+      <div style={{ fontSize: 14, fontWeight: 400, color: C.text1, lineHeight: 1 }}>{value}</div>
+      <div style={{ marginTop: 6, display: "inline-block", padding: "2px 9px", borderRadius: 6, border: `1px solid ${color}`, color, fontSize: 14, fontWeight: 400 }}>{label}</div>
     </div>
   );
 }
@@ -918,14 +918,14 @@ function DonutBreakdown({ data }: { data: Array<{ name: string; count: number; c
       </div>
       <div style={{ height: "100%", minHeight: 210 }}>
         {total === 0 ? (
-          <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: C.text3, fontSize: 13 }}>Sin datos en el periodo</div>
+          <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: C.text3, fontSize: 14 }}>Sin datos en el periodo</div>
         ) : (
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
               <Pie data={arcs} dataKey="count" nameKey="name" innerRadius="55%" outerRadius="85%" paddingAngle={2} stroke="none">
                 {arcs.map(d => <Cell key={d.name} fill={d.color} />)}
               </Pie>
-              <Tooltip contentStyle={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12 }} />
+              <Tooltip contentStyle={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 14 }} />
             </PieChart>
           </ResponsiveContainer>
         )}
@@ -935,7 +935,7 @@ function DonutBreakdown({ data }: { data: Array<{ name: string; count: number; c
 }
 
 function EmptyRow({ text }: { text: string }) {
-  return <div style={{ padding: "16px 18px", color: C.text3, fontSize: 13 }}>{text}</div>;
+  return <div style={{ padding: "16px 18px", color: C.text3, fontSize: 14 }}>{text}</div>;
 }
 
 const selectStyle: React.CSSProperties = {
@@ -945,7 +945,7 @@ const selectStyle: React.CSSProperties = {
   border: `1px solid ${C.border}`,
   background: C.surface,
   color: C.text1,
-  fontSize: 13,
+  fontSize: 14,
   cursor: "pointer",
 };
 
@@ -972,8 +972,8 @@ function segmentButtonStyle(active: boolean): React.CSSProperties {
     borderRadius: active ? 7 : 0,
     boxShadow: active ? "var(--shadow-sm)" : "none",
     color: active ? "var(--fg-1)" : "var(--fg-3)",
-    fontSize: 13,
-    fontWeight: active ? 600 : 500,
+    fontSize: 14,
+    fontWeight: 400,
     cursor: "pointer",
     whiteSpace: "nowrap",
   };
@@ -983,13 +983,13 @@ const tooltipStyle: React.CSSProperties = {
   background: C.surface,
   border: `1px solid ${C.border}`,
   borderRadius: 8,
-  fontSize: 12,
+  fontSize: 14,
 };
 
 const thStyle: React.CSSProperties = {
   padding: "10px 14px",
-  fontSize: 12,
-  fontWeight: 800,
+  fontSize: 14,
+  fontWeight: 400,
   color: C.text3,
   textAlign: "left",
   letterSpacing: "0.01em",
@@ -998,7 +998,7 @@ const thStyle: React.CSSProperties = {
 
 const tdStyle: React.CSSProperties = {
   padding: "12px 14px",
-  fontSize: 12,
+  fontSize: 14,
   color: C.text2,
   verticalAlign: "middle",
 };
@@ -1011,7 +1011,7 @@ const tdMuted: React.CSSProperties = {
 const tdStrong: React.CSSProperties = {
   ...tdStyle,
   color: C.text1,
-  fontWeight: 800,
+  fontWeight: 400,
 };
 
 const listRowStyle: React.CSSProperties = {

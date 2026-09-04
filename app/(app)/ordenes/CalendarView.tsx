@@ -448,7 +448,7 @@ export default function CalendarView({ ordenes, loadingExtras, reprogramadaIds, 
                     background: isActive ? "var(--brand)" : "var(--surface-1)",
                     color: isActive ? "white" : "var(--fg-2)",
                     border:"none", borderRight: i === 0 ? "1px solid var(--border)" : "none",
-                    fontSize:12, fontWeight:600, cursor:"pointer", fontFamily:"inherit",
+                    fontSize: 14, fontWeight: 400, cursor:"pointer", fontFamily:"inherit",
                     textTransform:"capitalize",
                   }}
                 >
@@ -467,14 +467,14 @@ export default function CalendarView({ ordenes, loadingExtras, reprogramadaIds, 
                   height:30, padding:"0 10px", display:"flex", alignItems:"center", gap:6,
                   border:"1px solid var(--danger)", borderRadius:8,
                   background:"var(--danger-bg)", color:"var(--danger)",
-                  fontSize:12, fontWeight:600, cursor:"pointer", fontFamily:"inherit",
+                  fontSize: 14, fontWeight: 400, cursor:"pointer", fontFamily:"inherit",
                   whiteSpace:"nowrap",
                 }}
                 title={`${reprogramadas.length} OT${reprogramadas.length > 1 ? "s" : ""} reprogramada${reprogramadas.length > 1 ? "s" : ""}`}
               >
                 <CalendarClock size={14} />
                 Reprogramadas
-                <span style={{ fontWeight:800 }}>{reprogramadas.length}</span>
+                <span style={{ fontWeight: 400 }}>{reprogramadas.length}</span>
               </button>
 
               {reprogramOpen && (
@@ -486,8 +486,8 @@ export default function CalendarView({ ordenes, loadingExtras, reprogramadaIds, 
                   overflow:"hidden",
                 }}>
                   <div style={{ padding:"10px 12px", borderBottom:"1px solid var(--border)", display:"flex", alignItems:"center", justifyContent:"space-between", gap:8 }}>
-                    <span style={{ fontSize:12, fontWeight:750, color:"var(--fg-1)" }}>OTs reprogramadas</span>
-                    <span style={{ fontSize:13, fontWeight:700, color:"var(--danger)" }}>{reprogramadas.length}</span>
+                    <span style={{ fontSize: 14, fontWeight: 400, color:"var(--fg-1)" }}>OTs reprogramadas</span>
+                    <span style={{ fontSize: 14, fontWeight: 400, color:"var(--danger)" }}>{reprogramadas.length}</span>
                   </div>
                   <div style={{ maxHeight:300, overflowY:"auto", padding:6 }}>
                     {reprogramadas.map((orden) => {
@@ -511,10 +511,10 @@ export default function CalendarView({ ordenes, loadingExtras, reprogramadaIds, 
                         >
                           <Clock size={15} style={{ color:"var(--danger)", flexShrink:0 }} />
                           <span style={{ minWidth:0, flex:1 }}>
-                            <span style={{ display:"block", fontSize:12, fontWeight:650, color:"var(--fg-1)", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                            <span style={{ display:"block", fontSize: 14, fontWeight: 400, color:"var(--fg-1)", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
                               {orden.numero ? `#${orden.numero} · ` : ""}{orden.titulo || "Sin titulo"}
                             </span>
-                            <span style={{ display:"block", marginTop:2, fontSize:13, fontWeight:550, color:"var(--fg-3)" }}>
+                            <span style={{ display:"block", marginTop:2, fontSize: 14, fontWeight: 400, color:"var(--fg-3)" }}>
                               {date ? `Coordinada para ${format(date, "dd MMM yyyy", { locale: es })}` : "Sin fecha coordinada"}
                             </span>
                           </span>
@@ -549,7 +549,7 @@ export default function CalendarView({ ordenes, loadingExtras, reprogramadaIds, 
           >
             <ChevronLeft size={20} />
           </button>
-          <div style={{ fontSize:18, fontWeight:700, color:"var(--fg-1)", textTransform:"capitalize", minWidth:200, textAlign:"center" }}>
+          <div style={{ fontSize: 14, fontWeight: 400, color:"var(--fg-1)", textTransform:"capitalize", minWidth:200, textAlign:"center" }}>
             {headerLabel}
           </div>
           <button
@@ -579,7 +579,7 @@ export default function CalendarView({ ordenes, loadingExtras, reprogramadaIds, 
 
       {orphanCount > 0 && (
         <div style={{
-          padding:"6px 16px", fontSize:12, color:"var(--fg-3)",
+          padding:"6px 16px", fontSize: 14, color:"var(--fg-3)",
           background:"var(--surface-hover)", borderBottom:"1px solid var(--border)", flexShrink:0,
         }}>
           {orphanCount} orden{orphanCount > 1 ? "es" : ""} sin fecha — no aparece{orphanCount > 1 ? "n" : ""} en el calendario.
@@ -591,7 +591,7 @@ export default function CalendarView({ ordenes, loadingExtras, reprogramadaIds, 
         {/* DoW header — capitalized full words like the reference */}
         <div style={{ display:"grid", gridTemplateColumns:"repeat(7, minmax(0, 1fr))", flexShrink:0, borderBottom:"1px solid var(--border)", background:"var(--surface-canvas)" }}>
           {dow.map(d => (
-            <div key={d} style={{ padding:"10px 12px", fontSize:13, fontWeight:700, color:"var(--fg-3)", letterSpacing:"0.01em", textAlign:"left" }}>
+            <div key={d} style={{ padding:"10px 12px", fontSize: 14, fontWeight: 400, color:"var(--fg-3)", letterSpacing:"0.01em", textAlign:"left" }}>
               {d}
             </div>
           ))}
@@ -642,7 +642,7 @@ export default function CalendarView({ ordenes, loadingExtras, reprogramadaIds, 
               >
                 <div style={{ display:"flex", alignItems:"center", justifyContent:"flex-end", gap:6, marginBottom:5, minHeight:20 }}>
                   <span style={{
-                    fontSize:12, fontWeight: isToday ? 700 : 600,
+                    fontSize: 14, fontWeight: 400,
                     color: isToday ? "white" : inMonth ? "var(--fg-2)" : "var(--fg-4)",
                     background: isToday ? "var(--brand)" : "transparent",
                     padding: isToday ? "1px 7px" : 0,
@@ -681,7 +681,7 @@ export default function CalendarView({ ordenes, loadingExtras, reprogramadaIds, 
                       style={{
                         minHeight:20, width:"100%",
                         display:"flex", alignItems:"center", justifyContent:"center",
-                        fontSize:13, color:"var(--brand-fg)", fontWeight:700,
+                        fontSize: 14, color:"var(--brand-fg)", fontWeight: 400,
                         background:"transparent", border:"none", borderRadius:6,
                         textAlign:"center", padding:"0 6px", cursor:"pointer", fontFamily:"inherit",
                         flexShrink:0,
@@ -788,7 +788,7 @@ function EventCard({ orden, isReprogramada, isSelected, isDragging, isPreview = 
         background: isReprogramada ? "var(--danger-bg)" : isPreview ? "var(--surface-hover)" : "var(--brand-tint)",
         border: isPreview ? "1px dashed var(--border-strong)" : "none",
         borderRadius:6,
-        fontSize: compact ? 11 : 12,
+        fontSize: 14,
         color: isReprogramada ? "var(--danger)" : isPreview ? "var(--fg-2)" : "var(--brand-fg)",
         cursor: isPreview ? "pointer" : isDragging ? "grabbing" : "grab",
         opacity: isDragging ? 0.4 : isPreview ? 0.86 : 1,
@@ -805,7 +805,7 @@ function EventCard({ orden, isReprogramada, isSelected, isDragging, isPreview = 
       ) : LeadingIcon ? (
         <LeadingIcon size={11} style={{ color: iconColor, flexShrink:0 }} />
       ) : null}
-      <span style={{ flex:1, overflow:"hidden", textOverflow:"ellipsis", fontWeight:500, minWidth:0 }}>
+      <span style={{ flex:1, overflow:"hidden", textOverflow:"ellipsis", fontWeight: 400, minWidth:0 }}>
         {title}
       </span>
       {orden.prioridad === "urgente" && (
@@ -876,7 +876,7 @@ function DayOrdersModal({ date, ordenes, usuarios, selectedId, draggingId, repro
           display:"flex", alignItems:"center", justifyContent:"space-between", gap:12,
           flexShrink:0,
         }}>
-          <div style={{ fontSize:23, fontWeight:700, color:"var(--fg-1)", textTransform:"lowercase" }}>
+          <div style={{ fontSize: 14, fontWeight: 400, color:"var(--fg-1)", textTransform:"lowercase" }}>
             {title}
           </div>
           <button
@@ -939,24 +939,24 @@ function DayOrdersModal({ date, ordenes, usuarios, selectedId, draggingId, repro
                 </div>
                 <div style={{ flex:1, minWidth:0 }}>
                   <div style={{
-                    fontSize:18, fontWeight:700, color:"var(--fg-1)",
+                    fontSize: 14, fontWeight: 400, color:"var(--fg-1)",
                     overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap",
                   }}>
                     {(isReprogramada || entry.isPreview) && <RotateCw size={16} style={{ color: entry.isPreview ? "var(--fg-3)" : "var(--brand)", marginRight:6, verticalAlign:"-2px" }} />}
                     {titleText}
                   </div>
-                  <div style={{ marginTop:5, fontSize:15, color:"var(--fg-2)", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                  <div style={{ marginTop:5, fontSize: 14, color:"var(--fg-2)", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
                     Solicitado por {creator}
                   </div>
                   <div style={{
                     marginTop:5, display:"flex", alignItems:"center", gap:5,
-                    fontSize:15, color: ESTADO_FG[orden.estado] ?? "var(--brand-fg)",
+                    fontSize: 14, color: ESTADO_FG[orden.estado] ?? "var(--brand-fg)",
                   }}>
                     <Lock size={12} />
                     {entry.isPreview ? "Programada" : ESTADO_LABEL[orden.estado] ?? orden.estado}
                   </div>
                 </div>
-                <div style={{ fontSize:14, color:"var(--fg-2)", flexShrink:0 }}>
+                <div style={{ fontSize: 14, color:"var(--fg-2)", flexShrink:0 }}>
                   {orden.numero ? `#${orden.numero}` : ""}
                 </div>
               </div>
@@ -1006,7 +1006,7 @@ function HoverPopover({ orden, left, top, usuarios, onMouseEnter, onMouseLeave, 
       <div style={{ padding:"12px 14px 10px", borderBottom:"1px solid var(--border)" }}>
         <div style={{ display:"flex", alignItems:"flex-start", gap:8 }}>
           {isRecurrent && <RotateCw size={14} style={{ color:"var(--brand)", flexShrink:0, marginTop:2 }} />}
-          <div style={{ fontSize:14, fontWeight:700, color:"var(--fg-1)", lineHeight:1.35, wordBreak:"break-word" }}>
+          <div style={{ fontSize: 14, fontWeight: 400, color:"var(--fg-1)", lineHeight:1.35, wordBreak:"break-word" }}>
             {title}
           </div>
         </div>
@@ -1018,7 +1018,7 @@ function HoverPopover({ orden, left, top, usuarios, onMouseEnter, onMouseLeave, 
         <Row label="Estado" value={
           <span style={{
             display:"inline-flex", alignItems:"center", gap:5,
-            fontSize:13, fontWeight:600,
+            fontSize: 14, fontWeight: 400,
             padding:"3px 8px", borderRadius:6,
             background: ESTADO_BG[orden.estado] ?? "var(--surface-hover)",
             color: ESTADO_FG[orden.estado] ?? "var(--fg-2)",
@@ -1066,8 +1066,8 @@ function HoverPopover({ orden, left, top, usuarios, onMouseEnter, onMouseLeave, 
 function Row({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:10, padding:"7px 12px" }}>
-      <span style={{ fontSize:12, color:"var(--fg-3)", flexShrink:0 }}>{label}</span>
-      <span style={{ fontSize:12, color:"var(--fg-1)", fontWeight:500, textAlign:"right", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", maxWidth:200 }}>
+      <span style={{ fontSize: 14, color:"var(--fg-3)", flexShrink:0 }}>{label}</span>
+      <span style={{ fontSize: 14, color:"var(--fg-1)", fontWeight: 400, textAlign:"right", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", maxWidth:200 }}>
         {value}
       </span>
     </div>

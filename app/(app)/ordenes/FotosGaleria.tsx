@@ -288,7 +288,7 @@ export function FotosGaleria({
           white (light) or black (dark) panel rather than banded greys. */}
       <aside style={{ width: 210, flexShrink: 0, display: "flex", flexDirection: "column", background: "var(--surface-1)", borderRight: "1px solid var(--border)" }}>
         <div style={{ padding: "12px 12px 8px" }}>
-          <div style={{ fontSize: 14, fontWeight: 600, color: "var(--fg-4)" }}>
+          <div style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-4)" }}>
             Álbumes
           </div>
         </div>
@@ -310,7 +310,7 @@ export function FotosGaleria({
             return (
               <div key={t} style={{ display: "flex", flexDirection: "column", gap: 2 }}>
                 <div style={{ height: 1, background: "var(--border)", margin: "6px 4px 4px" }} />
-                <div style={{ padding: "0 8px 2px", fontSize: 14, fontWeight: 600, color: "var(--fg-4)" }}>
+                <div style={{ padding: "0 8px 2px", fontSize: 14, fontWeight: 400, color: "var(--fg-4)" }}>
                   {t === "referencia" ? "Referencia" : "Evidencia"}
                 </div>
                 {delGrupo.map(g => (
@@ -344,7 +344,7 @@ export function FotosGaleria({
                 display: "flex", alignItems: "center", gap: 8, padding: "0 8px",
                 border: "none", borderRadius: "var(--r-sm)",
                 background: "transparent", color: "var(--fg-3)",
-                fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", textAlign: "left",
+                fontSize: 14, fontWeight: 400, cursor: "pointer", fontFamily: "inherit", textAlign: "left",
               }}
               onMouseEnter={e => { e.currentTarget.style.background = "var(--surface-hover)"; e.currentTarget.style.color = "var(--brand)"; }}
               onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "var(--fg-3)"; }}
@@ -363,7 +363,7 @@ export function FotosGaleria({
         <div style={{ padding: "12px 14px", borderBottom: "1px solid var(--border)", background: "var(--surface-1)" }}>
             <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }}>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 14, fontWeight: 700, color: "var(--fg-1)", lineHeight: 1.3 }}>
+                <div style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", lineHeight: 1.3 }}>
                   {selected ? (selected.titulo || "Sin título") : "Todas las fotos"}
                 </div>
                 {selected?.descripcion && (
@@ -392,7 +392,7 @@ export function FotosGaleria({
                       selection exists, so there is only ever one control strip. */}
                   {selectionCount > 0 ? (
                     <>
-                      <span style={{ fontSize: 14, fontWeight: 600, color: "var(--brand)", marginRight: 2 }}>
+                      <span style={{ fontSize: 14, fontWeight: 400, color: "var(--brand)", marginRight: 2 }}>
                         {selectionCount} seleccionada{selectionCount !== 1 ? "s" : ""}
                       </span>
 
@@ -461,7 +461,7 @@ export function FotosGaleria({
                             border: "none", borderRadius: 5,
                             background: on ? "var(--brand)" : "transparent",
                             color: on ? "var(--fg-on-brand)" : "var(--fg-3)",
-                            fontSize: 14, fontWeight: 600,
+                            fontSize: 14, fontWeight: 400,
                             cursor: on ? "default" : "pointer", fontFamily: "inherit",
                             transition: "background 0.12s, color 0.12s",
                           }}
@@ -591,7 +591,7 @@ export function FotosGaleria({
                   type="button"
                   onClick={() => fileRef.current?.click()}
                   disabled={uploading}
-                  style={{ display: "flex", alignItems: "center", gap: 6, height: 32, padding: "0 12px", marginTop: 2, border: "1px solid var(--border)", borderRadius: "var(--r-sm)", background: "var(--surface-1)", color: "var(--fg-2)", fontSize: 14, fontWeight: 600, cursor: uploading ? "default" : "pointer", fontFamily: "inherit" }}
+                  style={{ display: "flex", alignItems: "center", gap: 6, height: 32, padding: "0 12px", marginTop: 2, border: "1px solid var(--border)", borderRadius: "var(--r-sm)", background: "var(--surface-1)", color: "var(--fg-2)", fontSize: 14, fontWeight: 400, cursor: uploading ? "default" : "pointer", fontFamily: "inherit" }}
                   onMouseEnter={e => { if (!uploading) { e.currentTarget.style.borderColor = "var(--brand)"; e.currentTarget.style.color = "var(--brand)"; } }}
                   onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.color = "var(--fg-2)"; }}
                 >
@@ -749,7 +749,7 @@ function PhotoTile({ itemId, url, albumLabel, canDelete, isSelected, selectionAc
       )}
 
       {albumLabel && (
-        <div style={{ position: "absolute", left: 0, right: 0, bottom: 0, padding: "14px 8px 6px", fontSize: 14, fontWeight: 600, color: "#fff", background: "linear-gradient(to top, rgba(0,0,0,0.7), transparent)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", pointerEvents: "none" }}>
+        <div style={{ position: "absolute", left: 0, right: 0, bottom: 0, padding: "14px 8px 6px", fontSize: 14, fontWeight: 400, color: "#fff", background: "linear-gradient(to top, rgba(0,0,0,0.7), transparent)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", pointerEvents: "none" }}>
           {albumLabel}
         </div>
       )}
@@ -831,7 +831,7 @@ function MenuItem({ icon, label, onClick, danger }: {
 function tipoChipStyle(tipo: Tipo, clickable: boolean): React.CSSProperties {
   return {
     display: "inline-flex", alignItems: "center", gap: 4,
-    height: 24, padding: "0 8px", borderRadius: "var(--r-xs)", fontSize: 14, fontWeight: 600,
+    height: 24, padding: "0 8px", borderRadius: "var(--r-xs)", fontSize: 14, fontWeight: 400,
     border: "1px solid var(--border-strong)",
     background: tipo === "referencia" ? "var(--brand-tint)" : "var(--st-progress-bg)",
     color: tipo === "referencia" ? "var(--brand-fg)" : "var(--st-progress-fg)",
@@ -858,7 +858,7 @@ function FolderButton({ icon, label, count, active, onClick }: {
         border: "none", borderRadius: "var(--r-sm)",
         background: active ? "var(--brand-tint)" : "transparent",
         color: active ? "var(--brand)" : "var(--fg-2)",
-        fontSize: 14, fontWeight: active ? 600 : 500,
+        fontSize: 14, fontWeight: 400,
         cursor: "pointer", fontFamily: "inherit", textAlign: "left",
         transition: "background 0.12s, color 0.12s",
       }}

@@ -91,8 +91,8 @@ export const SidebarGroupLabel = ({ children, className, ...props }: React.HTMLA
     <div
       className={cn("px-3 mb-1", className)}
       style={{
-        fontSize: "13px",
-        fontWeight: 600,
+        fontSize: "14px",
+        fontWeight: 400,
         letterSpacing: 0,
         textTransform: "none",
         color: "var(--fg-4)",
@@ -136,15 +136,15 @@ export const SidebarMenuButton = ({
       <Comp
         data-active={isActive ? "true" : undefined}
         className={cn(
-          "flex w-full items-center gap-3 text-sm transition-all duration-150",
+          "flex w-full items-center gap-3 text-base transition-all duration-150",
           "h-9 border-none bg-transparent outline-none cursor-pointer relative",
-          "font-medium",
+          "font-normal",
           collapsed ? "justify-center rounded-md mx-auto" : "rounded-md px-3",
           className
         )}
         style={{
           width: collapsed ? 40 : "100%",
-          fontSize: "13px",
+          fontSize: "14px",
           color: isActive ? "var(--brand)" : "var(--fg-3)",
           background: isActive ? "var(--brand-tint)" : "transparent",
           boxShadow: isActive ? (collapsed ? "none" : "inset 3px 0 0 var(--brand)") : "none",

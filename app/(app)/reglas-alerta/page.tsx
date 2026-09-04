@@ -205,17 +205,17 @@ function Notice({ kind, onClose, children }: { kind: "ok" | "err"; onClose?: () 
       background: kind === "ok" ? "var(--success-bg)" : "var(--danger-bg)",
       border: `1px solid ${kind === "ok" ? "var(--success)" : "var(--danger)"}`,
       color: kind === "ok" ? "var(--st-done-fg)" : "var(--danger)",
-      fontSize: 13,
-      fontWeight: 500,
+      fontSize: 14,
+      fontWeight: 400,
       display: "flex",
       alignItems: "center",
       gap: 8,
     }}>
-      {kind === "ok" ? <Check size={14} /> : <AlertCircle size={14} />}
+      {kind === "ok" ? <Check size={16} /> : <AlertCircle size={16} />}
       {children}
       {onClose && (
         <button type="button" onClick={onClose} style={{ marginLeft: "auto", background: "none", border: "none", color: "inherit", cursor: "pointer", display: "flex" }}>
-          <X size={14} />
+          <X size={16} />
         </button>
       )}
     </div>
@@ -290,9 +290,9 @@ function RecipientsPicker({
   return (
     <div style={{ display: "grid", gap: 10 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-        <Users size={13} style={{ color: "var(--fg-3)" }} />
-        <span style={{ fontSize: 12, color: "var(--fg-3)", fontWeight: 650 }}>Destinatarios</span>
-        <span style={{ fontSize: 12, color: "var(--fg-4)" }}>
+        <Users size={16} style={{ color: "var(--fg-3)" }} />
+        <span style={{ fontSize: 14, color: "var(--fg-3)", fontWeight: 400 }}>Destinatarios</span>
+        <span style={{ fontSize: 14, color: "var(--fg-4)" }}>
           {todos ? "Todo el equipo" : `${selected.size} ${selected.size === 1 ? "usuario" : "usuarios"}`}
         </span>
         {!todos && (
@@ -304,8 +304,8 @@ function RecipientsPicker({
               marginLeft: "auto",
               height: 26,
               padding: "0 8px",
-              fontSize: 11,
-              fontWeight: 600,
+              fontSize: 14,
+              fontWeight: 400,
               color: "var(--fg-2)",
               background: "var(--surface-1)",
               border: "1px solid var(--border)",
@@ -320,7 +320,7 @@ function RecipientsPicker({
       </div>
 
       <div style={{ position: "relative" }}>
-        <Search size={13} style={{ position: "absolute", left: 9, top: "50%", transform: "translateY(-50%)", color: "var(--fg-4)" }} />
+        <Search size={16} style={{ position: "absolute", left: 9, top: "50%", transform: "translateY(-50%)", color: "var(--fg-4)" }} />
         <input
           type="text"
           value={query}
@@ -333,7 +333,7 @@ function RecipientsPicker({
             borderRadius: "var(--r-sm)",
             background: "var(--surface-1)",
             color: "var(--fg-1)",
-            fontSize: 12.5,
+            fontSize: 14,
             padding: "0 9px 0 26px",
             fontFamily: "inherit",
             boxSizing: "border-box",
@@ -343,7 +343,7 @@ function RecipientsPicker({
 
       <div style={{ maxHeight: 168, overflowY: "auto", border: "1px solid var(--border)", borderRadius: "var(--r-sm)", background: "var(--surface-1)" }}>
         {filtered.length === 0 ? (
-          <p style={{ margin: 0, padding: "12px 11px", fontSize: 12, color: "var(--fg-4)" }}>Sin resultados.</p>
+          <p style={{ margin: 0, padding: "12px 11px", fontSize: 14, color: "var(--fg-4)" }}>Sin resultados.</p>
         ) : filtered.map((u, idx) => {
           const checked = selected.has(u.id);
           return (
@@ -380,7 +380,7 @@ function RecipientsPicker({
               }}>
                 {checked && <Check size={11} />}
               </span>
-              <span style={{ flex: 1, minWidth: 0, fontSize: 12.5, color: "var(--fg-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              <span style={{ flex: 1, minWidth: 0, fontSize: 14, color: "var(--fg-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                 {u.nombre ?? "Sin nombre"}
                 {u.cargo && <span style={{ color: "var(--fg-4)" }}> · {u.cargo}</span>}
               </span>
@@ -389,7 +389,7 @@ function RecipientsPicker({
         })}
       </div>
 
-      <p style={{ margin: 0, fontSize: 11.5, color: "var(--fg-4)", lineHeight: 1.45 }}>
+      <p style={{ margin: 0, fontSize: 14, color: "var(--fg-4)", lineHeight: 1.45 }}>
         Sin usuarios seleccionados la alerta llega a todo el equipo.
       </p>
     </div>
@@ -436,13 +436,14 @@ function RuleCard({
       borderBottom: "1px solid var(--border)",
       overflow: "hidden",
     }}>
-      <div style={{ display: "grid", gridTemplateColumns: "minmax(250px, 1fr) minmax(220px, 1.15fr) minmax(130px, .65fr) auto", alignItems: "center", gap: 14, padding: "13px 22px", opacity: regla.activa ? 1 : 0.58 }}>
-        <div style={{ display: "flex", gap: 12, minWidth: 0 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(250px, 1fr) minmax(220px, 1.15fr) minmax(130px, .65fr) 64px", alignItems: "center", gap: 14, padding: "13px 22px", opacity: regla.activa ? 1 : 0.58 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
           <span style={{
             width: 34,
             height: 34,
-            borderRadius: "50%",
-            background: "var(--brand-tint)",
+            border: "1px solid var(--border)",
+            borderRadius: "var(--r-sm)",
+            background: "var(--surface-1)",
             color: "var(--brand)",
             display: "flex",
             alignItems: "center",
@@ -452,9 +453,9 @@ function RuleCard({
             <Icon size={16} />
           </span>
           <div style={{ minWidth: 0 }}>
-            <h2 style={{ margin: 0, color: "var(--fg-1)", fontSize: 13.5, fontWeight: 600 }}>{meta.label}</h2>
-            <p style={{ display: "none", margin: "4px 0 0", color: "var(--fg-3)", fontSize: 12.5, lineHeight: 1.45 }}>{meta.description}</p>
-            <p style={{ display: "none", margin: "8px 0 0", color: "var(--fg-4)", fontSize: 11.5 }}>
+            <h2 style={{ margin: 0, color: "var(--fg-1)", fontSize: 14, fontWeight: 400 }}>{meta.label}</h2>
+            <p style={{ display: "none", margin: "4px 0 0", color: "var(--fg-3)", fontSize: 14, lineHeight: 1.45 }}>{meta.description}</p>
+            <p style={{ display: "none", margin: "8px 0 0", color: "var(--fg-4)", fontSize: 14 }}>
               {meta.condicion ? (
                 // Reglas por evento: mismo resumen que la lista en móvil.
                 <>Se activa: <strong style={{ color: "var(--fg-2)" }}>{meta.resumen}</strong></>
@@ -465,14 +466,14 @@ function RuleCard({
           </div>
         </div>
         <div style={{ minWidth: 0 }}>
-          <span style={{ display: "block", fontSize: 13, color: "var(--fg-2)" }}>
+          <span style={{ display: "block", fontSize: 14, color: "var(--fg-2)" }}>
             {meta.condicion ? meta.resumen : displayThreshold(regla.umbral_minutos, meta.preferredUnit)}
           </span>
-          <button type="button" onClick={() => setExpanded(value => !value)} style={{ marginTop: 3, padding: 0, border: 0, background: "transparent", color: "var(--brand)", fontSize: 11.5, cursor: "pointer", fontFamily: "inherit" }}>
+          <button type="button" onClick={() => setExpanded(value => !value)} style={{ marginTop: 3, padding: 0, border: 0, background: "transparent", color: "var(--brand)", fontSize: 14, cursor: "pointer", fontFamily: "inherit" }}>
             {expanded ? "Cerrar configuración" : "Configurar"}
           </button>
         </div>
-        <div style={{ fontSize: 12.5, color: "var(--fg-3)" }}>
+        <div style={{ fontSize: 14, color: "var(--fg-3)" }}>
           {recipients.size === 0 ? "Todo el equipo" : `${recipients.size} ${recipients.size === 1 ? "usuario" : "usuarios"}`}
         </div>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 8 }}>
@@ -486,16 +487,16 @@ function RuleCard({
             // Regla por evento: no hay umbral que configurar. Igual que en móvil,
             // se muestra la condición en solo lectura.
             <div style={{ display: "grid", gap: 6 }}>
-              <span style={{ fontSize: 12, color: "var(--fg-3)", fontWeight: 650 }}>Condición</span>
+              <span style={{ fontSize: 14, color: "var(--fg-3)", fontWeight: 400 }}>Condición</span>
               <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
-                <Check size={15} style={{ color: "var(--success)", flexShrink: 0 }} />
-                <span style={{ fontSize: 12.5, color: "var(--fg-1)" }}>{meta.condicion.titulo}</span>
+                <Check size={16} style={{ color: "var(--success)", flexShrink: 0 }} />
+                <span style={{ fontSize: 14, color: "var(--fg-1)" }}>{meta.condicion.titulo}</span>
               </div>
-              <p style={{ margin: 0, fontSize: 11.5, color: "var(--fg-4)", lineHeight: 1.45 }}>{meta.condicion.nota}</p>
+              <p style={{ margin: 0, fontSize: 14, color: "var(--fg-4)", lineHeight: 1.45 }}>{meta.condicion.nota}</p>
             </div>
           ) : (
             <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-              <span style={{ fontSize: 12, color: "var(--fg-3)", fontWeight: 650 }}>Alertar después de</span>
+              <span style={{ fontSize: 14, color: "var(--fg-3)", fontWeight: 400 }}>Alertar después de</span>
               <input
                 type="number"
                 min={1}
@@ -510,8 +511,8 @@ function RuleCard({
                   borderRadius: "var(--r-sm)",
                   background: "var(--surface-1)",
                   color: "var(--fg-1)",
-                  fontSize: 13,
-                  fontWeight: 650,
+                  fontSize: 14,
+                  fontWeight: 400,
                   padding: "0 9px",
                   fontFamily: "inherit",
                 }}
@@ -530,8 +531,8 @@ function RuleCard({
                   borderRadius: "var(--r-sm)",
                   background: "var(--surface-1)",
                   color: "var(--fg-1)",
-                  fontSize: 13,
-                  fontWeight: 600,
+                  fontSize: 14,
+                  fontWeight: 400,
                   padding: "0 9px",
                   fontFamily: "inherit",
                 }}
@@ -685,29 +686,29 @@ export default function ReglasAlertaPage() {
             <>
               <section style={{ border: "1px solid var(--border)", borderRadius: 12, overflow: "hidden", background: "var(--surface-1)" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "18px 22px", borderBottom: "1px solid var(--border)", background: "var(--surface-1)" }}>
-                <span style={{ width: 34, height: 34, flexShrink: 0, display: "grid", placeItems: "center", borderRadius: "50%", background: "var(--brand-tint)", color: "var(--brand)" }}><BellRing size={17} /></span>
+                <span style={{ width: 34, height: 34, flexShrink: 0, display: "grid", placeItems: "center", border: "1px solid var(--border)", borderRadius: "var(--r-sm)", background: "var(--surface-1)", color: "var(--brand)" }}><BellRing size={16} /></span>
                 <div style={{ minWidth: 0 }}>
-                <h2 style={{ fontSize: 17, fontWeight: 700, color: "var(--fg-1)", margin: 0 }}>Alertas operacionales</h2>
-                <p style={{ margin: 0, maxWidth: 800, color: "var(--fg-3)", fontSize: 12, lineHeight: 1.5 }}>
+                <h2 style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", margin: 0 }}>Alertas operacionales</h2>
+                <p style={{ margin: 0, maxWidth: 800, color: "var(--fg-3)", fontSize: 14, lineHeight: 1.5 }}>
                   Configura cuándo se crean alertas operacionales automáticas para tu equipo y quién las recibe.
                   Los cambios se aplican en la próxima ejecución del cron horario.
                 </p>
                 </div>
               </div>
 
-              <div style={{ display: "grid", gridTemplateColumns: "minmax(250px, 1fr) minmax(220px, 1.15fr) minmax(130px, .65fr) auto", gap: 14, padding: "10px 22px", background: "var(--surface-2)", color: "var(--fg-4)", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "minmax(250px, 1fr) minmax(220px, 1.15fr) minmax(130px, .65fr) 64px", alignItems: "center", gap: 14, padding: "10px 22px", background: "var(--surface-2)", color: "var(--fg-4)", fontSize: 14, fontWeight: 400 }}>
                 <span>Nombre</span><span>Condición</span><span>Destinatarios</span><span style={{ textAlign: "right" }}>Activo</span>
               </div>
 
               {error && <div style={{ margin: "12px 20px 0" }}><Notice kind="err" onClose={() => setError(null)}>{error}</Notice></div>}
 
               <div>
-                <p style={{ display: "none", fontSize: 11, fontWeight: 700, color: "var(--fg-4)", margin: 0, padding: "10px 20px", textTransform: "uppercase", letterSpacing: "0.06em", borderBottom: "1px solid var(--border)" }}>
+                <p style={{ display: "none", fontSize: 14, fontWeight: 400, color: "var(--fg-4)", margin: 0, padding: "10px 20px", borderBottom: "1px solid var(--border)" }}>
                   Activas ({activas.length})
                 </p>
                 <div>
                   {activas.length === 0 ? (
-                    <div style={{ padding: 20, background: "var(--surface-1)", borderBottom: "1px solid var(--border)", color: "var(--fg-4)", fontSize: 13 }}>
+                    <div style={{ padding: 20, background: "var(--surface-1)", borderBottom: "1px solid var(--border)", color: "var(--fg-4)", fontSize: 14 }}>
                       No hay reglas activas.
                     </div>
                   ) : activas.map(regla => (
@@ -728,7 +729,7 @@ export default function ReglasAlertaPage() {
 
               {inactivas.length > 0 && (
                 <div>
-                  <p style={{ display: "none", fontSize: 11, fontWeight: 700, color: "var(--fg-4)", margin: 0, padding: "10px 20px", textTransform: "uppercase", letterSpacing: "0.06em", borderBottom: "1px solid var(--border)" }}>
+                  <p style={{ display: "none", fontSize: 14, fontWeight: 400, color: "var(--fg-4)", margin: 0, padding: "10px 20px", borderBottom: "1px solid var(--border)" }}>
                     Inactivas ({inactivas.length})
                   </p>
                   <div>
@@ -750,8 +751,8 @@ export default function ReglasAlertaPage() {
               )}
               </section>
               <div style={{ marginTop: 10, minHeight: 20, display: "flex", justifyContent: "flex-end" }}>
-                <span style={{ display: "flex", alignItems: "center", gap: 7, color: saved ? "var(--success)" : "var(--fg-4)", fontSize: 12 }}>
-                  {savingId ? <Loader2 size={13} className="animate-spin" /> : saved ? <Check size={13} /> : null}
+                <span style={{ display: "flex", alignItems: "center", gap: 7, color: saved ? "var(--success)" : "var(--fg-4)", fontSize: 14 }}>
+                  {savingId ? <Loader2 size={16} className="animate-spin" /> : saved ? <Check size={16} /> : null}
                   {savingId ? "Guardando..." : saved ? "Guardado" : "Se evalúan cada hora"}
                 </span>
               </div>

@@ -98,19 +98,19 @@ export default function OTModal({ ordenId, onClose }: {
         }}
       >
         {cargando ? (
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "80px 20px", gap: 8, color: "var(--fg-4)", fontSize: 13 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "80px 20px", gap: 8, color: "var(--fg-4)", fontSize: 14 }}>
             <Loader2 size={16} className="animate-spin" />
             Cargando…
           </div>
         ) : error ? (
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "80px 20px", gap: 10 }}>
-            <div style={{ fontSize: 13.5, fontWeight: 600, color: "var(--fg-2)" }}>{error}</div>
+            <div style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-2)" }}>{error}</div>
             <button
               onClick={onClose}
               style={{
                 height: 34, padding: "0 14px", border: "1px solid var(--border)",
                 borderRadius: "var(--r-md)", background: "var(--surface-1)",
-                fontSize: 12.5, fontWeight: 500, color: "var(--fg-2)", cursor: "pointer", fontFamily: "inherit",
+                fontSize: 14, fontWeight: 400, color: "var(--fg-2)", cursor: "pointer", fontFamily: "inherit",
               }}
             >
               Cerrar

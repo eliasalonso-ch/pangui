@@ -320,7 +320,7 @@ function SuscripcionPageInner() {
               <p style={{ fontSize: 14, color: "var(--fg-1)", margin: 0, lineHeight: 1.5 }}>
                 {sub.custom_price_note ?? `Precio especial de ${fmtCLP(sub.price_per_user_clp)} + IVA por usuario para siempre.`}
               </p>
-              <p style={{ fontSize: 13, color: "var(--fg-2)", margin: "6px 0 0", lineHeight: 1.5 }}>
+              <p style={{ fontSize: 14, color: "var(--fg-2)", margin: "6px 0 0", lineHeight: 1.5 }}>
                 Este precio se mantiene mientras la suscripción siga activa. Está acordado para tu plan actual: si quieres cambiarte de plan conservándolo, escríbenos a <a href="mailto:contacto@getpangui.com" style={linkStyle}>contacto@getpangui.com</a>.
               </p>
             </div>
@@ -349,7 +349,7 @@ function SuscripcionPageInner() {
                   <p style={{ fontSize: 14, color: "var(--fg-1)", margin: 0, lineHeight: 1.5 }}>
                     Tu tarjeta terminada en {customer?.card_last4 ?? "····"} quedó inscrita y el primer cobro de <strong>{currentPlan?.name ?? sub.plan_key}</strong> se realizará el {fmtDate(sub.current_period_start ?? null)}, por los {activeUsers} {activeUsers === 1 ? "usuario activo" : "usuarios activos"} del workspace.
                   </p>
-                  <p style={{ fontSize: 13, color: "var(--fg-2)", margin: "6px 0 0", lineHeight: 1.5 }}>
+                  <p style={{ fontSize: 14, color: "var(--fg-2)", margin: "6px 0 0", lineHeight: 1.5 }}>
                     Ya tienes acceso a todas las funciones del plan.
                   </p>
                 </>
@@ -358,7 +358,7 @@ function SuscripcionPageInner() {
                   <p style={{ fontSize: 14, color: "var(--fg-1)", margin: 0, lineHeight: 1.5 }}>
                     El cobro de <strong>{currentPlan?.name ?? sub.plan_key}</strong> a tu tarjeta terminada en {customer.card_last4 ?? "····"} no se pudo procesar. Flow.cl reintentará automáticamente en los próximos días.
                   </p>
-                  <p style={{ fontSize: 13, color: "var(--fg-2)", margin: "6px 0 0", lineHeight: 1.5 }}>
+                  <p style={{ fontSize: 14, color: "var(--fg-2)", margin: "6px 0 0", lineHeight: 1.5 }}>
                     Si el problema persiste, actualiza tu tarjeta más abajo. Mientras tanto conservas el acceso.
                   </p>
                 </>
@@ -367,7 +367,7 @@ function SuscripcionPageInner() {
                   <p style={{ fontSize: 14, color: "var(--fg-1)", margin: 0, lineHeight: 1.5 }}>
                     Tu suscripción a <strong>{currentPlan?.name ?? sub.plan_key}</strong> está creada, pero aún no hay una tarjeta inscrita para cobrarla. El plan se activa apenas se realice el primer cobro.
                   </p>
-                  <p style={{ fontSize: 13, color: "var(--fg-2)", margin: "6px 0 0", lineHeight: 1.5 }}>
+                  <p style={{ fontSize: 14, color: "var(--fg-2)", margin: "6px 0 0", lineHeight: 1.5 }}>
                     Elige tu plan otra vez para inscribir la tarjeta en Flow.cl. Mientras tanto conservas tu plan anterior.
                   </p>
                 </>
@@ -384,7 +384,7 @@ function SuscripcionPageInner() {
               <p style={{ fontSize: 14, color: "var(--fg-1)", margin: 0 }}>
                 Te quedan <strong>{trialDaysLeft} {trialDaysLeft === 1 ? "día" : "días"}</strong> con todas las funciones desbloqueadas. Termina el {fmtDate(sub?.trial_end ?? null)}.
               </p>
-              <p style={{ fontSize: 13, color: "var(--fg-2)", margin: "6px 0 0" }}>
+              <p style={{ fontSize: 14, color: "var(--fg-2)", margin: "6px 0 0" }}>
                 Después pasarás al plan Basic gratuito. Elige un plan abajo para mantener funciones pagadas.
               </p>
             </div>
@@ -442,7 +442,7 @@ function SuscripcionPageInner() {
             {!profileReady && (
               <div style={{ display: "flex", alignItems: "flex-start", gap: 9, marginBottom: 12, padding: "11px 13px", border: "1px solid var(--border-strong)", borderRadius: "var(--r-md)", background: "var(--surface-2)" }}>
                 <AlertCircle size={15} style={{ color: "var(--fg-3)", flexShrink: 0, marginTop: 1 }} />
-                <p style={{ margin: 0, fontSize: 12.5, lineHeight: 1.5, color: "var(--fg-2)" }}>
+                <p style={{ margin: 0, fontSize: 14, lineHeight: 1.5, color: "var(--fg-2)" }}>
                   Completa el <strong>email de cobros</strong> y los <strong>datos de facturación</strong> para poder elegir un plan. Los necesitamos para emitir la factura electrónica de cada cobro.
                 </p>
               </div>
@@ -454,7 +454,7 @@ function SuscripcionPageInner() {
               <div style={{ display: "flex", alignItems: "flex-start", gap: 9, marginBottom: 12, padding: "11px 13px", border: "1px solid var(--border-strong)", borderRadius: "var(--r-md)", background: "var(--surface-2)" }}>
                 <AlertCircle size={15} style={{ color: "var(--fg-3)", flexShrink: 0, marginTop: 1 }} />
                 <div style={{ display: "grid", gap: 9, minWidth: 0 }}>
-                  <p style={{ margin: 0, fontSize: 12.5, lineHeight: 1.5, color: "var(--fg-2)" }}>
+                  <p style={{ margin: 0, fontSize: 14, lineHeight: 1.5, color: "var(--fg-2)" }}>
                     Cambio agendado a <strong>{PLANS.find(p => p.key === sub.scheduled_plan_key)?.name ?? sub.scheduled_plan_key}</strong> el {fmtDate(sub.scheduled_plan_at ?? sub.current_period_end)}. Hasta entonces conservas {currentPlan?.name ?? sub.plan_key} y no habrá cobros adicionales.
                   </p>
                   <button
@@ -466,7 +466,7 @@ function SuscripcionPageInner() {
                       display: "inline-flex", alignItems: "center", gap: 6,
                       border: "1px solid var(--border-strong)", borderRadius: "var(--r-md)",
                       background: "var(--surface-1)", color: "var(--fg-1)",
-                      fontSize: 12, fontWeight: 600, fontFamily: "inherit",
+                      fontSize: 14, fontWeight: 400, fontFamily: "inherit",
                       cursor: cancelandoAgendado ? "default" : "pointer",
                     }}
                   >
@@ -509,23 +509,23 @@ function SuscripcionPageInner() {
                   >
                     <div>
                       <p style={{ ...sectionLabel, color: "var(--fg-2)" }}>{p.name}</p>
-                      <p style={{ fontSize: 12, color: "var(--fg-4)", margin: "2px 0 0" }}>{p.tagline}</p>
+                      <p style={{ fontSize: 14, color: "var(--fg-4)", margin: "2px 0 0" }}>{p.tagline}</p>
                     </div>
                     <div>
                       <div style={{ display: "flex", alignItems: "baseline", gap: 4, flexWrap: "wrap" }}>
-                        <p style={{ fontSize: 22, fontWeight: 700, color: "var(--fg-1)", margin: 0 }}>{fmtCLP(precioTarjeta)}</p>
-                        <p style={{ fontSize: 12, color: "var(--fg-4)", margin: 0 }}>+ IVA / usuario activo / mes</p>
+                        <p style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", margin: 0 }}>{fmtCLP(precioTarjeta)}</p>
+                        <p style={{ fontSize: 14, color: "var(--fg-4)", margin: 0 }}>+ IVA / usuario activo / mes</p>
                         {precioTarjeta !== p.pricePerUser && (
-                          <p style={{ fontSize: 12, color: "var(--fg-4)", margin: 0, textDecoration: "line-through" }}>{fmtCLP(p.pricePerUser)}</p>
+                          <p style={{ fontSize: 14, color: "var(--fg-4)", margin: 0, textDecoration: "line-through" }}>{fmtCLP(p.pricePerUser)}</p>
                         )}
                       </div>
-                      <p style={{ fontSize: 12, color: "var(--fg-3)", margin: "4px 0 0", overflowWrap: "anywhere" }}>
+                      <p style={{ fontSize: 14, color: "var(--fg-3)", margin: "4px 0 0", overflowWrap: "anywhere" }}>
                         Hoy serían {fmtCLP(desglosarNeto(preview).bruto)} al mes con IVA, con {activeUsers} {activeUsers === 1 ? "usuario" : "usuarios"}.
                       </p>
                     </div>
                     <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 5 }}>
                       {p.highlights.map(h => (
-                        <li key={h} style={{ display: "flex", alignItems: "start", gap: 6, fontSize: 12, color: "var(--fg-1)" }}>
+                        <li key={h} style={{ display: "flex", alignItems: "start", gap: 6, fontSize: 14, color: "var(--fg-1)" }}>
                           <Check size={12} style={{ color: "var(--brand)", flexShrink: 0, marginTop: 2 }} />
                           <span style={{ flex: 1, minWidth: 0, overflowWrap: "anywhere" }}>{h}</span>
                         </li>
@@ -569,7 +569,7 @@ function SuscripcionPageInner() {
                 );
               })}
             </div>
-            <p style={{ fontSize: 12, color: "var(--fg-4)", margin: "12px 0 0", display: "flex", alignItems: "center", gap: 6 }}>
+            <p style={{ fontSize: 14, color: "var(--fg-4)", margin: "12px 0 0", display: "flex", alignItems: "center", gap: 6 }}>
               <CreditCard size={12} /> Al elegir un plan te llevamos a Flow.cl para inscribir tu tarjeta. El primer cobro se hace al inscribirla y los siguientes se cargan automáticamente cada mes.{isTrial ? " Al contratar termina la prueba gratis: el plan elegido se activa y se cobra de inmediato." : ""}
             </p>
           </div>
@@ -608,7 +608,7 @@ function SuscripcionPageInner() {
             <div style={{ paddingTop: 4, borderTop: "1px solid var(--border)" }}>
               {confirmCancel ? (
                 <div style={{ ...card, borderColor: "var(--danger)", marginTop: 16 }}>
-                  <p style={{ fontSize: 13, color: "var(--fg-1)", margin: "0 0 10px" }}>
+                  <p style={{ fontSize: 14, color: "var(--fg-1)", margin: "0 0 10px" }}>
                     ¿Cancelar la suscripción? Mantendrás acceso hasta el {fmtDate(sub?.current_period_end ?? null)} y no habrá nuevos cobros.
                   </p>
                   <div style={{ display: "flex", gap: 8 }}>
@@ -642,8 +642,8 @@ function BillingTab({ selected, onClick, children }: { selected: boolean; onClic
         background: selected ? "var(--surface-1)" : "transparent",
         color: selected ? "var(--fg-1)" : "var(--fg-3)",
         boxShadow: selected ? "var(--shadow-sm)" : "none",
-        fontSize: 13,
-        fontWeight: 600,
+        fontSize: 14,
+        fontWeight: 400,
         cursor: "pointer",
         whiteSpace: "nowrap",
       }}
@@ -661,8 +661,8 @@ function Notice({ kind, onClose, children }: { kind: "ok" | "err"; onClose?: () 
       background: kind === "ok" ? "var(--success-bg)" : "var(--danger-bg)",
       border: `1px solid ${kind === "ok" ? "var(--success)" : "var(--danger)"}`,
       color: kind === "ok" ? "var(--st-done-fg)" : "var(--danger)",
-      fontSize: 13,
-      fontWeight: 500,
+      fontSize: 14,
+      fontWeight: 400,
       display: "flex",
       alignItems: "center",
       gap: 8,
@@ -697,20 +697,20 @@ function BillingDisclosure({
         <MiniStat label={canceled ? "Acceso hasta" : "Renovación"} value={periodEnd ? fmtDate(periodEnd) : "Mensual"} />
       </div>
       {estimatedCost > 0 && (
-        <p style={{ fontSize: 12.5, lineHeight: 1.55, color: "var(--fg-3)", margin: 0 }}>
+        <p style={{ fontSize: 14, lineHeight: 1.55, color: "var(--fg-3)", margin: 0 }}>
           Desglose del total estimado: {textoDesglose(estimatedCost)}.
         </p>
       )}
-      <p style={{ fontSize: 12.5, lineHeight: 1.55, color: "var(--fg-2)", margin: 0 }}>
+      <p style={{ fontSize: 14, lineHeight: 1.55, color: "var(--fg-2)", margin: 0 }}>
         Al activar o cambiar un plan aceptas el cobro mensual en CLP según el plan elegido y la cantidad de usuarios activos del workspace. <strong>El cobro se carga automáticamente a la tarjeta que inscribas en Flow.cl</strong>, cada mes y sin acción de tu parte; el acceso se mantiene mientras el pago esté al día. Puedes desactivar usuarios antes del siguiente ciclo para ajustar el cobro, cambiar la tarjeta desde esta pantalla, y cancelar la suscripción manteniendo acceso hasta el fin del periodo pagado.
       </p>
-      <p style={{ fontSize: 12.5, lineHeight: 1.55, color: "var(--fg-2)", margin: 0 }}>
+      <p style={{ fontSize: 14, lineHeight: 1.55, color: "var(--fg-2)", margin: 0 }}>
         Los pagos se procesan a través de Flow.cl. Por cada cobro emitimos una <strong>factura electrónica afecta a IVA</strong> ante el SII, disponible para descargar desde esta pantalla. <strong>Los precios publicados no incluyen IVA (19%)</strong>: el impuesto se agrega al momento del cobro y el total a pagar aparece en el desglose de más arriba. Si tu empresa es contribuyente de IVA, la factura da derecho a crédito fiscal por el impuesto desglosado en ella.
       </p>
       {/* Sin checkbox: el consentimiento queda por acción. El aviso está a la
           vista y contratar es el acto de aceptación, que es como opera el resto
           del checkout. */}
-      <p style={{ fontSize: 12.5, lineHeight: 1.5, color: "var(--fg-3)", margin: 0 }}>
+      <p style={{ fontSize: 14, lineHeight: 1.5, color: "var(--fg-3)", margin: 0 }}>
         Al elegir un plan aceptas los <Link href="/terminos" target="_blank" style={linkStyle}>Términos y Condiciones</Link> y la <Link href="/privacidad" target="_blank" style={linkStyle}>Política de Privacidad</Link>, y el cobro mensual automático por usuarios activos a la tarjeta inscrita en Flow.cl. Pangui no almacena los datos de tu tarjeta: los procesa y guarda Flow.cl.
       </p>
     </div>
@@ -720,8 +720,8 @@ function BillingDisclosure({
 function MiniStat({ label, value }: { label: string; value: string }) {
   return (
     <div style={{ border: "1px solid var(--border)", borderRadius: "var(--r-md)", padding: "10px 12px", background: "var(--surface-0)" }}>
-      <p style={{ fontSize: 11, color: "var(--fg-4)", margin: "0 0 3px", textTransform: "uppercase", fontWeight: 700 }}>{label}</p>
-      <p style={{ fontSize: 13, color: "var(--fg-1)", margin: 0, fontWeight: 700 }}>{value}</p>
+      <p style={{ fontSize: 14, color: "var(--fg-4)", margin: "0 0 3px", textTransform: "uppercase", fontWeight: 400 }}>{label}</p>
+      <p style={{ fontSize: 14, color: "var(--fg-1)", margin: 0, fontWeight: 400 }}>{value}</p>
     </div>
   );
 }
@@ -729,8 +729,8 @@ function MiniStat({ label, value }: { label: string; value: string }) {
 function Row({ label, value, bold }: { label: string; value: string; bold?: boolean }) {
   return (
     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
-      <span style={{ fontSize: 12, color: "var(--fg-4)" }}>{label}</span>
-      <span style={{ fontSize: bold ? 15 : 13, fontWeight: bold ? 700 : 500, color: "var(--fg-1)", textAlign: "right" }}>{value}</span>
+      <span style={{ fontSize: 14, color: "var(--fg-4)" }}>{label}</span>
+      <span style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", textAlign: "right" }}>{value}</span>
     </div>
   );
 }
@@ -752,7 +752,7 @@ function CardRow({
 
   return (
     <div style={{ display: "grid", gap: 10, marginTop: 4 }}>
-      <span style={{ fontSize: 12, color: "var(--fg-4)" }}>Medio de pago</span>
+      <span style={{ fontSize: 14, color: "var(--fg-4)" }}>Medio de pago</span>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 14, alignItems: "stretch" }}>
         <PaymentCardPreview
           brand={displayBrand}
@@ -776,8 +776,8 @@ function CardRow({
           <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
             <ShieldCheck size={16} style={{ color: "var(--success)", flexShrink: 0, marginTop: 2 }} />
             <div style={{ flex: 1, minWidth: 0 }}>
-              <p style={{ fontSize: 13, fontWeight: 700, color: "var(--fg-1)", margin: 0, overflowWrap: "anywhere" }}>Procesada por Flow.cl</p>
-              <p style={{ fontSize: 12, color: "var(--fg-3)", margin: "3px 0 0", lineHeight: 1.45, overflowWrap: "anywhere" }}>
+              <p style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", margin: 0, overflowWrap: "anywhere" }}>Procesada por Flow.cl</p>
+              <p style={{ fontSize: 14, color: "var(--fg-3)", margin: "3px 0 0", lineHeight: 1.45, overflowWrap: "anywhere" }}>
                 Pangui solo guarda la marca y los últimos 4 dígitos para identificar el medio de pago.
               </p>
             </div>
@@ -785,7 +785,7 @@ function CardRow({
 
           {confirmRemove ? (
             <div style={{ display: "grid", gap: 8 }}>
-              <p style={{ fontSize: 12, color: "var(--fg-2)", margin: 0 }}>¿Quitar esta tarjeta? Necesitarás registrar otra antes del próximo cobro.</p>
+              <p style={{ fontSize: 14, color: "var(--fg-2)", margin: 0 }}>¿Quitar esta tarjeta? Necesitarás registrar otra antes del próximo cobro.</p>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 <button type="button" onClick={onRemove} disabled={busy} style={smallDanger}>
                   {removing ? <Loader2 size={11} className="animate-spin" /> : "Sí, quitar"}
@@ -820,7 +820,7 @@ function EmptyCardRow({
   const isManual = payMode === "manual";
   return (
     <div style={{ display: "grid", gap: 10, marginTop: 4 }}>
-      <span style={{ fontSize: 12, color: "var(--fg-4)" }}>Medio de pago</span>
+      <span style={{ fontSize: 14, color: "var(--fg-4)" }}>Medio de pago</span>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 14, alignItems: "stretch" }}>
         <PaymentCardPreview brand={isManual ? "Pago manual" : "Tarjeta"} last4={null} email={null} empty />
 
@@ -839,10 +839,10 @@ function EmptyCardRow({
           <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
             <ShieldCheck size={16} style={{ color: "var(--brand)", flexShrink: 0, marginTop: 2 }} />
             <div style={{ flex: 1, minWidth: 0 }}>
-              <p style={{ fontSize: 13, fontWeight: 700, color: "var(--fg-1)", margin: 0, overflowWrap: "anywhere" }}>
+              <p style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", margin: 0, overflowWrap: "anywhere" }}>
                 {isManual ? "Pago manual en Flow.cl" : "Datos de tarjeta no disponibles"}
               </p>
-              <p style={{ fontSize: 12, color: "var(--fg-3)", margin: "3px 0 0", lineHeight: 1.45, overflowWrap: "anywhere" }}>
+              <p style={{ fontSize: 14, color: "var(--fg-3)", margin: "3px 0 0", lineHeight: 1.45, overflowWrap: "anywhere" }}>
                 {isManual
                   ? "Este cliente no tiene una tarjeta automática para quitar. Puedes cambiar el medio de pago registrando una tarjeta en Flow.cl."
                   : "Si tu plan está activo, la tarjeta puede estar registrada en Flow.cl aunque Pangui aún no tenga marca y últimos 4 sincronizados. Pangui nunca solicita ni guarda número completo o CVC."}
@@ -972,10 +972,10 @@ function PaymentCardPreview({
           <motion.div style={{ ...cornerLight, bottom: -54, right: -54, opacity: brOpacity, scale: brScale }} />
           <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
             <div>
-              <p style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--fg-3)", margin: 0 }}>
+              <p style={{ fontSize: 14, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--fg-3)", margin: 0 }}>
                 {empty ? "Tarjeta" : "Tarjeta guardada"}
               </p>
-              <p style={{ fontSize: 16, fontWeight: 800, margin: "4px 0 0", color: "var(--fg-1)" }}>
+              <p style={{ fontSize: 14, fontWeight: 400, margin: "4px 0 0", color: "var(--fg-1)" }}>
                 {empty ? "Sin registrar" : brand}
               </p>
             </div>
@@ -988,9 +988,9 @@ function PaymentCardPreview({
 
           <p style={{
             fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
-            fontSize: 20,
+            fontSize: 14,
             letterSpacing: "0.08em",
-            fontWeight: 700,
+            fontWeight: 400,
             margin: "38px 0 28px",
             color: "var(--fg-1)",
             opacity: empty ? 0.55 : 1,
@@ -1000,10 +1000,10 @@ function PaymentCardPreview({
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 14, alignItems: "end" }}>
             <div style={{ minWidth: 0 }}>
-              <p style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--fg-3)", margin: "0 0 4px" }}>
+              <p style={{ fontSize: 14, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--fg-3)", margin: "0 0 4px" }}>
                 {empty ? "Procesador" : "Cuenta"}
               </p>
-              <p style={{ fontSize: 12, fontWeight: 700, margin: 0, color: "var(--fg-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              <p style={{ fontSize: 14, fontWeight: 400, margin: 0, color: "var(--fg-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                 {empty ? "Flow.cl" : email ?? "Facturación Pangui"}
               </p>
             </div>
@@ -1027,7 +1027,7 @@ function normalizeCardBrand(brand: string | null): string {
 
 function Centered({ children }: { children: React.ReactNode }) {
   return (
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100dvh", gap: 8, color: "var(--fg-4)", fontSize: 13 }}>
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100dvh", gap: 8, color: "var(--fg-4)", fontSize: 14 }}>
       {children}
     </div>
   );
@@ -1071,11 +1071,11 @@ function ConfirmarCambioPlan({ resumen, trabajando, onCancelar, onConfirmar }: {
         background: "var(--surface-1)", boxShadow: "var(--shadow-lg)",
       }}>
         <div style={{ padding: "18px 18px 0" }}>
-          <h2 style={{ margin: 0, fontSize: 17, color: "var(--fg-1)" }}>{resumen.titulo}</h2>
+          <h2 style={{ margin: 0, fontSize: 14, color: "var(--fg-1)" }}>{resumen.titulo}</h2>
         </div>
 
         <div style={{ padding: 18, display: "grid", gap: 12 }}>
-          <p style={{ margin: 0, fontSize: 13.5, lineHeight: 1.55, color: "var(--fg-1)" }}>
+          <p style={{ margin: 0, fontSize: 14, lineHeight: 1.55, color: "var(--fg-1)" }}>
             {resumen.detalle}
           </p>
 
@@ -1086,14 +1086,14 @@ function ConfirmarCambioPlan({ resumen, trabajando, onCancelar, onConfirmar }: {
               background: "var(--st-wait-bg)",
             }}>
               <AlertCircle size={15} style={{ color: "var(--warning)", flexShrink: 0, marginTop: 1 }} />
-              <p style={{ margin: 0, fontSize: 12.5, lineHeight: 1.5, color: "var(--fg-1)" }}>
+              <p style={{ margin: 0, fontSize: 14, lineHeight: 1.5, color: "var(--fg-1)" }}>
                 {resumen.advertencia}
               </p>
             </div>
           )}
 
           {resumen.reversible && resumen.tipo === "bajada" && (
-            <p style={{ margin: 0, fontSize: 12.5, lineHeight: 1.5, color: "var(--fg-3)" }}>
+            <p style={{ margin: 0, fontSize: 14, lineHeight: 1.5, color: "var(--fg-3)" }}>
               Puedes cancelar este cambio en cualquier momento antes de esa fecha.
             </p>
           )}
@@ -1157,8 +1157,8 @@ function CheckoutRedirectOverlay({ planKey }: { planKey: RedirectAction }) {
           <ShieldCheck size={26} style={{ color: "var(--brand)" }} />
           <Loader2 size={56} className="animate-spin" style={{ position: "absolute", color: "var(--brand)", opacity: 0.35 }} />
         </div>
-        <h2 style={{ fontSize: 18, fontWeight: 700, color: "var(--fg-1)", margin: "0 0 8px" }}>{title}</h2>
-        <p style={{ fontSize: 13.5, color: "var(--fg-2)", margin: 0, lineHeight: 1.55 }}>{body}</p>
+        <h2 style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", margin: "0 0 8px" }}>{title}</h2>
+        <p style={{ fontSize: 14, color: "var(--fg-2)", margin: 0, lineHeight: 1.55 }}>{body}</p>
         <div style={{
           marginTop: 22,
           padding: "12px 14px",
@@ -1167,7 +1167,7 @@ function CheckoutRedirectOverlay({ planKey }: { planKey: RedirectAction }) {
           borderRadius: "var(--r-md)",
           boxSizing: "border-box",
           width: "100%",
-          fontSize: 12,
+          fontSize: 14,
           lineHeight: 1.45,
           color: "var(--fg-3)",
           display: "grid",
@@ -1213,7 +1213,7 @@ function statusPill(s: string): React.CSSProperties {
     basic_free: { bg: "var(--st-wait-bg)", fg: "var(--st-wait-fg)" },
   };
   const c = palette[s] ?? palette.active;
-  return { fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 999, background: c.bg, color: c.fg, border: "1px solid var(--border-strong)", whiteSpace: "nowrap" };
+  return { fontSize: 14, fontWeight: 400, padding: "3px 10px", borderRadius: 999, background: c.bg, color: c.fg, border: "1px solid var(--border-strong)", whiteSpace: "nowrap" };
 }
 
 const card: React.CSSProperties = {
@@ -1225,8 +1225,8 @@ const card: React.CSSProperties = {
 };
 
 const sectionLabel: React.CSSProperties = {
-  fontSize: 12,
-  fontWeight: 700,
+  fontSize: 14,
+  fontWeight: 400,
   color: "var(--fg-2)",
   margin: 0,
   textTransform: "uppercase",
@@ -1239,8 +1239,8 @@ const ghostBtn: React.CSSProperties = {
   border: "1px solid var(--border)",
   borderRadius: "var(--r-md)",
   background: "var(--surface-1)",
-  fontSize: 13,
-  fontWeight: 600,
+  fontSize: 14,
+  fontWeight: 400,
   color: "var(--fg-1)",
   cursor: "pointer",
   fontFamily: "inherit",
@@ -1252,8 +1252,8 @@ const dangerBtn: React.CSSProperties = {
   border: "none",
   borderRadius: "var(--r-md)",
   background: "var(--danger)",
-  fontSize: 13,
-  fontWeight: 600,
+  fontSize: 14,
+  fontWeight: 400,
   color: "var(--surface-1)",
   cursor: "pointer",
   fontFamily: "inherit",
@@ -1280,8 +1280,8 @@ const primaryBtn: React.CSSProperties = {
   height: 38,
   border: "none",
   borderRadius: "var(--r-md)",
-  fontSize: 13,
-  fontWeight: 600,
+  fontSize: 14,
+  fontWeight: 400,
   fontFamily: "inherit",
   display: "flex",
   alignItems: "center",
@@ -1295,8 +1295,8 @@ const smallGhost: React.CSSProperties = {
   gap: 4,
   height: 26,
   padding: "0 8px",
-  fontSize: 11,
-  fontWeight: 600,
+  fontSize: 14,
+  fontWeight: 400,
   color: "var(--fg-2)",
   background: "var(--surface-1)",
   border: "1px solid var(--border)",
@@ -1334,8 +1334,8 @@ const flowBadge: React.CSSProperties = {
   border: "1px solid var(--border)",
   borderRadius: 999,
   padding: "5px 8px",
-  fontSize: 10,
-  fontWeight: 800,
+  fontSize: 14,
+  fontWeight: 400,
   letterSpacing: "0.08em",
   color: "var(--fg-2)",
   background: "var(--surface-0)",
@@ -1343,6 +1343,6 @@ const flowBadge: React.CSSProperties = {
 
 const linkStyle: React.CSSProperties = {
   color: "var(--brand)",
-  fontWeight: 700,
+  fontWeight: 400,
   textDecoration: "none",
 };

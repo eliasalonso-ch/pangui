@@ -95,10 +95,10 @@ function WelcomeToastInner({ variant }: { variant: Variant }) {
         <Sparkles size={18} />
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <p style={{ margin: 0, fontSize: 14, fontWeight: 700, letterSpacing: "-0.01em" }}>
+        <p style={{ margin: 0, fontSize: 14, fontWeight: 400, letterSpacing: "-0.01em" }}>
           {title}
         </p>
-        <p style={{ margin: "3px 0 0", fontSize: 12.5, color: "rgba(255,255,255,0.85)", lineHeight: 1.45 }}>
+        <p style={{ margin: "3px 0 0", fontSize: 14, color: "rgba(255,255,255,0.85)", lineHeight: 1.45 }}>
           {body}
         </p>
       </div>

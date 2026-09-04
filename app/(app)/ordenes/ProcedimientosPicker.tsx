@@ -71,25 +71,25 @@ export default function ProcedimientosPicker({
 
   const linkStyle: React.CSSProperties = {
     background: "none", border: "none", padding: 0, cursor: "pointer",
-    fontSize: 13, fontWeight: 600, color: "var(--brand)", fontFamily: "inherit",
+    fontSize: 14, fontWeight: 400, color: "var(--brand)", fontFamily: "inherit",
   };
 
   return (
     <div>
-      <div style={{ fontSize: 13, fontWeight: 600, color: "var(--fg-3)", letterSpacing: "0.01em", marginBottom: 10 }}>
+      <div style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-3)", letterSpacing: "0.01em", marginBottom: 10 }}>
         Procedimiento
       </div>
 
       {value.length === 0 ? (
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, padding: "18px 12px", border: "1px dashed var(--border-strong)", borderRadius: "var(--r-md)", background: "var(--surface-canvas)" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 13, color: "var(--fg-3)" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 14, color: "var(--fg-3)" }}>
             <ClipboardCheck size={15} style={{ color: "var(--brand)" }} />
             Crear o adjuntar nuevo Procedimiento
           </div>
           <button
             type="button"
             onClick={openPicker}
-            style={{ height: 38, padding: "0 18px", display: "flex", alignItems: "center", gap: 7, border: "1px solid var(--brand)", borderRadius: "var(--r-sm)", background: "var(--surface-1)", color: "var(--brand)", fontSize: 13.5, fontWeight: 700, fontFamily: "inherit", cursor: "pointer" }}
+            style={{ height: 38, padding: "0 18px", display: "flex", alignItems: "center", gap: 7, border: "1px solid var(--brand)", borderRadius: "var(--r-sm)", background: "var(--surface-1)", color: "var(--brand)", fontSize: 14, fontWeight: 400, fontFamily: "inherit", cursor: "pointer" }}
           >
             <Plus size={15} /> Añadir Procedimiento
           </button>
@@ -102,10 +102,10 @@ export default function ProcedimientosPicker({
                 <ClipboardCheck size={17} />
               </span>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 13.5, fontWeight: 700, color: "var(--fg-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                <div style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                   {proc.nombre}
                 </div>
-                <div style={{ fontSize: 12, color: "var(--fg-3)", marginTop: 1 }}>
+                <div style={{ fontSize: 14, color: "var(--fg-3)", marginTop: 1 }}>
                   {proc.pasos_count != null ? `${proc.pasos_count} campos · ` : ""}De la biblioteca de Procedimiento
                 </div>
               </div>
@@ -135,7 +135,7 @@ export default function ProcedimientosPicker({
               </button>
             </div>
           ))}
-          <button type="button" onClick={openPicker} style={{ ...linkStyle, display: "flex", alignItems: "center", gap: 7, fontSize: 13.5, fontWeight: 700 }}>
+          <button type="button" onClick={openPicker} style={{ ...linkStyle, display: "flex", alignItems: "center", gap: 7, fontSize: 14, fontWeight: 400 }}>
             <Plus size={16} /> Añadir otro Procedimiento
           </button>
         </div>
@@ -150,7 +150,7 @@ export default function ProcedimientosPicker({
         >
           <div role="dialog" aria-modal="true" aria-label="Añadir procedimiento" style={{ width: "min(620px, 100%)", maxHeight: "min(760px, calc(100vh - 48px))", display: "flex", flexDirection: "column", background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: "var(--r-xl)", boxShadow: "var(--shadow-lg)" }}>
             <div style={{ height: 58, padding: "0 16px 0 20px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid var(--border)", flexShrink: 0 }}>
-              <div style={{ fontSize: 16, fontWeight: 700, color: "var(--fg-1)" }}>Añadir Procedimiento</div>
+              <div style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)" }}>Añadir Procedimiento</div>
               <button type="button" onClick={closePicker} aria-label="Cerrar" style={{ width: 34, height: 34, borderRadius: "50%", border: "1px solid var(--border)", background: "var(--surface-0)", color: "var(--fg-1)", display: "grid", placeItems: "center", cursor: "pointer" }}>
                 <X size={18} />
               </button>
@@ -172,7 +172,7 @@ export default function ProcedimientosPicker({
             </div>
 
             <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "0 20px" }}>
-              <div style={{ fontSize: 12.5, fontWeight: 700, color: "var(--fg-2)", marginBottom: 10 }}>
+              <div style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-2)", marginBottom: 10 }}>
                 Todos Procedimientos
               </div>
               {loading ? (
@@ -180,7 +180,7 @@ export default function ProcedimientosPicker({
                   <Loader2 size={18} className="animate-spin" style={{ color: "var(--fg-4)" }} />
                 </div>
               ) : results.length === 0 ? (
-                <div style={{ fontSize: 13, color: "var(--fg-4)", padding: "24px 0", textAlign: "center" }}>
+                <div style={{ fontSize: 14, color: "var(--fg-4)", padding: "24px 0", textAlign: "center" }}>
                   {library.length === 0
                     ? "No hay procedimientos en la biblioteca."
                     : query.trim()
@@ -207,10 +207,10 @@ export default function ProcedimientosPicker({
                           <ClipboardCheck size={17} />
                         </span>
                         <span style={{ flex: 1, minWidth: 0 }}>
-                          <span style={{ display: "block", fontSize: 13.5, fontWeight: 600, color: "var(--fg-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          <span style={{ display: "block", fontSize: 14, fontWeight: 400, color: "var(--fg-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                             {p.nombre}
                           </span>
-                          <span style={{ display: "block", fontSize: 12, color: "var(--fg-3)", marginTop: 1 }}>
+                          <span style={{ display: "block", fontSize: 14, color: "var(--fg-3)", marginTop: 1 }}>
                             {p.pasos_count} campos{p.categoria ? ` · ${p.categoria}` : ""}
                           </span>
                         </span>
@@ -230,7 +230,7 @@ export default function ProcedimientosPicker({
                   height: 42, padding: "0 20px", border: "none", borderRadius: "var(--r-md)",
                   background: picked.length ? "var(--brand)" : "var(--surface-2)",
                   color: picked.length ? "var(--fg-on-brand)" : "var(--fg-4)",
-                  fontSize: 13.5, fontWeight: 700, fontFamily: "inherit",
+                  fontSize: 14, fontWeight: 400, fontFamily: "inherit",
                   cursor: picked.length ? "pointer" : "default",
                 }}
               >
@@ -250,8 +250,8 @@ export default function ProcedimientosPicker({
         >
           <div role="dialog" aria-modal="true" aria-label="Eliminar procedimiento" style={{ width: "min(460px, 100%)", background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: "var(--r-xl)", boxShadow: "var(--shadow-lg)" }}>
             <div style={{ padding: "20px 24px 0" }}>
-              <div style={{ fontSize: 16, fontWeight: 700, color: "var(--fg-1)", marginBottom: 8 }}>¿Elimine procedimiento?</div>
-              <p style={{ margin: 0, fontSize: 13.5, lineHeight: 1.5, color: "var(--fg-2)" }}>
+              <div style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", marginBottom: 8 }}>¿Elimine procedimiento?</div>
+              <p style={{ margin: 0, fontSize: 14, lineHeight: 1.5, color: "var(--fg-2)" }}>
                 ¿Estás seguro de que quieres eliminar el procedimiento adjunto? La
                 información introducida en el procedimiento se perderá.
               </p>
@@ -261,7 +261,7 @@ export default function ProcedimientosPicker({
               <button
                 type="button"
                 onClick={() => { onChange(value.filter(v => v.id !== confirmRemove.id)); setConfirmRemove(null); }}
-                style={{ height: 40, padding: "0 20px", border: "none", borderRadius: "var(--r-md)", background: "var(--brand)", color: "var(--fg-on-brand)", fontSize: 13.5, fontWeight: 700, fontFamily: "inherit", cursor: "pointer" }}
+                style={{ height: 40, padding: "0 20px", border: "none", borderRadius: "var(--r-md)", background: "var(--brand)", color: "var(--fg-on-brand)", fontSize: 14, fontWeight: 400, fontFamily: "inherit", cursor: "pointer" }}
               >
                 Confirmar
               </button>

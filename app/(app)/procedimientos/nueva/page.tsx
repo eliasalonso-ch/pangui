@@ -34,7 +34,7 @@ export default function NuevaProcedimientoPage() {
         border: "1px solid var(--border)", borderRadius: 14,
         boxShadow: "var(--shadow-lg)", padding: "28px 32px 24px",
       }}>
-        <h1 style={{ fontSize: 19, fontWeight: 700, color: "var(--fg-1)", margin: 0 }}>
+        <h1 style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", margin: 0 }}>
           Da vida a tu nuevo procedimiento
         </h1>
 
@@ -49,7 +49,7 @@ export default function NuevaProcedimientoPage() {
         </div>
 
         <label style={labelStyle} htmlFor="proc-nombre">
-          Ponle un nombre <span style={{ color: "var(--fg-4)", fontWeight: 500 }}>(Necesario)</span>
+          Ponle un nombre <span style={{ color: "var(--fg-4)", fontWeight: 400 }}>(Necesario)</span>
         </label>
         <input
           id="proc-nombre"
@@ -76,7 +76,7 @@ export default function NuevaProcedimientoPage() {
             onClick={() => router.push("/procedimientos")}
             style={{
               height: 38, padding: "0 16px", border: "none", background: "none",
-              color: "var(--brand)", fontSize: 13.5, fontWeight: 600,
+              color: "var(--brand)", fontSize: 14, fontWeight: 400,
               cursor: "pointer", fontFamily: "inherit", borderRadius: 8,
             }}
           >
@@ -89,7 +89,7 @@ export default function NuevaProcedimientoPage() {
               height: 38, padding: "0 20px", border: "none", borderRadius: 8,
               background: canContinue ? "var(--brand)" : "var(--surface-hover)",
               color: canContinue ? "var(--fg-on-brand)" : "var(--fg-4)",
-              fontSize: 13.5, fontWeight: 600,
+              fontSize: 14, fontWeight: 400,
               cursor: canContinue ? "pointer" : "default", fontFamily: "inherit",
             }}
           >
@@ -102,7 +102,7 @@ export default function NuevaProcedimientoPage() {
 }
 
 const labelStyle: React.CSSProperties = {
-  display: "block", fontSize: 13, fontWeight: 600,
+  display: "block", fontSize: 14, fontWeight: 400,
   color: "var(--fg-1)", marginBottom: 7,
 };
 

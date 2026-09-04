@@ -64,13 +64,13 @@ export default function PapeleraView({ workspaceId }: { workspaceId: string }) {
   return (
     <div style={{ padding: "24px 28px", maxWidth: 880, margin: "0 auto" }}>
       <header style={{ marginBottom: 8 }}>
-        <p style={{ fontSize: "var(--fs-sm)", color: "var(--fg-3)", marginTop: 4 }}>
+        <p style={{ fontSize: 14, color: "var(--fg-3)", marginTop: 4 }}>
           Las órdenes eliminadas se conservan aquí 30 días antes de borrarse definitivamente. Puedes restaurarlas en cualquier momento.
         </p>
       </header>
 
       {error && (
-        <div style={{ display: "flex", alignItems: "center", gap: 8, padding: 12, background: "var(--danger-bg)", color: "var(--danger)", borderRadius: "var(--r-md)", fontSize: "var(--fs-sm)", margin: "12px 0" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, padding: 12, background: "var(--danger-bg)", color: "var(--danger)", borderRadius: "var(--r-md)", fontSize: 14, margin: "12px 0" }}>
           <AlertTriangle size={16} /> No se pudo completar la acción. Intenta de nuevo.
         </div>
       )}
@@ -82,8 +82,8 @@ export default function PapeleraView({ workspaceId }: { workspaceId: string }) {
       ) : items.length === 0 ? (
         <div style={{ textAlign: "center", padding: "64px 16px", color: "var(--fg-3)" }}>
           <Trash2 size={36} style={{ color: "var(--fg-5)", marginBottom: 12 }} />
-          <p style={{ fontSize: "var(--fs-md)", fontWeight: 600, color: "var(--fg-2)" }}>La papelera está vacía</p>
-          <p style={{ fontSize: "var(--fs-sm)", marginTop: 4 }}>Las órdenes que elimines aparecerán aquí.</p>
+          <p style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-2)" }}>La papelera está vacía</p>
+          <p style={{ fontSize: 14, marginTop: 4 }}>Las órdenes que elimines aparecerán aquí.</p>
         </div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 16 }}>
@@ -104,10 +104,10 @@ export default function PapeleraView({ workspaceId }: { workspaceId: string }) {
                 }}
               >
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: "var(--fs-sm)", fontWeight: 600, color: "var(--fg-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  <div style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     {o.numero ? `#${o.numero} · ` : ""}{o.titulo || "Sin título"}
                   </div>
-                  <div style={{ fontSize: "var(--fs-xs)", color: "var(--fg-4)", marginTop: 2 }}>
+                  <div style={{ fontSize: 14, color: "var(--fg-4)", marginTop: 2 }}>
                     Eliminada {deletedAgo((o as OrdenListItem & { deleted_at?: string }).deleted_at)}
                   </div>
                 </div>
@@ -118,7 +118,7 @@ export default function PapeleraView({ workspaceId }: { workspaceId: string }) {
                   title="Restaurar"
                   style={{
                     display: "flex", alignItems: "center", gap: 6,
-                    padding: "7px 12px", fontSize: "var(--fs-sm)", fontWeight: 500,
+                    padding: "7px 12px", fontSize: 14, fontWeight: 400,
                     color: "var(--brand-fg)", background: "var(--brand-tint)",
                     border: "1px solid var(--brand)", borderRadius: "var(--r-sm)",
                     cursor: busy ? "default" : "pointer", fontFamily: "inherit",
@@ -158,23 +158,23 @@ export default function PapeleraView({ workspaceId }: { workspaceId: string }) {
           >
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
               <AlertTriangle size={20} style={{ color: "var(--danger)" }} />
-              <h2 style={{ fontSize: "var(--fs-lg)", fontWeight: 700, color: "var(--fg-1)" }}>Eliminar definitivamente</h2>
+              <h2 style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)" }}>Eliminar definitivamente</h2>
             </div>
-            <p style={{ fontSize: "var(--fs-sm)", color: "var(--fg-3)", lineHeight: 1.5 }}>
+            <p style={{ fontSize: 14, color: "var(--fg-3)", lineHeight: 1.5 }}>
               Se eliminará <strong style={{ color: "var(--fg-1)" }}>{confirmPurge.titulo || "esta orden"}</strong> de forma permanente, junto con sus fotos. Esta acción no se puede deshacer.
             </p>
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 20 }}>
               <button
                 onClick={() => setConfirmPurge(null)}
                 disabled={!!busyId}
-                style={{ padding: "8px 14px", fontSize: "var(--fs-sm)", fontWeight: 500, color: "var(--fg-2)", background: "none", border: "1px solid var(--border)", borderRadius: "var(--r-sm)", cursor: "pointer", fontFamily: "inherit" }}
+                style={{ padding: "8px 14px", fontSize: 14, fontWeight: 400, color: "var(--fg-2)", background: "none", border: "1px solid var(--border)", borderRadius: "var(--r-sm)", cursor: "pointer", fontFamily: "inherit" }}
               >
                 Cancelar
               </button>
               <button
                 onClick={() => handlePurge(confirmPurge.id)}
                 disabled={!!busyId}
-                style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", fontSize: "var(--fs-sm)", fontWeight: 600, color: "var(--fg-on-danger, #fff)", background: "var(--danger)", border: "none", borderRadius: "var(--r-sm)", cursor: "pointer", fontFamily: "inherit" }}
+                style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", fontSize: 14, fontWeight: 400, color: "var(--fg-on-danger, #fff)", background: "var(--danger)", border: "none", borderRadius: "var(--r-sm)", cursor: "pointer", fontFamily: "inherit" }}
               >
                 {busyId ? <Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} /> : <Trash2 size={14} />} Eliminar
               </button>

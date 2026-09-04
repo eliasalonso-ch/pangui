@@ -96,8 +96,8 @@ const popoverStyle: React.CSSProperties = {
 };
 
 const labelStyle: React.CSSProperties = {
-  fontSize: "var(--fs-xs)",
-  fontWeight: 600,
+  fontSize: 14,
+  fontWeight: 400,
   color: "var(--fg-3)",
   marginBottom: 6,
 };
@@ -109,7 +109,7 @@ const inputStyle: React.CSSProperties = {
   borderRadius: "var(--r-md)",
   background: "var(--surface-1)",
   color: "var(--fg-1)",
-  fontSize: 12.5,
+  fontSize: 14,
   fontFamily: "inherit",
   outline: "none",
   boxSizing: "border-box",
@@ -142,7 +142,7 @@ function RangoPopover({ rango, onChange, onClose }: {
         onClick={() => onChange({ ...rango, modo })}
         style={{
           flex: 1, height: 30, borderRadius: "var(--r-md)", cursor: "pointer",
-          fontSize: 12.5, fontWeight: activo ? 600 : 500, fontFamily: "inherit",
+          fontSize: 14, fontWeight: 400, fontFamily: "inherit",
           border: `1px solid ${activo ? "var(--brand)" : "var(--border)"}`,
           background: activo ? "var(--brand-tint)" : "var(--surface-1)",
           color: activo ? "var(--brand-fg)" : "var(--fg-2)",
@@ -168,7 +168,7 @@ function RangoPopover({ rango, onChange, onClose }: {
             onChange={e => onChange({ ...rango, desde: fromInputDate(e.target.value), hasta })}
             style={{ ...inputStyle, flex: 1 }}
           />
-          <span style={{ color: "var(--fg-4)", fontSize: 12.5 }}>–</span>
+          <span style={{ color: "var(--fg-4)", fontSize: 14 }}>–</span>
           <input
             type="date"
             value={toInputDate(hasta)}
@@ -204,7 +204,7 @@ function RangoPopover({ rango, onChange, onClose }: {
               onChange={e => onChange({ ...rango, acumulable: e.target.checked })}
               style={{ accentColor: "var(--brand)", cursor: "pointer" }}
             />
-            <span style={{ fontSize: 12.5, color: "var(--fg-2)" }}>Fechas acumulables</span>
+            <span style={{ fontSize: 14, color: "var(--fg-2)" }}>Fechas acumulables</span>
           </label>
         </>
       )}
@@ -220,7 +220,7 @@ function RangoPopover({ rango, onChange, onClose }: {
                 onClick={() => onChange({ ...rango, agrupacion: key })}
                 style={{
                   flex: 1, height: 30, borderRadius: "var(--r-md)", cursor: "pointer",
-                  fontSize: 12.5, fontWeight: activo ? 600 : 500, fontFamily: "inherit",
+                  fontSize: 14, fontWeight: 400, fontFamily: "inherit",
                   border: `1px solid ${activo ? "var(--brand)" : "var(--border)"}`,
                   background: activo ? "var(--brand-tint)" : "var(--surface-1)",
                   color: activo ? "var(--brand-fg)" : "var(--fg-2)",
@@ -284,7 +284,7 @@ function FiltrosPopover({ filtros, onChange, onClose }: {
         style={{
           width: "100%", height: 30, borderRadius: "var(--r-md)", cursor: "pointer",
           border: "1px solid var(--border)", background: "var(--surface-1)",
-          fontSize: 12.5, fontWeight: 500, color: "var(--fg-2)", fontFamily: "inherit",
+          fontSize: 14, fontWeight: 400, color: "var(--fg-2)", fontFamily: "inherit",
         }}
       >
         Limpiar filtros
@@ -421,11 +421,11 @@ export default function HistorialOT({ workspaceId, target }: {
     <div>
       {/* Encabezado del bloque */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 12 }}>
-        <div style={{ fontSize: 13.5, fontWeight: 600, color: "var(--fg-1)" }}>
+        <div style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)" }}>
           Historial de Orden de Trabajo
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 6, position: "relative" }}>
-          <span style={{ fontSize: 12.5, color: "var(--fg-3)" }}>{etiquetaRango(desde, hasta)}</span>
+          <span style={{ fontSize: 14, color: "var(--fg-3)" }}>{etiquetaRango(desde, hasta)}</span>
           <IconBtn
             active={abierto === "rango"}
             onClick={() => setAbierto(abierto === "rango" ? null : "rango")}
@@ -462,21 +462,21 @@ export default function HistorialOT({ workspaceId, target }: {
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
               <XAxis
                 dataKey="label"
-                tick={{ fontSize: 11, fill: "var(--fg-4)" }}
+                tick={{ fontSize: 14, fill: "var(--fg-4)" }}
                 interval="preserveStartEnd"
                 minTickGap={24}
               />
-              <YAxis tick={{ fontSize: 11, fill: "var(--fg-4)" }} allowDecimals={false} />
+              <YAxis tick={{ fontSize: 14, fill: "var(--fg-4)" }} allowDecimals={false} />
               <Tooltip
                 contentStyle={{
                   background: "var(--surface-1)",
                   border: "1px solid var(--border)",
                   borderRadius: "var(--r-md)",
-                  fontSize: 12.5,
+                  fontSize: 14,
                   color: "var(--fg-1)",
                 }}
               />
-              <Legend wrapperStyle={{ fontSize: 12 }} />
+              <Legend wrapperStyle={{ fontSize: 14 }} />
               <Line type="monotone" dataKey="creadas" name="Creadas" stroke="var(--brand)" strokeWidth={2} dot={false} />
               <Line type="monotone" dataKey="completadas" name="Completadas" stroke="var(--success)" strokeWidth={2} dot={false} />
             </LineChart>
@@ -485,7 +485,7 @@ export default function HistorialOT({ workspaceId, target }: {
       </div>
 
       {error && (
-        <div style={{ padding: "8px 0", fontSize: 12.5, color: "var(--danger)" }}>{error}</div>
+        <div style={{ padding: "8px 0", fontSize: 14, color: "var(--danger)" }}>{error}</div>
       )}
 
       {/* Lista de OTs */}
@@ -496,8 +496,8 @@ export default function HistorialOT({ workspaceId, target }: {
             gap: 6, padding: "32px 16px", color: "var(--fg-4)", textAlign: "center",
           }}>
             <Inbox size={26} style={{ opacity: 0.6 }} />
-            <div style={{ fontSize: 13, fontWeight: 500, color: "var(--fg-3)" }}>Sin órdenes</div>
-            <div style={{ fontSize: 12 }}>
+            <div style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-3)" }}>Sin órdenes</div>
+            <div style={{ fontSize: 14 }}>
               {filtrosActivos ? "Ajusta los filtros" : "Todavía no hay órdenes asociadas"}
             </div>
           </div>
@@ -527,30 +527,30 @@ export default function HistorialOT({ workspaceId, target }: {
 
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{
-                    fontSize: 13.5, fontWeight: 600, color: "var(--fg-1)",
+                    fontSize: 14, fontWeight: 400, color: "var(--fg-1)",
                     overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
                   }}>
                     {o.titulo?.trim() || "Sin título"}
                   </div>
                   {o.solicitante && (
-                    <div style={{ fontSize: 11.5, color: "var(--fg-4)", marginTop: 2 }}>
+                    <div style={{ fontSize: 14, color: "var(--fg-4)", marginTop: 2 }}>
                       Solicitada por {o.solicitante}
                     </div>
                   )}
                   <div style={{ display: "inline-flex", alignItems: "center", gap: 5, marginTop: 4 }}>
                     <EstIcon size={13} color={est.color} strokeWidth={2.25} style={{ display: "block" }} />
-                    <span style={{ fontSize: "var(--fs-xs)", color: "var(--fg-2)" }}>{est.label}</span>
+                    <span style={{ fontSize: 14, color: "var(--fg-2)" }}>{est.label}</span>
                   </div>
                 </div>
 
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4, flexShrink: 0 }}>
                   {o.numero != null && (
-                    <span style={{ fontSize: 11.5, color: "var(--fg-4)" }}>#{o.numero}</span>
+                    <span style={{ fontSize: 14, color: "var(--fg-4)" }}>#{o.numero}</span>
                   )}
                   {pri.label && (
                     <span style={{
                       display: "inline-flex", alignItems: "center", gap: 5,
-                      fontSize: "var(--fs-xs)", fontWeight: 400,
+                      fontSize: 14, fontWeight: 400,
                       padding: "2px 7px",
                       border: "1px solid var(--border-strong)",
                       borderRadius: "var(--r-sm)",
@@ -576,7 +576,7 @@ export default function HistorialOT({ workspaceId, target }: {
               style={{
                 height: 34, padding: "0 14px", border: "1px solid var(--border)",
                 borderRadius: "var(--r-md)", background: "var(--surface-1)", color: "var(--fg-2)",
-                fontSize: 12, fontWeight: 700, cursor: cargandoMas ? "default" : "pointer",
+                fontSize: 14, fontWeight: 400, cursor: cargandoMas ? "default" : "pointer",
                 fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 7,
               }}
             >

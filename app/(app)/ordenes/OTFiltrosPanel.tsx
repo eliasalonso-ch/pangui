@@ -115,7 +115,7 @@ function TokenSearch({ placeholder, value, onChange, tokens, onRemove, onClearAl
               display: "inline-flex", alignItems: "center", gap: 4, maxWidth: 190,
               padding: "2px 4px 2px 7px", borderRadius: 4,
               background: "var(--brand-tint)", color: "var(--brand)",
-              fontSize: 13.5, fontWeight: 600,
+              fontSize: 14, fontWeight: 400,
             }}
           >
             <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.label}</span>
@@ -134,7 +134,7 @@ function TokenSearch({ placeholder, value, onChange, tokens, onRemove, onClearAl
           placeholder={tokens.length ? "" : placeholder}
           value={value}
           onChange={e => onChange(e.target.value)}
-          style={{ flex: 1, minWidth: 70, fontSize: 12.5, border: "none", outline: "none", background: "transparent", color: "var(--fg-1)", fontFamily: "inherit" }}
+          style={{ flex: 1, minWidth: 70, fontSize: 14, border: "none", outline: "none", background: "transparent", color: "var(--fg-1)", fontFamily: "inherit" }}
         />
         {tokens.length > 0 && (
           <button
@@ -153,7 +153,7 @@ function TokenSearch({ placeholder, value, onChange, tokens, onRemove, onClearAl
 
 /** Mensaje de lista vacía, para no repetir el mismo div en cada dropdown. */
 function SinResultados() {
-  return <div style={{ padding: "8px 12px", fontSize: 12, color: "var(--fg-4)" }}>Sin resultados</div>;
+  return <div style={{ padding: "8px 12px", fontSize: 14, color: "var(--fg-4)" }}>Sin resultados</div>;
 }
 
 function initials(n: string) {
@@ -214,7 +214,7 @@ function FilterDropdown({ label, icon, active, count, onClear, onRemove, childre
         <span style={{ display: "flex", color: "var(--brand)" }}>{icon}</span>
         {label}
         {count > 0 && (
-          <span style={{ fontSize: 10, fontWeight: 700, background: "var(--brand)", color: "var(--fg-on-brand)", borderRadius: "50%", width: 15, height: 15, display: "flex", alignItems: "center", justifyContent: "center" }}>{count}</span>
+          <span style={{ fontSize: 14, fontWeight: 400, background: "var(--brand)", color: "var(--fg-on-brand)", borderRadius: "50%", width: 15, height: 15, display: "flex", alignItems: "center", justifyContent: "center" }}>{count}</span>
         )}
       </button>
 
@@ -227,13 +227,13 @@ function FilterDropdown({ label, icon, active, count, onClear, onRemove, childre
         }}>
           {/* Dropdown header */}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "8px 12px 6px", borderBottom: "1px solid var(--border)" }}>
-            <span style={{ fontSize: 13, fontWeight: 700, color: "var(--fg-3)", letterSpacing: "0.01em" }}>{label}</span>
+            <span style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-3)", letterSpacing: "0.01em" }}>{label}</span>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               {count > 0 && (
                 <button
                   type="button"
                   onClick={onClear}
-                  style={{ fontSize: 13, color: "var(--fg-4)", background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", padding: 0 }}
+                  style={{ fontSize: 14, color: "var(--fg-4)", background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", padding: 0 }}
                 >
                   Limpiar
                 </button>
@@ -313,7 +313,7 @@ function AddFilterMenu({ available, onAdd }: {
                 placeholder="Buscar…"
                 value={q}
                 onChange={e => setQ(e.target.value)}
-                style={{ flex: 1, fontSize: 12.5, border: "none", outline: "none", background: "transparent", color: "var(--fg-1)", fontFamily: "inherit" }}
+                style={{ flex: 1, fontSize: 14, border: "none", outline: "none", background: "transparent", color: "var(--fg-1)", fontFamily: "inherit" }}
               />
             </div>
           </div>
@@ -326,7 +326,7 @@ function AddFilterMenu({ available, onAdd }: {
                 style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "8px 12px", background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}
               >
                 <span style={{ color: "var(--brand)", display: "flex" }}>{FILTER_ICONS[m.key]}</span>
-                <span style={{ flex: 1, minWidth: 0, fontSize: 13, color: "var(--fg-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m.label}</span>
+                <span style={{ flex: 1, minWidth: 0, fontSize: 14, color: "var(--fg-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m.label}</span>
               </button>
             ))}
             {shown.length === 0 && <SinResultados />}
@@ -454,10 +454,10 @@ export function FilterBar({ filtros, onChange, usuarios, ubicaciones, sociedades
             const active = filtros.asignadoIds.includes(u.id);
             return (
               <OptionRow key={u.id} active={active} onClick={() => set({ asignadoIds: toggle(filtros.asignadoIds, u.id) })}>
-                <span style={{ width: 22, height: 22, borderRadius: "50%", background: active ? "var(--brand)" : "var(--surface-hover)", color: active ? "var(--fg-on-brand)" : "var(--fg-2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 700, flexShrink: 0 }}>
+                <span style={{ width: 22, height: 22, borderRadius: "50%", background: active ? "var(--brand)" : "var(--surface-hover)", color: active ? "var(--fg-on-brand)" : "var(--fg-2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 400, flexShrink: 0 }}>
                   {initials(u.nombre)}
                 </span>
-                <span style={{ flex: 1, minWidth: 0, fontSize: 13, color: "var(--fg-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{u.nombre}</span>
+                <span style={{ flex: 1, minWidth: 0, fontSize: 14, color: "var(--fg-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{u.nombre}</span>
               </OptionRow>
             );
           })}
@@ -521,7 +521,7 @@ export function FilterBar({ filtros, onChange, usuarios, ubicaciones, sociedades
                 onClick={() => set({ fechaVencimiento: active ? null : opt.value })}
                 style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "8px 12px", background: active ? "var(--brand-tint)" : "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}
               >
-                <span style={{ fontSize: 13, color: "var(--fg-1)", flex: 1, textAlign: "left" }}>{opt.label}</span>
+                <span style={{ fontSize: 14, color: "var(--fg-1)", flex: 1, textAlign: "left" }}>{opt.label}</span>
                 {active && <Check size={12} style={{ color: "var(--brand)" }} />}
               </button>
             );
@@ -554,7 +554,7 @@ export function FilterBar({ filtros, onChange, usuarios, ubicaciones, sociedades
         <div style={{ maxHeight: 320, overflowY: "auto", padding: "2px 0 6px" }}>
           {filteredUbic.map(u => (
             <OptionRow key={u.id} active={filtros.ubicacionIds.includes(u.id)} onClick={() => set({ ubicacionIds: toggle(filtros.ubicacionIds, u.id) })}>
-              <span style={{ flex: 1, minWidth: 0, fontSize: 13, color: "var(--fg-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{u.edificio + (u.detalle ? ` · ${u.detalle}` : "")}</span>
+              <span style={{ flex: 1, minWidth: 0, fontSize: 14, color: "var(--fg-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{u.edificio + (u.detalle ? ` · ${u.detalle}` : "")}</span>
             </OptionRow>
           ))}
           {filteredUbic.length === 0 && <SinResultados />}
@@ -585,7 +585,7 @@ export function FilterBar({ filtros, onChange, usuarios, ubicaciones, sociedades
         <div style={{ maxHeight: 320, overflowY: "auto", padding: "2px 0 6px" }}>
           {filteredItos.map(ito => (
             <OptionRow key={ito} active={filtros.itos.includes(ito)} onClick={() => set({ itos: toggle(filtros.itos, ito) })}>
-              <span style={{ flex: 1, minWidth: 0, fontSize: 13, color: "var(--fg-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ito}</span>
+              <span style={{ flex: 1, minWidth: 0, fontSize: 14, color: "var(--fg-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ito}</span>
             </OptionRow>
           ))}
           {filteredItos.length === 0 && <SinResultados />}
@@ -607,7 +607,7 @@ export function FilterBar({ filtros, onChange, usuarios, ubicaciones, sociedades
           {PRIORIDADES.map(p => (
             <OptionRow key={p.value} active={filtros.prioridades.includes(p.value)} onClick={() => set({ prioridades: toggle(filtros.prioridades, p.value) })}>
               <p.icon size={15} style={{ color: p.color, flexShrink: 0 }} />
-              <span style={{ flex: 1, minWidth: 0, fontSize: 13, color: "var(--fg-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.label}</span>
+              <span style={{ flex: 1, minWidth: 0, fontSize: 14, color: "var(--fg-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.label}</span>
             </OptionRow>
           ))}
         </div>
@@ -628,7 +628,7 @@ export function FilterBar({ filtros, onChange, usuarios, ubicaciones, sociedades
           {ESTADOS.map(e => (
             <OptionRow key={e.value} active={filtros.estados.includes(e.value)} onClick={() => set({ estados: toggle(filtros.estados, e.value) })}>
               <e.icon size={15} style={{ color: e.color, flexShrink: 0 }} />
-              <span style={{ flex: 1, minWidth: 0, fontSize: 13, color: "var(--fg-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{e.label}</span>
+              <span style={{ flex: 1, minWidth: 0, fontSize: 14, color: "var(--fg-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{e.label}</span>
             </OptionRow>
           ))}
         </div>
@@ -648,7 +648,7 @@ export function FilterBar({ filtros, onChange, usuarios, ubicaciones, sociedades
         <div style={{ padding: "6px 0 8px" }}>
           {TIPOS.map(t => (
             <OptionRow key={t.value} active={filtros.tipos.includes(t.value)} onClick={() => set({ tipos: toggle(filtros.tipos, t.value) })}>
-              <span style={{ flex: 1, minWidth: 0, fontSize: 13, color: "var(--fg-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.label}</span>
+              <span style={{ flex: 1, minWidth: 0, fontSize: 14, color: "var(--fg-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.label}</span>
             </OptionRow>
           ))}
         </div>
@@ -676,7 +676,7 @@ export function FilterBar({ filtros, onChange, usuarios, ubicaciones, sociedades
           <div style={{ maxHeight: 320, overflowY: "auto", padding: "2px 0 6px" }}>
             {filteredSoc.map(s => (
               <OptionRow key={s.id} active={filtros.sociedadIds.includes(s.id)} onClick={() => set({ sociedadIds: toggle(filtros.sociedadIds, s.id) })}>
-                <span style={{ flex: 1, minWidth: 0, fontSize: 13, color: "var(--fg-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.nombre}</span>
+                <span style={{ flex: 1, minWidth: 0, fontSize: 14, color: "var(--fg-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.nombre}</span>
               </OptionRow>
             ))}
             {filteredSoc.length === 0 && <SinResultados />}
@@ -702,7 +702,7 @@ export function FilterBar({ filtros, onChange, usuarios, ubicaciones, sociedades
             display: "flex", alignItems: "center", justifyContent: "center",
             height: 34, padding: 0, flexShrink: 0,
             border: "none", background: "none", color: "var(--brand)",
-            fontSize: 12.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap",
+            fontSize: 14, fontWeight: 400, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap",
           }}
         >
           Limpiar filtros
@@ -720,7 +720,7 @@ export function FilterBar({ filtros, onChange, usuarios, ubicaciones, sociedades
 function Section({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div style={{ borderBottom: "1px solid var(--border)", paddingBottom: 14, marginBottom: 14 }}>
-      <div style={{ fontSize: 13, fontWeight: 700, color: "var(--fg-3)", letterSpacing: "0.01em", marginBottom: 8 }}>
+      <div style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-3)", letterSpacing: "0.01em", marginBottom: 8 }}>
         {label}
       </div>
       {children}
@@ -750,7 +750,7 @@ function ChipGroup<T extends string>({
               borderRadius: 4,
               background: active ? (o.color ? o.color + "20" : "var(--brand-tint)") : "var(--surface-1)",
               color: active ? (o.color ?? "var(--brand)") : "var(--fg-2)",
-              fontSize: 12, fontWeight: active ? 600 : 400,
+              fontSize: 14, fontWeight: 400,
               cursor: "pointer", display: "flex", alignItems: "center", gap: 4,
               transition: "all 0.1s", fontFamily: "inherit",
             }}

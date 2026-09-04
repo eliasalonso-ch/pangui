@@ -75,7 +75,7 @@ export function GiroSelect({ value, onChange, inputStyle, placeholder }: Props) 
 
   return (
     <div ref={contenedor} style={{ display: "grid", gap: 6, gridColumn: "1 / -1" }}>
-      <label style={{ color: "var(--fg-2)", fontSize: 12.5, fontWeight: 600 }}>Giro</label>
+      <label style={{ color: "var(--fg-2)", fontSize: 14, fontWeight: 400 }}>Giro</label>
 
       <button
         type="button"
@@ -119,7 +119,7 @@ export function GiroSelect({ value, onChange, inputStyle, placeholder }: Props) 
               placeholder="Buscar por código o actividad…"
               style={{
                 flex: 1, border: 0, outline: "none", background: "transparent",
-                color: "var(--fg-1)", fontSize: 13, fontFamily: "inherit",
+                color: "var(--fg-1)", fontSize: 14, fontFamily: "inherit",
               }}
             />
             {consulta && (
@@ -134,7 +134,7 @@ export function GiroSelect({ value, onChange, inputStyle, placeholder }: Props) 
               empuje el botón de guardar fuera de la pantalla. */}
           <div style={{ maxHeight: 220, overflowY: "auto" }}>
             {resultados.length === 0 ? (
-              <p style={{ margin: 0, padding: "14px 12px", color: "var(--fg-3)", fontSize: 12.5 }}>
+              <p style={{ margin: 0, padding: "14px 12px", color: "var(--fg-3)", fontSize: 14 }}>
                 Sin resultados para “{consulta}”.
               </p>
             ) : (
@@ -145,7 +145,7 @@ export function GiroSelect({ value, onChange, inputStyle, placeholder }: Props) 
                   onClick={() => elegir(giro.codigo)}
                   style={{
                     display: "block", width: "100%", padding: "9px 12px", border: 0,
-                    textAlign: "left", cursor: "pointer", fontFamily: "inherit", fontSize: 12.5,
+                    textAlign: "left", cursor: "pointer", fontFamily: "inherit", fontSize: 14,
                     background: giro.codigo === codigoActual ? "var(--surface-2)" : "transparent",
                     color: "var(--fg-1)", borderBottom: "1px solid var(--border)",
                   }}
@@ -160,7 +160,7 @@ export function GiroSelect({ value, onChange, inputStyle, placeholder }: Props) 
           </div>
 
           {resultados.length >= MAX_RESULTADOS && (
-            <p style={{ margin: 0, padding: "7px 12px", borderTop: "1px solid var(--border)", color: "var(--fg-4)", fontSize: 11.5 }}>
+            <p style={{ margin: 0, padding: "7px 12px", borderTop: "1px solid var(--border)", color: "var(--fg-4)", fontSize: 14 }}>
               Mostrando los primeros {MAX_RESULTADOS}. Afina la búsqueda para ver más.
             </p>
           )}

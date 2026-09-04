@@ -205,7 +205,7 @@ export default function MeconectaCheck({ onOpenOrden }: Props) {
           color: disabled ? "var(--fg-4)" : "var(--fg-2)",
           border: "none", borderRadius: "7px 0 0 7px",
           // Matches the search input's type: 14px / 500.
-          fontSize: 14, fontWeight: 500,
+          fontSize: 14, fontWeight: 400,
           cursor: disabled ? "default" : "pointer",
           fontFamily: "inherit", whiteSpace: "nowrap",
         }}
@@ -232,7 +232,7 @@ export default function MeconectaCheck({ onOpenOrden }: Props) {
             padding: "0 10px", maxWidth: 180,
             background: "transparent", color: "var(--fg-3)",
             border: "none", borderRadius: "0 7px 7px 0",
-            fontSize: 14, fontWeight: 500,
+            fontSize: 14, fontWeight: 400,
             cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap",
           }}
         >
@@ -265,7 +265,7 @@ export default function MeconectaCheck({ onOpenOrden }: Props) {
                     padding: "7px 9px", border: "none", borderRadius: 6,
                     background: periodo === p.key ? "var(--brand-tint)" : "transparent",
                     color: periodo === p.key ? "var(--brand)" : "var(--fg-2)",
-                    fontSize: 12.5, fontWeight: periodo === p.key ? 700 : 500,
+                    fontSize: 14, fontWeight: 400,
                     cursor: "pointer", fontFamily: "inherit", textAlign: "left",
                   }}
                 >
@@ -276,7 +276,7 @@ export default function MeconectaCheck({ onOpenOrden }: Props) {
 
               {periodo === "custom" && (
                 <div style={{ padding: "8px 9px 4px", borderTop: "1px solid var(--border)", marginTop: 4 }}>
-                  <label style={{ display: "block", fontSize: 13, color: "var(--fg-4)", marginBottom: 3 }}>Desde</label>
+                  <label style={{ display: "block", fontSize: 14, color: "var(--fg-4)", marginBottom: 3 }}>Desde</label>
                   <input
                     type="date"
                     value={customDesde}
@@ -286,10 +286,10 @@ export default function MeconectaCheck({ onOpenOrden }: Props) {
                       width: "100%", height: 30, marginBottom: 8, padding: "0 8px",
                       border: "1px solid var(--border)", borderRadius: 6,
                       background: "var(--surface-1)", color: "var(--fg-1)",
-                      fontSize: 12, fontFamily: "inherit",
+                      fontSize: 14, fontFamily: "inherit",
                     }}
                   />
-                  <label style={{ display: "block", fontSize: 13, color: "var(--fg-4)", marginBottom: 3 }}>Hasta</label>
+                  <label style={{ display: "block", fontSize: 14, color: "var(--fg-4)", marginBottom: 3 }}>Hasta</label>
                   <input
                     type="date"
                     value={customHasta}
@@ -299,7 +299,7 @@ export default function MeconectaCheck({ onOpenOrden }: Props) {
                       width: "100%", height: 30, marginBottom: 8, padding: "0 8px",
                       border: "1px solid var(--border)", borderRadius: 6,
                       background: "var(--surface-1)", color: "var(--fg-1)",
-                      fontSize: 12, fontFamily: "inherit",
+                      fontSize: 14, fontFamily: "inherit",
                     }}
                   />
                   <button
@@ -308,7 +308,7 @@ export default function MeconectaCheck({ onOpenOrden }: Props) {
                     style={{
                       width: "100%", height: 30, border: "none", borderRadius: 6,
                       background: "var(--brand)", color: "var(--fg-on-brand)",
-                      fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
+                      fontSize: 14, fontWeight: 400, cursor: "pointer", fontFamily: "inherit",
                     }}
                   >
                     Listo
@@ -340,7 +340,7 @@ export default function MeconectaCheck({ onOpenOrden }: Props) {
             }}
           >
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-              <div style={{ fontSize: 14, fontWeight: 700, color: "var(--fg-1)", flex: 1 }}>
+              <div style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", flex: 1 }}>
                 Revisión MeConecta
               </div>
               <button
@@ -357,7 +357,7 @@ export default function MeconectaCheck({ onOpenOrden }: Props) {
               <div style={{
                 display: "flex", gap: 8, padding: "10px 12px",
                 background: "var(--st-late-bg, #fdecec)", borderRadius: 8,
-                fontSize: 12.5, color: "var(--st-late-fg, #a13030)",
+                fontSize: 14, color: "var(--st-late-fg, #a13030)",
               }}>
                 <AlertTriangle size={14} style={{ flexShrink: 0, marginTop: 1 }} />
                 <span>{error}</span>
@@ -366,13 +366,13 @@ export default function MeconectaCheck({ onOpenOrden }: Props) {
 
             {result && !error && (
               <>
-                <div style={{ fontSize: 12, color: "var(--fg-3)", marginBottom: 4 }}>
+                <div style={{ fontSize: 14, color: "var(--fg-3)", marginBottom: 4 }}>
                   {result.portalPending} pendientes en MeConecta · {result.matched} con OT ·{" "}
                   <strong style={{ color: faltantes.length ? "var(--st-late-fg, #a13030)" : "var(--fg-3)" }}>
                     {faltantes.length} sin OT
                   </strong>
                 </div>
-                <div style={{ fontSize: 13, color: "var(--fg-4)", marginBottom: 12 }}>
+                <div style={{ fontSize: 14, color: "var(--fg-4)", marginBottom: 12 }}>
                   {result.desde || result.hasta
                     ? `Período: ${result.desde ?? "inicio"} → ${result.hasta ?? "hoy"} · ${result.portalInWindow} de ${result.portalTotal} solicitudes`
                     : `Todas las solicitudes (${result.portalTotal})`}
@@ -382,7 +382,7 @@ export default function MeconectaCheck({ onOpenOrden }: Props) {
                   <div style={{
                     display: "flex", alignItems: "center", gap: 8,
                     padding: "12px", background: "var(--st-done-bg, #eaf6ed)",
-                    borderRadius: 8, fontSize: 13, color: "var(--st-done-fg, #2b6b3f)",
+                    borderRadius: 8, fontSize: 14, color: "var(--st-done-fg, #2b6b3f)",
                   }}>
                     <Check size={15} />
                     Todo al día — no falta ninguna solicitud.
@@ -391,7 +391,7 @@ export default function MeconectaCheck({ onOpenOrden }: Props) {
 
                 {faltantes.length > 0 && (
                   <div style={{ marginBottom: huerfanas.length ? 14 : 0 }}>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: "var(--fg-2)", marginBottom: 6 }}>
+                    <div style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-2)", marginBottom: 6 }}>
                       Sin OT en Pangui ({faltantes.length})
                     </div>
                     {faltantes.map((f) => (
@@ -408,8 +408,8 @@ export default function MeconectaCheck({ onOpenOrden }: Props) {
                         }}
                       >
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontSize: 12.5, fontWeight: 600, color: "var(--fg-1)" }}>{f.folio}</div>
-                          <div style={{ fontSize: 13, color: "var(--fg-4)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          <div style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)" }}>{f.folio}</div>
+                          <div style={{ fontSize: 14, color: "var(--fg-4)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                             {[f.estado, f.fecha].filter(Boolean).join(" · ")}
                           </div>
                         </div>
@@ -421,10 +421,10 @@ export default function MeconectaCheck({ onOpenOrden }: Props) {
 
                 {huerfanas.length > 0 && (
                   <div>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: "var(--fg-2)", marginBottom: 2 }}>
+                    <div style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-2)", marginBottom: 2 }}>
                       Abiertas aquí, ya no pendientes allá ({huerfanas.length})
                     </div>
-                    <div style={{ fontSize: 13, color: "var(--fg-4)", marginBottom: 6 }}>
+                    <div style={{ fontSize: 14, color: "var(--fg-4)", marginBottom: 6 }}>
                       Revisa si corresponde cerrarlas.
                     </div>
                     {huerfanas.map((h) => (
@@ -441,10 +441,10 @@ export default function MeconectaCheck({ onOpenOrden }: Props) {
                         }}
                       >
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontSize: 12.5, fontWeight: 600, color: "var(--fg-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          <div style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                             {h.numero ? `#${h.numero} · ` : ""}{h.titulo}
                           </div>
-                          <div style={{ fontSize: 13, color: "var(--fg-4)" }}>{h.folio}</div>
+                          <div style={{ fontSize: 14, color: "var(--fg-4)" }}>{h.folio}</div>
                         </div>
                       </button>
                     ))}

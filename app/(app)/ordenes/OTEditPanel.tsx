@@ -90,7 +90,7 @@ function FieldRow({ icon, label, children }: {
         {icon}
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 12, fontWeight: 700, color: "var(--fg-3)", marginBottom: 10, letterSpacing: "0.01em" }}>
+        <div style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-3)", marginBottom: 10, letterSpacing: "0.01em" }}>
           {label}
         </div>
         {children}
@@ -130,7 +130,7 @@ function SearchSelect({ placeholder, value, options, onChange }: {
         style={{
           width: "100%", height: 40, display: "flex", alignItems: "center", gap: 8,
           padding: "0 12px", border: "1px solid var(--border)", borderRadius: 8,
-          background: "var(--surface-1)", fontSize: 13, color: selected ? "var(--fg-1)" : "var(--fg-4)",
+          background: "var(--surface-1)", fontSize: 14, color: selected ? "var(--fg-1)" : "var(--fg-4)",
           cursor: "pointer", textAlign: "left",
         }}
       >
@@ -154,7 +154,7 @@ function SearchSelect({ placeholder, value, options, onChange }: {
               style={{
                 width: "100%", height: 36, padding: "0 10px",
                 border: "1px solid var(--border)", borderRadius: 8,
-                fontSize: 12.5, outline: "none", color: "var(--fg-1)", fontFamily: "inherit",
+                fontSize: 14, outline: "none", color: "var(--fg-1)", fontFamily: "inherit",
                 background: "var(--surface-1)",
               }}
             />
@@ -165,7 +165,7 @@ function SearchSelect({ placeholder, value, options, onChange }: {
               onClick={() => { onChange(""); setOpen(false); }}
               style={{
                 display: "block", width: "100%", textAlign: "left",
-                padding: "10px 12px", fontSize: 13, color: "var(--fg-4)",
+                padding: "10px 12px", fontSize: 14, color: "var(--fg-4)",
                 background: !value ? "var(--brand-tint)" : "transparent",
                 border: "none", cursor: "pointer", fontFamily: "inherit",
               }}
@@ -179,7 +179,7 @@ function SearchSelect({ placeholder, value, options, onChange }: {
                 onClick={() => { onChange(o.id); setOpen(false); }}
                 style={{
                   display: "flex", alignItems: "center", gap: 6,
-                  width: "100%", padding: "10px 12px", fontSize: 13,
+                  width: "100%", padding: "10px 12px", fontSize: 14,
                   background: value === o.id ? "var(--brand-tint)" : "transparent",
                   border: "none", cursor: "pointer", fontFamily: "inherit",
                 }}
@@ -187,12 +187,12 @@ function SearchSelect({ placeholder, value, options, onChange }: {
                 {value === o.id && <Check size={11} style={{ color: "var(--brand)", flexShrink: 0 }} />}
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ color: "var(--fg-1)" }}>{o.label}</div>
-                  {o.sub && <div style={{ fontSize: 13, color: "var(--fg-4)" }}>{o.sub}</div>}
+                  {o.sub && <div style={{ fontSize: 14, color: "var(--fg-4)" }}>{o.sub}</div>}
                 </div>
               </button>
             ))}
             {filtered.length === 0 && (
-              <div style={{ padding: "8px 10px", fontSize: 12.5, color: "var(--fg-4)" }}>Sin resultados</div>
+              <div style={{ padding: "8px 10px", fontSize: 14, color: "var(--fg-4)" }}>Sin resultados</div>
             )}
           </div>
         </div>
@@ -237,11 +237,11 @@ function AssigneeSelect({ usuarios, value, onChange }: {
             <span key={u.id} style={{
               display: "flex", alignItems: "center", gap: 4,
               padding: "2px 7px 2px 4px", background: "var(--brand-tint)", borderRadius: 20,
-              fontSize: 13.5, color: "var(--brand)",
+              fontSize: 14, color: "var(--brand)",
             }}>
               <span style={{
                 width: 18, height: 18, borderRadius: "50%", background: "var(--brand)", color: "var(--fg-on-brand)",
-                display: "flex", alignItems: "center", justifyContent: "center", fontSize: 8, fontWeight: 700,
+                display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 400,
               }}>{initials(u.nombre)}</span>
               {u.nombre}
               <button type="button" onClick={() => toggle(u.id)}
@@ -258,7 +258,7 @@ function AssigneeSelect({ usuarios, value, onChange }: {
         style={{
           height: 40, display: "flex", alignItems: "center", gap: 8,
           padding: "0 12px", border: "1px solid var(--border)", borderRadius: 8,
-          background: "var(--surface-1)", fontSize: 13, color: "var(--fg-4)", cursor: "pointer", fontFamily: "inherit",
+          background: "var(--surface-1)", fontSize: 14, color: "var(--fg-4)", cursor: "pointer", fontFamily: "inherit",
         }}
       >
         <User size={13} />
@@ -274,7 +274,7 @@ function AssigneeSelect({ usuarios, value, onChange }: {
           <div style={{ padding: "8px 8px 4px" }}>
             <input autoFocus placeholder="Buscar por nombre…" value={query}
               onChange={e => setQuery(e.target.value)}
-              style={{ width: "100%", height: 36, padding: "0 10px", border: "1px solid var(--border)", borderRadius: 8, fontSize: 12.5, outline: "none", color: "var(--fg-1)", fontFamily: "inherit", background: "var(--surface-1)" }}
+              style={{ width: "100%", height: 36, padding: "0 10px", border: "1px solid var(--border)", borderRadius: 8, fontSize: 14, outline: "none", color: "var(--fg-1)", fontFamily: "inherit", background: "var(--surface-1)" }}
             />
           </div>
           <div style={{ maxHeight: 200, overflowY: "auto" }}>
@@ -283,18 +283,18 @@ function AssigneeSelect({ usuarios, value, onChange }: {
               return (
                 <button key={u.id} type="button" onClick={() => toggle(u.id)}
                   style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "10px 12px", background: sel ? "var(--brand-tint)" : "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}>
-                  <span style={{ width: 26, height: 26, borderRadius: "50%", background: sel ? "var(--brand)" : "var(--surface-hover)", color: sel ? "var(--fg-on-brand)" : "var(--fg-3)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 700, flexShrink: 0 }}>
+                  <span style={{ width: 26, height: 26, borderRadius: "50%", background: sel ? "var(--brand)" : "var(--surface-hover)", color: sel ? "var(--fg-on-brand)" : "var(--fg-3)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 400, flexShrink: 0 }}>
                     {initials(u.nombre)}
                   </span>
                   <div style={{ flex: 1, textAlign: "left" }}>
-                    <div style={{ fontSize: 13, fontWeight: 500, color: "var(--fg-1)" }}>{u.nombre}</div>
-                    <div style={{ fontSize: 13, color: "var(--fg-4)", textTransform: "capitalize" }}>{u.rol}</div>
+                    <div style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)" }}>{u.nombre}</div>
+                    <div style={{ fontSize: 14, color: "var(--fg-4)", textTransform: "capitalize" }}>{u.rol}</div>
                   </div>
                   {sel && <Check size={13} style={{ color: "var(--brand)", flexShrink: 0 }} />}
                 </button>
               );
             })}
-            {filtered.length === 0 && <div style={{ padding: "8px 10px", fontSize: 12.5, color: "var(--fg-4)" }}>Sin resultados</div>}
+            {filtered.length === 0 && <div style={{ padding: "8px 10px", fontSize: 14, color: "var(--fg-4)" }}>Sin resultados</div>}
           </div>
         </div>
       )}
@@ -367,7 +367,7 @@ function HitoSelect({ value, onChange, wsId }: {
         style={{
           width: "100%", height: 40, display: "flex", alignItems: "center", gap: 8,
           padding: "0 12px", border: "1px solid var(--border)", borderRadius: 8,
-          background: "var(--surface-1)", fontSize: 13, color: value ? "var(--fg-1)" : "var(--fg-4)",
+          background: "var(--surface-1)", fontSize: 14, color: value ? "var(--fg-1)" : "var(--fg-4)",
           cursor: "pointer", textAlign: "left", fontFamily: "inherit",
         }}
       >
@@ -391,7 +391,7 @@ function HitoSelect({ value, onChange, wsId }: {
               style={{
                 width: "100%", height: 36, padding: "0 10px",
                 border: "1px solid var(--border)", borderRadius: 8,
-                fontSize: 12.5, outline: "none", color: "var(--fg-1)",
+                fontSize: 14, outline: "none", color: "var(--fg-1)",
                 fontFamily: "inherit", boxSizing: "border-box", background: "var(--surface-1)",
               }}
             />
@@ -401,7 +401,7 @@ function HitoSelect({ value, onChange, wsId }: {
               <button
                 type="button"
                 onClick={() => { onChange(""); setOpen(false); }}
-                style={{ display: "block", width: "100%", textAlign: "left", padding: "10px 12px", fontSize: 13, color: "var(--fg-4)", background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}
+                style={{ display: "block", width: "100%", textAlign: "left", padding: "10px 12px", fontSize: 14, color: "var(--fg-4)", background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}
               >
                 Quitar hito
               </button>
@@ -413,7 +413,7 @@ function HitoSelect({ value, onChange, wsId }: {
                 onClick={() => { onChange(h.nombre); setOpen(false); }}
                 style={{
                   display: "flex", alignItems: "center", gap: 6,
-                  width: "100%", padding: "10px 12px", fontSize: 13,
+                  width: "100%", padding: "10px 12px", fontSize: 14,
                   background: value === h.nombre ? "var(--brand-tint)" : "transparent",
                   border: "none", cursor: "pointer", fontFamily: "inherit", color: "var(--fg-1)",
                 }}
@@ -429,7 +429,7 @@ function HitoSelect({ value, onChange, wsId }: {
                 disabled={creating}
                 style={{
                   display: "flex", alignItems: "center", gap: 6,
-                  width: "100%", padding: "10px 12px", fontSize: 13, fontWeight: 600,
+                  width: "100%", padding: "10px 12px", fontSize: 14, fontWeight: 400,
                   background: "var(--brand-tint)", color: "var(--brand)",
                   border: "none", borderTop: "1px solid var(--border)",
                   cursor: creating ? "default" : "pointer", fontFamily: "inherit",
@@ -440,7 +440,7 @@ function HitoSelect({ value, onChange, wsId }: {
               </button>
             )}
             {filtered.length === 0 && !canCreate && (
-              <div style={{ padding: "8px 10px", fontSize: 12.5, color: "var(--fg-4)" }}>Sin ITOs</div>
+              <div style={{ padding: "8px 10px", fontSize: 14, color: "var(--fg-4)" }}>Sin ITOs</div>
             )}
           </div>
         </div>
@@ -496,7 +496,7 @@ function SolicitanteSelect({ value, telefono, email, onChange, wsId }: {
           style={{
             width: "100%", height: 40, display: "flex", alignItems: "center", gap: 8,
             padding: "0 12px", border: "1px solid var(--border)", borderRadius: 8,
-            background: "var(--surface-1)", fontSize: 13, color: value ? "var(--fg-1)" : "var(--fg-4)",
+            background: "var(--surface-1)", fontSize: 14, color: value ? "var(--fg-1)" : "var(--fg-4)",
             cursor: "pointer", textAlign: "left", fontFamily: "inherit",
           }}
         >
@@ -520,7 +520,7 @@ function SolicitanteSelect({ value, telefono, email, onChange, wsId }: {
                 style={{
                   width: "100%", height: 36, padding: "0 10px",
                   border: "1px solid var(--border)", borderRadius: 8,
-                  fontSize: 12.5, outline: "none", color: "var(--fg-1)",
+                  fontSize: 14, outline: "none", color: "var(--fg-1)",
                   fontFamily: "inherit", boxSizing: "border-box", background: "var(--surface-1)",
                 }}
               />
@@ -530,7 +530,7 @@ function SolicitanteSelect({ value, telefono, email, onChange, wsId }: {
                 <button
                   type="button"
                   onClick={() => { onChange("", "", ""); setOpen(false); }}
-                  style={{ display: "block", width: "100%", textAlign: "left", padding: "10px 12px", fontSize: 13, color: "var(--fg-4)", background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}
+                  style={{ display: "block", width: "100%", textAlign: "left", padding: "10px 12px", fontSize: 14, color: "var(--fg-4)", background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}
                 >
                   Quitar solicitante
                 </button>
@@ -542,7 +542,7 @@ function SolicitanteSelect({ value, telefono, email, onChange, wsId }: {
                   onClick={() => { onChange(s.nombre, s.telefono ?? "", s.email ?? ""); setOpen(false); }}
                   style={{
                     display: "flex", alignItems: "flex-start", gap: 6,
-                    width: "100%", padding: "10px 12px", fontSize: 13,
+                    width: "100%", padding: "10px 12px", fontSize: 14,
                     background: value === s.nombre ? "var(--brand-tint)" : "transparent",
                     border: "none", cursor: "pointer", fontFamily: "inherit", color: "var(--fg-1)",
                   }}
@@ -551,7 +551,7 @@ function SolicitanteSelect({ value, telefono, email, onChange, wsId }: {
                   <div style={{ flex: 1, minWidth: 0, textAlign: "left" }}>
                     <div>{s.nombre}</div>
                     {(s.telefono || s.email) && (
-                      <div style={{ fontSize: 13, color: "var(--fg-4)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      <div style={{ fontSize: 14, color: "var(--fg-4)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                         {[s.telefono, s.email].filter(Boolean).join(" · ")}
                       </div>
                     )}
@@ -564,7 +564,7 @@ function SolicitanteSelect({ value, telefono, email, onChange, wsId }: {
                   onClick={() => { onChange(query.trim(), telefono, email); setQuery(""); setOpen(false); }}
                   style={{
                     display: "flex", alignItems: "center", gap: 6,
-                    width: "100%", padding: "10px 12px", fontSize: 13, fontWeight: 600,
+                    width: "100%", padding: "10px 12px", fontSize: 14, fontWeight: 400,
                     background: "var(--brand-tint)", color: "var(--brand)",
                     border: "none", borderTop: "1px solid var(--border)",
                     cursor: "pointer", fontFamily: "inherit",
@@ -575,7 +575,7 @@ function SolicitanteSelect({ value, telefono, email, onChange, wsId }: {
                 </button>
               )}
               {filtered.length === 0 && !canCreate && (
-                <div style={{ padding: "8px 10px", fontSize: 12.5, color: "var(--fg-4)" }}>Sin solicitantes</div>
+                <div style={{ padding: "8px 10px", fontSize: 14, color: "var(--fg-4)" }}>Sin solicitantes</div>
               )}
             </div>
           </div>
@@ -590,14 +590,14 @@ function SolicitanteSelect({ value, telefono, email, onChange, wsId }: {
             placeholder="Teléfono"
             value={telefono}
             onChange={e => onChange(value, e.target.value, email)}
-            style={{ height: 38, padding: "0 12px", border: "1px solid var(--border)", borderRadius: 8, fontSize: 13, color: "var(--fg-1)", outline: "none", fontFamily: "inherit", background: "var(--surface-1)" }}
+            style={{ height: 38, padding: "0 12px", border: "1px solid var(--border)", borderRadius: 8, fontSize: 14, color: "var(--fg-1)", outline: "none", fontFamily: "inherit", background: "var(--surface-1)" }}
           />
           <input
             type="email"
             placeholder="Email"
             value={email}
             onChange={e => onChange(value, telefono, e.target.value)}
-            style={{ height: 38, padding: "0 12px", border: "1px solid var(--border)", borderRadius: 8, fontSize: 13, color: "var(--fg-1)", outline: "none", fontFamily: "inherit", background: "var(--surface-1)" }}
+            style={{ height: 38, padding: "0 12px", border: "1px solid var(--border)", borderRadius: 8, fontSize: 14, color: "var(--fg-1)", outline: "none", fontFamily: "inherit", background: "var(--surface-1)" }}
           />
         </div>
       )}
@@ -803,7 +803,7 @@ export default function OTEditPanel({
           >
             <ArrowLeft size={14} />
           </button>
-          <h2 style={{ fontSize: 17, fontWeight: 700, color: "var(--fg-1)", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          <h2 style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
             Editar Orden de Trabajo
           </h2>
         </div>
@@ -821,7 +821,7 @@ export default function OTEditPanel({
               value={form.titulo}
               onChange={e => setF("titulo", e.target.value)}
               style={{
-                width: "100%", fontSize: 22, fontWeight: 400, color: "var(--fg-1)",
+                width: "100%", fontSize: 14, fontWeight: 400, color: "var(--fg-1)",
                 border: "none", outline: "none", background: "transparent", padding: "8px 0",
                 borderBottom: form.titulo ? "2px solid var(--brand)" : "2px solid var(--border)",
                 fontFamily: "inherit", transition: "border-color 0.15s",
@@ -847,9 +847,9 @@ export default function OTEditPanel({
 
           {/* Work type — promoted near the top so it's set before scrolling. */}
           <div style={{ marginBottom: 18 }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: "var(--fg-3)", marginBottom: 10, letterSpacing: "0.01em" }}>Tipo de trabajo</div>
+            <div style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-3)", marginBottom: 10, letterSpacing: "0.01em" }}>Tipo de trabajo</div>
             <select value={form.tipo_trabajo} onChange={e => setF("tipo_trabajo", e.target.value as TipoTrabajo | "")}
-              style={{ width: "100%", height: 40, padding: "0 12px", border: "1px solid var(--border)", borderRadius: 8, fontSize: 13, color: "var(--fg-1)", outline: "none", background: "var(--surface-1)", fontFamily: "inherit" }}>
+              style={{ width: "100%", height: 40, padding: "0 12px", border: "1px solid var(--border)", borderRadius: 8, fontSize: 14, color: "var(--fg-1)", outline: "none", background: "var(--surface-1)", fontFamily: "inherit" }}>
               {TIPOS.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
             </select>
           </div>
@@ -868,7 +868,7 @@ export default function OTEditPanel({
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                 <Paperclip size={13} style={{ color: "var(--fg-4)" }} />
-                <span style={{ fontSize: 13, fontWeight: 700, color: "var(--fg-3)", letterSpacing: "0.01em" }}>
+                <span style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-3)", letterSpacing: "0.01em" }}>
                   Adjuntos
                 </span>
               </div>
@@ -878,7 +878,7 @@ export default function OTEditPanel({
               <button
                 type="button"
                 onClick={() => adjuntoInputRef.current?.click()}
-                style={{ display: "flex", alignItems: "center", gap: 4, height: 32, padding: "0 12px", border: "1px solid var(--brand)", borderRadius: 5, background: "var(--brand-tint)", color: "var(--brand)", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}
+                style={{ display: "flex", alignItems: "center", gap: 4, height: 32, padding: "0 12px", border: "1px solid var(--brand)", borderRadius: 5, background: "var(--brand-tint)", color: "var(--brand)", fontSize: 14, fontWeight: 400, cursor: "pointer", fontFamily: "inherit" }}
               >
                 <Plus size={11} />
                 Adjuntar archivo
@@ -903,7 +903,7 @@ export default function OTEditPanel({
                 {form.links.filter(l => l.tipo === "archivo").map((l, i) => (
                   <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", border: "1px solid var(--border)", borderRadius: 6, background: "var(--surface-0)" }}>
                     <FileText size={13} style={{ color: "var(--brand)", flexShrink: 0 }} />
-                    <span style={{ flex: 1, fontSize: 12.5, color: "var(--fg-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    <span style={{ flex: 1, fontSize: 14, color: "var(--fg-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       {l.nombre || l.url.split("/").pop()}
                     </span>
                     <button
@@ -932,9 +932,9 @@ export default function OTEditPanel({
                         type="text"
                         value={a.nombre}
                         onChange={e => setAdjuntos(prev => prev.map((x, idx) => idx === i ? { ...x, nombre: e.target.value } : x))}
-                        style={{ flex: 1, fontSize: 12.5, color: "var(--fg-1)", border: "none", outline: "none", background: "transparent", fontFamily: "inherit", minWidth: 0 }}
+                        style={{ flex: 1, fontSize: 14, color: "var(--fg-1)", border: "none", outline: "none", background: "transparent", fontFamily: "inherit", minWidth: 0 }}
                       />
-                      <span style={{ fontSize: 13, color: "var(--fg-3)", flexShrink: 0 }}>{(a.file.size / 1024).toFixed(0)} KB</span>
+                      <span style={{ fontSize: 14, color: "var(--fg-3)", flexShrink: 0 }}>{(a.file.size / 1024).toFixed(0)} KB</span>
                       <button
                         type="button"
                         onClick={() => setAdjuntos(prev => prev.filter((_, idx) => idx !== i))}
@@ -952,14 +952,14 @@ export default function OTEditPanel({
             {form.links.filter(l => l.tipo === "archivo").length === 0 && adjuntos.length === 0 && (
               // Mismo vacío que Procedimiento (borde tenue + botón sólido).
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, padding: "18px 12px", border: "1px dashed var(--border-strong)", borderRadius: "var(--r-md)", background: "var(--surface-canvas)" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 13, color: "var(--fg-3)" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 14, color: "var(--fg-3)" }}>
                   <Paperclip size={15} style={{ color: "var(--brand)" }} />
                   PDF, Word, Excel, TXT, CSV, DWG, MP3, M4A…
                 </div>
                 <button
                   type="button"
                   onClick={() => adjuntoInputRef.current?.click()}
-                  style={{ height: 38, padding: "0 18px", display: "flex", alignItems: "center", gap: 7, border: "1px solid var(--brand)", borderRadius: "var(--r-sm)", background: "var(--surface-1)", color: "var(--brand)", fontSize: 13.5, fontWeight: 700, fontFamily: "inherit", cursor: "pointer" }}
+                  style={{ height: 38, padding: "0 18px", display: "flex", alignItems: "center", gap: 7, border: "1px solid var(--brand)", borderRadius: "var(--r-sm)", background: "var(--surface-1)", color: "var(--brand)", fontSize: 14, fontWeight: 400, fontFamily: "inherit", cursor: "pointer" }}
                 >
                   <Plus size={15} /> Adjuntar archivo
                 </button>
@@ -969,7 +969,7 @@ export default function OTEditPanel({
 
           {/* Links */}
           <div style={{ padding: "24px 0", borderBottom: "1px solid var(--border)" }}>
-            <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: "var(--fg-3)", letterSpacing: "0.01em", marginBottom: 10 }}>
+            <label style={{ display: "block", fontSize: 14, fontWeight: 400, color: "var(--fg-3)", letterSpacing: "0.01em", marginBottom: 10 }}>
               Links
             </label>
             <LinksInput
@@ -984,7 +984,7 @@ export default function OTEditPanel({
               placeholder="Ej: SF920260325921"
               value={form.n_ot}
               onChange={e => setF("n_ot", e.target.value)}
-              style={{ width:"100%", height:40, padding:"0 12px", border:"1px solid var(--border)", borderRadius:8, fontSize:13, color:"var(--fg-1)", outline:"none", fontFamily:"var(--font-mono)", background:"var(--surface-1)" }}
+              style={{ width:"100%", height:40, padding:"0 12px", border:"1px solid var(--border)", borderRadius:8, fontSize: 14, color:"var(--fg-1)", outline:"none", fontFamily:"var(--font-mono)", background:"var(--surface-1)" }}
             />
           </FieldRow>
 
@@ -1011,7 +1011,7 @@ export default function OTEditPanel({
               placeholder="Ej: PRE-2025-001"
               value={form.presupuesto}
               onChange={e => setF("presupuesto", e.target.value)}
-              style={{ width:"100%", height:40, padding:"0 12px", border:"1px solid var(--border)", borderRadius:8, fontSize:13, color:"var(--fg-1)", outline:"none", fontFamily:"inherit", background:"var(--surface-1)" }}
+              style={{ width:"100%", height:40, padding:"0 12px", border:"1px solid var(--border)", borderRadius:8, fontSize: 14, color:"var(--fg-1)", outline:"none", fontFamily:"inherit", background:"var(--surface-1)" }}
             />
           </FieldRow>
 
@@ -1077,20 +1077,20 @@ export default function OTEditPanel({
 
           <FieldRow icon={<CalendarDays size={14} />} label="Fecha de inicio">
             <input type="date" value={form.fecha_inicio} onChange={e => setF("fecha_inicio", e.target.value)}
-              style={{ height: 40, padding: "0 12px", border: "1px solid var(--border)", borderRadius: 8, fontSize: 13, color: form.fecha_inicio ? "var(--fg-1)" : "var(--fg-4)", outline: "none", fontFamily: "inherit", background: "var(--surface-1)" }}
+              style={{ height: 40, padding: "0 12px", border: "1px solid var(--border)", borderRadius: 8, fontSize: 14, color: form.fecha_inicio ? "var(--fg-1)" : "var(--fg-4)", outline: "none", fontFamily: "inherit", background: "var(--surface-1)" }}
             />
           </FieldRow>
 
           <FieldRow icon={<CalendarDays size={14} />} label="Fecha de vencimiento">
             <input type="date" value={form.fecha_termino} onChange={e => setF("fecha_termino", e.target.value)}
-              style={{ height: 40, padding: "0 12px", border: "1px solid var(--border)", borderRadius: 8, fontSize: 13, color: form.fecha_termino ? "var(--fg-1)" : "var(--fg-4)", outline: "none", fontFamily: "inherit", background: "var(--surface-1)" }}
+              style={{ height: 40, padding: "0 12px", border: "1px solid var(--border)", borderRadius: 8, fontSize: 14, color: form.fecha_termino ? "var(--fg-1)" : "var(--fg-4)", outline: "none", fontFamily: "inherit", background: "var(--surface-1)" }}
             />
           </FieldRow>
 
           {/* Recurrence */}
           {/* Recurrence — Repetir + Terminar repetición (mirrors the mobile app) */}
           <div style={{ padding: "24px 0", borderBottom: "1px solid var(--border)" }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: "var(--fg-3)", marginBottom: 10, letterSpacing: "0.01em" }}>Recurrencia</div>
+            <div style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-3)", marginBottom: 10, letterSpacing: "0.01em" }}>Recurrencia</div>
             <RecurrenceControls
               value={form}
               onChange={next => setForm(prev => ({ ...prev, ...next }))}
@@ -1099,13 +1099,13 @@ export default function OTEditPanel({
 
           {/* Priority */}
           <div style={{ padding: "24px 0", borderBottom: "1px solid var(--border)" }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: "var(--fg-3)", marginBottom: 12, letterSpacing: "0.01em" }}>Prioridad</div>
+            <div style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-3)", marginBottom: 12, letterSpacing: "0.01em" }}>Prioridad</div>
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
               {PRIORIDADES.map((p) => {
                 const active = form.prioridad === p.value;
                 return (
                   <button key={p.value} type="button" onClick={() => setF("prioridad", p.value)}
-                    style={{ height: 40, padding: "0 16px", border: active ? "none" : "1px solid var(--border)", borderRadius: 8, background: active ? "var(--surface-hover)" : "var(--surface-1)", fontSize: 13, fontWeight: active ? 700 : 500, color: active ? p.activeColor : "var(--fg-2)", cursor: "pointer", transition: "all 0.12s", fontFamily: "inherit" }}>
+                    style={{ height: 40, padding: "0 16px", border: active ? "none" : "1px solid var(--border)", borderRadius: 8, background: active ? "var(--surface-hover)" : "var(--surface-1)", fontSize: 14, fontWeight: 400, color: active ? p.activeColor : "var(--fg-2)", cursor: "pointer", transition: "all 0.12s", fontFamily: "inherit" }}>
                     {p.label}
                   </button>
                 );
@@ -1126,15 +1126,15 @@ export default function OTEditPanel({
       {/* Footer */}
       <div style={{ borderTop: "1px solid var(--border)", padding: "16px 28px", display: "flex", alignItems: "center", justifyContent: "space-between", background: "var(--surface-canvas)", flexShrink: 0 }}>
         <div style={{ flex: 1 }}>
-          {error && <span style={{ fontSize: 12.5, color: "var(--danger)" }}>{error}</span>}
+          {error && <span style={{ fontSize: 14, color: "var(--danger)" }}>{error}</span>}
         </div>
         <div style={{ display: "flex", gap: 8 }}>
           <button type="button" onClick={onClose} disabled={saving}
-            style={{ height: 40, padding: "0 18px", border: "1px solid var(--border)", borderRadius: 8, background: "var(--surface-1)", color: "var(--fg-2)", fontSize: 13, fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}>
+            style={{ height: 40, padding: "0 18px", border: "1px solid var(--border)", borderRadius: 8, background: "var(--surface-1)", color: "var(--fg-2)", fontSize: 14, fontWeight: 400, cursor: "pointer", fontFamily: "inherit" }}>
             Cancelar
           </button>
           <button type="button" onClick={save} disabled={saving}
-            style={{ height: 40, padding: "0 24px", border: "none", borderRadius: 8, background: saving ? "var(--fg-3)" : "linear-gradient(135deg, var(--brand-active), var(--brand))", color: "var(--fg-on-brand)", fontSize: 13, fontWeight: 600, cursor: saving ? "default" : "pointer", display: "flex", alignItems: "center", gap: 7, transition: "opacity 0.15s", fontFamily: "inherit", boxShadow: saving ? "none" : "0 2px 6px rgba(37,99,235,0.25)" }}>
+            style={{ height: 40, padding: "0 24px", border: "none", borderRadius: 8, background: saving ? "var(--fg-3)" : "linear-gradient(135deg, var(--brand-active), var(--brand))", color: "var(--fg-on-brand)", fontSize: 14, fontWeight: 400, cursor: saving ? "default" : "pointer", display: "flex", alignItems: "center", gap: 7, transition: "opacity 0.15s", fontFamily: "inherit", boxShadow: saving ? "none" : "0 2px 6px rgba(37,99,235,0.25)" }}>
             {saving && <Loader2 size={13} style={{ animation: "spin 1s linear infinite" }} />}
             Guardar
           </button>

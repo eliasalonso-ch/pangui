@@ -24,7 +24,7 @@ export default function AppLoadingState({
       }}
     >
       <Loader2 size={22} className="animate-spin" style={{ color: "var(--brand)" }} />
-      <span style={{ fontSize: 13 }}>{label}</span>
+      <span style={{ fontSize: 14 }}>{label}</span>
     </div>
   );
 }
