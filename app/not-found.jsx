@@ -32,22 +32,26 @@ export default function NotFound() {
             </p>
 
             <div className="mt-8 flex flex-wrap items-center gap-3">
+              {/* Mismos botones que la barra de marketing (ver LandingNav):
+                  primario azul --accent, secundario con borde --accent, ambos
+                  h-10 y sin redondeo. Antes eran negros (--ink) y con
+                  rounded-[12px], que no se parecia a nada mas del sitio. */}
               <Link
                 href="/"
-                className="inline-flex items-center gap-2 rounded-[12px] bg-[var(--ink)] px-5 py-3 text-[15px] font-semibold text-white transition-opacity hover:opacity-90"
+                className="inline-flex h-10 items-center gap-2 bg-[var(--accent)] px-5 text-[14px] font-semibold text-white transition-colors hover:bg-[var(--accent-hover)]"
               >
                 Volver al inicio
                 <ArrowRight className="h-4 w-4" />
               </Link>
               <Link
                 href="/precios"
-                className="inline-flex items-center gap-2 rounded-[12px] border border-[var(--hairline)] bg-white px-5 py-3 text-[15px] font-semibold text-[var(--ink)] transition-colors hover:bg-[#F6F8FB]"
+                className="inline-flex h-10 items-center gap-2 border border-[var(--accent)] px-5 text-[14px] font-semibold text-[var(--accent)] transition-colors hover:bg-[var(--accent)] hover:text-white"
               >
                 Ver precios
               </Link>
               <Link
                 href="/login"
-                className="inline-flex items-center gap-2 px-1 py-3 text-[15px] font-semibold text-[var(--muted)] underline-offset-4 transition-colors hover:text-[var(--ink)] hover:underline"
+                className="inline-flex h-10 items-center gap-2 px-1 text-[14px] font-semibold text-[var(--muted)] underline-offset-4 transition-colors hover:text-[var(--ink)] hover:underline"
               >
                 Iniciar sesión
               </Link>
