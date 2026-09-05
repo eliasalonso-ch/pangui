@@ -107,7 +107,6 @@ const MARKETING_PREFIXES = [
   "/precios",
   "/casos-de-exito",
   "/industrias",
-  "/arco",
   "/privacidad",
   "/terminos",
   "/demo",
@@ -175,7 +174,6 @@ export async function proxy(request) {
     pathname === "/sitemap.xml" ||
     pathname === "/robots.txt" ||
     pathname === "/opengraph-image" ||
-    pathname.startsWith("/arco") ||
     pathname.startsWith("/privacidad") ||
     pathname.startsWith("/terminos") ||
     pathname.startsWith("/registro") ||

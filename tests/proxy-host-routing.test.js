@@ -19,7 +19,7 @@ const APP_SEGMENTS = [
 const APP_ONLY_PREFIXES = ["/login", "/registro", "/recuperar-contrasena"];
 const AUTH_CALLBACK_PREFIXES = ["/reset-contrasena", "/confirmar-reset", "/invite"];
 const MARKETING_PREFIXES = [
-  "/precios", "/casos-de-exito", "/industrias", "/arco", "/privacidad",
+  "/precios", "/casos-de-exito", "/industrias", "/privacidad",
   "/terminos", "/demo",
 ];
 

@@ -58,7 +58,6 @@ Sistema de gestión de mantenimiento para equipos técnicos. Permite crear, asig
 /tecnico/trabajo/[id]     Ejecutar orden de trabajo
 /tecnico/inventario       Consulta de inventario
 /configuracion            Perfil, contraseña y notificaciones
-/arco                     Portal de derechos ARCO (público)
 ```
 
 ---
