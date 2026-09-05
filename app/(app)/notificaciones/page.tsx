@@ -7,7 +7,7 @@ import {
   ExternalLink, Info, Loader2, Package, PackageSearch, Search, Square,
   SquareCheckBig, Trash2, Wrench, X,
 } from "lucide-react";
-import { createClient } from "@/lib/supabase";
+import { getAuthUser } from "@/lib/auth-user";
 import AppLoadingState from "@/components/AppLoadingState";
 import { NOTIFICACIONES_PAGE_SIZE, useNotificaciones, type NotificationRow as Notif } from "@/hooks/useNotificaciones";
 import ConfirmDeleteModal from "@/components/ConfirmDeleteModal";
@@ -71,7 +71,10 @@ export default function NotificacionesPage() {
 
   useEffect(() => {
     let active = true;
-    void createClient().auth.getUser().then(({ data: { user } }) => {
+    // getAuthUser() y no createClient().auth.getUser(): el primero comparte una
+    // sola consulta entre todos los consumidores, el segundo va a la red cada
+    // vez y de paso pide el access token, que puede disparar un refresh.
+    void getAuthUser().then((user) => {
       if (!active) return;
       if (!user) { router.replace("/login"); return; }
       setUserId(user.id);

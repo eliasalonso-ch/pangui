@@ -31,20 +31,35 @@ export default function AnalyticsIdentity() {
       if (user) identify(user);
     });
 
+    // Ojo con TOKEN_REFRESHED: se dispara cada vez que se renueva el token, y
+    // renovar NO cambia quien es el usuario. Invalidar la cache ahi montaba un
+    // bucle -- reset -> el siguiente getAuthUser() va a la red -> getUser()
+    // pide el access token -> refresh -> TOKEN_REFRESHED otra vez -- que en
+    // produccion llego a 36 refrescos por minuto para un solo usuario y acabo
+    // en 429 (rate limit) del endpoint /token.
+    //
+    // Solo se limpia cuando cambia la identidad de verdad.
+    let lastUserId = null;
+
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
-      // La identidad cacheada por getAuthUser() deja de ser valida en cuanto
-      // cambia la sesion, sea cual sea el evento. El perfil va con ella: es la
-      // fila de `usuarios` de ese mismo usuario.
-      resetAuthUserCache();
-      resetPerfilUsuarioCache();
-
       if (event === "SIGNED_OUT") {
+        lastUserId = null;
+        resetAuthUserCache();
+        resetPerfilUsuarioCache();
         reset();
         return;
       }
-      if (session?.user) identify(session.user);
+
+      const userId = session?.user?.id ?? null;
+      if (userId !== lastUserId) {
+        // Cambio de usuario (o primer login): ahora si las caches mienten.
+        lastUserId = userId;
+        resetAuthUserCache();
+        resetPerfilUsuarioCache();
+        if (session?.user) identify(session.user);
+      }
     });
 
     return () => subscription.unsubscribe();
