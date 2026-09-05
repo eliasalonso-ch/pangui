@@ -225,9 +225,24 @@ export async function proxy(request) {
       cookies: {
         getAll: () => request.cookies.getAll(),
         setAll: (cookiesToSet) => {
-          cookiesToSet.forEach(({ name, value, options }) =>
-            response.cookies.set(name, value, { ...options, ...cookieOptions }),
-          );
+          cookiesToSet.forEach(({ name, value, options }) => {
+            // Borra primero la variante host-only del mismo nombre.
+            //
+            // Con `domain` puesto, @supabase/ssr NO reemplaza la cookie que ya
+            // existe: aniade una nueva y deja la vieja al lado (issue
+            // supabase/supabase#30084). Una cookie se identifica por
+            // (nombre, dominio, ruta), asi que las dos conviven y document.cookie
+            // devuelve el nombre repetido. El parser se queda con una sola --a
+            // veces la caducada-- y el cliente reenvia el refresh_token viejo en
+            // cada intento: refresco infinito hasta el 429 del endpoint /token.
+            //
+            // Solo se borra si vamos a escribir con dominio; sin cookieOptions
+            // (dev, previews) la host-only ES la buena.
+            if (cookieOptions?.domain) {
+              response.cookies.delete({ name, path: options?.path ?? "/" });
+            }
+            response.cookies.set(name, value, { ...options, ...cookieOptions });
+          });
         },
       },
     },
