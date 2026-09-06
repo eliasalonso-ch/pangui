@@ -200,34 +200,120 @@ function AssetFilterDropdown({ label, icon, active, children }: { label: string;
  * para no repetir el mismo bloque en cada filtro — con seis chips el markup
  * inline se volvia imposible de leer.
  */
-function CatalogFilter({ label, icon, value, onChange, options, allLabel = "Todas" }: {
+/** Cuantas opciones se pintan de entrada y cuantas suma cada tanda al bajar. */
+const CATALOGO_TANDA = 30;
+
+/**
+ * Chip de filtro sobre un catalogo: buscador arriba y la lista debajo.
+ *
+ * Dos cosas que no son decorativas:
+ *
+ * 1. **Buscador.** Con decenas de ubicaciones o responsables, encontrar uno
+ *    desplazando es peor que escribir tres letras. Mismo comportamiento que los
+ *    filtros de /ordenes.
+ *
+ * 2. **Carga incremental.** Se pintan `CATALOGO_TANDA` filas y se agregan mas al
+ *    llegar al final del scroll. Antes se montaban TODAS de una: con un catalogo
+ *    grande son cientos de nodos por menu, y se pagan aunque el usuario escriba
+ *    dos letras y elija la primera opcion.
+ */
+function CatalogFilter({ label, icon, value, onChange, options, allLabel = "Todas", searchPlaceholder }: {
   label: string;
   icon: React.ReactNode;
   value: string;
   onChange: (v: string) => void;
   options: { id: string; nombre: string; count?: number }[];
   allLabel?: string;
+  searchPlaceholder?: string;
 }) {
+  const [q, setQ] = useState("");
+  const [visibles, setVisibles] = useState(CATALOGO_TANDA);
+
+  const filtradas = useMemo(() => {
+    const t = q.trim().toLowerCase();
+    return t ? options.filter(o => o.nombre.toLowerCase().includes(t)) : options;
+  }, [options, q]);
+
+  /**
+   * Buscar tambien reinicia el paginado, y se hace en el mismo set: escribir es
+   * volver a la primera tanda. Con un efecto aparte seria un render en cascada,
+   * y ademas un termino con pocos resultados heredaria el "ya mostre 90" de la
+   * busqueda anterior.
+   */
+  function buscar(texto: string) {
+    setQ(texto);
+    setVisibles(CATALOGO_TANDA);
+  }
+
+  const mostradas = filtradas.slice(0, visibles);
+  const hayMas = filtradas.length > mostradas.length;
+
   return (
     <AssetFilterDropdown label={label} icon={icon} active={value !== "all"}>
-      <button
-        type="button"
-        onClick={() => onChange("all")}
-        style={{ ...assetFilterOptionStyle, background: value === "all" ? "var(--brand-tint)" : "transparent", color: value === "all" ? "var(--brand-fg)" : "var(--fg-2)" }}
+      {/* El buscador solo aparece cuando hay suficientes opciones para que
+          desplazarse moleste; con cuatro filas es ruido. */}
+      {options.length > 8 && (
+        <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "2px 8px 8px", borderBottom: "1px solid var(--border)", marginBottom: 4 }}>
+          <Search size={14} style={{ color: "var(--fg-4)", flexShrink: 0 }} />
+          <input
+            autoFocus
+            value={q}
+            onChange={e => buscar(e.target.value)}
+            placeholder={searchPlaceholder ?? `Buscar ${label.toLowerCase()}…`}
+            style={{ flex: 1, minWidth: 0, height: 28, border: "none", outline: "none", background: "transparent", color: "var(--fg-1)", fontSize: 14, fontFamily: "inherit" }}
+          />
+          {q && (
+            <button type="button" onClick={() => buscar("")} aria-label="Limpiar búsqueda"
+              style={{ background: "none", border: "none", cursor: "pointer", color: "var(--fg-4)", display: "flex", padding: 0 }}>
+              <X size={13} />
+            </button>
+          )}
+        </div>
+      )}
+
+      <div
+        style={{ maxHeight: 320, overflowY: "auto" }}
+        onScroll={e => {
+          if (!hayMas) return;
+          const el = e.currentTarget;
+          // 48px de margen: la tanda siguiente se pide justo antes de tocar el
+          // fondo, para que no se vea el salto.
+          if (el.scrollTop + el.clientHeight >= el.scrollHeight - 48) {
+            setVisibles(v => v + CATALOGO_TANDA);
+          }
+        }}
       >
-        {allLabel}
-      </button>
-      {options.map(o => (
-        <button
-          key={o.id}
-          type="button"
-          onClick={() => onChange(o.id)}
-          style={{ ...assetFilterOptionStyle, background: value === o.id ? "var(--brand-tint)" : "transparent", color: value === o.id ? "var(--brand-fg)" : "var(--fg-2)" }}
-        >
-          <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{o.nombre}</span>
-          {o.count !== undefined && <span style={{ color: "var(--fg-4)", marginLeft: 8 }}>{o.count}</span>}
-        </button>
-      ))}
+        {/* "Todas" solo con la busqueda vacia: con un termino escrito es una
+            fila que no coincide con lo buscado. */}
+        {!q && (
+          <button
+            type="button"
+            onClick={() => onChange("all")}
+            style={{ ...assetFilterOptionStyle, background: value === "all" ? "var(--brand-tint)" : "transparent", color: value === "all" ? "var(--brand-fg)" : "var(--fg-2)" }}
+          >
+            {allLabel}
+          </button>
+        )}
+        {mostradas.map(o => (
+          <button
+            key={o.id}
+            type="button"
+            onClick={() => onChange(o.id)}
+            style={{ ...assetFilterOptionStyle, background: value === o.id ? "var(--brand-tint)" : "transparent", color: value === o.id ? "var(--brand-fg)" : "var(--fg-2)" }}
+          >
+            <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{o.nombre}</span>
+            {o.count !== undefined && <span style={{ color: "var(--fg-4)", marginLeft: 8 }}>{o.count}</span>}
+          </button>
+        ))}
+        {filtradas.length === 0 && (
+          <div style={{ padding: "10px 12px", fontSize: 14, color: "var(--fg-4)" }}>Sin resultados</div>
+        )}
+        {hayMas && (
+          <div style={{ padding: "8px 12px", fontSize: 14, color: "var(--fg-4)" }}>
+            {filtradas.length - mostradas.length} más…
+          </div>
+        )}
+      </div>
     </AssetFilterDropdown>
   );
 }
@@ -1819,11 +1905,46 @@ export default function ActivosBandeja({ initialActivos, usuarios, ubicaciones, 
     setFilterModeloId("all");
   }
 
-  const sociedadCounts = useMemo(() => {
-    const counts = new Map<string, number>();
-    activos.forEach(a => { if (a.sociedad_id) counts.set(a.sociedad_id, (counts.get(a.sociedad_id) ?? 0) + 1); });
-    return counts;
-  }, [activos]);
+  /**
+   * Opciones de un filtro de catalogo, derivadas de los activos que HAY.
+   *
+   * Los catalogos (fabricantes, modelos, ubicaciones...) son globales del
+   * workspace y pueden tener cientos de filas; la mayoria sin un solo activo
+   * asociado. Ofrecerlas todas llena el menu de opciones que no filtran nada:
+   * al elegirlas la lista queda vacia. Solo se listan los valores realmente en
+   * uso, con cuantos activos tiene cada uno.
+   *
+   * Se calcula sobre `activos` —que ya esta en memoria— asi que no agrega
+   * ninguna consulta.
+   */
+  function useOpcionesEnUso<T extends { id: string }>(
+    catalogo: T[],
+    campo: (a: Activo) => string | null | undefined,
+    nombre: (t: T) => string,
+  ) {
+    return useMemo(() => {
+      const counts = new Map<string, number>();
+      for (const a of activos) {
+        const id = campo(a);
+        if (id) counts.set(id, (counts.get(id) ?? 0) + 1);
+      }
+      return catalogo
+        .filter(t => counts.has(t.id))
+        .map(t => ({ id: t.id, nombre: nombre(t), count: counts.get(t.id) ?? 0 }))
+        .sort((x, y) => x.nombre.localeCompare(y.nombre, "es"));
+      // `campo` y `nombre` se redefinen en cada render (son lambdas en el punto
+      // de uso); dependen solo de `activos` y del catalogo, que son los que
+      // realmente cambian el resultado.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [activos, catalogo]);
+  }
+
+  const opcionesUbicacion   = useOpcionesEnUso(ubicaciones, a => a.ubicacion_id,   u => u.edificio ?? "Sin nombre");
+  const opcionesLugar       = useOpcionesEnUso(lugares,     a => a.lugar_id,       l => l.nombre);
+  const opcionesResponsable = useOpcionesEnUso(usuarios,    a => a.responsable_id, u => u.nombre);
+  const opcionesFabricante  = useOpcionesEnUso(fabricantes, a => a.fabricante_id,  f => f.nombre);
+  const opcionesModelo      = useOpcionesEnUso(modelos,     a => a.modelo_id,      m => m.nombre);
+  const opcionesSociedad    = useOpcionesEnUso(sociedades,  a => a.sociedad_id,    s => s.nombre);
 
   const assetLocations = useMemo(() => ubicaciones
     .map(location => ({
@@ -1918,7 +2039,11 @@ export default function ActivosBandeja({ initialActivos, usuarios, ubicaciones, 
         {/* Filters use the same compact toolbar language as Órdenes. */}
         <div style={{ display: "flex", alignItems: "center", padding: "6px 20px", minHeight: 40, gap: 8, overflowX: "auto" }}>
           {!locationsView && <AssetFilterDropdown label="Criticidad" icon={<AlertCircle size={16} />} active={filterCrit !== "all"}>{([['all','Todas'],['critico','Crítico'],['semi_critico','Semi-crítico'],['no_critico','No crítico']] as [CritFilter,string][]).map(([value, label]) => <button key={value} type="button" onClick={() => setFilterCrit(value)} style={{ ...assetFilterOptionStyle, background: filterCrit === value ? "var(--brand-tint)" : "transparent", color: filterCrit === value ? "var(--brand-fg)" : "var(--fg-2)" }}>{label}</button>)}</AssetFilterDropdown>}
-          <AssetFilterDropdown label="Sociedad" icon={<Building2 size={16} />} active={filterSociedadId !== "all"}><button type="button" onClick={() => setFilterSociedadId("all")} style={{ ...assetFilterOptionStyle, background: filterSociedadId === "all" ? "var(--brand-tint)" : "transparent" }}>Todas</button>{sociedades.map(sociedad => <button key={sociedad.id} type="button" onClick={() => setFilterSociedadId(sociedad.id)} style={{ ...assetFilterOptionStyle, background: filterSociedadId === sociedad.id ? "var(--brand-tint)" : "transparent", color: filterSociedadId === sociedad.id ? "var(--brand-fg)" : "var(--fg-2)" }}>{sociedad.nombre} ({sociedadCounts.get(sociedad.id) ?? 0})</button>)}</AssetFilterDropdown>
+          <CatalogFilter
+            label="Sociedad" icon={<Building2 size={16} />}
+            value={filterSociedadId} onChange={setFilterSociedadId}
+            options={opcionesSociedad}
+          />
           {!locationsView && (
             <AssetFilterDropdown label="Estado" icon={<RefreshCw size={16} />} active={filterEstado !== "all"}>
               <button type="button" onClick={() => setFilterEstado("all")} style={{ ...assetFilterOptionStyle, background: filterEstado === "all" ? "var(--brand-tint)" : "transparent", color: filterEstado === "all" ? "var(--brand-fg)" : "var(--fg-2)" }}>Todos</button>
@@ -1935,14 +2060,14 @@ export default function ActivosBandeja({ initialActivos, usuarios, ubicaciones, 
             <CatalogFilter
               label="Ubicación" icon={<MapPin size={16} />}
               value={filterUbicacionId} onChange={setFilterUbicacionId}
-              options={ubicaciones.map(u => ({ id: u.id, nombre: u.edificio ?? "Sin nombre" }))}
+              options={opcionesUbicacion}
             />
           )}
           {!locationsView && (
             <CatalogFilter
               label="Lugar" icon={<MapPin size={16} />}
               value={filterLugarId} onChange={setFilterLugarId}
-              options={lugares.map(l => ({ id: l.id, nombre: l.nombre }))}
+              options={opcionesLugar}
             />
           )}
           {!locationsView && (
@@ -1951,7 +2076,7 @@ export default function ActivosBandeja({ initialActivos, usuarios, ubicaciones, 
               value={filterResponsableId} onChange={setFilterResponsableId}
               options={[
                 { id: "sin", nombre: "Sin responsable" },
-                ...usuarios.map(u => ({ id: u.id, nombre: u.nombre })),
+                ...opcionesResponsable,
               ]}
               allLabel="Todos"
             />
@@ -1960,7 +2085,7 @@ export default function ActivosBandeja({ initialActivos, usuarios, ubicaciones, 
             <CatalogFilter
               label="Fabricante" icon={<Factory size={16} />}
               value={filterFabricanteId} onChange={setFilterFabricanteId}
-              options={fabricantes.map(f => ({ id: f.id, nombre: f.nombre }))}
+              options={opcionesFabricante}
             />
           )}
           {!locationsView && (
@@ -1969,9 +2094,11 @@ export default function ActivosBandeja({ initialActivos, usuarios, ubicaciones, 
               value={filterModeloId} onChange={setFilterModeloId}
               // Si hay un fabricante elegido, solo sus modelos: la lista
               // completa mezcla modelos de marcas que ya quedaron fuera.
-              options={modelos
-                .filter(m => filterFabricanteId === "all" || m.fabricante_id === filterFabricanteId)
-                .map(m => ({ id: m.id, nombre: m.nombre }))}
+              // Con un fabricante elegido, solo sus modelos: la lista completa
+              // mezcla modelos de marcas que ya quedaron fuera del filtro.
+              options={filterFabricanteId === "all"
+                ? opcionesModelo
+                : opcionesModelo.filter(o => modelos.find(m => m.id === o.id)?.fabricante_id === filterFabricanteId)}
             />
           )}
           {hayFiltros && <button type="button" onClick={limpiarFiltros} style={{ height: 34, padding: "0 11px", border: "1px solid var(--border)", borderRadius: "var(--r-sm)", background: "var(--surface-1)", color: "var(--fg-3)", fontSize: 14, fontWeight: 400, fontFamily: "inherit", cursor: "pointer" }}>Limpiar</button>}
