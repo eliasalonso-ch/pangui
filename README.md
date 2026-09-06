@@ -58,6 +58,8 @@ Sistema de gestión de mantenimiento para equipos técnicos. Permite crear, asig
 /tecnico/trabajo/[id]     Ejecutar orden de trabajo
 /tecnico/inventario       Consulta de inventario
 /configuracion            Perfil, contraseña y notificaciones
+/usuarios/invitar         Invitar varios usuarios a la vez (owner/admin)
+/eliminar-cuenta          Eliminación de cuenta y datos (público, exigido por Google Play)
 ```
 
 ---

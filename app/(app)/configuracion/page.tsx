@@ -7,7 +7,7 @@ import { ROL_LABEL, esAdmin } from "@/lib/roles";
 import { resetPerfilUsuarioCache } from "@/lib/perfil-usuario";
 import {
   LogOut, KeyRound, Bell, User, Loader2, Check, Eye, EyeOff, ChevronRight,
-  Pencil, MonitorSmartphone, X, ImagePlus, Trash2,
+  Pencil, MonitorSmartphone, X, ImagePlus, Trash2, UserRoundX, AlertTriangle, UserRoundCog,
 } from "lucide-react";
 
 export type ConfiguracionSection = "perfil" | "workspace" | "notificaciones" | "apariencia";
@@ -96,6 +96,33 @@ export default function ConfiguracionPage({ section }: { section?: Configuracion
   const [pwSaving, setPwSaving]   = useState(false);
   const [pwError, setPwError]     = useState<string | null>(null);
   const [pwOk, setPwOk]           = useState(false);
+
+  // Abandonar organización. Baja definitiva del propio usuario: si le queda
+  // trabajo abierto tiene que elegir a quién pasárselo, y eso viaja junto con
+  // la baja en una sola llamada para que no exista un estado intermedio.
+  const [leaveOpen, setLeaveOpen]       = useState(false);
+  const [leaveAbiertas, setLeaveAbiertas] = useState<number | null>(null);
+  const [leaveDestino, setLeaveDestino] = useState("");
+  const [leaveCompas, setLeaveCompas]   = useState<{ id: string; nombre: string }[]>([]);
+  const [leaveWsNombre, setLeaveWsNombre] = useState("");
+
+  // Traspasar la propiedad. Salida no destructiva del owner: después de esto
+  // queda como admin y puede usar "Abandonar organización" como cualquiera.
+  const [transferOpen, setTransferOpen] = useState(false);
+  const [transferDestino, setTransferDestino] = useState("");
+  const [transferBusy, setTransferBusy] = useState(false);
+  const [transferErr, setTransferErr] = useState<string | null>(null);
+
+  // Eliminar el espacio de trabajo entero. Irreversible: se lleva las OTs, los
+  // activos, las fotos y las cuentas de todo el equipo, no solo la del owner.
+  // Pide contraseña y una palabra escrita a mano porque no hay vuelta atrás.
+  const [wipeOpen, setWipeOpen] = useState(false);
+  const [wipePassword, setWipePassword] = useState("");
+  const [wipeFrase, setWipeFrase] = useState("");
+  const [wipeBusy, setWipeBusy] = useState(false);
+  const [wipeErr, setWipeErr] = useState<string | null>(null);
+  const [leaveBusy, setLeaveBusy]       = useState(false);
+  const [leaveErr, setLeaveErr]         = useState<string | null>(null);
 
   // Sign out
   const [signingOut, setSigningOut]         = useState(false);
@@ -257,6 +284,125 @@ export default function ConfiguracionPage({ section }: { section?: Configuracion
 
   async function handleSignOut() {
     setSigningOut(true);
+    const sb = createClient();
+    await sb.auth.signOut();
+    router.replace("/login");
+  }
+
+  /**
+   * Abre el diálogo y averigua dos cosas: cuánto trabajo abierto tiene el
+   * usuario, y a quién puede pasárselo. Las OTs cerradas no cuentan — son
+   * historial y se quedan a su nombre.
+   */
+  async function openLeave() {
+    setLeaveOpen(true);
+    setLeaveErr(null);
+    setLeaveDestino("");
+    setLeaveAbiertas(null);
+    const sb = createClient();
+    const [{ count }, { data: compas }, { data: wsRow }] = await Promise.all([
+      sb.from("ordenes_trabajo")
+        .select("id", { count: "exact", head: true })
+        .eq("workspace_id", workspaceId)
+        .is("deleted_at", null)
+        .in("estado", ["pendiente", "en_espera", "en_curso", "en_revision"])
+        .contains("asignados_ids", [myId]),
+      sb.from("usuarios")
+        .select("id, nombre")
+        .eq("workspace_id", workspaceId)
+        .is("deleted_at", null)
+        .eq("activo", true)
+        .neq("id", myId)
+        .order("nombre"),
+      sb.from("workspaces").select("nombre").eq("id", workspaceId).maybeSingle(),
+    ]);
+    setLeaveAbiertas(count ?? 0);
+    setLeaveCompas(compas ?? []);
+    setLeaveWsNombre(wsRow?.nombre ?? "");
+  }
+
+  /**
+   * Reasigna (si hace falta) y da de baja al propio usuario en una sola
+   * transacción, y lo saca de la sesión. La función de Postgres vuelve a
+   * validar todo: no confía en que la UI haya exigido el destino.
+   */
+  async function abandonarOrganizacion() {
+    setLeaveBusy(true);
+    setLeaveErr(null);
+    const sb = createClient();
+    const { error } = await sb.rpc("abandonar_organizacion", {
+      p_reasignar_a: leaveDestino || null,
+    });
+    if (error) {
+      setLeaveBusy(false);
+      setLeaveErr(error.message);
+      return;
+    }
+    // El usuario ya no cuenta para la facturación.
+    void fetch("/api/suscripcion/sync-usuarios", { method: "POST" });
+    await sb.auth.signOut();
+    router.replace("/login");
+  }
+
+  /** Abre el traspaso y carga a quién se le puede pasar la propiedad. */
+  async function openTransfer() {
+    setTransferOpen(true);
+    setTransferErr(null);
+    setTransferDestino("");
+    const sb = createClient();
+    const { data } = await sb.from("usuarios")
+      .select("id, nombre")
+      .eq("workspace_id", workspaceId)
+      .is("deleted_at", null)
+      .eq("activo", true)
+      .neq("id", myId)
+      .order("nombre");
+    setLeaveCompas(data ?? []);
+  }
+
+  async function transferirPropiedad() {
+    if (!transferDestino) return;
+    setTransferBusy(true);
+    setTransferErr(null);
+    const sb = createClient();
+    const { error } = await sb.rpc("transferir_propiedad", { p_nuevo_owner: transferDestino });
+    setTransferBusy(false);
+    if (error) { setTransferErr(error.message); return; }
+    // El rol cambió: recargar deja la UI (y el menú) coherente con el nuevo rol.
+    resetPerfilUsuarioCache();
+    setTransferOpen(false);
+    router.refresh();
+    setMyRol("admin");
+  }
+
+  const wipeListo = !wipeBusy && !!wipePassword && wipeFrase.trim().toUpperCase() === "ELIMINAR";
+
+  function openWipe() {
+    setWipeOpen(true);
+    setWipeErr(null);
+    setWipePassword("");
+    setWipeFrase("");
+  }
+
+  /**
+   * Elimina el espacio de trabajo completo. Todo el trabajo pesado —verificar
+   * la contraseña, cancelar en Flow, purgar R2 y borrar las filas— pasa en
+   * /api/workspace/eliminar, en ese orden, para no dejar un cobro huérfano.
+   */
+  async function eliminarWorkspace() {
+    setWipeBusy(true);
+    setWipeErr(null);
+    const res = await fetch("/api/workspace/eliminar", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ password: wipePassword, confirmacion: wipeFrase }),
+    });
+    const body = await res.json().catch(() => null);
+    if (!res.ok) {
+      setWipeBusy(false);
+      setWipeErr(body?.error ?? "No se pudo eliminar el espacio de trabajo.");
+      return;
+    }
     const sb = createClient();
     await sb.auth.signOut();
     router.replace("/login");
@@ -541,6 +687,56 @@ export default function ConfiguracionPage({ section }: { section?: Configuracion
                 )}
               </div>
 
+              {/* El owner no puede simplemente irse: sostiene la facturación
+                  (billing_profiles solo da acceso a rol = 'owner'), así que
+                  dejaría una suscripción que nadie puede administrar. Tiene dos
+                  salidas propias — traspasar la propiedad, o eliminar el
+                  espacio entero — y las ve en su lugar. */}
+              {myRol === "owner" && (
+                <>
+                  <div style={{ borderBottom: "1px solid #F1F5F9" }}>
+                    <button type="button" onClick={openTransfer}
+                      style={{ width: "100%", display: "flex", alignItems: "center", gap: 12, padding: "14px 20px", background: "none", border: "none", cursor: "pointer", fontFamily: "inherit" }}>
+                      <div style={{ width: 34, height: 34, borderRadius: "var(--r-md)", background: "var(--surface-hover)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                        <UserRoundCog size={15} style={{ color: "var(--fg-2)" }} />
+                      </div>
+                      <div style={{ textAlign: "left" }}>
+                        <p style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", margin: 0 }}>Traspasar la propiedad</p>
+                        <p style={{ fontSize: 14, color: "var(--fg-4)", margin: 0 }}>Otra persona pasa a ser propietaria y tú quedas como administrador</p>
+                      </div>
+                    </button>
+                  </div>
+
+                  <div style={{ borderBottom: "1px solid #F1F5F9" }}>
+                    <button type="button" onClick={openWipe}
+                      style={{ width: "100%", display: "flex", alignItems: "center", gap: 12, padding: "14px 20px", background: "none", border: "none", cursor: "pointer", fontFamily: "inherit" }}>
+                      <div style={{ width: 34, height: 34, borderRadius: "var(--r-md)", background: "var(--danger-bg)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                        <Trash2 size={15} style={{ color: "var(--danger)" }} />
+                      </div>
+                      <div style={{ textAlign: "left" }}>
+                        <p style={{ fontSize: 14, fontWeight: 400, color: "var(--danger)", margin: 0 }}>Eliminar espacio de trabajo</p>
+                        <p style={{ fontSize: 14, color: "var(--fg-4)", margin: 0 }}>Borra la organización, sus órdenes y todas las cuentas</p>
+                      </div>
+                    </button>
+                  </div>
+                </>
+              )}
+
+              {myRol !== "owner" && (
+                <div style={{ borderBottom: "1px solid #F1F5F9" }}>
+                  <button type="button" onClick={openLeave}
+                    style={{ width: "100%", display: "flex", alignItems: "center", gap: 12, padding: "14px 20px", background: "none", border: "none", cursor: "pointer", fontFamily: "inherit" }}>
+                    <div style={{ width: 34, height: 34, borderRadius: "var(--r-md)", background: "var(--danger-bg)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                      <UserRoundX size={15} style={{ color: "var(--danger)" }} />
+                    </div>
+                    <div style={{ textAlign: "left" }}>
+                      <p style={{ fontSize: 14, fontWeight: 400, color: "var(--danger)", margin: 0 }}>Abandonar organización</p>
+                      <p style={{ fontSize: 14, color: "var(--fg-4)", margin: 0 }}>Sales del equipo y pierdes el acceso</p>
+                    </div>
+                  </button>
+                </div>
+              )}
+
               {/* Sign out row */}
               <button
                 type="button"
@@ -708,6 +904,265 @@ export default function ConfiguracionPage({ section }: { section?: Configuracion
         )}
 
       </div>
+
+      {/* ── Traspasar la propiedad ───────────────────────────────────────── */}
+      {transferOpen && (
+        <div style={{
+          position: "fixed", inset: 0, zIndex: 500,
+          background: "rgba(15,23,42,0.45)",
+          display: "flex", alignItems: "center", justifyContent: "center", padding: 24,
+        }}>
+          <div style={{
+            width: "100%", maxWidth: 460, background: "var(--surface-1)",
+            border: "1px solid var(--border)", borderRadius: "var(--r-lg)",
+            boxShadow: "var(--shadow-lg)", overflow: "hidden",
+          }}>
+            <div style={{ padding: "18px 20px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+              <h2 style={{ margin: 0, fontSize: 14, fontWeight: 400, color: "var(--fg-1)" }}>Traspasar la propiedad</h2>
+              <button type="button" onClick={() => setTransferOpen(false)} disabled={transferBusy}
+                style={{ background: "none", border: "none", cursor: transferBusy ? "default" : "pointer", color: "var(--fg-4)", display: "flex", padding: 0 }}>
+                <X size={16} />
+              </button>
+            </div>
+
+            <div style={{ padding: 20, display: "grid", gap: 16 }}>
+              <p style={{ margin: 0, fontSize: 14, color: "var(--fg-1)", lineHeight: 1.55 }}>
+                La persona que elijas pasará a ser propietaria del espacio de trabajo y se hará
+                cargo de la suscripción. Tú quedarás como administrador y podrás abandonar la
+                organización cuando quieras.
+              </p>
+              <div style={{ display: "grid", gap: 6 }}>
+                <label style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-2)" }}>Nuevo propietario</label>
+                <select value={transferDestino} onChange={e => setTransferDestino(e.target.value)}
+                  disabled={transferBusy} style={selectStyle}>
+                  <option value="">Elegir usuario…</option>
+                  {leaveCompas.map(u => <option key={u.id} value={u.id}>{u.nombre}</option>)}
+                </select>
+                {leaveCompas.length === 0 && (
+                  <p style={{ margin: 0, fontSize: 14, color: "var(--fg-4)", lineHeight: 1.5 }}>
+                    No hay nadie más activo en el equipo. Invita a alguien antes de traspasar la propiedad.
+                  </p>
+                )}
+              </div>
+              {transferErr && <p style={{ margin: 0, fontSize: 14, color: "var(--danger)" }}>{transferErr}</p>}
+            </div>
+
+            <div style={{ padding: "14px 20px", borderTop: "1px solid var(--border)", display: "flex", justifyContent: "flex-end", gap: 8 }}>
+              <button type="button" onClick={() => setTransferOpen(false)} disabled={transferBusy}
+                style={{ height: 34, padding: "0 14px", fontSize: 14, fontFamily: "inherit", border: "1px solid var(--border)", borderRadius: "var(--r-sm)", background: "var(--surface-1)", color: "var(--fg-2)", cursor: transferBusy ? "default" : "pointer" }}>
+                Cancelar
+              </button>
+              <button type="button" onClick={transferirPropiedad} disabled={transferBusy || !transferDestino}
+                style={{
+                  height: 34, padding: "0 14px", fontSize: 14, fontFamily: "inherit", borderRadius: "var(--r-sm)",
+                  border: "1px solid " + ((transferBusy || !transferDestino) ? "var(--border)" : "var(--brand)"),
+                  background: (transferBusy || !transferDestino) ? "var(--surface-2)" : "var(--brand)",
+                  color: (transferBusy || !transferDestino) ? "var(--fg-4)" : "var(--fg-on-brand)",
+                  cursor: (transferBusy || !transferDestino) ? "default" : "pointer",
+                  display: "inline-flex", alignItems: "center", gap: 6,
+                }}>
+                {transferBusy && <Loader2 size={13} className="animate-spin" />}
+                {transferBusy ? "Traspasando…" : "Traspasar propiedad"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Eliminar el espacio de trabajo ───────────────────────────────────
+          Doble confirmación deliberada: contraseña (una sesión abierta no basta
+          para destruir la empresa) y la palabra ELIMINAR escrita a mano, que
+          impide el clic reflejo. La ruta vuelve a validar las dos. */}
+      {wipeOpen && (
+        <div style={{
+          position: "fixed", inset: 0, zIndex: 500,
+          background: "rgba(15,23,42,0.45)",
+          display: "flex", alignItems: "center", justifyContent: "center", padding: 24,
+        }}>
+          <div style={{
+            width: "100%", maxWidth: 480, background: "var(--surface-1)",
+            border: "1px solid var(--border)", borderRadius: "var(--r-lg)",
+            boxShadow: "var(--shadow-lg)", overflow: "hidden",
+          }}>
+            <div style={{ padding: "18px 20px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+              <h2 style={{ margin: 0, fontSize: 14, fontWeight: 400, color: "var(--danger)" }}>Eliminar espacio de trabajo</h2>
+              <button type="button" onClick={() => setWipeOpen(false)} disabled={wipeBusy}
+                style={{ background: "none", border: "none", cursor: wipeBusy ? "default" : "pointer", color: "var(--fg-4)", display: "flex", padding: 0 }}>
+                <X size={16} />
+              </button>
+            </div>
+
+            <div style={{ padding: 20, display: "grid", gap: 16 }}>
+              <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+                <AlertTriangle size={16} style={{ color: "var(--danger)", flexShrink: 0, marginTop: 2 }} />
+                <div>
+                  <p style={{ margin: 0, fontSize: 14, color: "var(--fg-1)", lineHeight: 1.55 }}>
+                    Se eliminará <strong>{leaveWsNombre || "este espacio de trabajo"}</strong> y todo lo que contiene:
+                  </p>
+                  <ul style={{ margin: "8px 0 0", paddingLeft: 18, fontSize: 14, color: "var(--fg-2)", lineHeight: 1.7 }}>
+                    <li>Las órdenes de trabajo, su historial y sus fotos</li>
+                    <li>Los activos, procedimientos, ubicaciones y catálogos</li>
+                    <li>Las cuentas de todas las personas del equipo</li>
+                  </ul>
+                  <p style={{ margin: "10px 0 0", fontSize: 14, color: "var(--fg-1)", lineHeight: 1.55 }}>
+                    Tu suscripción se cancelará automáticamente. <strong>Esta acción no se puede deshacer</strong> y
+                    no hay forma de recuperar los datos.
+                  </p>
+                  <p style={{ margin: "10px 0 0", fontSize: 14, color: "var(--fg-3)", lineHeight: 1.55 }}>
+                    Si solo quieres dejar el equipo, usa <strong>Traspasar la propiedad</strong> en su lugar.
+                  </p>
+                </div>
+              </div>
+
+              <div style={{ display: "grid", gap: 6 }}>
+                <label style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-2)" }}>Tu contraseña</label>
+                <input type="password" value={wipePassword} onChange={e => setWipePassword(e.target.value)}
+                  disabled={wipeBusy} autoComplete="current-password" placeholder="••••••••" style={inputStyle} />
+              </div>
+
+              <div style={{ display: "grid", gap: 6 }}>
+                <label style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-2)" }}>
+                  Escribe <strong>ELIMINAR</strong> para confirmar
+                </label>
+                <input type="text" value={wipeFrase} onChange={e => setWipeFrase(e.target.value)}
+                  disabled={wipeBusy} autoComplete="off" placeholder="ELIMINAR" style={inputStyle} />
+              </div>
+
+              {wipeErr && <p style={{ margin: 0, fontSize: 14, color: "var(--danger)", lineHeight: 1.5 }}>{wipeErr}</p>}
+            </div>
+
+            <div style={{ padding: "14px 20px", borderTop: "1px solid var(--border)", display: "flex", justifyContent: "flex-end", gap: 8 }}>
+              <button type="button" onClick={() => setWipeOpen(false)} disabled={wipeBusy}
+                style={{ height: 34, padding: "0 14px", fontSize: 14, fontFamily: "inherit", border: "1px solid var(--border)", borderRadius: "var(--r-sm)", background: "var(--surface-1)", color: "var(--fg-2)", cursor: wipeBusy ? "default" : "pointer" }}>
+                Cancelar
+              </button>
+              <button type="button" onClick={eliminarWorkspace} disabled={!wipeListo}
+                style={{
+                  height: 34, padding: "0 14px", fontSize: 14, fontFamily: "inherit", borderRadius: "var(--r-sm)",
+                  border: "1px solid " + (wipeListo ? "var(--danger)" : "var(--border)"),
+                  background: wipeListo ? "var(--danger)" : "var(--surface-2)",
+                  color: wipeListo ? "#FFFFFF" : "var(--fg-4)",
+                  cursor: wipeListo ? "pointer" : "default",
+                  display: "inline-flex", alignItems: "center", gap: 6,
+                }}>
+                {wipeBusy && <Loader2 size={13} className="animate-spin" />}
+                {wipeBusy ? "Eliminando…" : "Eliminar definitivamente"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Abandonar organización ──────────────────────────────────────────
+          zIndex 500 como ConfirmDeleteModal: la topbar es zIndex 100, así que
+          un overlay más bajo la deja iluminada sobre el fondo oscurecido. */}
+      {leaveOpen && (
+        <div style={{
+          position: "fixed", inset: 0, zIndex: 500,
+          background: "rgba(15,23,42,0.45)",
+          display: "flex", alignItems: "center", justifyContent: "center", padding: 24,
+        }}>
+          <div style={{
+            width: "100%", maxWidth: 460, background: "var(--surface-1)",
+            border: "1px solid var(--border)", borderRadius: "var(--r-lg)",
+            boxShadow: "var(--shadow-lg)", overflow: "hidden",
+            display: "flex", flexDirection: "column",
+          }}>
+            <div style={{ padding: "18px 20px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+              <h2 style={{ margin: 0, fontSize: 14, fontWeight: 400, color: "var(--fg-1)" }}>Abandonar organización</h2>
+              <button type="button" onClick={() => setLeaveOpen(false)} disabled={leaveBusy}
+                style={{ background: "none", border: "none", cursor: leaveBusy ? "default" : "pointer", color: "var(--fg-4)", display: "flex", padding: 0 }}>
+                <X size={16} />
+              </button>
+            </div>
+
+            <div style={{ padding: 20, display: "grid", gap: 16 }}>
+              {leaveAbiertas === null ? (
+                <p style={{ margin: 0, fontSize: 14, color: "var(--fg-3)" }}>Revisando tu trabajo asignado…</p>
+              ) : (
+                <>
+                  <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+                    <AlertTriangle size={16} style={{ color: "var(--danger)", flexShrink: 0, marginTop: 2 }} />
+                    <p style={{ margin: 0, fontSize: 14, color: "var(--fg-1)", lineHeight: 1.55 }}>
+                      Perderás el acceso a <strong>{leaveWsNombre || "este espacio de trabajo"}</strong> y a todas sus órdenes.
+                      Tu historial —comentarios, fotos y firmas— se conserva tal cual. Esta acción no se puede deshacer.
+                    </p>
+                  </div>
+
+                  {leaveAbiertas > 0 && (
+                    <>
+                      <p style={{ margin: 0, fontSize: 14, color: "var(--fg-1)", lineHeight: 1.55 }}>
+                        Tienes <strong>{leaveAbiertas} OT{leaveAbiertas === 1 ? "" : "s"} abierta{leaveAbiertas === 1 ? "" : "s"}</strong> asignada{leaveAbiertas === 1 ? "" : "s"}.
+                        Elige a quién pasarle ese trabajo antes de salir.
+                      </p>
+                      <div style={{ display: "grid", gap: 6 }}>
+                        <label style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-2)" }}>Reasignar a</label>
+                        <select
+                          value={leaveDestino}
+                          onChange={e => setLeaveDestino(e.target.value)}
+                          disabled={leaveBusy}
+                          style={selectStyle}
+                        >
+                          <option value="">Elegir usuario…</option>
+                          {leaveCompas.map(u => <option key={u.id} value={u.id}>{u.nombre}</option>)}
+                        </select>
+                        {leaveCompas.length === 0 && (
+                          <p style={{ margin: 0, fontSize: 14, color: "var(--fg-4)", lineHeight: 1.5 }}>
+                            No hay nadie más activo en el equipo a quien pasarle el trabajo. Pide a un
+                            administrador que lo reasigne antes de salir.
+                          </p>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </>
+              )}
+
+              {leaveErr && (
+                <p style={{ margin: 0, fontSize: 14, color: "var(--danger)", lineHeight: 1.5 }}>{leaveErr}</p>
+              )}
+            </div>
+
+            <div style={{ padding: "14px 20px", borderTop: "1px solid var(--border)", display: "flex", justifyContent: "flex-end", gap: 8 }}>
+              <button
+                type="button"
+                onClick={() => setLeaveOpen(false)}
+                disabled={leaveBusy}
+                style={{
+                  height: 34, padding: "0 14px", fontSize: 14, fontWeight: 400, fontFamily: "inherit",
+                  border: "1px solid var(--border)", borderRadius: "var(--r-sm)",
+                  background: "var(--surface-1)", color: "var(--fg-2)", cursor: leaveBusy ? "default" : "pointer",
+                }}
+              >
+                Cancelar
+              </button>
+              {/* Reasignar es obligatorio cuando queda trabajo abierto: sin
+                  destino el botón no habilita, y Postgres lo rechaza igual. */}
+              <button
+                type="button"
+                onClick={abandonarOrganizacion}
+                disabled={leaveBusy || leaveAbiertas === null || (leaveAbiertas > 0 && !leaveDestino)}
+                style={{
+                  height: 34, padding: "0 14px", fontSize: 14, fontWeight: 400, fontFamily: "inherit",
+                  borderRadius: "var(--r-sm)",
+                  border: `1px solid ${(leaveBusy || leaveAbiertas === null || (leaveAbiertas > 0 && !leaveDestino)) ? "var(--border)" : "var(--danger)"}`,
+                  background: (leaveBusy || leaveAbiertas === null || (leaveAbiertas > 0 && !leaveDestino)) ? "var(--surface-2)" : "var(--danger)",
+                  color: (leaveBusy || leaveAbiertas === null || (leaveAbiertas > 0 && !leaveDestino)) ? "var(--fg-4)" : "#FFFFFF",
+                  cursor: (leaveBusy || leaveAbiertas === null || (leaveAbiertas > 0 && !leaveDestino)) ? "default" : "pointer",
+                  display: "inline-flex", alignItems: "center", gap: 6,
+                }}
+              >
+                {leaveBusy && <Loader2 size={13} className="animate-spin" />}
+                {leaveBusy
+                  ? "Saliendo…"
+                  : leaveAbiertas && leaveAbiertas > 0
+                    ? "Reasignar y abandonar"
+                    : "Abandonar organización"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

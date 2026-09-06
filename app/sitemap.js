@@ -23,5 +23,6 @@ export default function sitemap() {
     // content to rank and is noindex behind the app layout.
     { url: `${SITE_URL}/privacidad`, lastModified: "2026-08-10", changeFrequency: "yearly", priority: 0.2 },
     { url: `${SITE_URL}/terminos`, lastModified: "2026-08-17", changeFrequency: "yearly", priority: 0.2 },
+    { url: `${SITE_URL}/eliminar-cuenta`, lastModified: "2026-09-06", changeFrequency: "yearly", priority: 0.2 },
   ];
 }

@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase";
-import { callEdge } from "@/lib/edge";
 import { ROL_LABEL, esAdmin, esOwner } from "@/lib/roles";
 import { puedeDarDeBaja, puedeGestionarUsuario } from "@/lib/usuarios-baja";
 import {
@@ -39,7 +39,7 @@ interface Cuadrilla {
   activo?: boolean;
 }
 
-type PanelMode = null | "view-user" | "create-user" | "view-cuadrilla" | "create-cuadrilla";
+type PanelMode = null | "view-cuadrilla" | "create-cuadrilla";
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 const ROL_ICON: Record<string, React.ElementType> = {
@@ -86,20 +86,6 @@ function DynamicIcon({ name, size = 16, ...props }: { name?: string; size?: numb
   return <Icon size={size} {...props} />;
 }
 
-/**
- * Turns an invite-user failure into something an admin can act on. Mirrors
- * invitationError() in the mobile app so both platforms explain the same
- * failure the same way — 402 in particular is a billing stop, not an error.
- */
-function inviteError(status: number, body: { error?: string } | null): string {
-  const raw = body?.error;
-  if (status === 402) return raw || "Tu plan no permite agregar más usuarios. Revisa Suscripción.";
-  if (status === 403) return "No tienes permisos para invitar personas a este espacio de trabajo.";
-  if (status === 409) return "Este correo ya está registrado en un espacio de trabajo.";
-  if (status === 429) return "Se enviaron demasiadas invitaciones. Espera unos minutos e inténtalo otra vez.";
-  return raw || "No se pudo enviar la invitación. Inténtalo nuevamente.";
-}
-
 function formatDate(iso?: string) {
   if (!iso) return "—";
   return new Date(iso).toLocaleDateString("es-CL", { day: "2-digit", month: "short", year: "numeric" });
@@ -119,8 +105,8 @@ function timeAgo(iso?: string) {
 
 // ── Inline form field helpers ──────────────────────────────────────────────────
 const labelStyle: React.CSSProperties = {
-  fontSize: 14, fontWeight: 400, textTransform: "uppercase",
-  letterSpacing: "0.06em", color: "var(--fg-4)", marginBottom: 5, display: "block",
+  fontSize: 14, fontWeight: 400,
+  color: "var(--fg-4)", marginBottom: 5, display: "block",
 };
 const inputStyle: React.CSSProperties = {
   width: "100%", height: 36, padding: "0 12px",
@@ -155,13 +141,8 @@ export default function UsuariosPage() {
 
   // Invite form. No password field: the member sets their own from the emailed
   // link, exactly like the mobile Equipo invite.
-  const [userForm, setUserForm] = useState({ nombre: "", email: "", rol: "member", cargo_id: "", oficio_id: "" });
-  // Cargo/oficio catalogs, scoped to global rows + this workspace's own.
-  const [cargos, setCargos]   = useState<{ id: string; nombre: string }[]>([]);
-  const [oficios, setOficios] = useState<{ id: string; nombre: string }[]>([]);
   const [saving, setSaving] = useState(false);
   const [saveErr, setSaveErr] = useState<string | null>(null);
-  const [inviteOk, setInviteOk] = useState<{ nombre: string; email: string; password: string } | null>(null);
 
   // Cuadrilla form
   const [cuadrillaForm, setCuadrillaForm] = useState({ nombre: "", descripcion: "", tipo: "", icono: "", color: "" });
@@ -169,7 +150,41 @@ export default function UsuariosPage() {
   // Members table: sortable columns + per-row ⋮ menu.
   const [sortKey, setSortKey] = useState<"nombre" | "rol" | "cargo" | "oficio" | "estado">("nombre");
   const [sortAsc, setSortAsc] = useState(true);
-  const [rowMenu, setRowMenu] = useState<string | null>(null);
+  // The ⋮ menu renders in a portal on document.body, not inside the row: the
+  // table sits in three nested clipping boxes (the rounded card's
+  // `overflow:hidden`, the horizontal scroller's `overflowX:auto`, and the
+  // scrolling content column), and an absolutely positioned menu is cropped by
+  // all of them no matter how high its z-index goes — clipping ignores stacking
+  // order. So it is positioned with `fixed` from the button's measured rect,
+  // and flips above the button when it would run past the viewport bottom,
+  // which is what the last row in the table always did.
+  const [rowMenu, setRowMenu] = useState<{ id: string; top: number; right: number; flipUp: boolean } | null>(null);
+  // Reposition on scroll/resize would fight the fixed anchor, so the menu just
+  // closes instead — the same thing a click outside does.
+  useEffect(() => {
+    if (!rowMenu) return;
+    const close = () => setRowMenu(null);
+    window.addEventListener("scroll", close, true);
+    window.addEventListener("resize", close);
+    return () => {
+      window.removeEventListener("scroll", close, true);
+      window.removeEventListener("resize", close);
+    };
+  }, [rowMenu]);
+
+  /** Measures the ⋮ button and opens (or closes) the menu anchored to it. */
+  function toggleRowMenu(id: string, btn: HTMLElement) {
+    if (rowMenu?.id === id) { setRowMenu(null); return; }
+    const r = btn.getBoundingClientRect();
+    const MENU_H = 96;
+    const flipUp = window.innerHeight - r.bottom < MENU_H + 16;
+    setRowMenu({
+      id,
+      top: flipUp ? r.top - 4 : r.bottom + 4,
+      right: Math.max(12, window.innerWidth - r.right),
+      flipUp,
+    });
+  }
 
   // Permissions
   const [permisosOpen, setPermisosOpen] = useState(false);
@@ -208,18 +223,6 @@ export default function UsuariosPage() {
         .eq("workspace_id", pId).is("deleted_at", null).order("nombre");
       setUsuarios(u1 ?? []);
 
-      // Catalogs for the invite form: global rows plus this workspace's own,
-      // same scoping the mobile invite and /usuarios/[id] use.
-      const [{ data: cgs }, { data: ofs }] = await Promise.all([
-        sb.from("cargos").select("id, nombre")
-          .or(`workspace_id.is.null,workspace_id.eq.${pId}`)
-          .eq("activo", true).order("nivel").order("nombre"),
-        sb.from("oficios").select("id, nombre")
-          .or(`workspace_id.is.null,workspace_id.eq.${pId}`)
-          .eq("activo", true).order("nombre"),
-      ]);
-      setCargos(cgs ?? []);
-      setOficios(ofs ?? []);
       setLoading(false);
     }
     load();
@@ -323,50 +326,6 @@ export default function UsuariosPage() {
     if (panelData && (panelData as Usuario).id === bajaUser.id) setPanelMode(null);
   }
 
-  // ── Invite user ────────────────────────────────────────────────────────────
-  /**
-   * Sends a real invitation email via the `invite-user` edge function — the same
-   * one the mobile Equipo screen uses. The member sets their own password from
-   * the emailed link, so no temporary credentials are typed or shared here.
-   *
-   * The function validates the email is not already registered, checks the
-   * cargo/oficio ids against this workspace's catalogs, and pre-creates the
-   * `usuarios` row so the person is assignable before accepting.
-   */
-  async function inviteUser() {
-    setSaveErr(null);
-    const nombre = userForm.nombre.trim();
-    const email = userForm.email.trim().toLowerCase();
-    if (!nombre) { setSaveErr("Ingresa el nombre."); return; }
-    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { setSaveErr("Ingresa un email valido."); return; }
-
-    setSaving(true);
-    const res = await callEdge("invite-user", {
-      email,
-      nombre,
-      rol: userForm.rol,
-      // Dual-write id + text, matching the mobile invite payload.
-      cargo:     cargos.find(c => c.id === userForm.cargo_id)?.nombre ?? null,
-      cargo_id:  userForm.cargo_id || null,
-      oficio:    oficios.find(o => o.id === userForm.oficio_id)?.nombre ?? null,
-      oficio_id: userForm.oficio_id || null,
-    });
-
-    const body = await res.json().catch(() => null);
-    setSaving(false);
-    if (!res.ok) {
-      setSaveErr(inviteError(res.status, body));
-      return;
-    }
-
-    setInviteOk({ nombre, email, password: "" });
-    const sb = createClient();
-    const { data: u1 } = await sb.from("usuarios")
-      .select("id,nombre,rol,activo,oficio,cargo,solo_asignadas,created_at,last_active,deleted_at")
-      .eq("workspace_id", plantaId).is("deleted_at", null).order("nombre");
-    setUsuarios(u1 ?? []);
-  }
-
   // ── Open panels ────────────────────────────────────────────────────────────
   /**
    * Members open in their own page (/usuarios/[id]) rather than the old side
@@ -375,14 +334,6 @@ export default function UsuariosPage() {
    */
   function openUser(u: Usuario) {
     router.push(`/usuarios/${u.id}`);
-  }
-
-  function openCreateUser() {
-    setUserForm({ nombre: "", email: "", rol: "member", cargo_id: "", oficio_id: "" });
-    setPanelData(null);
-    setPanelMode("create-user");
-    setSaveErr(null);
-    setInviteOk(null);
   }
 
   async function openCuadrilla(c: Cuadrilla) {
@@ -412,7 +363,6 @@ export default function UsuariosPage() {
   function closePanel() {
     setPanelMode(null);
     setPanelData(null);
-    setInviteOk(null);
     setSaveErr(null);
   }
 
@@ -504,43 +454,56 @@ export default function UsuariosPage() {
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", minHeight: 0, background: "var(--surface-canvas)" }}>
 
-      {/* Toolbar: search on the left, actions on the right. Cuadrillas was
-          removed — the table had no rows in production and nothing else in the
-          app referenced it, so the tab strip is gone with it. */}
+      {/* Toolbar: search and actions both right-aligned, matching the Órdenes
+          bandeja. Control heights are 38px there, so they are 38px here too —
+          they used to be 36 and read as a different size class between the two
+          screens. Cuadrillas was removed — the table had no rows in production
+          and nothing else in the app referenced it, so the tab strip is gone
+          with it. */}
       <div style={{
         flexShrink: 0, borderBottom: "1px solid var(--border)",
-        padding: "12px 24px", display: "flex", alignItems: "center",
-        justifyContent: "space-between", gap: 12, flexWrap: "wrap",
+        padding: "9px 24px", minHeight: 56, display: "flex", alignItems: "center",
+        justifyContent: "flex-end", gap: 8, flexWrap: "wrap",
       }}>
-        <div style={{ position: "relative", flex: "1 1 260px", maxWidth: 320 }}>
-          <Search size={14} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "var(--fg-4)" }} />
+        <div style={{ position: "relative", flex: "1 1 220px", maxWidth: 280, minWidth: 220 }}>
+          <Search size={14} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "var(--fg-4)", pointerEvents: "none" }} />
           <input
             type="text"
             placeholder="Buscar miembro…"
             value={busqueda}
             onChange={e => setBusqueda(e.target.value)}
-            style={{ ...inputStyle, paddingLeft: 32, height: 36 }}
+            style={{ ...inputStyle, paddingLeft: 34, paddingRight: busqueda ? 28 : 10, height: 38, borderRadius: 8 }}
+            onFocus={e => { e.currentTarget.style.borderColor = "var(--brand)"; }}
+            onBlur={e => { e.currentTarget.style.borderColor = "var(--border)"; }}
           />
-        </div>
-
-        <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-          {(esAdmin(myRol) || myRol === "jefe") && (
+          {busqueda && (
             <button
               type="button"
-              onClick={openCreateUser}
-              style={{
-                height: 36, padding: "0 16px",
-                display: "flex", alignItems: "center", gap: 7,
-                background: "var(--brand)", border: "none", borderRadius: 8,
-                fontSize: 14, fontWeight: 400, color: "var(--fg-on-brand)",
-                cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap",
-              }}
+              onClick={() => setBusqueda("")}
+              aria-label="Limpiar búsqueda"
+              style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", background: "transparent", border: "none", cursor: "pointer", color: "var(--fg-4)", display: "flex" }}
             >
-              <UserPlus size={15} />
-              Agregar miembro
+              <X size={12} />
             </button>
           )}
         </div>
+
+        {(esAdmin(myRol) || myRol === "jefe") && (
+          <button
+            type="button"
+            onClick={() => router.push("/usuarios/invitar")}
+            style={{
+              flexShrink: 0, height: 38, padding: "0 16px",
+              display: "inline-flex", alignItems: "center", gap: 7,
+              background: "var(--brand)", border: "none", borderRadius: 8,
+              fontSize: 14, fontWeight: 400, color: "var(--fg-on-brand)",
+              cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap",
+            }}
+          >
+            <UserPlus size={15} />
+            Agregar miembro
+          </button>
+        )}
       </div>
 
       {/* Main area */}
@@ -581,7 +544,6 @@ export default function UsuariosPage() {
                                   background: "none", border: "none", padding: 0, cursor: "pointer",
                                   fontFamily: "inherit", fontSize: 14, fontWeight: 400,
                                   color: sortKey === key ? "var(--fg-2)" : "var(--fg-4)",
-                                  textTransform: "uppercase", letterSpacing: "0.05em",
                                 }}
                               >
                                 {label}
@@ -643,30 +605,31 @@ export default function UsuariosPage() {
                                 <button
                                   type="button"
                                   aria-label={`Acciones para ${u.nombre}`}
-                                  onClick={e => { e.stopPropagation(); setRowMenu(rowMenu === u.id ? null : u.id); }}
+                                  onClick={e => { e.stopPropagation(); toggleRowMenu(u.id, e.currentTarget); }}
                                   style={{
                                     width: 28, height: 28, display: "grid", placeItems: "center",
                                     border: "none", borderRadius: 6,
-                                    background: rowMenu === u.id ? "var(--surface-hover)" : "transparent",
+                                    background: rowMenu?.id === u.id ? "var(--surface-hover)" : "transparent",
                                     color: "var(--fg-3)", cursor: "pointer",
                                   }}
                                 >
                                   <MoreHorizontal size={15} />
                                 </button>
 
-                                {rowMenu === u.id && (
+                                {rowMenu?.id === u.id && typeof document !== "undefined" && createPortal(
                                   <>
                                     <div
                                       onClick={e => { e.stopPropagation(); setRowMenu(null); }}
-                                      style={{ position: "fixed", inset: 0, zIndex: 40 }}
+                                      style={{ position: "fixed", inset: 0, zIndex: 9998 }}
                                     />
                                     <div
                                       onClick={e => e.stopPropagation()}
                                       style={{
-                                        position: "absolute", top: "calc(100% - 4px)", right: 12, zIndex: 41,
+                                        position: "fixed", top: rowMenu.top, right: rowMenu.right, zIndex: 9999,
                                         width: 230, padding: 6, textAlign: "left",
                                         background: "var(--surface-1)", border: "1px solid var(--border-strong)",
                                         borderRadius: 10, boxShadow: "var(--shadow-lg)",
+                                        transform: rowMenu.flipUp ? "translateY(-100%)" : "none",
                                       }}
                                     >
                                       <button
@@ -686,7 +649,8 @@ export default function UsuariosPage() {
                                         </button>
                                       )}
                                     </div>
-                                  </>
+                                  </>,
+                                  document.body
                                 )}
                               </td>
                             </tr>
@@ -720,9 +684,7 @@ export default function UsuariosPage() {
               borderBottom: "1px solid var(--border)",
             }}>
               <span style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)" }}>
-                {panelMode === "create-user" ? "Nuevo miembro" :
-                 panelMode === "create-cuadrilla" ? "Nueva cuadrilla" :
-                 panelMode === "view-user" ? (panelData as Usuario)?.nombre :
+                {panelMode === "create-cuadrilla" ? "Nueva cuadrilla" :
                  (panelData as Cuadrilla)?.nombre}
               </span>
               <button type="button" onClick={closePanel}
@@ -732,184 +694,6 @@ export default function UsuariosPage() {
             </div>
 
             {/* User panels */}
-            {(panelMode === "create-user" || panelMode === "view-user") && (
-              <div style={{ padding: 20, display: "flex", flexDirection: "column", gap: 14 }}>
-                {inviteOk ? (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                    <div style={{ padding: "12px 16px", background: "var(--success-bg)", border: "1px solid var(--success)", borderRadius: 8 }}>
-                      <p style={{ fontSize: 14, fontWeight: 400, color: "var(--success)", margin: "0 0 8px" }}>
-                        ¡Invitación enviada!
-                      </p>
-                      <p style={{ fontSize: 14, color: "var(--fg-2)", margin: 0, lineHeight: 1.5 }}>
-                        Le enviamos un correo a <strong>{inviteOk.email}</strong> para que{" "}
-                        <strong>{inviteOk.nombre}</strong> cree su contraseña. Ya aparece en el equipo
-                        y puedes asignarle órdenes.
-                      </p>
-                    </div>
-                    <button type="button" onClick={closePanel}
-                      style={{ height: 36, border: "none", borderRadius: 6, background: "var(--brand)", color: "var(--fg-on-brand)", fontSize: 14, fontWeight: 400, cursor: "pointer", fontFamily: "inherit" }}>
-                      Listo
-                    </button>
-                  </div>
-                ) : panelMode === "view-user" ? (
-                  // View user
-                  <>
-                    <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 16px", background: "var(--brand-tint)", borderRadius: 8 }}>
-                      <div style={{
-                        width: 44, height: 44, borderRadius: "50%", flexShrink: 0,
-                        background: (panelData as Usuario).activo !== false ? "var(--brand)" : "var(--border)",
-                        display: "flex", alignItems: "center", justifyContent: "center",
-                        fontSize: 14, fontWeight: 400,
-                        color: (panelData as Usuario).activo !== false ? "var(--fg-on-brand)" : "var(--fg-4)",
-                      }}>
-                        {(panelData as Usuario).nombre?.charAt(0)?.toUpperCase()}
-                      </div>
-                      <div>
-                        <p style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", margin: 0 }}>{(panelData as Usuario).nombre}</p>
-                        <div style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 3 }}>
-                          <span style={{ fontSize: 14, fontWeight: 400, padding: "2px 8px", borderRadius: 20, background: "var(--brand-tint)", color: "var(--brand)" }}>
-                            {(ROL_LABEL as Record<string, string>)[(panelData as Usuario).rol] ?? (panelData as Usuario).rol}
-                          </span>
-                          {(panelData as Usuario).activo === false && (
-                            <span style={{ fontSize: 14, fontWeight: 400, padding: "2px 8px", borderRadius: 20, background: "var(--surface-hover)", color: "var(--fg-4)" }}>
-                              Inactivo
-                            </span>
-                          )}
-                        </div>
-                        {(panelData as Usuario).oficio && (
-                          <p style={{ fontSize: 14, color: "var(--fg-3)", margin: "3px 0 0" }}>{(panelData as Usuario).oficio}</p>
-                        )}
-                      </div>
-                    </div>
-                    <div style={{ fontSize: 14, color: "var(--fg-3)", display: "flex", flexDirection: "column", gap: 4 }}>
-                      {(panelData as Usuario).created_at && (
-                        <div><strong>Desde:</strong> {formatDate((panelData as Usuario).created_at)}</div>
-                      )}
-                      {(panelData as Usuario).last_active && (
-                        <div><strong>Última actividad:</strong> {timeAgo((panelData as Usuario).last_active)}</div>
-                      )}
-                    </div>
-                    {(panelData as Usuario).id !== myId && esAdmin(myRol) &&
-                     (esOwner(myRol) || !(esAdmin((panelData as Usuario).rol))) && (
-                      <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
-                        <button
-                          type="button"
-                          onClick={() => toggleActivo(panelData as Usuario)}
-                          style={{
-                            flex: 1, height: 34, border: "1px solid var(--border)", borderRadius: 6,
-                            background: "none", fontSize: 14, fontWeight: 400,
-                            color: (panelData as Usuario).activo !== false ? "var(--danger)" : "var(--success)",
-                            cursor: "pointer", fontFamily: "inherit",
-                          }}
-                        >
-                          {(panelData as Usuario).activo !== false ? "Desactivar" : "Activar"}
-                        </button>
-                        {/* Baja definitiva: pide reasignar el trabajo abierto
-                            antes de permitirla, y conserva la fila para que el
-                            historial siga teniendo autor. */}
-                        <button
-                          type="button"
-                          onClick={() => openBaja(panelData as Usuario)}
-                          style={{
-                            flex: 1, height: 34, border: "1px solid var(--danger)", borderRadius: 6,
-                            background: "none", fontSize: 14, fontWeight: 400,
-                            color: "var(--danger)", cursor: "pointer", fontFamily: "inherit",
-                          }}
-                        >
-                          Dar de baja
-                        </button>
-                      </div>
-                    )}
-                  </>
-                ) : (
-                  // Invite form. Mirrors the mobile Equipo invite: no manual
-                  // password — the member receives an email and sets their own.
-                  <>
-                    <div>
-                      <label style={labelStyle}>Nombre completo</label>
-                      <input
-                        style={inputStyle}
-                        type="text"
-                        placeholder="Ej. Juan Perez"
-                        value={userForm.nombre}
-                        onChange={e => setUserForm(f => ({ ...f, nombre: e.target.value }))}
-                        onFocus={e => { e.currentTarget.style.borderColor = "var(--brand)"; }}
-                        onBlur={e => { e.currentTarget.style.borderColor = "var(--border)"; }}
-                      />
-                    </div>
-                    <div>
-                      <label style={labelStyle}>Email</label>
-                      <input
-                        style={inputStyle}
-                        type="email"
-                        placeholder="usuario@empresa.cl"
-                        value={userForm.email}
-                        onChange={e => setUserForm(f => ({ ...f, email: e.target.value }))}
-                        onFocus={e => { e.currentTarget.style.borderColor = "var(--brand)"; }}
-                        onBlur={e => { e.currentTarget.style.borderColor = "var(--border)"; }}
-                      />
-                    </div>
-                    <div>
-                      <label style={labelStyle}>Rol</label>
-                      <select
-                        style={inputStyle}
-                        value={userForm.rol}
-                        onChange={e => setUserForm(f => ({ ...f, rol: e.target.value }))}
-                      >
-                        <option value="requester">{ROL_LABEL.requester}</option>
-                        <option value="member">{ROL_LABEL.member}</option>
-                        {esAdmin(myRol) && <option value="admin">{ROL_LABEL.admin}</option>}
-                      </select>
-                    </div>
-                    <div>
-                      <label style={labelStyle}>Cargo</label>
-                      <select
-                        style={inputStyle}
-                        value={userForm.cargo_id}
-                        onChange={e => setUserForm(f => ({ ...f, cargo_id: e.target.value }))}
-                      >
-                        <option value="">Sin especificar</option>
-                        {cargos.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-                      </select>
-                    </div>
-                    <div>
-                      <label style={labelStyle}>Oficio</label>
-                      <select
-                        style={inputStyle}
-                        value={userForm.oficio_id}
-                        onChange={e => setUserForm(f => ({ ...f, oficio_id: e.target.value }))}
-                      >
-                        <option value="">Sin especificar</option>
-                        {oficios.map(o => <option key={o.id} value={o.id}>{o.nombre}</option>)}
-                      </select>
-                    </div>
-
-                    <p style={{ fontSize: 14, color: "var(--fg-4)", margin: 0, lineHeight: 1.5 }}>
-                      Le enviaremos un correo para que cree su propia contrasena.
-                      Aparecera en el equipo de inmediato y podras asignarle ordenes.
-                    </p>
-
-                    {saveErr && <p style={{ fontSize: 14, color: "var(--danger)", margin: 0 }}>{saveErr}</p>}
-                    <button
-                      type="button"
-                      onClick={inviteUser}
-                      disabled={saving}
-                      style={{
-                        height: 38, border: "none", borderRadius: 8,
-                        background: "var(--brand)", color: "var(--fg-on-brand)",
-                        fontSize: 14, fontWeight: 400,
-                        cursor: saving ? "default" : "pointer", fontFamily: "inherit",
-                        display: "flex", alignItems: "center", justifyContent: "center", gap: 7,
-                        opacity: saving ? 0.7 : 1,
-                      }}
-                    >
-                      {saving ? <Loader2 size={15} className="animate-spin" /> : <UserPlus size={15} />}
-                      {saving ? "Enviando invitacion..." : "Enviar invitacion"}
-                    </button>
-                  </>
-                )}
-              </div>
-            )}
 
             {/* Cuadrilla panels */}
             {(panelMode === "create-cuadrilla" || panelMode === "view-cuadrilla") && (
@@ -1029,10 +813,14 @@ export default function UsuariosPage() {
 
       {/* Permissions modal */}
       {/* ── Baja de usuario ────────────────────────────────────────────────── */}
+      {/* Baja modal. The overlay is zIndex 500, not 60: the global topbar is
+          zIndex 100, so a lower overlay leaves the header lit above the dimmed
+          page. Same value and overlay tone as ConfirmDeleteModal, which hit
+          this exact bug. */}
       {bajaOpen && bajaUser && (
         <div style={{
-          position: "fixed", inset: 0, zIndex: 60,
-          background: "rgba(0,0,0,0.3)",
+          position: "fixed", inset: 0, zIndex: 500,
+          background: "rgba(15,23,42,0.45)",
           display: "flex", alignItems: "center", justifyContent: "center",
           padding: 24,
         }}>
@@ -1055,7 +843,7 @@ export default function UsuariosPage() {
                 <>
                   <p style={{ margin: 0, fontSize: 14, color: "var(--fg-1)", lineHeight: 1.55 }}>
                     Tiene <strong>{bajaAbiertas} OT{bajaAbiertas === 1 ? "" : "s"} abierta{bajaAbiertas === 1 ? "" : "s"}</strong>.
-                    Elegí a quién pasarle ese trabajo antes de darlo de baja.
+                    Elige a quién pasarle ese trabajo antes de darlo de baja.
                   </p>
                   <div style={{ display: "grid", gap: 6 }}>
                     <label style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-2)" }}>Reasignar a</label>
@@ -1079,11 +867,12 @@ export default function UsuariosPage() {
                     onClick={reasignarTrabajo}
                     disabled={!bajaDestino || bajaBusy}
                     style={{
-                      height: 36, border: "1px solid var(--brand)", borderRadius: "var(--r-sm)",
-                      background: "var(--brand)", color: "var(--fg-on-brand)",
+                      height: 36, borderRadius: "var(--r-sm)",
+                      border: `1px solid ${(!bajaDestino || bajaBusy) ? "var(--border)" : "var(--brand)"}`,
+                      background: (!bajaDestino || bajaBusy) ? "var(--surface-2)" : "var(--brand)",
+                      color: (!bajaDestino || bajaBusy) ? "var(--fg-4)" : "var(--fg-on-brand)",
                       fontSize: 14, fontWeight: 400, fontFamily: "inherit",
                       cursor: (!bajaDestino || bajaBusy) ? "default" : "pointer",
-                      opacity: (!bajaDestino || bajaBusy) ? 0.55 : 1,
                     }}
                   >
                     {bajaBusy ? "Reasignando…" : "Reasignar trabajo"}
@@ -1091,7 +880,7 @@ export default function UsuariosPage() {
                 </>
               ) : (
                 <p style={{ margin: 0, fontSize: 14, color: "var(--fg-1)", lineHeight: 1.55 }}>
-                  No le queda trabajo abierto. Al darlo de baja no va a poder entrar ni aparecer
+                  No le queda trabajo abierto. Al darlo de baja no podrá entrar ni aparecer
                   en los selectores, y deja de contar para la facturación. Su historial —
                   comentarios, fotos y firmas — se conserva tal cual.
                 </p>
@@ -1122,7 +911,7 @@ export default function UsuariosPage() {
                 type="button"
                 onClick={darDeBaja}
                 disabled={bajaBusy || !puedeDarDeBaja(bajaAbiertas)}
-                title={bajaAbiertas ? "Reasigná el trabajo abierto primero" : undefined}
+                title={bajaAbiertas ? "Reasigna el trabajo abierto primero" : undefined}
                 style={{
                   height: 34, padding: "0 14px", fontSize: 14, fontWeight: 400, fontFamily: "inherit",
                   border: "1px solid var(--danger)", borderRadius: "var(--r-sm)",
