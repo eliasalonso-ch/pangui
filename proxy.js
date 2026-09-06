@@ -109,6 +109,7 @@ const MARKETING_PREFIXES = [
   "/industrias",
   "/privacidad",
   "/terminos",
+  "/eliminar-cuenta",
   "/demo",
 ];
 
@@ -175,6 +176,7 @@ export async function proxy(request) {
     pathname === "/robots.txt" ||
     pathname === "/opengraph-image" ||
     pathname.startsWith("/privacidad") ||
+    pathname.startsWith("/eliminar-cuenta") ||
     pathname.startsWith("/terminos") ||
     pathname.startsWith("/registro") ||
     // Invitation links arrive before a web session exists. The client page

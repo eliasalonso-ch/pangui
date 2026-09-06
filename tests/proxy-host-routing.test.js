@@ -20,7 +20,7 @@ const APP_ONLY_PREFIXES = ["/login", "/registro", "/recuperar-contrasena"];
 const AUTH_CALLBACK_PREFIXES = ["/reset-contrasena", "/confirmar-reset", "/invite"];
 const MARKETING_PREFIXES = [
   "/precios", "/casos-de-exito", "/industrias", "/privacidad",
-  "/terminos", "/demo",
+  "/terminos", "/eliminar-cuenta", "/demo",
 ];
 
 const APP_HOST = "app.getpangui.com";
