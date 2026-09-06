@@ -140,7 +140,7 @@ export default function GlobalTopBar() {
         </button>
 
         {open && (
-          <div style={{ position: "absolute", top: 42, right: 0, width: 250, padding: 6, borderRadius: 12, border: "1px solid var(--border)", background: "var(--surface-1)", boxShadow: "var(--shadow-lg)", color: "var(--fg-1)" }}>
+          <div style={{ position: "absolute", top: 42, right: 0, zIndex: 1, width: 250, padding: 6, borderRadius: 12, border: "1px solid var(--border)", background: "var(--surface-1)", boxShadow: "var(--shadow-lg)", color: "var(--fg-1)" }}>
             <button type="button" onClick={() => { setOpen(false); router.push("/mi-cuenta"); }} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "10px", border: 0, borderRadius: 8, background: "transparent", color: "inherit", cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}>
               <CircleUserRound size={17} />
               <span style={{ minWidth: 0, flex: 1 }}>

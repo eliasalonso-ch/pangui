@@ -386,7 +386,8 @@ export default function AppSidebar() {
               flexShrink: 0,
             }}>
               <img
-                src={workspaceLogo ?? "/logo2.svg"}
+                // Logo por defecto cuando el workspace no subió el suyo.
+                src={workspaceLogo ?? "/logo.svg"}
                 alt="Logo"
                 style={{
                   width: "100%",

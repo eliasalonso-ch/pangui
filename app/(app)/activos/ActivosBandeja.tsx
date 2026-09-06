@@ -15,6 +15,7 @@ import {
   fetchActivoOTHistoryPage, fetchActivoActividadPage,
   type ActivoOTHistoryRow, type ActivoActividadRow,
 } from "@/lib/activos-api";
+import { cambiarEstadoActivo, fetchPeriodoVigente, type EstadoPeriodo } from "@/lib/activo-estado-api";
 import { uploadToR2 } from "@/lib/r2";
 import { createClient, logRealtimeChannel } from "@/lib/supabase";
 import type {
@@ -44,7 +45,9 @@ const ESTADO_LABEL: Record<AssetStatus, string> = {
 const ESTADO_COLOR: Record<AssetStatus, string> = {
   operativo: "var(--success)",
   fuera_servicio: "var(--danger)",
-  mantencion: "var(--warning)",
+  // Naranja pleno y no `--warning`: ese token vale #B26A00 en modo claro —un
+  // ambar oscuro calculado para texto— y como relleno de un punto se ve marron.
+  mantencion: "#F59E0B",
   baja: "var(--st-cancel-dot)",
 };
 
@@ -83,9 +86,25 @@ const ACTIVIDAD_META: Record<string, { icon: React.ComponentType<{ size?: number
   ot_completada:   { icon: CheckCircle2, color: "#10B981", label: "OT completada" },
 };
 
-const ESTADO_OPCIONES: AssetStatus[] = ["operativo", "mantencion", "fuera_servicio", "baja"];
+// `baja` NO se ofrece: retirar un activo ya es la acción "Eliminar" del menú ⋮
+// (pone activos.activo = false, y el log lo registra como "Activo dado de
+// baja"). Tener además un estado con el mismo significado dejaba dos caminos
+// para lo mismo, que se contradicen entre sí. El valor sigue siendo válido en
+// la base para no invalidar filas viejas; simplemente no se puede elegir.
+const ESTADO_OPCIONES: AssetStatus[] = ["operativo", "mantencion", "fuera_servicio"];
 
 type ActivoTab = "general" | "detalles" | "historial";
+
+/**
+ * Secciones de la ficha de activo. Espeja `dashboardNav` de OTDetail: la barra
+ * es solo de iconos, así que el nombre viaja en `label` para el title y el
+ * aria-label — sin eso la barra es inaccesible y no se puede leer al pasar.
+ */
+const ACTIVO_NAV: { tab: ActivoTab; label: string; icon: React.ElementType }[] = [
+  { tab: "general",   label: "General",   icon: Box },
+  { tab: "detalles",  label: "Detalles",  icon: FileText },
+  { tab: "historial", label: "Historial", icon: Clock },
+];
 const ACTIVIDAD_PAGE_SIZE = 20;
 const OT_PAGE_SIZE = 20;
 
@@ -161,56 +180,162 @@ function AssetFilterDropdown({ label, icon, active, children }: { label: string;
     setOpen(value => !value);
   };
   return <div style={{ position: "relative" }}>
-    <button ref={buttonRef} type="button" onClick={toggleMenu} style={{ display: "flex", alignItems: "center", gap: 5, height: 28, padding: "0 10px", border: active ? "1.5px solid var(--brand)" : "1px solid var(--border)", borderRadius: 6, background: active ? "var(--brand-tint)" : "var(--surface-1)", color: active ? "var(--brand)" : "var(--fg-2)", fontSize: 14, fontWeight: 400, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" }}>
-      {icon}{label}<ChevronDown size={11} style={{ opacity: 0.5 }} />
+    {/* Mismas medidas que los chips de FilterBar en /ordenes: 34 de alto,
+        radio --r-sm y 14px normal. Antes medía 28 y se veía como otro
+        componente al lado de la misma barra en la pantalla vecina. */}
+    <button ref={buttonRef} type="button" onClick={toggleMenu} style={{ display: "flex", alignItems: "center", gap: 6, height: 34, padding: "0 11px", border: active ? "1.5px solid var(--brand)" : "1px solid var(--border)", borderRadius: "var(--r-sm)", background: active ? "var(--brand-tint)" : "var(--surface-1)", color: active ? "var(--brand)" : "var(--fg-2)", fontSize: 14, fontWeight: 400, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" }}>
+      {/* El ícono va siempre en azul de marca, también con el chip inactivo:
+          es lo que identifica al filtro de un vistazo. */}
+      <span style={{ display: "flex", color: "var(--brand)" }}>{icon}</span>
+      {label}
     </button>
     {open && createPortal(<div ref={menuRef} style={{ position: "fixed", top: menuPosition.top, left: menuPosition.left, zIndex: 10000, minWidth: 220, padding: 6, background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: 8, boxShadow: "var(--shadow-md)" }}>{children}</div>, document.body)}
   </div>;
 }
 
-const assetFilterOptionStyle: React.CSSProperties = { display: "flex", alignItems: "center", width: "100%", minHeight: 32, padding: "0 8px", border: 0, borderRadius: 6, background: "transparent", color: "var(--fg-2)", font: "500 12px inherit", textAlign: "left", cursor: "pointer" };
+// 14px en peso normal, como el resto de la app: el `500 12px` de antes era el
+// único texto de ese tamaño en toda la pantalla.
+/**
+ * Chip de filtro sobre un catalogo: "Todas" mas una opcion por fila. Existe
+ * para no repetir el mismo bloque en cada filtro — con seis chips el markup
+ * inline se volvia imposible de leer.
+ */
+function CatalogFilter({ label, icon, value, onChange, options, allLabel = "Todas" }: {
+  label: string;
+  icon: React.ReactNode;
+  value: string;
+  onChange: (v: string) => void;
+  options: { id: string; nombre: string; count?: number }[];
+  allLabel?: string;
+}) {
+  return (
+    <AssetFilterDropdown label={label} icon={icon} active={value !== "all"}>
+      <button
+        type="button"
+        onClick={() => onChange("all")}
+        style={{ ...assetFilterOptionStyle, background: value === "all" ? "var(--brand-tint)" : "transparent", color: value === "all" ? "var(--brand-fg)" : "var(--fg-2)" }}
+      >
+        {allLabel}
+      </button>
+      {options.map(o => (
+        <button
+          key={o.id}
+          type="button"
+          onClick={() => onChange(o.id)}
+          style={{ ...assetFilterOptionStyle, background: value === o.id ? "var(--brand-tint)" : "transparent", color: value === o.id ? "var(--brand-fg)" : "var(--fg-2)" }}
+        >
+          <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{o.nombre}</span>
+          {o.count !== undefined && <span style={{ color: "var(--fg-4)", marginLeft: 8 }}>{o.count}</span>}
+        </button>
+      ))}
+    </AssetFilterDropdown>
+  );
+}
 
+const assetFilterOptionStyle: React.CSSProperties = { display: "flex", alignItems: "center", width: "100%", minHeight: 34, padding: "0 10px", border: 0, borderRadius: 6, background: "transparent", color: "var(--fg-2)", fontSize: 14, fontWeight: 400, fontFamily: "inherit", textAlign: "left", cursor: "pointer" };
+
+/**
+ * Icono solido: el color va en el trazo del icono, no en el texto ni en el
+ * fondo. Copiado de OTRow para que las etiquetas de las dos listas sean
+ * indistinguibles.
+ */
+function SolidIcon({ icon: Icon, color, size = 14 }: { icon: React.ElementType; color: string; size?: number }) {
+  return <Icon size={size} color={color} strokeWidth={2.25} style={{ display: "block", flexShrink: 0 }} />;
+}
+
+/** Etiqueta sin relleno: borde de 1px, texto casi negro en peso normal y el
+ *  ícono sólido como único portador del color. Misma que RowBadge en OTRow. */
+function RowBadge({ icon: Icon, iconColor, dotColor, children }: {
+  icon?: React.ElementType;
+  iconColor?: string;
+  /** Alternativa al icono: un punto de color, para estados. */
+  dotColor?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <span style={{
+      display: "inline-flex", alignItems: "center", gap: 5,
+      fontSize: 14, fontWeight: 400,
+      padding: "0 8px", minHeight: 22,
+      border: "1px solid var(--border)",
+      borderRadius: "var(--r-sm)",
+      color: "var(--fg-1)",
+      background: "var(--surface-1)",
+      whiteSpace: "nowrap",
+    }}>
+      {dotColor && <span style={{ width: 8, height: 8, borderRadius: "50%", background: dotColor, flexShrink: 0 }} />}
+      {Icon && <SolidIcon icon={Icon} color={iconColor ?? "var(--fg-3)"} />}
+      {children}
+    </span>
+  );
+}
+
+/**
+ * Tarjeta de activo. Copia el lenguaje de OTRow: altura fija, miniatura a la
+ * altura del bloque de texto y etiquetas con fondo blanco y borde gris —el
+ * color solo en el icono—, en vez del punto de color suelto que tenía antes.
+ */
 function ActivoRow({ activo, selected, onClick }: { activo: Activo; selected: boolean; onClick: () => void }) {
   const crit = (activo.criticidad ?? "no_critico") as AssetCriticality;
   const critCfg = CRITICIDAD_COLOR[crit];
   const location = ubicacionLabel(activo);
+  const estado = (activo.estado ?? "operativo") as AssetStatus;
 
   return (
     <button
       onClick={onClick}
+      onMouseEnter={e => { if (!selected) e.currentTarget.style.background = "var(--surface-hover)"; }}
+      onMouseLeave={e => { if (!selected) e.currentTarget.style.background = "var(--surface-1)"; }}
       style={{
         width: "100%",
         display: "flex",
         gap: 12,
-        padding: "14px 16px",
-        border: selected ? "1px solid var(--brand)" : "1px solid var(--border)",
-        borderRadius: 9,
+        alignItems: "stretch",
+        padding: "16px 20px",
+        // Altura fija, como en OTRow: todas las tarjetas miden lo mismo aunque
+        // el nombre o la ubicación cambien de largo.
+        height: 108,
+        flexShrink: 0,
+        boxSizing: "border-box",
+        border: `1px solid ${selected ? "var(--brand)" : "var(--border)"}`,
+        borderRadius: "var(--r-lg)",
         background: selected ? "var(--brand-tint)" : "var(--surface-1)",
-        boxShadow: "var(--shadow-xs)",
+        // La selección se marca con un acento de 3px por dentro: el borde sigue
+        // midiendo 1px, así que el contenido no se corre al seleccionar.
+        boxShadow: selected ? "inset 3px 0 0 0 var(--brand)" : "none",
         cursor: "pointer",
         textAlign: "left",
+        fontFamily: "inherit",
+        transition: "background var(--dur-fast) var(--ease)",
       }}
     >
+      {/* La miniatura ocupa el alto del bloque de texto, no un cuadrado suelto
+          arriba: así la tarjeta lee como una unidad. */}
       {activo.imagen_url ? (
-        <img src={activo.imagen_url} alt="" style={{ width: 46, height: 46, borderRadius: 8, objectFit: "cover", background: "var(--surface-hover)", flexShrink: 0 }} />
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={activo.imagen_url} alt="" style={{ width: 76, alignSelf: "stretch", borderRadius: "var(--r-md)", objectFit: "cover", background: "var(--surface-hover)", flexShrink: 0 }} />
       ) : (
-        <span style={{ width: 46, height: 46, borderRadius: 8, background: "var(--brand-tint)", display: "inline-flex", alignItems: "center", justifyContent: "center", color: "var(--brand-fg)", flexShrink: 0 }}>
-          <Box size={22} />
+        <span style={{ width: 76, alignSelf: "stretch", borderRadius: "var(--r-md)", background: "var(--brand-tint)", display: "inline-flex", alignItems: "center", justifyContent: "center", color: "var(--brand-fg)", flexShrink: 0 }}>
+          <Box size={26} />
         </span>
       )}
-      <span style={{ flex: 1, minWidth: 0 }}>
-        <span style={{ display: "block", fontSize: 14, fontWeight: 400, lineHeight: 1.35, color: "var(--fg-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{activo.nombre}</span>
-        <span style={{ display: "block", marginTop: 3, fontSize: 14, color: "var(--fg-3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+
+      <span style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", justifyContent: "center", gap: 6 }}>
+        <span style={{ display: "block", fontSize: 14, fontWeight: 400, lineHeight: 1.35, color: "var(--fg-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {activo.nombre}
+        </span>
+        <span style={{ display: "block", fontSize: 14, color: "var(--fg-3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
           {[activo.numero_serie, location].filter(Boolean).join(" · ") || "Sin n° de serie"}
         </span>
-        <span style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginTop: 7 }}>
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 14, color: "var(--fg-3)" }}>
-            <span style={{ width: 6, height: 6, borderRadius: "50%", background: estadoColor(activo.estado) }} />
+        {/* `nowrap` + `overflow: hidden`: si las etiquetas se envolvieran, la
+            tarjeta crecería y se rompería la altura uniforme. */}
+        <span style={{ display: "flex", alignItems: "center", gap: 5, flexWrap: "nowrap", overflow: "hidden" }}>
+          <RowBadge dotColor={ESTADO_COLOR[estado]}>
             {estadoLabel(activo.estado)}
-          </span>
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "1px 6px", borderRadius: "var(--r-sm)", border: "1px solid var(--border-strong)", background: "transparent", color: "var(--fg-1)", fontSize: 14, fontWeight: 400 }}>
-            <AlertCircle size={11} style={{ color: critCfg.color }} />{CRITICIDAD_LABEL[crit]}
-          </span>
+          </RowBadge>
+          <RowBadge icon={AlertCircle} iconColor={critCfg.color}>
+            {CRITICIDAD_LABEL[crit]}
+          </RowBadge>
         </span>
       </span>
     </button>
@@ -355,7 +480,6 @@ const ESTADO_FORM_OPTIONS: { value: AssetStatus; label: string }[] = [
   { value: "operativo", label: "Operativo" },
   { value: "fuera_servicio", label: "Fuera de servicio" },
   { value: "mantencion", label: "En mantención" },
-  { value: "baja", label: "De baja" },
 ];
 
 const CRITICIDAD_FORM_OPTIONS: { value: AssetCriticality; label: string }[] = [
@@ -768,7 +892,7 @@ function ActivoForm({
 function SectionHeader({ title, action }: { title: string; action?: React.ReactNode }) {
   return (
     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 2px 8px" }}>
-      <p style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-4)", letterSpacing: "0.01em", margin: 0 }}>{title}</p>
+      <p style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", letterSpacing: "0.01em", margin: 0 }}>{title}</p>
       {action}
     </div>
   );
@@ -831,7 +955,140 @@ function InfiniteSentinel({ onHit, disabled, label }: {
 }
 
 // ── General tab: metrics + photo + paginated linked OTs ───────────────────────
-function GeneralTab({ activo, onFullscreen }: { activo: Activo; onFullscreen: () => void }) {
+// ── Estado (pestaña General) ─────────────────────────────────────────────────
+/**
+ * Tarjeta de estado del activo: el selector, quién lo cambió por última vez, y
+ * la entrada al historial.
+ *
+ * Ocupa el lugar que tenia la foto. La foto describe al equipo y encaja con la
+ * ficha técnica (Detalles); lo que se quiere saber al abrir un activo es si
+ * está funcionando y desde cuándo.
+ *
+ * "Ver más" es además el único acceso visible a /activos/[id]/estado.
+ */
+function EstadoCard({ activo, onChangeEstado, changing }: {
+  activo: Activo;
+  onChangeEstado: (e: AssetStatus) => void;
+  changing: boolean;
+}) {
+  const router = useRouter();
+  // El menu se dibuja en un portal sobre document.body, no dentro de la
+  // tarjeta: `Card` lleva `overflow: hidden` para redondear sus esquinas, y eso
+  // RECORTA cualquier hijo posicionado por mas z-index que tenga — el recorte
+  // no mira el orden de apilamiento. Por eso las opciones salian cortadas al
+  // borde de la tarjeta.
+  const [abierto, setAbierto] = useState<{ top: number; left: number; width: number } | null>(null);
+  const [vigente, setVigente] = useState<EstadoPeriodo | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const botonRef = useRef<HTMLButtonElement>(null);
+
+  // El período vigente da "desde cuándo" y "por quién". Si el activo no tiene
+  // historial todavía, la línea no se muestra en vez de inventar una fecha.
+  useEffect(() => {
+    let cancelado = false;
+    fetchPeriodoVigente(activo.id)
+      .then(p => { if (!cancelado) setVigente(p); })
+      .catch(() => { if (!cancelado) setVigente(null); });
+    return () => { cancelado = true; };
+  }, [activo.id, activo.estado]);
+
+  useEffect(() => {
+    if (!abierto) return;
+    const fuera = (ev: MouseEvent) => {
+      const t = ev.target as Node;
+      if (menuRef.current?.contains(t) || botonRef.current?.contains(t)) return;
+      setAbierto(null);
+    };
+    // Con posicion fija el menu no sigue al contenido: se cierra al desplazar,
+    // igual que el menu de fila de la tabla de Equipo.
+    const cerrar = () => setAbierto(null);
+    document.addEventListener("mousedown", fuera);
+    window.addEventListener("scroll", cerrar, true);
+    window.addEventListener("resize", cerrar);
+    return () => {
+      document.removeEventListener("mousedown", fuera);
+      window.removeEventListener("scroll", cerrar, true);
+      window.removeEventListener("resize", cerrar);
+    };
+  }, [abierto]);
+
+  /** Mide el boton y abre (o cierra) el menu anclado a el. */
+  function alternar() {
+    if (abierto) { setAbierto(null); return; }
+    const r = botonRef.current?.getBoundingClientRect();
+    if (!r) return;
+    setAbierto({ top: r.bottom + 4, left: r.left, width: r.width });
+  }
+
+  return (
+    <div>
+      <SectionHeader
+        title="Estado"
+        action={
+          <button
+            type="button"
+            onClick={() => router.push(`/activos/${activo.id}/estado`)}
+            style={{ display: "inline-flex", alignItems: "center", gap: 3, background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: "inherit", fontSize: 14, fontWeight: 400, color: "var(--brand)" }}
+          >
+            Ver más <ChevronRight size={14} />
+          </button>
+        }
+      />
+      <Card>
+        <div style={{ padding: 16 }}>
+          <div style={{ display: "inline-block" }}>
+            <button
+              ref={botonRef}
+              type="button"
+              onClick={alternar}
+              disabled={changing}
+              style={{ display: "inline-flex", alignItems: "center", gap: 8, height: 38, padding: "0 12px", background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: 8, cursor: changing ? "default" : "pointer", fontFamily: "inherit", fontSize: 14, color: "var(--fg-1)" }}
+            >
+              <span style={{ width: 8, height: 8, borderRadius: "50%", background: estadoColor(activo.estado), flexShrink: 0 }} />
+              {estadoLabel(activo.estado)}
+              {changing
+                ? <Loader2 size={14} className="animate-spin" style={{ color: "var(--fg-4)" }} />
+                : <ChevronDown size={14} style={{ color: "var(--fg-4)" }} />}
+            </button>
+            {abierto && typeof document !== "undefined" && createPortal(
+              <div ref={menuRef} style={{ position: "fixed", top: abierto.top, left: abierto.left, zIndex: 9999, minWidth: Math.max(abierto.width, 200), background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: "var(--r-sm)", boxShadow: "0 8px 24px rgba(0,0,0,0.12)", overflow: "hidden" }}>
+                {ESTADO_OPCIONES.filter(e => e !== activo.estado).map(e => (
+                  <button
+                    key={e}
+                    type="button"
+                    onClick={() => { setAbierto(null); onChangeEstado(e); }}
+                    style={{ width: "100%", display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", border: "none", background: "transparent", cursor: "pointer", fontFamily: "inherit", fontSize: 14, color: "var(--fg-1)", textAlign: "left" }}
+                    onMouseEnter={ev => { ev.currentTarget.style.background = "var(--surface-hover)"; }}
+                    onMouseLeave={ev => { ev.currentTarget.style.background = "transparent"; }}
+                  >
+                    <span style={{ width: 8, height: 8, borderRadius: "50%", background: ESTADO_COLOR[e] }} />
+                    {ESTADO_LABEL[e]}
+                  </button>
+                ))}
+              </div>,
+              document.body
+            )}
+          </div>
+
+          {vigente && (
+            <p style={{ margin: "10px 0 0", fontSize: 14, color: "var(--fg-4)" }}>
+              {vigente.creador?.nombre
+                ? <>Última actualización por <span style={{ color: "var(--fg-2)" }}>{vigente.creador.nombre}</span>{" "}</>
+                : "En este estado "}
+              desde el {new Date(vigente.inicio).toLocaleString("es-CL", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}.
+            </p>
+          )}
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+function GeneralTab({ activo, onChangeEstado, changingEstado }: {
+  activo: Activo;
+  onChangeEstado: (e: AssetStatus) => void;
+  changingEstado: boolean;
+}) {
   const router = useRouter();
 
   const [rows, setRows] = useState<ActivoOTHistoryRow[]>([]);
@@ -868,14 +1125,8 @@ function GeneralTab({ activo, onFullscreen }: { activo: Activo; onFullscreen: ()
   }, [activo.id, nextPage, loadingMore]);
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-      {activo.imagen_url && (
-        <button onClick={onFullscreen} style={{ position: "relative", width: "100%", height: 300, borderRadius: "var(--r-md)", overflow: "hidden", background: "var(--surface-1)", border: "1px solid var(--border)", padding: 0, cursor: "pointer", display: "block" }}>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={activo.imagen_url} alt="" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
-          <span style={{ position: "absolute", bottom: 10, right: 10, background: "rgba(0,0,0,0.45)", borderRadius: "50%", padding: 7, color: "#fff", display: "inline-flex" }}><Maximize2 size={16} /></span>
-        </button>
-      )}
+    <div style={{ display: "flex", flexDirection: "column", gap: 16, paddingTop: 16 }}>
+      <EstadoCard activo={activo} onChangeEstado={onChangeEstado} changing={changingEstado} />
 
       <div>
         <SectionHeader
@@ -914,11 +1165,12 @@ function GeneralTab({ activo, onFullscreen }: { activo: Activo; onFullscreen: ()
 function MetaField({ label, value, icon }: { label: string; value: string; icon: React.ReactNode }) {
   return (
     <div>
-      <p style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-4)", letterSpacing: "0.01em", marginBottom: 7, marginTop: 0 }}>{label}</p>
-      <p style={{ fontSize: 14, color: "var(--fg-1)", margin: 0, display: "flex", alignItems: "center", gap: 10, lineHeight: 1.45 }}>
+      <p style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", letterSpacing: "0.01em", marginBottom: 7, marginTop: 0 }}>{label}</p>
+      <p style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", margin: 0, display: "flex", alignItems: "center", gap: 10, lineHeight: 1.45 }}>
         <span style={{
-          width: 28, height: 28, borderRadius: "var(--r-sm)",
-          background: "var(--brand-tint)", color: "var(--brand)",
+          width: 30, height: 30, borderRadius: "var(--r-sm)",
+          background: "var(--surface-1)", color: "var(--brand)",
+          border: "1px solid var(--border)",
           display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
         }}>{icon}</span>
         {value}
@@ -927,20 +1179,13 @@ function MetaField({ label, value, icon }: { label: string; value: string; icon:
   );
 }
 
-// Section label (uppercase, no card) — matches OTDetail.
-function MetaSectionLabel({ children }: { children: string }) {
-  return (
-    <p style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-4)", letterSpacing: "0.01em", margin: "0 0 14px" }}>{children}</p>
-  );
-}
-
 const META_GRID: React.CSSProperties = {
-  display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
-  gap: "24px 56px",
+  display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+  gap: "24px 72px",
 };
 
 // ── Detalles tab — OTDetail idiom: flowing sections + meta-field grids ─────────
-function DetallesTab({ activo, hijos, onOpenActivo }: { activo: Activo; hijos: Activo[]; onOpenActivo: (id: string) => void }) {
+function DetallesTab({ activo, hijos, onOpenActivo, onFullscreen }: { activo: Activo; hijos: Activo[]; onOpenActivo: (id: string) => void; onFullscreen: () => void }) {
   const crit = (activo.criticidad ?? "no_critico") as AssetCriticality;
   const adjuntos = Array.isArray(activo.adjuntos) ? activo.adjuntos : [];
   const ubic = ubicacionLabel(activo);
@@ -963,18 +1208,34 @@ function DetallesTab({ activo, hijos, onOpenActivo }: { activo: Activo; hijos: A
 
   return (
     <div>
-      {/* Description — plain flowing text, no card */}
+      {/* Foto del equipo. Vivía en General, pero ahí competía con el estado y las
+          OTs; acá acompaña a la ficha técnica, que es lo que describe. */}
+      {activo.imagen_url && (
+        <div style={{ marginLeft: -28, marginRight: -28, paddingLeft: 28, paddingRight: 28, paddingTop: 16, paddingBottom: 16, borderBottom: "1px solid var(--border)" }}>
+          <p style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", letterSpacing: "0.01em", margin: "0 0 8px" }}>Imágenes</p>
+          <button
+            onClick={onFullscreen}
+            title="Ver imagen completa"
+            style={{ position: "relative", width: 104, height: 104, borderRadius: "var(--r-md)", overflow: "hidden", background: "var(--surface-1)", border: "1px solid var(--border)", padding: 0, cursor: "pointer", display: "block" }}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={activo.imagen_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+            <span style={{ position: "absolute", bottom: 5, right: 5, background: "rgba(0,0,0,0.45)", borderRadius: "50%", padding: 5, color: "#fff", display: "inline-flex" }}><Maximize2 size={13} /></span>
+          </button>
+        </div>
+      )}
+
+      {/* Descripción — texto corrido, sin tarjeta */}
       {activo.descripcion && (
-        <div style={{ maxWidth: 1100, marginBottom: 4 }}>
-          <p style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-4)", letterSpacing: "0.01em", margin: "0 0 4px" }}>Descripción</p>
-          <p style={{ fontSize: 14, color: "var(--fg-2)", lineHeight: 1.75, whiteSpace: "pre-wrap", margin: 0 }}>{activo.descripcion}</p>
+        <div style={{ marginLeft: -28, marginRight: -28, paddingLeft: 28, paddingRight: 28, paddingTop: 16, paddingBottom: 16, borderBottom: "1px solid var(--border)" }}>
+          <p style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", letterSpacing: "0.01em", margin: "0 0 8px" }}>Descripción</p>
+          <p style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-2)", lineHeight: 1.75, whiteSpace: "pre-wrap", margin: 0 }}>{activo.descripcion}</p>
         </div>
       )}
 
       {/* Equipo */}
       {equipoFields.length > 0 && (
-        <div style={{ marginTop: activo.descripcion ? 32 : 0, paddingTop: activo.descripcion ? 26 : 0, borderTop: activo.descripcion ? "1px solid var(--border)" : "none" }}>
-          <MetaSectionLabel>Equipo</MetaSectionLabel>
+        <div style={{ marginLeft: -28, marginRight: -28, paddingLeft: 28, paddingRight: 28, paddingTop: 16, paddingBottom: 16, borderBottom: "1px solid var(--border)" }}>
           <div style={META_GRID}>
             {equipoFields.map(f => <MetaField key={f.label} {...f} />)}
           </div>
@@ -983,8 +1244,7 @@ function DetallesTab({ activo, hijos, onOpenActivo }: { activo: Activo; hijos: A
 
       {/* Ubicación y responsabilidad */}
       {ubicFields.length > 0 && (
-        <div style={{ marginTop: 32, paddingTop: 26, borderTop: "1px solid var(--border)" }}>
-          <MetaSectionLabel>Ubicación y responsabilidad</MetaSectionLabel>
+        <div style={{ marginLeft: -28, marginRight: -28, paddingLeft: 28, paddingRight: 28, paddingTop: 16, paddingBottom: 16, borderBottom: "1px solid var(--border)" }}>
           <div style={META_GRID}>
             {ubicFields.map(f => <MetaField key={f.label} {...f} />)}
           </div>
@@ -993,13 +1253,12 @@ function DetallesTab({ activo, hijos, onOpenActivo }: { activo: Activo; hijos: A
 
       {/* Adjuntos y manuales */}
       {adjuntos.length > 0 && (
-        <div style={{ marginTop: 32, paddingTop: 26, borderTop: "1px solid var(--border)" }}>
-          <MetaSectionLabel>Adjuntos y manuales</MetaSectionLabel>
+        <div style={{ marginLeft: -28, marginRight: -28, paddingLeft: 28, paddingRight: 28, paddingTop: 16, paddingBottom: 16, borderBottom: "1px solid var(--border)" }}>
           <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 6 }}>
             {adjuntos.map((a, idx) => (
               <a key={`${a.url}-${idx}`} href={a.url} target="_blank" rel="noreferrer"
                 style={{ display: "inline-flex", alignItems: "center", gap: 10, padding: "8px 14px 8px 8px", border: "1px solid var(--border)", borderRadius: 8, background: "var(--surface-0)", textDecoration: "none", color: "var(--fg-1)", maxWidth: "100%" }}>
-                <span style={{ width: 28, height: 28, borderRadius: "var(--r-sm)", background: "var(--brand-tint)", color: "var(--brand)", display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><FileText size={16} /></span>
+                <span style={{ width: 30, height: 30, borderRadius: "var(--r-sm)", background: "var(--surface-1)", color: "var(--brand)", border: "1px solid var(--border)", display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><FileText size={16} /></span>
                 <span style={{ fontSize: 14, color: "var(--fg-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.nombre ?? a.tipo ?? "Adjunto"}</span>
                 <ExternalLink size={14} style={{ color: "var(--fg-4)", flexShrink: 0 }} />
               </a>
@@ -1009,8 +1268,7 @@ function DetallesTab({ activo, hijos, onOpenActivo }: { activo: Activo; hijos: A
       )}
 
       {/* Jerarquía */}
-      <div style={{ marginTop: 32, paddingTop: 26, borderTop: "1px solid var(--border)" }}>
-          <MetaSectionLabel>Jerarquía</MetaSectionLabel>
+      <div style={{ marginLeft: -28, marginRight: -28, paddingLeft: 28, paddingRight: 28, paddingTop: 16, paddingBottom: 16, borderBottom: "1px solid var(--border)" }}>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {activo.parent ? (
               <button onClick={() => onOpenActivo(activo.parent!.id)} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", border: "1px solid var(--border)", borderRadius: "var(--r-md)", background: "var(--surface-0)", cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}>
@@ -1082,7 +1340,7 @@ function HistorialTab({ activoId, onOpenOT }: { activoId: string; onOpenOT: (otI
 
   if (rows.length === 0) {
     return (
-      <div style={{ padding: "48px 24px", display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
+      <div style={{ padding: "64px 24px 48px", display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
         <span style={{ width: 64, height: 64, borderRadius: "var(--r-md)", background: "var(--brand-tint)", color: "var(--brand)", display: "inline-flex", alignItems: "center", justifyContent: "center" }}><Clock size={30} /></span>
         <span style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)" }}>Sin actividad</span>
         <span style={{ fontSize: 14, color: "var(--fg-4)", textAlign: "center" }}>Los cambios y las OTs de este activo se registrarán aquí.</span>
@@ -1091,7 +1349,7 @@ function HistorialTab({ activoId, onOpenOT }: { activoId: string; onOpenOT: (otI
   }
 
   return (
-    <div>
+    <div style={{ paddingTop: 16 }}>
       <Card>
         {rows.map((a, idx) => {
           const cfg = ACTIVIDAD_META[a.tipo] ?? { icon: Box, color: "var(--fg-4)", label: a.tipo };
@@ -1102,8 +1360,8 @@ function HistorialTab({ activoId, onOpenOT }: { activoId: string; onOpenOT: (otI
             ? `${estadoLabelRaw(a.meta.de as string)} → ${estadoLabelRaw(a.meta.a as string)}`
             : a.comentario;
           return (
-            <div key={a.id} style={{ display: "flex", gap: 12, alignItems: "flex-start", padding: "14px 16px", borderBottom: idx === rows.length - 1 && nextPage == null ? "none" : "1px solid var(--border)" }}>
-              <span style={{ width: 34, height: 34, borderRadius: "50%", background: cfg.color + "1A", color: cfg.color, display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 1 }}><Icon size={18} /></span>
+            <div key={a.id} style={{ display: "flex", gap: 12, alignItems: "center", padding: "14px 16px", borderBottom: idx === rows.length - 1 && nextPage == null ? "none" : "1px solid var(--border)" }}>
+              <span style={{ width: 30, height: 30, borderRadius: "var(--r-sm)", background: "var(--surface-1)", color: cfg.color, border: "1px solid var(--border)", display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Icon size={16} /></span>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <p style={{ margin: 0, fontSize: 14, fontWeight: 400, color: "var(--fg-1)" }}>{cfg.label}</p>
                 {detalle && (isOT && otId ? (
@@ -1128,12 +1386,11 @@ function HistorialTab({ activoId, onOpenOT }: { activoId: string; onOpenOT: (otI
 }
 
 function ActivoDetail({
-  activo, activos, onEdit, onClose, onDeleted, onUpdated,
+  activo, activos, onEdit, onDeleted, onUpdated,
 }: {
   activo: Activo;
   activos: Activo[];
   onEdit: () => void;
-  onClose: () => void;
   onDeleted: (id: string) => void;
   onUpdated: (activo: Activo) => void;
 }) {
@@ -1141,23 +1398,27 @@ function ActivoDetail({
   const [tab, setTab] = useState<ActivoTab>("general");
   const [deleting, setDeleting] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
-  const [estadoMenuOpen, setEstadoMenuOpen] = useState(false);
   const [changingEstado, setChangingEstado] = useState(false);
   const [accionesMenuOpen, setAccionesMenuOpen] = useState(false);
-  const estadoMenuRef = useRef<HTMLDivElement>(null);
   const accionesMenuRef = useRef<HTMLDivElement>(null);
-  const crit = (activo.criticidad ?? "no_critico") as AssetCriticality;
-  const critCfg = CRITICIDAD_COLOR[crit];
   const hijos = activos.filter(a => a.activo_padre_id === activo.id);
 
   // Reset to the first tab whenever a different asset is opened.
   useEffect(() => { setTab("general"); }, [activo.id]);
 
-  // Close the estado and acciones menus on outside click.
+  // Esc cierra el visor, igual que el lightbox de OTDetail.
+  useEffect(() => {
+    if (!fullscreen) return;
+    const h = (e: KeyboardEvent) => { if (e.key === "Escape") setFullscreen(false); };
+    window.addEventListener("keydown", h);
+    return () => window.removeEventListener("keydown", h);
+  }, [fullscreen]);
+
+  // Cierra el menú de acciones al hacer clic fuera. El de estado ya no está
+  // acá: vive en EstadoCard, que gestiona el suyo.
   useEffect(() => {
     const h = (e: MouseEvent) => {
       const target = e.target as Node;
-      if (estadoMenuRef.current && !estadoMenuRef.current.contains(target)) setEstadoMenuOpen(false);
       if (accionesMenuRef.current && !accionesMenuRef.current.contains(target)) setAccionesMenuOpen(false);
     };
     document.addEventListener("mousedown", h);
@@ -1171,13 +1432,30 @@ function ActivoDetail({
     onDeleted(activo.id);
   }
 
-  // Quick estado change — saves immediately, like the mobile ActionSheet.
+  // Cambio rápido de estado.
+  //
+  // Pasa por `cambiar_estado_activo`, no por `updateActivo`: esa función cierra
+  // el período abierto en `activo_estado_periodos` y abre el nuevo, que es de
+  // donde sale el tiempo de inactividad real. Escribir `activos.estado` a secas
+  // dejaría el historial con huecos y las horas mal contadas.
+  //
+  // Una parada necesita saber si fue planificada o imprevista, y acá no hay
+  // dónde preguntarlo, así que esos casos se derivan a /activos/[id]/estado.
+  // "Operativo" no lleva tipo, así que se resuelve en el momento.
   async function handleChangeEstado(nuevo: AssetStatus) {
-    setEstadoMenuOpen(false);
     if (nuevo === activo.estado) return;
+
+    if (nuevo !== "operativo") {
+      router.push(`/activos/${activo.id}/estado`);
+      return;
+    }
+
     setChangingEstado(true);
     try {
-      const saved = await updateActivo(activo.id, { nombre: activo.nombre, estado: nuevo });
+      await cambiarEstadoActivo({ activoId: activo.id, estado: nuevo });
+      // Releer para que la fila del panel refleje el estado ya escrito por la
+      // función; `cambiar_estado_activo` devuelve el id del período, no el activo.
+      const saved = await updateActivo(activo.id, { nombre: activo.nombre });
       onUpdated(saved);
     } finally {
       setChangingEstado(false);
@@ -1188,87 +1466,180 @@ function ActivoDetail({
 
   return (
     <div style={{ height: "100%", display: "flex", flexDirection: "column", background: "var(--surface-canvas)" }}>
-      {/* ── Header ── */}
-      <div style={{ flexShrink: 0, borderBottom: "1px solid var(--border)", background: "var(--surface-canvas)", padding: "22px 27px 21px" }}>
-        <div style={{ display: "flex", alignItems: "flex-start", minHeight: 42, gap: 12 }}>
-          <h1 style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: 400, letterSpacing: "-0.02em", color: "var(--fg-1)", margin: 0, lineHeight: 1.25, overflowWrap: "break-word", wordBreak: "break-word" }}>
-            {activo.nombre}
-          </h1>
-          {/* Mirrors OTDetail's header: 34px Editar + overflow menu + close. */}
-          <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
-            <button onClick={onEdit} style={{ flexShrink: 0, height: 34, padding: "0 13px", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, background: "var(--brand)", border: "1px solid var(--brand)", borderRadius: "var(--r-sm)", cursor: "pointer", color: "var(--fg-on-brand)", fontSize: 14, fontWeight: 400, fontFamily: "inherit" }} onMouseEnter={e => { e.currentTarget.style.filter = "brightness(0.96)"; }} onMouseLeave={e => { e.currentTarget.style.filter = "none"; }}>
-              <Pencil size={14} /> Editar
-            </button>
-            <div ref={accionesMenuRef} style={{ position: "relative", flexShrink: 0 }}>
-              <button type="button" onClick={() => setAccionesMenuOpen(v => !v)} title="Más acciones" style={{ width: 34, height: 34, display: "flex", alignItems: "center", justifyContent: "center", background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: "var(--r-sm)", cursor: "pointer", color: "var(--fg-1)" }} onMouseEnter={e => { e.currentTarget.style.background = "var(--surface-hover)"; }} onMouseLeave={e => { e.currentTarget.style.background = "var(--surface-1)"; }}>
-                {deleting ? <Loader2 size={14} className="animate-spin" /> : <MoreVertical size={16} />}
-              </button>
-              {accionesMenuOpen && (
-                <div style={{ position: "absolute", top: "calc(100% + 6px)", right: 0, zIndex: 300, background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: "var(--r-sm)", boxShadow: "var(--shadow-sm)", width: 190, overflow: "hidden" }}>
-                  <button type="button" onClick={() => { setAccionesMenuOpen(false); handleDelete(); }} disabled={deleting} style={{ width: "100%", display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", background: "var(--surface-1)", border: "none", cursor: deleting ? "default" : "pointer", fontSize: 14, color: "var(--danger)", fontFamily: "inherit", textAlign: "left" }} onMouseEnter={e => { if (!deleting) e.currentTarget.style.background = "var(--surface-hover)"; }} onMouseLeave={e => { e.currentTarget.style.background = "var(--surface-1)"; }}>
-                    <Trash2 size={14} /> Eliminar
+      {/* ── Cabecera ──
+          Mismo idioma que OTDetail: la barra de secciones va primero y en todas
+          las pestañas, solo con iconos del mismo tamaño. El icono va SIEMPRE en
+          azul de marca —es lo que identifica la sección de un vistazo— y la
+          activa se distingue solo por el borde de 1.5px, sin relleno tintado.
+          El título NO vive acá: baja al cuerpo con el scroll. */}
+      <div style={{ position: "relative", flexShrink: 0, borderBottom: "1px solid var(--border)", background: "var(--surface-canvas)" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 28px" }}>
+          <div style={{ flex: 1, minWidth: 0, overflowX: "auto", overflowY: "hidden" }}>
+            <div role="tablist" aria-label="Secciones del activo" style={{ display: "flex", alignItems: "center", gap: 6, width: "max-content", minWidth: "100%" }}>
+              {ACTIVO_NAV.map(item => {
+                const active = tab === item.tab;
+                return (
+                  <button
+                    key={item.tab}
+                    type="button"
+                    role="tab"
+                    aria-selected={active}
+                    aria-label={item.label}
+                    title={item.label}
+                    onClick={e => {
+                      // Al hacer clic el puntero se queda encima y no dispara
+                      // onMouseLeave, así que el fondo de hover se limpia acá.
+                      e.currentTarget.style.background = "var(--surface-1)";
+                      setTab(item.tab);
+                    }}
+                    style={{
+                      height: 34, width: 38, padding: 0,
+                      display: "inline-flex", alignItems: "center", justifyContent: "center",
+                      background: "var(--surface-1)",
+                      border: active ? "1.5px solid var(--brand)" : "1px solid var(--border)",
+                      borderRadius: "var(--r-sm)",
+                      color: "var(--brand)",
+                      cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap", flexShrink: 0,
+                      transition: "background 0.12s, border-color 0.12s, color 0.12s",
+                    }}
+                    onMouseEnter={e => { if (!active) e.currentTarget.style.background = "var(--surface-hover)"; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = "var(--surface-1)"; }}
+                    onFocus={e => { e.currentTarget.style.outline = "none"; }}
+                  >
+                    <span style={{ width: 18, height: 18, flexShrink: 0, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+                      <item.icon size={16} />
+                    </span>
                   </button>
-                </div>
-              )}
+                );
+              })}
             </div>
-            <button onClick={onClose} style={{ width: 34, height: 34, display: "flex", alignItems: "center", justifyContent: "center", background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: "var(--r-sm)", cursor: "pointer", color: "var(--fg-3)", flexShrink: 0 }}>
-              <X size={16} />
-            </button>
           </div>
-        </div>
-        {/* Estado — click to change (saved instantly) + criticidad chip */}
-        <div style={{ display: "flex", gap: 12, marginTop: 12, flexWrap: "wrap", alignItems: "center", color: "var(--fg-3)" }}>
-          {activo.ubicacion && <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 14 }}><MapPin size={14} />{activo.ubicacion.edificio}</span>}
-          {activo.sociedad && <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 14 }}><Building2 size={14} />{activo.sociedad.nombre}</span>}
-          <div ref={estadoMenuRef} style={{ position: "relative" }}>
-            <button onClick={() => setEstadoMenuOpen(o => !o)} disabled={changingEstado} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: 0, background: "none", border: "none", cursor: "pointer", fontFamily: "inherit" }}>
-              <span style={{ width: 8, height: 8, borderRadius: "50%", background: estadoColor(activo.estado) }} />
-              <span style={{ fontSize: 14, fontWeight: 400, color: estadoColor(activo.estado) }}>{estadoLabel(activo.estado)}</span>
-              {changingEstado ? <Loader2 size={13} className="animate-spin" style={{ color: estadoColor(activo.estado) }} /> : <ChevronDown size={14} style={{ color: estadoColor(activo.estado) }} />}
+
+          {/* Editar y el menú de acciones van en la misma fila que las
+              secciones, disponibles desde cualquier pestaña. */}
+          <button
+            type="button"
+            onClick={onEdit}
+            style={{ flexShrink: 0, height: 34, padding: "0 13px", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, background: "var(--brand)", border: "1px solid var(--brand)", borderRadius: "var(--r-sm)", cursor: "pointer", color: "var(--fg-on-brand)", fontSize: 14, fontWeight: 400, fontFamily: "inherit" }}
+            onMouseEnter={e => { e.currentTarget.style.filter = "brightness(0.96)"; }}
+            onMouseLeave={e => { e.currentTarget.style.filter = "none"; }}
+          >
+            <Pencil size={14} />
+            Editar
+          </button>
+
+          <div ref={accionesMenuRef} style={{ position: "relative", flexShrink: 0 }}>
+            <button
+              type="button"
+              onClick={() => setAccionesMenuOpen(v => !v)}
+              title="Más acciones"
+              style={{ width: 34, height: 34, display: "flex", alignItems: "center", justifyContent: "center", background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: "var(--r-sm)", cursor: "pointer", color: "var(--fg-1)" }}
+              onMouseEnter={e => { e.currentTarget.style.background = "var(--surface-hover)"; }}
+              onMouseLeave={e => { e.currentTarget.style.background = "var(--surface-1)"; }}
+            >
+              {deleting ? <Loader2 size={14} className="animate-spin" /> : <MoreVertical size={16} />}
             </button>
-            {estadoMenuOpen && (
-              <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, zIndex: 20, minWidth: 180, background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: "var(--r-sm)", boxShadow: "0 8px 24px rgba(0,0,0,0.12)", overflow: "hidden" }}>
-                {ESTADO_OPCIONES.map(e => (
-                  <button key={e} onClick={() => handleChangeEstado(e)} style={{ width: "100%", display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", border: "none", background: e === activo.estado ? "var(--surface-hover)" : "transparent", cursor: "pointer", fontFamily: "inherit", fontSize: 14, color: "var(--fg-1)", textAlign: "left" }}>
-                    <span style={{ width: 8, height: 8, borderRadius: "50%", background: ESTADO_COLOR[e] }} />
-                    {ESTADO_LABEL[e]}
-                  </button>
-                ))}
+            {accionesMenuOpen && (
+              <div style={{ position: "absolute", top: "calc(100% + 6px)", right: 0, zIndex: 300, background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: "var(--r-sm)", boxShadow: "var(--shadow-sm)", width: 210, overflow: "hidden" }}>
+                <button
+                  type="button"
+                  onClick={() => { setAccionesMenuOpen(false); router.push(`/activos/${activo.id}/estado`); }}
+                  style={{ width: "100%", display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", background: "var(--surface-1)", border: "none", cursor: "pointer", fontSize: 14, color: "var(--fg-1)", fontFamily: "inherit", textAlign: "left" }}
+                  onMouseEnter={e => { e.currentTarget.style.background = "var(--surface-hover)"; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = "var(--surface-1)"; }}
+                >
+                  <Clock size={14} /> Ver historial de estado
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setAccionesMenuOpen(false); handleDelete(); }}
+                  disabled={deleting}
+                  style={{ width: "100%", display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", background: "var(--surface-1)", border: "none", borderTop: "1px solid var(--border)", cursor: deleting ? "default" : "pointer", fontSize: 14, color: "var(--danger)", fontFamily: "inherit", textAlign: "left" }}
+                  onMouseEnter={e => { if (!deleting) e.currentTarget.style.background = "var(--surface-hover)"; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = "var(--surface-1)"; }}
+                >
+                  <Trash2 size={14} /> Eliminar
+                </button>
               </div>
             )}
           </div>
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "2px 7px", borderRadius: "var(--r-sm)", border: "1px solid var(--border-strong)", background: "transparent", color: "var(--fg-1)", fontSize: 14, fontWeight: 400 }}><AlertCircle size={12} style={{ color: critCfg.color }} />{CRITICIDAD_LABEL[crit]}</span>
-        </div>
 
-        {/* Tabs */}
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 17 }}>
-          {(["general", "detalles", "historial"] as ActivoTab[]).map(t => {
-            const active = tab === t;
-            const label = t === "general" ? "General" : t === "detalles" ? "Detalles" : "Historial";
-            const Icon = t === "general" ? Box : t === "detalles" ? FileText : Clock;
-            return (
-              <button key={t} onClick={() => setTab(t)} style={{ display: "inline-flex", alignItems: "center", gap: 7, height: 33, padding: "0 13px", background: active ? "var(--brand-tint)" : "var(--surface-1)", border: "1px solid var(--brand)", borderRadius: 4, color: "var(--brand)", fontSize: 14, fontWeight: 400, cursor: "pointer", fontFamily: "inherit" }}>
-                <Icon size={16} />{label}
-              </button>
-            );
-          })}
         </div>
       </div>
 
-      {/* ── Body ── */}
-      <div style={{ flex: 1, overflowY: "auto", padding: "28px 27px 80px", background: "var(--surface-canvas)" }}>
-        {tab === "general" && <GeneralTab activo={activo} onFullscreen={() => setFullscreen(true)} />}
-        {tab === "detalles" && <DetallesTab activo={activo} hijos={hijos} onOpenActivo={openActivo} />}
-        {tab === "historial" && <HistorialTab activoId={activo.id} onOpenOT={(otId) => router.push(`/ordenes?id=${encodeURIComponent(otId)}`)} />}
+      {/* ── Cuerpo ──
+          El único contenedor con scroll: la barra de secciones queda fija
+          encima. El padding lateral de 28 lo fija acá el cuerpo, y las
+          secciones a sangre lo compensan con márgenes negativos. */}
+      <div style={{ flex: 1, minHeight: 0, overflowY: "auto", overflowX: "hidden", background: "var(--surface-canvas)" }}>
+        <div style={{ padding: "0 28px 76px", display: "flex", flexDirection: "column", gap: 0 }}>
+
+          {/* Título y metadatos: dentro del área con scroll, no en la cabecera
+              fija — igual que en OTDetail. La línea va como borderBottom de
+              este bloque, no como un <hr> aparte, y los márgenes negativos la
+              llevan hasta el borde mientras el padding devuelve el texto. */}
+          <div style={{
+            minWidth: 0,
+            marginLeft: -28, marginRight: -28,
+            paddingLeft: 28, paddingRight: 28,
+            paddingTop: 16, paddingBottom: 16,
+            borderBottom: "1px solid var(--border)",
+          }}>
+            {activo.numero_serie && (
+              <div style={{ display: "inline-flex", alignItems: "center", minHeight: 24, padding: "0 9px", border: "1px solid var(--border)", borderRadius: "var(--r-sm)", background: "var(--surface-1)", color: "var(--fg-1)", fontSize: 14, fontWeight: 400, fontFamily: "monospace", marginBottom: 8 }}>
+                {activo.numero_serie}
+              </div>
+            )}
+            <h1 style={{ fontSize: 20, fontWeight: 500, color: "var(--fg-1)", margin: 0, lineHeight: 1.3, overflowWrap: "break-word", wordBreak: "break-word" }}>
+              {activo.nombre}
+            </h1>
+          </div>
+
+          {tab === "general" && <GeneralTab activo={activo} onChangeEstado={handleChangeEstado} changingEstado={changingEstado} />}
+          {tab === "detalles" && <DetallesTab activo={activo} hijos={hijos} onOpenActivo={openActivo} onFullscreen={() => setFullscreen(true)} />}
+          {tab === "historial" && <HistorialTab activoId={activo.id} onOpenOT={(otId) => router.push(`/ordenes?id=${encodeURIComponent(otId)}`)} />}
+        </div>
       </div>
 
       {/* Fullscreen photo viewer */}
-      {fullscreen && activo.imagen_url && (
-        <div onClick={() => setFullscreen(false)} style={{ position: "fixed", inset: 0, zIndex: 50, background: "#000", display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <button onClick={() => setFullscreen(false)} style={{ position: "absolute", top: 24, right: 24, padding: 8, background: "none", border: "none", cursor: "pointer", color: "#fff" }}><X size={28} /></button>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={activo.imagen_url} alt="" style={{ maxWidth: "92vw", maxHeight: "92vh", objectFit: "contain" }} />
-        </div>
+      {/* Visor de imagen, en un portal sobre document.body.
+          El portal NO es opcional: la barra de navegacion de esta pantalla es
+          `position:relative; zIndex:100`, o sea un contexto de apilamiento, y
+          la raiz ademas tiene `overflow:hidden`. Un visor renderizado aca
+          dentro compite solo contra sus hermanos —su zIndex jamas supera al de
+          la barra por mas alto que sea— y encima queda recortado. Por eso la
+          foto salia por debajo del buscador y las migas.
+          OTDetail no necesita portal porque no tiene ese ancestro. */}
+      {fullscreen && activo.imagen_url && typeof document !== "undefined" && createPortal(
+        <div
+          style={{ background: "var(--surface-0)", zIndex: 200 }}
+          className="fixed inset-0 flex items-center justify-center"
+          onClick={() => setFullscreen(false)}
+        >
+          {/* Cerrar — esquina superior derecha */}
+          <button
+            type="button"
+            onClick={e => { e.stopPropagation(); setFullscreen(false); }}
+            aria-label="Cerrar"
+            className="absolute top-5 flex items-center justify-center"
+            style={{
+              right: "calc(0.25rem + 15px)",
+              color: "var(--fg-1)", background: "transparent", border: "none", padding: 0, cursor: "pointer",
+            }}
+          >
+            <X size={64} strokeWidth={1} />
+          </button>
+
+          <div className="relative inline-block max-h-[82vh] max-w-[78vw]" onClick={e => e.stopPropagation()}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={activo.imagen_url}
+              alt=""
+              className="block max-h-[82vh] max-w-[78vw] select-none object-contain shadow-2xl"
+            />
+          </div>
+        </div>,
+        document.body
       )}
     </div>
   );
@@ -1285,6 +1656,14 @@ export default function ActivosBandeja({ initialActivos, usuarios, ubicaciones, 
   const locationsView = pathname.endsWith("/ubicaciones");
   const [filterCrit, setFilterCrit] = useState<CritFilter>("all");
   const [filterSociedadId, setFilterSociedadId] = useState<string | "all">("all");
+  const [filterEstado, setFilterEstado] = useState<AssetStatus | "all">("all");
+  const [filterUbicacionId, setFilterUbicacionId] = useState<string | "all">("all");
+  const [filterLugarId, setFilterLugarId] = useState<string | "all">("all");
+  // "sin" = activos sin responsable asignado, que es una pregunta real: son los
+  // que no tienen a nadie a cargo.
+  const [filterResponsableId, setFilterResponsableId] = useState<string | "all" | "sin">("all");
+  const [filterFabricanteId, setFilterFabricanteId] = useState<string | "all">("all");
+  const [filterModeloId, setFilterModeloId] = useState<string | "all">("all");
   const [sort, setSort] = useState<ActivoSortOption>("nombre_asc");
   const [sortOpen, setSortOpen] = useState(false);
   const [isDesktop, setIsDesktop] = useState(false);
@@ -1382,6 +1761,15 @@ export default function ActivosBandeja({ initialActivos, usuarios, ubicaciones, 
     const list = activos.filter(a => {
       if (filterCrit !== "all" && a.criticidad !== filterCrit) return false;
       if (filterSociedadId !== "all" && a.sociedad_id !== filterSociedadId) return false;
+      // `operativo` es el valor por defecto: un activo sin estado cargado
+      // cuenta como operativo, igual que en el resto de la pantalla.
+      if (filterEstado !== "all" && (a.estado ?? "operativo") !== filterEstado) return false;
+      if (filterUbicacionId !== "all" && a.ubicacion_id !== filterUbicacionId) return false;
+      if (filterLugarId !== "all" && a.lugar_id !== filterLugarId) return false;
+      if (filterResponsableId === "sin" && a.responsable_id) return false;
+      if (filterResponsableId !== "all" && filterResponsableId !== "sin" && a.responsable_id !== filterResponsableId) return false;
+      if (filterFabricanteId !== "all" && a.fabricante_id !== filterFabricanteId) return false;
+      if (filterModeloId !== "all" && a.modelo_id !== filterModeloId) return false;
       if (!q) return true;
       return [a.nombre, a.numero_serie, a.fabricante?.nombre, a.modelo?.nombre, a.sociedad?.nombre, ubicacionLabel(a)]
         .filter(Boolean)
@@ -1402,7 +1790,34 @@ export default function ActivosBandeja({ initialActivos, usuarios, ubicaciones, 
       }
     });
     return list;
-  }, [activos, search, filterCrit, filterSociedadId, sort]);
+  }, [activos, search, filterCrit, filterSociedadId, filterEstado, filterUbicacionId,
+      filterLugarId, filterResponsableId, filterFabricanteId, filterModeloId, sort]);
+
+  // Cuantos activos hay en cada estado, para que el menu diga de entrada si
+  // vale la pena filtrar por "Fuera de servicio".
+  const estadoCounts = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const a of activos) {
+      const e = a.estado ?? "operativo";
+      m.set(e, (m.get(e) ?? 0) + 1);
+    }
+    return m;
+  }, [activos]);
+
+  const hayFiltros = filterCrit !== "all" || filterSociedadId !== "all"
+    || filterEstado !== "all" || filterUbicacionId !== "all" || filterLugarId !== "all"
+    || filterResponsableId !== "all" || filterFabricanteId !== "all" || filterModeloId !== "all";
+
+  function limpiarFiltros() {
+    setFilterCrit("all");
+    setFilterSociedadId("all");
+    setFilterEstado("all");
+    setFilterUbicacionId("all");
+    setFilterLugarId("all");
+    setFilterResponsableId("all");
+    setFilterFabricanteId("all");
+    setFilterModeloId("all");
+  }
 
   const sociedadCounts = useMemo(() => {
     const counts = new Map<string, number>();
@@ -1446,7 +1861,7 @@ export default function ActivosBandeja({ initialActivos, usuarios, ubicaciones, 
     <div style={{ display: "flex", flexDirection: "column", height: "100%", minHeight: 0, overflow: "hidden", background: "var(--c-bg, var(--surface-canvas))" }}>
 
       {/* ── Navigation header ── */}
-      <div style={{ position: "relative", zIndex: 100, flexShrink: 0, overflow: "visible", borderBottom: "1px solid var(--border)", background: "var(--surface-canvas)" }}>
+      <div style={{ position: "relative", zIndex: 10, flexShrink: 0, overflow: "visible", borderBottom: "1px solid var(--border)", background: "var(--surface-canvas)" }}>
 
         {/* Top row */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "9px 20px", minHeight: 56, gap: 12, flexWrap: "wrap" }}>
@@ -1502,9 +1917,64 @@ export default function ActivosBandeja({ initialActivos, usuarios, ubicaciones, 
 
         {/* Filters use the same compact toolbar language as Órdenes. */}
         <div style={{ display: "flex", alignItems: "center", padding: "6px 20px", minHeight: 40, gap: 8, overflowX: "auto" }}>
-          {!locationsView && <AssetFilterDropdown label="Criticidad" icon={<AlertCircle size={13} />} active={filterCrit !== "all"}>{([['all','Todas'],['critico','Crítico'],['semi_critico','Semi-crítico'],['no_critico','No crítico']] as [CritFilter,string][]).map(([value, label]) => <button key={value} type="button" onClick={() => setFilterCrit(value)} style={{ ...assetFilterOptionStyle, background: filterCrit === value ? "var(--brand-tint)" : "transparent", color: filterCrit === value ? "var(--brand-fg)" : "var(--fg-2)" }}>{label}</button>)}</AssetFilterDropdown>}
-          <AssetFilterDropdown label="Sociedad" icon={<Building2 size={13} />} active={filterSociedadId !== "all"}><button type="button" onClick={() => setFilterSociedadId("all")} style={{ ...assetFilterOptionStyle, background: filterSociedadId === "all" ? "var(--brand-tint)" : "transparent" }}>Todas</button>{sociedades.map(sociedad => <button key={sociedad.id} type="button" onClick={() => setFilterSociedadId(sociedad.id)} style={{ ...assetFilterOptionStyle, background: filterSociedadId === sociedad.id ? "var(--brand-tint)" : "transparent", color: filterSociedadId === sociedad.id ? "var(--brand-fg)" : "var(--fg-2)" }}>{sociedad.nombre} ({sociedadCounts.get(sociedad.id) ?? 0})</button>)}</AssetFilterDropdown>
-          {(filterCrit !== "all" || filterSociedadId !== "all") && <button type="button" onClick={() => { setFilterCrit("all"); setFilterSociedadId("all"); }} style={{ height: 28, padding: "0 10px", border: "1px solid var(--border)", borderRadius: 6, background: "var(--surface-1)", color: "var(--fg-3)", font: "500 12px inherit", cursor: "pointer" }}>Limpiar</button>}
+          {!locationsView && <AssetFilterDropdown label="Criticidad" icon={<AlertCircle size={16} />} active={filterCrit !== "all"}>{([['all','Todas'],['critico','Crítico'],['semi_critico','Semi-crítico'],['no_critico','No crítico']] as [CritFilter,string][]).map(([value, label]) => <button key={value} type="button" onClick={() => setFilterCrit(value)} style={{ ...assetFilterOptionStyle, background: filterCrit === value ? "var(--brand-tint)" : "transparent", color: filterCrit === value ? "var(--brand-fg)" : "var(--fg-2)" }}>{label}</button>)}</AssetFilterDropdown>}
+          <AssetFilterDropdown label="Sociedad" icon={<Building2 size={16} />} active={filterSociedadId !== "all"}><button type="button" onClick={() => setFilterSociedadId("all")} style={{ ...assetFilterOptionStyle, background: filterSociedadId === "all" ? "var(--brand-tint)" : "transparent" }}>Todas</button>{sociedades.map(sociedad => <button key={sociedad.id} type="button" onClick={() => setFilterSociedadId(sociedad.id)} style={{ ...assetFilterOptionStyle, background: filterSociedadId === sociedad.id ? "var(--brand-tint)" : "transparent", color: filterSociedadId === sociedad.id ? "var(--brand-fg)" : "var(--fg-2)" }}>{sociedad.nombre} ({sociedadCounts.get(sociedad.id) ?? 0})</button>)}</AssetFilterDropdown>
+          {!locationsView && (
+            <AssetFilterDropdown label="Estado" icon={<RefreshCw size={16} />} active={filterEstado !== "all"}>
+              <button type="button" onClick={() => setFilterEstado("all")} style={{ ...assetFilterOptionStyle, background: filterEstado === "all" ? "var(--brand-tint)" : "transparent", color: filterEstado === "all" ? "var(--brand-fg)" : "var(--fg-2)" }}>Todos</button>
+              {ESTADO_OPCIONES.map(e => (
+                <button key={e} type="button" onClick={() => setFilterEstado(e)} style={{ ...assetFilterOptionStyle, background: filterEstado === e ? "var(--brand-tint)" : "transparent", color: filterEstado === e ? "var(--brand-fg)" : "var(--fg-2)" }}>
+                  <span style={{ width: 8, height: 8, borderRadius: "50%", background: ESTADO_COLOR[e], flexShrink: 0, marginRight: 8 }} />
+                  <span style={{ flex: 1, minWidth: 0 }}>{ESTADO_LABEL[e]}</span>
+                  <span style={{ color: "var(--fg-4)", marginLeft: 8 }}>{estadoCounts.get(e) ?? 0}</span>
+                </button>
+              ))}
+            </AssetFilterDropdown>
+          )}
+          {!locationsView && (
+            <CatalogFilter
+              label="Ubicación" icon={<MapPin size={16} />}
+              value={filterUbicacionId} onChange={setFilterUbicacionId}
+              options={ubicaciones.map(u => ({ id: u.id, nombre: u.edificio ?? "Sin nombre" }))}
+            />
+          )}
+          {!locationsView && (
+            <CatalogFilter
+              label="Lugar" icon={<MapPin size={16} />}
+              value={filterLugarId} onChange={setFilterLugarId}
+              options={lugares.map(l => ({ id: l.id, nombre: l.nombre }))}
+            />
+          )}
+          {!locationsView && (
+            <CatalogFilter
+              label="Responsable" icon={<User size={16} />}
+              value={filterResponsableId} onChange={setFilterResponsableId}
+              options={[
+                { id: "sin", nombre: "Sin responsable" },
+                ...usuarios.map(u => ({ id: u.id, nombre: u.nombre })),
+              ]}
+              allLabel="Todos"
+            />
+          )}
+          {!locationsView && (
+            <CatalogFilter
+              label="Fabricante" icon={<Factory size={16} />}
+              value={filterFabricanteId} onChange={setFilterFabricanteId}
+              options={fabricantes.map(f => ({ id: f.id, nombre: f.nombre }))}
+            />
+          )}
+          {!locationsView && (
+            <CatalogFilter
+              label="Modelo" icon={<Tag size={16} />}
+              value={filterModeloId} onChange={setFilterModeloId}
+              // Si hay un fabricante elegido, solo sus modelos: la lista
+              // completa mezcla modelos de marcas que ya quedaron fuera.
+              options={modelos
+                .filter(m => filterFabricanteId === "all" || m.fabricante_id === filterFabricanteId)
+                .map(m => ({ id: m.id, nombre: m.nombre }))}
+            />
+          )}
+          {hayFiltros && <button type="button" onClick={limpiarFiltros} style={{ height: 34, padding: "0 11px", border: "1px solid var(--border)", borderRadius: "var(--r-sm)", background: "var(--surface-1)", color: "var(--fg-3)", fontSize: 14, fontWeight: 400, fontFamily: "inherit", cursor: "pointer" }}>Limpiar</button>}
         </div>
       </div>
 
@@ -1628,7 +2098,6 @@ export default function ActivosBandeja({ initialActivos, usuarios, ubicaciones, 
                 activo={selectedActivo}
                 activos={activos}
                 onEdit={() => setEditing(selectedActivo)}
-                onClose={() => setSelected(null)}
                 onDeleted={handleDeleted}
                 onUpdated={handleSaved}
               />
