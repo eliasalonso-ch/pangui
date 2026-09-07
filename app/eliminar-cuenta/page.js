@@ -3,7 +3,7 @@
 import LegalLayout, { LegalSection, fadeUp } from "@/components/LegalLayout";
 import { motion } from "framer-motion";
 import Link from "next/link";
-import { Smartphone, Mail, Trash2, Archive, Clock } from "lucide-react";
+import { Smartphone, Building2, Mail, Trash2, Archive, Clock } from "lucide-react";
 
 const CONTACTO = "contacto@getpangui.com";
 const MAILTO = `mailto:${CONTACTO}?subject=${encodeURIComponent(
@@ -86,24 +86,52 @@ export default function EliminarCuentaPage() {
           Esta página explica cómo solicitar la eliminación de tu cuenta de{" "}
           <strong>Pangui</strong> (aplicación Android <code>com.pangui.app</code> y
           plataforma web) y de los datos personales asociados. El procedimiento es
-          gratuito y puedes iniciarlo desde la aplicación o por correo electrónico.
+          gratuito. Puedes salir de tu organización al instante desde la propia
+          aplicación, y solicitar la eliminación de tus datos personales desde la app
+          o por correo electrónico.
         </p>
       </motion.div>
 
       <LegalSection icon={Smartphone} title="Desde la aplicación móvil">
+        <p style={{ margin: "0 0 12px 0" }}>
+          Para <strong>salir de tu organización</strong> y dar de baja tu acceso al
+          instante:
+        </p>
         <ol style={{ margin: 0, padding: 0, listStyle: "none" }}>
           <Paso n={1}>Abre Pangui e inicia sesión con tu cuenta.</Paso>
           <Paso n={2}>
             Entra al menú <strong>Más</strong> y luego a <strong>Mi cuenta</strong>.
           </Paso>
           <Paso n={3}>
-            Pulsa <strong>Eliminar cuenta</strong> al final de la pantalla.
+            Pulsa <strong>Abandonar organización</strong>. Si tienes órdenes de trabajo
+            abiertas, elige a quién reasignarlas; si eres el titular, primero traspasa
+            la propiedad a otra persona.
           </Paso>
-          <Paso n={4}>
-            Confirma para abrir tu app de correo con la solicitud ya redactada y
-            envíala desde la dirección asociada a tu cuenta.
-          </Paso>
+          <Paso n={4}>Confirma. Tu acceso se da de baja de inmediato.</Paso>
         </ol>
+        <p style={{ margin: "12px 0 0 0" }}>
+          Para <strong>eliminar la cuenta y tus datos personales</strong>, pulsa{" "}
+          <strong>Eliminar cuenta</strong> al final de esa misma pantalla y envía la
+          solicitud desde la dirección asociada a tu cuenta.
+        </p>
+      </LegalSection>
+
+      <LegalSection icon={Building2} title="Desde la plataforma web">
+        <p style={{ margin: "0 0 12px 0" }}>
+          En <strong>Configuración</strong> encuentras las mismas salidas, más la
+          eliminación completa de la organización:
+        </p>
+        <Ul
+          items={[
+            "Abandonar la organización, reasignando el trabajo abierto que tengas a otra persona.",
+            "Traspasar la propiedad del espacio de trabajo, si eres el titular.",
+            "Eliminar el espacio de trabajo completo con todas sus órdenes de trabajo, activos y cuentas. Requiere tu contraseña y cancela la suscripción automáticamente.",
+          ]}
+        />
+        <p style={{ margin: "12px 0 0 0" }}>
+          El borrado del espacio de trabajo es definitivo y no está disponible desde la
+          aplicación móvil, para evitar que ocurra por accidente.
+        </p>
       </LegalSection>
 
       <LegalSection icon={Mail} title="Por correo electrónico">
@@ -154,7 +182,9 @@ export default function EliminarCuentaPage() {
         />
         <p style={{ margin: "12px 0 0 0" }}>
           Si eres el titular de la organización y quieres eliminar la cuenta completa
-          junto con todas sus órdenes de trabajo, indícalo expresamente en tu solicitud.
+          junto con todas sus órdenes de trabajo, puedes hacerlo tú mismo desde{" "}
+          <strong>Configuración</strong> en la plataforma web, o indicarlo expresamente
+          en tu solicitud por correo.
         </p>
       </LegalSection>
 
