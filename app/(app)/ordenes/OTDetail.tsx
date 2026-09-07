@@ -20,7 +20,7 @@ import {
   Type, DollarSign, List, ListChecks, AlertCircle, ImagePlus, FolderOpen,
   Lock, LockOpen, Mic, MicOff, Volume2, GitBranch, Wrench, Link as LinkIcon, Paperclip,
   Phone, Mail, Circle, MessageSquare,
-  Minus, ArrowUp, ArrowDown, RotateCw, UserRoundX, UserRoundCheck,
+  Minus, ArrowUp, ArrowDown, RotateCw, UserRoundX, UserRoundCheck, Zap, Locate, Contact,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { LinksDisplay } from "@/components/LinksInput";
@@ -3304,13 +3304,13 @@ export default function OTDetail({
               {[
                 orden.tipo_trabajo && { label: "Tipo", value: TIPO_LABEL[orden.tipo_trabajo] ?? orden.tipo_trabajo, icon: <Settings2 size={16} /> },
                 orden.sociedad?.nombre && { label: "Sociedad", value: orden.sociedad.nombre, icon: <Building2 size={16} /> },
-                (orden.solicitante || meta.solicitante) && { label: "Solicitante", value: orden.solicitante || meta.solicitante, icon: <User size={16} /> },
+                (orden.solicitante || meta.solicitante) && { label: "Solicitante", value: orden.solicitante || meta.solicitante, icon: <Contact size={16} /> },
                 orden.solicitante_telefono && { label: "Teléfono solicitante", value: orden.solicitante_telefono, icon: <Phone size={16} />, href: `tel:${orden.solicitante_telefono.replace(/\s+/g, "")}` },
                 orden.solicitante_email && { label: "Email solicitante", value: orden.solicitante_email, icon: <Mail size={16} />, href: `mailto:${orden.solicitante_email}` },
-                meta.hito && { label: "ITO", value: meta.hito, icon: <Flag size={16} /> },
+                meta.hito && { label: "ITO", value: meta.hito, icon: <Zap size={16} /> },
                 orden.presupuesto && { label: "N° de presupuesto", value: orden.presupuesto, icon: <DollarSign size={16} /> },
                 orden.ubicaciones?.edificio && { label: "Ubicación", value: orden.ubicaciones.edificio + (orden.ubicaciones.detalle ? ` · ${orden.ubicaciones.detalle}` : ""), icon: <MapPin size={16} /> },
-                orden.lugar?.nombre && { label: "Lugar específico", value: orden.lugar.nombre, icon: <MapPin size={16} /> },
+                orden.lugar?.nombre && { label: "Lugar específico", value: orden.lugar.nombre, icon: <Locate size={16} /> },
                 orden.activos?.nombre && { label: "Activo", value: orden.activos.nombre, icon: <Settings2 size={16} /> },
                 orden.fecha_termino && { label: "Fecha de vencimiento", value: fmtFechaLocal(orden.fecha_termino), icon: <Calendar size={16} /> },
                 orden.fecha_inicio && { label: "Fecha de inicio", value: fmtFechaLocal(orden.fecha_inicio), icon: <Calendar size={16} /> },

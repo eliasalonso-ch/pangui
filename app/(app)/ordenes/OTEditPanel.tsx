@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import {
   X, ArrowLeft, Loader2, User, MapPin, Settings2,
   CalendarDays, Tag, Check, ChevronDown, Building2, Hash, Plus, DollarSign,
-  Paperclip, FileText, File,
+  Paperclip, FileText, File, Zap, Locate, Contact, Box,
 } from "lucide-react";
 import { updateOrden, parseDescMeta, buildDescripcion, ELECTRILAM_WORKSPACE_ID } from "@/lib/ordenes-api";
 import { fetchSolicitantes as fetchSolicitantesCatalog, upsertSolicitante, type Solicitante } from "@/lib/solicitantes-api";
@@ -85,12 +85,12 @@ function FieldRow({ icon, label, children }: {
   icon: React.ReactNode; label: string; children: React.ReactNode;
 }) {
   return (
-    <div style={{ display: "flex", alignItems: "flex-start", gap: 16, padding: "22px 0", borderBottom: "1px solid var(--border)" }}>
-      <div style={{ width: 34, paddingTop: 4, display: "flex", justifyContent: "center", flexShrink: 0, color: "var(--fg-4)" }}>
+    <div style={{ display: "flex", alignItems: "flex-start", gap: 6, padding: "14px 0" }}>
+      <div style={{ width: 16, paddingTop: 3, display: "flex", justifyContent: "flex-start", flexShrink: 0, color: "var(--brand)" }}>
         {icon}
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-3)", marginBottom: 10, letterSpacing: "0.01em" }}>
+        <div style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", marginBottom: 10, letterSpacing: "0.01em" }}>
           {label}
         </div>
         {children}
@@ -830,7 +830,7 @@ export default function OTEditPanel({
           </div>
 
           {/* Description */}
-          <div style={{ marginBottom: 18 }}>
+          <div style={{ padding: "14px 0", paddingLeft: 22 }}>
             <textarea
               placeholder="Agregue una descripción"
               value={form.descripcion}
@@ -846,7 +846,7 @@ export default function OTEditPanel({
           </div>
 
           {/* Work type — promoted near the top so it's set before scrolling. */}
-          <div style={{ marginBottom: 18 }}>
+          <div style={{ padding: "14px 0" }}>
             <div style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-3)", marginBottom: 10, letterSpacing: "0.01em" }}>Tipo de trabajo</div>
             <select value={form.tipo_trabajo} onChange={e => setF("tipo_trabajo", e.target.value as TipoTrabajo | "")}
               style={{ width: "100%", height: 40, padding: "0 12px", border: "1px solid var(--border)", borderRadius: 8, fontSize: 14, color: "var(--fg-1)", outline: "none", background: "var(--surface-1)", fontFamily: "inherit" }}>
@@ -978,7 +978,7 @@ export default function OTEditPanel({
             />
           </div>
 
-          <FieldRow icon={<Hash size={14} />} label="N° de OT">
+          <FieldRow icon={<Hash size={16} />} label="N° de OT">
             <input
               type="text"
               placeholder="Ej: SF920260325921"
@@ -988,7 +988,7 @@ export default function OTEditPanel({
             />
           </FieldRow>
 
-          <FieldRow icon={<User size={14} />} label="Solicitante">
+          <FieldRow icon={<Contact size={16} />} label="Solicitante">
             <SolicitanteSelect
               value={form.solicitante}
               telefono={form.solicitante_telefono}
@@ -1000,12 +1000,12 @@ export default function OTEditPanel({
 
           {/* ITOs — Electrilam-exclusive feature. */}
           {wsId === ELECTRILAM_WORKSPACE_ID && (
-            <FieldRow icon={<Tag size={14} />} label="ITO">
+            <FieldRow icon={<Zap size={16} />} label="ITO">
               <HitoSelect value={form.hito} onChange={v => setF("hito", v)} wsId={wsId} />
             </FieldRow>
           )}
 
-          <FieldRow icon={<DollarSign size={14} />} label="N° de presupuesto">
+          <FieldRow icon={<DollarSign size={16} />} label="N° de presupuesto">
             <input
               type="text"
               placeholder="Ej: PRE-2025-001"
@@ -1015,7 +1015,7 @@ export default function OTEditPanel({
             />
           </FieldRow>
 
-          <FieldRow icon={<Building2 size={14} />} label="Sociedad">
+          <FieldRow icon={<Building2 size={16} />} label="Sociedad">
             <CatalogoSelect<Sociedad>
               value={form.sociedad_id}
               options={sociedadOptions}
@@ -1029,7 +1029,7 @@ export default function OTEditPanel({
             />
           </FieldRow>
 
-          <FieldRow icon={<MapPin size={14} />} label="Ubicación">
+          <FieldRow icon={<MapPin size={16} />} label="Ubicación">
             <CatalogoSelect<Ubicacion>
               value={form.ubicacion_id}
               options={ubicOptions}
@@ -1043,7 +1043,7 @@ export default function OTEditPanel({
             />
           </FieldRow>
 
-          <FieldRow icon={<MapPin size={14} />} label="Lugar específico">
+          <FieldRow icon={<Locate size={16} />} label="Lugar específico">
             <CatalogoSelect<LugarEspecifico>
               value={form.lugar_id}
               options={lugarOptions}
@@ -1057,7 +1057,7 @@ export default function OTEditPanel({
             />
           </FieldRow>
 
-          <FieldRow icon={<Settings2 size={14} />} label="Activo">
+          <FieldRow icon={<Box size={16} />} label="Activo">
             <CatalogoSelect<Activo>
               value={form.activo_id}
               options={activoOptions}
@@ -1071,17 +1071,17 @@ export default function OTEditPanel({
             />
           </FieldRow>
 
-          <FieldRow icon={<User size={14} />} label="Asignar a">
+          <FieldRow icon={<User size={16} />} label="Asignar a">
             <AssigneeSelect usuarios={usuarios} value={form.asignados_ids} onChange={v => setF("asignados_ids", v)} />
           </FieldRow>
 
-          <FieldRow icon={<CalendarDays size={14} />} label="Fecha de inicio">
+          <FieldRow icon={<CalendarDays size={16} />} label="Fecha de inicio">
             <input type="date" value={form.fecha_inicio} onChange={e => setF("fecha_inicio", e.target.value)}
               style={{ height: 40, padding: "0 12px", border: "1px solid var(--border)", borderRadius: 8, fontSize: 14, color: form.fecha_inicio ? "var(--fg-1)" : "var(--fg-4)", outline: "none", fontFamily: "inherit", background: "var(--surface-1)" }}
             />
           </FieldRow>
 
-          <FieldRow icon={<CalendarDays size={14} />} label="Fecha de vencimiento">
+          <FieldRow icon={<CalendarDays size={16} />} label="Fecha de vencimiento">
             <input type="date" value={form.fecha_termino} onChange={e => setF("fecha_termino", e.target.value)}
               style={{ height: 40, padding: "0 12px", border: "1px solid var(--border)", borderRadius: 8, fontSize: 14, color: form.fecha_termino ? "var(--fg-1)" : "var(--fg-4)", outline: "none", fontFamily: "inherit", background: "var(--surface-1)" }}
             />
@@ -1115,7 +1115,7 @@ export default function OTEditPanel({
 
           {/* Categories */}
           {categorias.length > 0 && (
-            <FieldRow icon={<Tag size={14} />} label="Categorías">
+            <FieldRow icon={<Tag size={16} />} label="Categorías">
               <CategoriaMultiSelect categorias={categorias} value={categoriaIds} onChange={setCategoriaIds} />
             </FieldRow>
           )}

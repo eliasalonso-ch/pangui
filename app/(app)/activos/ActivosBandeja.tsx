@@ -8,7 +8,7 @@ import {
   Building2, User, MapPin, Calendar, Hash, GitBranch, FileText, Pencil,
   Maximize2, Inbox, Clock, Link2, CheckCircle2, RefreshCw, PlusCircle, ArrowDown,
   Check, Camera, Paperclip, File as FileIcon, Tag, Factory, Truck, AlertCircle,
-  MoreVertical,
+  MoreVertical, Locate,
 } from "lucide-react";
 import {
   ACTIVO_SELECT, createActivo, deleteActivo, updateActivo,
@@ -434,12 +434,12 @@ function FieldRow({ icon, label, children }: {
   icon: React.ReactNode; label: string; children: React.ReactNode;
 }) {
   return (
-    <div style={{ display: "flex", alignItems: "flex-start", gap: 16, padding: "22px 0", borderBottom: "1px solid var(--border)" }}>
-      <div style={{ width: 34, paddingTop: 4, display: "flex", justifyContent: "center", flexShrink: 0, color: "var(--fg-4)" }}>
+    <div style={{ display: "flex", alignItems: "flex-start", gap: 6, padding: "14px 0" }}>
+      <div style={{ width: 16, paddingTop: 3, display: "flex", justifyContent: "flex-start", flexShrink: 0, color: "var(--brand)" }}>
         {icon}
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-3)", marginBottom: 10, letterSpacing: "0.01em" }}>
+        <div style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", marginBottom: 10, letterSpacing: "0.01em" }}>
           {label}
         </div>
         {children}
@@ -612,6 +612,7 @@ function ActivoForm({
     Array.isArray(activo?.adjuntos) ? activo!.adjuntos! : [],
   );
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [dragOverImage, setDragOverImage] = useState(false);
   const [uploadingAdjunto, setUploadingAdjunto] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -654,10 +655,7 @@ function ActivoForm({
     .filter(a => a.id !== activo?.id)
     .map(a => ({ id: a.id, label: a.nombre + (a.numero_serie ? ` (${a.numero_serie})` : "") }));
 
-  async function handlePickImage(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    e.target.value = "";
-    if (!file) return;
+  async function uploadImagen(file: File) {
     setUploadingImage(true);
     setError(null);
     try {
@@ -668,6 +666,22 @@ function ActivoForm({
     } finally {
       setUploadingImage(false);
     }
+  }
+
+  async function handlePickImage(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (file) await uploadImagen(file);
+  }
+
+  // El drop y el selector comparten `uploadImagen`. Solo se toma el primer
+  // archivo: `imagen_url` guarda una sola imagen.
+  async function handleDropImage(e: React.DragEvent) {
+    e.preventDefault();
+    setDragOverImage(false);
+    if (uploadingImage) return;
+    const file = Array.from(e.dataTransfer.files).find(f => f.type.startsWith("image/"));
+    if (file) await uploadImagen(file);
   }
 
   async function handlePickAdjuntos(e: React.ChangeEvent<HTMLInputElement>) {
@@ -738,13 +752,13 @@ function ActivoForm({
   const canSave = form.nombre.trim().length > 0 && !saving;
 
   return (
-    <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", height: "100%", background: "var(--surface-1)" }}>
+    <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", height: "100%", background: "var(--surface-canvas)" }}>
       {/* Header */}
       <div style={{
         display: "flex", alignItems: "center", justifyContent: "space-between",
         padding: "0 28px", height: 64, borderBottom: "1px solid var(--border)", flexShrink: 0,
       }}>
-        <h2 style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", margin: 0 }}>
+        <h2 style={{ fontSize: 20, fontWeight: 400, color: "var(--fg-1)", margin: 0 }}>
           {activo ? "Editar Activo" : "Nuevo Activo"}
         </h2>
         <button
@@ -767,7 +781,7 @@ function ActivoForm({
               value={form.nombre}
               onChange={e => set("nombre", e.target.value)}
               style={{
-                width: "100%", fontSize: 14, fontWeight: 400, color: "var(--fg-1)",
+                width: "100%", fontSize: 20, fontWeight: 400, color: "var(--fg-1)",
                 border: "none", outline: "none", background: "transparent", padding: "8px 0",
                 borderBottom: form.nombre ? "2px solid var(--brand)" : "2px solid var(--border)",
                 fontFamily: "inherit", transition: "border-color 0.15s",
@@ -775,37 +789,8 @@ function ActivoForm({
             />
           </div>
 
-          {/* Image */}
-          <div style={{ marginBottom: 18 }}>
-            <input ref={imageInputRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handlePickImage} />
-            {imagenUrl ? (
-              <div>
-                <div style={{ position: "relative", height: 240, borderRadius: 8, overflow: "hidden", background: "var(--brand)" }}>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={imagenUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
-                </div>
-                <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-                  <button type="button" onClick={() => imageInputRef.current?.click()} disabled={uploadingImage}
-                    style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, height: 38, border: "1px solid var(--border)", borderRadius: 8, background: "var(--surface-1)", color: "var(--fg-2)", fontSize: 14, fontWeight: 400, cursor: "pointer", fontFamily: "inherit" }}>
-                    {uploadingImage ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />} Reemplazar
-                  </button>
-                  <button type="button" onClick={() => setImagenUrl(null)}
-                    style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, height: 38, border: "1px solid var(--border)", borderRadius: 8, background: "var(--surface-1)", color: "var(--danger)", fontSize: 14, fontWeight: 400, cursor: "pointer", fontFamily: "inherit" }}>
-                    <Trash2 size={14} /> Eliminar
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <button type="button" onClick={() => imageInputRef.current?.click()} disabled={uploadingImage}
-                style={{ width: "100%", border: "1.5px dashed var(--brand)", borderRadius: 8, padding: "18px", display: "flex", flexDirection: "column", alignItems: "center", gap: 6, color: "var(--brand)", cursor: "pointer", background: "var(--brand-tint)", fontFamily: "inherit" }}>
-                {uploadingImage ? <Loader2 size={18} className="animate-spin" /> : <Camera size={18} strokeWidth={1.5} />}
-                <span style={{ fontSize: 14, fontWeight: 400 }}>Agregar foto del activo</span>
-              </button>
-            )}
-          </div>
-
           {/* Description */}
-          <div style={{ marginBottom: 4 }}>
+          <div style={{ padding: "14px 0", paddingLeft: 22 }}>
             <textarea
               placeholder="Añade una descripción"
               value={form.descripcion}
@@ -821,7 +806,69 @@ function ActivoForm({
             />
           </div>
 
-          <FieldRow icon={<Hash size={14} />} label="N° de serie">
+          {/* Imágenes — zona de arrastre. Vacía ocupa todo el ancho; con imagen
+              se encoge a un tile junto a la miniatura, que se puede reemplazar
+              soltando otra encima. Paleta igual a "Álbumes de fotos" en la
+              creación de OT: discontinua sutil, no un bloque de color. */}
+          <div style={{ padding: "14px 0" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 14, fontWeight: 400, color: "var(--fg-1)", letterSpacing: "0.01em", marginBottom: 8 }}>
+              <span style={{ width: 16, display: "flex", justifyContent: "flex-start", flexShrink: 0, color: "var(--brand)" }}><Camera size={16} /></span>
+              Imágenes
+            </div>
+            <input ref={imageInputRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handlePickImage} />
+            <div style={{ display: "flex", alignItems: "stretch", gap: 10, paddingLeft: 22 }}>
+              <button
+                type="button"
+                onClick={() => imageInputRef.current?.click()}
+                disabled={uploadingImage}
+                onDragOver={e => { e.preventDefault(); if (!uploadingImage) setDragOverImage(true); }}
+                onDragLeave={() => setDragOverImage(false)}
+                onDrop={handleDropImage}
+                style={{
+                  // Sin imagen se estira; con imagen queda del ancho de la miniatura.
+                  flex: imagenUrl ? "0 0 132px" : 1,
+                  minHeight: imagenUrl ? 108 : 96,
+                  border: `1px dashed ${dragOverImage ? "var(--brand)" : "var(--border-strong)"}`,
+                  borderRadius: "var(--r-md)",
+                  background: dragOverImage ? "var(--brand-tint)" : "var(--surface-canvas)",
+                  display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+                  gap: 7, color: "var(--fg-3)", fontSize: 14, fontFamily: "inherit",
+                  cursor: uploadingImage ? "default" : "pointer", padding: 12,
+                  transition: "border-color 0.15s, background 0.15s",
+                }}
+              >
+                {uploadingImage
+                  ? <Loader2 size={16} className="animate-spin" style={{ color: "var(--brand)" }} />
+                  : <Camera size={16} style={{ color: "var(--brand)" }} />}
+                <span style={{ textAlign: "center", lineHeight: 1.35 }}>
+                  {uploadingImage ? "Subiendo…" : imagenUrl ? "Reemplazar" : "Agregue o arrastre imágenes"}
+                </span>
+              </button>
+
+              {imagenUrl && (
+                <div style={{ position: "relative", flex: "0 0 132px", minHeight: 108, borderRadius: "var(--r-md)", overflow: "hidden", border: "1px solid var(--border)", background: "var(--surface-canvas)" }}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={imagenUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+                  <button
+                    type="button"
+                    onClick={() => setImagenUrl(null)}
+                    title="Quitar imagen"
+                    aria-label="Quitar imagen"
+                    style={{
+                      position: "absolute", top: 4, right: 4, width: 22, height: 22,
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      border: "none", borderRadius: "var(--r-sm)",
+                      background: "rgba(0,0,0,0.55)", color: "#fff", cursor: "pointer", padding: 0,
+                    }}
+                  >
+                    <X size={13} />
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <FieldRow icon={<Hash size={16} />} label="N° de serie">
             <input
               type="text"
               placeholder="Introduce el número de serie"
@@ -831,25 +878,25 @@ function ActivoForm({
             />
           </FieldRow>
 
-          <FieldRow icon={<RefreshCw size={14} />} label="Estado">
+          <FieldRow icon={<RefreshCw size={16} />} label="Estado">
             <select value={form.estado} onChange={e => set("estado", e.target.value as AssetStatus)}
               style={otInputStyle}>
               {ESTADO_FORM_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
           </FieldRow>
 
-          <FieldRow icon={<AlertCircle size={14} />} label="Criticidad">
+          <FieldRow icon={<AlertCircle size={16} />} label="Criticidad">
             <select value={form.criticidad} onChange={e => set("criticidad", e.target.value as AssetCriticality)}
               style={otInputStyle}>
               {CRITICIDAD_FORM_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
           </FieldRow>
 
-          <FieldRow icon={<Factory size={14} />} label="Fabricante">
+          <FieldRow icon={<Factory size={16} />} label="Fabricante">
             <SearchSelect placeholder="Elegir fabricante…" value={form.fabricante_id} options={fabricanteOptions} onChange={v => set("fabricante_id", v)} />
           </FieldRow>
 
-          <FieldRow icon={<Tag size={14} />} label="Modelo">
+          <FieldRow icon={<Tag size={16} />} label="Modelo">
             <SearchSelect
               placeholder={form.fabricante_id ? "Elegir modelo…" : "Elige fabricante primero"}
               value={form.modelo_id}
@@ -859,7 +906,7 @@ function ActivoForm({
             />
           </FieldRow>
 
-          <FieldRow icon={<Calendar size={14} />} label="Año">
+          <FieldRow icon={<Calendar size={16} />} label="Año">
             <input
               type="text"
               inputMode="numeric"
@@ -870,15 +917,15 @@ function ActivoForm({
             />
           </FieldRow>
 
-          <FieldRow icon={<Building2 size={14} />} label="Cliente">
+          <FieldRow icon={<Building2 size={16} />} label="Cliente">
             <SearchSelect placeholder="Elegir cliente…" value={form.sociedad_id} options={sociedadOptions} onChange={v => set("sociedad_id", v)} emptyLabel="Sin cliente" />
           </FieldRow>
 
-          <FieldRow icon={<MapPin size={14} />} label="Ubicación">
+          <FieldRow icon={<MapPin size={16} />} label="Ubicación">
             <SearchSelect placeholder="Elegir ubicación…" value={form.ubicacion_id} options={ubicOptions} onChange={v => set("ubicacion_id", v)} emptyLabel="Sin ubicación" />
           </FieldRow>
 
-          <FieldRow icon={<MapPin size={14} />} label="Lugar">
+          <FieldRow icon={<Locate size={16} />} label="Lugar">
             <SearchSelect
               placeholder={form.ubicacion_id ? "Elegir lugar…" : "Elige ubicación primero"}
               value={form.lugar_id}
@@ -889,29 +936,29 @@ function ActivoForm({
             />
           </FieldRow>
 
-          <FieldRow icon={<User size={14} />} label="Responsable">
+          <FieldRow icon={<User size={16} />} label="Responsable">
             <SearchSelect placeholder="Elegir responsable…" value={form.responsable_id} options={responsableOptions} onChange={v => set("responsable_id", v)} emptyLabel="Sin responsable" />
           </FieldRow>
 
-          <FieldRow icon={<Truck size={14} />} label="Proveedor">
+          <FieldRow icon={<Truck size={16} />} label="Proveedor">
             <SearchSelect placeholder="Elegir proveedor…" value={form.proveedor_id} options={proveedorOptions} onChange={v => set("proveedor_id", v)} emptyLabel="Sin proveedor" />
           </FieldRow>
 
-          <FieldRow icon={<GitBranch size={14} />} label="Activo padre">
+          <FieldRow icon={<GitBranch size={16} />} label="Activo padre">
             <SearchSelect placeholder="Elegir activo padre…" value={form.activo_padre_id} options={parentOptions} onChange={v => set("activo_padre_id", v)} emptyLabel="Sin activo padre" />
           </FieldRow>
 
           {/* Adjuntos */}
-          <div style={{ padding: "24px 0 0" }}>
+          <div style={{ padding: "14px 0" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <Paperclip size={13} style={{ color: "var(--fg-4)" }} />
-                <span style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-3)", letterSpacing: "0.01em" }}>
+                <span style={{ width: 16, display: "flex", justifyContent: "flex-start", flexShrink: 0, color: "var(--brand)" }}><Paperclip size={16} /></span>
+                <span style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", letterSpacing: "0.01em" }}>
                   Adjuntos
                 </span>
               </div>
               <button type="button" onClick={() => adjuntoInputRef.current?.click()} disabled={uploadingAdjunto}
-                style={{ display: "flex", alignItems: "center", gap: 4, height: 32, padding: "0 12px", border: "1px solid var(--brand)", borderRadius: 5, background: "var(--brand-tint)", color: "var(--brand)", fontSize: 14, fontWeight: 400, cursor: "pointer", fontFamily: "inherit" }}>
+                style={{ display: "flex", alignItems: "center", gap: 4, height: 32, padding: "0 12px", border: "1px solid var(--border)", borderRadius: 5, background: "var(--surface-1)", color: "var(--brand)", fontSize: 14, fontWeight: 400, cursor: "pointer", fontFamily: "inherit" }}>
                 {uploadingAdjunto ? <Loader2 size={11} className="animate-spin" /> : <Plus size={11} />}
                 Adjuntar archivo
               </button>
@@ -920,7 +967,7 @@ function ActivoForm({
                 onChange={handlePickAdjuntos} />
             </div>
             {adjuntos.length > 0 ? (
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8, paddingLeft: 22 }}>
                 {adjuntos.map((a, i) => {
                   const isImage = a.tipo === "foto" || a.mime?.startsWith("image/");
                   return (
@@ -941,8 +988,7 @@ function ActivoForm({
               </div>
             ) : (
               <button type="button" onClick={() => adjuntoInputRef.current?.click()} disabled={uploadingAdjunto}
-                style={{ width: "100%", border: "1.5px dashed var(--brand)", borderRadius: 8, padding: "18px", display: "flex", flexDirection: "column", alignItems: "center", gap: 6, color: "var(--brand)", cursor: "pointer", background: "var(--brand-tint)", fontFamily: "inherit" }}>
-                <Paperclip size={18} strokeWidth={1.5} />
+                style={{ width: "calc(100% - 22px)", marginLeft: 22, border: "1px dashed var(--border-strong)", borderRadius: "var(--r-md)", padding: "18px", display: "flex", flexDirection: "column", alignItems: "center", gap: 6, color: "var(--fg-3)", cursor: "pointer", background: "var(--surface-canvas)", fontFamily: "inherit", boxSizing: "border-box" }}>
                 <span style={{ fontSize: 14 }}>PDF, Word, Excel, manuales, imágenes…</span>
               </button>
             )}
@@ -952,7 +998,7 @@ function ActivoForm({
       </div>
 
       {/* Footer */}
-      <div style={{ borderTop: "1px solid var(--border)", padding: "16px 28px", display: "flex", alignItems: "center", justifyContent: "space-between", background: "var(--surface-1)", flexShrink: 0 }}>
+      <div style={{ borderTop: "1px solid var(--border)", padding: "16px 28px", display: "flex", alignItems: "center", justifyContent: "space-between", background: "var(--surface-canvas)", flexShrink: 0 }}>
         <div style={{ flex: 1 }}>
           {error && <span style={{ fontSize: 14, color: "var(--danger)" }}>{error}</span>}
         </div>
@@ -1288,7 +1334,7 @@ function DetallesTab({ activo, hijos, onOpenActivo, onFullscreen }: { activo: Ac
   const ubicFields = [
     { label: "Cliente", value: activo.sociedad?.nombre ?? "Sin cliente", icon: <Building2 size={16} /> },
     { label: "Ubicación", value: ubic ?? "Sin ubicación", icon: <MapPin size={16} /> },
-    { label: "Lugar", value: activo.lugar?.nombre ?? "Sin lugar específico", icon: <MapPin size={16} /> },
+    { label: "Lugar", value: activo.lugar?.nombre ?? "Sin lugar específico", icon: <Locate size={16} /> },
     { label: "Responsable", value: activo.responsable?.nombre ?? "Sin responsable", icon: <User size={16} /> },
   ];
 
@@ -1297,8 +1343,11 @@ function DetallesTab({ activo, hijos, onOpenActivo, onFullscreen }: { activo: Ac
       {/* Foto del equipo. Vivía en General, pero ahí competía con el estado y las
           OTs; acá acompaña a la ficha técnica, que es lo que describe. */}
       {activo.imagen_url && (
-        <div style={{ marginLeft: -28, marginRight: -28, paddingLeft: 28, paddingRight: 28, paddingTop: 16, paddingBottom: 16, borderBottom: "1px solid var(--border)" }}>
-          <p style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", letterSpacing: "0.01em", margin: "0 0 8px" }}>Imágenes</p>
+        <div style={{ marginLeft: -28, marginRight: -28, paddingLeft: 28, paddingRight: 28, paddingTop: 14, paddingBottom: 14 }}>
+          <p style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 14, fontWeight: 400, color: "var(--fg-1)", letterSpacing: "0.01em", margin: "0 0 8px" }}>
+            <Camera size={16} style={{ color: "var(--brand)" }} />
+            Imágenes
+          </p>
           <button
             onClick={onFullscreen}
             title="Ver imagen completa"
@@ -1313,15 +1362,18 @@ function DetallesTab({ activo, hijos, onOpenActivo, onFullscreen }: { activo: Ac
 
       {/* Descripción — texto corrido, sin tarjeta */}
       {activo.descripcion && (
-        <div style={{ marginLeft: -28, marginRight: -28, paddingLeft: 28, paddingRight: 28, paddingTop: 16, paddingBottom: 16, borderBottom: "1px solid var(--border)" }}>
-          <p style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", letterSpacing: "0.01em", margin: "0 0 8px" }}>Descripción</p>
+        <div style={{ marginLeft: -28, marginRight: -28, paddingLeft: 28, paddingRight: 28, paddingTop: 14, paddingBottom: 14 }}>
+          <p style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 14, fontWeight: 400, color: "var(--fg-1)", letterSpacing: "0.01em", margin: "0 0 8px" }}>
+            <FileText size={16} style={{ color: "var(--brand)" }} />
+            Descripción
+          </p>
           <p style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-2)", lineHeight: 1.75, whiteSpace: "pre-wrap", margin: 0 }}>{activo.descripcion}</p>
         </div>
       )}
 
       {/* Equipo */}
       {equipoFields.length > 0 && (
-        <div style={{ marginLeft: -28, marginRight: -28, paddingLeft: 28, paddingRight: 28, paddingTop: 16, paddingBottom: 16, borderBottom: "1px solid var(--border)" }}>
+        <div style={{ marginLeft: -28, marginRight: -28, paddingLeft: 28, paddingRight: 28, paddingTop: 14, paddingBottom: 14 }}>
           <div style={META_GRID}>
             {equipoFields.map(f => <MetaField key={f.label} {...f} />)}
           </div>
@@ -1330,7 +1382,7 @@ function DetallesTab({ activo, hijos, onOpenActivo, onFullscreen }: { activo: Ac
 
       {/* Ubicación y responsabilidad */}
       {ubicFields.length > 0 && (
-        <div style={{ marginLeft: -28, marginRight: -28, paddingLeft: 28, paddingRight: 28, paddingTop: 16, paddingBottom: 16, borderBottom: "1px solid var(--border)" }}>
+        <div style={{ marginLeft: -28, marginRight: -28, paddingLeft: 28, paddingRight: 28, paddingTop: 14, paddingBottom: 14 }}>
           <div style={META_GRID}>
             {ubicFields.map(f => <MetaField key={f.label} {...f} />)}
           </div>
@@ -1339,7 +1391,7 @@ function DetallesTab({ activo, hijos, onOpenActivo, onFullscreen }: { activo: Ac
 
       {/* Adjuntos y manuales */}
       {adjuntos.length > 0 && (
-        <div style={{ marginLeft: -28, marginRight: -28, paddingLeft: 28, paddingRight: 28, paddingTop: 16, paddingBottom: 16, borderBottom: "1px solid var(--border)" }}>
+        <div style={{ marginLeft: -28, marginRight: -28, paddingLeft: 28, paddingRight: 28, paddingTop: 14, paddingBottom: 14 }}>
           <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 6 }}>
             {adjuntos.map((a, idx) => (
               <a key={`${a.url}-${idx}`} href={a.url} target="_blank" rel="noreferrer"
@@ -1354,7 +1406,7 @@ function DetallesTab({ activo, hijos, onOpenActivo, onFullscreen }: { activo: Ac
       )}
 
       {/* Jerarquía */}
-      <div style={{ marginLeft: -28, marginRight: -28, paddingLeft: 28, paddingRight: 28, paddingTop: 16, paddingBottom: 16, borderBottom: "1px solid var(--border)" }}>
+      <div style={{ marginLeft: -28, marginRight: -28, paddingLeft: 28, paddingRight: 28, paddingTop: 14, paddingBottom: 14 }}>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {activo.parent ? (
               <button onClick={() => onOpenActivo(activo.parent!.id)} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", border: "1px solid var(--border)", borderRadius: "var(--r-md)", background: "var(--surface-0)", cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}>

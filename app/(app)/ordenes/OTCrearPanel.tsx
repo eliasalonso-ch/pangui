@@ -5,7 +5,7 @@ import {
   X, Loader2, User, MapPin, Settings2,
   CalendarDays, Tag, Check, ChevronDown, Building2, Hash, FileUp, Plus, AlertTriangle,
   Camera, ImagePlus, Trash2, Upload, Paperclip, FileText, File, DollarSign, Sparkles,
-  FolderOpen, Image as ImageIcon, ImageUp, Pencil,
+  FolderOpen, Image as ImageIcon, ImageUp, Pencil, Link2, Box, Repeat, Zap, Locate, Contact, Flag,
 } from "lucide-react";
 import { AlbumModal } from "./AlbumModal";
 import { createClient } from "@/lib/supabase";
@@ -202,17 +202,24 @@ const TIPOS: { value: TipoTrabajo; label: string }[] = [
 // MaintainX-style field block: sentence-case label stacked above the control,
 // no leading icon, rows separated by spacing rather than dividers. `icon` is
 // kept as an optional prop so existing call sites compile unchanged (ignored).
-function FieldRow({ label, children }: {
+function FieldRow({ icon, label, children }: {
   icon?: React.ReactNode;
   label: string;
   children: React.ReactNode;
 }) {
   return (
-    <div style={{ marginBottom: 20 }}>
-      <label style={{ display: "block", fontSize: 14, fontWeight: 400, color: "var(--fg-2)", marginBottom: 6 }}>
-        {label}
-      </label>
-      {children}
+    // Mismo reparto que el FieldRow de Activos: icono en una canaleta fija a la
+    // izquierda, rótulo a su lado y el control debajo ocupando el ancho.
+    <div style={{ display: "flex", alignItems: "flex-start", gap: 6, padding: "14px 0" }}>
+      <div style={{ width: 16, paddingTop: 3, display: "flex", justifyContent: "flex-start", flexShrink: 0, color: "var(--brand)" }}>
+        {icon}
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <label style={{ display: "block", fontSize: 14, fontWeight: 400, color: "var(--fg-1)", marginBottom: 10, letterSpacing: "0.01em" }}>
+          {label}
+        </label>
+        {children}
+      </div>
     </div>
   );
 }
@@ -948,10 +955,15 @@ export default function OTCrearPanel({
       const response = await callEdge("escanear-orden", { pdfText: summary, catalog, source: "request_message" });
       const ai = await response.json() as ScanResult | { error: string; detail?: string };
       if (!response.ok || "error" in ai) throw new Error("error" in ai ? ai.detail || ai.error : `Error ${response.status}`);
-      const best = (field: ScanField | undefined) => field?.candidates?.find(candidate => candidate.confidence >= 0.55)?.id ?? "";
-      const assignees = (ai.asignados ?? []).map(best).filter(Boolean);
+      // Second line of defence behind the edge function's per-catalog scoping:
+      // only accept an id that actually exists in the list backing that field.
+      // A cross-table id would otherwise sail through to the insert and fail on
+      // the FK, losing the whole OT.
+      const bestIn = (field: ScanField | undefined, pool: { id: string }[]) =>
+        field?.candidates?.find(c => c.confidence >= 0.55 && pool.some(o => o.id === c.id))?.id ?? "";
+      const assignees = (ai.asignados ?? []).map(a => bestIn(a, usuarios)).filter(Boolean);
       const categoryIds = (ai.categoria_ids ?? []).filter(id => categorias.some(category => category.id === id));
-      const categoryId = categoryIds[0] || best(ai.categoria);
+      const categoryId = categoryIds[0] || bestIn(ai.categoria, categorias);
       setForm(previous => ({
         ...previous,
         titulo: ai.titulo || previous.titulo,
@@ -965,10 +977,10 @@ export default function OTCrearPanel({
         fecha_inicio: ai.fecha_inicio || previous.fecha_inicio,
         fecha_termino: ai.fecha_termino || previous.fecha_termino,
         presupuesto: ai.presupuesto || previous.presupuesto,
-        sociedad_id: best(ai.sociedad) || previous.sociedad_id,
-        ubicacion_id: best(ai.ubicacion) || previous.ubicacion_id,
-        lugar_id: best(ai.lugar) || previous.lugar_id,
-        activo_id: best(ai.activo) || previous.activo_id,
+        sociedad_id: bestIn(ai.sociedad, sociedades) || previous.sociedad_id,
+        ubicacion_id: bestIn(ai.ubicacion, ubicaciones) || previous.ubicacion_id,
+        lugar_id: bestIn(ai.lugar, lugares) || previous.lugar_id,
+        activo_id: bestIn(ai.activo, activos) || previous.activo_id,
         hito: ai.hito?.candidates?.find(candidate => candidate.confidence >= 0.55)?.name || previous.hito,
         categoria_id: categoryId || previous.categoria_id,
         asignados_ids: assignees.length ? assignees : previous.asignados_ids,
@@ -1101,9 +1113,14 @@ export default function OTCrearPanel({
         key: keyof FormState,
         hintKey: keyof PdfHints,
         valueFromCandidate: (c: ScanCandidate) => string = (c) => c.id,
+        pool?: { id: string }[],
       ) => {
         const top = field.candidates[0];
-        if (top && top.confidence >= AUTO_FILL_THRESHOLD) {
+        // `pool` guards against a candidate id that belongs to a different
+        // catalog than this field: it would pass the FK-less form state and
+        // only blow up on insert.
+        const inPool = !pool || (top ? pool.some(o => o.id === top.id) : false);
+        if (top && top.confidence >= AUTO_FILL_THRESHOLD && inPool) {
           (patch as any)[key] = valueFromCandidate(top);
           return;
         }
@@ -1114,15 +1131,18 @@ export default function OTCrearPanel({
         }
       };
 
-      applyField(ai.sociedad,  "sociedad_id",  "sociedad");
-      applyField(ai.ubicacion, "ubicacion_id", "ubicacion");
+      applyField(ai.sociedad,  "sociedad_id",  "sociedad", (c) => c.id, sociedades);
+      applyField(ai.ubicacion, "ubicacion_id", "ubicacion", (c) => c.id, ubicaciones);
       // For lugar, scope auto-fill: only accept the top candidate if it belongs to whatever
       // ubicación we just resolved (or no ubicación was resolved).
       {
         const top = ai.lugar.candidates[0];
         const resolvedUbic = (patch as any).ubicacion_id ?? form.ubicacion_id;
         const topLugar = top ? lugares.find(l => l.id === top.id) : null;
-        const lugarBelongs = !resolvedUbic || !topLugar || !topLugar.ubicacion_id || topLugar.ubicacion_id === resolvedUbic;
+        // A `top` that resolves to no lugar at all is an id from another catalog
+        // (ubicaciones and lugares often share names), so it must NOT be applied.
+        const lugarBelongs = !!topLugar
+          && (!resolvedUbic || !topLugar.ubicacion_id || topLugar.ubicacion_id === resolvedUbic);
         if (top && top.confidence >= AUTO_FILL_THRESHOLD && lugarBelongs) {
           patch.lugar_id = top.id;
         } else if ((top && top.confidence >= SUGGEST_THRESHOLD) || ai.lugar.extracted) {
@@ -1130,15 +1150,15 @@ export default function OTCrearPanel({
         }
       }
       applyField(ai.hito,      "hito",         "hito", (c) => c.name);
-      applyField(ai.categoria, "categoria_id", "categoria");
-      applyField(ai.activo,    "activo_id",    "activo");
+      applyField(ai.categoria, "categoria_id", "categoria", (c) => c.id, categorias);
+      applyField(ai.activo,    "activo_id",    "activo",    (c) => c.id, activos);
 
       // Asignados is multi-pick: auto-add every high-confidence person, surface the rest.
       const autoAsignados: string[] = [];
       const mediumAsignados: ScanField[] = [];
       for (const person of ai.asignados ?? []) {
         const top = person.candidates[0];
-        if (top && top.confidence >= AUTO_FILL_THRESHOLD) {
+        if (top && top.confidence >= AUTO_FILL_THRESHOLD && usuarios.some(u => u.id === top.id)) {
           if (!autoAsignados.includes(top.id)) autoAsignados.push(top.id);
         } else if ((top && top.confidence >= SUGGEST_THRESHOLD) || person.extracted) {
           mediumAsignados.push(person);
@@ -1468,10 +1488,10 @@ export default function OTCrearPanel({
         display: "flex", alignItems: "center", justifyContent: "space-between",
         padding: "0 28px", height: 64, borderBottom: "1px solid var(--border)", flexShrink: 0,
       }}>
-        <h2 style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", margin: 0 }}>
+        <h2 style={{ fontSize: 20, fontWeight: 400, color: "var(--fg-1)", margin: 0 }}>
           Nueva Orden de Trabajo
         </h2>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <BorradorEstado
             guardando={guardandoBorrador}
             guardadoAt={borradorGuardadoAt}
@@ -1562,7 +1582,7 @@ export default function OTCrearPanel({
               value={form.titulo}
               onChange={e => setF("titulo", e.target.value)}
               style={{
-                width: "100%", fontSize: 14, fontWeight: 400,
+                width: "100%", fontSize: 20, fontWeight: 400,
                 color: "var(--fg-1)", border: "none", outline: "none",
                 background: "transparent", padding: "8px 0",
                 borderBottom: "2px solid " + (form.titulo ? "var(--brand)" : "var(--border)"),
@@ -1572,7 +1592,7 @@ export default function OTCrearPanel({
           </div>
 
           {/* Description */}
-          <div style={{ marginBottom: 18 }}>
+          <div style={{ padding: "14px 0", paddingLeft: 22 }}>
             <textarea
               placeholder="Agregue una descripción"
               value={form.descripcion}
@@ -1588,10 +1608,7 @@ export default function OTCrearPanel({
           </div>
 
           {/* Work type — promoted near the top so it's set before scrolling. */}
-          <div style={{ marginBottom: 18 }}>
-            <div style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-2)", marginBottom: 8 }}>
-              Tipo de trabajo
-            </div>
+          <FieldRow icon={<Settings2 size={16} />} label="Tipo de trabajo">
             <select
               value={form.tipo_trabajo}
               onChange={e => setF("tipo_trabajo", e.target.value as TipoTrabajo | "")}
@@ -1606,15 +1623,15 @@ export default function OTCrearPanel({
                 <option key={t.value} value={t.value}>{t.label}</option>
               ))}
             </select>
-          </div>
+          </FieldRow>
 
           {/* Photo albums — same folder-sidebar + grid shape as the OT detail
               gallery, but backed by in-memory drafts (there is no OT id yet;
               everything uploads on save). */}
-          <div style={{ marginBottom: 24 }}>
+          <div style={{ padding: "14px 0" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 12 }}>
-              <Camera size={13} style={{ color: "var(--fg-3)" }} />
-              <span style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-2)" }}>Álbumes de fotos</span>
+              <span style={{ width: 16, display: "flex", justifyContent: "flex-start", flexShrink: 0, color: "var(--brand)" }}><Camera size={16} /></span>
+              <span style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", letterSpacing: "0.01em" }}>Álbumes de fotos</span>
             </div>
 
             {/* Sin álbumes la barra lateral no lista nada, así que se oculta: el
@@ -1624,7 +1641,7 @@ export default function OTCrearPanel({
                 abierto debajo, a todo el ancho. Con la barra al costado el panel
                 quedaba desplazado ~190px y sus textos nunca alineaban con los de
                 Procedimiento y Adjuntos. */}
-            <div style={{ display: "flex", flexDirection: "column", border: grupos.length === 0 ? "1px dashed var(--border-strong)" : "1px solid var(--border)", borderRadius: "var(--r-md)", overflow: "hidden", background: grupos.length === 0 ? "var(--surface-canvas)" : "var(--surface-1)" }}>
+            <div style={{ marginLeft: 22, display: "flex", flexDirection: "column", border: grupos.length === 0 ? "1px dashed var(--border-strong)" : "1px solid var(--border)", borderRadius: "var(--r-md)", overflow: "hidden", background: grupos.length === 0 ? "var(--surface-canvas)" : "var(--surface-1)" }}>
 
               {/* Album strip */}
               {grupos.length > 0 && (
@@ -1788,7 +1805,7 @@ export default function OTCrearPanel({
                           <button
                             type="button"
                             onClick={() => grupoFileRefs.current[activeGrupo.id]?.click()}
-                            style={{ height: 38, padding: "0 18px", display: "flex", alignItems: "center", gap: 7, border: "1px solid var(--brand)", borderRadius: "var(--r-sm)", background: "var(--surface-1)", color: "var(--brand)", fontSize: 14, fontWeight: 400, fontFamily: "inherit", cursor: "pointer" }}
+                            style={{ height: 38, padding: "0 18px", display: "flex", alignItems: "center", gap: 7, border: "1px solid var(--border)", borderRadius: "var(--r-sm)", background: "var(--surface-1)", color: "var(--brand)", fontSize: 14, fontWeight: 400, fontFamily: "inherit", cursor: "pointer" }}
                           >
                             <ImageUp size={15} />
                             Agregar fotos
@@ -1834,14 +1851,13 @@ export default function OTCrearPanel({
                 ) : (
                   <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10, color: "var(--fg-3)", padding: 24 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 14 }}>
-                      <ImagePlus size={15} style={{ color: "var(--brand)" }} />
                       {grupos.length === 0 ? "Crea un álbum para agregar fotos" : "Selecciona un álbum"}
                     </div>
                     {grupos.length === 0 && (
                       <button
                         type="button"
                         onClick={() => { setAlbumTitulo(""); setAlbumTipo("referencia"); setAlbumModal({ mode: "crear" }); }}
-                        style={{ height: 38, padding: "0 18px", display: "flex", alignItems: "center", gap: 7, border: "1px solid var(--brand)", borderRadius: "var(--r-sm)", background: "var(--surface-1)", color: "var(--brand)", fontSize: 14, fontWeight: 400, fontFamily: "inherit", cursor: "pointer" }}
+                        style={{ height: 38, padding: "0 18px", display: "flex", alignItems: "center", gap: 7, border: "1px solid var(--border)", borderRadius: "var(--r-sm)", background: "var(--surface-1)", color: "var(--brand)", fontSize: 14, fontWeight: 400, fontFamily: "inherit", cursor: "pointer" }}
                       >
                         <Plus size={15} />
                         Nuevo álbum
@@ -1854,7 +1870,7 @@ export default function OTCrearPanel({
           </div>
 
           {/* Procedimientos */}
-          <div style={{ marginBottom: 24 }}>
+          <div style={{ padding: "14px 0" }}>
             <ProcedimientosPicker
               workspaceId={wsId}
               value={procedimientos}
@@ -1863,11 +1879,11 @@ export default function OTCrearPanel({
           </div>
 
           {/* Adjuntos */}
-          <div style={{ marginBottom: 24 }}>
+          <div style={{ padding: "14px 0" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <Paperclip size={13} style={{ color: "var(--fg-3)" }} />
-                <span style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-2)" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <span style={{ width: 16, display: "flex", justifyContent: "flex-start", flexShrink: 0, color: "var(--brand)" }}><Paperclip size={16} /></span>
+                <span style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", letterSpacing: "0.01em" }}>
                   Adjuntos
                 </span>
               </div>
@@ -1881,8 +1897,8 @@ export default function OTCrearPanel({
                 style={{
                   display: "flex", alignItems: "center", gap: 4,
                   height: 32, padding: "0 12px",
-                  border: "1px solid var(--brand)", borderRadius: 8,
-                  background: "var(--brand-tint)", color: "var(--brand)",
+                  border: "1px solid var(--border)", borderRadius: 8,
+                  background: "var(--surface-1)", color: "var(--brand)",
                   fontSize: 14, fontWeight: 400, cursor: "pointer", fontFamily: "inherit",
                 }}
               >
@@ -1906,21 +1922,20 @@ export default function OTCrearPanel({
             {adjuntos.length === 0 ? (
               // Mismo vacío que Procedimiento: borde tenue y un botón sólido con
               // la acción, en vez de una zona azul que pesa más que el contenido.
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, padding: "18px 12px", border: "1px dashed var(--border-strong)", borderRadius: "var(--r-md)", background: "var(--surface-canvas)" }}>
+              <div style={{ marginLeft: 22, display: "flex", flexDirection: "column", alignItems: "center", gap: 10, padding: "18px 12px", border: "1px dashed var(--border-strong)", borderRadius: "var(--r-md)", background: "var(--surface-canvas)" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 14, color: "var(--fg-3)" }}>
-                  <Paperclip size={15} style={{ color: "var(--brand)" }} />
                   PDF, Word, Excel, TXT, CSV, DWG, MP3, M4A…
                 </div>
                 <button
                   type="button"
                   onClick={() => adjuntoInputRef.current?.click()}
-                  style={{ height: 38, padding: "0 18px", display: "flex", alignItems: "center", gap: 7, border: "1px solid var(--brand)", borderRadius: "var(--r-sm)", background: "var(--surface-1)", color: "var(--brand)", fontSize: 14, fontWeight: 400, fontFamily: "inherit", cursor: "pointer" }}
+                  style={{ height: 38, padding: "0 18px", display: "flex", alignItems: "center", gap: 7, border: "1px solid var(--border)", borderRadius: "var(--r-sm)", background: "var(--surface-1)", color: "var(--brand)", fontSize: 14, fontWeight: 400, fontFamily: "inherit", cursor: "pointer" }}
                 >
                   <Plus size={15} /> Adjuntar archivo
                 </button>
               </div>
             ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8, paddingLeft: 22 }}>
                 {adjuntos.map((a, i) => {
                   const ext = a.file.name.split(".").pop()?.toLowerCase() ?? "";
                   const isDoc = ["pdf","doc","docx","xls","xlsx","ppt","pptx","txt","csv","dwg","dxf"].includes(ext);
@@ -1972,21 +1987,18 @@ export default function OTCrearPanel({
           </div>
 
           {/* Links */}
-          <div style={{ marginBottom: 24 }}>
-            <label style={{ display: "block", fontSize: 14, fontWeight: 400, color: "var(--fg-2)", marginBottom: 10 }}>
-              Links
-            </label>
+          <FieldRow icon={<Link2 size={16} />} label="Links">
             <LinksInput
               links={form.links}
               onChange={links => setF("links", links)}
             />
-          </div>
+          </FieldRow>
 
           {/* N° OT + Solicitante + Hito */}
-          <FieldRow icon={<Hash size={14} />} label="N° de OT">
+          <FieldRow icon={<Hash size={16} />} label="N° de OT (si aplica)">
             <input
               type="text"
-              placeholder="Ej: SF920260325921"
+              placeholder="Ingresa el N° de OT..."
               value={form.n_ot}
               onChange={e => setF("n_ot", e.target.value)}
               style={{ width:"100%", height:40, padding:"0 12px", border:`1px solid ${dupWarning ? "var(--warning)" : "var(--border)"}`, borderRadius:8, fontSize: 14, color:"var(--fg-1)", outline:"none", fontFamily:"var(--font-mono)", background:"var(--surface-1)" }}
@@ -2001,7 +2013,7 @@ export default function OTCrearPanel({
             )}
           </FieldRow>
 
-          <FieldRow icon={<User size={14} />} label="Solicitante">
+          <FieldRow icon={<Contact size={16} />} label="Solicitante">
             <SolicitanteSelect
               value={form.solicitante}
               telefono={form.solicitante_telefono}
@@ -2015,7 +2027,7 @@ export default function OTCrearPanel({
 
           {/* ITOs — Electrilam-exclusive feature. */}
           {wsId === ELECTRILAM_WORKSPACE_ID && (
-            <FieldRow icon={<Tag size={14} />} label="ITO">
+            <FieldRow icon={<Zap size={16} />} label="ITO">
               <HitoSelect value={form.hito} onChange={v => setF("hito", v)} wsId={wsId} />
               {pdfHints?.hito && (
                 <PdfSuggestion
@@ -2030,10 +2042,10 @@ export default function OTCrearPanel({
             </FieldRow>
           )}
 
-          <FieldRow icon={<DollarSign size={14} />} label="N° de presupuesto">
+          <FieldRow icon={<DollarSign size={16} />} label="N° de presupuesto (si aplica)">
             <input
               type="text"
-              placeholder="Ej: PRE-2025-001"
+              placeholder="Ingresa el N° de presupuesto..."
               value={form.presupuesto}
               onChange={e => setF("presupuesto", e.target.value)}
               style={{ width:"100%", height:40, padding:"0 12px", border:"1px solid var(--border)", borderRadius:8, fontSize: 14, color:"var(--fg-1)", outline:"none", fontFamily:"inherit", background:"var(--surface-1)" }}
@@ -2041,7 +2053,7 @@ export default function OTCrearPanel({
           </FieldRow>
 
           {/* Sociedad */}
-          <FieldRow icon={<Building2 size={14} />} label="Sociedad">
+          <FieldRow icon={<Building2 size={16} />} label="Sociedad">
             <CatalogoSelect<Sociedad>
               value={form.sociedad_id}
               options={sociedadOptions}
@@ -2066,7 +2078,7 @@ export default function OTCrearPanel({
           </FieldRow>
 
           {/* Ubicación */}
-          <FieldRow icon={<MapPin size={14} />} label="Ubicación">
+          <FieldRow icon={<MapPin size={16} />} label="Ubicación">
             <CatalogoSelect<Ubicacion>
               value={form.ubicacion_id}
               options={ubicOptions}
@@ -2094,7 +2106,7 @@ export default function OTCrearPanel({
           </FieldRow>
 
           {/* Lugar específico */}
-          <FieldRow icon={<MapPin size={14} />} label="Lugar específico">
+          <FieldRow icon={<Locate size={16} />} label="Lugar específico">
             <CatalogoSelect<LugarEspecifico>
               value={form.lugar_id}
               options={lugarOptions}
@@ -2122,7 +2134,7 @@ export default function OTCrearPanel({
           </FieldRow>
 
           {/* Activo */}
-          <FieldRow icon={<Settings2 size={14} />} label="Activo">
+          <FieldRow icon={<Box size={16} />} label="Activo">
             <CatalogoSelect<Activo>
               value={form.activo_id}
               options={activoOptions}
@@ -2146,7 +2158,7 @@ export default function OTCrearPanel({
           </FieldRow>
 
           {/* Asignar */}
-          <FieldRow icon={<User size={14} />} label="Asignar a">
+          <FieldRow icon={<User size={16} />} label="Asignar a">
             <AssigneeSelect
               usuarios={usuarios}
               value={form.asignados_ids}
@@ -2165,7 +2177,7 @@ export default function OTCrearPanel({
           </FieldRow>
 
           {/* Fecha de inicio */}
-          <FieldRow icon={<CalendarDays size={14} />} label="Fecha de inicio">
+          <FieldRow icon={<CalendarDays size={16} />} label="Fecha de inicio">
             <input
               type="date"
               value={form.fecha_inicio}
@@ -2180,7 +2192,7 @@ export default function OTCrearPanel({
           </FieldRow>
 
           {/* Fecha de vencimiento */}
-          <FieldRow icon={<CalendarDays size={14} />} label="Fecha de vencimiento">
+          <FieldRow icon={<CalendarDays size={16} />} label="Fecha de vencimiento">
             <input
               type="date"
               value={form.fecha_termino}
@@ -2195,21 +2207,15 @@ export default function OTCrearPanel({
           </FieldRow>
 
           {/* Recurrence — Repetir + Terminar repetición (mirrors the mobile app) */}
-          <div style={{ marginBottom: 24 }}>
-            <div style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-2)", marginBottom: 8 }}>
-              Recurrencia
-            </div>
+          <FieldRow icon={<Repeat size={16} />} label="Recurrencia">
             <RecurrenceControls
               value={form}
               onChange={next => setForm(prev => ({ ...prev, ...next }))}
             />
-          </div>
+          </FieldRow>
 
           {/* Priority — connected segmented control (MaintainX style) */}
-          <div style={{ marginBottom: 24 }}>
-            <div style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-2)", marginBottom: 8 }}>
-              Prioridad
-            </div>
+          <FieldRow icon={<Flag size={16} />} label="Prioridad">
             <div style={{ display: "inline-flex", border: "1px solid var(--border)", borderRadius: 8, overflow: "hidden" }}>
               {PRIORIDADES.map((p, i) => {
                 const active = form.prioridad === p.value;
@@ -2234,11 +2240,11 @@ export default function OTCrearPanel({
                 );
               })}
             </div>
-          </div>
+          </FieldRow>
 
           {/* Categories — multiple selection */}
           {categorias.length > 0 && (
-            <FieldRow icon={<Tag size={14} />} label="Categorías">
+            <FieldRow icon={<Tag size={16} />} label="Categorías">
               <CategoriaMultiSelect categorias={categorias} value={categoriaIds} onChange={setCategoriaIds} />
               {pdfHints?.categoria && (
                 <PdfSuggestion
