@@ -80,6 +80,25 @@ export async function fetchPeriodoVigente(activoId: string): Promise<EstadoPerio
   return (data ?? null) as unknown as EstadoPeriodo | null;
 }
 
+/**
+ * Todos los períodos del activo, sin ventana.
+ *
+ * Alimenta los totales de la ficha, que son de por vida y NO siguen al filtro
+ * de rango: al usuario le confunde ver "tiempo de funcionamiento" cambiar
+ * cuando lo único que movió fue el zoom del gráfico.
+ */
+export async function fetchEstadoPeriodosTodos(activoId: string): Promise<EstadoPeriodo[]> {
+  const sb = createClient();
+  const { data, error } = await sb
+    .from("activo_estado_periodos")
+    .select(PERIODO_SELECT)
+    .eq("activo_id", activoId)
+    .order("inicio", { ascending: false });
+
+  if (error) throw error;
+  return (data ?? []) as unknown as EstadoPeriodo[];
+}
+
 export interface CambioEstadoInput {
   activoId: string;
   estado: AssetStatus;
