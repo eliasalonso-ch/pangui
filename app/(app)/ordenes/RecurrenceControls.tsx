@@ -173,9 +173,8 @@ export function RecurrenceControls({
 
   return (
     <div style={{ display: "grid", gap }}>
-      {/* Repetir */}
+      {/* Repetir — sin rótulo: la sección ya se titula "Recurrencia". */}
       <div style={{ display: "grid", gap: 6 }}>
-        <span style={lbl}>Repetir</span>
         <select
           value={currentPreset}
           onChange={e => selectPreset(e.target.value as PresetKey)}

@@ -76,26 +76,26 @@ export default function ProcedimientosPicker({
 
   return (
     <div>
-      <div style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-3)", letterSpacing: "0.01em", marginBottom: 10 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 14, fontWeight: 400, color: "var(--fg-1)", letterSpacing: "0.01em", marginBottom: 10 }}>
+        <span style={{ width: 16, display: "flex", justifyContent: "flex-start", flexShrink: 0, color: "var(--brand)" }}><ClipboardCheck size={16} /></span>
         Procedimiento
       </div>
 
       {value.length === 0 ? (
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, padding: "18px 12px", border: "1px dashed var(--border-strong)", borderRadius: "var(--r-md)", background: "var(--surface-canvas)" }}>
+        <div style={{ marginLeft: 22, display: "flex", flexDirection: "column", alignItems: "center", gap: 10, padding: "18px 12px", border: "1px dashed var(--border-strong)", borderRadius: "var(--r-md)", background: "var(--surface-canvas)" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 14, color: "var(--fg-3)" }}>
-            <ClipboardCheck size={15} style={{ color: "var(--brand)" }} />
             Crear o adjuntar nuevo Procedimiento
           </div>
           <button
             type="button"
             onClick={openPicker}
-            style={{ height: 38, padding: "0 18px", display: "flex", alignItems: "center", gap: 7, border: "1px solid var(--brand)", borderRadius: "var(--r-sm)", background: "var(--surface-1)", color: "var(--brand)", fontSize: 14, fontWeight: 400, fontFamily: "inherit", cursor: "pointer" }}
+            style={{ height: 38, padding: "0 18px", display: "flex", alignItems: "center", gap: 7, border: "1px solid var(--border)", borderRadius: "var(--r-sm)", background: "var(--surface-1)", color: "var(--brand)", fontSize: 14, fontWeight: 400, fontFamily: "inherit", cursor: "pointer" }}
           >
             <Plus size={15} /> Añadir Procedimiento
           </button>
         </div>
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10, paddingLeft: 22 }}>
           {value.map(proc => (
             <div key={proc.id} style={{ display: "flex", alignItems: "center", gap: 14, padding: "12px 14px", borderRadius: "var(--r-md)", background: "var(--brand-tint)" }}>
               <span style={{ width: 34, height: 34, flexShrink: 0, borderRadius: "50%", background: "var(--surface-1)", display: "grid", placeItems: "center", color: "var(--brand)" }}>

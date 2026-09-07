@@ -152,11 +152,21 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    // Build a set of every legitimate id so we can drop any hallucinated ones.
-    const catalogIds = new Set<string>();
-    for (const list of [catalog.sociedades, catalog.ubicaciones, catalog.lugares, catalog.hitos, catalog.categorias, catalog.usuarios, catalog.activos, catalog.solicitantes, catalog.procedimientos]) {
-      for (const item of list ?? []) catalogIds.add(item.id);
-    }
+    // Each field is scoped to its OWN catalog. A single pooled set would accept
+    // e.g. a ubicación id in the `lugar` field: still a "real" id, but from the
+    // wrong table, so the OT insert then dies on ordenes_trabajo_lugar_id_fkey.
+    // Workspaces routinely name a ubicación and a lugar the same ("HISTOLOGÍA",
+    // "2do piso"), which is exactly when the model mixes them up.
+    const idsOf = (list?: CatalogItem[]) => new Set((list ?? []).map((item) => item.id));
+    const sociedadIds     = idsOf(catalog.sociedades);
+    const ubicacionIds    = idsOf(catalog.ubicaciones);
+    const lugarIds        = idsOf(catalog.lugares);
+    const hitoIds         = idsOf(catalog.hitos);
+    const categoriaIds    = idsOf(catalog.categorias);
+    const usuarioIds      = idsOf(catalog.usuarios);
+    const activoIds       = idsOf(catalog.activos);
+    const solicitanteIds  = idsOf(catalog.solicitantes);
+    const procedimientoIds = idsOf(catalog.procedimientos);
 
     const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/Santiago" });
     const userPrompt = `FECHA ACTUAL EN CHILE: ${today}\n\nCATÁLOGO DEL WORKSPACE:\n\n${renderCatalog(catalog)}\n\n────────────\n\nTEXTO DE LA SOLICITUD:\n\n${pdfText.slice(0, 25_000)}`;
@@ -209,7 +219,7 @@ Deno.serve(async (req: Request) => {
       // Back-compat: tolerate an old-style plain string by wrapping it.
       solicitante:   typeof parsed.solicitante === "string"
         ? { extracted: parsed.solicitante.trim() || null, candidates: [] }
-        : sanitizeFieldResult(parsed.solicitante, catalogIds),
+        : sanitizeFieldResult(parsed.solicitante, solicitanteIds),
       solicitante_telefono: typeof parsed.solicitante_telefono === "string" && parsed.solicitante_telefono.trim() ? parsed.solicitante_telefono.trim() : null,
       solicitante_email:    typeof parsed.solicitante_email === "string" && parsed.solicitante_email.trim() ? parsed.solicitante_email.trim() : null,
       descripcion:   typeof parsed.descripcion === "string" ? parsed.descripcion : null,
@@ -221,20 +231,20 @@ Deno.serve(async (req: Request) => {
       presupuesto: typeof parsed.presupuesto === "string" || typeof parsed.presupuesto === "number" ? String(parsed.presupuesto) : null,
       recurrencia: VALID_RECURRENCIAS.has(parsed.recurrencia) ? parsed.recurrencia : "ninguna",
       recurrencia_config: parsed.recurrencia_config && typeof parsed.recurrencia_config === "object" ? parsed.recurrencia_config : null,
-      sociedad:   sanitizeFieldResult(parsed.sociedad,  catalogIds),
-      ubicacion:  sanitizeFieldResult(parsed.ubicacion, catalogIds),
-      lugar:      sanitizeFieldResult(parsed.lugar,     catalogIds),
-      hito:       sanitizeFieldResult(parsed.hito,      catalogIds),
-      categoria:  sanitizeFieldResult(parsed.categoria, catalogIds),
-      activo:     sanitizeFieldResult(parsed.activo,    catalogIds),
+      sociedad:   sanitizeFieldResult(parsed.sociedad,  sociedadIds),
+      ubicacion:  sanitizeFieldResult(parsed.ubicacion, ubicacionIds),
+      lugar:      sanitizeFieldResult(parsed.lugar,     lugarIds),
+      hito:       sanitizeFieldResult(parsed.hito,      hitoIds),
+      categoria:  sanitizeFieldResult(parsed.categoria, categoriaIds),
+      activo:     sanitizeFieldResult(parsed.activo,    activoIds),
       asignados:  Array.isArray(parsed.asignados)
-        ? parsed.asignados.map((a: any) => sanitizeFieldResult(a, catalogIds))
+        ? parsed.asignados.map((a: any) => sanitizeFieldResult(a, usuarioIds))
         : [],
       categoria_ids: Array.isArray(parsed.categoria_ids)
-        ? parsed.categoria_ids.filter((id: unknown) => typeof id === "string" && (catalog.categorias ?? []).some((item) => item.id === id))
+        ? parsed.categoria_ids.filter((id: unknown) => typeof id === "string" && categoriaIds.has(id))
         : [],
       procedimiento_ids: Array.isArray(parsed.procedimiento_ids)
-        ? parsed.procedimiento_ids.filter((id: unknown) => typeof id === "string" && (catalog.procedimientos ?? []).some((item) => item.id === id))
+        ? parsed.procedimiento_ids.filter((id: unknown) => typeof id === "string" && procedimientoIds.has(id))
         : [],
       links: Array.isArray(parsed.links)
         ? parsed.links.filter((link: any) => link && typeof link.url === "string" && /^https?:\/\//i.test(link.url)).slice(0, 10).map((link: any) => ({ url: link.url, label: typeof link.label === "string" ? link.label : undefined }))
