@@ -16,7 +16,7 @@ import Link from "next/link";
 import { AlertCircle, ArrowLeft, ChevronRight, Loader2, X } from "lucide-react";
 import { createClient } from "@/lib/supabase";
 import {
-  cambiarEstadoActivo, fetchEstadoPeriodos, formatDuracion, resumirInactividad,
+  cambiarEstadoActivo, fetchEstadoPeriodos, fetchEstadoPeriodosTodos, formatDuracion, resumirInactividad,
   type EstadoPeriodo, type TipoInactividad,
 } from "@/lib/activo-estado-api";
 import type { AssetStatus } from "@/types/ordenes";
@@ -152,6 +152,8 @@ export default function EstadoActivoPage() {
   const [nombre, setNombre] = useState("");
   const [estadoActual, setEstadoActual] = useState<AssetStatus | null>(null);
   const [periodos, setPeriodos] = useState<EstadoPeriodo[]>([]);
+  // Historial completo, para los totales de por vida (los de arriba).
+  const [todosPeriodos, setTodosPeriodos] = useState<EstadoPeriodo[]>([]);
   const [rango, setRango] = useState<(typeof RANGOS)[number]["key"]>("1s");
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
@@ -183,14 +185,16 @@ export default function EstadoActivoPage() {
     setErr(null);
     try {
       const sb = createClient();
-      const [{ data: activo }, filas] = await Promise.all([
+      const [{ data: activo }, filas, todas] = await Promise.all([
         sb.from("activos").select("nombre, estado").eq("id", activoId).maybeSingle(),
         fetchEstadoPeriodos(activoId, ventana.desde, ventana.hasta),
+        fetchEstadoPeriodosTodos(activoId),
       ]);
       if (!activo) { setErr("No se encontró este activo."); setLoading(false); return; }
       setNombre(activo.nombre ?? "");
       setEstadoActual((activo.estado ?? "operativo") as AssetStatus);
       setPeriodos(filas);
+      setTodosPeriodos(todas);
     } catch (e) {
       setErr(e instanceof Error ? e.message : "No se pudo cargar el historial.");
     }
@@ -203,10 +207,23 @@ export default function EstadoActivoPage() {
     return () => { vivo = false; };
   }, [cargar]);
 
-  const resumen = useMemo(
-    () => resumirInactividad(periodos, ventana.desde, ventana.hasta),
-    [periodos, ventana.desde, ventana.hasta],
-  );
+  // Los totales son de por vida y NO siguen al selector de rango: ver "tiempo
+  // de funcionamiento" cambiar al mover el zoom del gráfico confunde, porque
+  // sugiere que el activo estuvo menos tiempo operativo cuando lo unico que se
+  // achico fue la ventana. El grafico si es del rango — por eso los totales van
+  // rotulados "historico".
+  const resumen = useMemo(() => {
+    if (todosPeriodos.length === 0) {
+      return resumirInactividad([], ventana.desde, ventana.hasta);
+    }
+    // `ahora` en vez de Date.now(): el memo tiene que ser puro, y esta pagina
+    // ya mantiene el reloj en estado por la misma razon.
+    const inicio = todosPeriodos.reduce(
+      (min, p) => Math.min(min, new Date(p.inicio).getTime()),
+      ahora,
+    );
+    return resumirInactividad(todosPeriodos, new Date(inicio), new Date(ahora));
+  }, [todosPeriodos, ventana.desde, ventana.hasta, ahora]);
 
   /** Convierte la elección del diálogo en la fecha real de inicio. */
   function resolverDesde(): Date | null {
@@ -337,12 +354,12 @@ export default function EstadoActivoPage() {
         {/* Totales arriba, como fila de indicadores: al costado le quitaban
             ancho justo al grafico, que es lo que mejora con el espacio. */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 12, marginBottom: 20 }}>
-          <Total valor={formatDuracion(resumen.operativoHoras)} label="Tiempo de funcionamiento" color={ESTADO_COLOR.operativo} />
-          <Total valor={formatDuracion(resumen.imprevistoHoras)} label="Inactividad imprevista" color={ESTADO_COLOR.fuera_servicio} />
-          <Total valor={formatDuracion(resumen.planificadoHoras)} label="Inactividad planificada" color={ESTADO_COLOR.mantencion} />
+          <Total valor={formatDuracion(resumen.operativoHoras)} label="Tiempo de funcionamiento · histórico" color={ESTADO_COLOR.operativo} />
+          <Total valor={formatDuracion(resumen.imprevistoHoras)} label="Inactividad imprevista · histórico" color={ESTADO_COLOR.fuera_servicio} />
+          <Total valor={formatDuracion(resumen.planificadoHoras)} label="Inactividad planificada · histórico" color={ESTADO_COLOR.mantencion} />
           <Total
             valor={resumen.disponibilidadPct !== null ? `${resumen.disponibilidadPct.toFixed(1)}%` : "—"}
-            label="Disponibilidad medida"
+            label="Disponibilidad medida · histórico"
           />
         </div>
 
