@@ -9,6 +9,11 @@ interface PageProps {
   searchParams: Promise<{ id?: string }>;
 }
 
+/** Catalogo de repuestos que consume el selector de "Partes". */
+interface MaterialOpcion {
+  id: string; nombre: string; codigo: string; unidad: string; imagen_url: string | null;
+}
+
 export default async function ActivosPage({ searchParams }: PageProps) {
   const { id: selectedId } = await searchParams;
   const [sb, auth] = await Promise.all([createServerSupabase(), getServerUser()]);
@@ -30,7 +35,7 @@ export default async function ActivosPage({ searchParams }: PageProps) {
   if (!perfil?.workspace_id) redirect("/login");
   const wsId = perfil.workspace_id;
 
-  const [activos, usuarios, ubicaciones, lugares, sociedades, fabricantes, modelos, proveedores] = await Promise.all([
+  const [activos, usuarios, ubicaciones, lugares, sociedades, fabricantes, modelos, proveedores, materiales] = await Promise.all([
     sb.from("activos")
       .select(ACTIVO_SELECT)
       .eq("workspace_id", wsId)
@@ -85,6 +90,14 @@ export default async function ActivosPage({ searchParams }: PageProps) {
       .eq("workspace_id", wsId)
       .order("nombre")
       .then(r => (r.data ?? []) as unknown as Proveedor[]),
+
+    // Catalogo de repuestos para el selector de "Partes" del formulario.
+    sb.from("partes")
+      .select("id,nombre,codigo,unidad,imagen_url")
+      .eq("workspace_id", wsId)
+      .eq("activo", true)
+      .order("nombre")
+      .then(r => (r.data ?? []) as unknown as MaterialOpcion[]),
   ]);
 
   return (
@@ -97,6 +110,7 @@ export default async function ActivosPage({ searchParams }: PageProps) {
       fabricantes={fabricantes}
       modelos={modelos}
       proveedores={proveedores}
+      materiales={materiales}
       myRol={perfil.rol}
       wsId={wsId}
       initialSelectedId={selectedId ?? null}

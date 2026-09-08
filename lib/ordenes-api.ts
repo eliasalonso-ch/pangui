@@ -137,7 +137,7 @@ export const ORDEN_SELECT = `
   requiere_materiales, requiere_hoja, requiere_fotos,
   cierre_forzado, cierre_forzado_motivo, cierre_forzado_por, cierre_forzado_at,
   imagen_url, fotos_urls, links,
-  activos (id, nombre),
+  activos (id, nombre, imagen_url, estado),
   ubicaciones (id, edificio, detalle, sociedad_id, sociedades(nombre)),
   lugar:lugares!lugar_id(id, nombre, imagen_url),
   sociedad:sociedades!sociedad_id(id, nombre, imagen_url),

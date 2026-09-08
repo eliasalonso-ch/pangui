@@ -20,6 +20,7 @@ import {
   type EstadoPeriodo, type TipoInactividad,
 } from "@/lib/activo-estado-api";
 import type { AssetStatus } from "@/types/ordenes";
+import CambiarEstadoDialog from "@/components/activos/CambiarEstadoDialog";
 
 const ESTADO_LABEL: Record<AssetStatus, string> = {
   operativo: "Operativo",
@@ -158,15 +159,8 @@ export default function EstadoActivoPage() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
 
-  // Diálogo de cambio de estado.
+  // Diálogo de cambio de estado (el formulario vive en CambiarEstadoDialog).
   const [dlgOpen, setDlgOpen] = useState(false);
-  const [dlgEstado, setDlgEstado] = useState<AssetStatus>("fuera_servicio");
-  const [dlgTipo, setDlgTipo] = useState<TipoInactividad | "">("");
-  const [dlgDesde, setDlgDesde] = useState<"ahora" | "1h" | "ayer" | "custom">("ahora");
-  const [dlgCustom, setDlgCustom] = useState("");
-  const [dlgNotas, setDlgNotas] = useState("");
-  const [dlgBusy, setDlgBusy] = useState(false);
-  const [dlgErr, setDlgErr] = useState<string | null>(null);
 
   // `ahora` se fija una vez por carga en vez de leerse en cada render: si no,
   // los totales y el borde derecho del grafico se calcularian con instantes
@@ -225,55 +219,9 @@ export default function EstadoActivoPage() {
     return resumirInactividad(todosPeriodos, new Date(inicio), new Date(ahora));
   }, [todosPeriodos, ventana.desde, ventana.hasta, ahora]);
 
-  /** Convierte la elección del diálogo en la fecha real de inicio. */
-  function resolverDesde(): Date | null {
-    if (dlgDesde === "ahora") return null;
-    if (dlgDesde === "1h") return new Date(Date.now() - MS_POR_HORA);
-    if (dlgDesde === "ayer") return new Date(Date.now() - 24 * MS_POR_HORA);
-    return dlgCustom ? new Date(dlgCustom) : null;
-  }
-
-  async function guardarEstado() {
-    setDlgErr(null);
-    if (dlgEstado !== "operativo" && !dlgTipo) {
-      setDlgErr("Elige el tipo de tiempo de inactividad.");
-      return;
-    }
-    if (dlgDesde === "custom" && !dlgCustom) {
-      setDlgErr("Elige la fecha y hora de inicio.");
-      return;
-    }
-    setDlgBusy(true);
-    try {
-      await cambiarEstadoActivo({
-        activoId: activoId!,
-        estado: dlgEstado,
-        tipoInactividad: dlgEstado === "operativo" ? null : (dlgTipo as TipoInactividad),
-        desde: resolverDesde(),
-        notas: dlgNotas.trim() || null,
-      });
-      setDlgOpen(false);
-      setDlgNotas("");
-      setDlgTipo("");
-      setDlgDesde("ahora");
-      setDlgCustom("");
-      setAhora(Date.now());
-      await cargar();
-    } catch (e) {
-      setDlgErr(e instanceof Error ? e.message : "No se pudo actualizar el estado.");
-    }
-    setDlgBusy(false);
-  }
-
+  // El diálogo se monta desde cero cada vez (va tras `dlgOpen`), así que
+  // arranca con los campos limpios sin resetear nada acá.
   function abrirDialogo() {
-    // Se propone el estado opuesto al actual: lo más probable es que quien
-    // entra acá venga a marcar un cambio, no a reconfirmar lo mismo.
-    setDlgEstado(estadoActual === "operativo" ? "fuera_servicio" : "operativo");
-    setDlgTipo("");
-    setDlgDesde("ahora");
-    setDlgCustom("");
-    setDlgNotas("");
-    setDlgErr(null);
     setDlgOpen(true);
   }
 
@@ -421,116 +369,19 @@ export default function EstadoActivoPage() {
         </div>
       </div>
 
-      {/* ── Diálogo: actualizar estado ─────────────────────────────────────── */}
+      {/* El formulario vive en components/activos/CambiarEstadoDialog: el
+          desplegable de estado en la OT (OTDetail) abre este mismo diálogo, y
+          mantener dos copias las dejaba divergir. */}
       {dlgOpen && (
-        <div style={{
-          position: "fixed", inset: 0, zIndex: 500,
-          background: "rgba(15,23,42,0.45)",
-          display: "flex", alignItems: "center", justifyContent: "center", padding: 24,
-        }}>
-          <div style={{
-            width: "100%", maxWidth: 460, background: "var(--surface-1)",
-            border: "1px solid var(--border)", borderRadius: 12,
-            boxShadow: "var(--shadow-lg)", overflow: "hidden",
-          }}>
-            <div style={{ padding: "18px 20px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-              <h2 style={{ margin: 0, fontSize: 14, fontWeight: 400, color: "var(--fg-1)" }}>Actualizar estado del activo</h2>
-              <button type="button" onClick={() => setDlgOpen(false)} disabled={dlgBusy}
-                style={{ background: "none", border: "none", cursor: dlgBusy ? "default" : "pointer", color: "var(--fg-4)", display: "flex", padding: 0 }}>
-                <X size={16} />
-              </button>
-            </div>
-
-            <div style={{ padding: 20, display: "grid", gap: 16 }}>
-              <div>
-                <label style={labelStyle}>Estado</label>
-                <select value={dlgEstado} disabled={dlgBusy} style={inputStyle}
-                  onChange={e => {
-                    const v = e.target.value as AssetStatus;
-                    setDlgEstado(v);
-                    // Operativo no lleva tipo: dejarlo cargado mandaría un
-                    // valor que la función rechaza.
-                    if (v === "operativo") setDlgTipo("");
-                  }}>
-                  {/* Solo los estados a los que se puede pasar: el actual no
-                      se ofrece porque cambiar a lo mismo no es una acción —la
-                      función lo rechaza con "ya está en ese estado"—. `baja`
-                      quedó fuera del selector (ver FILAS). */}
-                  {FILAS.map(f => f.estados[0]).filter(e => e !== estadoActual).map(e => (
-                    <option key={e} value={e}>{ESTADO_LABEL[e]}</option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Solo tiene sentido clasificar una parada. */}
-              {dlgEstado !== "operativo" && (
-                <div>
-                  <label style={labelStyle}>Tipo de tiempo de inactividad</label>
-                  <select value={dlgTipo} disabled={dlgBusy} style={inputStyle}
-                    onChange={e => setDlgTipo(e.target.value as TipoInactividad | "")}>
-                    <option value="">Elige tipo de tiempo de inactividad</option>
-                    <option value="planeado">Planeado — mantención o inspección prevista</option>
-                    <option value="sin_planear">Sin planear — avería o falla inesperada</option>
-                  </select>
-                </div>
-              )}
-
-              <div>
-                <label style={labelStyle}>
-                  {dlgEstado === "operativo" ? "Operativo desde" : "Fuera de línea desde"}
-                </label>
-                <select value={dlgDesde} disabled={dlgBusy} style={inputStyle}
-                  onChange={e => setDlgDesde(e.target.value as typeof dlgDesde)}>
-                  <option value="ahora">Ahora</option>
-                  <option value="1h">Hace una hora</option>
-                  <option value="ayer">Ayer</option>
-                  <option value="custom">Elige fecha y hora</option>
-                </select>
-              </div>
-
-              {dlgDesde === "custom" && (
-                <div>
-                  <label style={labelStyle}>Fecha y hora de inicio</label>
-                  <input type="datetime-local" value={dlgCustom} disabled={dlgBusy} style={inputStyle}
-                    max={new Date(ahora - new Date(ahora).getTimezoneOffset() * 60000).toISOString().slice(0, 16)}
-                    onChange={e => setDlgCustom(e.target.value)} />
-                </div>
-              )}
-
-              <div>
-                <label style={labelStyle}>Notas (opcional)</label>
-                <input type="text" value={dlgNotas} disabled={dlgBusy} style={inputStyle}
-                  placeholder="Ej. Falla en el motor principal"
-                  onChange={e => setDlgNotas(e.target.value)} />
-              </div>
-
-              {dlgErr && (
-                <p style={{ display: "flex", alignItems: "flex-start", gap: 6, margin: 0, fontSize: 14, color: "var(--danger)", lineHeight: 1.5 }}>
-                  <AlertCircle size={14} style={{ flexShrink: 0, marginTop: 2 }} /> {dlgErr}
-                </p>
-              )}
-            </div>
-
-            <div style={{ padding: "14px 20px", borderTop: "1px solid var(--border)", display: "flex", justifyContent: "flex-end", gap: 8 }}>
-              <button type="button" onClick={() => setDlgOpen(false)} disabled={dlgBusy}
-                style={{ height: 34, padding: "0 14px", fontSize: 14, fontFamily: "inherit", border: "1px solid var(--border)", borderRadius: 8, background: "var(--surface-1)", color: "var(--fg-2)", cursor: dlgBusy ? "default" : "pointer" }}>
-                Cancelar
-              </button>
-              <button type="button" onClick={guardarEstado} disabled={dlgBusy}
-                style={{
-                  height: 34, padding: "0 14px", fontSize: 14, fontFamily: "inherit", borderRadius: 8,
-                  border: `1px solid ${dlgBusy ? "var(--border)" : "var(--brand)"}`,
-                  background: dlgBusy ? "var(--surface-2)" : "var(--brand)",
-                  color: dlgBusy ? "var(--fg-4)" : "var(--fg-on-brand)",
-                  cursor: dlgBusy ? "default" : "pointer",
-                  display: "inline-flex", alignItems: "center", gap: 6,
-                }}>
-                {dlgBusy && <Loader2 size={13} className="animate-spin" />}
-                {dlgBusy ? "Guardando…" : "Actualizar estado"}
-              </button>
-            </div>
-          </div>
-        </div>
+        <CambiarEstadoDialog
+          activoId={activoId!}
+          estadoActual={estadoActual}
+          onClose={() => setDlgOpen(false)}
+          onSaved={async () => {
+            setAhora(Date.now());
+            await cargar();
+          }}
+        />
       )}
     </div>
   );

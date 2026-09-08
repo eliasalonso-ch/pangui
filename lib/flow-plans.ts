@@ -43,6 +43,11 @@ export interface PlanDef {
     preventivos:              boolean;
     // Inventory module
     inventario:               boolean;   // /partes route + hojas in OT
+    // Planned maintenance: /planes route. Distinct from `preventivos` (a
+    // recurring OT, generated when the previous one closes) — a plan declares
+    // its future dates up front so they can be seen and prepared for in
+    // advance. That forward horizon is the Pro-only part.
+    planes_mantencion:        boolean;
     // Analytics & insights
     analytics_pro:            boolean;   // advanced analytics dashboard (MTTR/MTBF)
     scheduler:                boolean;   // export schedules
@@ -90,6 +95,7 @@ export const PLANS: PlanDef[] = [
       jerarquias_activos:        false,
       preventivos:               false,
       inventario:                false,
+      planes_mantencion:         false,
       analytics_pro:             false,
       scheduler:                 false,
       push:                      true,
@@ -130,6 +136,7 @@ export const PLANS: PlanDef[] = [
       jerarquias_activos:        true,
       preventivos:               true,
       inventario:                false,
+      planes_mantencion:         false,
       analytics_pro:             false,
       scheduler:                 false,
       push:                      true,
@@ -170,6 +177,7 @@ export const PLANS: PlanDef[] = [
       jerarquias_activos:        true,
       preventivos:               true,
       inventario:                true,
+      planes_mantencion:         true,
       analytics_pro:             true,
       scheduler:                 true,
       push:                      true,
@@ -205,6 +213,7 @@ export const PLANS: PlanDef[] = [
       jerarquias_activos:        true,
       preventivos:               true,
       inventario:                true,
+      planes_mantencion:         true,
       analytics_pro:             true,
       scheduler:                 true,
       push:                      true,

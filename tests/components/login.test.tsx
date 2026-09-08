@@ -23,22 +23,36 @@ import LoginPage from "@/app/login/page.jsx";
 
 beforeEach(() => vi.clearAllMocks());
 
+/**
+ * Pinta el login y lo deja en el formulario de contraseña.
+ *
+ * El login arranca en modo "magic" (código por correo), asi que el campo de
+ * contraseña y el boton "Iniciar sesión" no existen hasta pulsar "Usar
+ * contraseña". Antes estos tests asumian que la contraseña era lo primero que
+ * se veia y fallaban buscando un placeholder que aun no estaba en el DOM.
+ */
+async function renderLoginConContrasena() {
+  const user = userEvent.setup();
+  render(<LoginPage />);
+  await user.click(screen.getByRole("button", { name: /usar contraseña/i }));
+  return user;
+}
+
 describe("LoginPage", () => {
-  it("renders email and password fields", () => {
-    render(<LoginPage />);
+  it("renders email and password fields", async () => {
+    await renderLoginConContrasena();
     expect(screen.getByPlaceholderText("tu@empresa.cl")).toBeInTheDocument();
     expect(screen.getByPlaceholderText("••••••••")).toBeInTheDocument();
   });
 
-  it("renders submit button", () => {
-    render(<LoginPage />);
+  it("renders submit button", async () => {
+    await renderLoginConContrasena();
     expect(screen.getByRole("button", { name: /iniciar sesión/i })).toBeInTheDocument();
   });
 
   it("shows error message on bad credentials", async () => {
     mockSignIn.mockResolvedValue({ data: null, error: new Error("Invalid credentials") });
-    const user = userEvent.setup();
-    render(<LoginPage />);
+    const user = await renderLoginConContrasena();
 
     await user.type(screen.getByPlaceholderText("tu@empresa.cl"), "bad@email.cl");
     await user.type(screen.getByPlaceholderText("••••••••"), "wrongpassword");
@@ -49,24 +63,24 @@ describe("LoginPage", () => {
     });
   });
 
-  it("redirects to /ordenes on successful login", async () => {
+  it("redirects to /inicio on successful login", async () => {
     mockSignIn.mockResolvedValue({ data: { user: { id: "u1" } }, error: null });
-    const user = userEvent.setup();
-    render(<LoginPage />);
+    const user = await renderLoginConContrasena();
 
     await user.type(screen.getByPlaceholderText("tu@empresa.cl"), "admin@pangui.cl");
     await user.type(screen.getByPlaceholderText("••••••••"), "correctpassword");
     await user.click(screen.getByRole("button", { name: /iniciar sesión/i }));
 
     await waitFor(() => {
-      expect(mockPush).toHaveBeenCalledWith("/ordenes");
+      // Tras autenticar se va al tablero, el mismo destino que usan el proxy y
+      // el boton de "/" — no a la bandeja de ordenes.
+      expect(mockPush).toHaveBeenCalledWith("/inicio");
     });
   });
 
   it("trims and lowercases email before submitting", async () => {
     mockSignIn.mockResolvedValue({ data: { user: {} }, error: null });
-    const user = userEvent.setup();
-    render(<LoginPage />);
+    const user = await renderLoginConContrasena();
 
     await user.type(screen.getByPlaceholderText("tu@empresa.cl"), "  ADMIN@Pangui.CL  ");
     await user.type(screen.getByPlaceholderText("••••••••"), "pass");
@@ -83,21 +97,19 @@ describe("LoginPage", () => {
   it("shows loading state while submitting", async () => {
     // Never resolves — stay in loading state
     mockSignIn.mockReturnValue(new Promise(() => {}));
-    const user = userEvent.setup();
-    render(<LoginPage />);
+    const user = await renderLoginConContrasena();
 
     await user.type(screen.getByPlaceholderText("tu@empresa.cl"), "a@b.cl");
     await user.type(screen.getByPlaceholderText("••••••••"), "pass");
     await user.click(screen.getByRole("button", { name: /iniciar sesión/i }));
 
     await waitFor(() => {
-      expect(screen.getByText(/ingresando/i)).toBeInTheDocument();
+      expect(screen.getByText(/un momento/i)).toBeInTheDocument();
     });
   });
 
   it("toggles password visibility", async () => {
-    const user = userEvent.setup();
-    render(<LoginPage />);
+    const user = await renderLoginConContrasena();
 
     const input = screen.getByPlaceholderText("••••••••");
     expect(input).toHaveAttribute("type", "password");
@@ -125,15 +137,14 @@ describe("LoginPage", () => {
 
   it("submit button is disabled while loading", async () => {
     mockSignIn.mockReturnValue(new Promise(() => {}));
-    const user = userEvent.setup();
-    render(<LoginPage />);
+    const user = await renderLoginConContrasena();
 
     await user.type(screen.getByPlaceholderText("tu@empresa.cl"), "a@b.cl");
     await user.type(screen.getByPlaceholderText("••••••••"), "pass");
     await user.click(screen.getByRole("button", { name: /iniciar sesión/i }));
 
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: /ingresando/i })).toBeDisabled();
+      expect(screen.getByRole("button", { name: /un momento/i })).toBeDisabled();
     });
   });
 });

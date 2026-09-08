@@ -25,6 +25,7 @@ import {
   CreditCard,
   Tag,
   Zap,
+  Wrench,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
@@ -256,6 +257,7 @@ export default function AppSidebar() {
   const planFeatures = suscripcion.data?.plan_features ?? null;
   // While the plan is loading, show items optimistically; once loaded, hide ones the plan blocks.
   const hasInventario   = !planFeatures || planFeatures.inventario;
+  const hasPlanes       = !planFeatures || planFeatures.planes_mantencion;
   const isAdmin = mounted && (effectiveRol === "jefe" || effectiveRol === "admin" || effectiveRol === "owner");
 
   // Entering the section from anywhere else opens the submenu. Leaving it does
@@ -439,6 +441,20 @@ export default function AppSidebar() {
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
+              {/* Planes de mantención: configuración del calendario preventivo
+                  del espacio (qué se mantiene, cada cuánto), no trabajo del
+                  día a día — de ahí que sea admin, igual que Procedimientos.
+                  Va pegado a Activos porque un plan siempre cuelga de uno. */}
+              {isAdmin && hasPlanes && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={isActive("/planes")} tooltip="Planes de mantención">
+                    <Link href="/planes" prefetch={false} style={{ display: "flex", alignItems: "center", gap: collapsed ? 0 : 10 }}>
+                      <Wrench size={16} style={{ flexShrink: 0 }} />
+                      {!collapsed && <span>Planes de mantención</span>}
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )}
               {/* Analitica: admins/owners only. It reports across the whole
                   workspace, so it is not a member-level view.
                   Two reports live under it (órdenes and activos), so the item

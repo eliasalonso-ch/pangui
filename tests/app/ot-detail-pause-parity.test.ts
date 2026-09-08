@@ -25,9 +25,17 @@ describe("OT detail pause parity", () => {
   });
 
   it("does not render requirement notices inside the materials tab", () => {
+    // El corte se hacia contra `{tab === "procedimientos"`, un bloque que ya no
+    // existe: indexOf devolvia -1, el slice se comia el resto del archivo y el
+    // test leia avisos de OTRAS pestañas (el de la hoja vive en `tab === "hoja"`).
+    // Ahora se corta con el siguiente bloque que haya, sea cual sea.
     const materialsStart = source.indexOf('{tab === "materiales" && (');
-    const proceduresStart = source.indexOf('{tab === "procedimientos" && (', materialsStart);
-    const materialsSection = source.slice(materialsStart, proceduresStart);
+    expect(materialsStart).toBeGreaterThan(-1);
+
+    const next = source.slice(materialsStart + 1).search(/\{tab === "|\{wsId && \w+Visitada && \(/);
+    const materialsSection = next === -1
+      ? source.slice(materialsStart)
+      : source.slice(materialsStart, materialsStart + 1 + next);
 
     expect(materialsSection).not.toContain("Esta orden está completada. Puedes seguir consultando los materiales registrados.");
     expect(materialsSection).not.toContain("Esta OT requiere al menos un material registrado para poder cerrarse.");

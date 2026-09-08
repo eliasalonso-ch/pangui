@@ -51,3 +51,6 @@ deno.lock
 
 # Local tooling artifacts
 .mcp.json
+
+# Archivos de revisión de geocodificación (datos temporales)
+geocoding-revision-*.json

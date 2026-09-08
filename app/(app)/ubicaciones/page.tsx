@@ -13,6 +13,7 @@ import { getAuthUser } from "@/lib/auth-user";
 import AppLoadingState from "@/components/AppLoadingState";
 import HistorialOT from "@/components/catalogo/HistorialOT";
 import AccionesCatalogo from "@/components/catalogo/AccionesCatalogo";
+import CampoCoordenadas from "@/components/catalogo/CampoCoordenadas";
 import { uploadToR2, deleteFromR2 } from "@/lib/r2";
 import {
   useUbicacionesFull, useLugaresFull, useSociedadesFull,
@@ -230,7 +231,9 @@ export default function UbicacionesPage() {
       : null);
 
   // Form state
-  const [form, setForm]             = useState<Record<string, string>>(() => searchParams.get("nueva") === "1" ? { qr_code: "" } : {} as Record<string, string>);
+    const [form, setForm]             = useState<Record<string, string>>(() => searchParams.get("nueva") === "1" ? { qr_code: "" } : {} as Record<string, string>);
+  // Coordenadas aparte: el resto del formulario es texto y usa .trim() en todos lados.
+  const [coords, setCoords]         = useState<{ lat: number; lng: number } | null>(null);
   const [imgUrl, setImgUrl]         = useState<string | null>(null);
   const [uploadingImg, setUploadingImg] = useState(false);
   const [saving, setSaving]         = useState(false);
@@ -270,12 +273,14 @@ export default function UbicacionesPage() {
   function openDetail(type: Section, id: string) {
     setPanel({ type, mode: "view", id });
     setForm({});
+    setCoords(null);
     setImgUrl(null);
   }
 
   function openCreate(type: Section) {
     setPanel({ type, mode: "create" });
     setForm({ qr_code: "" });
+    setCoords(null);
     setImgUrl(null);
   }
 
@@ -303,6 +308,7 @@ export default function UbicacionesPage() {
     } else {
       setForm({ nombre: item.nombre ?? "", descripcion: item.descripcion ?? "", direccion: item.direccion ?? "", qr_code: item.qr_code ?? "" });
     }
+    setCoords(item.lat != null && item.lng != null ? { lat: item.lat, lng: item.lng } : null);
     setImgUrl(item.imagen_url ?? null);
   }
 
@@ -314,7 +320,7 @@ export default function UbicacionesPage() {
       const { type, mode, id } = panel!;
 
       if (type === "sociedades") {
-        const payload = { nombre: form.nombre?.trim(), descripcion: form.descripcion?.trim() || null, direccion: form.direccion?.trim() || null, qr_code: form.qr_code?.trim() || null, imagen_url: imgUrl ?? null };
+        const payload = { nombre: form.nombre?.trim(), descripcion: form.descripcion?.trim() || null, direccion: form.direccion?.trim() || null, qr_code: form.qr_code?.trim() || null, imagen_url: imgUrl ?? null, lat: coords?.lat ?? null, lng: coords?.lng ?? null };
         if (mode === "create") {
           const { error } = await sb.from("sociedades").insert({ workspace_id: wsId, ...payload });
           if (error) throw error;
@@ -332,6 +338,11 @@ export default function UbicacionesPage() {
           sociedad_id: form.sociedad_id || null,
           imagen_url:  imgUrl ?? null,
           qr_code:     form.qr_code?.trim() || null,
+          lat: coords?.lat ?? null,
+          lng: coords?.lng ?? null,
+          // 'manual' protege la coordenada: el script de geocodificacion nunca la pisa.
+          geo_origen: coords ? "manual" : null,
+          geo_actualizado_at: coords ? new Date().toISOString() : null,
         };
         if (mode === "create") {
           const { error } = await sb.from("ubicaciones").insert({ workspace_id: wsId, activa: true, ...payload });
@@ -538,6 +549,23 @@ export default function UbicacionesPage() {
               )}
             </div>
 
+            {canEdit && section === "ubicaciones" && (
+              <button
+                type="button"
+                onClick={() => router.push("/ubicaciones/mapa")}
+                style={{
+                  display: "flex", alignItems: "center", gap: 6,
+                  height: 36, padding: "0 14px",
+                  background: "var(--surface-1)",
+                  border: "1px solid var(--border)", borderRadius: "var(--r-md)", cursor: "pointer",
+                  fontSize: 14, color: "var(--fg-1)", fontFamily: "inherit", whiteSpace: "nowrap",
+                }}
+              >
+                <MapPin size={14} />
+                Posicionar en mapa
+              </button>
+            )}
+
             {canEdit && (
               <button
                 type="button"
@@ -727,6 +755,14 @@ export default function UbicacionesPage() {
                     <FieldInput value={form.direccion ?? ""} onChange={v => setForm(f => ({ ...f, direccion: v }))} placeholder="Ej: Av. Principal 1234" />
                   </div>
                   <div>
+                    <FieldLabel>Coordenadas</FieldLabel>
+                    <CampoCoordenadas
+                      lat={coords?.lat ?? null}
+                      lng={coords?.lng ?? null}
+                      onChange={setCoords}
+                    />
+                  </div>
+                  <div>
                     <FieldLabel>Descripción</FieldLabel>
                     <FieldTextarea value={form.descripcion ?? ""} onChange={v => setForm(f => ({ ...f, descripcion: v }))} placeholder="Descripción de la ubicación…" rows={3} />
                   </div>
@@ -805,6 +841,15 @@ export default function UbicacionesPage() {
                     <FieldInput value={form.nombre ?? ""} onChange={v => setForm(f => ({ ...f, nombre: v }))} placeholder="Ej: Constructora XYZ SpA" />
                   </div>
                   <div><FieldLabel>Dirección</FieldLabel><FieldInput value={form.direccion ?? ""} onChange={v => setForm(f => ({ ...f, direccion: v }))} placeholder="Dirección" /></div>
+                  <div>
+                    <FieldLabel>Coordenadas</FieldLabel>
+                    <CampoCoordenadas
+                      lat={coords?.lat ?? null}
+                      lng={coords?.lng ?? null}
+                      onChange={setCoords}
+                    />
+                  </div>
+
                   <div><FieldLabel>Descripción</FieldLabel><FieldTextarea value={form.descripcion ?? ""} onChange={v => setForm(f => ({ ...f, descripcion: v }))} placeholder="Descripción de la asociación…" /></div>
                 </>
               )}
@@ -974,13 +1019,18 @@ function EntityDetail({ type, item, ubicaciones, lugares, sociedades, activos, r
     : null;
   const sociedadAbrible = linkedSociedad ?? lugarSociedad;
 
+  // Coordenada: se muestra en la vista de detalle para confirmar que quedó guardada.
+  const coordTexto = item.lat != null && item.lng != null
+    ? `${Number(item.lat).toFixed(6)}, ${Number(item.lng).toFixed(6)}`
+    : null;
+
   const fields = type === "ubicaciones" ? [
-    ["Dirección", item.direccion], ["Descripción", item.descripcion ?? item.detalle],
+    ["Dirección", item.direccion], ["Coordenadas", coordTexto], ["Descripción", item.descripcion ?? item.detalle],
     ["Grupo a cargo", item.grupo_cargo],
   ] : type === "lugares" ? [
     ["Ubicación", item.ubicacion_edificio], ["Dirección", item.direccion],
     ["Descripción", item.descripcion], ["Grupo a cargo", item.grupo_cargo],
-  ] : [["Dirección", item.direccion], ["Descripción", item.descripcion]];
+  ] : [["Dirección", item.direccion], ["Coordenadas", coordTexto], ["Descripción", item.descripcion]];
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>

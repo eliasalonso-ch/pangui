@@ -82,6 +82,8 @@ export interface UbicacionRef {
   edificio: string | null;
   detalle: string | null;
   sociedad_id: string | null;
+  lat: number | null;
+  lng: number | null;
 }
 
 export interface LugarRef {
@@ -129,7 +131,7 @@ export function useUbicaciones(wsId: string | null | undefined) {
       const sb = createClient();
       const { data, error } = await sb
         .from("ubicaciones")
-        .select("id, edificio, detalle, sociedad_id")
+        .select("id, edificio, detalle, sociedad_id, lat, lng")
         .eq("workspace_id", wsId!)
         .order("edificio");
       if (error) throw error;
@@ -432,6 +434,9 @@ export interface UbicacionFull {
   sociedad_nombre: string | null;
   descripcion: string | null;
   qr_code: string | null;
+  lat: number | null;
+  lng: number | null;
+  geo_origen: string | null;
 }
 
 export interface LugarFull {
@@ -453,6 +458,8 @@ export interface SociedadFull {
   descripcion: string | null;
   direccion: string | null;
   qr_code: string | null;
+  lat: number | null;
+  lng: number | null;
 }
 
 export interface ActivoResumen {
@@ -481,7 +488,7 @@ export function useUbicacionesFull(wsId: string | null | undefined) {
       const sb = createClient();
       const { data, error } = await sb
         .from("ubicaciones")
-        .select("id, edificio, detalle, descripcion, direccion, grupo_cargo, sociedad_id, imagen_url, qr_code, sociedades(nombre)")
+        .select("id, edificio, detalle, descripcion, direccion, grupo_cargo, sociedad_id, imagen_url, qr_code, lat, lng, geo_origen, sociedades(nombre)")
         .eq("workspace_id", wsId!)
         .eq("activa", true)
         .order("edificio");
@@ -525,7 +532,7 @@ export function useSociedadesFull(wsId: string | null | undefined) {
       const sb = createClient();
       const { data, error } = await sb
         .from("sociedades")
-        .select("id, nombre, descripcion, direccion, imagen_url, qr_code")
+        .select("id, nombre, descripcion, direccion, imagen_url, qr_code, lat, lng")
         .eq("workspace_id", wsId!)
         .eq("activa", true)
         .order("nombre");
