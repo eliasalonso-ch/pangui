@@ -76,10 +76,15 @@ describe("Sidebar components", () => {
     expect(aside).toBeTruthy();
   });
 
-  it("sidebar has dark navy background", () => {
+  it("sidebar paints its background from the theme token", () => {
+    // Antes se afirmaba el navy literal (#0F172A). Con el sistema de tokens el
+    // color sale de var(--sidebar-bg), que en jsdom no se resuelve y ademas
+    // cambia con el tema: fijar el hex aqui obligaba a tocar el test cada vez
+    // que se ajusta la paleta. Se comprueba el contrato —que el fondo venga del
+    // token— y no el valor concreto.
     render(<TestSidebar />);
     const aside = document.querySelector("aside");
-    expect(aside).toHaveStyle({ background: "#0F172A" });
+    expect(aside?.style.background).toBe("var(--sidebar-bg)");
   });
 
   it("SidebarMenuButton renders as button by default", () => {
