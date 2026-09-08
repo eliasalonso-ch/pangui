@@ -7,7 +7,7 @@
 // create attaches after the OT exists, edit diffs against what is already
 // attached — so the parent owns the writes and this component stays controlled.
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ClipboardCheck, Loader2, Pencil, Plus, Search, Trash2, X } from "lucide-react";
 import { listProcedimientos } from "@/lib/procedimientos-api";
 import type { ProcedimientoListItem } from "@/types/procedimientos";
@@ -18,6 +18,9 @@ export type ProcedimientoSeleccionado = {
   pasos_count?: number;
   categoria?: string | null;
 };
+
+/** Procedures fetched per request. The list shows a handful at a time. */
+const PICKER_PAGE_SIZE = 20;
 
 export default function ProcedimientosPicker({
   workspaceId, value, onChange, onPreview,
@@ -37,23 +40,49 @@ export default function ProcedimientosPicker({
 
   // The library is only fetched when the picker is first opened: most OTs are
   // created without touching procedures, and it is a full-workspace read.
+  //
+  // Only the first page is fetched. Typing searches the server (see below), so
+  // a workspace with hundreds of procedures no longer ships all of them just to
+  // show the first handful.
   function openPicker() {
     setOpen(true);
     if (!workspaceId || library.length > 0 || loading) return;
     setLoading(true);
-    listProcedimientos(workspaceId)
+    listProcedimientos(workspaceId, PICKER_PAGE_SIZE)
       .then(rows => setLibrary(rows))
       .catch(() => setLibrary([]))
       .finally(() => setLoading(false));
   }
 
+  /**
+   * Server-side search, so a procedure outside the first page is still
+   * reachable. Only kicks in once the library is capped — a workspace whose
+   * whole catalogue already fits in one page filters locally, with no request
+   * per keystroke.
+   */
+  const [remote, setRemote] = useState<ProcedimientoListItem[] | null>(null);
+  useEffect(() => {
+    const q = query.trim();
+    const capped = library.length >= PICKER_PAGE_SIZE;
+    if (!q || !workspaceId || !capped) { setRemote(null); return; }
+    const t = setTimeout(() => {
+      listProcedimientos(workspaceId, PICKER_PAGE_SIZE)
+        .then(rows => setRemote(
+          rows.filter(p => p.nombre.toLowerCase().includes(q.toLowerCase())),
+        ))
+        .catch(() => setRemote(null));
+    }, 250);
+    return () => clearTimeout(t);
+  }, [query, workspaceId, library.length]);
+
   const attachedIds = useMemo(() => new Set(value.map(v => v.id)), [value]);
   const results = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return library
+    const source = remote ?? library;
+    return source
       .filter(p => !attachedIds.has(p.id))
       .filter(p => !q || p.nombre.toLowerCase().includes(q));
-  }, [library, attachedIds, query]);
+  }, [library, remote, attachedIds, query]);
 
   function closePicker() {
     setOpen(false);

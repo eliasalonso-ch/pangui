@@ -39,6 +39,15 @@ export interface RecurrenciaConfig {
   unit?: "day" | "week" | "month" | "year" | null;
   preset?: "entre_semana" | "fines_semana" | "dos_semanas" | "tres_meses" | "seis_meses" | null;
   weekdays?: number[] | null;
+  /**
+   * Para "mensual_dia": qué semana del mes (1–4, o -1 = la última), combinado
+   * con el día en `weekdays[0]` — "el 2º Martes".
+   *
+   * Lo escribe el formulario de planes de mantención. El avanzador todavía no
+   * lo lee (mensual_dia sigue cayendo como mensual_fecha), así que hoy es
+   * intención registrada, no comportamiento.
+   */
+  week_ordinal?: number | null;
   month_day?: number | null;
   day_of_month?: number | null;
   anchor_date?: string | null;
@@ -209,6 +218,19 @@ export interface Activo {
   proveedor?: Pick<Proveedor, "id" | "nombre"> | null;
   responsable?: Pick<Usuario, "id" | "nombre"> | null;
   parent?: Pick<Activo, "id" | "nombre"> | null;
+  /** Repuestos que sirven a este activo (tabla `activo_materiales`). */
+  materiales?: ActivoMaterial[];
+}
+
+/** Vinculo activo <-> material, con el material ya resuelto. */
+export interface ActivoMaterial {
+  id: string;
+  material_id: string;
+  cantidad_recomendada: number;
+  material?: {
+    id: string; nombre: string; codigo: string; unidad: string;
+    imagen_url: string | null; stock_actual: number; stock_minimo: number;
+  } | null;
 }
 
 export interface Usuario {
@@ -298,7 +320,11 @@ export interface OrdenTrabajo {
   ubicaciones?: (Pick<Ubicacion, "id" | "edificio" | "detalle" | "sociedad_id"> & { sociedades?: Pick<Sociedad, "nombre"> | null }) | null;
   lugar?: Pick<LugarEspecifico, "id" | "nombre" | "imagen_url"> | null;
   sociedad?: Pick<Sociedad, "id" | "nombre" | "imagen_url"> | null;
-  activos?: Pick<Activo, "id" | "nombre"> | null;
+  // `imagen_url`/`estado` are optional because only the detail select
+  // (ORDEN_SELECT) asks for them; LIST_SELECT stays lean and returns just the
+  // name, so a list consumer that reads them gets a compile error instead of
+  // silently rendering an empty thumbnail.
+  activos?: (Pick<Activo, "id" | "nombre"> & Partial<Pick<Activo, "imagen_url" | "estado">>) | null;
   creador?: Pick<Usuario, "id" | "nombre"> | null;
   // Client-only
   _pending?: boolean;

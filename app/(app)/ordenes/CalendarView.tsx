@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ChevronLeft, ChevronRight, RotateCw, Lock, MapPin, Wrench, Clock, User, AlertCircle, X, CalendarClock } from "lucide-react";
 import {
@@ -10,6 +10,7 @@ import {
 import { es } from "date-fns/locale";
 import { updateOrden } from "@/lib/ordenes-api";
 import type { OrdenListItem, OrdenBulkItem, Usuario } from "@/types/ordenes";
+import { listOcurrenciasFuturas, type OcurrenciaFutura } from "@/lib/planes-api";
 
 export type CalendarMode = "mes" | "semana";
 
@@ -43,6 +44,12 @@ interface CalendarEntry {
   orden: OrdenBulkItem;
   dateKey: string;
   isPreview: boolean;
+  /**
+   * Ocurrencia de un plan de mantención que todavía no tiene OT. Se pinta como
+   * preview igual que una recurrente futura, pero no es una OT: no se puede
+   * arrastrar ni abrir, porque el registro que abriría todavía no existe.
+   */
+  planOcurrencia?: OcurrenciaFutura;
 }
 
 const ESTADO_LABEL: Record<string, string> = {
@@ -231,6 +238,11 @@ export default function CalendarView({ ordenes, loadingExtras, reprogramadaIds, 
   const [dayModalKey, setDayModalKey] = useState<string | null>(null);
   const [reprogramOpen, setReprogramOpen] = useState(false);
 
+  // Mantenciones planificadas que aún no son OT. Se piden por rango visible en
+  // vez de todas: un plan con horizonte de un año son cientos de fechas y el
+  // calendario solo muestra un mes.
+  const [ocurrencias, setOcurrencias] = useState<OcurrenciaFutura[]>([]);
+
   // Hover popover state. We use a portal anchored to viewport coordinates so
   // the popover can escape the day cell (which is overflow:hidden) without
   // being clipped.
@@ -251,13 +263,18 @@ export default function CalendarView({ ordenes, loadingExtras, reprogramadaIds, 
       arr.push({ key: o.id, orden: o, dateKey: key, isPreview: false });
       map.set(key, arr);
     }
+
     const PRIO_ORDER: Record<string, number> = { urgente: 4, alta: 3, media: 2, baja: 1, ninguna: 0 };
     for (const arr of map.values()) {
       arr.sort((a, b) => {
         const dp = (PRIO_ORDER[b.orden.prioridad] ?? 0) - (PRIO_ORDER[a.orden.prioridad] ?? 0);
         if (dp !== 0) return dp;
         if (a.isPreview !== b.isPreview) return a.isPreview ? 1 : -1;
-        return new Date(b.orden.created_at).getTime() - new Date(a.orden.created_at).getTime();
+        // Las ocurrencias de plan no tienen created_at: se tratan como 0 para
+        // que el sort sea estable en vez de comparar contra NaN.
+        const ta = a.orden.created_at ? new Date(a.orden.created_at).getTime() : 0;
+        const tb = b.orden.created_at ? new Date(b.orden.created_at).getTime() : 0;
+        return tb - ta;
       });
     }
     return map;
@@ -286,6 +303,21 @@ export default function CalendarView({ ordenes, loadingExtras, reprogramadaIds, 
     while (d <= gridEnd) { out.push(d); d = addDays(d, 1); }
     return out;
   }, [anchor, mode]);
+
+  // Recarga al cambiar de mes o de vista: el rango visible es lo que define
+  // qué fechas hacen falta.
+  useEffect(() => {
+    if (days.length === 0) return;
+    let vivo = true;
+    const desde = toDateOnly(days[0]);
+    const hasta = toDateOnly(days[days.length - 1]);
+    listOcurrenciasFuturas(desde, hasta)
+      .then(res => { if (vivo) setOcurrencias(res); })
+      // Es contenido complementario: si falla, el calendario sigue mostrando
+      // las OTs reales en vez de quedarse en blanco.
+      .catch(err => console.error("[calendario] ocurrencias de planes", err));
+    return () => { vivo = false; };
+  }, [days]);
 
   const calendarEntriesByDate = useMemo(() => {
     const map = new Map<string, CalendarEntry[]>();
@@ -320,18 +352,46 @@ export default function CalendarView({ ordenes, loadingExtras, reprogramadaIds, 
       }
     }
 
+    // Mantenciones planificadas sin OT todavía. A diferencia de las recurrentes
+    // —que se proyectan calculando la recurrencia— estas ya existen como filas,
+    // así que la fecha pintada es exactamente la que usará el cron.
+    for (const oc of ocurrencias) {
+      const key = oc.fecha_programada.slice(0, 10);
+      const arr = map.get(key) ?? [];
+      arr.push({
+        key: `plan:${oc.id}`,
+        // EventCard en modo preview solo lee `titulo`, `prioridad` e `id`. Se le
+        // pasa un objeto con eso y nada más: inventar una OT completa daría a
+        // entender que existe un registro que todavía no existe.
+        orden: {
+          id: `plan-oc:${oc.id}`,
+          titulo: oc.titulo,
+          prioridad: oc.prioridad ?? "ninguna",
+          estado: "pendiente",
+        } as unknown as OrdenBulkItem,
+        dateKey: key,
+        isPreview: true,
+        planOcurrencia: oc,
+      });
+      map.set(key, arr);
+    }
+
     const PRIO_ORDER: Record<string, number> = { urgente: 4, alta: 3, media: 2, baja: 1, ninguna: 0 };
     for (const arr of map.values()) {
       arr.sort((a, b) => {
         if (a.isPreview !== b.isPreview) return a.isPreview ? 1 : -1;
         const dp = (PRIO_ORDER[b.orden.prioridad] ?? 0) - (PRIO_ORDER[a.orden.prioridad] ?? 0);
         if (dp !== 0) return dp;
-        return new Date(b.orden.created_at).getTime() - new Date(a.orden.created_at).getTime();
+        // Las ocurrencias de plan no tienen created_at: se tratan como 0 para
+        // que el sort sea estable en vez de comparar contra NaN.
+        const ta = a.orden.created_at ? new Date(a.orden.created_at).getTime() : 0;
+        const tb = b.orden.created_at ? new Date(b.orden.created_at).getTime() : 0;
+        return tb - ta;
       });
     }
 
     return map;
-  }, [days, ordenes, otsByDate]);
+  }, [days, ordenes, otsByDate, ocurrencias]);
 
   async function handleDrop(targetKey: string) {
     if (!dragId) return;
@@ -668,8 +728,16 @@ export default function CalendarView({ ordenes, loadingExtras, reprogramadaIds, 
                       isPreview={entry.isPreview}
                       onDragStart={() => startDraggingOrden(entry.orden.id)}
                       onDragEnd={endDraggingOrden}
-                      onClick={() => onOpenOT(entry.orden.id)}
-                      onMouseEnter={(e) => showHover(e, entry.orden)}
+                      // Una ocurrencia de plan no tiene OT que abrir todavía:
+                      // el clic lleva al plan, que es lo que sí existe.
+                      onClick={() => {
+                        if (entry.planOcurrencia) {
+                          window.location.href = `/planes?id=${entry.planOcurrencia.plan_id}`;
+                          return;
+                        }
+                        onOpenOT(entry.orden.id);
+                      }}
+                      onMouseEnter={(e) => { if (!entry.planOcurrencia) showHover(e, entry.orden); }}
                       onMouseLeave={hideHover}
                       compact={mode === "mes"}
                     />

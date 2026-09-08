@@ -15,7 +15,11 @@ export const ACTIVO_SELECT = `
   modelo:modelos(id, nombre),
   proveedor:proveedores(id, nombre),
   responsable:usuarios!responsable_id(id, nombre),
-  parent:activos!activo_padre_id(id, nombre)
+  parent:activos!activo_padre_id(id, nombre),
+  materiales:activo_materiales(
+    id, material_id, cantidad_recomendada,
+    material:partes!material_id(id, nombre, codigo, unidad, imagen_url, stock_actual, stock_minimo)
+  )
 `;
 
 export interface ActivoInput {

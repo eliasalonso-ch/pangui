@@ -87,14 +87,26 @@ async function getEjecucionWorkspaceId(ejecucionId: string): Promise<string> {
 
 // ── Library ───────────────────────────────────────────────────────────────────
 
-export async function listProcedimientos(workspaceId: string): Promise<ProcedimientoListItem[]> {
+/**
+ * Catálogo de procedimientos del workspace.
+ *
+ * `limite` es opcional y por defecto no acota: la pantalla /procedimientos los
+ * lista todos a propósito. Los selectores que solo muestran unos pocos lo pasan
+ * para no traer un catálogo entero que nadie va a mirar.
+ */
+export async function listProcedimientos(
+  workspaceId: string,
+  limite?: number,
+): Promise<ProcedimientoListItem[]> {
   const sb = createClient();
-  const { data, error } = await sb
+  let q = sb
     .from("procedimientos")
     .select(LIST_SELECT)
     .eq("workspace_id", workspaceId)
     .eq("activo", true)
     .order("nombre");
+  if (limite != null) q = q.limit(limite);
+  const { data, error } = await q;
   if (error) throw new Error(error.message);
   return (data ?? []).map((p: any) => ({
     ...p,

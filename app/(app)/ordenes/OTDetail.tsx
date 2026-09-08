@@ -21,6 +21,7 @@ import {
   Lock, LockOpen, Mic, MicOff, Volume2, GitBranch, Wrench, Link as LinkIcon, Paperclip,
   Phone, Mail, Circle, MessageSquare,
   Minus, ArrowUp, ArrowDown, RotateCw, UserRoundX, UserRoundCheck, Zap, Locate, Contact,
+  Boxes,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { LinksDisplay } from "@/components/LinksInput";
@@ -55,7 +56,9 @@ import {
 } from "@/lib/procedimientos-api";
 import type {
   OrdenTrabajo, ActividadOT, ActividadTipo, Usuario, Estado, Prioridad, CategoriaOT,
+  AssetStatus,
 } from "@/types/ordenes";
+import CambiarEstadoDialog from "@/components/activos/CambiarEstadoDialog";
 import { notifyClasificacionCambiada } from "@/lib/notificar";
 import { esElevado, esAdmin } from "@/lib/roles";
 import { CategoriaIcon } from "@/components/ordenes/categoria-icon";
@@ -160,6 +163,176 @@ const TIPO_LABEL: Record<string, string> = {
   emergencia: "Emergencia",
   presupuesto: "Presupuesto", levantamiento: "Levantamiento",
 };
+
+// ── Estado del activo vinculado ───────────────────────────────────────────────
+// Mismos textos y colores que la bandeja de activos (ActivosBandeja): el estado
+// de un equipo tiene que leerse igual esté donde esté, y dos paletas distintas
+// para el mismo dato hacen dudar de cuál es la buena.
+const ACTIVO_ESTADO_LABEL: Record<AssetStatus, string> = {
+  operativo: "Operativo",
+  fuera_servicio: "Fuera de servicio",
+  mantencion: "En mantención",
+  baja: "De baja",
+};
+
+const ACTIVO_ESTADO_COLOR: Record<AssetStatus, string> = {
+  operativo: "var(--success)",
+  fuera_servicio: "var(--danger)",
+  // Naranja pleno y no `--warning`: ese token es un ámbar oscuro calculado para
+  // texto y como relleno de un punto se ve marrón.
+  mantencion: "#F59E0B",
+  baja: "var(--st-cancel-dot)",
+};
+
+// `baja` se da desde la ficha del activo (archivar), no desde acá — igual que
+// en la bandeja, donde tener dos caminos para lo mismo se contradecía.
+const ACTIVO_ESTADO_OPCIONES: AssetStatus[] = ["operativo", "mantencion", "fuera_servicio"];
+
+function activoEstadoLabel(e: string | null | undefined) {
+  return ACTIVO_ESTADO_LABEL[e as AssetStatus] ?? e ?? "Sin estado";
+}
+function activoEstadoColor(e: string | null | undefined) {
+  return ACTIVO_ESTADO_COLOR[e as AssetStatus] ?? "var(--fg-4)";
+}
+
+/**
+ * Activo vinculado a la OT: miniatura, nombre y el estado como desplegable.
+ *
+ * Antes el activo era una celda de texto más dentro de la grilla de metadatos,
+ * al lado de "Lugar específico". Eso lo escondía justo cuando más importa —al
+ * abrir una OT lo primero que se pregunta el técnico es sobre qué equipo va y
+ * si está funcionando— y no dejaba llegar al activo sin salir de la OT.
+ *
+ * El selector es el mismo de la ficha del activo, con la misma regla: pasa por
+ * `cambiar_estado_activo` (la RPC), no por un update a `activos.estado`, porque
+ * esa función cierra el período abierto en `activo_estado_periodos` y abre el
+ * nuevo. Escribir la columna a secas dejaría el historial con huecos y las
+ * horas de parada mal contadas.
+ *
+ * Poner el activo fuera de servicio necesita saber si la parada fue planificada
+ * o imprevista, y acá no hay dónde preguntarlo, así que esos casos se derivan a
+ * /activos/[id]/estado igual que en la bandeja. "Operativo" no lleva tipo, así
+ * que se resuelve en el momento.
+ */
+function ActivoSection({ activo, onEstadoChanged }: {
+  activo: NonNullable<OrdenTrabajo["activos"]>;
+  onEstadoChanged: () => void;
+}) {
+  const router = useRouter();
+  /**
+   * Estado optimista. `activo.estado` viene del join de la OT, que no se
+   * refresca al escribir el activo, así que la píldora seguiría mostrando el
+   * valor viejo y el cambio parecería no haber ocurrido.
+   *
+   * Se guarda como override en vez de sincronizarse en un efecto: el efecto
+   * disparaba un render en cascada por cada cambio de prop. El override manda
+   * mientras difiera de lo que trae la OT; cuando el padre finalmente refetcha
+   * y ambos coinciden, deja de aplicar solo.
+   */
+  const [override, setOverride] = useState<string | null | undefined>(undefined);
+  const estadoLocal = override ?? activo.estado;
+  // Estado que el usuario eligió en el desplegable; abre el diálogo con esa
+  // opción ya puesta. `null` = diálogo cerrado.
+  const [pendiente, setPendiente] = useState<AssetStatus | null>(null);
+
+  return (
+    <div style={{ marginLeft: -28, marginRight: -28, paddingLeft: 28, paddingRight: 28, paddingTop: 16, paddingBottom: 16, borderBottom: "1px solid var(--border)" }}>
+      <p style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", letterSpacing: "0.01em", margin: "0 0 8px" }}>Activo</p>
+      <div style={{
+        display: "flex", alignItems: "center", gap: 12,
+        padding: "10px 12px",
+        border: "1px solid var(--border)", borderRadius: "var(--r-sm)",
+        background: "var(--surface-1)",
+      }}>
+        {/* Miniatura: si el activo no tiene foto va el icono, para que la fila
+            no cambie de alto según haya imagen o no. */}
+        {activo.imagen_url ? (
+          <img
+            src={optimizedImageUrl(activo.imagen_url, 96)}
+            alt=""
+            style={{ width: 34, height: 34, borderRadius: "var(--r-xs)", objectFit: "cover", border: "1px solid var(--border)", flexShrink: 0, display: "block" }}
+          />
+        ) : (
+          <span style={{
+            width: 34, height: 34, borderRadius: "var(--r-xs)",
+            background: "var(--surface-hover)", color: "var(--brand)",
+            border: "1px solid var(--border)",
+            display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+          }}>
+            <Boxes size={16} />
+          </span>
+        )}
+
+        <button
+          type="button"
+          onClick={() => router.push(`/activos/activos?id=${encodeURIComponent(activo.id)}`)}
+          title={activo.nombre}
+          style={{
+            flex: 1, minWidth: 0, textAlign: "left",
+            background: "none", border: "none", padding: 0, cursor: "pointer",
+            // Tinta normal, no azul de enlace: la fila entera ya se lee como
+            // algo en lo que se puede entrar, y el azul competía con el estado.
+            fontFamily: "inherit", fontSize: 14, fontWeight: 400, color: "var(--fg-1)",
+            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+          }}
+        >
+          {activo.nombre}
+        </button>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              style={{
+                display: "inline-flex", alignItems: "center", gap: 7, flexShrink: 0,
+                height: 30, padding: "0 10px",
+                background: "var(--surface-1)", border: "1px solid var(--border)",
+                // `--r-sm`, como la tarjeta que lo contiene y el resto de los
+                // controles de la ficha. Un pill de 999 acá era el único borde
+                // redondo de la pantalla y se leía como otro tipo de control.
+                borderRadius: "var(--r-sm)", cursor: "pointer",
+                fontFamily: "inherit", fontSize: 14, color: "var(--fg-1)",
+              }}
+            >
+              <span style={{ width: 8, height: 8, borderRadius: "50%", background: activoEstadoColor(estadoLocal), flexShrink: 0 }} />
+              {activoEstadoLabel(estadoLocal)}
+              <ChevronDown size={13} style={{ color: "var(--fg-4)" }} />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            {ACTIVO_ESTADO_OPCIONES.filter(e => e !== estadoLocal).map(e => (
+              <DropdownMenuItem key={e} onSelect={() => setPendiente(e)} style={{ gap: 8, fontSize: 14 }}>
+                <span style={{ width: 8, height: 8, borderRadius: "50%", background: ACTIVO_ESTADO_COLOR[e], flexShrink: 0 }} />
+                {ACTIVO_ESTADO_LABEL[e]}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+
+      {/* Mismo diálogo que /activos/[id]/estado: una parada necesita tipo
+          (planificada / imprevista) y desde cuándo, y esas dos preguntas no
+          caben en el desplegable. Antes se derivaba a esa página, lo que
+          sacaba al técnico de la OT que estaba mirando. */}
+      {pendiente && (
+        <CambiarEstadoDialog
+          activoId={activo.id}
+          estadoActual={(estadoLocal ?? null) as AssetStatus | null}
+          estadoInicial={pendiente}
+          onClose={() => setPendiente(null)}
+          onSaved={async () => {
+            // La RPC devuelve el id del período, no el activo, así que el
+            // estado que quedó escrito se lee de vuelta antes de pintarlo.
+            const sb = createClient();
+            const { data } = await sb.from("activos").select("estado").eq("id", activo.id).maybeSingle();
+            setOverride((data?.estado ?? null) as string | null);
+            onEstadoChanged();
+          }}
+        />
+      )}
+    </div>
+  );
+}
 
 const ACT_ICON: Record<ActividadTipo, React.ComponentType<{ className?: string; size?: number; style?: React.CSSProperties }>> = {
   creado:               CircleDot,
@@ -3311,7 +3484,6 @@ export default function OTDetail({
                 orden.presupuesto && { label: "N° de presupuesto", value: orden.presupuesto, icon: <DollarSign size={16} /> },
                 orden.ubicaciones?.edificio && { label: "Ubicación", value: orden.ubicaciones.edificio + (orden.ubicaciones.detalle ? ` · ${orden.ubicaciones.detalle}` : ""), icon: <MapPin size={16} /> },
                 orden.lugar?.nombre && { label: "Lugar específico", value: orden.lugar.nombre, icon: <Locate size={16} /> },
-                orden.activos?.nombre && { label: "Activo", value: orden.activos.nombre, icon: <Settings2 size={16} /> },
                 orden.fecha_termino && { label: "Fecha de vencimiento", value: fmtFechaLocal(orden.fecha_termino), icon: <Calendar size={16} /> },
                 orden.fecha_inicio && { label: "Fecha de inicio", value: fmtFechaLocal(orden.fecha_inicio), icon: <Calendar size={16} /> },
                 (orden.tiempo_total_segundos != null && orden.tiempo_total_segundos > 0) && { label: "Tiempo total", value: fmtSecs(orden.tiempo_total_segundos), icon: <RotateCcw size={16} /> },
@@ -3333,6 +3505,18 @@ export default function OTDetail({
                 </div>
               ))}
             </div>
+
+            {/* Activo vinculado — sección propia, con miniatura y el estado
+                editable. Antes era una celda de texto en la grilla de arriba. */}
+            {orden.activos?.id && (
+              <ActivoSection
+                activo={orden.activos}
+                // El estado vive en `activos`, no en la OT, así que no pasa por
+                // `onOrdenUpdated`: se invalida el resumen del workspace para
+                // que la bandeja de activos no quede mostrando el valor viejo.
+                onEstadoChanged={() => queryClient.invalidateQueries({ queryKey: ["activos-resumen", wsId] })}
+              />
+            )}
 
             {/* Categorías.
                 Una OT puede tener varias (`categoria_ids`), pero el join solo
@@ -3416,7 +3600,15 @@ export default function OTDetail({
             )}
 
             {/* ── Procedimientos — vive dentro de Detalles, debajo de
-                 Asignados, en vez de una pestaña aparte. ── */}
+                 Asignados, en vez de una pestaña aparte.
+
+                 Una OT sin procedimientos adjuntos no dibuja nada: el estado
+                 vacío ("No hay procedimientos adjuntos") ocupaba un bloque
+                 entero al pie de la mayoría de las OTs, y como acá no se
+                 adjuntan —eso vive en crear/editar OT— no ofrecía ninguna
+                 acción a cambio del espacio. Mientras carga sí se reserva el
+                 sitio, si no la sección aparecería de golpe. ── */}
+            {(loadingProcs || otProcs.length > 0) && (
             <div ref={procSectionRef} style={{ paddingTop: 16, paddingBottom: 16 }}>
               {/* Paginación junto al título: con varios procedimientos se
                   navega uno a uno en vez de apilarlos todos. */}
@@ -3511,6 +3703,7 @@ export default function OTDetail({
               </>
             )}
             </div>
+            )}
           </div>
         )}
 

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { usePathname, useRouter } from "next/navigation";
 import {
-  Box, ChevronDown, ChevronRight, ExternalLink, Loader2, Plus, Search, Trash2, X,
+  Box, Boxes, ChevronDown, ChevronRight, ExternalLink, Loader2, Plus, Search, Trash2, X,
   Building2, User, MapPin, Calendar, Hash, GitBranch, FileText, Pencil,
   Maximize2, Inbox, Clock, Link2, CheckCircle2, RefreshCw, PlusCircle, ArrowDown,
   Check, Camera, Paperclip, File as FileIcon, Tag, Factory, Truck, AlertCircle,
@@ -22,6 +22,9 @@ import type {
   Activo, AssetAttachment, AssetCriticality, AssetStatus, Fabricante, LugarEspecifico,
   Modelo, Proveedor, Sociedad, Ubicacion, Usuario,
 } from "@/types/ordenes";
+
+/** Repuestos que se muestran de una vez en la ficha del activo. */
+const PARTES_CHUNK = 4;
 
 const CRITICIDAD_LABEL: Record<AssetCriticality, string> = {
   critico: "Crítico",
@@ -110,15 +113,41 @@ const OT_PAGE_SIZE = 20;
 
 type CritFilter = AssetCriticality | "all";
 
-type ActivoSortOption = "nombre_asc" | "nombre_desc" | "estado" | "criticidad" | "created_at_desc";
+type ActivoSortOption =
+  | "nombre_asc" | "nombre_desc"
+  | "creacion_asc" | "creacion_desc"
+  | "estado_asc" | "estado_desc"
+  | "criticidad_desc" | "criticidad_asc";
 
-const ACTIVO_SORT_OPTIONS: { value: ActivoSortOption; label: string }[] = [
-  { value: "nombre_asc",      label: "Nombre: A → Z" },
-  { value: "nombre_desc",     label: "Nombre: Z → A" },
-  { value: "estado",          label: "Estado" },
-  { value: "criticidad",      label: "Criticidad: Más alta primero" },
-  { value: "created_at_desc", label: "Más recientes primero" },
+/** Menu de orden agrupado por campo, igual que el de materiales: el grupo se
+ *  despliega y dentro van las dos direcciones. Una lista plana de ocho
+ *  opciones obliga a leerlas todas para encontrar la que se busca. */
+const ACTIVO_SORT_GROUPS: { label: string; options: { value: ActivoSortOption; label: string }[] }[] = [
+  { label: "Nombre", options: [
+    { value: "nombre_asc",  label: "Orden ascendente" },
+    { value: "nombre_desc", label: "Orden descendente" },
+  ] },
+  { label: "Fecha de creación", options: [
+    { value: "creacion_asc",  label: "Más antiguo primero" },
+    { value: "creacion_desc", label: "Más nuevo primero" },
+  ] },
+  { label: "Estado", options: [
+    { value: "estado_asc",  label: "Orden ascendente" },
+    { value: "estado_desc", label: "Orden descendente" },
+  ] },
+  { label: "Criticidad", options: [
+    { value: "criticidad_desc", label: "Más alta primero" },
+    { value: "criticidad_asc",  label: "Más baja primero" },
+  ] },
 ];
+
+function activoSortLabel(value: ActivoSortOption): string {
+  for (const group of ACTIVO_SORT_GROUPS) {
+    const found = group.options.find(o => o.value === value);
+    if (found) return `${group.label}: ${found.label}`;
+  }
+  return "";
+}
 
 // Criticidad weight for sorting (higher = more critical, floats to top).
 const CRIT_ORDER: Record<string, number> = { critico: 3, semi_critico: 2, no_critico: 1 };
@@ -132,6 +161,7 @@ interface Props {
   fabricantes: Fabricante[];
   modelos: Modelo[];
   proveedores: Proveedor[];
+  materiales: MaterialOpcion[];
   myRol: string | null;
   wsId: string;
   initialSelectedId?: string | null;
@@ -574,11 +604,151 @@ const CRITICIDAD_FORM_OPTIONS: { value: AssetCriticality; label: string }[] = [
   { value: "no_critico", label: "No crítico" },
 ];
 
+/** Material del catalogo, para el selector de repuestos. */
+interface MaterialOpcion {
+  id: string; nombre: string; codigo: string; unidad: string; imagen_url: string | null;
+}
+
+/** Selector de materiales: buscador con los elegidos como fichas adentro y un
+ *  desplegable con casillas. Mismo patron que el selector de activos en la
+ *  ficha del material -- ver lo seleccionado sin cerrar el panel evita el
+ *  problema del contador solo ("3" no dice *cuales* tres). */
+function MaterialPicker({ materiales, selected, onToggle }: {
+  materiales: MaterialOpcion[];
+  selected: { material_id: string; cantidad: number; existingId?: string }[];
+  onToggle: (materialId: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function onDown(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [open]);
+
+  const q = query.trim().toLowerCase();
+  const shown = materiales.filter(m =>
+    !q || m.nombre.toLowerCase().includes(q) || m.codigo.toLowerCase().includes(q));
+
+  return (
+    <div ref={ref} style={{ position: "relative" }}>
+      <div
+        onClick={() => setOpen(true)}
+        style={{
+          display: "flex", alignItems: "center", flexWrap: "wrap", gap: 4,
+          minHeight: 40, padding: "4px 8px",
+          border: `1px solid ${open ? "var(--brand)" : "var(--border)"}`,
+          borderRadius: 8, background: "var(--surface-1)", cursor: "text",
+        }}
+      >
+        {selected.map(sel => {
+          const material = materiales.find(m => m.id === sel.material_id);
+          return (
+            <span
+              key={sel.material_id}
+              style={{
+                display: "inline-flex", alignItems: "center", gap: 4, maxWidth: 260,
+                padding: "2px 4px 2px 7px", borderRadius: 4,
+                background: "var(--brand-tint)", color: "var(--brand)", fontSize: 14,
+              }}
+            >
+              <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {material?.nombre ?? "Material"}
+              </span>
+              <button
+                type="button"
+                onClick={e => { e.stopPropagation(); onToggle(sel.material_id); }}
+                aria-label={`Quitar ${material?.nombre ?? "material"}`}
+                style={{ display: "flex", alignItems: "center", background: "none", border: "none", padding: 0, cursor: "pointer", color: "inherit", opacity: 0.7 }}
+              >
+                <X size={11} />
+              </button>
+            </span>
+          );
+        })}
+        <input
+          value={query}
+          onChange={e => { setQuery(e.target.value); setOpen(true); }}
+          onFocus={() => setOpen(true)}
+          placeholder={selected.length ? "" : "Empiece a escribir…"}
+          style={{ flex: 1, minWidth: 110, fontSize: 14, border: "none", outline: "none", background: "transparent", color: "var(--fg-1)", fontFamily: "inherit", height: 30 }}
+        />
+        <button
+          type="button"
+          onClick={e => { e.stopPropagation(); setOpen(v => !v); }}
+          aria-label={open ? "Cerrar lista" : "Abrir lista"}
+          style={{ display: "flex", alignItems: "center", background: "none", border: "none", padding: 2, cursor: "pointer", flexShrink: 0 }}
+        >
+          <ChevronDown size={16} color="var(--brand-fg)" style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform 0.15s" }} />
+        </button>
+      </div>
+
+      {open && (
+        <div style={{
+          position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, zIndex: 200,
+          background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: 8,
+          boxShadow: "var(--shadow-md)", overflow: "hidden",
+        }}>
+          <div style={{ maxHeight: 300, overflowY: "auto", padding: "2px 0 6px" }}>
+            {shown.map(m => {
+              const active = selected.some(sel => sel.material_id === m.id);
+              return (
+                <button
+                  key={m.id}
+                  type="button"
+                  role="checkbox"
+                  aria-checked={active}
+                  onClick={() => onToggle(m.id)}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 10, width: "100%", minWidth: 0,
+                    padding: "8px 12px", background: active ? "var(--brand-tint)" : "transparent",
+                    border: "none", cursor: "pointer", fontFamily: "inherit", textAlign: "left",
+                  }}
+                  onMouseEnter={e => { if (!active) e.currentTarget.style.background = "var(--surface-hover)"; }}
+                  onMouseLeave={e => { if (!active) e.currentTarget.style.background = "transparent"; }}
+                >
+                  {m.imagen_url
+                    // eslint-disable-next-line @next/next/no-img-element
+                    ? <img src={m.imagen_url} alt="" style={{ width: 28, height: 28, borderRadius: "var(--r-sm)", objectFit: "cover", flexShrink: 0 }} />
+                    : <span style={{ width: 28, height: 28, borderRadius: "var(--r-sm)", background: "var(--brand-tint)", color: "var(--brand-fg)", display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Boxes size={15} /></span>}
+                  <span style={{ flex: 1, minWidth: 0, fontSize: 14, color: active ? "var(--brand)" : "var(--fg-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {m.nombre}
+                  </span>
+                  <span
+                    aria-hidden
+                    style={{
+                      width: 15, height: 15, flexShrink: 0, borderRadius: 3,
+                      border: active ? "none" : "1.5px solid var(--border-strong, var(--border))",
+                      background: active ? "var(--brand)" : "var(--surface-0)",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                    }}
+                  >
+                    {active && <Check size={11} strokeWidth={3} style={{ color: "var(--fg-on-brand)" }} />}
+                  </span>
+                </button>
+              );
+            })}
+            {shown.length === 0 && (
+              <div style={{ padding: "8px 12px", fontSize: 14, color: "var(--fg-4)" }}>Sin resultados</div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ActivoForm({
   activo, usuarios, ubicaciones, lugares, sociedades, fabricantes, modelos, proveedores,
-  activos, wsId, onSaved, onClose,
+  activos, materiales, wsId, onSaved, onClose,
 }: {
   activo?: Activo | null;
+  materiales: MaterialOpcion[];
   usuarios: Usuario[];
   ubicaciones: Ubicacion[];
   lugares: LugarEspecifico[];
@@ -610,6 +780,16 @@ function ActivoForm({
   const [imagenUrl, setImagenUrl] = useState<string | null>(activo?.imagen_url ?? null);
   const [adjuntos, setAdjuntos] = useState<AssetAttachment[]>(
     Array.isArray(activo?.adjuntos) ? activo!.adjuntos! : [],
+  );
+  /**
+   * Repuestos vinculados, editados como borrador y confirmados al guardar.
+   *
+   * `activo_materiales` es una tabla aparte, asi que se calcula el diff contra
+   * lo que habia: se insertan los nuevos y se borran los quitados. Escribir en
+   * cada clic dejaria vinculos creados aunque el usuario cancelara el formulario.
+   */
+  const [materialLinks, setMaterialLinks] = useState<{ material_id: string; cantidad: number; existingId?: string }[]>(
+    () => (activo?.materiales ?? []).map(m => ({ material_id: m.material_id, cantidad: Number(m.cantidad_recomendada), existingId: m.id })),
   );
   const [uploadingImage, setUploadingImage] = useState(false);
   const [dragOverImage, setDragOverImage] = useState(false);
@@ -742,6 +922,25 @@ function ActivoForm({
         adjuntos,
       };
       const saved = activo ? await updateActivo(activo.id, payload) : await createActivo(wsId, payload);
+
+      // Repuestos: se insertan los anadidos y se borran los quitados.
+      const previos = activo?.materiales ?? [];
+      const quitados = previos.filter(prev => !materialLinks.some(l => l.existingId === prev.id));
+      const anadidos = materialLinks.filter(l => !l.existingId);
+      if (quitados.length > 0 || anadidos.length > 0) {
+        const sb = createClient();
+        if (quitados.length > 0) {
+          const { error: delError } = await sb.from("activo_materiales").delete().in("id", quitados.map(l => l.id));
+          if (delError) throw new Error(delError.message);
+        }
+        if (anadidos.length > 0) {
+          const { error: insError } = await sb.from("activo_materiales").insert(
+            anadidos.map(l => ({ activo_id: saved.id, material_id: l.material_id, cantidad_recomendada: l.cantidad })),
+          );
+          if (insError) throw new Error(insError.message);
+        }
+      }
+
       onSaved(saved);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al guardar.");
@@ -946,6 +1145,18 @@ function ActivoForm({
 
           <FieldRow icon={<GitBranch size={16} />} label="Activo padre">
             <SearchSelect placeholder="Elegir activo padre…" value={form.activo_padre_id} options={parentOptions} onChange={v => set("activo_padre_id", v)} emptyLabel="Sin activo padre" />
+          </FieldRow>
+
+          {/* Repuestos que sirven a este equipo. Es el mismo vinculo que se ve
+              desde la ficha del material, editable desde los dos lados. */}
+          <FieldRow icon={<Boxes size={16} />} label="Partes">
+            <MaterialPicker
+              materiales={materiales}
+              selected={materialLinks}
+              onToggle={materialId => setMaterialLinks(prev => prev.some(l => l.material_id === materialId)
+                ? prev.filter(l => l.material_id !== materialId)
+                : [...prev, { material_id: materialId, cantidad: 1 }])}
+            />
           </FieldRow>
 
           {/* Adjuntos */}
@@ -1317,10 +1528,22 @@ const META_GRID: React.CSSProperties = {
 };
 
 // ── Detalles tab — OTDetail idiom: flowing sections + meta-field grids ─────────
-function DetallesTab({ activo, hijos, onOpenActivo, onFullscreen }: { activo: Activo; hijos: Activo[]; onOpenActivo: (id: string) => void; onFullscreen: () => void }) {
+function DetallesTab({ activo, hijos, onOpenActivo, onOpenMaterial, onFullscreen }: { activo: Activo; hijos: Activo[]; onOpenActivo: (id: string) => void; onOpenMaterial: (id: string) => void; onFullscreen: () => void }) {
   const crit = (activo.criticidad ?? "no_critico") as AssetCriticality;
   const adjuntos = Array.isArray(activo.adjuntos) ? activo.adjuntos : [];
   const ubic = ubicacionLabel(activo);
+  const partes = activo.materiales ?? [];
+  /**
+   * Activo padre real. El embed de PostgREST puede llegar como objeto vacio o
+   * como arreglo aunque la FK sea null, y en ambos casos `activo.parent` es
+   * truthy: la tarjeta se dibujaba con el nombre en blanco. Solo cuenta como
+   * padre si trae id y nombre.
+   */
+  const parentRaw = Array.isArray(activo.parent) ? activo.parent[0] : activo.parent;
+  const padre = parentRaw?.id && parentRaw?.nombre ? parentRaw : null;
+  /** Se muestran de a 4 para que la seccion no empuje al resto de la ficha
+   *  fuera de pantalla cuando un equipo tiene decenas de repuestos. */
+  const [partesVisibles, setPartesVisibles] = useState(PARTES_CHUNK);
 
   const equipoFields = [
     { label: "Criticidad", value: CRITICIDAD_LABEL[crit], icon: <AlertCircle size={16} /> },
@@ -1344,10 +1567,7 @@ function DetallesTab({ activo, hijos, onOpenActivo, onFullscreen }: { activo: Ac
           OTs; acá acompaña a la ficha técnica, que es lo que describe. */}
       {activo.imagen_url && (
         <div style={{ marginLeft: -28, marginRight: -28, paddingLeft: 28, paddingRight: 28, paddingTop: 14, paddingBottom: 14 }}>
-          <p style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 14, fontWeight: 400, color: "var(--fg-1)", letterSpacing: "0.01em", margin: "0 0 8px" }}>
-            <Camera size={16} style={{ color: "var(--brand)" }} />
-            Imágenes
-          </p>
+          <p style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", letterSpacing: "0.01em", margin: "0 0 8px" }}>Imágenes</p>
           <button
             onClick={onFullscreen}
             title="Ver imagen completa"
@@ -1392,6 +1612,7 @@ function DetallesTab({ activo, hijos, onOpenActivo, onFullscreen }: { activo: Ac
       {/* Adjuntos y manuales */}
       {adjuntos.length > 0 && (
         <div style={{ marginLeft: -28, marginRight: -28, paddingLeft: 28, paddingRight: 28, paddingTop: 14, paddingBottom: 14 }}>
+          <p style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", letterSpacing: "0.01em", margin: "0 0 8px" }}>Archivos adjuntos</p>
           <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 6 }}>
             {adjuntos.map((a, idx) => (
               <a key={`${a.url}-${idx}`} href={a.url} target="_blank" rel="noreferrer"
@@ -1405,23 +1626,111 @@ function DetallesTab({ activo, hijos, onOpenActivo, onFullscreen }: { activo: Ac
         </div>
       )}
 
-      {/* Jerarquía */}
+      {/* Partes — los repuestos que sirven a este equipo. Mismo vinculo que se
+          ve desde la ficha del material; se edita en crear/editar activo. */}
+      {partes.length > 0 && (
+        <div style={{ marginLeft: -28, marginRight: -28, paddingLeft: 28, paddingRight: 28, paddingTop: 14, paddingBottom: 14 }}>
+          <p style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", letterSpacing: "0.01em", margin: "0 0 8px" }}>Partes ({partes.length})</p>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {partes.slice(0, partesVisibles).map(link => {
+              const material = link.material;
+              const bajo = material != null && Number(material.stock_actual) <= Number(material.stock_minimo);
+              return (
+                <div
+                  key={link.id}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 12,
+                    padding: "10px 12px",
+                    border: "1px solid var(--border)", borderRadius: "var(--r-sm)",
+                    background: "var(--surface-1)",
+                  }}
+                >
+                  {/* Miniatura: sin foto va el icono, para que la fila no
+                      cambie de alto segun haya imagen o no. */}
+                  {material?.imagen_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={material.imagen_url}
+                      alt=""
+                      style={{ width: 34, height: 34, borderRadius: "var(--r-xs)", objectFit: "cover", border: "1px solid var(--border)", flexShrink: 0, display: "block" }}
+                    />
+                  ) : (
+                    <span style={{
+                      width: 34, height: 34, borderRadius: "var(--r-xs)",
+                      background: "var(--surface-hover)", color: "var(--brand)",
+                      border: "1px solid var(--border)",
+                      display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+                    }}>
+                      <Boxes size={16} />
+                    </span>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={() => onOpenMaterial(link.material_id)}
+                    title={material?.nombre}
+                    style={{
+                      flex: 1, minWidth: 0, textAlign: "left",
+                      background: "none", border: "none", padding: 0, cursor: "pointer",
+                      fontFamily: "inherit", fontSize: 14, fontWeight: 400, color: "var(--fg-1)",
+                      overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                    }}
+                  >
+                    {material?.nombre ?? "Material"}
+                  </button>
+
+                  {/* Stock: el dato que decide si el repuesto esta disponible
+                      cuando hace falta. En rojo si esta bajo el minimo. */}
+                  <span style={{
+                    display: "inline-flex", alignItems: "center", gap: 7, flexShrink: 0,
+                    height: 30, padding: "0 10px",
+                    background: "var(--surface-1)", border: "1px solid var(--border)",
+                    borderRadius: "var(--r-sm)",
+                    fontSize: 14, color: bajo ? "var(--danger)" : "var(--fg-1)",
+                  }}>
+                    <span style={{ width: 8, height: 8, borderRadius: "50%", background: bajo ? "var(--danger)" : "var(--success)", flexShrink: 0 }} />
+                    {Number(material?.stock_actual ?? 0).toLocaleString("es-CL")} {material?.unidad ?? ""}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+
+          {partesVisibles < partes.length && (
+            <button
+              type="button"
+              onClick={() => setPartesVisibles(n => n + PARTES_CHUNK)}
+              style={{
+                marginTop: 10, padding: 0,
+                background: "none", border: "none", cursor: "pointer",
+                fontFamily: "inherit", fontSize: 14, fontWeight: 400,
+                color: "var(--brand-fg)",
+                display: "inline-flex", alignItems: "center", gap: 4,
+              }}
+            >
+              <Plus size={14} />
+              Ver más ({partes.length - partesVisibles})
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Jerarquía — solo si hay algo que mostrar. La tarjeta "Sin activo
+          padre" ocupaba un bloque entero en la mayoría de los activos (que no
+          cuelgan de ninguno) para no decir nada ni ofrecer ninguna acción: el
+          padre se asigna en crear/editar, no acá. */}
+      {(padre || hijos.length > 0) && (
       <div style={{ marginLeft: -28, marginRight: -28, paddingLeft: 28, paddingRight: 28, paddingTop: 14, paddingBottom: 14 }}>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {activo.parent ? (
-              <button onClick={() => onOpenActivo(activo.parent!.id)} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", border: "1px solid var(--border)", borderRadius: "var(--r-md)", background: "var(--surface-0)", cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}>
+            {padre && (
+              <button onClick={() => onOpenActivo(padre.id)} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", border: "1px solid var(--border)", borderRadius: "var(--r-md)", background: "var(--surface-0)", cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}>
                 <span style={{ width: 30, height: 30, borderRadius: 8, background: "var(--brand-tint)", color: "var(--brand-fg)", display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><GitBranch size={15} /></span>
                 <span style={{ flex: 1, minWidth: 0 }}>
                   <span style={{ display: "block", fontSize: 14, fontWeight: 400, color: "var(--fg-4)", letterSpacing: "0.01em" }}>Activo padre</span>
-                  <span style={{ display: "block", marginTop: 2, fontSize: 14, fontWeight: 400, color: "var(--fg-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{activo.parent.nombre}</span>
+                  <span style={{ display: "block", marginTop: 2, fontSize: 14, fontWeight: 400, color: "var(--fg-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{padre.nombre}</span>
                 </span>
                 <ChevronRight size={15} style={{ color: "var(--fg-4)", flexShrink: 0 }} />
               </button>
-            ) : (
-              <div style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", border: "1px solid var(--border)", borderRadius: "var(--r-md)", background: "var(--surface-1)" }}>
-                <span style={{ width: 30, height: 30, borderRadius: 8, background: "var(--surface-hover)", color: "var(--fg-4)", display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><GitBranch size={15} /></span>
-                <span style={{ flex: 1, minWidth: 0 }}><span style={{ display: "block", fontSize: 14, fontWeight: 400, color: "var(--fg-4)", letterSpacing: "0.01em" }}>Activo padre</span><span style={{ display: "block", marginTop: 2, fontSize: 14, color: "var(--fg-3)" }}>Sin activo padre</span></span>
-              </div>
             )}
             {hijos.map(h => (
               <button key={h.id} onClick={() => onOpenActivo(h.id)} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", border: "1px solid var(--border)", borderRadius: "var(--r-md)", background: "var(--surface-0)", cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}>
@@ -1432,6 +1741,7 @@ function DetallesTab({ activo, hijos, onOpenActivo, onFullscreen }: { activo: Ac
             ))}
           </div>
       </div>
+      )}
     </div>
   );
 }
@@ -1734,7 +2044,7 @@ function ActivoDetail({
           </div>
 
           {tab === "general" && <GeneralTab activo={activo} onChangeEstado={handleChangeEstado} changingEstado={changingEstado} />}
-          {tab === "detalles" && <DetallesTab activo={activo} hijos={hijos} onOpenActivo={openActivo} onFullscreen={() => setFullscreen(true)} />}
+          {tab === "detalles" && <DetallesTab activo={activo} hijos={hijos} onOpenActivo={openActivo} onOpenMaterial={id => router.push(`/partes?material=${encodeURIComponent(id)}`)} onFullscreen={() => setFullscreen(true)} />}
           {tab === "historial" && <HistorialTab activoId={activo.id} onOpenOT={(otId) => router.push(`/ordenes?id=${encodeURIComponent(otId)}`)} />}
         </div>
       </div>
@@ -1783,7 +2093,7 @@ function ActivoDetail({
   );
 }
 
-export default function ActivosBandeja({ initialActivos, usuarios, ubicaciones, lugares, sociedades, fabricantes, modelos, proveedores, myRol, wsId, initialSelectedId }: Props) {
+export default function ActivosBandeja({ initialActivos, usuarios, ubicaciones, lugares, sociedades, fabricantes, modelos, proveedores, materiales, myRol, wsId, initialSelectedId }: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const [activos, setActivos] = useState<Activo[]>(initialActivos);
@@ -1804,6 +2114,7 @@ export default function ActivosBandeja({ initialActivos, usuarios, ubicaciones, 
   const [filterModeloId, setFilterModeloId] = useState<string | "all">("all");
   const [sort, setSort] = useState<ActivoSortOption>("nombre_asc");
   const [sortOpen, setSortOpen] = useState(false);
+  const [openSortGroup, setOpenSortGroup] = useState<string | null>(null);
   const [isDesktop, setIsDesktop] = useState(false);
   const sortRef = useRef<HTMLDivElement>(null);
 
@@ -1916,15 +2227,21 @@ export default function ActivosBandeja({ initialActivos, usuarios, ubicaciones, 
     list.sort((a, b) => {
       switch (sort) {
         case "nombre_desc":
-          return b.nombre.localeCompare(a.nombre);
-        case "estado":
-          return estadoLabel(a.estado).localeCompare(estadoLabel(b.estado)) || a.nombre.localeCompare(b.nombre);
-        case "criticidad":
-          return (CRIT_ORDER[b.criticidad ?? "no_critico"] ?? 0) - (CRIT_ORDER[a.criticidad ?? "no_critico"] ?? 0) || a.nombre.localeCompare(b.nombre);
-        case "created_at_desc":
+          return b.nombre.localeCompare(a.nombre, "es");
+        case "estado_asc":
+          return estadoLabel(a.estado).localeCompare(estadoLabel(b.estado), "es") || a.nombre.localeCompare(b.nombre, "es");
+        case "estado_desc":
+          return estadoLabel(b.estado).localeCompare(estadoLabel(a.estado), "es") || a.nombre.localeCompare(b.nombre, "es");
+        case "criticidad_desc":
+          return (CRIT_ORDER[b.criticidad ?? "no_critico"] ?? 0) - (CRIT_ORDER[a.criticidad ?? "no_critico"] ?? 0) || a.nombre.localeCompare(b.nombre, "es");
+        case "criticidad_asc":
+          return (CRIT_ORDER[a.criticidad ?? "no_critico"] ?? 0) - (CRIT_ORDER[b.criticidad ?? "no_critico"] ?? 0) || a.nombre.localeCompare(b.nombre, "es");
+        case "creacion_desc":
           return new Date(b.created_at ?? 0).getTime() - new Date(a.created_at ?? 0).getTime();
+        case "creacion_asc":
+          return new Date(a.created_at ?? 0).getTime() - new Date(b.created_at ?? 0).getTime();
         default:
-          return a.nombre.localeCompare(b.nombre);
+          return a.nombre.localeCompare(b.nombre, "es");
       }
     });
     return list;
@@ -2011,7 +2328,6 @@ export default function ActivosBandeja({ initialActivos, usuarios, ubicaciones, 
     })
     .sort((a, b) => a.edificio.localeCompare(b.edificio)), [activos, filterSociedadId, search, ubicaciones]);
 
-  const currentSortLabel = ACTIVO_SORT_OPTIONS.find(o => o.value === sort)?.label ?? "";
   const openCreate = useCallback(() => { setEditing("new"); setSelected(null); }, []);
 
   const handleSaved = useCallback((saved: Activo) => {
@@ -2153,7 +2469,21 @@ export default function ActivosBandeja({ initialActivos, usuarios, ubicaciones, 
                 : opcionesModelo.filter(o => modelos.find(m => m.id === o.id)?.fabricante_id === filterFabricanteId)}
             />
           )}
-          {hayFiltros && <button type="button" onClick={limpiarFiltros} style={{ height: 34, padding: "0 11px", border: "1px solid var(--border)", borderRadius: "var(--r-sm)", background: "var(--surface-1)", color: "var(--fg-3)", fontSize: 14, fontWeight: 400, fontFamily: "inherit", cursor: "pointer" }}>Limpiar</button>}
+          {hayFiltros && (
+            <button
+              type="button"
+              onClick={limpiarFiltros}
+              style={{
+                display: "flex", alignItems: "center", gap: 5, height: 34, padding: "0 11px",
+                border: "1px dashed var(--border)", borderRadius: "var(--r-sm)",
+                background: "transparent", color: "var(--fg-3)",
+                fontSize: 14, fontWeight: 400, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap",
+              }}
+            >
+              <X size={14} />
+              Limpiar
+            </button>
+          )}
         </div>
       </div>
 
@@ -2189,37 +2519,69 @@ export default function ActivosBandeja({ initialActivos, usuarios, ubicaciones, 
               onMouseLeave={e => { e.currentTarget.style.background = "var(--surface-canvas)"; }}
             >
               <span style={{ color: "var(--fg-3)" }}>Ordenar por:</span>
-              <span style={{ fontWeight: 400, color: "var(--brand-fg)" }}>{currentSortLabel}</span>
-              <ChevronDown size={14} style={{ color: "var(--brand-fg)", transform: sortOpen ? "rotate(180deg)" : "none", transition: "transform 0.15s" }} />
+              <span style={{ maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: 400, color: "var(--brand-fg)" }} title={activoSortLabel(sort)}>
+                {activoSortLabel(sort)}
+              </span>
+              <ChevronDown size={14} color="var(--brand-fg)" style={{ flexShrink: 0, transform: sortOpen ? "rotate(180deg)" : "none", transition: "transform 0.15s" }} />
+              <span style={{ marginLeft: "auto" }} />
             </button>
             {sortOpen && (
               <div style={{
                 position: "absolute", left: 8, right: 8, top: "calc(100% + 4px)", zIndex: 50,
                 background: "var(--surface-1)", border: "1px solid var(--border)",
-                borderRadius: 8, boxShadow: "0 8px 24px rgba(15,23,42,0.12)", overflow: "hidden",
+                borderRadius: 8, boxShadow: "var(--shadow-md)",
+                maxHeight: "min(480px, calc(100vh - 260px))", overflowX: "hidden", overflowY: "auto",
+                scrollbarGutter: "stable both-edges",
               }}>
-                <div style={{ padding: "8px 14px 4px", fontSize: 14, fontWeight: 400, color: "var(--fg-4)", letterSpacing: "0.01em" }}>
-                  Ordenar por
-                </div>
-                {ACTIVO_SORT_OPTIONS.map(o => (
-                  <button
-                    key={o.value}
-                    type="button"
-                    onClick={() => { setSort(o.value); setSortOpen(false); }}
-                    style={{
-                      display: "block", width: "100%", textAlign: "left",
-                      padding: "9px 14px", background: sort === o.value ? "var(--brand-tint)" : "transparent",
-                      border: "none", fontSize: 14,
-                      color: sort === o.value ? "var(--brand-fg)" : "var(--fg-1)",
-                      fontWeight: 400,
-                      cursor: "pointer", fontFamily: "inherit",
-                    }}
-                    onMouseEnter={e => { if (sort !== o.value) e.currentTarget.style.background = "var(--surface-hover)"; }}
-                    onMouseLeave={e => { if (sort !== o.value) e.currentTarget.style.background = "transparent"; }}
-                  >
-                    {o.label}
-                  </button>
-                ))}
+                {/* Grupo por campo: se despliega y muestra las dos direcciones,
+                    en vez de una lista plana. */}
+                {ACTIVO_SORT_GROUPS.map(group => {
+                  const isOpen = openSortGroup === group.label || group.options.some(o => o.value === sort && openSortGroup === null);
+                  return (
+                    <div key={group.label}>
+                      <button
+                        type="button"
+                        onClick={() => setOpenSortGroup(isOpen ? "" : group.label)}
+                        style={{
+                          display: "flex", alignItems: "center", gap: 8,
+                          width: "100%", padding: "9px 14px", textAlign: "left",
+                          background: "transparent", border: "none",
+                          fontSize: 14, fontWeight: 400, color: "var(--fg-1)",
+                          cursor: "pointer", fontFamily: "inherit",
+                        }}
+                        onMouseEnter={e => { e.currentTarget.style.background = "var(--surface-hover)"; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}
+                      >
+                        <ChevronDown size={14} color="var(--brand-fg)" style={{ flexShrink: 0, transform: isOpen ? "none" : "rotate(-90deg)", transition: "transform 0.15s" }} />
+                        <span style={{ flex: 1 }}>{group.label}</span>
+                      </button>
+
+                      {isOpen && group.options.map(opt => {
+                        const isActive = sort === opt.value;
+                        return (
+                          <button
+                            key={opt.value}
+                            type="button"
+                            onClick={() => { setSort(opt.value); setSortOpen(false); }}
+                            style={{
+                              display: "flex", alignItems: "center", gap: 8,
+                              width: "100%", padding: "9px 14px 9px 36px", textAlign: "left",
+                              background: isActive ? "var(--brand-tint)" : "transparent",
+                              border: "none", fontSize: 14, fontWeight: 400,
+                              color: isActive ? "var(--brand-fg)" : "var(--fg-1)",
+                              cursor: "pointer", fontFamily: "inherit",
+                            }}
+                            onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = "var(--surface-hover)"; }}
+                            onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = "transparent"; }}
+                          >
+                            <span style={{ flex: 1 }}>{opt.label}</span>
+                            {isActive && <Check size={12} style={{ color: "var(--brand)" }} />}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>}
@@ -2267,6 +2629,7 @@ export default function ActivosBandeja({ initialActivos, usuarios, ubicaciones, 
                 fabricantes={fabricantes}
                 modelos={modelos}
                 proveedores={proveedores}
+                materiales={materiales}
                 activos={activos}
                 wsId={wsId}
                 onSaved={handleSaved}

@@ -55,10 +55,53 @@ async function uploadViaApiRoute(file: File, folder: string, authHeader: string)
 
 // Upload
 
+/**
+ * Extensiones de imagen que el presign acepta. Cualquier otra (avif, heic,
+ * heif...) se convierte a JPEG antes de subir.
+ */
+const EXTENSIONES_IMAGEN_OK = new Set(["jpg", "jpeg", "png", "webp", "gif"]);
+
+/**
+ * Convierte a JPEG las imagenes en formatos que R2 no acepta.
+ *
+ * Safari y las camaras de iPhone entregan HEIC, y Chrome exporta AVIF; el
+ * presign las rechaza con `unsupported_extension` y la subida moria antes de
+ * empezar. Como el navegador ya sabe decodificar cualquier formato que puede
+ * mostrar, se redibuja en un canvas y se re-codifica a JPEG.
+ *
+ * Si el navegador no puede decodificar el archivo se devuelve tal cual: que
+ * falle el presign con un mensaje claro es mejor que subir un JPEG vacio.
+ */
+async function normalizarImagen(file: File): Promise<File> {
+  const ext = (file.name.split(".").pop() ?? "").toLowerCase();
+  if (!file.type.startsWith("image/") || EXTENSIONES_IMAGEN_OK.has(ext)) return file;
+
+  try {
+    const bitmap = await createImageBitmap(file);
+    const canvas = document.createElement("canvas");
+    canvas.width = bitmap.width;
+    canvas.height = bitmap.height;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return file;
+    ctx.drawImage(bitmap, 0, 0);
+    bitmap.close();
+
+    const blob = await new Promise<Blob | null>(resolve =>
+      canvas.toBlob(resolve, "image/jpeg", 0.9));
+    if (!blob) return file;
+
+    const nombre = file.name.replace(/\.[^.]+$/, "") + ".jpg";
+    return new File([blob], nombre, { type: "image/jpeg", lastModified: file.lastModified });
+  } catch {
+    return file;
+  }
+}
+
 export async function uploadToR2(
-  file: File,
+  original: File,
   folder: string = "fotos",
 ): Promise<string> {
+  const file = await normalizarImagen(original);
   const ext = (file.name.split(".").pop() ?? "jpg").toLowerCase();
   const authHeader = await getAuthHeader();
 

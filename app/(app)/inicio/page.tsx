@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import {
-  ClipboardList, Clock, CheckCircle2, AlertTriangle, Loader2, Check, Filter, ArrowUpDown,
+  ClipboardList, Clock, CheckCircle2, AlertTriangle, Loader2, Check, Filter, ArrowUpDown, Layers,
   Camera, MapPin,
   Plus, ArrowRight,
   MessageSquare, UserCheck, Play, Pause, RefreshCw, Edit3, Trash2,
@@ -18,7 +18,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase";
 import { getAuthUser } from "@/lib/auth-user";
 import { getPerfilUsuario } from "@/lib/perfil-usuario";
-import { ordenQueryOptions } from "@/lib/queries";
+import { ordenQueryOptions, useUbicaciones, useSociedadesFull } from "@/lib/queries";
 import type {
   Activo, CategoriaOT, LugarEspecifico, OrdenTrabajo, Sociedad, Ubicacion, Usuario,
 } from "@/types/ordenes";
@@ -52,6 +52,10 @@ const OTEditPanel = dynamic(() => import("@/app/(app)/ordenes/OTEditPanel"), { s
  *  importarlos de allá como valor volvería a meter recharts en este bundle. */
 const ALTO_FILA_1 = 150;
 const ALTO_FILA_2 = 200;
+
+// El mapa carga bajo demanda: el script de Google Maps no se descarga para
+// quien no lo ve (técnicos), y no cuenta como map load en la facturación.
+const MapaOperacion = dynamic(() => import("@/components/inicio/MapaOperacion"), { ssr: false });
 
 const InicioCharts = dynamic(() => import("@/app/(app)/inicio/InicioCharts"), {
   ssr: false,
@@ -103,6 +107,9 @@ interface OTDashboard {
   clasificacion?: "levantamiento" | "ejecucion" | null;
   isBlocked?: boolean;
   blockedReason?: "materiales" | "cliente" | "acceso" | null;
+  /** Para el mapa: el edificio da la coordenada; el lugar es solo texto. */
+  ubicacion_id: string | null;
+  lugar: string | null;
 }
 
 interface Parte {
@@ -430,7 +437,7 @@ export default function InicioDashboard() {
           for (let desde = 0; desde < DASHBOARD_MAX_OTS; desde += OT_PAGE_SIZE) {
             const hasta = Math.min(desde + OT_PAGE_SIZE, DASHBOARD_MAX_OTS) - 1;
             const { data, error } = await soloMias(sb.from("ordenes_trabajo")
-              .select(`id, titulo, estado, prioridad, created_at, updated_at, completado_en, tipo_trabajo, fecha_termino, asignados_ids, numero, iniciado_at, pausado_at, tiempo_total_segundos, clasificacion`)
+              .select(`id, titulo, estado, prioridad, created_at, updated_at, completado_en, tipo_trabajo, fecha_termino, asignados_ids, numero, iniciado_at, pausado_at, tiempo_total_segundos, clasificacion, ubicacion_id, lugar`)
               .eq("workspace_id", workspaceId)
               .is("parent_id", null)
               .is("deleted_at", null)
@@ -525,6 +532,14 @@ export default function InicioDashboard() {
    * cuánto lleva. Una OT con varios asignados aparece una vez por persona --
    * están las dos trabajando en ella, y la pregunta es por persona.
    */
+  // Catálogo cacheado y compartido con los pickers: el mapa no agrega consultas.
+  const { data: ubicacionesRef = [] } = useUbicaciones(wsId || null);
+  const { data: sociedadesRef = [] } = useSociedadesFull(wsId || null);
+  // Filtros del mapa: viven aqui porque los controles van en el header de la
+  // tarjeta, no dentro del componente del mapa.
+  const [mapaSoc, setMapaSoc] = useState<string>("todas");
+  const [mapaCalor, setMapaCalor] = useState<"no" | "total" | "vencidas">("no");
+
   const enTerreno = useMemo(() => {
     const nombrePorId = new Map(equipo.map(u => [u.id, u.nombre]));
     const filas = [];
@@ -879,10 +894,13 @@ export default function InicioDashboard() {
           </h1>
         </div>
         {/* Mismo botón que el de /ordenes (OrdenesBandeja): alto fijo 38,
-            14px/500, ícono 16 y el mismo cambio plano de color en hover. */}
+            14px/500, ícono 16 y el mismo cambio plano de color en hover.
+            Va a ?panel=crear —el mismo destino que abre openCreate() en la
+            bandeja— y no a /ordenes/crear, para que el panel de creación
+            aparezca dentro de la bandeja y al cerrarlo se quede ahí. */}
         <button
           type="button"
-          onClick={() => router.push("/ordenes/crear")}
+          onClick={() => router.push("/ordenes?panel=crear")}
           style={{
             display: "flex", alignItems: "center", gap: 6,
             padding: "0 16px", height: 38,
@@ -959,6 +977,64 @@ export default function InicioDashboard() {
       </div>
 
       <InicioCharts flujo={flujo} flujoLargo={flujoLargo} plan={plan} backlogEdad={backlogEdad} />
+
+      {/* Mapa de operación: el pin es el EDIFICIO, no la persona. No se guarda
+          ni se muestra la ubicación del trabajador en ningún momento. */}
+      {esSupervisor && (
+        <div style={{ marginBottom: 20 }}>
+          <Card
+            title="Mapa de operación"
+            action=""
+            onAction={() => {}}
+            controls={
+              <>
+                <HeaderMultiSelect
+                  icon={Filter}
+                  label="Asociación"
+                  single
+                  values={mapaSoc === "todas" ? [] : [mapaSoc]}
+                  onChange={v => setMapaSoc(v[0] ?? "todas")}
+                  options={[
+                    ...sociedadesRef.map(x => ({
+                      value: x.id,
+                      label: x.nombre,
+                      count: ubicacionesRef.filter(u => u.sociedad_id === x.id).length,
+                    })),
+                    {
+                      value: "sin",
+                      label: "Sin asociación",
+                      count: ubicacionesRef.filter(u => !u.sociedad_id).length,
+                    },
+                  ]}
+                />
+                <HeaderMultiSelect
+                  icon={Layers}
+                  label="Vista"
+                  single
+                  values={mapaCalor === "no" ? [] : [mapaCalor]}
+                  onChange={v => setMapaCalor((v[0] as typeof mapaCalor) ?? "no")}
+                  options={[
+                    { value: "total",    label: "Severidad: OT pendientes" },
+                    { value: "vencidas", label: "Severidad: OT vencidas" },
+                  ]}
+                />
+              </>
+            }
+          >
+            <div style={{ padding: 16 }}>
+              <MapaOperacion
+                ots={allOTs}
+                ubicaciones={ubicacionesRef}
+                equipo={equipo}
+                socId={mapaSoc}
+                calor={mapaCalor}
+                onSocId={setMapaSoc}
+                onAbrirOT={abrirOT}
+              />
+            </div>
+          </Card>
+        </div>
+      )}
 
       {/* Cuadrilla en terreno. NO muestra "en línea/desconectado": last_active
           sólo lo escribe la web, así que los técnicos -- que trabajan desde el
@@ -1420,6 +1496,13 @@ function HeaderMultiSelect({ icon: Icon, label, values, options, onChange, singl
   }
 
   function toggle(v: string) {
+    // En modo single la eleccion es excluyente: elegir otra opcion REEMPLAZA la
+    // actual. Antes se acumulaban y habia que pasar por "Limpiar" para cambiar.
+    if (single) {
+      onChange(values.includes(v) ? [] : [v]);
+      setOpen(false);
+      return;
+    }
     onChange(values.includes(v) ? values.filter(x => x !== v) : [...values, v]);
   }
 
