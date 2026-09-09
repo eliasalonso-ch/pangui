@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { MapPin, AlertTriangle, UserRoundX, Pause, RotateCw, Check } from "lucide-react";
+import { MapPin, AlertTriangle, UserRoundX, UserRoundCheck, Pause, RotateCw, Check } from "lucide-react";
 import type { UbicacionRef } from "@/lib/queries";
 import { cargarMaps, ESTILO_MAPA_LIMPIO, colorMarca, iconoCirculo } from "@/lib/google-maps";
 
@@ -41,6 +41,17 @@ const ESTADO: Record<
   en_espera:  { label: "En espera",   icon: Pause,      color: "var(--st-wait-dot)" },
   en_curso:   { label: "En curso",    icon: RotateCw,   color: "var(--st-progress-dot)" },
   completado: { label: "Completada",  icon: Check,      color: "var(--st-done-dot)" },
+};
+
+/**
+ * "pendiente" con gente asignada NO es "Sin asignar": es "Asignada". El estado
+ * crudo de la base no distingue los dos casos, asi que la distincion se hace
+ * con asignados_ids, igual que en /ordenes (OTRow).
+ */
+const ESTADO_ASIGNADA = {
+  label: "Asignada",
+  icon:  UserRoundCheck,
+  color: "var(--st-progress-dot)",
 };
 
 /**
@@ -360,7 +371,7 @@ export default function MapaOperacion({
                 </span>
                 {/* El lugar es texto: no tiene coordenada propia a propósito. */}
                 <span style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 3, flexWrap: "wrap" }}>
-                  <EstadoPill estado={o.estado} />
+                  <EstadoPill estado={o.estado} asignada={(o.asignados_ids ?? []).length > 0} />
                   {/* Quien esta asignado: el supervisor necesita saber QUIEN
                       esta en terreno, no solo que hay trabajo activo ahi. */}
                   {(o.asignados_ids ?? [])
@@ -471,8 +482,8 @@ function PuntoLeyenda({ estado }: { estado: Dominante }) {
   );
 }
 
-function EstadoPill({ estado }: { estado: string }) {
-  const e = ESTADO[estado];
+function EstadoPill({ estado, asignada = false }: { estado: string; asignada?: boolean }) {
+  const e = estado === "pendiente" && asignada ? ESTADO_ASIGNADA : ESTADO[estado];
   if (!e) return <span style={{ fontSize: 14, color: "var(--fg-3)" }}>{estado}</span>;
   const Icono = e.icon;
   return (

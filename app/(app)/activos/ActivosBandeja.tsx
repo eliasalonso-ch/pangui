@@ -2404,7 +2404,10 @@ export default function ActivosBandeja({ initialActivos, usuarios, ubicaciones, 
 
   useEffect(() => {
     const sb = createClient();
-    const channelName = "activos-list";
+    // Namespaced by workspace like `ordenes-trabajo-${wsId}`: the binding below is
+    // already workspace-scoped, so a bare name would make a wsId change tear down
+    // and re-create the SAME topic, racing the async removeChannel.
+    const channelName = `activos-list-${wsId}`;
     const channelDetails = {
       channelName,
       screen: "ActivosBandeja",
