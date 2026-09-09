@@ -14,6 +14,11 @@ interface MaterialOpcion {
   id: string; nombre: string; codigo: string; unidad: string; imagen_url: string | null;
 }
 
+/** Catalogo de cuadrillas que consume el selector "Cuadrillas a cargo". */
+interface CuadrillaOpcion {
+  id: string; nombre: string; icono: string | null; color: string | null;
+}
+
 export default async function ActivosPage({ searchParams }: PageProps) {
   const { id: selectedId } = await searchParams;
   const [sb, auth] = await Promise.all([createServerSupabase(), getServerUser()]);
@@ -35,7 +40,7 @@ export default async function ActivosPage({ searchParams }: PageProps) {
   if (!perfil?.workspace_id) redirect("/login");
   const wsId = perfil.workspace_id;
 
-  const [activos, usuarios, ubicaciones, lugares, sociedades, fabricantes, modelos, proveedores, materiales] = await Promise.all([
+  const [activos, usuarios, ubicaciones, lugares, sociedades, fabricantes, modelos, proveedores, materiales, cuadrillas] = await Promise.all([
     sb.from("activos")
       .select(ACTIVO_SELECT)
       .eq("workspace_id", wsId)
@@ -98,6 +103,14 @@ export default async function ActivosPage({ searchParams }: PageProps) {
       .eq("activo", true)
       .order("nombre")
       .then(r => (r.data ?? []) as unknown as MaterialOpcion[]),
+
+    // Cuadrillas del workspace, para el selector "Cuadrillas a cargo".
+    sb.from("cuadrillas")
+      .select("id,nombre,icono,color")
+      .eq("workspace_id", wsId)
+      .eq("activo", true)
+      .order("nombre")
+      .then(r => (r.data ?? []) as unknown as CuadrillaOpcion[]),
   ]);
 
   return (
@@ -111,6 +124,7 @@ export default async function ActivosPage({ searchParams }: PageProps) {
       modelos={modelos}
       proveedores={proveedores}
       materiales={materiales}
+      cuadrillas={cuadrillas}
       myRol={perfil.rol}
       wsId={wsId}
       initialSelectedId={selectedId ?? null}

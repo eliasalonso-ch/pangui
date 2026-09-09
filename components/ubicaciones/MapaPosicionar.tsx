@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { MapPin, Check, Loader2, Search } from "lucide-react";
+import { MapPin, Loader2, Search } from "lucide-react";
 import { createClient } from "@/lib/supabase";
 import { cargarMaps, ESTILO_MAPA_LIMPIO, colorMarca, iconoCirculo } from "@/lib/google-maps";
 import type { UbicacionRef } from "@/lib/queries";
+import SearchSelect from "@/components/catalogo/SearchSelect";
 
 /**
  * Herramienta para posicionar ubicaciones en el mapa.
@@ -41,6 +42,14 @@ export default function MapaPosicionar({
   // Filtro por asociacion: sin esto hay que arrastrar el mapa entre ciudades
   // (la UdeC esta en Concepcion, pero hay faenas en Los Angeles, a ~130 km).
   const [socId, setSocId] = useState<string>("todas");
+  // La lista se dibuja de a 20: con cientos de ubicaciones sin coordenada,
+  // pintarlas todas de una hacia lento el primer render del panel.
+  const PAGINA = 20;
+  // El paginado se guarda junto a la clave del filtro: al cambiar de
+  // asociacion o de busqueda el valor viejo se descarta durante el render, sin
+  // un efecto que dispare una segunda pasada.
+  const [paginado, setPaginado] = useState({ clave: "", n: 1 });
+  const centinelaRef = useRef<HTMLDivElement>(null);
 
   // El filtro se aplica ANTES de separar con/sin coordenada, para que los
   // contadores reflejen la asociacion elegida y no el total del workspace.
@@ -130,6 +139,31 @@ export default function MapaPosicionar({
   }, [sel, pendiente, listo]);
 
   /** Centra el mapa en la asociacion elegida para no arrastrar entre ciudades. */
+  const claveFiltro = `${socId}|${busqueda}`;
+  const paginaN = paginado.clave === claveFiltro ? paginado.n : 1;
+  const pagina = visibles.slice(0, PAGINA * paginaN);
+  const hayMas = visibles.length > pagina.length;
+
+  /** Nombre de la asociacion de una ubicacion, para el subtitulo gris. */
+  function nombreSociedad(id: string | null | undefined) {
+    return id ? sociedades.find(x => x.id === id)?.nombre ?? null : null;
+  }
+
+  useEffect(() => {
+    const node = centinelaRef.current;
+    if (!node || !hayMas) return;
+    const obs = new IntersectionObserver(
+      es => {
+        if (es[0]?.isIntersecting) {
+          setPaginado(p => ({ clave: claveFiltro, n: (p.clave === claveFiltro ? p.n : 1) + 1 }));
+        }
+      },
+      { root: node.parentElement, rootMargin: "150px" },
+    );
+    obs.observe(node);
+    return () => obs.disconnect();
+  }, [hayMas, claveFiltro]);
+
   function cambiarSociedad(id: string) {
     setSocId(id);
     setSelId(null);
@@ -158,6 +192,12 @@ export default function MapaPosicionar({
       mapRef.current.panTo({ lat: soc.lat, lng: soc.lng });
       mapRef.current.setZoom(16);
     }
+  }
+
+  /** Descarta la ubicacion en edicion y su pin, sin guardar la coordenada. */
+  function cancelar() {
+    setSelId(null);
+    setPendiente(null);
   }
 
   function elegir(u: UbicacionRef) {
@@ -208,22 +248,21 @@ export default function MapaPosicionar({
             <strong style={{ fontSize: 14, color: "var(--fg-1)" }}>Sin coordenada</strong>
             <span style={{ fontSize: 14, color: "var(--fg-4)" }}>({sinCoord.length})</span>
           </div>
-          <select
-            value={socId}
-            onChange={e => cambiarSociedad(e.target.value)}
-            style={{
-              width: "100%", height: 30, marginBottom: 6, padding: "0 6px",
-              fontSize: 14, border: "1px solid var(--border)", borderRadius: 6,
-              background: "var(--surface-1)", color: "var(--fg-1)",
-              fontFamily: "inherit", boxSizing: "border-box", cursor: "pointer",
-            }}
-          >
-            <option value="todas">Todas las asociaciones</option>
-            {sociedades.map(x => (
-              <option key={x.id} value={x.id}>{x.nombre}</option>
-            ))}
-            <option value="sin">(Sin asociación)</option>
-          </select>
+          {/* Mismo desplegable buscable que el resto de la app: el <select>
+              nativo no filtra ni pagina, y aca la lista de asociaciones puede
+              ser larga. "Todas" es el valor vacio del control. */}
+          <div style={{ marginBottom: 6 }}>
+            <SearchSelect
+              placeholder="Todas las asociaciones"
+              emptyLabel="Todas las asociaciones"
+              value={socId === "todas" ? "" : socId}
+              options={[
+                ...sociedades.map(x => ({ id: x.id, label: x.nombre })),
+                { id: "sin", label: "(Sin asociación)" },
+              ]}
+              onChange={v => cambiarSociedad(v || "todas")}
+            />
+          </div>
 
           <div style={{ position: "relative" }}>
             <Search size={13} style={{ position: "absolute", left: 8, top: 9, color: "var(--fg-4)" }} />
@@ -240,27 +279,57 @@ export default function MapaPosicionar({
             />
           </div>
         </div>
-        <div style={{ flex: 1, minHeight: 0, overflowY: "auto" }}>
+        <div style={{
+          flex: 1, minHeight: 0, overflowY: "auto",
+          background: "var(--surface-canvas)",
+          display: "flex", flexDirection: "column", gap: 8, padding: "8px 10px",
+        }}>
           {visibles.length === 0 && (
             <p style={{ padding: 12, fontSize: 14, color: "var(--fg-3)", margin: 0 }}>
               {sinCoord.length === 0 ? "Todas las ubicaciones tienen coordenada." : "Sin resultados."}
             </p>
           )}
-          {visibles.map(u => (
-            <button
-              key={u.id}
-              onClick={() => elegir(u)}
-              style={{
-                display: "block", width: "100%", textAlign: "left", padding: "8px 10px",
-                border: "none", borderTop: "1px solid var(--border)", cursor: "pointer",
-                fontFamily: "inherit", fontSize: 14,
-                background: u.id === selId ? "var(--surface-2, #eef2ff)" : "transparent",
-                color: "var(--fg-1)",
-              }}
-            >
-              {u.edificio}
-            </button>
-          ))}
+          {pagina.map(u => {
+            const activa = u.id === selId;
+            return (
+              <button
+                key={u.id}
+                onClick={() => elegir(u)}
+                style={{
+                  display: "flex", alignItems: "center", gap: 12,
+                  width: "100%", textAlign: "left", flexShrink: 0,
+                  minHeight: 64, padding: "14px 14px", cursor: "pointer",
+                  fontFamily: "inherit", fontSize: 14, color: "var(--fg-1)",
+                  boxSizing: "border-box",
+                  background: activa ? "var(--brand-tint)" : "var(--surface-1)",
+                  border: `1px solid ${activa ? "var(--brand)" : "var(--border)"}`,
+                  borderRadius: "var(--r-lg)",
+                  boxShadow: activa ? "inset 3px 0 0 0 var(--brand)" : "none",
+                  transition: "background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease)",
+                }}
+              >
+                <span style={{ flex: 1, minWidth: 0 }}>
+                  <span style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {u.edificio}
+                  </span>
+                  {/* La asociacion, en gris, bajo el nombre del edificio:
+                      dice de que faena es cada ubicacion sin abrirla. */}
+                  {nombreSociedad(u.sociedad_id) && (
+                    <span style={{ display: "block", marginTop: 2, fontSize: 14, color: "var(--fg-4)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {nombreSociedad(u.sociedad_id)}
+                    </span>
+                  )}
+                </span>
+              </button>
+            );
+          })}
+
+          {/* Centinela: al asomarse dibuja la siguiente tanda de 20. */}
+          {hayMas && (
+            <div ref={centinelaRef} style={{ padding: 12, display: "flex", justifyContent: "center", flexShrink: 0 }}>
+              <Loader2 size={15} className="animate-spin" style={{ color: "var(--fg-4)" }} />
+            </div>
+          )}
         </div>
       </div>
 
@@ -282,6 +351,21 @@ export default function MapaPosicionar({
                   </span>
                 )}
               </span>
+              {/* Cancelar suelta la ubicacion elegida y el pin pendiente, para
+                  salir sin escribir la coordenada. */}
+              <button
+                onClick={cancelar}
+                disabled={guardando}
+                style={{
+                  display: "inline-flex", alignItems: "center", height: 32,
+                  padding: "0 14px", borderRadius: 6,
+                  border: "1px solid var(--border)", background: "var(--surface-1)",
+                  color: "var(--fg-2)", cursor: guardando ? "default" : "pointer",
+                  fontSize: 14, fontFamily: "inherit",
+                }}
+              >
+                Cancelar
+              </button>
               <button
                 onClick={guardar}
                 disabled={!pendiente || guardando}
@@ -293,7 +377,7 @@ export default function MapaPosicionar({
                   fontSize: 14, fontFamily: "inherit",
                 }}
               >
-                {guardando ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+                {guardando && <Loader2 size={14} className="animate-spin" />}
                 Guardar
               </button>
             </>

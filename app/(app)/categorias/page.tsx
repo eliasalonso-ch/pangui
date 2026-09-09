@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
+import { useDeepLinkId } from "@/lib/use-deep-link-id";
 import { createClient } from "@/lib/supabase";
 import {
   Plus, Search, X, Loader2, Tag, Pencil, Trash2, Inbox,
@@ -25,7 +26,9 @@ export default function CategoriasPage() {
   const [items, setItems] = useState<CategoriaConUso[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  // La seleccion vive en la URL: asi una categoria se puede compartir por link
+  // y sobrevive a un F5, igual que en /ordenes y /activos.
+  const { selectedId, open: openCategoria, close: closeCategoria, setSelectedId } = useDeepLinkId("/categorias");
   const [modo, setModo] = useState<"ver" | "crear" | "editar">("ver");
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -69,7 +72,7 @@ export default function CategoriasPage() {
     try {
       const nueva = await createCategoria(workspaceId, v.nombre, v.color, v.icono);
       setItems(prev => [...prev, nueva].sort((a, b) => a.nombre.localeCompare(b.nombre, "es")));
-      setSelectedId(nueva.id);
+      openCategoria(nueva.id);
       setModo("ver");
     } catch (e) {
       setError((e as Error).message);
@@ -90,7 +93,7 @@ export default function CategoriasPage() {
         .filter(c => c.id !== reemplazaId && c.id !== categoria.id)
         .concat(categoria)
         .sort((a, b) => a.nombre.localeCompare(b.nombre, "es")));
-      setSelectedId(categoria.id);
+      openCategoria(categoria.id);
       setModo("ver");
     } catch (e) {
       setError((e as Error).message);
@@ -119,7 +122,7 @@ export default function CategoriasPage() {
       // Se archiva, no se borra: las OTs que la usan la conservan.
       await archivarCategoria(workspaceId, cat);
       setItems(prev => prev.filter(c => c.id !== cat.id));
-      if (selectedId === cat.id) setSelectedId(null);
+      if (selectedId === cat.id) closeCategoria();
       setConfirmDelete(null);
     } catch (e) {
       setError((e as Error).message);
@@ -163,7 +166,7 @@ export default function CategoriasPage() {
 
           {isAdmin && (
             <button
-              onClick={() => { setModo("crear"); setSelectedId(null); }}
+              onClick={() => { setModo("crear"); closeCategoria(); }}
               style={{
                 display: "flex", alignItems: "center", gap: 6,
                 height: 36, padding: "0 14px",
@@ -223,8 +226,8 @@ export default function CategoriasPage() {
                 selected={selectedId === cat.id}
                 puedeEditar={isAdmin}
                 puedeBorrar={isAdmin}
-                onSelect={() => { setSelectedId(cat.id); setModo("ver"); }}
-                onEdit={() => { setSelectedId(cat.id); setModo("editar"); }}
+                onSelect={() => { openCategoria(cat.id); setModo("ver"); }}
+                onEdit={() => { openCategoria(cat.id); setModo("editar"); }}
                 onDelete={() => pedirBorrar(cat)}
               />
             ))

@@ -261,9 +261,6 @@ function PlanesPageInner() {
                 key={p.id}
                 plan={p}
                 seleccionado={abiertoId === p.id}
-                archivando={archivando === p.id}
-                onArchivar={() => handleArchivar(p)}
-                onEliminar={() => handleEliminar(p)}
                 onAbrir={() => abrir(p.id)}
               />
             ))}
@@ -312,29 +309,12 @@ function PlanesPageInner() {
 }
 
 /** Misma composición de tarjetas individuales usada en la bandeja de OT. */
-function PlanCard({ plan, seleccionado, archivando, onArchivar, onEliminar, onAbrir }: {
+function PlanCard({ plan, seleccionado, onAbrir }: {
   plan: PlanListItem;
   seleccionado: boolean;
-  archivando: boolean;
-  onArchivar: () => void;
-  onEliminar: () => void;
   onAbrir: () => void;
 }) {
   const frecuencia = RECURRENCIA_PLAN_LABELS[plan.recurrencia] ?? plan.recurrencia;
-
-  const [menuOpen, setMenuOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement | null>(null);
-
-  // Clic fuera cierra el menú. Va aquí y no en la tarjeta porque el menú es
-  // suyo: cada tarjeta abre y cierra el propio.
-  useEffect(() => {
-    if (!menuOpen) return;
-    function onDown(e: MouseEvent) {
-      if (!menuRef.current?.contains(e.target as Node)) setMenuOpen(false);
-    }
-    document.addEventListener("mousedown", onDown);
-    return () => document.removeEventListener("mousedown", onDown);
-  }, [menuOpen]);
 
   return (
     <article
@@ -348,7 +328,7 @@ function PlanCard({ plan, seleccionado, archivando, onArchivar, onEliminar, onAb
         // separaba distinto según cuánto contenido tuviera. Sin minHeight la
         // tarjeta mide lo que mide su contenido y todas respiran igual.
         boxSizing: "border-box", display: "flex", flexDirection: "column",
-        gap: 10, padding: "16px 20px",
+        gap: 8, padding: "12px 14px",
         background: seleccionado ? "var(--brand-tint)" : "var(--surface-1)",
         border: `1px solid ${seleccionado ? "var(--brand)" : "var(--border)"}`,
         borderRadius: "var(--r-lg)", boxShadow: seleccionado ? "inset 3px 0 0 0 var(--brand)" : "none",
@@ -357,8 +337,8 @@ function PlanCard({ plan, seleccionado, archivando, onArchivar, onEliminar, onAb
       onMouseEnter={e => { if (!seleccionado) e.currentTarget.style.background = "var(--surface-hover)"; }}
       onMouseLeave={e => { if (!seleccionado) e.currentTarget.style.background = "var(--surface-1)"; }}
     >
-      {/* Título y acciones en la misma fila: alinea el nombre del plan con los
-          botones en vez de dejarlos flotando en una franja propia. */}
+      {/* Solo el título: Pausar y Eliminar viven en el panel de detalle, que
+          es donde se opera sobre un plan ya elegido. */}
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <span style={{
           flex: 1, minWidth: 0, fontSize: 14, fontWeight: 400, color: "var(--fg-1)",
@@ -366,61 +346,7 @@ function PlanCard({ plan, seleccionado, archivando, onArchivar, onEliminar, onAb
         }}>
           {plan.nombre}
         </span>
-        {/* Pausar en naranja: detiene algo en marcha — ni una acción neutra ni
-            una destructiva, que es roja y vive en el menú de al lado. */}
-        <button
-          onClick={e => { e.stopPropagation(); onArchivar(); }}
-          disabled={archivando}
-          aria-label="Pausar plan"
-          title="Pausar plan"
-          style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 28, height: 28, padding: 0, borderRadius: 6, border: "none", background: "transparent", color: "var(--warning)", cursor: archivando ? "default" : "pointer" }}
-        >
-          {archivando ? <Loader2 size={14} className="animate-spin" /> : <ClockFading size={16} />}
-        </button>
-
-        <div ref={menuRef} style={{ position: "relative" }}>
-          <button
-            onClick={e => { e.stopPropagation(); setMenuOpen(v => !v); }}
-            aria-label="Más acciones"
-            title="Más acciones"
-            style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 28, height: 28, padding: 0, borderRadius: 6, border: "none", background: "transparent", color: "var(--fg-4)", cursor: "pointer" }}
-          >
-            <MoreVertical size={16} />
-          </button>
-          {menuOpen && (
-            <div
-              onClick={e => e.stopPropagation()}
-              style={{
-                position: "absolute", top: "calc(100% + 6px)", right: 0, zIndex: 300,
-                background: "var(--surface-1)", border: "1px solid var(--border)",
-                borderRadius: "var(--r-sm)", boxShadow: "var(--shadow-sm)",
-                width: 200, overflow: "hidden",
-              }}
-            >
-              <button
-                type="button"
-                onClick={() => { setMenuOpen(false); onEliminar(); }}
-                style={{
-                  width: "100%", display: "flex", alignItems: "center", gap: 8,
-                  padding: "10px 12px", background: "var(--surface-1)", border: "none",
-                  cursor: "pointer", fontSize: 14, color: "var(--danger)",
-                  fontFamily: "inherit", textAlign: "left",
-                }}
-                onMouseEnter={e => { e.currentTarget.style.background = "var(--surface-hover)"; }}
-                onMouseLeave={e => { e.currentTarget.style.background = "var(--surface-1)"; }}
-              >
-                <Trash2 size={16} /> Eliminar plan
-              </button>
-            </div>
-          )}
-        </div>
       </div>
-
-      {plan.numero != null && (
-        <p style={{ fontSize: 14, color: "var(--fg-4)", margin: 0 }}>
-          #{plan.numero}
-        </p>
-      )}
 
       {/* El activo: es de lo que trata el plan, y con la miniatura se reconoce
           sin leer. */}
@@ -431,18 +357,18 @@ function PlanCard({ plan, seleccionado, archivando, onArchivar, onEliminar, onAb
             src={plan.activo_imagen}
             alt=""
             style={{
-              width: 40, height: 40, borderRadius: "var(--r-sm)",
+              width: 28, height: 28, borderRadius: "var(--r-sm)",
               objectFit: "cover", background: "var(--surface-hover)", flexShrink: 0,
             }}
           />
         ) : (
           <span style={{
-            width: 40, height: 40, borderRadius: "var(--r-sm)",
+            width: 28, height: 28, borderRadius: "var(--r-sm)",
             background: "var(--brand-tint)", color: "var(--brand)",
             display: "inline-flex", alignItems: "center", justifyContent: "center",
             flexShrink: 0,
           }}>
-            <Box size={20} />
+            <Box size={15} />
           </span>
         )}
         <span style={{
@@ -451,6 +377,13 @@ function PlanCard({ plan, seleccionado, archivando, onArchivar, onEliminar, onAb
         }}>
           {plan.activo_nombre ?? "Sin activo asociado"}
         </span>
+        {/* El numero de plan viaja con el activo en vez de ocupar una fila
+            propia: es un dato corto y de referencia. */}
+        {plan.numero != null && (
+          <span style={{ fontSize: 14, color: "var(--fg-4)", flexShrink: 0, marginLeft: "auto" }}>
+            #{plan.numero}
+          </span>
+        )}
       </div>
 
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
@@ -478,7 +411,7 @@ function PlanBadge({ icon, children }: { icon: React.ReactNode; children: React.
  */
 function ProximaFecha({ fecha, diasAviso }: { fecha: string | null; diasAviso: number }) {
   if (!fecha) {
-    return <span style={{ color: "var(--fg-4)" }}>Sin fechas</span>;
+    return <span style={{ color: "var(--fg-4)" }}>Sin próxima fecha</span>;
   }
 
   // Fechas 'date' de Postgres: se parten a mano para no pasar por el parser de
@@ -497,6 +430,10 @@ function ProximaFecha({ fecha, diasAviso }: { fecha: string | null; diasAviso: n
       fontWeight: enVentana ? 500 : 400,
     }}>
       {enVentana && <CalendarClock size={14} style={{ flexShrink: 0 }} />}
+      {/* La fecha sola no decia de que fecha se trataba (¿creado?, ¿vence?).
+          "Próxima" es la que menos texto necesita para quedar claro: es cuando
+          el plan vuelve a generar una OT. */}
+      <span style={{ color: "var(--fg-4)", fontWeight: 400 }}>Próxima:</span>
       {venc.toLocaleDateString("es-CL", { day: "2-digit", month: "short", year: "numeric" })}
       {enVentana && (
         <span style={{ fontSize: 14, color: "var(--fg-3)", fontWeight: 400 }}>

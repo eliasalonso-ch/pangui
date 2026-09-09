@@ -220,6 +220,20 @@ export interface Activo {
   parent?: Pick<Activo, "id" | "nombre"> | null;
   /** Repuestos que sirven a este activo (tabla `activo_materiales`). */
   materiales?: ActivoMaterial[];
+  /** Cuadrillas a cargo del activo (tabla `activo_cuadrillas`). */
+  cuadrillas?: ActivoCuadrilla[];
+  updated_at?: string | null;
+  /** Auditoria: quien creo y quien toco por ultima vez la ficha. */
+  creador?: { id: string; nombre: string } | null;
+  actualizador?: { id: string; nombre: string } | null;
+}
+
+/** Vinculo activo <-> cuadrilla, con la cuadrilla ya resuelta. */
+export interface ActivoCuadrilla {
+  cuadrilla_id: string;
+  cuadrilla?: {
+    id: string; nombre: string; icono: string | null; color: string | null;
+  } | null;
 }
 
 /** Vinculo activo <-> material, con el material ya resuelto. */

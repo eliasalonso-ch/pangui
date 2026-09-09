@@ -11,7 +11,14 @@ const tabs = [
 
 export default function LocationsTabs() {
   const pathname = usePathname();
+  // /ubicaciones/mapa ocupa el ancho completo y trae su propia cabecera con
+  // boton de volver: las pestañas ahi no llevan a ninguna parte util, asi que
+  // no se dibujan. El layout es un componente de servidor (exporta metadata),
+  // por eso el corte vive aca, que es donde ya hay pathname.
+  if (pathname?.startsWith("/ubicaciones/mapa")) return null;
+
   return (
+    <div style={{ flexShrink: 0, padding: "9px 16px", borderBottom: "1px solid var(--border)", background: "var(--surface-canvas)" }}>
     <nav aria-label="Secciones de ubicaciones" style={{ display: "inline-flex", overflow: "hidden", border: "1px solid var(--divider)", borderRadius: 9, background: "var(--color-kumo-recessed)" }}>
       {tabs.map(tab => {
         const selected = pathname === tab.href;
@@ -22,5 +29,6 @@ export default function LocationsTabs() {
         );
       })}
     </nav>
+    </div>
   );
 }
