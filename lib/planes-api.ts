@@ -15,7 +15,9 @@ const PLAN_SELECT = `
   titulo_ot, descripcion_ot, categoria_id, ubicacion_id,
   tipo_trabajo, prioridad, proveedor_id, imagen_url, adjuntos,
   asignados_ids, procedimiento_ids,
-  duracion_estimada_horas, activo, creado_por, created_at, updated_at
+  duracion_estimada_horas, activo, creado_por, actualizado_por, created_at, updated_at,
+  creador:usuarios!creado_por(id, nombre),
+  actualizador:usuarios!actualizado_por(id, nombre)
 `;
 
 /**
@@ -108,7 +110,7 @@ export async function getPlan(id: string): Promise<PlanMantencion | null> {
     .eq("id", id)
     .maybeSingle();
   if (error) throw error;
-  return (data as PlanMantencion) ?? null;
+  return (data as unknown as PlanMantencion) ?? null;
 }
 
 /**
@@ -140,7 +142,7 @@ export async function getPlanDetalle(id: string): Promise<{
   if (!data) return null;
 
   const fila = data as any;
-  const plan = fila as PlanMantencion;
+  const plan = fila as unknown as PlanMantencion;
 
   // Los asignados son un uuid[] en la fila, no una relación, así que no se
   // pueden embeber: se resuelven aparte y solo si hay alguno.
@@ -352,7 +354,7 @@ export async function createPlan(form: PlanForm): Promise<PlanMantencion> {
     .single();
   if (error) throw error;
 
-  const plan = data as PlanMantencion;
+  const plan = data as unknown as PlanMantencion;
 
   if (form.materiales?.length) {
     await setPlanMateriales(plan.id, form.materiales);

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
+import { useDeepLinkId } from "@/lib/use-deep-link-id";
 import { createClient } from "@/lib/supabase";
 import {
   Plus, Search, X, Loader2, Zap, Trash2, Inbox, Pencil,
@@ -31,7 +32,9 @@ export default function ItosPage() {
   const [items, setItems] = useState<Hito[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  // Igual que en /categorias: el ITO abierto queda en la URL y se puede
+  // compartir.
+  const { selectedId, open: openIto, close: closeIto, setSelectedId } = useDeepLinkId("/itos");
   const [creando, setCreando] = useState(false);
   const [editando, setEditando] = useState<Hito | null>(null);
   const [otsDelEditado, setOtsDelEditado] = useState(0);
@@ -87,7 +90,7 @@ export default function ItosPage() {
     try {
       const nuevo = await createHito(workspaceId, nombre);
       setItems(prev => [...prev, nuevo].sort((a, b) => a.nombre.localeCompare(b.nombre, "es")));
-      setSelectedId(nuevo.id);
+      openIto(nuevo.id);
       setCreando(false);
     } catch (e) {
       setError((e as Error).message);
@@ -117,7 +120,7 @@ export default function ItosPage() {
       setItems(prev => prev
         .map(h => (h.id === hito.id ? hito : h))
         .sort((a, b) => a.nombre.localeCompare(b.nombre, "es")));
-      setSelectedId(hito.id);
+      openIto(hito.id);
       setEditando(null);
       // El renombre puede haber dejado (o resuelto) variantes sueltas.
       const catalogo = await listHitos(workspaceId);
@@ -147,7 +150,7 @@ export default function ItosPage() {
       // Se archiva, no se borra: las OTs conservan el texto del ITO.
       await archivarHito(confirmDelete.hito.id);
       setItems(prev => prev.filter(h => h.id !== confirmDelete.hito.id));
-      if (selectedId === confirmDelete.hito.id) setSelectedId(null);
+      if (selectedId === confirmDelete.hito.id) closeIto();
       setConfirmDelete(null);
     } catch (e) {
       setError((e as Error).message);
@@ -207,7 +210,7 @@ export default function ItosPage() {
 
           {isAdmin && (
             <button
-              onClick={() => { setCreando(true); setSelectedId(null); }}
+              onClick={() => { setCreando(true); closeIto(); }}
               style={{
                 display: "flex", alignItems: "center", gap: 6,
                 height: 36, padding: "0 14px",
@@ -265,7 +268,7 @@ export default function ItosPage() {
                 hito={hito}
                 selected={selectedId === hito.id}
                 isAdmin={isAdmin}
-                onSelect={() => { setSelectedId(hito.id); setCreando(false); setEditando(null); }}
+                onSelect={() => { openIto(hito.id); setCreando(false); setEditando(null); }}
                 onEdit={() => pedirEditar(hito)}
                 onDelete={() => pedirBorrar(hito)}
               />

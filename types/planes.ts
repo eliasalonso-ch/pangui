@@ -77,8 +77,12 @@ export interface PlanMantencion {
 
   activo: boolean;
   creado_por: string | null;
+  actualizado_por?: string | null;
   created_at: string;
   updated_at: string;
+  /** Auditoria: quien creo y quien toco por ultima vez el plan. */
+  creador?: { id: string; nombre: string } | null;
+  actualizador?: { id: string; nombre: string } | null;
 }
 
 /** Fila de la lista: el plan más lo que se necesita para leerlo de un vistazo. */

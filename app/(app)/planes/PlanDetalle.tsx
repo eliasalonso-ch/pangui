@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { getPlanDetalle } from "@/lib/planes-api";
 import { RECURRENCIA_PLAN_LABELS, type PlanMantencion, type PlanOcurrencia } from "@/types/planes";
+import AuditFooter from "@/components/catalogo/AuditFooter";
 
 /**
  * Detalle del plan, en un panel sobre la lista.
@@ -482,9 +483,15 @@ function Contenido({ d }: { d: Detalle }) {
         )}
       </Bloque>
 
-      <div style={{ fontSize: 14, color: "var(--fg-3)", marginTop: 4 }}>
-        Creado el {fechaLarga(plan.created_at)}
-      </div>
+      {/* Pie de auditoria: el mismo de material y activo. Reemplaza al
+          "Creado el ..." suelto, que decia cuando pero no quien, ni si alguien
+          lo habia tocado despues. */}
+      <AuditFooter
+        creador={plan.creador}
+        creadoEn={plan.created_at}
+        actualizador={plan.actualizador}
+        actualizadoEn={plan.updated_at}
+      />
     </>
   );
 }

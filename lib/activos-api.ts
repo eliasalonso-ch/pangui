@@ -7,7 +7,9 @@ export const ACTIVO_SELECT = `
   ubicacion_id, lugar_id, sociedad_id, fabricante_id, modelo_id, proveedor_id, responsable_id,
   activo_padre_id, criticidad, numero_serie, año_fabricacion,
   estado, fecha_garantia, archivo_url, archivo_nombre,
-  adjuntos, activo, created_at,
+  adjuntos, activo, created_at, updated_at,
+  creador:usuarios!creado_por(id, nombre),
+  actualizador:usuarios!actualizado_por(id, nombre),
   ubicacion:ubicaciones(id, edificio, detalle),
   lugar:lugares(id, nombre),
   sociedad:sociedades(id, nombre, imagen_url),
@@ -19,6 +21,10 @@ export const ACTIVO_SELECT = `
   materiales:activo_materiales(
     id, material_id, cantidad_recomendada,
     material:partes!material_id(id, nombre, codigo, unidad, imagen_url, stock_actual, stock_minimo)
+  ),
+  cuadrillas:activo_cuadrillas(
+    cuadrilla_id,
+    cuadrilla:cuadrillas!cuadrilla_id(id, nombre, icono, color)
   )
 `;
 
@@ -79,6 +85,12 @@ export async function createActivo(workspaceId: string, input: ActivoInput): Pro
   if (!payload.criticidad) payload.criticidad = "no_critico";
   if (!payload.estado) payload.estado = "operativo";
 
+  // `creado_por` se sella aca y no en un trigger: un BEFORE INSERT no puede
+  // distinguir un alta real de una restauracion, y `actualizado_por` ya lo
+  // sella el trigger en cada UPDATE.
+  const { data: auth } = await sb.auth.getUser();
+  if (auth?.user?.id) payload.creado_por = auth.user.id;
+
   const { data, error } = await sb
     .from("activos")
     .insert(payload)
@@ -96,6 +108,28 @@ export async function updateActivo(id: string, input: ActivoInput): Promise<Acti
     .update(cleanInput(input))
     .eq("id", id)
     .select(ACTIVO_SELECT)
+    .single();
+
+  if (error) throw error;
+  return data as unknown as Activo;
+}
+
+/**
+ * Relee un activo con todos sus vinculos ya resueltos.
+ *
+ * Hace falta porque `createActivo` / `updateActivo` devuelven la fila tal como
+ * quedo en ESE momento: las tablas puente (`activo_materiales`,
+ * `activo_cuadrillas`) se escriben despues, asi que el objeto que devuelven
+ * trae los vinculos viejos. Guardar una cuadrilla y ver "Sin cuadrilla" era
+ * justamente eso — el dato estaba bien en la base, y la pantalla mostraba la
+ * copia anterior.
+ */
+export async function fetchActivo(id: string): Promise<Activo> {
+  const sb = createClient();
+  const { data, error } = await sb
+    .from("activos")
+    .select(ACTIVO_SELECT)
+    .eq("id", id)
     .single();
 
   if (error) throw error;

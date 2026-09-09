@@ -10,6 +10,7 @@ import { updateOrden, parseDescMeta, buildDescripcion, ELECTRILAM_WORKSPACE_ID }
 import { fetchSolicitantes as fetchSolicitantesCatalog, upsertSolicitante, type Solicitante } from "@/lib/solicitantes-api";
 import { uploadToR2 } from "@/lib/r2";
 import { createClient } from "@/lib/supabase";
+import CuadrillaQuickAdd from "@/components/ordenes/CuadrillaQuickAdd";
 import { getOTProcedimientos, attachProcedimiento, detachProcedimiento } from "@/lib/procedimientos-api";
 import ProcedimientosPicker, { type ProcedimientoSeleccionado } from "./ProcedimientosPicker";
 import { buildRecurrenciaConfig, RecurrenceControls } from "./RecurrenceControls";
@@ -1073,6 +1074,10 @@ export default function OTEditPanel({
 
           <FieldRow icon={<User size={16} />} label="Asignar a">
             <AssigneeSelect usuarios={usuarios} value={form.asignados_ids} onChange={v => setF("asignados_ids", v)} />
+            <CuadrillaQuickAdd
+              wsId={wsId}
+              onAdd={ids => setF("asignados_ids", Array.from(new Set([...(form.asignados_ids ?? []), ...ids])))}
+            />
           </FieldRow>
 
           <FieldRow icon={<CalendarDays size={16} />} label="Fecha de inicio">

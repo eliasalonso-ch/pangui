@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase";
 import { ROL_LABEL, esAdmin, esOwner } from "@/lib/roles";
 import { puedeDarDeBaja, puedeGestionarUsuario } from "@/lib/usuarios-baja";
@@ -10,7 +10,7 @@ import {
   Users, UserPlus, Shield, Wrench, Search, X, Loader2,
   ChevronRight, Zap, Settings2, HardHat, Sparkles, Wind,
   Cpu, Droplets, ShieldAlert, Flame, Paintbrush, Leaf, User,
-  Lock, Check, MoreHorizontal,
+  Lock, Check, MoreHorizontal, Plus,
 } from "lucide-react";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -37,7 +37,12 @@ interface Cuadrilla {
   icono?: string;
   color?: string;
   activo?: boolean;
+  created_at?: string;
+  imagen_url?: string | null;
+  /** Ids de los miembros, para filtrar por persona sin otra consulta. */
+  miembros?: string[];
 }
+
 
 type PanelMode = null | "view-cuadrilla" | "create-cuadrilla";
 
@@ -51,7 +56,7 @@ const OFICIOS = [
   "Instrumentista", "Automatizador", "Pintor", "Albañil", "Jardinero / Aseo", "Otro",
 ];
 
-const TIPOS_CUADRILLA = [
+const TIPOS_CUADRILLA_IDS = [
   { id: "electrica",       label: "Eléctrica",       icono: "Zap",        color: "#F59E0B" },
   { id: "mecanica",        label: "Mecánica",         icono: "Wrench",     color: "#3B82F6" },
   { id: "instrumentacion", label: "Instrumentación",  icono: "Settings2",  color: "#8B5CF6" },
@@ -65,6 +70,13 @@ const TIPOS_CUADRILLA = [
   { id: "pintura",         label: "Pintura",          icono: "Paintbrush", color: "#EC4899" },
   { id: "paisajismo",      label: "Paisajismo",       icono: "Leaf",       color: "#16A34A" },
 ];
+
+const TIPOS_CUADRILLA = TIPOS_CUADRILLA_IDS;
+
+/** Etiqueta legible de cada tipo de cuadrilla, para el chip de filtro. */
+const TIPO_LABEL: Record<string, string> = Object.fromEntries(
+  TIPOS_CUADRILLA_IDS.map(t => [t.id, t.label]),
+);
 
 const ICON_MAP: Record<string, React.ElementType> = {
   Zap, Wrench, Settings2, HardHat, Sparkles, Wind, Cpu,
@@ -84,6 +96,35 @@ const MODULOS = [
 function DynamicIcon({ name, size = 16, ...props }: { name?: string; size?: number; [k: string]: unknown }) {
   const Icon = (name && ICON_MAP[name]) ? ICON_MAP[name] : Users;
   return <Icon size={size} {...props} />;
+}
+
+/**
+ * Miniatura de una cuadrilla: la foto si la subieron, y si no las iniciales
+ * sobre el azul de marca — la misma regla que el avatar de /ubicaciones y el de
+ * los usuarios en /ordenes.
+ */
+function CuadrillaAvatar({ cuadrilla, size = 36 }: { cuadrilla: Cuadrilla; size?: number }) {
+  if (cuadrilla.imagen_url) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={cuadrilla.imagen_url}
+        alt=""
+        style={{ width: size, height: size, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }}
+      />
+    );
+  }
+  const iniciales = cuadrilla.nombre.trim().split(/\s+/).map(w => w[0]).slice(0, 2).join("").toUpperCase();
+  return (
+    <span style={{
+      width: size, height: size, flexShrink: 0, borderRadius: "50%",
+      display: "flex", alignItems: "center", justifyContent: "center",
+      background: "linear-gradient(135deg, var(--brand-active), var(--brand))",
+      color: "var(--fg-on-brand)", fontSize: size * 0.35, fontWeight: 400,
+    }}>
+      {iniciales || <Users size={size * 0.5} />}
+    </span>
+  );
 }
 
 function formatDate(iso?: string) {
@@ -132,20 +173,31 @@ export default function UsuariosPage() {
   const [cuadrillas, setCuadrillas] = useState<Cuadrilla[]>([]);
   const [loading, setLoading] = useState(true);
   const [busqueda, setBusqueda] = useState("");
-  const [activeTab, setActiveTab] = useState<"equipo" | "cuadrillas">("equipo");
+  // Orden de la tabla de cuadrillas: mismo par (columna, sentido) que usa la
+  // tabla de Equipo, para que las dos pestañas se ordenen igual.
+  const [sortCuadrilla, setSortCuadrilla] = useState<"nombre" | "tipo" | "miembros" | "creada">("nombre");
+  const [sortCuadrillaAsc, setSortCuadrillaAsc] = useState(true);
+  // Volver desde /usuarios/cuadrilla tiene que caer en la pestaña correcta.
+  //
+  // La pestaña se DERIVA del query param mientras el usuario no elija otra, en
+  // vez de sembrarse con un efecto: llamar setState dentro de un efecto dispara
+  // un segundo render (y la regla `set-state-in-effect` lo rechaza). Con
+  // `tabElegida` en null manda la URL; en cuanto se toca el control segmentado,
+  // manda la eleccion.
+  const searchParams = useSearchParams();
+  const [tabElegida, setTabElegida] = useState<"equipo" | "cuadrillas" | null>(null);
+  const activeTab: "equipo" | "cuadrillas" =
+    tabElegida ?? (searchParams.get("tab") === "cuadrillas" ? "cuadrillas" : "equipo");
+  const setActiveTab = setTabElegida;
 
   // Panel state
   const [panelMode, setPanelMode] = useState<PanelMode>(null);
   const [panelData, setPanelData] = useState<Usuario | Cuadrilla | null>(null);
-  const [panelMembers, setPanelMembers] = useState<string[]>([]);
 
   // Invite form. No password field: the member sets their own from the emailed
   // link, exactly like the mobile Equipo invite.
   const [saving, setSaving] = useState(false);
   const [saveErr, setSaveErr] = useState<string | null>(null);
-
-  // Cuadrilla form
-  const [cuadrillaForm, setCuadrillaForm] = useState({ nombre: "", descripcion: "", tipo: "", icono: "", color: "" });
 
   // Members table: sortable columns + per-row ⋮ menu.
   const [sortKey, setSortKey] = useState<"nombre" | "rol" | "cargo" | "oficio" | "estado">("nombre");
@@ -222,6 +274,18 @@ export default function UsuariosPage() {
         .select("id,nombre,rol,activo,oficio,cargo,solo_asignadas,created_at,last_active,deleted_at")
         .eq("workspace_id", pId).is("deleted_at", null).order("nombre");
       setUsuarios(u1 ?? []);
+
+      // Cuadrillas del workspace. La pestaña volvio a la pantalla, asi que la
+      // carga inicial tambien: sin esto la lista sale siempre vacia.
+      // `cuadrilla_usuarios` viene embebido para poder filtrar por persona sin
+      // una segunda consulta por cuadrilla.
+      const { data: c1 } = await sb.from("cuadrillas")
+        .select("*, cuadrilla_usuarios(usuario_id)")
+        .eq("workspace_id", pId).eq("activo", true).order("nombre");
+      setCuadrillas((c1 ?? []).map((c: any) => ({
+        ...c,
+        miembros: (c.cuadrilla_usuarios ?? []).map((m: any) => m.usuario_id),
+      })));
 
       setLoading(false);
     }
@@ -336,79 +400,10 @@ export default function UsuariosPage() {
     router.push(`/usuarios/${u.id}`);
   }
 
-  async function openCuadrilla(c: Cuadrilla) {
-    setPanelData(c);
-    setCuadrillaForm({
-      nombre: c.nombre ?? "",
-      descripcion: c.descripcion ?? "",
-      tipo: c.tipo ?? "",
-      icono: c.icono ?? "",
-      color: c.color ?? "",
-    });
-    setSaveErr(null);
-    const sb = createClient();
-    const { data } = await sb.from("cuadrilla_usuarios").select("usuario_id").eq("cuadrilla_id", c.id);
-    setPanelMembers((data ?? []).map((r: { usuario_id: string }) => r.usuario_id));
-    setPanelMode("view-cuadrilla");
-  }
-
-  function openCreateCuadrilla() {
-    setPanelData(null);
-    setCuadrillaForm({ nombre: "", descripcion: "", tipo: "", icono: "", color: "" });
-    setPanelMembers([]);
-    setSaveErr(null);
-    setPanelMode("create-cuadrilla");
-  }
-
   function closePanel() {
     setPanelMode(null);
     setPanelData(null);
     setSaveErr(null);
-  }
-
-  // ── Save cuadrilla ─────────────────────────────────────────────────────────
-  async function saveCuadrilla() {
-    setSaveErr(null);
-    if (!cuadrillaForm.nombre.trim()) { setSaveErr("Ingresa el nombre."); return; }
-    if (!cuadrillaForm.tipo) { setSaveErr("Selecciona un tipo."); return; }
-    setSaving(true);
-    const sb = createClient();
-    const payload = {
-      workspace_id: plantaId,
-      nombre: cuadrillaForm.nombre.trim(),
-      descripcion: cuadrillaForm.descripcion.trim() || null,
-      tipo: cuadrillaForm.tipo,
-      icono: cuadrillaForm.icono,
-      color: cuadrillaForm.color,
-      activo: true,
-    };
-    let cuadrillaId = (panelData as Cuadrilla)?.id;
-    if (panelMode === "create-cuadrilla") {
-      const { data, error } = await sb.from("cuadrillas").insert(payload).select("id").maybeSingle();
-      if (error || !data) { setSaveErr("Error al crear cuadrilla."); setSaving(false); return; }
-      cuadrillaId = data.id;
-    } else {
-      const { error } = await sb.from("cuadrillas").update(payload).eq("id", cuadrillaId);
-      if (error) { setSaveErr("Error al actualizar cuadrilla."); setSaving(false); return; }
-    }
-    await sb.from("cuadrilla_usuarios").delete().eq("cuadrilla_id", cuadrillaId);
-    if (panelMembers.length > 0) {
-      await sb.from("cuadrilla_usuarios").insert(
-        panelMembers.map(uid => ({ cuadrilla_id: cuadrillaId, usuario_id: uid }))
-      );
-    }
-    const { data: cData } = await sb.from("cuadrillas")
-      .select("*").eq("workspace_id", plantaId).eq("activo", true).order("nombre");
-    setCuadrillas(cData ?? []);
-    setSaving(false);
-    closePanel();
-  }
-
-  async function deleteCuadrilla(id: string) {
-    const sb = createClient();
-    await sb.from("cuadrillas").update({ activo: false }).eq("id", id);
-    setCuadrillas(prev => prev.filter(c => c.id !== id));
-    closePanel();
   }
 
   function switchTab(t: "equipo" | "cuadrillas") {
@@ -436,9 +431,24 @@ export default function UsuariosPage() {
     const cmp = value(a).localeCompare(value(b), "es", { sensitivity: "base" });
     return sortAsc ? cmp : -cmp;
   });
-  const filteredCuadrillas = cuadrillas.filter(c =>
-    !busqueda || c.nombre?.toLowerCase().includes(busqueda.toLowerCase())
-  );
+  const filteredCuadrillas = cuadrillas
+    .filter(c => !busqueda || c.nombre?.toLowerCase().includes(busqueda.toLowerCase()))
+    .sort((a, b) => {
+      const valor = (c: Cuadrilla) => {
+        switch (sortCuadrilla) {
+          case "tipo":     return TIPO_LABEL[c.tipo ?? ""] ?? "";
+          // Los numeros se comparan aparte: como texto, "10" iria antes que "2".
+          case "miembros": return c.miembros?.length ?? 0;
+          case "creada":   return c.created_at ?? "";
+          default:         return c.nombre ?? "";
+        }
+      };
+      const va = valor(a), vb = valor(b);
+      const cmp = typeof va === "number" && typeof vb === "number"
+        ? va - vb
+        : String(va).localeCompare(String(vb), "es", { sensitivity: "base" });
+      return sortCuadrillaAsc ? cmp : -cmp;
+    });
 
   if (loading) {
     return (
@@ -453,6 +463,39 @@ export default function UsuariosPage() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", minHeight: 0, background: "var(--surface-canvas)" }}>
+
+      {/* Equipo | Cuadrillas — control segmentado en su propia franja, a la
+          izquierda y bajo la barra superior, igual que las secciones de
+          /ubicaciones. */}
+      <div style={{ flexShrink: 0, padding: "9px 24px", borderBottom: "1px solid var(--border)", background: "var(--surface-canvas)" }}>
+        <nav
+          aria-label="Secciones de equipo"
+          style={{ display: "inline-flex", overflow: "hidden", border: "1px solid var(--divider)", borderRadius: 9, background: "var(--color-kumo-recessed)" }}
+        >
+          {([{ id: "equipo", label: "Equipo" }, { id: "cuadrillas", label: "Cuadrillas" }] as const).map(t => {
+            const selected = activeTab === t.id;
+            return (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => switchTab(t.id)}
+                aria-current={selected ? "page" : undefined}
+                style={{
+                  minHeight: 34, padding: "0 11px", display: "inline-flex", alignItems: "center",
+                  background: selected ? "var(--surface-1)" : "transparent",
+                  border: selected ? "1px solid var(--border)" : "1px solid transparent",
+                  borderRadius: selected ? 7 : 0,
+                  boxShadow: selected ? "var(--shadow-sm)" : "none",
+                  color: selected ? "var(--fg-1)" : "var(--fg-3)",
+                  fontSize: 14, fontWeight: 400, cursor: "pointer", fontFamily: "inherit",
+                }}
+              >
+                {t.label}
+              </button>
+            );
+          })}
+        </nav>
+      </div>
 
       {/* Toolbar: search and actions both right-aligned, matching the Órdenes
           bandeja. Control heights are 38px there, so they are 38px here too —
@@ -469,7 +512,7 @@ export default function UsuariosPage() {
           <Search size={14} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "var(--fg-4)", pointerEvents: "none" }} />
           <input
             type="text"
-            placeholder="Buscar miembro…"
+            placeholder={activeTab === "equipo" ? "Buscar miembro…" : "Buscar cuadrilla…"}
             value={busqueda}
             onChange={e => setBusqueda(e.target.value)}
             style={{ ...inputStyle, paddingLeft: 34, paddingRight: busqueda ? 28 : 10, height: 38, borderRadius: 8 }}
@@ -491,7 +534,7 @@ export default function UsuariosPage() {
         {(esAdmin(myRol) || myRol === "jefe") && (
           <button
             type="button"
-            onClick={() => router.push("/usuarios/invitar")}
+            onClick={() => router.push(activeTab === "equipo" ? "/usuarios/invitar" : "/usuarios/cuadrilla")}
             style={{
               flexShrink: 0, height: 38, padding: "0 16px",
               display: "inline-flex", alignItems: "center", gap: 7,
@@ -500,8 +543,7 @@ export default function UsuariosPage() {
               cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap",
             }}
           >
-            <UserPlus size={15} />
-            Agregar miembro
+            {activeTab === "equipo" ? <><UserPlus size={15} />Agregar miembro</> : <><Plus size={15} />Crear cuadrilla</>}
           </button>
         )}
       </div>
@@ -569,7 +611,12 @@ export default function UsuariosPage() {
                                   <span style={{
                                     width: 30, height: 30, borderRadius: "50%", flexShrink: 0,
                                     display: "grid", placeItems: "center",
-                                    background: isActive ? "var(--brand)" : "var(--border)",
+                                    // Mismo degradado de marca que los avatares de /ordenes y
+                                    // /ubicaciones. El --brand plano se leia mas claro y
+                                    // desentonaba con el resto de las iniciales de la app.
+                                    background: isActive
+                                      ? "linear-gradient(135deg, var(--brand-active), var(--brand))"
+                                      : "var(--border)",
                                     color: isActive ? "var(--fg-on-brand)" : "var(--fg-4)",
                                     fontSize: 14, fontWeight: 400,
                                   }}>
@@ -664,151 +711,98 @@ export default function UsuariosPage() {
             )
           )}
 
-        </div>
-
-        {/* Panel */}
-        {showPanel && (
-          <div style={{
-            width: 360, flexShrink: 0,
-            borderLeft: "1px solid var(--border)",
-            display: "flex", flexDirection: "column",
-            overflowY: "auto",
-            // Canvas, so the white form inputs read as elements on the panel
-            // instead of the whole panel being one flat white sheet.
-            background: "var(--surface-canvas)",
-          }}>
-            {/* Panel header */}
-            <div style={{
-              flexShrink: 0, padding: "0 20px", height: 48,
-              display: "flex", alignItems: "center", justifyContent: "space-between",
-              borderBottom: "1px solid var(--border)",
-            }}>
-              <span style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)" }}>
-                {panelMode === "create-cuadrilla" ? "Nueva cuadrilla" :
-                 (panelData as Cuadrilla)?.nombre}
-              </span>
-              <button type="button" onClick={closePanel}
-                style={{ background: "none", border: "none", cursor: "pointer", color: "var(--fg-4)", display: "flex" }}>
-                <X size={16} />
-              </button>
-            </div>
-
-            {/* User panels */}
-
-            {/* Cuadrilla panels */}
-            {(panelMode === "create-cuadrilla" || panelMode === "view-cuadrilla") && (
-              <div style={{ padding: 20, display: "flex", flexDirection: "column", gap: 14 }}>
-                <div>
-                  <label style={labelStyle}>Nombre</label>
-                  <input
-                    style={inputStyle}
-                    placeholder="Ej. Cuadrilla Eléctrica"
-                    value={cuadrillaForm.nombre}
-                    onChange={e => setCuadrillaForm(f => ({ ...f, nombre: e.target.value }))}
-                    onFocus={e => { e.currentTarget.style.borderColor = "var(--brand)"; }}
-                    onBlur={e => { e.currentTarget.style.borderColor = "var(--border)"; }}
-                  />
-                </div>
-                <div>
-                  <label style={labelStyle}>Descripción</label>
-                  <textarea
-                    placeholder="Descripción opcional"
-                    value={cuadrillaForm.descripcion}
-                    onChange={e => setCuadrillaForm(f => ({ ...f, descripcion: e.target.value }))}
-                    rows={2}
-                    style={{ ...inputStyle, height: "auto", padding: "8px 12px", resize: "vertical" }}
-                  />
-                </div>
-                <div>
-                  <label style={labelStyle}>Tipo</label>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-                    {TIPOS_CUADRILLA.map(t => {
-                      const sel = cuadrillaForm.tipo === t.id;
-                      return (
-                        <button
-                          key={t.id}
-                          type="button"
-                          onClick={() => setCuadrillaForm(f => ({ ...f, tipo: t.id, icono: t.icono, color: t.color }))}
-                          style={{
-                            display: "flex", alignItems: "center", gap: 7,
-                            padding: "7px 10px", borderRadius: 6,
-                            border: sel ? `1.5px solid ${t.color}` : "1.5px solid var(--border)",
-                            background: sel ? "var(--surface-hover)" : "var(--surface-1)",
-                            cursor: "pointer", fontFamily: "inherit",
-                          }}
-                        >
-                          <DynamicIcon name={t.icono} size={13} style={{ color: t.color, flexShrink: 0 }} />
-                          <span style={{ fontSize: 14, fontWeight: 400, color: sel ? t.color : "var(--fg-2)" }}>{t.label}</span>
-                        </button>
-                      );
-                    })}
+          {/* Cuadrillas — misma tabla que Equipo: cabeceras que ordenan al
+              hacer clic, tarjeta blanca con borde y filas separadas por linea.
+              Se copia de ahi para que las dos pestañas se operen igual. */}
+          {activeTab === "cuadrillas" && (
+            filteredCuadrillas.length === 0 ? (
+              <div style={{ padding: 40, textAlign: "center", color: "var(--fg-4)", fontSize: 14 }}>
+                {busqueda ? "Sin resultados." : "No hay cuadrillas aún."}
+              </div>
+            ) : (
+              <div style={{ padding: "14px 24px 32px" }}>
+                <div style={{ border: "1px solid var(--border)", borderRadius: 12, overflow: "hidden", background: "var(--surface-1)" }}>
+                  <div style={{ overflowX: "auto" }}>
+                    <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 720 }}>
+                      <thead>
+                        <tr style={{ background: "var(--surface-2)" }}>
+                          {([
+                            ["nombre",   "Nombre"],
+                            ["tipo",     "Tipo"],
+                            ["miembros", "Miembros"],
+                            ["creada",   "Creada"],
+                          ] as const).map(([key, label]) => (
+                            <th key={key} style={{ padding: "10px 16px", textAlign: "left" }}>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (sortCuadrilla === key) setSortCuadrillaAsc(v => !v);
+                                  else { setSortCuadrilla(key); setSortCuadrillaAsc(true); }
+                                }}
+                                style={{
+                                  display: "inline-flex", alignItems: "center", gap: 4,
+                                  background: "none", border: "none", padding: 0, cursor: "pointer",
+                                  fontFamily: "inherit", fontSize: 14, fontWeight: 400,
+                                  color: sortCuadrilla === key ? "var(--fg-2)" : "var(--fg-4)",
+                                }}
+                              >
+                                {label}
+                                {sortCuadrilla === key && <span aria-hidden="true">{sortCuadrillaAsc ? "\u2191" : "\u2193"}</span>}
+                              </button>
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredCuadrillas.map(c => {
+                          const tipo = TIPOS_CUADRILLA.find(t => t.id === c.tipo);
+                          return (
+                            <tr
+                              key={c.id}
+                              onClick={() => router.push(`/usuarios/cuadrilla?id=${encodeURIComponent(c.id)}`)}
+                              style={{ borderTop: "1px solid var(--border)", cursor: "pointer" }}
+                            >
+                              <td style={{ padding: "12px 16px" }}>
+                                <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                                  <CuadrillaAvatar cuadrilla={c} size={30} />
+                                  <span style={{ minWidth: 0 }}>
+                                    <span style={{ display: "block", fontSize: 14, color: "var(--fg-1)" }}>{c.nombre}</span>
+                                    {c.descripcion && (
+                                      <span style={{ display: "block", fontSize: 14, color: "var(--fg-4)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 320 }}>
+                                        {c.descripcion}
+                                      </span>
+                                    )}
+                                  </span>
+                                </span>
+                              </td>
+                              <td style={{ padding: "12px 16px", fontSize: 14, color: tipo ? "var(--fg-2)" : "var(--fg-4)" }}>
+                                {tipo ? (
+                                  <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                                    <DynamicIcon name={tipo.icono} size={14} style={{ color: tipo.color, flexShrink: 0 }} />
+                                    {tipo.label}
+                                  </span>
+                                ) : "\u2014"}
+                              </td>
+                              <td style={{ padding: "12px 16px", fontSize: 14, color: (c.miembros?.length ?? 0) > 0 ? "var(--fg-2)" : "var(--fg-4)" }}>
+                                {(c.miembros?.length ?? 0) === 0
+                                  ? "Sin miembros"
+                                  : c.miembros!.length === 1 ? "1 persona" : `${c.miembros!.length} personas`}
+                              </td>
+                              <td style={{ padding: "12px 16px", fontSize: 14, color: "var(--fg-2)" }}>
+                                {formatDate(c.created_at)}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
                   </div>
-                </div>
-                <div>
-                  <label style={labelStyle}>Miembros</label>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 160, overflowY: "auto", border: "1px solid var(--border)", borderRadius: 6, padding: "4px 0" }}>
-                    {usuarios.filter(u => u.activo !== false && u.id !== myId).map(u => {
-                      const sel = panelMembers.includes(u.id);
-                      return (
-                        <label
-                          key={u.id}
-                          style={{
-                            display: "flex", alignItems: "center", gap: 8,
-                            padding: "6px 12px", cursor: "pointer",
-                            background: sel ? "var(--brand-tint)" : "none",
-                          }}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={sel}
-                            onChange={() => setPanelMembers(prev =>
-                              sel ? prev.filter(id => id !== u.id) : [...prev, u.id]
-                            )}
-                            style={{ accentColor: "var(--brand)" }}
-                          />
-                          <span style={{ fontSize: 14, color: "var(--fg-2)" }}>{u.nombre}</span>
-                          <span style={{ fontSize: 14, color: "var(--fg-4)", marginLeft: "auto" }}>{(ROL_LABEL as Record<string, string>)[u.rol] ?? u.rol}</span>
-                        </label>
-                      );
-                    })}
-                  </div>
-                </div>
-                {saveErr && <p style={{ fontSize: 14, color: "var(--danger)", margin: 0 }}>{saveErr}</p>}
-                <div style={{ display: "flex", gap: 8 }}>
-                  {panelMode === "view-cuadrilla" && esAdmin(myRol) && (
-                    <button
-                      type="button"
-                      onClick={() => deleteCuadrilla((panelData as Cuadrilla).id)}
-                      style={{
-                        height: 36, padding: "0 14px", border: "1px solid var(--danger-bg)", borderRadius: 6,
-                        background: "none", fontSize: 14, fontWeight: 400, color: "var(--danger)",
-                        cursor: "pointer", fontFamily: "inherit",
-                      }}
-                    >
-                      Eliminar
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={saveCuadrilla}
-                    disabled={saving}
-                    style={{
-                      flex: 1, height: 36, border: "none", borderRadius: 6,
-                      background: "var(--brand)", color: "var(--fg-on-brand)",
-                      fontSize: 14, fontWeight: 400,
-                      cursor: saving ? "default" : "pointer", fontFamily: "inherit",
-                      display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-                      opacity: saving ? 0.7 : 1,
-                    }}
-                  >
-                    {saving ? <Loader2 size={14} className="animate-spin" /> : null}
-                    {saving ? "Guardando…" : "Guardar"}
-                  </button>
                 </div>
               </div>
-            )}
-          </div>
-        )}
+            )
+          )}
+
+        </div>
       </div>
 
       {/* Permissions modal */}

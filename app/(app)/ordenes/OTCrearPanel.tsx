@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { AlbumModal } from "./AlbumModal";
 import { createClient } from "@/lib/supabase";
+import CuadrillaQuickAdd from "@/components/ordenes/CuadrillaQuickAdd";
 import { useOTBorrador } from "@/hooks/useOTBorrador";
 import BorradorEstado from "./BorradorEstado";
 import { callEdge } from "@/lib/edge";
@@ -2163,6 +2164,12 @@ export default function OTCrearPanel({
               usuarios={usuarios}
               value={form.asignados_ids}
               onChange={v => setF("asignados_ids", v)}
+            />
+            {/* Atajo: suma los miembros de una cuadrilla de una vez. Se unen a
+                los ya elegidos (Set) para no duplicar a quien ya estaba. */}
+            <CuadrillaQuickAdd
+              wsId={wsId}
+              onAdd={ids => setF("asignados_ids", Array.from(new Set([...(form.asignados_ids ?? []), ...ids])))}
             />
             {pdfHints?.asignados?.map((person, i) => (
               <PdfSuggestion

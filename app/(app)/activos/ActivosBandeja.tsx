@@ -8,13 +8,14 @@ import {
   Building2, User, MapPin, Calendar, Hash, GitBranch, FileText, Pencil,
   Maximize2, Inbox, Clock, Link2, CheckCircle2, RefreshCw, PlusCircle, ArrowDown,
   Check, Camera, Paperclip, File as FileIcon, Tag, Factory, Truck, AlertCircle,
-  MoreVertical, Locate,
+  MoreVertical, Locate, Users,
 } from "lucide-react";
 import {
-  ACTIVO_SELECT, createActivo, deleteActivo, updateActivo,
+  ACTIVO_SELECT, createActivo, deleteActivo, updateActivo, fetchActivo,
   fetchActivoOTHistoryPage, fetchActivoActividadPage,
   type ActivoOTHistoryRow, type ActivoActividadRow,
 } from "@/lib/activos-api";
+import AuditFooter from "@/components/catalogo/AuditFooter";
 import { cambiarEstadoActivo, fetchPeriodoVigente, type EstadoPeriodo } from "@/lib/activo-estado-api";
 import { uploadToR2 } from "@/lib/r2";
 import { createClient, logRealtimeChannel } from "@/lib/supabase";
@@ -162,6 +163,7 @@ interface Props {
   modelos: Modelo[];
   proveedores: Proveedor[];
   materiales: MaterialOpcion[];
+  cuadrillas: CuadrillaOpcion[];
   myRol: string | null;
   wsId: string;
   initialSelectedId?: string | null;
@@ -584,6 +586,151 @@ function SearchSelect({ placeholder, value, options, onChange, disabled, emptyLa
   );
 }
 
+/**
+ * Cuadrillas a cargo de un activo. Igual que MaterialPicker (fichas + lista
+ * desplegable), porque un equipo puede necesitar varios oficios a la vez.
+ */
+function CuadrillaPicker({ cuadrillas, selected, onToggle, disabled }: {
+  cuadrillas: { id: string; nombre: string; icono?: string | null; color?: string | null }[];
+  selected: string[];
+  onToggle: (id: string) => void;
+  disabled?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function onDown(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [open]);
+
+  const q = query.trim().toLowerCase();
+  const shown = cuadrillas.filter(c => !q || c.nombre.toLowerCase().includes(q));
+
+  return (
+    <div ref={ref} style={{ position: "relative" }}>
+      <div
+        onClick={() => { if (!disabled) setOpen(true); }}
+        style={{
+          display: "flex", alignItems: "center", flexWrap: "wrap", gap: 4,
+          minHeight: 40, padding: "4px 8px",
+          border: `1px solid ${open ? "var(--brand)" : "var(--border)"}`,
+          borderRadius: 8, background: "var(--surface-1)",
+          cursor: disabled ? "not-allowed" : "text",
+          opacity: disabled ? 0.6 : 1,
+        }}
+      >
+        {selected.map(id => {
+          const c = cuadrillas.find(x => x.id === id);
+          return (
+            <span
+              key={id}
+              style={{
+                display: "inline-flex", alignItems: "center", gap: 4, maxWidth: 260,
+                padding: "2px 4px 2px 7px", borderRadius: 4,
+                background: "var(--brand-tint)", color: "var(--brand)", fontSize: 14,
+              }}
+            >
+              <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {c?.nombre ?? "Cuadrilla"}
+              </span>
+              <button
+                type="button"
+                onClick={e => { e.stopPropagation(); onToggle(id); }}
+                aria-label={`Quitar ${c?.nombre ?? "cuadrilla"}`}
+                style={{ display: "flex", alignItems: "center", background: "none", border: "none", padding: 0, cursor: "pointer", color: "inherit", opacity: 0.7 }}
+              >
+                <X size={11} />
+              </button>
+            </span>
+          );
+        })}
+        <input
+          value={query}
+          disabled={disabled}
+          onChange={e => { setQuery(e.target.value); setOpen(true); }}
+          onFocus={() => { if (!disabled) setOpen(true); }}
+          placeholder={selected.length ? "" : "Empiece a escribir…"}
+          style={{ flex: 1, minWidth: 110, fontSize: 14, border: "none", outline: "none", background: "transparent", color: "var(--fg-1)", fontFamily: "inherit", height: 30 }}
+        />
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={e => { e.stopPropagation(); if (!disabled) setOpen(v => !v); }}
+          aria-label={open ? "Cerrar lista" : "Abrir lista"}
+          style={{ display: "flex", alignItems: "center", background: "none", border: "none", padding: 2, cursor: "pointer", flexShrink: 0 }}
+        >
+          <ChevronDown size={16} color="var(--brand-fg)" style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform 0.15s" }} />
+        </button>
+      </div>
+
+      {open && !disabled && (
+        <div style={{
+          position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, zIndex: 200,
+          background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: 8,
+          boxShadow: "var(--shadow-md)", overflow: "hidden",
+        }}>
+          <div style={{ maxHeight: 300, overflowY: "auto", padding: "2px 0 6px" }}>
+            {shown.map(c => {
+              const active = selected.includes(c.id);
+              return (
+                <button
+                  key={c.id}
+                  type="button"
+                  role="checkbox"
+                  aria-checked={active}
+                  onClick={() => onToggle(c.id)}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 10, width: "100%", minWidth: 0,
+                    padding: "8px 12px", background: active ? "var(--brand-tint)" : "transparent",
+                    border: "none", cursor: "pointer", fontFamily: "inherit", textAlign: "left",
+                  }}
+                  onMouseEnter={e => { if (!active) e.currentTarget.style.background = "var(--surface-hover)"; }}
+                  onMouseLeave={e => { if (!active) e.currentTarget.style.background = "transparent"; }}
+                >
+                  {/* Color e icono propios de la cuadrilla: es lo que la
+                      distingue de un vistazo, igual que en /usuarios. */}
+                  <span style={{
+                    width: 28, height: 28, borderRadius: "50%", flexShrink: 0,
+                    display: "inline-flex", alignItems: "center", justifyContent: "center",
+                    background: c.color ?? "var(--brand)", color: "#fff",
+                  }}>
+                    <Users size={15} />
+                  </span>
+                  <span style={{ flex: 1, minWidth: 0, fontSize: 14, color: active ? "var(--brand)" : "var(--fg-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {c.nombre}
+                  </span>
+                  <span
+                    aria-hidden
+                    style={{
+                      width: 15, height: 15, flexShrink: 0, borderRadius: 3,
+                      border: active ? "none" : "1.5px solid var(--border-strong, var(--border))",
+                      background: active ? "var(--brand)" : "var(--surface-0)",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                    }}
+                  >
+                    {active && <Check size={11} strokeWidth={3} style={{ color: "var(--fg-on-brand)" }} />}
+                  </span>
+                </button>
+              );
+            })}
+            {shown.length === 0 && (
+              <div style={{ padding: "8px 12px", fontSize: 14, color: "var(--fg-4)" }}>
+                {cuadrillas.length === 0 ? "No hay cuadrillas creadas" : "Sin resultados"}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Input shared style for the ordenes-style form (40px tall, brand border tokens).
 const otInputStyle: React.CSSProperties = {
   width: "100%", height: 40, padding: "0 12px",
@@ -609,14 +756,20 @@ interface MaterialOpcion {
   id: string; nombre: string; codigo: string; unidad: string; imagen_url: string | null;
 }
 
+/** Cuadrilla del workspace, para el selector "Cuadrillas a cargo". */
+interface CuadrillaOpcion {
+  id: string; nombre: string; icono: string | null; color: string | null;
+}
+
 /** Selector de materiales: buscador con los elegidos como fichas adentro y un
  *  desplegable con casillas. Mismo patron que el selector de activos en la
  *  ficha del material -- ver lo seleccionado sin cerrar el panel evita el
  *  problema del contador solo ("3" no dice *cuales* tres). */
-function MaterialPicker({ materiales, selected, onToggle }: {
+function MaterialPicker({ materiales, selected, onToggle, disabled }: {
   materiales: MaterialOpcion[];
   selected: { material_id: string; cantidad: number; existingId?: string }[];
   onToggle: (materialId: string) => void;
+  disabled?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -638,12 +791,14 @@ function MaterialPicker({ materiales, selected, onToggle }: {
   return (
     <div ref={ref} style={{ position: "relative" }}>
       <div
-        onClick={() => setOpen(true)}
+        onClick={() => { if (!disabled) setOpen(true); }}
         style={{
           display: "flex", alignItems: "center", flexWrap: "wrap", gap: 4,
           minHeight: 40, padding: "4px 8px",
           border: `1px solid ${open ? "var(--brand)" : "var(--border)"}`,
-          borderRadius: 8, background: "var(--surface-1)", cursor: "text",
+          borderRadius: 8, background: "var(--surface-1)",
+          cursor: disabled ? "not-allowed" : "text",
+          opacity: disabled ? 0.6 : 1,
         }}
       >
         {selected.map(sel => {
@@ -673,14 +828,16 @@ function MaterialPicker({ materiales, selected, onToggle }: {
         })}
         <input
           value={query}
+          disabled={disabled}
           onChange={e => { setQuery(e.target.value); setOpen(true); }}
-          onFocus={() => setOpen(true)}
+          onFocus={() => { if (!disabled) setOpen(true); }}
           placeholder={selected.length ? "" : "Empiece a escribir…"}
           style={{ flex: 1, minWidth: 110, fontSize: 14, border: "none", outline: "none", background: "transparent", color: "var(--fg-1)", fontFamily: "inherit", height: 30 }}
         />
         <button
           type="button"
-          onClick={e => { e.stopPropagation(); setOpen(v => !v); }}
+          disabled={disabled}
+          onClick={e => { e.stopPropagation(); if (!disabled) setOpen(v => !v); }}
           aria-label={open ? "Cerrar lista" : "Abrir lista"}
           style={{ display: "flex", alignItems: "center", background: "none", border: "none", padding: 2, cursor: "pointer", flexShrink: 0 }}
         >
@@ -745,10 +902,11 @@ function MaterialPicker({ materiales, selected, onToggle }: {
 
 function ActivoForm({
   activo, usuarios, ubicaciones, lugares, sociedades, fabricantes, modelos, proveedores,
-  activos, materiales, wsId, onSaved, onClose,
+  activos, materiales, cuadrillas, wsId, onSaved, onClose,
 }: {
   activo?: Activo | null;
   materiales: MaterialOpcion[];
+  cuadrillas: CuadrillaOpcion[];
   usuarios: Usuario[];
   ubicaciones: Ubicacion[];
   lugares: LugarEspecifico[];
@@ -790,6 +948,13 @@ function ActivoForm({
    */
   const [materialLinks, setMaterialLinks] = useState<{ material_id: string; cantidad: number; existingId?: string }[]>(
     () => (activo?.materiales ?? []).map(m => ({ material_id: m.material_id, cantidad: Number(m.cantidad_recomendada), existingId: m.id })),
+  );
+  /**
+   * Cuadrillas a cargo, como borrador igual que los repuestos: el diff contra
+   * lo que habia se aplica al guardar, no en cada clic.
+   */
+  const [cuadrillaIds, setCuadrillaIds] = useState<string[]>(
+    () => (activo?.cuadrillas ?? []).map(c => c.cuadrilla_id),
   );
   const [uploadingImage, setUploadingImage] = useState(false);
   const [dragOverImage, setDragOverImage] = useState(false);
@@ -941,7 +1106,35 @@ function ActivoForm({
         }
       }
 
-      onSaved(saved);
+      // Cuadrillas a cargo: se borran las quitadas y se insertan las nuevas.
+      // La PK es (activo_id, cuadrilla_id), asi que no hay ids intermedios.
+      const previasC = (activo?.cuadrillas ?? []).map(c => c.cuadrilla_id);
+      const quitadasC = previasC.filter(id => !cuadrillaIds.includes(id));
+      const anadidasC = cuadrillaIds.filter(id => !previasC.includes(id));
+      if (quitadasC.length > 0 || anadidasC.length > 0) {
+        const sb = createClient();
+        if (quitadasC.length > 0) {
+          const { error: delC } = await sb.from("activo_cuadrillas")
+            .delete().eq("activo_id", saved.id).in("cuadrilla_id", quitadasC);
+          if (delC) throw new Error(delC.message);
+        }
+        if (anadidasC.length > 0) {
+          const { error: insC } = await sb.from("activo_cuadrillas").insert(
+            anadidasC.map(cid => ({ activo_id: saved.id, cuadrilla_id: cid })),
+          );
+          if (insC) throw new Error(insC.message);
+        }
+      }
+
+      // Se relee: `saved` es de antes de escribir `activo_materiales` y
+      // `activo_cuadrillas`, asi que sus vinculos estan desactualizados. Sin
+      // esto, una cuadrilla recien asignada se ve como "Sin cuadrilla" hasta
+      // recargar la pagina.
+      const conVinculos = (quitados.length > 0 || anadidos.length > 0 || quitadasC.length > 0 || anadidasC.length > 0)
+        ? await fetchActivo(saved.id).catch(() => saved)
+        : saved;
+
+      onSaved(conVinculos);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al guardar.");
       setSaving(false);
@@ -1135,8 +1328,24 @@ function ActivoForm({
             />
           </FieldRow>
 
+          {/* Responsable y Cuadrillas a cargo se excluyen: el activo lo cuida
+              UNA persona o UN grupo, no las dos cosas — si no, no se sabe a
+              quien reclamarle. La exclusion va en los dos sentidos para poder
+              cambiar de idea sin tener que vaciar el otro campo primero. */}
           <FieldRow icon={<User size={16} />} label="Responsable">
-            <SearchSelect placeholder="Elegir responsable…" value={form.responsable_id} options={responsableOptions} onChange={v => set("responsable_id", v)} emptyLabel="Sin responsable" />
+            <SearchSelect
+              placeholder="Elegir responsable…"
+              value={form.responsable_id}
+              options={responsableOptions}
+              onChange={v => set("responsable_id", v)}
+              emptyLabel="Sin responsable"
+              disabled={cuadrillaIds.length > 0}
+            />
+            {cuadrillaIds.length > 0 && (
+              <p style={{ margin: "6px 0 0", fontSize: 14, color: "var(--fg-4)" }}>
+                Quita las cuadrillas a cargo para asignar una persona.
+              </p>
+            )}
           </FieldRow>
 
           <FieldRow icon={<Truck size={16} />} label="Proveedor">
@@ -1157,6 +1366,23 @@ function ActivoForm({
                 ? prev.filter(l => l.material_id !== materialId)
                 : [...prev, { material_id: materialId, cantidad: 1 }])}
             />
+          </FieldRow>
+
+          {/* Cuadrillas a cargo: que oficios mantienen este equipo. Es un dato
+              del activo, no de la OT — la OT sigue teniendo responsables
+              personales. */}
+          <FieldRow icon={<Users size={16} />} label="Cuadrillas a cargo">
+            <CuadrillaPicker
+              cuadrillas={cuadrillas}
+              selected={cuadrillaIds}
+              onToggle={id => setCuadrillaIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])}
+              disabled={!!form.responsable_id}
+            />
+            {form.responsable_id && (
+              <p style={{ margin: "6px 0 0", fontSize: 14, color: "var(--fg-4)" }}>
+                Quita el responsable para asignar cuadrillas.
+              </p>
+            )}
           </FieldRow>
 
           {/* Adjuntos */}
@@ -1554,19 +1780,31 @@ function DetallesTab({ activo, hijos, onOpenActivo, onOpenMaterial, onFullscreen
     { label: "Proveedor", value: activo.proveedor?.nombre ?? "Sin proveedor", icon: <Truck size={16} /> },
   ];
 
-  const ubicFields = [
+  const ubicFields: { label: string; value: string; icon: React.ReactNode }[] = [
     { label: "Cliente", value: activo.sociedad?.nombre ?? "Sin cliente", icon: <Building2 size={16} /> },
     { label: "Ubicación", value: ubic ?? "Sin ubicación", icon: <MapPin size={16} /> },
     { label: "Lugar", value: activo.lugar?.nombre ?? "Sin lugar específico", icon: <Locate size={16} /> },
-    { label: "Responsable", value: activo.responsable?.nombre ?? "Sin responsable", icon: <User size={16} /> },
   ];
+
+  // Responsable y Cuadrillas se excluyen entre si (ver el formulario), asi que
+  // se muestra SOLO la que tenga valor: con las dos siempre visibles, una de
+  // ellas decia "Sin responsable" / "Sin cuadrilla" aunque el activo estuviera
+  // perfectamente asignado por la otra via.
+  const nombresCuadrillas = (activo.cuadrillas ?? [])
+    .map(c => c.cuadrilla?.nombre).filter(Boolean).join(", ");
+  if (activo.responsable?.nombre) {
+    ubicFields.push({ label: "Responsable", value: activo.responsable.nombre, icon: <User size={16} /> });
+  }
+  if (nombresCuadrillas) {
+    ubicFields.push({ label: "Cuadrillas a cargo", value: nombresCuadrillas, icon: <Users size={16} /> });
+  }
 
   return (
     <div>
       {/* Foto del equipo. Vivía en General, pero ahí competía con el estado y las
           OTs; acá acompaña a la ficha técnica, que es lo que describe. */}
       {activo.imagen_url && (
-        <div style={{ marginLeft: -28, marginRight: -28, paddingLeft: 28, paddingRight: 28, paddingTop: 14, paddingBottom: 14 }}>
+        <div style={{ marginLeft: -28, marginRight: -28, paddingLeft: 28, paddingRight: 28, paddingTop: 16, paddingBottom: 16, borderBottom: "1px solid var(--border)" }}>
           <p style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", letterSpacing: "0.01em", margin: "0 0 8px" }}>Imágenes</p>
           <button
             onClick={onFullscreen}
@@ -1582,7 +1820,7 @@ function DetallesTab({ activo, hijos, onOpenActivo, onOpenMaterial, onFullscreen
 
       {/* Descripción — texto corrido, sin tarjeta */}
       {activo.descripcion && (
-        <div style={{ marginLeft: -28, marginRight: -28, paddingLeft: 28, paddingRight: 28, paddingTop: 14, paddingBottom: 14 }}>
+        <div style={{ marginLeft: -28, marginRight: -28, paddingLeft: 28, paddingRight: 28, paddingTop: 16, paddingBottom: 16, borderBottom: "1px solid var(--border)" }}>
           <p style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 14, fontWeight: 400, color: "var(--fg-1)", letterSpacing: "0.01em", margin: "0 0 8px" }}>
             <FileText size={16} style={{ color: "var(--brand)" }} />
             Descripción
@@ -1593,7 +1831,7 @@ function DetallesTab({ activo, hijos, onOpenActivo, onOpenMaterial, onFullscreen
 
       {/* Equipo */}
       {equipoFields.length > 0 && (
-        <div style={{ marginLeft: -28, marginRight: -28, paddingLeft: 28, paddingRight: 28, paddingTop: 14, paddingBottom: 14 }}>
+        <div style={{ marginLeft: -28, marginRight: -28, paddingLeft: 28, paddingRight: 28, paddingTop: 16, paddingBottom: 16, borderBottom: "1px solid var(--border)" }}>
           <div style={META_GRID}>
             {equipoFields.map(f => <MetaField key={f.label} {...f} />)}
           </div>
@@ -1602,7 +1840,7 @@ function DetallesTab({ activo, hijos, onOpenActivo, onOpenMaterial, onFullscreen
 
       {/* Ubicación y responsabilidad */}
       {ubicFields.length > 0 && (
-        <div style={{ marginLeft: -28, marginRight: -28, paddingLeft: 28, paddingRight: 28, paddingTop: 14, paddingBottom: 14 }}>
+        <div style={{ marginLeft: -28, marginRight: -28, paddingLeft: 28, paddingRight: 28, paddingTop: 16, paddingBottom: 16, borderBottom: "1px solid var(--border)" }}>
           <div style={META_GRID}>
             {ubicFields.map(f => <MetaField key={f.label} {...f} />)}
           </div>
@@ -1611,7 +1849,7 @@ function DetallesTab({ activo, hijos, onOpenActivo, onOpenMaterial, onFullscreen
 
       {/* Adjuntos y manuales */}
       {adjuntos.length > 0 && (
-        <div style={{ marginLeft: -28, marginRight: -28, paddingLeft: 28, paddingRight: 28, paddingTop: 14, paddingBottom: 14 }}>
+        <div style={{ marginLeft: -28, marginRight: -28, paddingLeft: 28, paddingRight: 28, paddingTop: 16, paddingBottom: 16, borderBottom: "1px solid var(--border)" }}>
           <p style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", letterSpacing: "0.01em", margin: "0 0 8px" }}>Archivos adjuntos</p>
           <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 6 }}>
             {adjuntos.map((a, idx) => (
@@ -1629,7 +1867,7 @@ function DetallesTab({ activo, hijos, onOpenActivo, onOpenMaterial, onFullscreen
       {/* Partes — los repuestos que sirven a este equipo. Mismo vinculo que se
           ve desde la ficha del material; se edita en crear/editar activo. */}
       {partes.length > 0 && (
-        <div style={{ marginLeft: -28, marginRight: -28, paddingLeft: 28, paddingRight: 28, paddingTop: 14, paddingBottom: 14 }}>
+        <div style={{ marginLeft: -28, marginRight: -28, paddingLeft: 28, paddingRight: 28, paddingTop: 16, paddingBottom: 16, borderBottom: "1px solid var(--border)" }}>
           <p style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", letterSpacing: "0.01em", margin: "0 0 8px" }}>Partes ({partes.length})</p>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {partes.slice(0, partesVisibles).map(link => {
@@ -1720,7 +1958,7 @@ function DetallesTab({ activo, hijos, onOpenActivo, onOpenMaterial, onFullscreen
           cuelgan de ninguno) para no decir nada ni ofrecer ninguna acción: el
           padre se asigna en crear/editar, no acá. */}
       {(padre || hijos.length > 0) && (
-      <div style={{ marginLeft: -28, marginRight: -28, paddingLeft: 28, paddingRight: 28, paddingTop: 14, paddingBottom: 14 }}>
+      <div style={{ marginLeft: -28, marginRight: -28, paddingLeft: 28, paddingRight: 28, paddingTop: 16, paddingBottom: 16, borderBottom: "1px solid var(--border)" }}>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {padre && (
               <button onClick={() => onOpenActivo(padre.id)} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", border: "1px solid var(--border)", borderRadius: "var(--r-md)", background: "var(--surface-0)", cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}>
@@ -1742,6 +1980,16 @@ function DetallesTab({ activo, hijos, onOpenActivo, onOpenMaterial, onFullscreen
           </div>
       </div>
       )}
+
+      {/* Pie: quien creo y quien actualizo, con avatar — el mismo componente
+          que usa la ficha de material. Los activos anteriores a las columnas de
+          auditoria no tienen autor, y ahi va solo la fecha. */}
+      <AuditFooter
+        creador={activo.creador}
+        creadoEn={activo.created_at}
+        actualizador={activo.actualizador}
+        actualizadoEn={activo.updated_at}
+      />
     </div>
   );
 }
@@ -2093,7 +2341,7 @@ function ActivoDetail({
   );
 }
 
-export default function ActivosBandeja({ initialActivos, usuarios, ubicaciones, lugares, sociedades, fabricantes, modelos, proveedores, materiales, myRol, wsId, initialSelectedId }: Props) {
+export default function ActivosBandeja({ initialActivos, usuarios, ubicaciones, lugares, sociedades, fabricantes, modelos, proveedores, materiales, cuadrillas, myRol, wsId, initialSelectedId }: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const [activos, setActivos] = useState<Activo[]>(initialActivos);
@@ -2622,6 +2870,7 @@ export default function ActivosBandeja({ initialActivos, usuarios, ubicaciones, 
             ) : editing ? (
               <ActivoForm
                 activo={editing === "new" ? null : editing}
+                cuadrillas={cuadrillas}
                 usuarios={usuarios}
                 ubicaciones={ubicaciones}
                 lugares={lugares}

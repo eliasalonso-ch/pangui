@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, MapPin } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useQueryClient } from "@tanstack/react-query";
 import { getAuthUser } from "@/lib/auth-user";
@@ -82,24 +82,21 @@ export default function MapaUbicacionesPage() {
           background: "var(--surface-canvas)",
         }}
       >
+        {/* Volver: texto plano, sin caja ni color de marca. El titulo que
+            habia al lado ("Posicionar en mapa") era redundante — el mapa a
+            pantalla completa ya dice donde estas. */}
         <button
           type="button"
           onClick={() => router.push("/ubicaciones/ubicaciones")}
           style={{
             display: "inline-flex", alignItems: "center", gap: 6, height: 32,
-            padding: "0 10px", background: "var(--surface-1)",
-            border: "1px solid var(--border)", borderRadius: "var(--r-md)",
+            padding: 0, background: "none", border: "none",
             cursor: "pointer", fontSize: 14, color: "var(--fg-1)", fontFamily: "inherit",
           }}
         >
           <ArrowLeft size={14} />
           Ubicaciones
         </button>
-
-        <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 14, color: "var(--fg-1)" }}>
-          <MapPin size={15} style={{ color: "var(--brand)" }} />
-          Posicionar en mapa
-        </span>
 
         <span style={{ marginLeft: "auto", fontSize: 14, color: "var(--fg-3)" }}>
           {sinCoordenada === 0

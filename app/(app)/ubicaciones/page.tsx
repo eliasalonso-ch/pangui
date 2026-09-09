@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { Children, useEffect, useRef, useState } from "react";
 import QRCode from "qrcode";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   MapPin, Building2, Plus, Pencil, Trash2, X, Check,
-  Loader2, Search, ChevronRight, Image as ImageIcon, Upload, QrCode, Package, Wrench, Printer, Share2,
+  Loader2, Search, ChevronRight, QrCode, Package, Wrench, Printer, Share2,
+  Camera, Locate, Layers, Users, Minus,
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase";
@@ -14,10 +15,11 @@ import AppLoadingState from "@/components/AppLoadingState";
 import HistorialOT from "@/components/catalogo/HistorialOT";
 import AccionesCatalogo from "@/components/catalogo/AccionesCatalogo";
 import CampoCoordenadas from "@/components/catalogo/CampoCoordenadas";
+import SearchSelect from "@/components/catalogo/SearchSelect";
 import { uploadToR2, deleteFromR2 } from "@/lib/r2";
 import {
   useUbicacionesFull, useLugaresFull, useSociedadesFull,
-  useActivosResumen, useReservasResumen,
+  useActivosResumen, useReservasResumen, useCuadrillas,
   type UbicacionFull, type LugarFull, type SociedadFull,
   type ActivoResumen, type ReservaResumen,
 } from "@/lib/queries";
@@ -32,6 +34,13 @@ type Lugar         = LugarFull;
 
 type Section = "ubicaciones" | "lugares" | "sociedades";
 
+/** Columna donde vive el nombre visible de cada catalogo. */
+const NOMBRE_KEY: Record<Section, string> = {
+  ubicaciones: "edificio",
+  lugares:     "nombre",
+  sociedades:  "nombre",
+};
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function Avatar({ src, name, size = 40 }: { src: string | null; name: string; size?: number }) {
@@ -41,8 +50,11 @@ function Avatar({ src, name, size = 40 }: { src: string | null; name: string; si
   }
   return (
     <div style={{
-      width: size, height: size, borderRadius: 8, flexShrink: 0,
-      background: "var(--brand-tint)", color: "var(--brand)",
+      width: size, height: size, borderRadius: "50%", flexShrink: 0,
+      // Mismo avatar que /ordenes: degradado de marca oscuro con las iniciales
+      // en blanco. El tinte claro anterior (--brand-tint) se leia casi vacio.
+      background: "linear-gradient(135deg, var(--brand-active), var(--brand))",
+      color: "var(--fg-on-brand)",
       display: "flex", alignItems: "center", justifyContent: "center",
       fontSize: size * 0.35, fontWeight: 400,
     }}>
@@ -51,13 +63,36 @@ function Avatar({ src, name, size = 40 }: { src: string | null; name: string; si
   );
 }
 
-function FieldLabel({ children }: { children: React.ReactNode }) {
+/**
+ * Fila de formulario del panel de activos (que a su vez viene de OTEditPanel):
+ * icono de marca en una canaleta fija de 16, etiqueta y control debajo. El
+ * `paddingLeft: 22` de los controles anchos alinea con el texto de la etiqueta.
+ */
+function FieldRow({ icon, label, children }: {
+  icon: React.ReactNode; label: string; children: React.ReactNode;
+}) {
   return (
-    <p style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-4)", textTransform: "uppercase", letterSpacing: "0.06em", margin: "0 0 5px" }}>
-      {children}
-    </p>
+    <div style={{ display: "flex", alignItems: "flex-start", gap: 6, padding: "14px 0" }}>
+      <div style={{ width: 16, paddingTop: 3, display: "flex", justifyContent: "flex-start", flexShrink: 0, color: "var(--brand)" }}>
+        {icon}
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", marginBottom: 10, letterSpacing: "0.01em" }}>
+          {label}
+        </div>
+        {children}
+      </div>
+    </div>
   );
 }
+
+/** Control de 40px del panel de activos: mismo alto, radio y tokens de borde. */
+const otInputStyle: React.CSSProperties = {
+  width: "100%", height: 40, padding: "0 12px",
+  border: "1px solid var(--border)", borderRadius: 8,
+  fontSize: 14, color: "var(--fg-1)", outline: "none",
+  fontFamily: "inherit", background: "var(--surface-1)", boxSizing: "border-box",
+};
 
 function FieldInput({
   value, onChange, placeholder, disabled,
@@ -69,13 +104,7 @@ function FieldInput({
       onChange={e => onChange(e.target.value)}
       placeholder={placeholder}
       disabled={disabled}
-      style={{
-        width: "100%", height: 36, padding: "0 10px",
-        border: "1px solid var(--border)", borderRadius: 6,
-        fontSize: 14, color: "var(--fg-1)", outline: "none",
-        fontFamily: "inherit", background: disabled ? "var(--surface-0)" : "var(--surface-1)",
-        boxSizing: "border-box",
-      }}
+      style={{ ...otInputStyle, background: disabled ? "var(--surface-0)" : "var(--surface-1)" }}
       onFocus={e => { e.currentTarget.style.borderColor = "var(--brand)"; }}
       onBlur={e => { e.currentTarget.style.borderColor = "var(--border)"; }}
     />
@@ -92,10 +121,10 @@ function FieldTextarea({
       placeholder={placeholder}
       rows={rows}
       style={{
-        width: "100%", padding: "8px 10px",
-        border: "1px solid var(--border)", borderRadius: 6,
-        fontSize: 14, color: "var(--fg-1)", outline: "none",
-        fontFamily: "inherit", background: "var(--surface-1)", resize: "vertical",
+        width: "100%", fontSize: 14, color: "var(--fg-1)",
+        border: "1px solid var(--border)", borderRadius: 8,
+        padding: "12px 14px", outline: "none", resize: "vertical",
+        fontFamily: "inherit", background: "var(--surface-1)", lineHeight: 1.7, minHeight: 92,
         boxSizing: "border-box",
       }}
       onFocus={e => { e.currentTarget.style.borderColor = "var(--brand)"; }}
@@ -132,55 +161,6 @@ function Btn({
   );
 }
 
-// ── ImageUpload ───────────────────────────────────────────────────────────────
-
-function ImageUpload({
-  src, onUpload, onRemove, folder, uploading,
-}: {
-  src: string | null;
-  onUpload: (file: File) => void;
-  onRemove: () => void;
-  folder: string;
-  uploading: boolean;
-}) {
-  const fileRef = useRef<HTMLInputElement>(null);
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-      <div style={{
-        width: 80, height: 80, borderRadius: 10,
-        border: "1px dashed var(--border)", overflow: "hidden",
-        display: "flex", alignItems: "center", justifyContent: "center",
-        background: "var(--surface-0)", flexShrink: 0, position: "relative",
-      }}>
-        {uploading ? (
-          <Loader2 size={20} className="animate-spin" style={{ color: "var(--fg-4)" }} />
-        ) : src ? (
-          <img src={src} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-        ) : (
-          <ImageIcon size={24} style={{ color: "var(--fg-4)" }} />
-        )}
-      </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        <Btn variant="ghost" onClick={() => fileRef.current?.click()} disabled={uploading}>
-          <Upload size={13} /> {src ? "Cambiar foto" : "Subir foto"}
-        </Btn>
-        {src && (
-          <Btn variant="danger" onClick={onRemove} disabled={uploading}>
-            <X size={13} /> Quitar
-          </Btn>
-        )}
-        <input
-          ref={fileRef}
-          type="file"
-          accept="image/*"
-          style={{ display: "none" }}
-          onChange={e => { const f = e.target.files?.[0]; if (f) onUpload(f); e.target.value = ""; }}
-        />
-      </div>
-    </div>
-  );
-}
-
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function UbicacionesPage() {
@@ -212,12 +192,14 @@ export default function UbicacionesPage() {
   const sociedadesQ  = useSociedadesFull(wsId);
   const activosQ     = useActivosResumen(wsId);
   const reservasQ    = useReservasResumen(wsId);
+  const cuadrillasQ  = useCuadrillas(wsId);
 
   const ubicaciones = ubicacionesQ.data ?? [];
   const lugares     = lugaresQ.data ?? [];
   const sociedades  = sociedadesQ.data ?? [];
   const activos     = activosQ.data ?? [];
   const reservas    = reservasQ.data ?? [];
+  const cuadrillas  = cuadrillasQ.data ?? [];
 
   // Panel state
   const [panel, setPanel] = useState<{
@@ -236,6 +218,8 @@ export default function UbicacionesPage() {
   const [coords, setCoords]         = useState<{ lat: number; lng: number } | null>(null);
   const [imgUrl, setImgUrl]         = useState<string | null>(null);
   const [uploadingImg, setUploadingImg] = useState(false);
+  const [dragOverImage, setDragOverImage] = useState(false);
+  const imageInputRef = useRef<HTMLInputElement>(null);
   const [saving, setSaving]         = useState(false);
   const [deleting, setDeleting]     = useState<string | null>(null);
   const [confirmDel, setConfirmDel] = useState<{ type: Section; id: string; name: string } | null>(null);
@@ -292,6 +276,7 @@ export default function UbicacionesPage() {
         detalle:     item.detalle ?? "",
         direccion:   item.direccion ?? "",
         grupo_cargo: item.grupo_cargo ?? "",
+        cuadrilla_id: item.cuadrilla_id ?? "",
         sociedad_id: item.sociedad_id ?? "",
         descripcion: item.descripcion ?? "",
         qr_code: item.qr_code ?? "",
@@ -303,10 +288,11 @@ export default function UbicacionesPage() {
         direccion:   item.direccion ?? "",
         ubicacion_id: item.ubicacion_id ?? "",
         grupo_cargo: item.grupo_cargo ?? "",
+        cuadrilla_id: item.cuadrilla_id ?? "",
         qr_code: item.qr_code ?? "",
       });
     } else {
-      setForm({ nombre: item.nombre ?? "", descripcion: item.descripcion ?? "", direccion: item.direccion ?? "", qr_code: item.qr_code ?? "" });
+      setForm({ nombre: item.nombre ?? "", descripcion: item.descripcion ?? "", direccion: item.direccion ?? "", qr_code: item.qr_code ?? "", cuadrilla_id: item.cuadrilla_id ?? "" });
     }
     setCoords(item.lat != null && item.lng != null ? { lat: item.lat, lng: item.lng } : null);
     setImgUrl(item.imagen_url ?? null);
@@ -320,7 +306,7 @@ export default function UbicacionesPage() {
       const { type, mode, id } = panel!;
 
       if (type === "sociedades") {
-        const payload = { nombre: form.nombre?.trim(), descripcion: form.descripcion?.trim() || null, direccion: form.direccion?.trim() || null, qr_code: form.qr_code?.trim() || null, imagen_url: imgUrl ?? null, lat: coords?.lat ?? null, lng: coords?.lng ?? null };
+        const payload = { nombre: form.nombre?.trim(), descripcion: form.descripcion?.trim() || null, direccion: form.direccion?.trim() || null, qr_code: form.qr_code?.trim() || null, imagen_url: imgUrl ?? null, lat: coords?.lat ?? null, lng: coords?.lng ?? null, cuadrilla_id: form.cuadrilla_id || null };
         if (mode === "create") {
           const { error } = await sb.from("sociedades").insert({ workspace_id: wsId, ...payload });
           if (error) throw error;
@@ -335,6 +321,7 @@ export default function UbicacionesPage() {
           descripcion: form.descripcion?.trim() || null,
           direccion:   form.direccion?.trim() || null,
           grupo_cargo: form.grupo_cargo?.trim() || null,
+          cuadrilla_id: form.cuadrilla_id || null,
           sociedad_id: form.sociedad_id || null,
           imagen_url:  imgUrl ?? null,
           qr_code:     form.qr_code?.trim() || null,
@@ -359,6 +346,7 @@ export default function UbicacionesPage() {
           ubicacion_id: form.ubicacion_id || null,
           imagen_url:   imgUrl ?? null,
           grupo_cargo:  form.grupo_cargo?.trim() || null,
+          cuadrilla_id: form.cuadrilla_id || null,
           qr_code:      form.qr_code?.trim() || null,
         };
         if (mode === "create") {
@@ -520,68 +508,81 @@ export default function UbicacionesPage() {
         {/* Toolbar — mismo patron que /categorias: buscador y accion alineados
             a la derecha, tokens de radio y foco compartidos. */}
         <div style={{ flexShrink: 0, borderBottom: "1px solid var(--border)", background: "var(--surface-canvas)" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 16px", justifyContent: "flex-end" }}>
-            <div style={{ position: "relative", width: 320 }}>
-              <Search size={14} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "var(--fg-4)", pointerEvents: "none" }} />
-              <input
-                type="text"
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                placeholder={searchPlaceholder}
-                style={{
-                  width: "100%", height: 36, paddingLeft: 32, paddingRight: search ? 32 : 12,
-                  border: "1px solid var(--border)", borderRadius: "var(--r-md)", fontSize: 14,
-                  background: "var(--surface-1)", outline: "none", fontFamily: "inherit", color: "var(--fg-1)",
-                  boxSizing: "border-box",
-                }}
-                onFocus={e => { e.currentTarget.style.borderColor = "var(--brand)"; e.currentTarget.style.boxShadow = "var(--shadow-focus)"; }}
-                onBlur={e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.boxShadow = "none"; }}
-              />
-              {search && (
+          {/* Fila superior: buscador + acciones, con las mismas medidas que la
+              barra de /ordenes (38 de alto, radio 8, primaria en --brand). */}
+          <div style={{
+            display: "flex", alignItems: "center", justifyContent: "space-between",
+            padding: "9px 20px", minHeight: 56, gap: 12, flexWrap: "wrap",
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flex: "1 1 520px", minWidth: 0, justifyContent: "flex-end", flexWrap: "wrap" }}>
+              <div style={{ position: "relative", maxWidth: 280, minWidth: 220, flex: "1 1 220px" }}>
+                <Search size={14} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "var(--fg-4)", pointerEvents: "none" }} />
+                <input
+                  type="text"
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  placeholder={searchPlaceholder}
+                  style={{
+                    paddingLeft: 34, paddingRight: search ? 28 : 10,
+                    height: 38, width: "100%",
+                    border: "1px solid var(--border)", borderRadius: 8,
+                    fontSize: 14, fontWeight: 400, color: "var(--fg-1)", background: "var(--surface-1)",
+                    outline: "none", fontFamily: "inherit", boxSizing: "border-box",
+                  }}
+                  onFocus={e => { e.currentTarget.style.borderColor = "var(--brand)"; }}
+                  onBlur={e => { e.currentTarget.style.borderColor = "var(--border)"; }}
+                />
+                {search && (
+                  <button
+                    type="button"
+                    onClick={() => setSearch("")}
+                    aria-label="Limpiar búsqueda"
+                    style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", background: "transparent", border: "none", cursor: "pointer", color: "var(--fg-4)", display: "flex" }}
+                  >
+                    <X size={12} />
+                  </button>
+                )}
+              </div>
+
+              {canEdit && section === "ubicaciones" && (
                 <button
                   type="button"
-                  onClick={() => setSearch("")}
-                  aria-label="Limpiar búsqueda"
-                  style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "var(--fg-4)", padding: 2 }}
+                  onClick={() => router.push("/ubicaciones/mapa")}
+                  style={{
+                    flexShrink: 0, height: 38, padding: "0 12px",
+                    display: "inline-flex", alignItems: "center", gap: 7,
+                    border: "1px solid var(--border)", borderRadius: 8,
+                    background: "var(--surface-1)", color: "var(--fg-2)",
+                    fontSize: 14, fontWeight: 400, fontFamily: "inherit",
+                    cursor: "pointer", whiteSpace: "nowrap",
+                  }}
                 >
-                  <X size={13} />
+                  <MapPin size={16} />
+                  Posicionar en mapa
+                </button>
+              )}
+
+              {canEdit && (
+                <button
+                  type="button"
+                  onClick={() => openCreate(section)}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 6,
+                    padding: "0 16px", height: 38,
+                    background: "var(--brand)", color: "var(--fg-on-brand)",
+                    border: "none", borderRadius: 8,
+                    fontSize: 14, fontWeight: 400,
+                    cursor: "pointer", fontFamily: "inherit",
+                    whiteSpace: "nowrap", flexShrink: 0,
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.background = "var(--brand-active)"; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = "var(--brand)"; }}
+                >
+                  <Plus size={16} strokeWidth={2} />
+                  {createLabel}
                 </button>
               )}
             </div>
-
-            {canEdit && section === "ubicaciones" && (
-              <button
-                type="button"
-                onClick={() => router.push("/ubicaciones/mapa")}
-                style={{
-                  display: "flex", alignItems: "center", gap: 6,
-                  height: 36, padding: "0 14px",
-                  background: "var(--surface-1)",
-                  border: "1px solid var(--border)", borderRadius: "var(--r-md)", cursor: "pointer",
-                  fontSize: 14, color: "var(--fg-1)", fontFamily: "inherit", whiteSpace: "nowrap",
-                }}
-              >
-                <MapPin size={14} />
-                Posicionar en mapa
-              </button>
-            )}
-
-            {canEdit && (
-              <button
-                type="button"
-                onClick={() => openCreate(section)}
-                style={{
-                  display: "flex", alignItems: "center", gap: 6,
-                  height: 36, padding: "0 14px",
-                  background: "var(--brand)", border: "none", borderRadius: "var(--r-md)", cursor: "pointer",
-                  fontSize: 14, fontWeight: 400, color: "var(--fg-on-brand)", fontFamily: "inherit",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                <Plus size={14} />
-                {createLabel}
-              </button>
-            )}
           </div>
         </div>
 
@@ -665,21 +666,24 @@ export default function UbicacionesPage() {
           <div style={{ fontSize: 14 }}>El detalle aparecerá aquí</div>
         </div>
       ) : (
-        // El panel va sobre el lienzo (--surface-canvas) y la tarjeta de adentro
-        // es la que lleva --surface-1, igual que en /categorias. Antes el panel
-        // entero era --surface-1 y quedaba un bloque blanco plano.
-        // Sin `display:flex` aca: en columna flex la tarjeta quedaba acotada al
-        // alto disponible y el scroll no llegaba al final. Como bloque normal,
-        // la tarjeta crece con su contenido y este div la desplaza.
-        <div style={{ flex: 1, minWidth: 0, background: "var(--surface-canvas)", overflowY: "auto", padding: "8px 20px 20px" }}>
+        // Misma estructura que OTDetail: una columna sobre el lienzo
+        // (--surface-canvas, el blanco crema) con la cabecera fija arriba y UN
+        // solo contenedor con scroll debajo. Antes el detalle era una tarjeta
+        // blanca (--surface-1) flotando sobre el lienzo; ahora el crema llega
+        // hasta el borde y los bloques se separan con lineas, como en la OT.
+        <div style={{
+          flex: 1, minWidth: 0, minHeight: 0, display: "flex", flexDirection: "column",
+          overflow: "hidden", background: "var(--surface-canvas)",
+        }}>
+          {/* Cabecera fija — no entra en el scroll, igual que la de OTDetail. */}
           <div style={{
-            background: "var(--surface-1)", border: "1px solid var(--border)",
-            borderRadius: "var(--r-lg)",
+            flexShrink: 0, borderBottom: "1px solid var(--border)",
+            background: "var(--surface-canvas)",
+            padding: "14px 28px", minHeight: 56,
+            display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
           }}>
-          {/* Panel header */}
-          <div style={{ flexShrink: 0, borderBottom: "1px solid var(--border)", padding: "0 20px", height: 56, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <span style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)" }}>{panelTitle}</span>
-            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <span style={{ fontSize: 20, fontWeight: 400, color: "var(--fg-1)", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{panelTitle}</span>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
               {/* Mismo par Editar + ⋮ que /categorias e /itos. */}
               {panel.mode === "view" && selectedItem && (
                 <AccionesCatalogo
@@ -696,8 +700,9 @@ export default function UbicacionesPage() {
             </div>
           </div>
 
-          {/* Panel body — el scroll lo lleva el contenedor de afuera. */}
-          <div style={{ padding: "20px" }}>
+          {/* Cuerpo — el unico contenedor con scroll, como en OTDetail. */}
+          <div style={{ flex: 1, minHeight: 0, overflowY: "auto", overflowX: "hidden" }}>
+          <div style={{ padding: "0 28px 76px", display: "flex", flexDirection: "column", gap: 0 }}>
             {panel.mode === "view" && selectedItem ? (
               <>
                 <EntityDetail
@@ -717,7 +722,12 @@ export default function UbicacionesPage() {
                     filtra por ubicacion, lugar y sociedad. */}
                 {/* `minWidth: 0` contiene al ResponsiveContainer de Recharts,
                     que si no mide de mas y se sale de la tarjeta. */}
-                <div style={{ marginTop: 20, paddingTop: 20, borderTop: "1px solid var(--border)", minWidth: 0, overflowX: "hidden" }}>
+                <div style={{
+                  marginLeft: -28, marginRight: -28,
+                  paddingLeft: 28, paddingRight: 28,
+                  paddingTop: 16, paddingBottom: 16,
+                  minWidth: 0, overflowX: "hidden",
+                }}>
                   <HistorialOT
                     workspaceId={wsId}
                     target={
@@ -729,156 +739,245 @@ export default function UbicacionesPage() {
                 </div>
               </>
             ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            <div style={{ paddingTop: 8 }}>
 
-              {/* Photo upload */}
-              <div>
-                <FieldLabel>Foto</FieldLabel>
-                <ImageUpload
-                  src={imgUrl}
-                  onUpload={f => handleUploadImg(f, panel.type === "ubicaciones" ? "ubicaciones" : panel.type === "lugares" ? "lugares" : "sociedades")}
-                  onRemove={handleRemoveImg}
-                  folder={panel.type}
-                  uploading={uploadingImg}
+              {/* Titulo — mismo input grande y subrayado que "Nuevo Activo":
+                  el nombre encabeza el formulario en vez de ser un campo mas. */}
+              <div style={{ marginBottom: 24 }}>
+                <input
+                  type="text"
+                  placeholder={
+                    panel.type === "ubicaciones" ? "Registra el nombre del edificio"
+                    : panel.type === "lugares"   ? "Registra el nombre del lugar"
+                    : "Registra el nombre de la asociación"
+                  }
+                  value={form[NOMBRE_KEY[panel.type]] ?? ""}
+                  onChange={e => setForm(f => ({ ...f, [NOMBRE_KEY[panel.type]]: e.target.value }))}
+                  style={{
+                    width: "100%", fontSize: 20, fontWeight: 400, color: "var(--fg-1)",
+                    border: "none", outline: "none", background: "transparent", padding: "8px 0",
+                    borderBottom: form[NOMBRE_KEY[panel.type]] ? "2px solid var(--brand)" : "2px solid var(--border)",
+                    fontFamily: "inherit", transition: "border-color 0.15s",
+                  }}
                 />
+              </div>
+
+              {/* Descripcion — suelta bajo el titulo y sin icono, como en el
+                  panel de activos. La sangria de 22 la alinea con el texto de
+                  las etiquetas de los FieldRow de mas abajo. */}
+              <div style={{ padding: "14px 0", paddingLeft: 22 }}>
+                <FieldTextarea
+                  value={form.descripcion ?? ""}
+                  onChange={v => setForm(f => ({ ...f, descripcion: v }))}
+                  placeholder="Añade una descripción"
+                />
+              </div>
+
+              {/* Imagenes — misma zona de arrastre que el panel de activos:
+                  vacia ocupa todo el ancho, y con imagen se encoge a un tile
+                  junto a la miniatura. Discontinua sutil, no un bloque de
+                  color. */}
+              <div style={{ padding: "14px 0" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 14, fontWeight: 400, color: "var(--fg-1)", letterSpacing: "0.01em", marginBottom: 8 }}>
+                  <span style={{ width: 16, display: "flex", justifyContent: "flex-start", flexShrink: 0, color: "var(--brand)" }}><Camera size={16} /></span>
+                  Imágenes
+                </div>
+                <input
+                  ref={imageInputRef}
+                  type="file"
+                  accept="image/*"
+                  style={{ display: "none" }}
+                  onChange={e => { const f = e.target.files?.[0]; if (f) handleUploadImg(f, panel.type); e.target.value = ""; }}
+                />
+                <div style={{ display: "flex", alignItems: "stretch", gap: 10, paddingLeft: 22 }}>
+                  <button
+                    type="button"
+                    onClick={() => imageInputRef.current?.click()}
+                    disabled={uploadingImg}
+                    onDragOver={e => { e.preventDefault(); if (!uploadingImg) setDragOverImage(true); }}
+                    onDragLeave={() => setDragOverImage(false)}
+                    onDrop={e => {
+                      e.preventDefault();
+                      setDragOverImage(false);
+                      if (uploadingImg) return;
+                      const file = Array.from(e.dataTransfer.files).find(f => f.type.startsWith("image/"));
+                      if (file) handleUploadImg(file, panel.type);
+                    }}
+                    style={{
+                      flex: imgUrl ? "0 0 132px" : 1,
+                      minHeight: imgUrl ? 108 : 96,
+                      border: `1px dashed ${dragOverImage ? "var(--brand)" : "var(--border-strong)"}`,
+                      borderRadius: "var(--r-md)",
+                      background: dragOverImage ? "var(--brand-tint)" : "var(--surface-canvas)",
+                      display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+                      gap: 7, color: "var(--fg-3)", fontSize: 14, fontFamily: "inherit",
+                      cursor: uploadingImg ? "default" : "pointer", padding: 12,
+                      transition: "border-color 0.15s, background 0.15s",
+                    }}
+                  >
+                    {uploadingImg
+                      ? <Loader2 size={16} className="animate-spin" style={{ color: "var(--brand)" }} />
+                      : <Camera size={16} style={{ color: "var(--brand)" }} />}
+                    <span style={{ textAlign: "center", lineHeight: 1.35 }}>
+                      {uploadingImg ? "Subiendo…" : imgUrl ? "Reemplazar" : "Agregue o arrastre imágenes"}
+                    </span>
+                  </button>
+
+                  {imgUrl && (
+                    <div style={{ position: "relative", flex: "0 0 132px", minHeight: 108, borderRadius: "var(--r-md)", overflow: "hidden", border: "1px solid var(--border)", background: "var(--surface-canvas)" }}>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={imgUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+                      <button
+                        type="button"
+                        onClick={handleRemoveImg}
+                        title="Quitar imagen"
+                        aria-label="Quitar imagen"
+                        style={{
+                          position: "absolute", top: 4, right: 4, width: 22, height: 22,
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                          border: "none", borderRadius: "var(--r-sm)",
+                          background: "rgba(0,0,0,0.55)", color: "#fff", cursor: "pointer", padding: 0,
+                        }}
+                      >
+                        <X size={13} />
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Ubicaciones fields */}
               {panel.type === "ubicaciones" && (
                 <>
-                  <div>
-                    <FieldLabel>Nombre del edificio *</FieldLabel>
-                    <FieldInput value={form.edificio ?? ""} onChange={v => setForm(f => ({ ...f, edificio: v }))} placeholder="Ej: Torre A" />
-                  </div>
-                  <div>
-                    <FieldLabel>Dirección</FieldLabel>
+                  <FieldRow icon={<MapPin size={16} />} label="Dirección">
                     <FieldInput value={form.direccion ?? ""} onChange={v => setForm(f => ({ ...f, direccion: v }))} placeholder="Ej: Av. Principal 1234" />
-                  </div>
-                  <div>
-                    <FieldLabel>Coordenadas</FieldLabel>
+                  </FieldRow>
+                  <FieldRow icon={<Locate size={16} />} label="Coordenadas">
                     <CampoCoordenadas
                       lat={coords?.lat ?? null}
                       lng={coords?.lng ?? null}
                       onChange={setCoords}
                     />
-                  </div>
-                  <div>
-                    <FieldLabel>Descripción</FieldLabel>
-                    <FieldTextarea value={form.descripcion ?? ""} onChange={v => setForm(f => ({ ...f, descripcion: v }))} placeholder="Descripción de la ubicación…" rows={3} />
-                  </div>
-                  <div>
-                    <FieldLabel>Piso / Nivel</FieldLabel>
+                  </FieldRow>
+                  <FieldRow icon={<Layers size={16} />} label="Piso / Nivel">
                     <FieldInput value={form.detalle ?? ""} onChange={v => setForm(f => ({ ...f, detalle: v }))} placeholder="Ej: 3" />
-                  </div>
-                  <div>
-                    <FieldLabel>Grupo a cargo</FieldLabel>
-                    <FieldInput value={form.grupo_cargo ?? ""} onChange={v => setForm(f => ({ ...f, grupo_cargo: v }))} placeholder="Ej: Mantenimiento eléctrico" />
-                  </div>
-                  <div>
-                    <FieldLabel>Empresa asociada</FieldLabel>
-                    <select
+                  </FieldRow>
+                  <FieldRow icon={<Users size={16} />} label="Cuadrilla a cargo">
+                    <SearchSelect
+                      placeholder="Elegir cuadrilla…"
+                      value={form.cuadrilla_id ?? ""}
+                      options={cuadrillas.map(c => ({ id: c.id, label: c.nombre }))}
+                      onChange={v => setForm(f => ({ ...f, cuadrilla_id: v }))}
+                      emptyLabel="Sin cuadrilla"
+                    />
+                  </FieldRow>
+                  <FieldRow icon={<Building2 size={16} />} label="Asociación">
+                    <SearchSelect
+                      placeholder="Elegir asociación…"
                       value={form.sociedad_id ?? ""}
-                      onChange={e => setForm(f => ({ ...f, sociedad_id: e.target.value }))}
-                      style={{
-                        width: "100%", height: 36, padding: "0 10px",
-                        border: "1px solid var(--border)", borderRadius: 6,
-                        fontSize: 14, color: form.sociedad_id ? "var(--fg-1)" : "var(--fg-4)",
-                        outline: "none", fontFamily: "inherit", background: "var(--surface-1)",
-                        boxSizing: "border-box", cursor: "pointer",
-                      }}
-                    >
-                      <option value="">Sin empresa</option>
-                      {sociedades.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
-                    </select>
-                  </div>
+                      options={sociedades.map(s => ({ id: s.id, label: s.nombre, sub: s.direccion ?? undefined }))}
+                      onChange={v => setForm(f => ({ ...f, sociedad_id: v }))}
+                      emptyLabel="Sin asociación"
+                    />
+                  </FieldRow>
                 </>
               )}
 
               {/* Lugares fields */}
               {panel.type === "lugares" && (
                 <>
-                  <div>
-                    <FieldLabel>Nombre *</FieldLabel>
-                    <FieldInput value={form.nombre ?? ""} onChange={v => setForm(f => ({ ...f, nombre: v }))} placeholder="Ej: Sala de bombas B2" />
-                  </div>
-                  <div>
-                    <FieldLabel>Descripción</FieldLabel>
-                    <FieldTextarea value={form.descripcion ?? ""} onChange={v => setForm(f => ({ ...f, descripcion: v }))} placeholder="Detalles del lugar…" rows={3} />
-                  </div>
-                  <div>
-                    <FieldLabel>Dirección / Referencia</FieldLabel>
+                  <FieldRow icon={<MapPin size={16} />} label="Dirección / Referencia">
                     <FieldInput value={form.direccion ?? ""} onChange={v => setForm(f => ({ ...f, direccion: v }))} placeholder="Ej: Subterráneo nivel -2" />
-                  </div>
-                  <div>
-                    <FieldLabel>Grupo a cargo</FieldLabel>
-                    <FieldInput value={form.grupo_cargo ?? ""} onChange={v => setForm(f => ({ ...f, grupo_cargo: v }))} placeholder="Ej: Mantenimiento eléctrico" />
-                  </div>
-                  <div>
-                    <FieldLabel>Edificio / Ubicación</FieldLabel>
-                    <select
+                  </FieldRow>
+                  <FieldRow icon={<Users size={16} />} label="Cuadrilla a cargo">
+                    <SearchSelect
+                      placeholder="Elegir cuadrilla…"
+                      value={form.cuadrilla_id ?? ""}
+                      options={cuadrillas.map(c => ({ id: c.id, label: c.nombre }))}
+                      onChange={v => setForm(f => ({ ...f, cuadrilla_id: v }))}
+                      emptyLabel="Sin cuadrilla"
+                    />
+                  </FieldRow>
+                  <FieldRow icon={<Building2 size={16} />} label="Edificio / Ubicación">
+                    <SearchSelect
+                      placeholder="Elegir ubicación…"
                       value={form.ubicacion_id ?? ""}
-                      onChange={e => setForm(f => ({ ...f, ubicacion_id: e.target.value }))}
-                      style={{
-                        width: "100%", height: 36, padding: "0 10px",
-                        border: "1px solid var(--border)", borderRadius: 6,
-                        fontSize: 14, color: form.ubicacion_id ? "var(--fg-1)" : "var(--fg-4)",
-                        outline: "none", fontFamily: "inherit", background: "var(--surface-1)",
-                        boxSizing: "border-box", cursor: "pointer",
-                      }}
-                    >
-                      <option value="">Sin ubicación</option>
-                      {ubicaciones.map(u => <option key={u.id} value={u.id}>{u.edificio}</option>)}
-                    </select>
-                  </div>
+                      options={ubicaciones.map(u => ({ id: u.id, label: u.edificio, sub: u.direccion ?? undefined }))}
+                      onChange={v => setForm(f => ({ ...f, ubicacion_id: v }))}
+                      emptyLabel="Sin ubicación"
+                    />
+                  </FieldRow>
                 </>
               )}
 
               {/* Sociedades fields */}
               {panel.type === "sociedades" && (
                 <>
-                  <div>
-                    <FieldLabel>Nombre de la asociación *</FieldLabel>
-                    <FieldInput value={form.nombre ?? ""} onChange={v => setForm(f => ({ ...f, nombre: v }))} placeholder="Ej: Constructora XYZ SpA" />
-                  </div>
-                  <div><FieldLabel>Dirección</FieldLabel><FieldInput value={form.direccion ?? ""} onChange={v => setForm(f => ({ ...f, direccion: v }))} placeholder="Dirección" /></div>
-                  <div>
-                    <FieldLabel>Coordenadas</FieldLabel>
+                  <FieldRow icon={<MapPin size={16} />} label="Dirección">
+                    <FieldInput value={form.direccion ?? ""} onChange={v => setForm(f => ({ ...f, direccion: v }))} placeholder="Dirección" />
+                  </FieldRow>
+                  <FieldRow icon={<Users size={16} />} label="Cuadrilla a cargo">
+                    <SearchSelect
+                      placeholder="Elegir cuadrilla…"
+                      value={form.cuadrilla_id ?? ""}
+                      options={cuadrillas.map(c => ({ id: c.id, label: c.nombre }))}
+                      onChange={v => setForm(f => ({ ...f, cuadrilla_id: v }))}
+                      emptyLabel="Sin cuadrilla"
+                    />
+                  </FieldRow>
+                  <FieldRow icon={<Locate size={16} />} label="Coordenadas">
                     <CampoCoordenadas
                       lat={coords?.lat ?? null}
                       lng={coords?.lng ?? null}
                       onChange={setCoords}
                     />
-                  </div>
-
-                  <div><FieldLabel>Descripción</FieldLabel><FieldTextarea value={form.descripcion ?? ""} onChange={v => setForm(f => ({ ...f, descripcion: v }))} placeholder="Descripción de la asociación…" /></div>
+                  </FieldRow>
                 </>
               )}
 
-              <div>
-                <FieldLabel>Código QR</FieldLabel>
+              <FieldRow icon={<QrCode size={16} />} label="Código QR">
                 <FieldInput value={form.qr_code ?? ""} onChange={v => setForm(f => ({ ...f, qr_code: v }))} placeholder="Código personalizado (opcional)" />
-                <p style={{ margin: "5px 0 0", fontSize: 14, color: "var(--fg-4)" }}>Si lo dejas vacío, Pangui asignará un código automáticamente.</p>
-              </div>
+                <p style={{ margin: "8px 0 0", fontSize: 14, color: "var(--fg-4)" }}>Si lo dejas vacío, Pangui asignará un código automáticamente.</p>
+              </FieldRow>
 
             </div>
             )}
           </div>
-
-          {/* Panel footer — pegajoso al pie de la tarjeta, como el CTA de
-              /categorias, para que no se pierda en formularios largos. */}
-          {panel.mode !== "view" && <div style={{
-            position: "sticky", bottom: 0, zIndex: 10,
-            borderTop: "1px solid var(--border)", padding: "14px 20px",
-            display: "flex", justifyContent: "flex-end", gap: 8,
-            background: "var(--surface-1)", borderRadius: "0 0 var(--r-lg) var(--r-lg)",
-          }}>
-            <Btn variant="ghost" onClick={() => setPanel(null)}>Cancelar</Btn>
-            <Btn onClick={handleSave} disabled={!canSave}>
-              {saving ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
-              {panel.mode === "create" ? "Crear" : "Guardar"}
-            </Btn>
-          </div>}
           </div>
+
+          {/* Pie — barra fija al fondo del panel, igual que en el panel de
+              activos: fuera del contenedor con scroll, asi no se despega ni
+              tapa el ultimo campo en formularios largos. */}
+          {panel.mode !== "view" && <div style={{
+            borderTop: "1px solid var(--border)", padding: "16px 28px",
+            display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 8,
+            background: "var(--surface-canvas)", flexShrink: 0,
+          }}>
+            <button
+              type="button"
+              onClick={() => setPanel(null)}
+              disabled={saving}
+              style={{ height: 40, padding: "0 18px", border: "1px solid var(--border)", borderRadius: 8, background: "var(--surface-1)", color: "var(--fg-2)", fontSize: 14, fontWeight: 400, cursor: "pointer", fontFamily: "inherit" }}
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={!canSave}
+              style={{
+                height: 40, padding: "0 24px", border: "none", borderRadius: 8,
+                background: !canSave ? "var(--fg-3)" : "linear-gradient(135deg, var(--brand-active), var(--brand))",
+                color: "var(--fg-on-brand)", fontSize: 14, fontWeight: 400,
+                cursor: canSave ? "pointer" : "default",
+                display: "flex", alignItems: "center", gap: 7, fontFamily: "inherit",
+                boxShadow: !canSave ? "none" : "0 2px 6px rgba(37,99,235,0.25)",
+              }}
+            >
+              {saving && <Loader2 size={13} className="animate-spin" />}
+              {panel.mode === "create" ? "Crear" : "Guardar"}
+            </button>
+          </div>}
         </div>
       )}
         </div>
@@ -1025,19 +1124,28 @@ function EntityDetail({ type, item, ubicaciones, lugares, sociedades, activos, r
     : null;
 
   const fields = type === "ubicaciones" ? [
-    ["Dirección", item.direccion], ["Coordenadas", coordTexto], ["Descripción", item.descripcion ?? item.detalle],
-    ["Grupo a cargo", item.grupo_cargo],
+    ["Dirección", item.direccion], ["Coordenadas", coordTexto], ["Descripción", item.descripcion],
+    ["Piso / Nivel", item.detalle],
+    ["Cuadrilla a cargo", item.cuadrilla_nombre ?? item.grupo_cargo],
   ] : type === "lugares" ? [
     ["Ubicación", item.ubicacion_edificio], ["Dirección", item.direccion],
-    ["Descripción", item.descripcion], ["Grupo a cargo", item.grupo_cargo],
-  ] : [["Dirección", item.direccion], ["Coordenadas", coordTexto], ["Descripción", item.descripcion]];
+    ["Descripción", item.descripcion], ["Cuadrilla a cargo", item.cuadrilla_nombre ?? item.grupo_cargo],
+  ] : [
+    ["Dirección", item.direccion], ["Coordenadas", coordTexto], ["Descripción", item.descripcion],
+    ["Cuadrilla a cargo", item.cuadrilla_nombre ?? item.grupo_cargo],
+  ];
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
       {/* Sin tarjeta ni titulo propios: el nombre ya esta en el encabezado del
           panel y los separadores los pone cada DetailGroup. */}
       {(item.imagen_url || fields.some(([, value]) => value)) && (
-        <div>
+        <div style={{
+          marginLeft: -28, marginRight: -28,
+          paddingLeft: 28, paddingRight: 28,
+          paddingTop: 16, paddingBottom: 16,
+          borderBottom: "1px solid var(--border)",
+        }}>
           {item.imagen_url && (
             <img
               src={item.imagen_url}
@@ -1056,11 +1164,10 @@ function EntityDetail({ type, item, ubicaciones, lugares, sociedades, activos, r
 
       {/* Primer grupo: sin linea arriba. El bloque de imagen/campos ya se
           separa por el `gap` del contenedor. */}
-      <DetailGroup title="Código QR" first>
+      <DetailGroup title="Código QR">
         <DetailLink
           first
-          name="Código QR"
-          sub={qrValue}
+          name={qrValue}
           icon={<QrCode size={15} />}
           onClick={() => onQr(name, qrValue)}
         />
@@ -1091,15 +1198,43 @@ function EntityDetail({ type, item, ubicaciones, lugares, sociedades, activos, r
  * sobre las filas y un separador arriba las agrupa, como en la referencia. La
  * tarjeta del detalle ya aporta borde y fondo.
  */
-function DetailGroup({ title, first, children }: { title: string; first?: boolean; children: React.ReactNode }) {
+const DETAIL_GROUP_MAX = 4;
+
+function DetailGroup({ title, children }: { title: string; children: React.ReactNode }) {
+  const [expanded, setExpanded] = useState(false);
+  // `Children.toArray` descarta los huecos (null/false) y renumera las keys,
+  // asi que el corte cuenta filas reales y no posiciones del array original.
+  const items = Children.toArray(children);
+  const hidden = Math.max(0, items.length - DETAIL_GROUP_MAX);
+  const shown = expanded ? items : items.slice(0, DETAIL_GROUP_MAX);
+
   return (
     <section style={{
-      paddingTop: first ? 0 : 16,
-      // El primer grupo no lleva linea arriba: no separa de nada.
-      borderTop: first ? "none" : "1px solid var(--border)",
+      // Mismo ritmo que las secciones de OTDetail: 16 arriba y abajo, y la
+      // linea separadora sale a los bordes del panel con el par -28/+28 (el
+      // cuerpo tiene 28 de padding lateral, asi que sin esto la regla se
+      // quedaba corta por los dos lados).
+      marginLeft: -28, marginRight: -28,
+      paddingLeft: 28, paddingRight: 28,
+      paddingTop: 16, paddingBottom: 16,
+      borderBottom: "1px solid var(--border)",
     }}>
-      <h3 style={{ margin: "0 0 4px", fontSize: 14, fontWeight: 400, color: "var(--fg-1)" }}>{title}</h3>
-      <div>{children}</div>
+      <h3 style={{ margin: "0 0 8px", fontSize: 14, fontWeight: 400, color: "var(--fg-1)" }}>{title}</h3>
+      <div>{shown}</div>
+      {hidden > 0 && (
+        <button
+          type="button"
+          onClick={() => setExpanded(v => !v)}
+          style={{
+            display: "flex", alignItems: "center", gap: 4,
+            marginTop: 8, padding: 0, border: "none", background: "none",
+            color: "var(--brand)", fontSize: 14, fontFamily: "inherit", cursor: "pointer",
+          }}
+        >
+          {expanded ? <Minus size={14} /> : <Plus size={14} />}
+          {expanded ? "Ver menos" : `Ver más (${hidden})`}
+        </button>
+      )}
     </section>
   );
 }
@@ -1138,13 +1273,17 @@ function DetailLink({ name, sub, icon, img, first, onClick }: {
         <img
           src={img}
           alt=""
-          style={{ width: 28, height: 28, objectFit: "cover", border: "1px solid var(--border)", flexShrink: 0 }}
+          style={{ width: 28, height: 28, objectFit: "cover", border: "1px solid var(--border)", borderRadius: "var(--r-sm)", flexShrink: 0 }}
         />
       ) : (
         <div style={{
           width: 28, height: 28, flexShrink: 0, display: "flex",
           alignItems: "center", justifyContent: "center",
-          background: "var(--brand-tint)", color: "var(--brand)",
+          // Mismo lenguaje que los chips de seccion de OTDetail: tarjeta blanca
+          // con borde fino y el icono SIEMPRE en el azul de marca solido. El
+          // relleno tintado de antes apagaba el icono.
+          background: "var(--surface-1)", border: "1px solid var(--border)",
+          borderRadius: "var(--r-sm)", color: "var(--brand)",
         }}>
           {icon}
         </div>
@@ -1184,9 +1323,14 @@ function ListRow({
       style={{
         display: "flex", alignItems: "center", gap: 12,
         padding: "12px 14px", cursor: onOpen ? "pointer" : "default", flexShrink: 0,
+        boxSizing: "border-box",
+        // Mismas tarjetas que OTRow: sobre el lienzo, con su propio borde y una
+        // barra de acento de 3px al seleccionar. El borde se queda en 1px para
+        // que el contenido no se corra de lado al elegir una fila.
         background: selected ? "var(--brand-tint)" : "var(--surface-1)",
         border: `1px solid ${selected ? "var(--brand)" : hover ? "var(--border-strong)" : "var(--border)"}`,
         borderRadius: "var(--r-lg)",
+        boxShadow: selected ? "inset 3px 0 0 0 var(--brand)" : "none",
         transition: "border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease)",
       }}
     >

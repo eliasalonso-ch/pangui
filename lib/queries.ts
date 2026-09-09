@@ -429,6 +429,8 @@ export interface UbicacionFull {
   detalle: string | null;
   direccion: string | null;
   grupo_cargo: string | null;
+  cuadrilla_id: string | null;
+  cuadrilla_nombre: string | null;
   sociedad_id: string | null;
   imagen_url: string | null;
   sociedad_nombre: string | null;
@@ -448,6 +450,8 @@ export interface LugarFull {
   ubicacion_id: string | null;
   ubicacion_edificio: string | null;
   grupo_cargo: string | null;
+  cuadrilla_id: string | null;
+  cuadrilla_nombre: string | null;
   qr_code: string | null;
 }
 
@@ -460,6 +464,17 @@ export interface SociedadFull {
   qr_code: string | null;
   lat: number | null;
   lng: number | null;
+  cuadrilla_id: string | null;
+  cuadrilla_nombre: string | null;
+}
+
+/** Cuadrilla del workspace, para los selectores "Cuadrilla a cargo". */
+export interface CuadrillaRef {
+  id: string;
+  nombre: string;
+  tipo: string | null;
+  icono: string | null;
+  color: string | null;
 }
 
 export interface ActivoResumen {
@@ -488,7 +503,7 @@ export function useUbicacionesFull(wsId: string | null | undefined) {
       const sb = createClient();
       const { data, error } = await sb
         .from("ubicaciones")
-        .select("id, edificio, detalle, descripcion, direccion, grupo_cargo, sociedad_id, imagen_url, qr_code, lat, lng, geo_origen, sociedades(nombre)")
+        .select("id, edificio, detalle, descripcion, direccion, grupo_cargo, cuadrilla_id, sociedad_id, imagen_url, qr_code, lat, lng, geo_origen, sociedades(nombre), cuadrillas(nombre)")
         .eq("workspace_id", wsId!)
         .eq("activa", true)
         .order("edificio");
@@ -496,6 +511,7 @@ export function useUbicacionesFull(wsId: string | null | undefined) {
       return (data ?? []).map((u: any) => ({
         ...u,
         sociedad_nombre: u.sociedades?.nombre ?? null,
+        cuadrilla_nombre: u.cuadrillas?.nombre ?? null,
       })) as UbicacionFull[];
     },
   });
@@ -510,7 +526,7 @@ export function useLugaresFull(wsId: string | null | undefined) {
       const sb = createClient();
       const { data, error } = await sb
         .from("lugares")
-        .select("id, nombre, descripcion, direccion, grupo_cargo, imagen_url, qr_code, ubicacion_id, ubicaciones(edificio)")
+        .select("id, nombre, descripcion, direccion, grupo_cargo, cuadrilla_id, imagen_url, qr_code, ubicacion_id, ubicaciones(edificio), cuadrillas(nombre)")
         .eq("workspace_id", wsId!)
         .eq("activo", true)
         .order("nombre");
@@ -518,6 +534,7 @@ export function useLugaresFull(wsId: string | null | undefined) {
       return (data ?? []).map((l: any) => ({
         ...l,
         ubicacion_edificio: l.ubicaciones?.edificio ?? null,
+        cuadrilla_nombre: l.cuadrillas?.nombre ?? null,
       })) as LugarFull[];
     },
   });
@@ -532,12 +549,38 @@ export function useSociedadesFull(wsId: string | null | undefined) {
       const sb = createClient();
       const { data, error } = await sb
         .from("sociedades")
-        .select("id, nombre, descripcion, direccion, imagen_url, qr_code, lat, lng")
+        .select("id, nombre, descripcion, direccion, imagen_url, qr_code, lat, lng, cuadrilla_id, cuadrillas(nombre)")
         .eq("workspace_id", wsId!)
         .eq("activa", true)
         .order("nombre");
       if (error) throw error;
-      return (data ?? []) as SociedadFull[];
+      return (data ?? []).map((x: any) => ({
+        ...x,
+        cuadrilla_nombre: x.cuadrillas?.nombre ?? null,
+      })) as SociedadFull[];
+    },
+  });
+}
+
+/**
+ * Cuadrillas activas del workspace. Alimenta los selectores "Cuadrilla a
+ * cargo"; cambia poco, asi que comparte el staleTime de referencia.
+ */
+export function useCuadrillas(wsId: string | null | undefined) {
+  return useQuery({
+    queryKey: ["cuadrillas", wsId],
+    enabled: !!wsId,
+    staleTime: REFERENCE_STALE_TIME,
+    queryFn: async (): Promise<CuadrillaRef[]> => {
+      const sb = createClient();
+      const { data, error } = await sb
+        .from("cuadrillas")
+        .select("id, nombre, tipo, icono, color")
+        .eq("workspace_id", wsId!)
+        .eq("activo", true)
+        .order("nombre");
+      if (error) throw error;
+      return (data ?? []) as CuadrillaRef[];
     },
   });
 }
