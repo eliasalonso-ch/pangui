@@ -277,7 +277,7 @@ export default function RequisitosPage() {
                   display: "flex", alignItems: "flex-start", gap: 12,
                   width: "100%", textAlign: "left",
                   padding: "14px 16px",
-                  background: selected ? "var(--brand-tint)" : "var(--surface-1)",
+                  background: selected ? "var(--row-selected)" : "var(--surface-1)",
                   border: "none",
                   borderBottom: idx === MODO_OPTIONS.length - 1 ? "none" : "1px solid var(--border)",
                   cursor: savingKey === "modo_registro" ? "not-allowed" : "pointer",

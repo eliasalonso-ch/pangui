@@ -16,6 +16,8 @@ import OCDetalle from "./OCDetalle";
 import OCForm from "./OCForm";
 import { OCFiltrosBar } from "./OCFiltrosBar";
 import { EmptyState, EmptyDetail } from "@/components/EmptyState";
+import { useSuscripcion } from "@/hooks/useSuscripcion";
+import { UpgradePrompt } from "@/components/UpgradePrompt";
 import {
   EMPTY_FILTROS_OC, FILTER_ORDER_OC, FILTER_META_OC,
   contarFiltrosOC, initialFilterKeysOC, filterKeysStorageKeyOC,
@@ -28,6 +30,30 @@ import type {
 } from "@/types/ordenes-compra";
 
 export default function OrdenesCompraPage() {
+  const suscripcion = useSuscripcion();
+  if (suscripcion.loading) {
+    return (
+      <div style={{ display: "flex", justifyContent: "center", padding: 60 }}>
+        <Loader2 size={22} className="animate-spin" style={{ color: "var(--fg-4)" }} />
+      </div>
+    );
+  }
+  // El item del sidebar ya se oculta, pero un enlace guardado entraría igual:
+  // la ruta se defiende sola.
+  if (suscripcion.data?.plan_features && !suscripcion.data.plan_features.ordenes_compra) {
+    return (
+      <UpgradePrompt
+        variant="card"
+        title="Las órdenes de compra están disponibles en Pro"
+        description="Sube tu plan para emitir órdenes de compra a tus proveedores y seguir su recepción."
+        upgradeTo="Pro"
+      />
+    );
+  }
+  return <OrdenesCompraPageInner />;
+}
+
+function OrdenesCompraPageInner() {
   const queryClient = useQueryClient();
   const [wsId, setWsId] = useState<string | null>(null);
   const [rol, setRol] = useState<string | null>(null);
@@ -331,7 +357,7 @@ export default function OrdenesCompraPage() {
                     display: "flex", alignItems: "center", gap: 12, width: "100%", textAlign: "left",
                     padding: "12px 14px", borderRadius: "var(--r-lg)", cursor: "pointer",
                     border: "1px solid " + (selectedId === oc.id ? "var(--brand)" : "var(--border)"),
-                    background: selectedId === oc.id ? "var(--brand-tint)" : "var(--surface-1)",
+                    background: selectedId === oc.id ? "var(--row-selected)" : "var(--surface-1)",
                     // Seleccion con acento de 3px y borde de 1px, para que el
                     // contenido no se corra al seleccionar. Igual que OTRow.
                     boxShadow: selectedId === oc.id ? "inset 3px 0 0 0 var(--brand)" : "none",

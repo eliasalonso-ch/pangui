@@ -1307,8 +1307,9 @@ function AparienciaTab({ themePref, onSelect }: { themePref: ThemePref; onSelect
               style={{
                 display: "flex", flexDirection: "column", gap: 8,
                 padding: 10, borderRadius: "var(--r-md)",
-                background: selected ? "var(--brand-tint)" : "var(--surface-1)",
+                background: selected ? "var(--row-selected)" : "var(--surface-1)",
                 border: selected ? "2px solid var(--brand)" : "2px solid var(--border)",
+                boxShadow: selected ? "inset 3px 0 0 0 var(--brand)" : "none",
                 cursor: "pointer", textAlign: "left", fontFamily: "inherit",
                 transition: "border-color 0.15s, background 0.15s",
               }}

@@ -640,7 +640,7 @@ function cardStyle(selected: boolean): React.CSSProperties {
     width: "100%", height: 88, flexShrink: 0, boxSizing: "border-box",
     display: "flex", gap: 12, alignItems: "center",
     padding: "14px 20px",
-    background: selected ? "var(--brand-tint)" : "var(--surface-1)",
+    background: selected ? "var(--row-selected)" : "var(--surface-1)",
     border: `1px solid ${selected ? "var(--brand)" : "var(--border)"}`,
     borderRadius: "var(--r-lg)",
     boxShadow: selected ? "inset 3px 0 0 0 var(--brand)" : "none",

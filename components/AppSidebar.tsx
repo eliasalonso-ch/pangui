@@ -260,6 +260,8 @@ export default function AppSidebar() {
   // While the plan is loading, show items optimistically; once loaded, hide ones the plan blocks.
   const hasInventario   = !planFeatures || planFeatures.inventario;
   const hasPlanes       = !planFeatures || planFeatures.planes_mantencion;
+  const hasProveedores  = !planFeatures || planFeatures.proveedores;
+  const hasOrdenesCompra = !planFeatures || planFeatures.ordenes_compra;
   const isAdmin = mounted && (effectiveRol === "jefe" || effectiveRol === "admin" || effectiveRol === "owner");
 
   // Entering the section from anywhere else opens the submenu. Leaving it does
@@ -617,7 +619,7 @@ export default function AppSidebar() {
               {/* Compras: la orden nace del plan de mantención o a mano, y va
                   dirigida a un proveedor — de ahí que vayan juntos y antes que
                   el resto del grupo. Admin, porque comprometen plata. */}
-              {isAdmin && (
+              {isAdmin && hasOrdenesCompra && (
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild isActive={isActive("/ordenes-compra")} tooltip="Órdenes de compra">
                     <Link href="/ordenes-compra" prefetch={false} style={{ display: "flex", alignItems: "center", gap: collapsed ? 0 : 10 }}>
@@ -627,7 +629,7 @@ export default function AppSidebar() {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               )}
-              {isAdmin && (
+              {isAdmin && hasProveedores && (
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild isActive={isActive("/proveedores")} tooltip="Proveedores">
                     <Link href="/proveedores" prefetch={false} style={{ display: "flex", alignItems: "center", gap: collapsed ? 0 : 10 }}>

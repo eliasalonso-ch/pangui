@@ -456,6 +456,13 @@
 
   --brand-tint-2: #CCE0FF;
 
+  /* Relleno de una tarjeta seleccionada en las listas (OTs, activos, OC,
+     proveedores, materiales…). Aparte de --brand-tint porque ese token también
+     pinta iconos, avatares y badges: si la selección se aclara, esos se
+     borrarían. Aquí el color casi no tiñe — quienes marcan la selección son el
+     borde --brand y la barra inset de 3px. */
+  --row-selected: #FAFDFF;
+
   --accent-mono:  #007AFF;
 
 
@@ -686,6 +693,11 @@
 
   --brand-tint-2: rgba(10, 132, 255, 0.26);
 
+  /* En oscuro la selección NO se aclara: un relleno casi blanco sobre una
+     tarjeta negra encandila y borra la diferencia con el resto. Se mantiene el
+     azul translúcido, que sobre negro lee como "encendida". */
+  --row-selected: rgba(10, 132, 255, 0.16);
+
   --accent-mono:  #5CADFF;
 
 
@@ -875,6 +887,9 @@
     --brand-tint:   rgba(10, 132, 255, 0.16);
 
     --brand-tint-2: rgba(10, 132, 255, 0.26);
+
+    /* Ver el bloque de [data-theme="dark"]. */
+    --row-selected: rgba(10, 132, 255, 0.16);
 
     --accent-mono:  #5CADFF;
 

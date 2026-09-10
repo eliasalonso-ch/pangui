@@ -1362,7 +1362,7 @@ function ListRow({
         // Mismas tarjetas que OTRow: sobre el lienzo, con su propio borde y una
         // barra de acento de 3px al seleccionar. El borde se queda en 1px para
         // que el contenido no se corra de lado al elegir una fila.
-        background: selected ? "var(--brand-tint)" : "var(--surface-1)",
+        background: selected ? "var(--row-selected)" : "var(--surface-1)",
         border: `1px solid ${selected ? "var(--brand)" : hover ? "var(--border-strong)" : "var(--border)"}`,
         borderRadius: "var(--r-lg)",
         boxShadow: selected ? "inset 3px 0 0 0 var(--brand)" : "none",

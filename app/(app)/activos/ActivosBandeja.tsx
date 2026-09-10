@@ -419,7 +419,7 @@ function ActivoRow({ activo, selected, onClick }: { activo: Activo; selected: bo
         boxSizing: "border-box",
         border: `1px solid ${selected ? "var(--brand)" : "var(--border)"}`,
         borderRadius: "var(--r-lg)",
-        background: selected ? "var(--brand-tint)" : "var(--surface-1)",
+        background: selected ? "var(--row-selected)" : "var(--surface-1)",
         // La selección se marca con un acento de 3px por dentro: el borde sigue
         // midiendo 1px, así que el contenido no se corre al seleccionar.
         boxShadow: selected ? "inset 3px 0 0 0 var(--brand)" : "none",
@@ -445,8 +445,13 @@ function ActivoRow({ activo, selected, onClick }: { activo: Activo; selected: bo
         <span style={{ display: "block", fontSize: 14, fontWeight: 400, lineHeight: 1.35, color: "var(--fg-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
           {activo.nombre}
         </span>
-        <span style={{ display: "block", fontSize: 14, color: "var(--fg-3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-          {[activo.numero_serie, location].filter(Boolean).join(" · ") || "Sin n° de serie"}
+        {/* Solo la ubicación: el n° de serie es un dato de ficha, no algo que
+            se lea de un vistazo en la lista. Vive en el panel de detalle. */}
+        <span style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 14, color: "var(--fg-3)", overflow: "hidden", whiteSpace: "nowrap" }}>
+          <MapPin size={14} style={{ color: "var(--brand)", flexShrink: 0 }} />
+          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {location || "Sin ubicación"}
+          </span>
         </span>
         {/* `nowrap` + `overflow: hidden`: si las etiquetas se envolvieran, la
             tarjeta crecería y se rompería la altura uniforme. */}

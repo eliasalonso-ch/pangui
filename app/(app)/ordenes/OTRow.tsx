@@ -391,7 +391,7 @@ function OTRow({ orden, usuarios, isSelected, onClick, onPrefetch, myId, onAssig
         gap: 6,
         // Cards on the canvas, not a continuous white sheet: each row keeps its
         // own border and the list gaps them, so --surface-canvas shows between.
-        background: isSelected ? "var(--brand-tint)" : "var(--surface-1)",
+        background: isSelected ? "var(--row-selected)" : "var(--surface-1)",
         border: `1px solid ${isSelected ? "var(--brand)" : "var(--border)"}`,
         borderRadius: "var(--r-lg)",
         // Selection is shown with a 3px accent, but the border width stays 1px

@@ -18,7 +18,16 @@ interface ParteOpt {
   imagen_url: string | null;
 }
 
-const PAGE = 20;
+/** Filas dibujadas por tanda en el desplegable. La siguiente entra al llegar al final del scroll. */
+const RENDER_PAGE = 20;
+/**
+ * Tope de filas que se traen del servidor.
+ *
+ * Antes eran 20 y era tambien el tope de la busqueda: con un catalogo grande no
+ * habia forma de llegar a la coincidencia 21 por mucho que se scrollee. El
+ * dibujado va por tandas de RENDER_PAGE, asi que traer mas no pinta mas.
+ */
+const CATALOGO_MAX = 500;
 
 const numInput: React.CSSProperties = {
   height: 32, padding: "0 8px", border: "1px solid var(--border)",
@@ -49,32 +58,40 @@ export default function LineasPicker({
   const [abierto, setAbierto] = useState(false);
   const [encontrados, setEncontrados] = useState<ParteOpt[] | null>(null);
   const [buscando, setBuscando] = useState(false);
+  // Tanda dibujada, guardada junto a su clave (busqueda + abierto) para volver
+  // a la primera al cambiar el filtro sin un efecto que llame setState.
+  const [paged, setPaged] = useState({ key: "", n: 1 });
   const boxRef = useRef<HTMLDivElement | null>(null);
+  const listaRef = useRef<HTMLDivElement | null>(null);
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
 
-  // Primera página del catálogo, para mostrar algo antes de escribir.
+  // Catalogo inicial, para mostrar algo antes de escribir.
   useEffect(() => {
     if (!wsId) return;
     let active = true;
     createClient()
       .from("partes")
       .select("id, codigo, nombre, unidad, stock_actual, precio_unitario, imagen_url")
-      .eq("workspace_id", wsId).eq("activo", true).order("nombre").limit(PAGE)
+      .eq("workspace_id", wsId).eq("activo", true).order("nombre").limit(CATALOGO_MAX)
       .then(({ data }) => { if (active) setPartes((data ?? []) as ParteOpt[]); });
     return () => { active = false; };
   }, [wsId]);
 
-  // La búsqueda va al servidor: con 20 filas cargadas, filtrar en memoria no
-  // encontraría un material que esté fuera de esa primera página.
+  // La búsqueda va al servidor: filtrar en memoria no encontraría un material
+  // que esté fuera de lo ya cargado. Busca por nombre o código, igual que el
+  // buscador del inventario.
   useEffect(() => {
     const q = query.trim();
     if (!q || !wsId) { setEncontrados(null); return; }
     setBuscando(true);
     const t = setTimeout(async () => {
+      const patron = `%${q}%`;
       const { data } = await createClient()
         .from("partes")
         .select("id, codigo, nombre, unidad, stock_actual, precio_unitario, imagen_url")
         .eq("workspace_id", wsId).eq("activo", true)
-        .ilike("nombre", `%${q}%`).order("nombre").limit(PAGE);
+        .or(`nombre.ilike.${patron},codigo.ilike.${patron}`)
+        .order("nombre").limit(CATALOGO_MAX);
       setEncontrados((data ?? []) as ParteOpt[]);
       setBuscando(false);
     }, 250);
@@ -90,11 +107,36 @@ export default function LineasPicker({
     return () => document.removeEventListener("mousedown", onDown);
   }, [abierto]);
 
+  // Todos los candidatos que pasan el filtro; el corte por tanda va aparte para
+  // que `hayMas` sepa si queda algo por dibujar.
   const candidatos = useMemo(() => {
     const yaElegidos = new Set(value.map(v => v.parte_id).filter(Boolean));
     const fuente = encontrados ?? partes;
-    return fuente.filter(p => !yaElegidos.has(p.id)).slice(0, 8);
+    return fuente.filter(p => !yaElegidos.has(p.id));
   }, [partes, encontrados, value]);
+
+  const pageKey = `${query}|${abierto}`;
+  const page = paged.key === pageKey ? paged.n : 1;
+  const visibles = candidatos.slice(0, RENDER_PAGE * page);
+  const hayMas = candidatos.length > visibles.length;
+
+  // Centinela al final de la lista: al entrar en pantalla dibuja la tanda
+  // siguiente. Los datos ya estan en memoria, asi que no agrega peticiones.
+  useEffect(() => {
+    const node = sentinelRef.current;
+    if (!node || !hayMas || !abierto || buscando) return;
+    const observer = new IntersectionObserver(
+      entries => {
+        if (entries[0]?.isIntersecting) {
+          setPaged(p => ({ key: pageKey, n: (p.key === pageKey ? p.n : 1) + 1 }));
+        }
+      },
+      { root: listaRef.current, rootMargin: "80px" },
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [hayMas, abierto, buscando, pageKey]);
+
 
   function set(i: number, patch: Partial<OrdenCompraLineaForm>) {
     onChange(value.map((l, j) => (j === i ? { ...l, ...patch } : l)));
@@ -202,19 +244,22 @@ export default function LineasPicker({
         />
 
         {abierto && (
+          /* El desplegable NO scrollea: scrollea solo la lista de adentro, para
+             que el boton de abajo quede fijo y no haya que recorrer el catalogo
+             entero para alcanzarlo. */
           <div style={{
             position: "absolute", top: 40, left: 0, right: 0, zIndex: 20,
             background: "var(--surface-1)", border: "1px solid var(--border)",
             borderRadius: "var(--r-md)", boxShadow: "var(--shadow-lg)",
-            maxHeight: 280, overflowY: "auto",
+            display: "flex", flexDirection: "column", maxHeight: 320, overflow: "hidden",
           }}>
             {buscando ? (
               <div style={{ padding: 12, display: "flex", alignItems: "center", gap: 8, color: "var(--fg-3)", fontSize: 14 }}>
                 <Loader2 size={14} className="animate-spin" /> Buscando…
               </div>
             ) : (
-              <>
-                {candidatos.map(p => (
+              <div ref={listaRef} style={{ flex: 1, minHeight: 0, overflowY: "auto" }}>
+                {visibles.map(p => (
                   <button
                     key={p.id}
                     onClick={() => agregarDelCatalogo(p)}
@@ -232,23 +277,25 @@ export default function LineasPicker({
                     </span>
                   </button>
                 ))}
+                {hayMas && <div ref={sentinelRef} style={{ height: 1 }} />}
                 {candidatos.length === 0 && (
                   <div style={{ padding: "8px 12px", fontSize: 14, color: "var(--fg-3)" }}>
                     {query ? "Sin resultados en el inventario" : "No hay materiales en el inventario todavía."}
                   </div>
                 )}
-                <button
-                  onClick={agregarLibre}
-                  style={{
-                    display: "flex", alignItems: "center", gap: 8, width: "100%", textAlign: "left",
-                    padding: "8px 12px", background: "none", border: "none", borderTop: "1px solid var(--border)",
-                    cursor: "pointer", fontFamily: "inherit", fontSize: 14, color: "var(--brand)",
-                  }}
-                >
-                  <Plus size={14} /> Agregar ítem fuera del inventario
-                </button>
-              </>
+              </div>
             )}
+            <button
+              onClick={agregarLibre}
+              style={{
+                display: "flex", alignItems: "center", gap: 8, width: "100%", textAlign: "left",
+                padding: "10px 12px", background: "var(--surface-1)", border: "none",
+                borderTop: "1px solid var(--border)", flexShrink: 0,
+                cursor: "pointer", fontFamily: "inherit", fontSize: 14, color: "var(--brand)",
+              }}
+            >
+              <Plus size={14} /> Agregar ítem fuera del inventario
+            </button>
           </div>
         )}
       </div>

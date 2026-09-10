@@ -329,13 +329,14 @@ function PlanCard({ plan, seleccionado, onAbrir }: {
         // tarjeta mide lo que mide su contenido y todas respiran igual.
         boxSizing: "border-box", display: "flex", flexDirection: "column",
         gap: 8, padding: "12px 14px",
-        background: seleccionado ? "var(--brand-tint)" : "var(--surface-1)",
+        background: seleccionado ? "var(--row-selected)" : "var(--surface-1)",
         border: `1px solid ${seleccionado ? "var(--brand)" : "var(--border)"}`,
         borderRadius: "var(--r-lg)", boxShadow: seleccionado ? "inset 3px 0 0 0 var(--brand)" : "none",
         transition: "background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease)", cursor: "pointer",
       }}
       onMouseEnter={e => { if (!seleccionado) e.currentTarget.style.background = "var(--surface-hover)"; }}
       onMouseLeave={e => { if (!seleccionado) e.currentTarget.style.background = "var(--surface-1)"; }}
+
     >
       {/* Solo el título: Pausar y Eliminar viven en el panel de detalle, que
           es donde se opera sobre un plan ya elegido. */}
