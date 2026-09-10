@@ -218,6 +218,23 @@ export default function LineasPicker({
                 aria-label="Precio unitario"
               />
 
+              {/* Un servicio u honorario no afecto a IVA. Sin esto habría que
+                  cobrarle impuesto que no corresponde o dejarlo fuera. */}
+              <label
+                title="No afecta a IVA"
+                style={{
+                  display: "inline-flex", alignItems: "center", gap: 4,
+                  fontSize: 14, color: "var(--fg-3)", flexShrink: 0, cursor: "pointer",
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={l.exenta ?? false}
+                  onChange={e => set(i, { exenta: e.target.checked })}
+                />
+                Exenta
+              </label>
+
               <span style={{ fontSize: 14, color: "var(--fg-1)", width: 100, textAlign: "right" }}>
                 {formatearCLP(totalLinea(l))}
               </span>

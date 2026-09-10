@@ -8,8 +8,8 @@ import {
 } from "lucide-react";
 import { formatearCLP } from "@/lib/tributario";
 import {
-  listLineas, aprobarOC, rechazarOC, enviarAAprobacion, registrarRecepcion,
-  descargarPDF, enviarAlProveedor, confirmarPrecios,
+  listLineas, listRecepciones, aprobarOC, rechazarOC, enviarAAprobacion,
+  registrarRecepcion, descargarPDF, enviarAlProveedor, confirmarPrecios,
 } from "@/lib/ordenes-compra-api";
 import AuditFooter from "@/components/catalogo/AuditFooter";
 import {
@@ -39,6 +39,7 @@ export default function OCDetalle({ oc, isAdmin, onEdit, onCambio }: {
   const [error, setError] = useState<string | null>(null);
   const [recibiendo, setRecibiendo] = useState(false);
   const [porRecibir, setPorRecibir] = useState<Record<string, number>>({});
+  const [notaRecepcion, setNotaRecepcion] = useState("");
 
   /**
    * Lineas de la orden, cacheadas.
@@ -56,6 +57,14 @@ export default function OCDetalle({ oc, isAdmin, onEdit, onCambio }: {
   });
   const lineas = lineasQuery.data ?? [];
   const cargando = lineasQuery.isLoading;
+
+  /** Entregas parciales. Mismo criterio de cache que las lineas. */
+  const recepcionesQuery = useQuery({
+    queryKey: ["oc-recepciones", oc.id],
+    queryFn: () => listRecepciones(oc.id),
+    staleTime: cerrada ? 60 * 60 * 1000 : 2 * 60 * 1000,
+  });
+  const recepciones = recepcionesQuery.data ?? [];
 
   async function accion(fn: () => Promise<void>) {
     setOcupado(true); setError(null);
@@ -78,12 +87,14 @@ export default function OCDetalle({ oc, isAdmin, onEdit, onCambio }: {
       .filter(r => r.cantidad > 0);
     if (items.length === 0) return;
     await accion(async () => {
-      await registrarRecepcion(oc.id, items);
+      await registrarRecepcion(oc.id, items, notaRecepcion);
       setRecibiendo(false);
       setPorRecibir({});
+      setNotaRecepcion("");
       // Recibir cambia las cantidades recibidas de cada linea: se invalida el
       // cache en vez de re-pedirlas a mano, para que sea la misma consulta.
       await queryClient.invalidateQueries({ queryKey: ["oc-lineas", oc.id] });
+      await queryClient.invalidateQueries({ queryKey: ["oc-recepciones", oc.id] });
     });
   }
 
@@ -317,12 +328,64 @@ export default function OCDetalle({ oc, isAdmin, onEdit, onCambio }: {
 
       {recibiendo && (
         <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+          <input
+            value={notaRecepcion}
+            onChange={e => setNotaRecepcion(e.target.value)}
+            placeholder="Nota de la entrega (opcional)"
+            style={{
+              flex: 1, height: 32, padding: "0 8px", fontSize: 14,
+              border: "1px solid var(--border)", borderRadius: "var(--r-sm)",
+              background: "var(--surface-1)", color: "var(--fg-1)",
+              outline: "none", fontFamily: "inherit",
+            }}
+            aria-label="Nota de la entrega"
+          />
           <button onClick={confirmarRecepcion} disabled={ocupado} style={btnPrimario}>
             {ocupado ? <Loader2 size={14} className="animate-spin" /> : <PackageCheck size={14} />}
             Confirmar recepción
           </button>
-          <button onClick={() => { setRecibiendo(false); setPorRecibir({}); }} style={btn}>Cancelar</button>
+          <button onClick={() => { setRecibiendo(false); setPorRecibir({}); setNotaRecepcion(""); }} style={btn}>Cancelar</button>
         </div>
+      )}
+
+      {/* Entregas recibidas. La OC acumula el total por línea, pero sin esto se
+          pierde el "llegaron 10 el martes y 493 el jueves", que es justo lo que
+          se reclama cuando el proveedor factura distinto a lo que despachó. */}
+      {recepciones.length > 0 && (
+        <>
+          <p style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", letterSpacing: "0.01em", margin: "16px 0 8px" }}>
+            Entregas recibidas
+          </p>
+          <div style={{ border: "1px solid var(--border)", borderRadius: "var(--r-md)", overflow: "hidden", marginBottom: 16 }}>
+            {recepciones.map((r, i) => (
+              <div key={r.id} style={{
+                display: "flex", alignItems: "center", gap: 10, padding: "10px 12px",
+                borderTop: i === 0 ? "none" : "1px solid var(--border)",
+              }}>
+                <span style={{
+                  width: 32, height: 32, borderRadius: "var(--r-sm)", flexShrink: 0,
+                  background: "var(--brand-tint)", color: "var(--brand)",
+                  display: "inline-flex", alignItems: "center", justifyContent: "center",
+                }}>
+                  <PackageCheck size={16} />
+                </span>
+                <span style={{ flex: 1, minWidth: 0 }}>
+                  <span style={{ display: "block", fontSize: 14, color: "var(--fg-1)" }}>
+                    Recibo #{r.numero} · {r.unidades} {r.unidades === 1 ? "unidad" : "unidades"} en {r.items} {r.items === 1 ? "ítem" : "ítems"}
+                  </span>
+                  <span style={{ display: "block", fontSize: 14, color: "var(--fg-3)" }}>
+                    {fechaCorta(r.created_at.slice(0, 10))}
+                    {r.receptor?.nombre ? ` · ${r.receptor.nombre}` : ""}
+                    {r.nota ? ` · ${r.nota}` : ""}
+                  </span>
+                </span>
+                <span style={{ fontSize: 14, color: "var(--fg-1)", width: 110, textAlign: "right" }}>
+                  {formatearCLP(r.valor)}
+                </span>
+              </div>
+            ))}
+          </div>
+        </>
       )}
 
       {/* Totales */}
@@ -330,7 +393,19 @@ export default function OCDetalle({ oc, isAdmin, onEdit, onCambio }: {
         <div style={{ width: 260, display: "flex", flexDirection: "column", gap: 4 }}>
           <Total label="Neto" valor={oc.neto} />
           {oc.descuento > 0 && <Total label="Descuento" valor={-oc.descuento} />}
-          {oc.otros_costos > 0 && <Total label="Otros" valor={oc.otros_costos} />}
+          {/* Cada costo con su nombre. El "Otros" mudo queda solo para las OC
+              viejas, que guardaron un monto suelto sin desglose. */}
+          {oc.costos?.length
+            ? oc.costos.map((c, i) => (
+                <Total
+                  key={i}
+                  label={c.nombre || "Otros"}
+                  valor={c.tipo === "porcentaje"
+                    ? Math.round(oc.neto * (Number(c.valor) || 0) / 100)
+                    : Math.round(Number(c.valor) || 0)}
+                />
+              ))
+            : oc.otros_costos > 0 && <Total label="Otros" valor={oc.otros_costos} />}
           <Total label="IVA 19%" valor={oc.iva} />
           <div style={{ borderTop: "1px solid var(--border)", paddingTop: 4 }}>
             <Total label="Total" valor={oc.total} fuerte />
