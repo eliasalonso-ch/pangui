@@ -129,6 +129,14 @@ export default function ProveedoresPage() {
   const hayFiltros = contarFiltrosProv(filtros) > 0;
   const hayBusqueda = search.trim().length > 0;
 
+  // La lista tiene contenido: abrir la primera ficha evita un panel derecho
+  // vacio. Un id valido que llegue por URL conserva prioridad.
+  useEffect(() => {
+    if (modo === "ver" && filtered.length > 0 && !filtered.some(p => p.id === selectedId)) {
+      open(filtered[0].id);
+    }
+  }, [filtered, selectedId, modo, open]);
+
   async function recargar() {
     await queryClient.invalidateQueries({ queryKey: ["proveedores", "lista"] });
   }
@@ -184,11 +192,9 @@ export default function ProveedoresPage() {
         flexShrink: 0, borderBottom: "1px solid var(--border)",
         background: "var(--surface-canvas)",
       }}>
-        <div style={{
-          display: "flex", alignItems: "center", padding: "9px 20px",
-          minHeight: 56, gap: 8, flexWrap: "wrap",
-        }}>
-          <div style={{ position: "relative", maxWidth: 320, minWidth: 220, flex: "1 1 220px" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr auto auto", gridTemplateRows: "38px 32px", alignItems: "start", padding: "9px 20px", minHeight: 96, columnGap: 12, rowGap: 8 }}>
+          <div style={{ display: "contents" }}>
+          <div style={{ position: "relative", width: 320, maxWidth: "100%", gridColumn: 2, gridRow: 1 }}>
             <Search size={14} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "var(--fg-4)", pointerEvents: "none" }} />
             <input
               type="text"
@@ -217,14 +223,15 @@ export default function ProveedoresPage() {
 
           {/* El "Ver archivados" que era un checkbox nativo suelto ahora es el
               filtro de Estado: una sola forma de filtrar en la barra. */}
+          <div style={{ gridColumn: 1, gridRow: 2 }}>
           <ProveedorFiltrosBar
             filtros={filtros}
             onChange={setFiltros}
             visibleKeys={visibleKeys}
             onVisibleKeysChange={cambiarVisibleKeys}
           />
-
-          <div style={{ flex: 1 }} />
+          </div>
+          </div>
 
           {isAdmin && (
             <button
@@ -232,7 +239,7 @@ export default function ProveedoresPage() {
               style={{
                 display: "flex", alignItems: "center", gap: 6, height: 38, padding: "0 16px",
                 background: "var(--brand)", border: "none", borderRadius: 8, cursor: "pointer",
-                fontSize: 14, fontWeight: 400, color: "var(--fg-on-brand)", fontFamily: "inherit", whiteSpace: "nowrap",
+                fontSize: 14, fontWeight: 400, color: "var(--fg-on-brand)", fontFamily: "inherit", whiteSpace: "nowrap", gridColumn: 3, gridRow: 1,
               }}
               onMouseEnter={e => { e.currentTarget.style.background = "var(--brand-active)"; }}
               onMouseLeave={e => { e.currentTarget.style.background = "var(--brand)"; }}
@@ -380,8 +387,15 @@ function ProveedorDetalle({ p, isAdmin, onEdit, onToggleArchivado }: {
   return (
     // Inset de 28px y ancho de 1100, los mismos que OTDetail: antes eran 24 y
     // 720 y el panel se leia mas angosto que el resto de la app.
-    <div style={{ padding: "0 28px 76px", maxWidth: 1100 }}>
-      <div style={{ display: "flex", alignItems: "flex-start", gap: 14, paddingTop: 24, marginBottom: 4 }}>
+    <div style={{ padding: "0 28px 76px", width: "100%", boxSizing: "border-box" }}>
+      <div style={{
+        display: "flex", alignItems: "flex-start", gap: 14,
+        // La regla pertenece al panel, no al contenido: llega a ambos bordes
+        // como las secciones de OTDetail, y el inset solo se aplica al texto.
+        marginLeft: -28, marginRight: -28, paddingLeft: 28, paddingRight: 28,
+        paddingTop: 24, paddingBottom: 20, marginBottom: 0,
+        borderBottom: "1px solid var(--border)",
+      }}>
         <span style={{
           width: 48, height: 48, borderRadius: "var(--r-lg)", flexShrink: 0,
           display: "flex", alignItems: "center", justifyContent: "center",
@@ -407,7 +421,7 @@ function ProveedorDetalle({ p, isAdmin, onEdit, onToggleArchivado }: {
         </div>
         {isAdmin && (
           <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", flexShrink: 0 }}>
-            <button onClick={onEdit} title="Editar" style={btnSecundario}>
+            <button onClick={onEdit} title="Editar" style={{ ...btnSecundario, background: "var(--brand)", borderColor: "var(--brand)", color: "var(--fg-on-brand)" }}>
               <Pencil size={14} /> Editar
             </button>
             <button onClick={onToggleArchivado} title={p.activo ? "Archivar" : "Reactivar"} style={btnIcono}>
@@ -423,6 +437,8 @@ function ProveedorDetalle({ p, isAdmin, onEdit, onToggleArchivado }: {
         <Dato icon={<FileText size={16} />} label="RUT" valor={p.rut} />
         <Dato icon={<FileText size={16} />} label="Condiciones de pago" valor={p.condiciones_pago} />
         <Dato icon={<Truck size={16} />} label="Dirección" valor={ubicacion} />
+      </div>
+      <div style={seccionDetalle}>
         <Dato icon={<Mail size={16} />} label="Correo" valor={p.email} />
         <Dato icon={<Phone size={16} />} label="Teléfono" valor={p.telefono} />
         <Dato icon={<Globe size={16} />} label="Sitio web" valor={p.sitio_web} />
@@ -444,13 +460,8 @@ function ProveedorDetalle({ p, isAdmin, onEdit, onToggleArchivado }: {
         </div>
       )}
 
-      <div style={{ paddingTop: 16 }}>
-        <AuditFooter
-          creador={p.creador}
-          creadoEn={p.created_at}
-          actualizador={p.actualizador}
-          actualizadoEn={p.updated_at}
-        />
+      <div style={{ ...seccionDetalle, paddingTop: 20, paddingBottom: 20 }}>
+        <AuditFooter creador={p.creador} creadoEn={p.created_at} actualizador={p.actualizador} actualizadoEn={p.updated_at} />
       </div>
     </div>
   );

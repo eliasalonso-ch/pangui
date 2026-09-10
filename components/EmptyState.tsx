@@ -97,7 +97,7 @@ export function EmptyDetail({ icon, title, hint }: {
     }}>
       <span style={{
         width: 64, height: 64, borderRadius: "var(--r-lg)",
-        background: "var(--surface-hover)", color: "var(--fg-4)",
+        background: "var(--brand-tint)", color: "var(--brand)",
         display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 14,
       }}>
         {icon}

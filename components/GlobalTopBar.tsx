@@ -35,6 +35,10 @@ function pageTrail(pathname: string): string[] {
   if (pathname.startsWith("/mi-cuenta")) return ["Cuenta", "Mi cuenta"];
   if (pathname.startsWith("/espacio-trabajo")) return ["Cuenta", "Espacio de trabajo"];
   if (pathname.startsWith("/preferencias-notificaciones")) return ["Cuenta", "Notificaciones"];
+  // These must precede `/ordenes`: a bare prefix would otherwise label
+  // `/ordenes-compra` as work orders.
+  if (pathname.startsWith("/ordenes-compra")) return ["Operaciones", "Órdenes de compra"];
+  if (pathname.startsWith("/proveedores")) return ["Operaciones", "Proveedores"];
   if (pathname.startsWith("/ordenes/crear")) return ["Operaciones", "Órdenes", "Nueva orden"];
   if (/^\/ordenes\/[^/]+$/.test(pathname)) return ["Operaciones", "Órdenes", "Detalle de OT"];
   if (pathname.startsWith("/ordenes")) return ["Operaciones", "Órdenes"];

@@ -325,7 +325,8 @@ export default function AppSidebar() {
   }, []);
 
   function isActive(href: string) {
-    return pathname === href || pathname.startsWith(href);
+    // Segment-aware matching: `/ordenes` must not claim `/ordenes-compra`.
+    return pathname === href || pathname.startsWith(`${href}/`);
   }
 
   const collapseBtn = (
