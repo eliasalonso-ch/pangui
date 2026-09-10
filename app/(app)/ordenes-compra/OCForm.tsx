@@ -12,6 +12,7 @@ import SearchSelect from "@/components/catalogo/SearchSelect";
 import { formatearCLP } from "@/lib/tributario";
 import { calcularTotales } from "@/lib/ordenes-compra-api";
 import LineasPicker from "./LineasPicker";
+import CostosPicker from "./CostosPicker";
 import type { OrdenCompra, OrdenCompraForm, OrdenCompraLineaForm } from "@/types/ordenes-compra";
 
 export default function OCForm({
@@ -35,6 +36,7 @@ export default function OCForm({
     condiciones_pago: inicial?.condiciones_pago ?? "",
     descuento: inicial?.descuento ?? 0,
     otros_costos: inicial?.otros_costos ?? 0,
+    costos: inicial?.costos ?? [],
     observaciones: inicial?.observaciones ?? "",
     cotizacion_numero: inicial?.cotizacion_numero ?? "",
     cotizacion_fecha: inicial?.cotizacion_fecha ?? "",
@@ -61,7 +63,7 @@ export default function OCForm({
     setV(prev => ({ ...prev, [k]: val }));
   }
 
-  const totales = calcularTotales(v.lineas ?? [], v.descuento, v.otros_costos);
+  const totales = calcularTotales(v.lineas ?? [], v.descuento, v.otros_costos, v.costos);
 
   return (
     <PanelCatalogo
@@ -166,16 +168,17 @@ export default function OCForm({
             {...focoInput}
           />
         </FieldRow>
-        <FieldRow icon={<Tag size={16} />} label="Otros costos (flete, etc.)">
-          <input
-            type="number" min={0} step="any"
-            value={v.otros_costos ?? 0}
-            onChange={e => set("otros_costos", Math.max(Number(e.target.value) || 0, 0))}
-            style={inputStyle}
-            {...focoInput}
-          />
-        </FieldRow>
       </div>
+
+      {/* Costos con nombre propio. El IVA NO está acá: se calcula solo, 19%,
+          y no es editable — escribirlo a mano es como se descuadra un
+          documento. */}
+      <FieldRow icon={<Tag size={16} />} label="Otros costos (flete, despacho…)">
+        <CostosPicker
+          value={v.costos ?? []}
+          onChange={c => set("costos", c)}
+        />
+      </FieldRow>
 
       {/* Se muestra el desglose mientras se edita para que nadie descubra el
           total recién al imprimir. */}
@@ -184,6 +187,7 @@ export default function OCForm({
         padding: 12, background: "var(--surface-hover)", borderRadius: "var(--r-md)",
       }}>
         <Fila label="Neto" valor={totales.neto} />
+        {totales.neto_exento > 0 && <Fila label="Neto exento" valor={totales.neto_exento} />}
         <Fila label="IVA 19%" valor={totales.iva} />
         <Fila label="Total" valor={totales.total} fuerte />
       </div>

@@ -60,6 +60,13 @@ export interface OrdenCompra {
   iva: number;
   total: number;
 
+  /**
+   * Costos del documento con nombre propio (flete, despacho, instalacion).
+   * `otros_costos` sigue siendo su total resuelto, para que el PDF y el cron
+   * lean lo mismo de siempre.
+   */
+  costos: OrdenCompraCosto[];
+
   observaciones: string | null;
   adjuntos: OrdenCompraAdjunto[];
 
@@ -120,6 +127,40 @@ export interface OrdenCompraAdjunto {
 }
 
 /**
+ * Un costo del documento aparte de las lineas: flete, despacho, instalacion.
+ *
+ * `tipo` decide como se lee `valor`: "monto" son pesos, "porcentaje" es sobre el
+ * subtotal de lineas. `afecto` dice si entra a la base del IVA — un servicio
+ * exento no la toca.
+ *
+ * EL IVA NO VIVE ACA. Se calcula solo, 19%, por resta. La referencia que se miro
+ * (MaintainX) deja escribir el IVA como una fila mas, y en la prueba real
+ * escribir "19" sumo $19 en vez del 19%: un documento que no cuadra contra la
+ * factura del proveedor.
+ */
+export interface OrdenCompraCosto {
+  nombre: string;
+  valor: number;
+  tipo: "monto" | "porcentaje";
+  afecto: boolean;
+}
+
+/** Una entrega parcial. La OC acumula varias hasta completarse. */
+export interface OrdenCompraRecepcion {
+  id: string;
+  orden_compra_id: string;
+  /** Correlativo por OC: "Recibo #1". */
+  numero: number;
+  nota: string | null;
+  unidades: number;
+  items: number;
+  valor: number;
+  recibido_por: string | null;
+  created_at: string;
+  receptor?: { id: string; nombre: string } | null;
+}
+
+/**
  * Una linea del documento.
  *
  * `parte_id` es opcional: una OC tambien compra cosas fuera del catalogo (un
@@ -138,6 +179,8 @@ export interface OrdenCompraLineaForm {
   cantidad: number;
   precio_unitario: number;
   descuento?: number;
+  /** No afecta a IVA (un servicio, un honorario). */
+  exenta?: boolean;
 }
 
 export interface OrdenCompraLinea extends OrdenCompraLineaForm {
@@ -162,6 +205,7 @@ export interface OrdenCompraForm {
   condiciones_pago?: string | null;
   descuento?: number;
   otros_costos?: number;
+  costos?: OrdenCompraCosto[];
   observaciones?: string | null;
   cotizacion_numero?: string | null;
   cotizacion_fecha?: string | null;

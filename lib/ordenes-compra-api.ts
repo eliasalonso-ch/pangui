@@ -2,17 +2,19 @@ import { createClient } from "@/lib/supabase";
 import { desglosarNeto } from "@/lib/tributario";
 import type {
   OrdenCompra,
+  OrdenCompraCosto,
   OrdenCompraForm,
   OrdenCompraLinea,
   OrdenCompraLineaForm,
   OrdenCompraListItem,
+  OrdenCompraRecepcion,
 } from "@/types/ordenes-compra";
 
 const OC_SELECT = `
   id, workspace_id, numero, numero_manual, proveedor_id, estado, origen,
   plan_id, plan_ocurrencia_id, orden_trabajo_id,
   fecha_emision, fecha_entrega_esperada, direccion_despacho, condiciones_pago, moneda,
-  neto, descuento, otros_costos, iva, total,
+  neto, descuento, otros_costos, iva, total, costos,
   observaciones, adjuntos, cotizacion_numero, cotizacion_fecha, precios_confirmados,
   aprobada_at, aprobada_por, rechazada_motivo,
   enviada_at, enviada_por, enviada_a_email,
@@ -42,14 +44,57 @@ export function calcularTotales(
   lineas: OrdenCompraLineaForm[],
   descuento = 0,
   otrosCostos = 0,
-): { neto: number; descuento: number; otros_costos: number; iva: number; total: number } {
-  const bruto = lineas.reduce((acc, l) => acc + totalLinea(l), 0);
+  costos: OrdenCompraCosto[] = [],
+): {
+  neto: number; descuento: number; otros_costos: number; iva: number; total: number;
+  neto_exento: number;
+} {
+  // El subtotal de lineas es la base de los costos porcentuales: un flete "5%"
+  // se lee contra la mercaderia, no contra si mismo ni contra el IVA.
+  const brutoAfecto = lineas.reduce((acc, l) => acc + (l.exenta ? 0 : totalLinea(l)), 0);
+  const brutoExento = lineas.reduce((acc, l) => acc + (l.exenta ? totalLinea(l) : 0), 0);
+  const subtotal = brutoAfecto + brutoExento;
+
+  // Cada fila se redondea al resolverse: el CLP no tiene decimales, y arrastrar
+  // fracciones hasta el final descuadraria el documento impreso.
+  const resueltos = (costos ?? []).map(c => ({
+    afecto: c.afecto !== false,
+    monto: c.tipo === "porcentaje"
+      ? Math.round(subtotal * (Number(c.valor) || 0) / 100)
+      : Math.round(Number(c.valor) || 0),
+  }));
+
+  const costosAfectos = resueltos.reduce((a, c) => a + (c.afecto ? c.monto : 0), 0);
+  const costosExentos = resueltos.reduce((a, c) => a + (c.afecto ? 0 : c.monto), 0);
+
+  // `otros_costos` sigue siendo el total resuelto: el PDF, el cron y las
+  // lecturas viejas lo leen tal cual. Cuando hay filas, manda la suma de ellas.
+  const otros = resueltos.length > 0
+    ? costosAfectos + costosExentos
+    : (Math.round(otrosCostos) || 0);
+
   const desc = Math.round(descuento) || 0;
-  const otros = Math.round(otrosCostos) || 0;
-  // Un descuento mayor al bruto dejaria el neto negativo y desglosarNeto lanza.
-  const neto = Math.max(bruto - desc + otros, 0);
-  const d = desglosarNeto(neto);
-  return { neto: d.neto, descuento: desc, otros_costos: otros, iva: d.iva, total: d.bruto };
+
+  // El descuento global se aplica contra lo afecto. Un descuento mayor dejaria
+  // el neto negativo y desglosarNeto lanza, asi que topa en 0.
+  const netoAfecto = Math.max(
+    brutoAfecto - desc + (resueltos.length > 0 ? costosAfectos : otros),
+    0,
+  );
+  const netoExento = Math.max(brutoExento + costosExentos, 0);
+
+  // El IVA se calcula UNA vez sobre el neto afecto, por RESTA contra el bruto
+  // redondeado. Lo exento no entra a la base.
+  const d = desglosarNeto(netoAfecto);
+
+  return {
+    neto: d.neto + netoExento,
+    descuento: desc,
+    otros_costos: otros,
+    iva: d.iva,
+    total: d.bruto + netoExento,
+    neto_exento: netoExento,
+  };
 }
 
 /**
@@ -145,7 +190,7 @@ export async function listLineas(ocId: string): Promise<OrdenCompraLinea[]> {
   const sb = createClient();
   const { data, error } = await sb
     .from("ordenes_compra_lineas")
-    .select("id, orden_compra_id, parte_id, descripcion, codigo, unidad, cantidad, precio_unitario, descuento, total, cantidad_recibida, orden, partes ( stock_actual )")
+    .select("id, orden_compra_id, parte_id, descripcion, codigo, unidad, cantidad, precio_unitario, descuento, exenta, total, cantidad_recibida, orden, partes ( stock_actual )")
     .eq("orden_compra_id", ocId)
     .order("orden");
   if (error) throw error;
@@ -160,6 +205,7 @@ export async function listLineas(ocId: string): Promise<OrdenCompraLinea[]> {
     cantidad: Number(l.cantidad),
     precio_unitario: Number(l.precio_unitario),
     descuento: Number(l.descuento),
+    exenta: l.exenta ?? false,
     total: Number(l.total),
     cantidad_recibida: Number(l.cantidad_recibida),
     orden: l.orden,
@@ -197,6 +243,7 @@ export async function setLineasOC(ocId: string, lineas: OrdenCompraLineaForm[]):
       cantidad: l.cantidad,
       precio_unitario: l.precio_unitario || 0,
       descuento: l.descuento || 0,
+      exenta: l.exenta ?? false,
       total: totalLinea(l),
       orden: i + 1,
     }));
@@ -220,7 +267,9 @@ export async function createOrdenCompra(form: OrdenCompraForm): Promise<OrdenCom
   if (perfilErr) throw perfilErr;
   if (!perfil?.workspace_id) throw new Error("No se pudo determinar el espacio de trabajo.");
 
-  const totales = calcularTotales(form.lineas ?? [], form.descuento, form.otros_costos);
+  const totales = calcularTotales(form.lineas ?? [], form.descuento, form.otros_costos, form.costos);
+  // `neto_exento` es derivado y no tiene columna: se descarta antes de insertar.
+  const { neto_exento: _exento, ...totalesFila } = totales;
 
   const { data, error } = await sb
     .from("ordenes_compra")
@@ -238,7 +287,8 @@ export async function createOrdenCompra(form: OrdenCompraForm): Promise<OrdenCom
       cotizacion_numero: form.cotizacion_numero?.trim() || null,
       cotizacion_fecha: form.cotizacion_fecha || null,
       adjuntos: form.adjuntos ?? [],
-      ...totales,
+      costos: form.costos ?? [],
+      ...totalesFila,
       creado_por: uid,
     })
     .select(OC_SELECT)
@@ -278,7 +328,9 @@ export async function updateOrdenCompra(
 
   if (lineas) {
     await setLineasOC(id, lineas);
-    Object.assign(limpio, calcularTotales(lineas, patch.descuento, patch.otros_costos));
+    const { neto_exento: _exento, ...totales } =
+      calcularTotales(lineas, patch.descuento, patch.otros_costos, patch.costos);
+    Object.assign(limpio, totales);
   }
 
   limpio.actualizado_por = uid;
@@ -373,50 +425,37 @@ export async function cancelarOC(id: string): Promise<void> {
 export async function registrarRecepcion(
   ocId: string,
   recibido: { linea_id: string; cantidad: number }[],
+  nota?: string | null,
 ): Promise<void> {
   const sb = createClient();
 
-  const lineas = await listLineas(ocId);
-  const porId = new Map(lineas.map(l => [l.id, l]));
+  // UNA llamada. Antes esto era un bucle en el navegador: N RPC de stock + N
+  // updates de linea + 1 de estado, sin transaccion. Si se cortaba a la mitad
+  // el stock quedaba sumado sin que la OC lo registrara, y reintentar lo sumaba
+  // DE NUEVO. La RPC hace todo junto: o entra completo o no entra nada.
+  const { error } = await sb.rpc("recibir_orden_compra", {
+    p_oc_id: ocId,
+    p_items: recibido.filter(r => r.cantidad > 0),
+    p_nota: nota?.trim() || null,
+  });
+  if (error) throw error;
+}
 
-  const { data: oc } = await sb
-    .from("ordenes_compra")
-    .select("proveedor_id")
-    .eq("id", ocId)
-    .maybeSingle();
+/** Entregas parciales registradas, la mas reciente primero. */
+export async function listRecepciones(ocId: string): Promise<OrdenCompraRecepcion[]> {
+  const sb = createClient();
+  const { data, error } = await sb
+    .from("ordenes_compra_recepciones")
+    .select("id, orden_compra_id, numero, nota, unidades, items, valor, recibido_por, created_at, receptor:usuarios!recibido_por(id, nombre)")
+    .eq("orden_compra_id", ocId)
+    .order("numero", { ascending: false });
+  if (error) throw error;
 
-  for (const r of recibido) {
-    const linea = porId.get(r.linea_id);
-    if (!linea || r.cantidad <= 0) continue;
-
-    if (linea.parte_id) {
-      const { error: rpcErr } = await sb.rpc("receive_material_stock", {
-        p_parte_id: linea.parte_id,
-        p_proveedor_id: oc?.proveedor_id ?? null,
-        p_cantidad: r.cantidad,
-        p_recibido_at: new Date().toISOString(),
-        p_notas: `Recepción de orden de compra`,
-      });
-      if (rpcErr) throw rpcErr;
-    }
-
-    const { error } = await sb
-      .from("ordenes_compra_lineas")
-      .update({ cantidad_recibida: linea.cantidad_recibida + r.cantidad })
-      .eq("id", r.linea_id);
-    if (error) throw error;
-  }
-
-  // Se relee para decidir el estado con lo que quedo guardado, no con lo que
-  // creemos que se guardo.
-  const actualizadas = await listLineas(ocId);
-  const completa = actualizadas.every(l => l.cantidad_recibida >= l.cantidad);
-
-  const { error: estErr } = await sb
-    .from("ordenes_compra")
-    .update({ estado: completa ? "completada" : "recibida_parcial" })
-    .eq("id", ocId);
-  if (estErr) throw estErr;
+  return ((data ?? []) as any[]).map(r => ({
+    ...r,
+    unidades: Number(r.unidades),
+    valor: Number(r.valor),
+  }));
 }
 
 /**
