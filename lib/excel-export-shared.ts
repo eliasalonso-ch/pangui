@@ -37,6 +37,9 @@ export interface OrdenInput {
   fecha_termino: string | null;
   created_at: string;
   updated_at?: string | null;
+  // Real completion timestamp (set by trg_set_ot_completado_en, backfilled from
+  // actividad_ot). Optional: NULL for OTs that are not completed.
+  completado_en?: string | null;
   // Per-user "marcar como leída/vista" state for the exporting user. Optional so
   // callers that don't track it (e.g. the scheduled cron) can omit it.
   marcada?: boolean;
@@ -148,10 +151,13 @@ function fmtDate(s: string | null | undefined): string {
   const [y, m, d] = s.slice(0, 10).split("-").map(Number);
   return new Date(y, m - 1, d).toLocaleDateString("es-CL");
 }
-// ponytail: no dedicated completed-at column exists; app convention is
-// updated_at when estado === "completado" (see lib/ot-metrics.ts).
-function fmtCompletadoDate(o: { estado: string; updated_at?: string | null }): string {
-  return o.estado === "completado" ? fmtDate(o.updated_at) : "—";
+// Uses completado_en, the dedicated completion timestamp. NOT updated_at: that
+// is "last touched by anything", so any bulk UPDATE (e.g. the 2026-08-11
+// backfill migration) rewrites it and every affected OT reports that date as
+// its completion. Falls back to updated_at only when completado_en is missing.
+function fmtCompletadoDate(o: { estado: string; updated_at?: string | null; completado_en?: string | null }): string {
+  if (o.estado !== "completado") return "—";
+  return fmtDate(o.completado_en ?? o.updated_at);
 }
 function fmtDateTime(s: string | null | undefined): string {
   return s

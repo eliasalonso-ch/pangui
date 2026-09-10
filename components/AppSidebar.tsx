@@ -26,6 +26,8 @@ import {
   Tag,
   Zap,
   Wrench,
+  ShoppingCart,
+  Truck,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
@@ -611,6 +613,29 @@ export default function AppSidebar() {
           <SidebarGroupLabel>Gestión</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
+              {/* Compras: la orden nace del plan de mantención o a mano, y va
+                  dirigida a un proveedor — de ahí que vayan juntos y antes que
+                  el resto del grupo. Admin, porque comprometen plata. */}
+              {isAdmin && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={isActive("/ordenes-compra")} tooltip="Órdenes de compra">
+                    <Link href="/ordenes-compra" prefetch={false} style={{ display: "flex", alignItems: "center", gap: collapsed ? 0 : 10 }}>
+                      <ShoppingCart size={16} style={{ flexShrink: 0 }} />
+                      {!collapsed && <span>Órdenes de compra</span>}
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )}
+              {isAdmin && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={isActive("/proveedores")} tooltip="Proveedores">
+                    <Link href="/proveedores" prefetch={false} style={{ display: "flex", alignItems: "center", gap: collapsed ? 0 : 10 }}>
+                      <Truck size={16} style={{ flexShrink: 0 }} />
+                      {!collapsed && <span>Proveedores</span>}
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )}
               {isAdmin && (
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild isActive={isActive("/ubicaciones")} tooltip="Ubicaciones">

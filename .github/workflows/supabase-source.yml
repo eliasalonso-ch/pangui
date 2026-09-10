@@ -72,6 +72,30 @@ jobs:
             seen[$version]="$path"
           done < <(find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort)
 
+      - name: Verify mirrored export builders are in sync
+        shell: bash
+        run: |
+          # lib/*.ts and supabase/functions/_shared/*.ts are hand-mirrored: Deno
+          # needs .ts import extensions, which break Next.js. They drifted once
+          # and the emailed report silently served stale code for ten weeks.
+          # Only the header comment and those import extensions may differ.
+          status=0
+          for name in excel-export-shared csv-export-shared; do
+            web="lib/$name.ts"
+            deno="supabase/functions/_shared/$name.ts"
+            norm() { sed -E 's|^[[:space:]]*//.*$||; s|(from "\./[a-z-]+)\.ts"|\1"|' "$1"; }
+            if ! diff -q <(norm "$web") <(norm "$deno") >/dev/null; then
+              echo "Mirror drift: $web vs $deno"
+              diff <(norm "$web") <(norm "$deno") || true
+              status=1
+            fi
+          done
+          if [ "$status" -ne 0 ]; then
+            echo "Sync both copies, then redeploy: supabase functions deploy export-schedules-cron"
+            exit 1
+          fi
+          echo "Export builder mirrors in sync."
+
       - name: Remind reviewers that production push is blocked
         run: |
           echo "Canonical source: pangui/supabase"

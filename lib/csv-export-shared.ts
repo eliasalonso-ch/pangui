@@ -35,10 +35,10 @@ function fmtDate(s: string | null | undefined): string {
   const [y, m, d] = s.slice(0, 10).split("-").map(Number);
   return new Date(y, m - 1, d).toLocaleDateString("es-CL");
 }
-// ponytail: no dedicated completed-at column exists; app convention is
-// updated_at when estado === "completado" (see lib/ot-metrics.ts).
-function fmtCompletadoDate(o: { estado: string; updated_at?: string | null }): string {
-  return o.estado === "completado" ? fmtDate(o.updated_at) : "";
+// Uses completado_en (see excel-export-shared for why not updated_at).
+function fmtCompletadoDate(o: { estado: string; updated_at?: string | null; completado_en?: string | null }): string {
+  if (o.estado !== "completado") return "";
+  return fmtDate(o.completado_en ?? o.updated_at);
 }
 
 // Escape a field for RFC-4180 CSV: wrap in quotes if it contains comma,

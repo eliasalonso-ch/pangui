@@ -70,7 +70,9 @@ async function canWriteFolder(
   // `lugares`: la foto se sube desde el formulario ANTES de que exista la fila,
   // asi que no hay id contra el cual validar. Sin esto, subir la foto de una
   // cuadrilla devolvia 403 forbidden_folder.
-  if (["scans", "partes", "adjuntos", "solicitudes", "sociedades", "ubicaciones", "lugares", "cuadrillas"].includes(folder)) return true;
+  // `proveedores` entra por la misma razon: el logo se sube desde el formulario
+  // ANTES de que exista la fila, asi que no hay id contra el cual validar.
+  if (["scans", "partes", "adjuntos", "solicitudes", "sociedades", "ubicaciones", "lugares", "cuadrillas", "proveedores"].includes(folder)) return true;
   if (parts[0] === "ordenes" && parts[1]) {
     const { data: order } = await supabase.from("ordenes_trabajo").select("id").eq("id", parts[1]).maybeSingle();
     if (!order) return false;
