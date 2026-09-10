@@ -159,7 +159,7 @@ export function PanelCatalogo({
         onSubmit={e => { e.preventDefault(); if (puedeGuardar && !guardando) onSubmit(); }}
         style={{ flex: 1, overflowY: "auto", minHeight: 0 }}
       >
-        <div style={{ padding: "28px 28px 60px", maxWidth: 1180 }}>
+        <div style={{ padding: "28px 28px 60px", width: "100%", boxSizing: "border-box" }}>
           {children}
         </div>
       </form>
@@ -168,7 +168,9 @@ export function PanelCatalogo({
       <div style={{
         borderTop: "1px solid var(--border)", padding: "16px 28px",
         display: "flex", alignItems: "center", justifyContent: "space-between",
-        background: "var(--surface-1)", flexShrink: 0,
+        // El pie es chrome del panel, igual que el lienzo crema; blanco queda
+        // reservado para controles editables como inputs y botones secundarios.
+        background: "var(--surface-canvas)", flexShrink: 0,
       }}>
         <div style={{ flex: 1 }}>
           {error && <span style={{ fontSize: 14, color: "var(--danger)" }}>{error}</span>}

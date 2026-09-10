@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   Truck, Loader2, FileText, Building2, MapPin, Contact, Mail, Phone, Globe,
-  DollarSign, ImagePlus, Pencil,
+  DollarSign, Camera, X,
 } from "lucide-react";
 import { uploadToR2 } from "@/lib/r2";
 import {
@@ -30,7 +30,9 @@ export default function ProveedorFormPanel({
   onSubmit: (v: FormValues) => void;
 }) {
   const [subiendo, setSubiendo] = useState(false);
+  const [dragLogo, setDragLogo] = useState(false);
   const [errorLogo, setErrorLogo] = useState<string | null>(null);
+  const logoInputRef = useRef<HTMLInputElement | null>(null);
   const [v, setV] = useState<FormValues>({
     nombre: inicial?.nombre ?? "",
     rut: inicial?.rut ?? "",
@@ -62,6 +64,17 @@ export default function ProveedorFormPanel({
     }
   }
 
+  async function soltarLogo(e: React.DragEvent<HTMLButtonElement>) {
+    e.preventDefault(); setDragLogo(false);
+    if (subiendo) return;
+    const file = Array.from(e.dataTransfer.files).find(f => f.type.startsWith("image/"));
+    if (!file) return;
+    setSubiendo(true); setErrorLogo(null);
+    try { set("logo_url", await uploadToR2(file, "proveedores")); }
+    catch (err) { setErrorLogo(err instanceof Error ? err.message : "No se pudo subir el logo."); }
+    finally { setSubiendo(false); }
+  }
+
   function set<K extends keyof FormValues>(k: K, val: FormValues[K]) {
     setV(prev => ({ ...prev, [k]: val }));
   }
@@ -76,43 +89,29 @@ export default function ProveedorFormPanel({
       onCancel={onCancel}
       onSubmit={() => onSubmit(v)}
     >
-      <FieldRow icon={<Pencil size={16} />} label="Nombre o razón social">
+      <div style={{ marginBottom: 10 }}>
         <input
           autoFocus
           value={v.nombre}
           onChange={e => set("nombre", e.target.value)}
           placeholder="Ej: Maestranza Aconcagua Ltda."
-          style={tituloInputStyle(v.nombre)}
+          style={{ ...tituloInputStyle(v.nombre), fontSize: 20, fontWeight: 400, lineHeight: 1.35 }}
         />
-      </FieldRow>
+      </div>
 
-      <FieldRow icon={<ImagePlus size={16} />} label="Logo">
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <span style={{
-            width: 48, height: 48, borderRadius: "var(--r-md)", flexShrink: 0, overflow: "hidden",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            background: "var(--brand-tint)", color: "var(--brand)",
-          }}>
-            {v.logo_url
-              // eslint-disable-next-line @next/next/no-img-element
-              ? <img src={v.logo_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-              : <Truck size={20} />}
-          </span>
-          <label style={{
-            display: "inline-flex", alignItems: "center", gap: 6, height: 34, padding: "0 12px",
-            border: "1px solid var(--border)", borderRadius: "var(--r-md)", cursor: "pointer",
-            fontSize: 14, color: "var(--fg-1)", background: "var(--surface-1)",
-          }}>
-            {subiendo ? <Loader2 size={14} className="animate-spin" /> : null}
-            {v.logo_url ? "Cambiar" : "Subir logo"}
-            <input type="file" accept="image/*" onChange={subirLogo} disabled={subiendo} style={{ display: "none" }} />
-          </label>
-          {v.logo_url && (
-            <button type="button" onClick={() => set("logo_url", null)}
-              style={{ background: "none", border: "none", cursor: "pointer", fontSize: 14, color: "var(--fg-3)" }}>
-              Quitar
-            </button>
-          )}
+      <FieldRow icon={<Camera size={16} />} label="Logo">
+        <input ref={logoInputRef} type="file" accept="image/*" onChange={subirLogo} disabled={subiendo} style={{ display: "none" }} />
+        <div style={{ display: "flex", alignItems: "stretch", gap: 10 }}>
+          <button type="button" onClick={() => logoInputRef.current?.click()} disabled={subiendo}
+            onDragOver={e => { e.preventDefault(); if (!subiendo) setDragLogo(true); }} onDragLeave={() => setDragLogo(false)} onDrop={soltarLogo}
+            style={{ flex: v.logo_url ? "0 0 132px" : 1, minHeight: v.logo_url ? 108 : 96, border: `1px dashed ${dragLogo ? "var(--brand)" : "var(--border-strong)"}`, borderRadius: "var(--r-md)", background: dragLogo ? "var(--brand-tint)" : "var(--surface-canvas)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 7, color: "var(--fg-3)", fontSize: 14, fontFamily: "inherit", cursor: subiendo ? "default" : "pointer", padding: 12 }}>
+            {subiendo ? <Loader2 size={16} className="animate-spin" style={{ color: "var(--brand)" }} /> : <Camera size={16} style={{ color: "var(--brand)" }} />}
+            <span>{subiendo ? "Subiendo…" : v.logo_url ? "Reemplazar" : "Agregue o arrastre un logo"}</span>
+          </button>
+          {v.logo_url && <div style={{ position: "relative", flex: "0 0 132px", minHeight: 108, borderRadius: "var(--r-md)", overflow: "hidden", border: "1px solid var(--border)" }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}<img src={v.logo_url} alt="Logo del proveedor" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+            <button type="button" onClick={() => set("logo_url", null)} aria-label="Quitar logo" style={{ position: "absolute", top: 4, right: 4, width: 22, height: 22, display: "flex", alignItems: "center", justifyContent: "center", border: "none", borderRadius: "var(--r-sm)", background: "rgba(0,0,0,.55)", color: "#fff", cursor: "pointer", padding: 0 }}><X size={13} /></button>
+          </div>}
         </div>
         {errorLogo && <div style={{ fontSize: 14, color: "var(--danger)", marginTop: 6 }}>{errorLogo}</div>}
       </FieldRow>

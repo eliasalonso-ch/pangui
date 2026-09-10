@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  ShoppingCart, Pencil, Check, X, Send, PackageCheck, Loader2, FileDown, Truck,
+  Pencil, Check, X, Send, PackageCheck, Loader2, FileDown, Truck,
   AlertTriangle, CalendarDays, DollarSign, FileText,
 } from "lucide-react";
 import { formatearCLP } from "@/lib/tributario";
@@ -93,17 +93,15 @@ export default function OCDetalle({ oc, isAdmin, onEdit, onCambio }: {
 
   return (
     // Inset de 28px y ancho de 1100, los mismos de OTDetail.
-    <div style={{ padding: "0 28px 76px", maxWidth: 1100 }}>
+    <div style={{ padding: "0 28px 76px", width: "100%", boxSizing: "border-box" }}>
 
       {/* Cabecera */}
-      <div style={{ display: "flex", alignItems: "flex-start", gap: 14, paddingTop: 24, marginBottom: 4 }}>
-        <span style={{
-          width: 48, height: 48, borderRadius: "var(--r-lg)", flexShrink: 0,
-          display: "flex", alignItems: "center", justifyContent: "center",
-          background: "var(--brand-tint)", color: "var(--brand)",
-        }}>
-          <ShoppingCart size={22} />
-        </span>
+      <div style={{
+        display: "flex", alignItems: "flex-start", gap: 14,
+        marginLeft: -28, marginRight: -28, paddingLeft: 28, paddingRight: 28,
+        paddingTop: 24, paddingBottom: 20, marginBottom: 0,
+        borderBottom: "1px solid var(--border)",
+      }}>
         <div style={{ flex: 1, minWidth: 0 }}>
           {/* 20px y peso 500: es el unico texto que rompe el 14px, si no el
               detalle no tiene jerarquia. */}
@@ -126,7 +124,7 @@ export default function OCDetalle({ oc, isAdmin, onEdit, onCambio }: {
         {isAdmin && (
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
             {editable && (
-              <button onClick={onEdit} style={btn}><Pencil size={14} /> Editar</button>
+              <button onClick={onEdit} style={btnPrimario}><Pencil size={14} /> Editar</button>
             )}
             {oc.estado === "borrador" && (
               <button onClick={() => accion(() => enviarAAprobacion(oc.id))} disabled={ocupado} style={btn}>
@@ -331,12 +329,9 @@ export default function OCDetalle({ oc, isAdmin, onEdit, onCambio }: {
         </div>
       )}
 
-      <AuditFooter
-        creador={oc.creador}
-        creadoEn={oc.created_at}
-        actualizador={oc.actualizador}
-        actualizadoEn={oc.updated_at}
-      />
+      <div style={{ ...seccionDetalle, paddingTop: 20, paddingBottom: 20 }}>
+        <AuditFooter creador={oc.creador} creadoEn={oc.created_at} actualizador={oc.actualizador} actualizadoEn={oc.updated_at} />
+      </div>
     </div>
   );
 }

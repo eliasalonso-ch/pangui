@@ -144,6 +144,13 @@ export default function OrdenesCompraPage() {
   const hayFiltros = contarFiltrosOC(filtros) > 0;
   const hayBusqueda = search.trim().length > 0;
 
+  // Mantiene el detalle util desde el primer render de una lista con datos.
+  useEffect(() => {
+    if (modo === "ver" && filtered.length > 0 && !filtered.some(oc => oc.id === selectedId)) {
+      open(filtered[0].id);
+    }
+  }, [filtered, selectedId, modo, open]);
+
   /**
    * Centinela de scroll infinito.
    *
@@ -223,11 +230,9 @@ export default function OrdenesCompraPage() {
         flexShrink: 0, borderBottom: "1px solid var(--border)",
         background: "var(--surface-canvas)",
       }}>
-        <div style={{
-          display: "flex", alignItems: "center", padding: "9px 20px",
-          minHeight: 56, gap: 8, flexWrap: "wrap",
-        }}>
-          <div style={{ position: "relative", maxWidth: 320, minWidth: 220, flex: "1 1 220px" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr auto auto", gridTemplateRows: "38px 32px", alignItems: "start", padding: "9px 20px", minHeight: 96, columnGap: 12, rowGap: 8 }}>
+          <div style={{ display: "contents" }}>
+          <div style={{ position: "relative", width: 320, maxWidth: "100%", gridColumn: 2, gridRow: 1 }}>
             <Search size={14} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "var(--fg-4)", pointerEvents: "none" }} />
             <input
               type="text"
@@ -254,6 +259,7 @@ export default function OrdenesCompraPage() {
             )}
           </div>
 
+          <div style={{ gridColumn: 1, gridRow: 2 }}>
           <OCFiltrosBar
             filtros={filtros}
             onChange={setFiltros}
@@ -262,8 +268,8 @@ export default function OrdenesCompraPage() {
             visibleKeys={visibleKeys}
             onVisibleKeysChange={cambiarVisibleKeys}
           />
-
-          <div style={{ flex: 1 }} />
+          </div>
+          </div>
 
           {isAdmin && (
             <button
@@ -271,7 +277,7 @@ export default function OrdenesCompraPage() {
               style={{
                 display: "flex", alignItems: "center", gap: 6, height: 38, padding: "0 16px",
                 background: "var(--brand)", border: "none", borderRadius: 8, cursor: "pointer",
-                fontSize: 14, fontWeight: 400, color: "var(--fg-on-brand)", fontFamily: "inherit", whiteSpace: "nowrap",
+                fontSize: 14, fontWeight: 400, color: "var(--fg-on-brand)", fontFamily: "inherit", whiteSpace: "nowrap", gridColumn: 3, gridRow: 1,
               }}
               onMouseEnter={e => { e.currentTarget.style.background = "var(--brand-active)"; }}
               onMouseLeave={e => { e.currentTarget.style.background = "var(--brand)"; }}
