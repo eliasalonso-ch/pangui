@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useDeepLinkId } from "@/lib/use-deep-link-id";
 import { createClient } from "@/lib/supabase";
+import { EmptyState, EmptyDetail } from "@/components/EmptyState";
 import {
   Plus, Search, X, Loader2, Tag, Pencil, Trash2, Inbox,
 } from "lucide-react";
@@ -206,18 +207,14 @@ export default function CategoriasPage() {
               <Loader2 size={20} className="animate-spin" style={{ color: "var(--fg-4)" }} />
             </div>
           ) : filtered.length === 0 ? (
-            <div style={{
-              display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-              height: 240, color: "var(--fg-4)", gap: 8, padding: 24, textAlign: "center",
-            }}>
-              <Tag size={32} />
-              <div style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-3)" }}>
-                {search ? "Sin resultados" : "No hay categorías aún"}
-              </div>
-              {!search && isAdmin && (
-                <div style={{ fontSize: 14 }}>Crea la primera con el botón de arriba</div>
-              )}
-            </div>
+            <EmptyState
+              icon={<Tag size={38} strokeWidth={1.4} />}
+              title={search ? "Ninguna categoría coincide con la búsqueda" : "Todavía no hay categorías"}
+              description="Una categoría agrupa el trabajo por tipo —eléctrico, sanitario, climatización— y es lo que después permite ver en qué se gasta el tiempo."
+              onCreate={isAdmin ? () => { setModo("crear"); closeCategoria(); } : undefined}
+              createLabel="Crear la primera"
+              hasSearch={!!search}
+            />
           ) : (
             filtered.map(cat => (
               <CategoriaRow
@@ -263,14 +260,10 @@ export default function CategoriasPage() {
               onNuevaOT={() => router.push(`/ordenes/crear?categoria=${selected.id}`)}
             />
           ) : (
-            <div style={{
-              height: "100%", display: "flex", flexDirection: "column",
-              alignItems: "center", justifyContent: "center", gap: 10, color: "var(--fg-4)",
-            }}>
-              <Tag size={40} style={{ opacity: 0.5 }} />
-              <div style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-3)" }}>Selecciona una categoría</div>
-              <div style={{ fontSize: 14 }}>El detalle aparecerá aquí</div>
-            </div>
+            <EmptyDetail
+              icon={<Tag size={28} strokeWidth={1.5} />}
+              title="Selecciona una categoría"
+            />
           )}
         </div>
       </div>

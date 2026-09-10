@@ -8,6 +8,7 @@ import {
   Loader2, MapPin, Minus, Package, Paperclip, PackageCheck, PackagePlus, Pencil, Plus, RotateCcw, MoreVertical, Ruler, Search, Trash2, User, X,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase";
+import { EmptyState, EmptyDetail } from "@/components/EmptyState";
 import { uploadToR2 } from "@/lib/r2";
 import { useSuscripcion } from "@/hooks/useSuscripcion";
 import { UpgradePrompt } from "@/components/UpgradePrompt";
@@ -180,6 +181,10 @@ function MaterialesPageInner() {
    * despues la recortaria, que es un render de mas y un parpadeo.
    */
   const listKey = `${search}|${stockFilter}|${sort}|${locationFilterId ?? ""}`;
+
+  /** Si el vacío se debe a un filtro o a que todavía no hay inventario. */
+  const hayFiltrosMateriales =
+    search.trim().length > 0 || stockFilter !== "todos" || locationFilterId !== null;
   const [prevListKey, setPrevListKey] = useState(listKey);
   if (prevListKey !== listKey) {
     setPrevListKey(listKey);
@@ -571,7 +576,18 @@ function MaterialesPageInner() {
                       </div>
                     )}
                   </>
-                ) : <Empty icon={<Boxes size={38} />} title="Sin materiales" subtitle="No hay materiales que coincidan con los filtros." />}
+                ) : (
+                  <EmptyState
+                    icon={<Boxes size={38} strokeWidth={1.4} />}
+                    // Antes decía siempre "no coinciden con los filtros", también
+                    // con el inventario vacío y sin ningún filtro puesto.
+                    title={hayFiltrosMateriales ? "Ningún material coincide con la búsqueda" : "Todavía no hay materiales"}
+                    description="Un material es un repuesto o insumo del inventario: al quedar cargado se puede reservar para una orden y pedir en una orden de compra."
+                    onCreate={canManage ? () => setEditor({ mode: "create", material: null }) : undefined}
+                    createLabel="Crear el primero"
+                    hasSearch={hayFiltrosMateriales}
+                  />
+                )}
               </div>
         </section>
 
@@ -579,7 +595,7 @@ function MaterialesPageInner() {
           {editor ? <MaterialEditor state={editor} workspaceId={workspaceId!} activos={activos} activoLinks={editor.material ? activoLinks.filter(link => link.material_id === editor.material!.id) : []} onClose={() => setEditor(null)} onSaved={async () => { await refresh(); setEditor(null); }} />
             : selectedMaterial ? <MaterialDetail material={selectedMaterial} reservations={reservations.filter(item => item.parte_id === selectedMaterial.id)} locations={locations} canManage={canManage} onClose={() => setSelectedMaterialId(null)} onEdit={() => setEditor({ mode: "edit", material: selectedMaterial })} onDelete={() => removeMaterial(selectedMaterial)} onOpenLocation={id => { setSelectedMaterialId(null); setSelectedLocationId(id); }} activoLinks={activoLinks.filter(link => link.material_id === selectedMaterial.id)} stockEntries={stockEntries.filter(entry => entry.parte_id === selectedMaterial.id)} onOpenActivo={id => router.push(`/activos/activos?id=${encodeURIComponent(id)}`)} onOpenActivoEstado={id => router.push(`/activos/${id}/estado`)} onRestock={() => setRestockOpen(true)} comprometido={compromisos.filter(c => c.parte_id === selectedMaterial.id).reduce((sum, c) => sum + c.cantidad, 0)} places={places} />
             : selectedLocation ? <LocationDetail location={selectedLocation} reservations={reservations.filter(item => item.ubicacion_id === selectedLocation.id)} withdrawals={withdrawals.filter(item => item.ubicacion_id === selectedLocation.id)} canManage={canManage} onClose={() => setSelectedLocationId(null)} onReserve={() => setReserveOpen(true)} onRefresh={refresh} onOpenMaterial={id => { setSelectedLocationId(null); setSelectedMaterialId(id); }} />
-            : <Empty icon={<Package size={32} />} title="Selecciona un material" subtitle="El detalle aparecerá aquí." />}
+            : <EmptyDetail icon={<Package size={28} strokeWidth={1.5} />} title="Selecciona un material" />}
         </section>
       </main>
 
@@ -620,9 +636,10 @@ function RowBadge({ icon: Icon, iconColor, children }: { icon?: React.ElementTyp
  *  acento de 3px hacia adentro para que el contenido no se desplace. */
 function cardStyle(selected: boolean): React.CSSProperties {
   return {
-    width: "100%", height: 108, flexShrink: 0, boxSizing: "border-box",
-    display: "flex", gap: 12, alignItems: "stretch",
-    padding: "16px 20px",
+    // 88px y no 108: la miniatura bajó de 76 a 32px y el resto era aire.
+    width: "100%", height: 88, flexShrink: 0, boxSizing: "border-box",
+    display: "flex", gap: 12, alignItems: "center",
+    padding: "14px 20px",
     background: selected ? "var(--brand-tint)" : "var(--surface-1)",
     border: `1px solid ${selected ? "var(--brand)" : "var(--border)"}`,
     borderRadius: "var(--r-lg)",
@@ -637,10 +654,10 @@ function cardStyle(selected: boolean): React.CSSProperties {
 function RowThumb({ src, fallback }: { src: string | null; fallback: React.ReactNode }) {
   if (src) {
     // eslint-disable-next-line @next/next/no-img-element
-    return <img src={src} alt="" style={{ width: 76, alignSelf: "stretch", borderRadius: "var(--r-md)", objectFit: "cover", background: "var(--surface-hover)", flexShrink: 0 }} />;
+    return <img src={src} alt="" style={{ width: 32, height: 32, borderRadius: "var(--r-md)", objectFit: "cover", background: "var(--surface-hover)", flexShrink: 0 }} />;
   }
   return (
-    <span style={{ width: 76, alignSelf: "stretch", borderRadius: "var(--r-md)", background: "var(--brand-tint)", display: "inline-flex", alignItems: "center", justifyContent: "center", color: "var(--brand-fg)", flexShrink: 0 }}>
+    <span style={{ width: 32, height: 32, borderRadius: "var(--r-md)", background: "var(--brand-tint)", display: "inline-flex", alignItems: "center", justifyContent: "center", color: "var(--brand)", flexShrink: 0 }}>
       {fallback}
     </span>
   );
@@ -663,7 +680,7 @@ function MaterialRow({ material, selected, onClick }: { material: Material; sele
       onMouseEnter={e => { if (!selected) e.currentTarget.style.background = "var(--surface-hover)"; }}
       onMouseLeave={e => { if (!selected) e.currentTarget.style.background = "var(--surface-1)"; }}
     >
-      <RowThumb src={material.imagen_url} fallback={<Package size={26} />} />
+      <RowThumb src={material.imagen_url} fallback={<Package size={16} />} />
 
       <span style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", justifyContent: "center", gap: 6 }}>
         <span style={{ display: "block", fontSize: 14, fontWeight: 400, lineHeight: 1.35, color: "var(--fg-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>

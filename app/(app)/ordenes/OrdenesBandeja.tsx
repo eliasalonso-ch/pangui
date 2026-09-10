@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Plus, Search, X, ChevronDown, Loader2, FileText, ArrowUp, ArrowUpDown, Download, AlertTriangle, Calendar, Check, Copy, DatabaseArrowDown, Eye, EyeOff } from "lucide-react";
+import { Plus, Search, X, ChevronDown, Loader2, FileText, ClipboardCheck, ArrowUp, ArrowUpDown, Download, AlertTriangle, Calendar, Check, Copy, DatabaseArrowDown, Eye, EyeOff } from "lucide-react";
 import { createClient, logRealtimeChannel } from "@/lib/supabase";
 import { esAdmin } from "@/lib/roles";
 import { fetchOrdenesPage, fetchAllOrdenesForExport, fetchAllOrdenesBulk, fetchOrdenesCalendarExtras, fetchOrdenListItem, searchOrdenes, ORDENES_SEARCH_LIMIT, deleteOrden, ORDENES_PAGE_SIZE, parseDescMeta, fetchMarcadasIds, toggleMarcada, matchesSearch, ELECTRILAM_WORKSPACE_ID } from "@/lib/ordenes-api";
@@ -18,6 +18,7 @@ import { buildOrdenesWorkbook, type ExportCols as SharedExportCols, type OrdenIn
 import { ExportScheduler } from "./ExportScheduler";
 import MeconectaCheck from "./MeconectaCheck";
 import OTRow from "./OTRow";
+import { EmptyState, EmptyDetail } from "@/components/EmptyState";
 import CalendarView from "./CalendarView";
 import KanbanView from "./KanbanView";
 import OTDetail from "./OTDetail";
@@ -1449,6 +1450,7 @@ export default function OrdenesBandeja({
         fecha_termino: o.fecha_termino ?? null,
         created_at: o.created_at,
         updated_at: (o as OrdenListItem & { updated_at?: string | null }).updated_at ?? null,
+        completado_en: (o as OrdenListItem & { completado_en?: string | null }).completado_en ?? null,
         marcada: marcadas.has(o.id),
         asignados_ids: o.asignados_ids ?? null,
         n_serie: (o as OrdenListItem & { n_serie?: string | null }).n_serie ?? null,
@@ -1939,38 +1941,27 @@ export default function OrdenesBandeja({
                 <p style={{ fontSize: 14, color:"var(--fg-2)", fontWeight: 400, margin:0 }}>Buscando…</p>
               </div>
             ) : filtered.length === 0 ? (
-              <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", height:280, gap:12, color:"var(--fg-4)" }}>
-                <svg width="38" height="46" viewBox="0 0 38 46" fill="none">
-                  <rect x="2" y="2" width="34" height="42" rx="2" fill="#A67C52"/>
-                  <rect x="6" y="7" width="26" height="32" rx="1" fill="var(--surface-1)"/>
-                  <path d="M23 4a4 4 0 0 0-8 0h-3a1 1 0 0 0-1 1v4a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1V5a1 1 0 0 0-1-1h-3z" fill="#EFD358"/>
-                  <circle cx="19" cy="4" r="1" fill="#B29930"/>
-                  <path d="M17 30a1 1 0 0 1-.707-.293l-4-4a1 1 0 1 1 1.414-1.414L17 27.586l7.293-7.293a1 1 0 1 1 1.414 1.414l-8 8A1 1 0 0 1 17 30z" fill="#72C472"/>
-                </svg>
-                <p style={{ fontSize: 14, color:"var(--fg-2)", fontWeight: 400 }}>
-                  {search
-                    ? "Sin resultados para tu búsqueda"
-                    : scope === "en_curso"      ? "No hay órdenes en curso ahora"
-                    : scope === "sin_progreso"  ? "No hay órdenes sin progreso"
-                    : scope === "vencidas"      ? "No hay órdenes vencidas"
-                    : scope === "reprogramadas" ? "No hay órdenes reprogramadas"
-                    : scope === "materiales"    ? "No hay órdenes en espera por materiales"
-                    : scope === "levantamientos" ? "No hay levantamientos"
-                    : scope === "presupuestos"   ? "No hay presupuestos"
-                    : scope === "otras"          ? "No hay otras órdenes pendientes"
-                    : tab === "completas"       ? "No hay órdenes completadas"
-                    : "No tienes ninguna Orden de Trabajo"}
-                </p>
-                {!search && tab === "pendientes" && scope === "todas" && (
-                  <a
-                    href="#"
-                    onClick={e => { e.preventDefault(); openCreate(); }}
-                    style={{ fontSize: 14, color:"var(--brand-fg)", fontWeight: 400, textDecoration:"underline" }}
-                  >
-                    Crea la primera Orden de Trabajo
-                  </a>
-                )}
-              </div>
+              <EmptyState
+            icon={<ClipboardCheck size={38} strokeWidth={1.4} />}
+            title={
+              search
+                ? "Ninguna orden coincide con tu búsqueda"
+                : scope === "en_curso"      ? "No hay órdenes en curso ahora"
+                : scope === "sin_progreso"  ? "No hay órdenes sin progreso"
+                : scope === "vencidas"      ? "No hay órdenes vencidas"
+                : scope === "reprogramadas" ? "No hay órdenes reprogramadas"
+                : scope === "materiales"    ? "No hay órdenes en espera por materiales"
+                : scope === "levantamientos" ? "No hay levantamientos"
+                : scope === "presupuestos"   ? "No hay presupuestos"
+                : scope === "otras"          ? "No hay otras órdenes pendientes"
+                : tab === "completas"       ? "No hay órdenes completadas"
+                : "Todavía no hay Órdenes de Trabajo"
+            }
+            description="Una Orden de Trabajo es la unidad de trabajo del equipo: qué hay que hacer, sobre qué activo y quién responde."
+            onCreate={openCreate}
+            createLabel="Crear la primera"
+            hasSearch={!!search || tab !== "pendientes" || scope !== "todas"}
+          />
             ) : (
               <>
                 {visibleOrdenes.map((o, idx) => (
@@ -2125,15 +2116,7 @@ export default function OrdenesBandeja({
                 />
               ) : null
             ) : (
-              <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", height:"100%", gap:12, color:"var(--fg-4)" }}>
-                <div style={{ width:64, height:64, borderRadius:12, background:"var(--surface-hover)", display:"flex", alignItems:"center", justifyContent:"center" }}>
-                  <FileText size={28} style={{ color:"var(--border-strong)" }} />
-                </div>
-                <div style={{ textAlign:"center" }}>
-                  <p style={{ fontSize: 14, fontWeight: 400, color:"var(--fg-2)" }}>Selecciona una orden</p>
-                  <p style={{ fontSize: 14, color:"var(--fg-4)", marginTop:4 }}>El detalle aparecerá aquí</p>
-                </div>
-              </div>
+              <EmptyDetail icon={<FileText size={28} strokeWidth={1.5} />} title="Selecciona una orden" />
             )}
           </div>
         )}
