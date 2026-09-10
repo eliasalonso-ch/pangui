@@ -43,6 +43,11 @@ export interface PlanDef {
     preventivos:              boolean;
     // Inventory module
     inventario:               boolean;   // /partes route + hojas in OT
+    // Compras: proveedores es el catálogo y las OC el documento que se les
+    // dirige. Van juntos — una orden de compra sin proveedor no sirve — y
+    // ambos son Pro, igual que el resto del módulo de abastecimiento.
+    proveedores:              boolean;   // /proveedores route
+    ordenes_compra:           boolean;   // /ordenes-compra route
     // Planned maintenance: /planes route. Distinct from `preventivos` (a
     // recurring OT, generated when the previous one closes) — a plan declares
     // its future dates up front so they can be seen and prepared for in
@@ -95,6 +100,8 @@ export const PLANS: PlanDef[] = [
       jerarquias_activos:        false,
       preventivos:               false,
       inventario:                false,
+      proveedores:               false,
+      ordenes_compra:            false,
       planes_mantencion:         false,
       analytics_pro:             false,
       scheduler:                 false,
@@ -136,6 +143,8 @@ export const PLANS: PlanDef[] = [
       jerarquias_activos:        true,
       preventivos:               true,
       inventario:                false,
+      proveedores:               false,
+      ordenes_compra:            false,
       planes_mantencion:         false,
       analytics_pro:             false,
       scheduler:                 false,
@@ -177,6 +186,8 @@ export const PLANS: PlanDef[] = [
       jerarquias_activos:        true,
       preventivos:               true,
       inventario:                true,
+      proveedores:               true,
+      ordenes_compra:            true,
       planes_mantencion:         true,
       analytics_pro:             true,
       scheduler:                 true,
@@ -213,6 +224,8 @@ export const PLANS: PlanDef[] = [
       jerarquias_activos:        true,
       preventivos:               true,
       inventario:                true,
+      proveedores:               true,
+      ordenes_compra:            true,
       planes_mantencion:         true,
       analytics_pro:             true,
       scheduler:                 true,

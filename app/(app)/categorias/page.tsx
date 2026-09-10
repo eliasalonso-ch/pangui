@@ -6,7 +6,7 @@ import { useDeepLinkId } from "@/lib/use-deep-link-id";
 import { createClient } from "@/lib/supabase";
 import { EmptyState, EmptyDetail } from "@/components/EmptyState";
 import {
-  Plus, Search, X, Loader2, Tag, Pencil, Trash2, Inbox,
+  Plus, Search, X, Loader2, Tag, Inbox,
 } from "lucide-react";
 import { CategoriaIcon } from "@/components/ordenes/categoria-icon";
 import {
@@ -221,11 +221,7 @@ export default function CategoriasPage() {
                 key={cat.id}
                 cat={cat}
                 selected={selectedId === cat.id}
-                puedeEditar={isAdmin}
-                puedeBorrar={isAdmin}
                 onSelect={() => { openCategoria(cat.id); setModo("ver"); }}
-                onEdit={() => { openCategoria(cat.id); setModo("editar"); }}
-                onDelete={() => pedirBorrar(cat)}
               />
             ))
           )}
@@ -303,14 +299,12 @@ export default function CategoriasPage() {
   );
 }
 
-function CategoriaRow({ cat, selected, puedeEditar, puedeBorrar, onSelect, onEdit, onDelete }: {
+// Editar y eliminar viven en el panel de detalle, no en la tarjeta: la fila
+// sólo selecciona.
+function CategoriaRow({ cat, selected, onSelect }: {
   cat: CategoriaConUso;
   selected: boolean;
-  puedeEditar: boolean;
-  puedeBorrar: boolean;
   onSelect: () => void;
-  onEdit: () => void;
-  onDelete: () => void;
 }) {
   const [hover, setHover] = useState(false);
   return (
@@ -321,9 +315,12 @@ function CategoriaRow({ cat, selected, puedeEditar, puedeBorrar, onSelect, onEdi
       style={{
         display: "flex", alignItems: "center", gap: 12,
         padding: "12px 14px", cursor: "pointer", flexShrink: 0,
-        background: selected ? "var(--brand-tint)" : "var(--surface-1)",
+        background: selected ? "var(--row-selected)" : "var(--surface-1)",
         border: `1px solid ${selected ? "var(--brand)" : hover ? "var(--border-strong)" : "var(--border)"}`,
         borderRadius: "var(--r-lg)",
+        // Barra de acento de 3px al seleccionar, igual que OTRow: el borde se
+        // queda en 1px para que el contenido no se corra de lado.
+        boxShadow: selected ? "inset 3px 0 0 0 var(--brand)" : "none",
         transition: "border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease)",
       }}
     >
@@ -340,28 +337,6 @@ function CategoriaRow({ cat, selected, puedeEditar, puedeBorrar, onSelect, onEdi
       }}>
         {cat.nombre}
       </div>
-      {hover && (puedeEditar || puedeBorrar) && (
-        <div style={{ display: "flex", gap: 2, flexShrink: 0 }} onClick={e => e.stopPropagation()}>
-          {puedeEditar && (
-            <button
-              onClick={onEdit}
-              aria-label="Editar"
-              style={{ width: 26, height: 26, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", borderRadius: 6, cursor: "pointer", color: "var(--fg-3)" }}
-            >
-              <Pencil size={12} />
-            </button>
-          )}
-          {puedeBorrar && (
-            <button
-              onClick={onDelete}
-              aria-label="Eliminar"
-              style={{ width: 26, height: 26, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", borderRadius: 6, cursor: "pointer", color: "var(--fg-3)" }}
-            >
-              <Trash2 size={12} />
-            </button>
-          )}
-        </div>
-      )}
     </div>
   );
 }

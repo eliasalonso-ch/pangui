@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase";
 import { EmptyState, EmptyDetail } from "@/components/EmptyState";
 import {
-  ClipboardCheck, Plus, Search, Loader2, X, Pencil, Trash2, FileText,
+  ClipboardCheck, Plus, Search, Loader2, X, FileText,
   ListFilter, Lock, PlayCircle, Zap, type LucideIcon,
 } from "lucide-react";
 import { listProcedimientos, archiveProcedimiento } from "@/lib/procedimientos-api";
@@ -191,11 +191,7 @@ export default function ProcedimientosPage() {
                 key={proc.id}
                 proc={proc}
                 selected={selectedId === proc.id}
-                isAdmin={isAdmin}
-                archiving={archiving === proc.id}
                 onSelect={() => setSelectedId(proc.id)}
-                onEdit={() => router.push(`/procedimientos/${proc.id}/editar`)}
-                onArchive={() => setConfirmArchive(proc)}
               />
             ))
           )}
@@ -249,16 +245,14 @@ export default function ProcedimientosPage() {
   );
 }
 
+// Editar y archivar viven en el panel de detalle, no en la tarjeta: la fila
+// sólo selecciona.
 function ProcRow({
-  proc, selected, isAdmin, archiving, onSelect, onEdit, onArchive,
+  proc, selected, onSelect,
 }: {
   proc: ProcedimientoListItem;
   selected: boolean;
-  isAdmin: boolean;
-  archiving: boolean;
   onSelect: () => void;
-  onEdit: () => void;
-  onArchive: () => void;
 }) {
   const [hover, setHover] = useState(false);
   const pasos = proc.pasos_count ?? 0;
@@ -270,8 +264,10 @@ function ProcRow({
       onMouseLeave={() => setHover(false)}
       style={{
         padding: "12px 14px", cursor: "pointer", flexShrink: 0,
-        background: selected ? "var(--brand-tint)" : "var(--surface-1)",
+        background: selected ? "var(--row-selected)" : "var(--surface-1)",
         border: `1px solid ${selected ? "var(--brand)" : hover ? "var(--border-strong)" : "var(--border)"}`,
+        // Barra de acento de 3px al seleccionar, igual que OTRow.
+        boxShadow: selected ? "inset 3px 0 0 0 var(--brand)" : "none",
         borderRadius: "var(--r-lg)",
         transition: "border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease)",
       }}
@@ -296,25 +292,6 @@ function ProcRow({
             {proc.categoria ? ` · ${proc.categoria}` : ""}
           </div>
         </div>
-        {isAdmin && hover && (
-          <div style={{ display: "flex", gap: 2, flexShrink: 0 }} onClick={e => e.stopPropagation()}>
-            <button
-              onClick={onEdit}
-              aria-label="Editar"
-              style={{ width: 26, height: 26, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", borderRadius: 6, cursor: "pointer", color: "var(--fg-3)" }}
-            >
-              <Pencil size={12} />
-            </button>
-            <button
-              onClick={onArchive}
-              disabled={archiving}
-              aria-label="Archivar"
-              style={{ width: 26, height: 26, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", borderRadius: 6, cursor: "pointer", color: "var(--fg-3)" }}
-            >
-              {archiving ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
-            </button>
-          </div>
-        )}
       </div>
 
       {(proc.bloquea_cierre_ot || proc.bloquea_inicio || proc.auto_adjuntar || proc.notificar_al_completar) && (

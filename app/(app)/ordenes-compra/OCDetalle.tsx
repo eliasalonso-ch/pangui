@@ -99,7 +99,7 @@ export default function OCDetalle({ oc, isAdmin, onEdit, onCambio }: {
       <div style={{
         display: "flex", alignItems: "flex-start", gap: 14,
         marginLeft: -28, marginRight: -28, paddingLeft: 28, paddingRight: 28,
-        paddingTop: 24, paddingBottom: 20, marginBottom: 0,
+        paddingTop: 24, paddingBottom: 24, marginBottom: 0,
         borderBottom: "1px solid var(--border)",
       }}>
         <div style={{ flex: 1, minWidth: 0 }}>
@@ -116,7 +116,19 @@ export default function OCDetalle({ oc, isAdmin, onEdit, onCambio }: {
               {ESTADO_OC_LABELS[oc.estado]}
             </span>
             {oc.origen === "plan_mantencion" && (
-              <span style={{ fontSize: 14, color: "var(--fg-3)" }}>Generada por un plan</span>
+              // Enlaza al plan que la generó: si no, no hay forma de saber cuál
+              // fue. Sin `plan_id` (no debería pasar) queda como texto plano en
+              // vez de un enlace muerto.
+              oc.plan_id ? (
+                <a
+                  href={`/planes?id=${oc.plan_id}`}
+                  style={{ fontSize: 14, color: "var(--brand-fg)", textDecoration: "none" }}
+                >
+                  Generada por un plan
+                </a>
+              ) : (
+                <span style={{ fontSize: 14, color: "var(--fg-3)" }}>Generada por un plan</span>
+              )
             )}
           </div>
         </div>
@@ -190,15 +202,19 @@ export default function OCDetalle({ oc, isAdmin, onEdit, onCambio }: {
       </div>
 
       {!oc.precios_confirmados && (
+        /* Mismo aviso que los banners de OTDetail: tarjeta blanca con borde
+           gris de 1px. El color de aviso queda en el icono y el titulo, no en
+           el fondo. `marginTop` lo despega de la regla de la cabecera. */
         <div style={{
           display: "flex", alignItems: "flex-start", gap: 10, fontSize: 14,
-          background: "var(--surface-hover)", color: "var(--fg-1)",
-          padding: "10px 12px", borderRadius: "var(--r-md)", marginBottom: 16,
-          borderLeft: "3px solid var(--warning)",
+          background: "var(--surface-1)", color: "var(--fg-1)",
+          padding: "16px 18px", borderRadius: "var(--r-md)",
+          marginTop: 22, marginBottom: 16,
+          border: "1px solid var(--border)",
         }}>
           <AlertTriangle size={16} style={{ color: "var(--warning)", flexShrink: 0, marginTop: 1 }} />
           <div style={{ flex: 1 }}>
-            <div>Precios tomados del inventario, sin confirmar con el proveedor.</div>
+            <div style={{ color: "var(--warning)" }}>Precios tomados del inventario, sin confirmar con el proveedor.</div>
             <div style={{ color: "var(--fg-3)", marginTop: 2 }}>
               Una orden de compra declara precios acordados. Revísalos contra la cotización antes de aprobarla.
             </div>
@@ -222,7 +238,7 @@ export default function OCDetalle({ oc, isAdmin, onEdit, onCambio }: {
       )}
 
       {error && (
-        <div style={{ fontSize: 14, background: "var(--danger-bg)", color: "var(--danger)", padding: "8px 12px", borderRadius: "var(--r-md)", marginBottom: 16 }}>
+        <div style={{ fontSize: 14, background: "var(--surface-1)", color: "var(--danger)", padding: "16px 18px", borderRadius: "var(--r-md)", marginBottom: 16, border: "1px solid var(--border)" }}>
           {error}
         </div>
       )}
@@ -244,7 +260,7 @@ export default function OCDetalle({ oc, isAdmin, onEdit, onCambio }: {
       </div>
 
       {oc.rechazada_motivo && (
-        <div style={{ fontSize: 14, background: "var(--danger-bg)", color: "var(--danger)", padding: "8px 12px", borderRadius: "var(--r-md)", marginBottom: 16 }}>
+        <div style={{ fontSize: 14, background: "var(--surface-1)", color: "var(--danger)", padding: "16px 18px", borderRadius: "var(--r-md)", marginBottom: 16, border: "1px solid var(--border)" }}>
           Rechazada: {oc.rechazada_motivo}
         </div>
       )}

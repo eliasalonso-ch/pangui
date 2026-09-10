@@ -301,7 +301,7 @@ export default function MapaPosicionar({
                   minHeight: 64, padding: "14px 14px", cursor: "pointer",
                   fontFamily: "inherit", fontSize: 14, color: "var(--fg-1)",
                   boxSizing: "border-box",
-                  background: activa ? "var(--brand-tint)" : "var(--surface-1)",
+                  background: activa ? "var(--row-selected)" : "var(--surface-1)",
                   border: `1px solid ${activa ? "var(--brand)" : "var(--border)"}`,
                   borderRadius: "var(--r-lg)",
                   boxShadow: activa ? "inset 3px 0 0 0 var(--brand)" : "none",

@@ -6,7 +6,7 @@ import { useDeepLinkId } from "@/lib/use-deep-link-id";
 import { createClient } from "@/lib/supabase";
 import { EmptyState, EmptyDetail } from "@/components/EmptyState";
 import {
-  Plus, Search, X, Loader2, Zap, Trash2, Inbox, Pencil,
+  Plus, Search, X, Loader2, Zap, Inbox,
 } from "lucide-react";
 import {
   listHitos, createHito, archivarHito, contarOrdenesDeIto, listItosSinCatalogo,
@@ -264,10 +264,7 @@ export default function ItosPage() {
                 key={hito.id}
                 hito={hito}
                 selected={selectedId === hito.id}
-                isAdmin={isAdmin}
                 onSelect={() => { openIto(hito.id); setCreando(false); setEditando(null); }}
-                onEdit={() => pedirEditar(hito)}
-                onDelete={() => pedirBorrar(hito)}
               />
             ))
           )}
@@ -374,13 +371,12 @@ export default function ItosPage() {
   );
 }
 
-function ItoRow({ hito, selected, isAdmin, onSelect, onEdit, onDelete }: {
+// Editar y eliminar viven en el panel de detalle, no en la tarjeta: la fila
+// sólo selecciona.
+function ItoRow({ hito, selected, onSelect }: {
   hito: Hito;
   selected: boolean;
-  isAdmin: boolean;
   onSelect: () => void;
-  onEdit: () => void;
-  onDelete: () => void;
 }) {
   const [hover, setHover] = useState(false);
   return (
@@ -391,9 +387,12 @@ function ItoRow({ hito, selected, isAdmin, onSelect, onEdit, onDelete }: {
       style={{
         display: "flex", alignItems: "center", gap: 12,
         padding: "12px 14px", cursor: "pointer", flexShrink: 0,
-        background: selected ? "var(--brand-tint)" : "var(--surface-1)",
+        background: selected ? "var(--row-selected)" : "var(--surface-1)",
         border: `1px solid ${selected ? "var(--brand)" : hover ? "var(--border-strong)" : "var(--border)"}`,
         borderRadius: "var(--r-lg)",
+        // Barra de acento de 3px al seleccionar, igual que OTRow: el borde se
+        // queda en 1px para que el contenido no se corra de lado.
+        boxShadow: selected ? "inset 3px 0 0 0 var(--brand)" : "none",
         transition: "border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease)",
       }}
     >
@@ -410,24 +409,6 @@ function ItoRow({ hito, selected, isAdmin, onSelect, onEdit, onDelete }: {
       }}>
         {hito.nombre}
       </div>
-      {isAdmin && hover && (
-        <div style={{ display: "flex", gap: 2, flexShrink: 0 }} onClick={e => e.stopPropagation()}>
-          <button
-            onClick={onEdit}
-            aria-label="Editar"
-            style={{ width: 26, height: 26, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", borderRadius: 6, cursor: "pointer", color: "var(--fg-3)" }}
-          >
-            <Pencil size={12} />
-          </button>
-          <button
-            onClick={onDelete}
-            aria-label="Eliminar"
-            style={{ width: 26, height: 26, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", borderRadius: 6, cursor: "pointer", color: "var(--fg-3)" }}
-          >
-            <Trash2 size={12} />
-          </button>
-        </div>
-      )}
     </div>
   );
 }

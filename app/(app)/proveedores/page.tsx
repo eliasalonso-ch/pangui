@@ -15,6 +15,8 @@ import AuditFooter from "@/components/catalogo/AuditFooter";
 import ProveedorFormPanel from "./ProveedorForm";
 import { ProveedorFiltrosBar } from "./ProveedorFiltrosBar";
 import { EmptyState, EmptyDetail } from "@/components/EmptyState";
+import { useSuscripcion } from "@/hooks/useSuscripcion";
+import { UpgradePrompt } from "@/components/UpgradePrompt";
 import { btnSecundario, btnIcono, seccionDetalle } from "@/components/catalogo/PanelCatalogo";
 import {
   EMPTY_FILTROS_PROV, FILTER_ORDER_PROV, FILTER_META_PROV,
@@ -28,6 +30,30 @@ import type { Proveedor, ProveedorForm } from "@/types/proveedores";
 // a la izquierda, ficha a la derecha.
 
 export default function ProveedoresPage() {
+  const suscripcion = useSuscripcion();
+  if (suscripcion.loading) {
+    return (
+      <div style={{ display: "flex", justifyContent: "center", padding: 60 }}>
+        <Loader2 size={22} className="animate-spin" style={{ color: "var(--fg-4)" }} />
+      </div>
+    );
+  }
+  // El item del sidebar ya se oculta, pero un enlace guardado entraría igual:
+  // la ruta se defiende sola.
+  if (suscripcion.data?.plan_features && !suscripcion.data.plan_features.proveedores) {
+    return (
+      <UpgradePrompt
+        variant="card"
+        title="Los proveedores están disponibles en Pro"
+        description="Sube tu plan para llevar el catálogo de proveedores y emitirles órdenes de compra."
+        upgradeTo="Pro"
+      />
+    );
+  }
+  return <ProveedoresPageInner />;
+}
+
+function ProveedoresPageInner() {
   const queryClient = useQueryClient();
   const [wsId, setWsId] = useState<string | null>(null);
   const [rol, setRol] = useState<string | null>(null);
@@ -292,7 +318,7 @@ export default function ProveedoresPage() {
                   display: "flex", alignItems: "center", gap: 12, width: "100%", textAlign: "left",
                   padding: "12px 14px", borderRadius: "var(--r-lg)", cursor: "pointer",
                   border: "1px solid " + (selectedId === p.id ? "var(--brand)" : "var(--border)"),
-                  background: selectedId === p.id ? "var(--brand-tint)" : "var(--surface-1)",
+                  background: selectedId === p.id ? "var(--row-selected)" : "var(--surface-1)",
                   boxShadow: selectedId === p.id ? "inset 3px 0 0 0 var(--brand)" : "none",
                   fontFamily: "inherit", opacity: p.activo ? 1 : 0.55, flexShrink: 0,
                 }}
