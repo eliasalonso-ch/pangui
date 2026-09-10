@@ -54,3 +54,4 @@ deno.lock
 
 # Archivos de revisión de geocodificación (datos temporales)
 geocoding-revision-*.json
+.gstack/

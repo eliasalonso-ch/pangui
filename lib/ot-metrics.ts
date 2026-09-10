@@ -4,7 +4,10 @@
  * These functions work against the existing DB columns:
  *   iniciado_at   — when work actually started (set by iniciarOrden / reanudarOrden)
  *   pausado_at    — when work was last paused (cleared on resume)
- *   updated_at    — last row update; used as completedAt proxy when estado = "completado"
+ *   completado_en — real completion timestamp (trigger-maintained)
+ *   updated_at    — last row update; last-resort proxy only. NOT a completion
+ *                   date: any bulk UPDATE rewrites it (see the 2026-08-11
+ *                   backfill, which stamped 385 OTs with one timestamp).
  *   created_at    — always present
  *   tiempo_total_segundos — accumulated working seconds from the timer
  *
@@ -18,6 +21,7 @@ export interface OTLifecycle {
   iniciado_at: string | null;
   pausado_at?: string | null;
   updated_at: string | null;
+  completado_en?: string | null;
   tiempo_total_segundos?: number | null;
   fecha_termino: string | null;
   asignados_ids: string[] | null;
@@ -33,13 +37,20 @@ export function getResponseTime(ot: OTLifecycle): number | null {
 }
 
 /**
+ * When the OT actually finished: fecha_termino (set by completarOrden), then
+ * completado_en (trigger-maintained), then updated_at as a last resort.
+ */
+function completedAtOf(ot: OTLifecycle): string | null {
+  return ot.fecha_termino ?? ot.completado_en ?? ot.updated_at;
+}
+
+/**
  * Hours from OT creation to completion.
- * Prefers fecha_termino (set by completarOrden); falls back to updated_at.
  * Returns null if not yet completed.
  */
 export function getResolutionTime(ot: OTLifecycle): number | null {
   if (ot.estado !== "completado") return null;
-  const completedAt = ot.fecha_termino ?? ot.updated_at;
+  const completedAt = completedAtOf(ot);
   if (!completedAt) return null;
   return msToHours(new Date(completedAt).getTime() - new Date(ot.created_at).getTime());
 }
@@ -61,7 +72,7 @@ export function getBlockedDuration(ot: OTLifecycle): number | null {
   if (working === null) return null;
 
   // If completed: total elapsed = created → completed
-  const completedAt = ot.fecha_termino ?? ot.updated_at;
+  const completedAt = completedAtOf(ot);
   if (ot.estado === "completado" && completedAt) {
     const total = msToHours(new Date(completedAt).getTime() - new Date(ot.created_at).getTime());
     return Math.max(0, total - working);
@@ -76,7 +87,7 @@ export function getBlockedDuration(ot: OTLifecycle): number | null {
  * Hours of actual work performed.
  *
  * Primary: tiempo_total_segundos (accumulated by the timer, most accurate).
- * Fallback: iniciado_at → updated_at (only reasonable for completed OTs
+ * Fallback: iniciado_at → completion time (only reasonable for completed OTs
  * that were never paused).
  *
  * Returns null when no timing data is available at all.
@@ -85,8 +96,9 @@ export function getWorkingTime(ot: OTLifecycle): number | null {
   if (ot.tiempo_total_segundos != null && ot.tiempo_total_segundos > 0) {
     return ot.tiempo_total_segundos / 3600;
   }
-  if (ot.iniciado_at && ot.updated_at && ot.estado === "completado") {
-    return msToHours(new Date(ot.updated_at).getTime() - new Date(ot.iniciado_at).getTime());
+  const completedAt = completedAtOf(ot);
+  if (ot.iniciado_at && completedAt && ot.estado === "completado") {
+    return msToHours(new Date(completedAt).getTime() - new Date(ot.iniciado_at).getTime());
   }
   return null;
 }

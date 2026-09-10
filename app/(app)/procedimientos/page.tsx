@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase";
+import { EmptyState, EmptyDetail } from "@/components/EmptyState";
 import {
   ClipboardCheck, Plus, Search, Loader2, X, Pencil, Trash2, FileText,
   ListFilter, Lock, PlayCircle, Zap, type LucideIcon,
@@ -172,18 +173,18 @@ export default function ProcedimientosPage() {
               <Loader2 size={20} className="animate-spin" style={{ color: "var(--fg-4)" }} />
             </div>
           ) : filtered.length === 0 ? (
-            <div style={{
-              display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-              height: 240, color: "var(--fg-4)", gap: 8, padding: 24, textAlign: "center",
-            }}>
-              <ClipboardCheck size={32} style={{ color: "var(--fg-4)" }} />
-              <div style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-3)" }}>
-                {search || filtro !== "todos" ? "Sin resultados" : "No hay procedimientos aún"}
-              </div>
-              {!search && filtro === "todos" && isAdmin && (
-                <div style={{ fontSize: 14, color: "var(--fg-4)" }}>Crea el primero con el botón de arriba</div>
-              )}
-            </div>
+            <EmptyState
+              icon={<ClipboardCheck size={38} strokeWidth={1.4} />}
+              title={
+                search || filtro !== "todos"
+                  ? "Ningún procedimiento coincide con la búsqueda"
+                  : "Todavía no hay procedimientos"
+              }
+              description="Un procedimiento es la pauta que se sigue al ejecutar un trabajo: sus pasos quedan como checklist dentro de la orden."
+              onCreate={isAdmin ? () => router.push("/procedimientos/nueva") : undefined}
+              createLabel="Crear el primero"
+              hasSearch={!!search || filtro !== "todos"}
+            />
           ) : (
             filtered.map(proc => (
               <ProcRow
@@ -209,14 +210,10 @@ export default function ProcedimientosPage() {
               onEdit={() => router.push(`/procedimientos/${selectedId}/editar`)}
             />
           ) : (
-            <div style={{
-              height: "100%", display: "flex", flexDirection: "column",
-              alignItems: "center", justifyContent: "center", gap: 10, color: "var(--fg-4)",
-            }}>
-              <FileText size={40} style={{ opacity: 0.5 }} />
-              <div style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-3)" }}>Selecciona un procedimiento</div>
-              <div style={{ fontSize: 14 }}>El detalle aparecerá aquí</div>
-            </div>
+            <EmptyDetail
+              icon={<FileText size={28} strokeWidth={1.5} />}
+              title="Selecciona un procedimiento"
+            />
           )}
         </div>
       </div>
@@ -279,7 +276,14 @@ function ProcRow({
         transition: "border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease)",
       }}
     >
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }}>
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
+        <div style={{
+          width: 32, height: 32, flexShrink: 0, borderRadius: "var(--r-md)",
+          background: "var(--brand-tint)", color: "var(--brand)",
+          display: "flex", alignItems: "center", justifyContent: "center",
+        }}>
+          <ClipboardCheck size={16} />
+        </div>
         <div style={{ minWidth: 0, flex: 1 }}>
           <div style={{
             fontSize: 14, fontWeight: 400, color: "var(--fg-1)",

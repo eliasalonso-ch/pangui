@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase";
+import { EmptyState, EmptyDetail } from "@/components/EmptyState";
 import { getAuthUser } from "@/lib/auth-user";
 import AppLoadingState from "@/components/AppLoadingState";
 import HistorialOT from "@/components/catalogo/HistorialOT";
@@ -412,14 +413,31 @@ export default function UbicacionesPage() {
     : "Nueva asociación";
 
   const emptyIcon =
-    section === "ubicaciones" ? <Building2 size={32} />
-    : section === "lugares"   ? <MapPin size={32} />
-    : <Building2 size={32} />;
+    section === "ubicaciones" ? <Building2 size={38} strokeWidth={1.4} />
+    : section === "lugares"   ? <MapPin size={38} strokeWidth={1.4} />
+    : <Building2 size={38} strokeWidth={1.4} />;
 
   const emptyTitle =
-    section === "ubicaciones" ? "No hay ubicaciones aún"
-    : section === "lugares"   ? "No hay lugares específicos aún"
-    : "No hay asociaciones aún";
+    section === "ubicaciones" ? "Todavía no hay ubicaciones"
+    : section === "lugares"   ? "Todavía no hay lugares específicos"
+    : "Todavía no hay asociaciones";
+
+  // Concordancia de género: "el primero" para lugar, "la primera" para
+  // ubicación y asociación. Antes decía "Crea el primero" en los tres.
+  const emptyCreateLabel =
+    section === "lugares" ? "Crear el primero" : "Crear la primera";
+
+  const emptyDescripcion =
+    section === "ubicaciones"
+      ? "Una ubicación es el edificio o recinto donde viven los activos, y es lo que después permite agrupar las órdenes por lugar."
+      : section === "lugares"
+      ? "Un lugar específico precisa dónde está un activo dentro de una ubicación: una sala, un piso, un tablero."
+      : "Una asociación es la sociedad o razón social a la que pertenece una ubicación, para separar la operación por empresa.";
+
+  const emptySearchTitle =
+    section === "ubicaciones" ? "Ninguna ubicación coincide con la búsqueda"
+    : section === "lugares"   ? "Ningún lugar coincide con la búsqueda"
+    : "Ninguna asociación coincide con la búsqueda";
 
   const filtered = {
     ubicaciones: ubicaciones.filter(u =>
@@ -598,7 +616,14 @@ export default function UbicacionesPage() {
           display: "flex", flexDirection: "column", gap: 8, padding: "8px 10px",
         }}>
           {section === "ubicaciones" && (
-            filtered.ubicaciones.length === 0 ? <Empty icon={emptyIcon} title={search ? "Sin resultados" : emptyTitle} hint={!search && canEdit ? "Crea el primero con el boton de arriba" : undefined} /> :
+            filtered.ubicaciones.length === 0 ? <EmptyState
+              icon={emptyIcon}
+              title={search ? emptySearchTitle : emptyTitle}
+              description={emptyDescripcion}
+              onCreate={canEdit ? () => openCreate(section) : undefined}
+              createLabel={emptyCreateLabel}
+              hasSearch={!!search}
+            /> :
             (pageItems as any[]).map(u => (
               <ListRow
                 key={u.id}
@@ -611,7 +636,14 @@ export default function UbicacionesPage() {
             ))
           )}
           {section === "lugares" && (
-            filtered.lugares.length === 0 ? <Empty icon={emptyIcon} title={search ? "Sin resultados" : emptyTitle} hint={!search && canEdit ? "Crea el primero con el boton de arriba" : undefined} /> :
+            filtered.lugares.length === 0 ? <EmptyState
+              icon={emptyIcon}
+              title={search ? emptySearchTitle : emptyTitle}
+              description={emptyDescripcion}
+              onCreate={canEdit ? () => openCreate(section) : undefined}
+              createLabel={emptyCreateLabel}
+              hasSearch={!!search}
+            /> :
             (pageItems as any[]).map(l => (
               <ListRow
                 key={l.id}
@@ -624,7 +656,14 @@ export default function UbicacionesPage() {
             ))
           )}
           {section === "sociedades" && (
-            filtered.sociedades.length === 0 ? <Empty icon={emptyIcon} title={search ? "Sin resultados" : emptyTitle} hint={!search && canEdit ? "Crea el primero con el boton de arriba" : undefined} /> :
+            filtered.sociedades.length === 0 ? <EmptyState
+              icon={emptyIcon}
+              title={search ? emptySearchTitle : emptyTitle}
+              description={emptyDescripcion}
+              onCreate={canEdit ? () => openCreate(section) : undefined}
+              createLabel={emptyCreateLabel}
+              hasSearch={!!search}
+            /> :
             (pageItems as any[]).map(s => (
               <ListRow
                 key={s.id}
@@ -653,18 +692,14 @@ export default function UbicacionesPage() {
 
       {/* Detalle — siempre presente; con placeholder si no hay seleccion. */}
       {!panel ? (
-        <div style={{
-          flex: 1, minWidth: 0, height: "100%", display: "flex", flexDirection: "column",
-          alignItems: "center", justifyContent: "center", gap: 10, color: "var(--fg-4)",
-        }}>
-          {section === "lugares" ? <MapPin size={40} style={{ opacity: 0.5 }} /> : <Building2 size={40} style={{ opacity: 0.5 }} />}
-          <div style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-3)" }}>
-            {section === "ubicaciones" ? "Selecciona una ubicación"
-             : section === "lugares"   ? "Selecciona un lugar"
-             : "Selecciona una asociación"}
-          </div>
-          <div style={{ fontSize: 14 }}>El detalle aparecerá aquí</div>
-        </div>
+        <EmptyDetail
+          icon={section === "lugares" ? <MapPin size={28} strokeWidth={1.5} /> : <Building2 size={28} strokeWidth={1.5} />}
+          title={
+            section === "ubicaciones" ? "Selecciona una ubicación"
+            : section === "lugares"   ? "Selecciona un lugar"
+            : "Selecciona una asociación"
+          }
+        />
       ) : (
         // Misma estructura que OTDetail: una columna sobre el lienzo
         // (--surface-canvas, el blanco crema) con la cabecera fija arriba y UN
@@ -1343,16 +1378,3 @@ function ListRow({
   );
 }
 
-/** Mismo vacio que /categorias: icono, titulo y pista de que hacer. */
-function Empty({ icon, title, hint }: { icon: React.ReactNode; title: string; hint?: string }) {
-  return (
-    <div style={{
-      display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-      height: 240, color: "var(--fg-4)", gap: 8, padding: 24, textAlign: "center",
-    }}>
-      {icon}
-      <div style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-3)" }}>{title}</div>
-      {hint && <div style={{ fontSize: 14 }}>{hint}</div>}
-    </div>
-  );
-}

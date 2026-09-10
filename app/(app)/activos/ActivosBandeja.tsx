@@ -16,6 +16,7 @@ import {
   type ActivoOTHistoryRow, type ActivoActividadRow,
 } from "@/lib/activos-api";
 import AuditFooter from "@/components/catalogo/AuditFooter";
+import { EmptyState, EmptyDetail } from "@/components/EmptyState";
 import { cambiarEstadoActivo, fetchPeriodoVigente, type EstadoPeriodo } from "@/lib/activo-estado-api";
 import { uploadToR2 } from "@/lib/r2";
 import { createClient, logRealtimeChannel } from "@/lib/supabase";
@@ -408,11 +409,12 @@ function ActivoRow({ activo, selected, onClick }: { activo: Activo; selected: bo
         width: "100%",
         display: "flex",
         gap: 12,
-        alignItems: "stretch",
-        padding: "16px 20px",
+        alignItems: "center",
+        padding: "14px 20px",
         // Altura fija, como en OTRow: todas las tarjetas miden lo mismo aunque
-        // el nombre o la ubicación cambien de largo.
-        height: 108,
+        // el nombre o la ubicación cambien de largo. Bajó de 108 al pasar la
+        // miniatura de 76 a 32px.
+        height: 88,
         flexShrink: 0,
         boxSizing: "border-box",
         border: `1px solid ${selected ? "var(--brand)" : "var(--border)"}`,
@@ -427,14 +429,15 @@ function ActivoRow({ activo, selected, onClick }: { activo: Activo; selected: bo
         transition: "background var(--dur-fast) var(--ease)",
       }}
     >
-      {/* La miniatura ocupa el alto del bloque de texto, no un cuadrado suelto
-          arriba: así la tarjeta lee como una unidad. */}
+      {/* Miniatura de 32px, la misma que proveedores y órdenes de compra.
+          Antes ocupaba 76px al alto del texto: al bajarla la tarjeta también
+          bajó de 108 a 76px, porque si no quedaba puro aire. */}
       {activo.imagen_url ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={activo.imagen_url} alt="" style={{ width: 76, alignSelf: "stretch", borderRadius: "var(--r-md)", objectFit: "cover", background: "var(--surface-hover)", flexShrink: 0 }} />
+        <img src={activo.imagen_url} alt="" style={{ width: 32, height: 32, borderRadius: "var(--r-md)", objectFit: "cover", background: "var(--surface-hover)", flexShrink: 0 }} />
       ) : (
-        <span style={{ width: 76, alignSelf: "stretch", borderRadius: "var(--r-md)", background: "var(--brand-tint)", display: "inline-flex", alignItems: "center", justifyContent: "center", color: "var(--brand-fg)", flexShrink: 0 }}>
-          <Box size={26} />
+        <span style={{ width: 32, height: 32, borderRadius: "var(--r-md)", background: "var(--brand-tint)", display: "inline-flex", alignItems: "center", justifyContent: "center", color: "var(--brand)", flexShrink: 0 }}>
+          <Box size={16} />
         </span>
       )}
 
@@ -2846,22 +2849,22 @@ export default function ActivosBandeja({ initialActivos, usuarios, ubicaciones, 
                 <ChevronRight size={17} style={{ color: "var(--fg-4)" }} />
               </button>
             )) : filtered.length === 0 ? (
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: 280, gap: 12, color: "var(--fg-4)" }}>
-                <Box size={38} strokeWidth={1.5} />
-                <p style={{ fontSize: 14, color: "var(--fg-2)", fontWeight: 400 }}>
-                  {search || filterCrit !== "all" || filterSociedadId !== "all" ? "Sin resultados para tu búsqueda" : "Aún no hay activos"}
-                </p>
-                {!search && filterCrit === "all" && filterSociedadId === "all" && canCreate && (
-                  <a href="#" onClick={e => { e.preventDefault(); openCreate(); }}
-                    style={{ fontSize: 14, color: "var(--brand-fg)", fontWeight: 400, textDecoration: "underline" }}>
-                    Crea el primer activo
-                  </a>
-                )}
-              </div>
+              <EmptyState
+                icon={<Box size={38} strokeWidth={1.4} />}
+                title={
+                  search || filterCrit !== "all" || filterSociedadId !== "all"
+                    ? "Ningún activo coincide con la búsqueda"
+                    : "Todavía no hay activos"
+                }
+                description="Un activo es el equipo o instalación que se mantiene. Con él cargado, sus órdenes, planes e historial quedan colgando del mismo lugar."
+                onCreate={canCreate ? openCreate : undefined}
+                createLabel="Crear el primero"
+                hasSearch={!!search || filterCrit !== "all" || filterSociedadId !== "all"}
+              />
             ) : filtered.map(activo => (
               <ActivoRow key={activo.id} activo={activo} selected={selected === activo.id} onClick={() => { setEditing(null); setSelected(prev => prev === activo.id ? null : activo.id); }} />
             ))}
-            {locationsView && assetLocations.length === 0 && <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: 280, gap: 10, color: "var(--fg-4)" }}><MapPin size={38} strokeWidth={1.5} /><p style={{ fontSize: 14, color: "var(--fg-2)", fontWeight: 400 }}>{search ? "Sin resultados" : "Sin ubicaciones con activos"}</p></div>}
+            {locationsView && assetLocations.length === 0 && <EmptyState icon={<MapPin size={38} strokeWidth={1.4} />} title={search ? "Ninguna ubicación coincide con la búsqueda" : "Sin ubicaciones con activos"} description="Cuando un activo quede asignado a una ubicación, esa ubicación aparecerá acá con su total." hasSearch={!!search} />}
           </div>
         </div>
 
@@ -2869,7 +2872,7 @@ export default function ActivosBandeja({ initialActivos, usuarios, ubicaciones, 
         {(isDesktop || showRight) && (
           <div style={{ flex: 1, minWidth: 0, overflow: "hidden", background: "var(--c-bg, var(--surface-canvas))" }}>
             {locationsView ? (
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: 12, color: "var(--fg-4)" }}><div style={{ width: 64, height: 64, borderRadius: 12, background: "var(--surface-hover)", display: "flex", alignItems: "center", justifyContent: "center" }}><MapPin size={28} style={{ color: "var(--border-strong)" }} /></div><div style={{ textAlign: "center" }}><p style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-2)" }}>Selecciona una ubicación</p><p style={{ fontSize: 14, color: "var(--fg-4)", marginTop: 4 }}>Abre una ubicación para ver sus activos</p></div></div>
+              <EmptyDetail icon={<MapPin size={28} strokeWidth={1.5} />} title="Selecciona una ubicación" hint="Abre una ubicación para ver sus activos" />
             ) : editing ? (
               <ActivoForm
                 activo={editing === "new" ? null : editing}
@@ -2896,15 +2899,7 @@ export default function ActivosBandeja({ initialActivos, usuarios, ubicaciones, 
                 onUpdated={handleSaved}
               />
             ) : (
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: 12, color: "var(--fg-4)" }}>
-                <div style={{ width: 64, height: 64, borderRadius: 12, background: "var(--surface-hover)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <Box size={28} style={{ color: "var(--border-strong)" }} />
-                </div>
-                <div style={{ textAlign: "center" }}>
-                  <p style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-2)" }}>Selecciona un activo</p>
-                  <p style={{ fontSize: 14, color: "var(--fg-4)", marginTop: 4 }}>El detalle aparecerá aquí</p>
-                </div>
-              </div>
+              <EmptyDetail icon={<Box size={28} strokeWidth={1.5} />} title="Selecciona un activo" />
             )}
           </div>
         )}

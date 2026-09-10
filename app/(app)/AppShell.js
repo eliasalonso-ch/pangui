@@ -157,7 +157,13 @@ export default function AppShell({ children }) {
               style={{
                 flex: 1,
                 minHeight: 0,
-                overflowY: pathname.startsWith("/ordenes") ? "hidden" : "auto",
+                // Coincidencia exacta del segmento y no `startsWith`: con
+                // `startsWith` /ordenes-compra heredaba el `hidden` de la
+                // bandeja de OT por parecido de nombre, no por decisión.
+                overflowY:
+                  pathname === "/ordenes" || pathname.startsWith("/ordenes/")
+                    ? "hidden"
+                    : "auto",
                 overflowX: "hidden",
               }}
             >
