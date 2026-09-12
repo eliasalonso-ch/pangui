@@ -30,12 +30,17 @@ export async function buscarMateriales(
   const q = texto.trim();
   if (q.length < 2) return [];
   const sb = createClient();
-  const patron = `%${q.replace(/[%_]/g, (m) => "\\" + m)}%`;
+
+  // En un filtro `or` de PostgREST la coma separa condiciones y el paréntesis
+  // las agrupa: un código como "bor2,5g" partiría la consulta en dos. Entre
+  // comillas dobles el valor se toma literal; el % y el _ son comodines de
+  // ilike y se escapan aparte.
+  const patron = q.replace(/[%_\\]/g, (m) => "\\" + m).replace(/"/g, "");
   const { data, error } = await sb
     .from("catalogo_materiales")
     .select("codigo, descripcion, unidad, clasificacion")
     .eq("workspace_id", workspaceId)
-    .or(`codigo.ilike.${patron},descripcion.ilike.${patron}`)
+    .or(`codigo.ilike."%${patron}%",descripcion.ilike."%${patron}%"`)
     .order("codigo")
     .limit(limite);
   if (error) throw error;

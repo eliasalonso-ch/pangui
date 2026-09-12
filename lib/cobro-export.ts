@@ -15,10 +15,16 @@ export interface CobroExport {
   generadoEn: string;
   orden: {
     numero: number | null;
+    /** N° de OT del cliente (SF9…). Si falta, el cobro es SIN OT. */
     numeroMeconecta: string | null;
     solicitante: string;
+    /** Ubicación: edificio · detalle · lugar. */
     lugar: string;
+    /** Fecha en que se completó la OT (no la planificada). */
     fechaTermino: string;
+    /** Momento exacto del cierre, con hora, para el PDF. */
+    completadoEn: string | null;
+    /** Título de la OT: "P953 - Conexión medidor faena copas". */
     descripcion: string;
     titulo: string;
   };
@@ -30,11 +36,26 @@ function norm(s: string): string {
   return (s || "").trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 }
 
+/**
+ * El N° de OT del cliente (SF920260929640) viene dentro del texto de la
+ * descripción, no en una columna propia: `numero_meconecta` quedó vacío en
+ * las 827 órdenes. Con ese número el cobro es CON OT; sin él, SIN OT.
+ */
+const RE_NUM_OT = /SF9\d{10,}/;
+
+export function numeroOtCliente(...textos: (string | null | undefined)[]): string {
+  for (const t of textos) {
+    const m = t && t.match(RE_NUM_OT);
+    if (m) return m[0];
+  }
+  return "";
+}
+
 export async function construirCobro(hoja: Hoja, ordenId: string): Promise<CobroExport> {
   const sb = createClient();
   const { data: ot, error } = await sb
     .from("ordenes_trabajo")
-    .select("numero, numero_meconecta, solicitante, ubicacion_texto, lugar, fecha_termino, completado_en, descripcion, titulo")
+    .select("numero, numero_meconecta, solicitante, fecha_termino, completado_en, descripcion, titulo, observacion, ubicacion_id, lugar_id, ubicaciones(edificio, detalle), lugares(nombre)")
     .eq("id", ordenId)
     .single();
   if (error) throw error;
@@ -60,18 +81,34 @@ export async function construirCobro(hoja: Hoja, ordenId: string): Promise<Cobro
 
   const o = (ot ?? {}) as Record<string, unknown>;
   const txt = (v: unknown) => (v == null ? "" : String(v));
+
+  // Supabase devuelve la relación como objeto o como arreglo según el join.
+  const uno = (rel: unknown): Record<string, unknown> =>
+    (Array.isArray(rel) ? rel[0] : rel) as Record<string, unknown> ?? {};
+  const ubi = uno(o.ubicaciones);
+  const lug = uno(o.lugares);
+  // "CENTRO EULA - EDIFICIO 2" es el edificio; el detalle y el lugar lo afinan.
+  const ubicacion = [txt(ubi.edificio), txt(ubi.detalle), txt(lug.nombre)]
+    .filter(Boolean).join(" · ");
+
+  // La fecha del cobro es cuándo se completó realmente la OT, no la planificada.
+  const completado = txt(o.completado_en);
+
   return {
     formato: "cobro-electrilam",
     version: 1,
     generadoEn: new Date().toISOString(),
     orden: {
       numero: (o.numero as number) ?? null,
-      numeroMeconecta: (o.numero_meconecta as string) ?? null,
+      numeroMeconecta:
+        numeroOtCliente(o.numero_meconecta as string, o.descripcion as string,
+                        o.titulo as string, o.observacion as string) || null,
       solicitante: txt(o.solicitante),
-      lugar: txt(o.ubicacion_texto) || txt(o.lugar),
-      // fecha_termino es la planificada; completado_en es cuándo se cerró de verdad
-      fechaTermino: txt(o.completado_en).slice(0, 10) || txt(o.fecha_termino).slice(0, 10),
-      descripcion: txt(o.descripcion),
+      lugar: ubicacion,
+      fechaTermino: completado.slice(0, 10) || txt(o.fecha_termino).slice(0, 10),
+      // hora incluida: en el PDF se muestra "11-09-2026 12:55"
+      completadoEn: completado || null,
+      descripcion: txt(o.titulo),   // el título ES la glosa del trabajo
       titulo: txt(o.titulo),
     },
     items,

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Download, Plus, Trash2, FileSpreadsheet, X, Copy } from "lucide-react";
+import { Download, Plus, Trash2, FileSpreadsheet, X, Copy, Maximize2, Minimize2 } from "lucide-react";
 import {
   fetchHojas, fetchFilas, createHoja, updateHoja, deleteHoja,
   createFila, updateFila, deleteFila, COLUMNA_CODIGO,
@@ -46,19 +46,34 @@ function Cell({
   const [opciones, setOpciones] = useState<MaterialCatalogo[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
   const cerrando = useRef(false);
+  const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Descarta respuestas viejas: si se teclea rápido, la última pedida manda.
+  const pedido = useRef(0);
 
-  // Busca mientras se escribe, con una pausa para no consultar en cada tecla.
-  useEffect(() => {
-    if (!editing || !sugerir) return;
-    const t = setTimeout(() => {
-      sugerir(value).then(setOpciones).catch(() => setOpciones([]));
-    }, 200);
-    return () => clearTimeout(t);
-  }, [value, editing, sugerir]);
+  /** Lanza la búsqueda del autocompletar (sólo donde `sugerir` viene dado). */
+  const buscar = useCallback((texto: string) => {
+    if (!sugerir) return;
+    if (debounce.current) clearTimeout(debounce.current);
+    const mio = ++pedido.current;
+    debounce.current = setTimeout(() => {
+      sugerir(texto)
+        .then(r => { if (mio === pedido.current) setOpciones(r); })
+        .catch(() => { if (mio === pedido.current) setOpciones([]); });
+    }, 180);
+  }, [sugerir]);
+
+  useEffect(() => () => { if (debounce.current) clearTimeout(debounce.current); }, []);
+
+  function handleChange(v: string) {
+    onChange(v);
+    buscar(v);
+  }
 
   function handleClick() {
     if (readOnly) return;
     setEditing(true);
+    // Con la celda ya escrita, ofrece las coincidencias de entrada.
+    buscar(value);
     setTimeout(() => inputRef.current?.focus(), 0);
   }
 
@@ -99,7 +114,7 @@ function Cell({
           ref={inputRef}
           type={tipo === "numero" ? "number" : "text"}
           value={value}
-          onChange={e => onChange(e.target.value)}
+          onChange={e => handleChange(e.target.value)}
           onBlur={handleBlur}
           onKeyDown={e => {
             if (e.key === "Enter") {
@@ -166,7 +181,7 @@ function Cell({
 // ── Spreadsheet for one sheet ─────────────────────────────────────────────────
 
 function SheetGrid({
-  hoja, workspaceId, readOnly,
+  hoja, workspaceId, readOnly, expandido,
   onExportReady,
   onContentSaved,
   onColumnsChanged,
@@ -174,6 +189,8 @@ function SheetGrid({
   hoja: Hoja;
   workspaceId: string;
   readOnly: boolean;
+  /** En vista ampliada la grilla ocupa el alto del marco en vez de crecer. */
+  expandido?: boolean;
   onExportReady?: (fn: () => void) => void;
   onContentSaved?: (hoja: Hoja) => void;
   // The parent owns the hojas array, so column edits have to be lifted to it.
@@ -316,7 +333,9 @@ function SheetGrid({
   }
 
   return (
-    <div style={{ overflowX: "auto", overflowY: "visible" }}>
+    <div style={expandido
+      ? { overflow: "auto", flex: 1, minHeight: 0 }   // ocupa el alto del marco
+      : { overflowX: "auto", overflowY: "visible" }}>
       <div style={{ width: totalWidth, minWidth: "100%" }}>
 
         {/* Header row */}
@@ -436,6 +455,22 @@ export default function HojaSpreadsheet({
   const [loading, setLoading] = useState(true);
   const [createOpen, setCreateOpen] = useState(false);
   const [creating, setCreating] = useState(false);
+  // Vista ampliada: la hoja pasa a ocupar la ventana, para trabajar cómodo.
+  const [expandido, setExpandido] = useState(false);
+
+  // Escape cierra la vista ampliada, y mientras está abierta no se scrollea
+  // el detalle de la OT por detrás.
+  useEffect(() => {
+    if (!expandido) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setExpandido(false); };
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = prev;
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [expandido]);
   const exportFnRef = useRef<(() => void) | null>(null);
   const router = useRouter();
 
@@ -502,8 +537,26 @@ export default function HojaSpreadsheet({
     );
   }
 
+  const marco: React.CSSProperties = expandido
+    ? {
+        // Ocupa la ventana entera: en una hoja de cobro larga, la tabla dentro
+        // del detalle de la OT queda demasiado angosta para trabajar.
+        position: "fixed", inset: 24, zIndex: 200,
+        border: "1px solid var(--border)", borderRadius: 12,
+        background: "var(--surface-1)", boxShadow: "0 24px 64px rgba(0,0,0,.28)",
+        display: "flex", flexDirection: "column", overflow: "hidden",
+      }
+    : { border: "1px solid var(--border)", borderRadius: 10, overflow: "hidden", background: "var(--surface-1)" };
+
   return (
-    <div style={{ border: "1px solid var(--border)", borderRadius: 10, overflow: "hidden", background: "var(--surface-1)" }}>
+    <>
+    {expandido && (
+      <div
+        onClick={() => setExpandido(false)}
+        style={{ position: "fixed", inset: 0, zIndex: 199, background: "rgba(0,0,0,.45)" }}
+      />
+    )}
+    <div style={marco}>
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
 
       {/* Header bar */}
@@ -543,6 +596,18 @@ export default function HojaSpreadsheet({
             </button>
           )}
         </div>
+
+        {/* Ampliar / reducir la hoja */}
+        <button
+          onClick={() => setExpandido(v => !v)}
+          style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 12px", background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: 6, cursor: "pointer", fontSize: 14, color: "var(--fg-2)", fontWeight: 400, fontFamily: "inherit", flexShrink: 0 }}
+          onMouseEnter={e => { e.currentTarget.style.opacity = "0.85"; }}
+          onMouseLeave={e => { e.currentTarget.style.opacity = "1"; }}
+          title={expandido ? "Reducir (Esc)" : "Ampliar la hoja a toda la ventana"}
+        >
+          {expandido ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
+          {expandido ? "Reducir" : "Ampliar"}
+        </button>
 
         {/* Copy to another OT — the mobile-equivalent of retyping rows by hand */}
         {canEdit && activeHoja && (
@@ -621,6 +686,7 @@ export default function HojaSpreadsheet({
           hoja={activeHoja}
           workspaceId={workspaceId}
           readOnly={!canEdit}
+          expandido={expandido}
           onExportReady={handleExportReady}
           onContentSaved={onSheetContentSaved}
           onColumnsChanged={handleColumnsChanged}
@@ -657,5 +723,6 @@ export default function HojaSpreadsheet({
         </div>
       )}
     </div>
+    </>
   );
 }
