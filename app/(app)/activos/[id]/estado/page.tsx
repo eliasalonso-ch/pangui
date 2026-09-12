@@ -95,14 +95,29 @@ export default function EstadoActivoPage() {
   const [ticLecturas, setTicLecturas] = useState(0);
 
   useEffect(() => {
-    const id = setInterval(() => {
-      if (typeof document !== "undefined" && document.hidden) return;
+    const avanzar = () => {
       setTicLecturas(t => t + 1);
       // El borde derecho del gráfico sale de `ahora`; sin moverlo, una lectura
       // recién llegada cae fuera de la ventana y no se dibuja.
       setAhora(Date.now());
+    };
+
+    // Con la pestaña oculta no se consulta: nadie está mirando el gráfico y
+    // cada tic son tantas consultas como medidores tenga el activo.
+    const id = setInterval(() => {
+      if (typeof document !== "undefined" && document.hidden) return;
+      avanzar();
     }, 10_000);
-    return () => clearInterval(id);
+
+    // Al volver a la pestaña, al tiro: el gráfico tiene que estar al día en el
+    // momento en que se mira, no diez segundos después.
+    const alVolver = () => { if (!document.hidden) avanzar(); };
+    document.addEventListener("visibilitychange", alVolver);
+
+    return () => {
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", alVolver);
+    };
   }, []);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);

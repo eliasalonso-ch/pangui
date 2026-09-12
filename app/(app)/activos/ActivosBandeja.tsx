@@ -1760,16 +1760,31 @@ function MedidoresCard({ activo }: { activo: Activo }) {
    */
   useEffect(() => {
     if (!idsMedidores) return;
-    const id = setInterval(() => {
-      // Sin la pestaña visible no sirve de nada: el usuario no lo está mirando
-      // y al volver, `visibilitychange` no hace falta porque el próximo tick
-      // llega en diez segundos.
-      if (typeof document !== "undefined" && document.hidden) return;
+
+    const refrescar = () => {
       fetchMedidoresDeActivo(activo.id)
         .then(setMedidores)
         .catch(() => { /* Un fallo puntual no debe romper el panel: el próximo tick reintenta. */ });
+    };
+
+    // Con la pestaña oculta no se consulta: el usuario no lo está mirando y
+    // seguir pidiendo datos es gasto puro —de red acá y de egress en Supabase—
+    // por algo que nadie ve.
+    const id = setInterval(() => {
+      if (typeof document !== "undefined" && document.hidden) return;
+      refrescar();
     }, 10_000);
-    return () => clearInterval(id);
+
+    // Al volver a la pestaña se refresca en el acto, sin esperar el próximo
+    // tick: el usuario vuelve justamente para mirar el número, y encontrarlo
+    // congelado hasta diez segundos hace dudar de si la pantalla funciona.
+    const alVolver = () => { if (!document.hidden) refrescar(); };
+    document.addEventListener("visibilitychange", alVolver);
+
+    return () => {
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", alVolver);
+    };
   }, [idsMedidores, activo.id]);
 
   useEffect(() => {
