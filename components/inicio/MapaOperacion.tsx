@@ -129,6 +129,7 @@ type Grupo = {
 export default function MapaOperacion({
   ots,
   ubicaciones,
+  sociedades = [],
   equipo = [],
   socId,
   calor,
@@ -137,6 +138,8 @@ export default function MapaOperacion({
 }: {
   ots: OTMapa[];
   ubicaciones: UbicacionRef[];
+  /** Solo para rotular en el mapa la asociacion filtrada, si tiene coordenada. */
+  sociedades?: { id: string; nombre: string; lat: number | null; lng: number | null }[];
   equipo?: { id: string; nombre: string }[];
   /** Filtro de asociacion; se controla desde el header de la tarjeta. */
   socId: string;
@@ -314,7 +317,36 @@ export default function MapaOperacion({
       mapRef.current.setCenter(bounds.getCenter());
       mapRef.current.setZoom(16);
     }
-  }, [grupos, listo, calor]);
+
+    // Rotulo de la asociacion filtrada, en su propia coordenada. Va DESPUES del
+    // fitBounds y no entra en `bounds` a proposito: si una asociacion tiene la
+    // coordenada lejos de sus edificios, incluirla alejaria el mapa y correria
+    // todos los demas pines. Sin icono propio (solo texto) para no competir con
+    // los marcadores de ubicacion, que son los que llevan la informacion.
+    const soc = socId === "todas" || socId === "sin"
+      ? null
+      : sociedades.find(s => s.id === socId) ?? null;
+    if (soc && soc.lat != null && soc.lng != null) {
+      const rotulo = new g.Marker({
+        position: { lat: soc.lat, lng: soc.lng },
+        map: mapRef.current,
+        title: soc.nombre,
+        label: {
+          text: soc.nombre,
+          color: colorMarca(),
+          fontSize: "13px",
+          fontWeight: "700",
+        },
+        // Marcador invisible: solo se ve la etiqueta. El radio NO puede ser 0
+        // (un icono de 0x0 se lleva la etiqueta con el); un circulo diminuto y
+        // transparente, sin aro, deja el texto anclado y nada visible debajo.
+        icon: iconoCirculo(g, { radio: 8, color: "transparent", opacidad: 0, borde: false }),
+        zIndex: 1000,
+        clickable: false,
+      });
+      marcadoresRef.current.push(rotulo);
+    }
+  }, [grupos, listo, calor, socId, sociedades]);
 
   if (!apiKey) {
     return (

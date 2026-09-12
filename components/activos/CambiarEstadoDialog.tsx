@@ -19,7 +19,13 @@
 
 import { useEffect, useState } from "react";
 import { AlertCircle, Loader2, X } from "lucide-react";
-import { cambiarEstadoActivo, type TipoInactividad } from "@/lib/activo-estado-api";
+import {
+  cambiarEstadoActivo, cambiarEstadoActivos, fetchJerarquiaActivo,
+  fetchMotivosInactividad, createMotivoInactividad,
+  type ActivoJerarquia, type MotivoInactividad, type TipoInactividad,
+} from "@/lib/activo-estado-api";
+import SearchSelect from "@/components/activos/SearchSelect";
+import { createClient } from "@/lib/supabase";
 import type { AssetStatus } from "@/types/ordenes";
 
 const MS_POR_HORA = 3_600_000;
@@ -83,6 +89,71 @@ export default function CambiarEstadoDialog({
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
+  /**
+   * Padre e hijos directos, para poder registrar la parada de todo lo que se
+   * detuvo junto.
+   *
+   * No se propaga solo. La norma ISO 14224 separa los componentes en serie —si
+   * fallan, el equipo padre se detiene— de los redundantes, que fallan sin parar
+   * nada. Marcar al padre automáticamente inventaría horas de parada en cada
+   * equipo con redundancia, y de esas horas salen la disponibilidad y el MTBF.
+   * Así que el diálogo PROPONE y el usuario confirma, igual que MaintainX.
+   */
+  const [jerarquia, setJerarquia] = useState<ActivoJerarquia[]>([]);
+  const [tambien, setTambien] = useState<Set<string>>(new Set());
+
+  /**
+   * Catálogo de motivos y el workspace, para poder crear uno nuevo desde el
+   * mismo desplegable. El catálogo que viene por defecto es un punto de
+   * partida: cada planta tiene su propio vocabulario de fallas, y lo que no se
+   * puede nombrar termina cayendo en "Otro", que es donde el Pareto deja de
+   * servir.
+   */
+  const [motivos, setMotivos] = useState<MotivoInactividad[]>([]);
+  const [motivoId, setMotivoId] = useState("");
+  const [wsId, setWsId] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelado = false;
+    (async () => {
+      try {
+        const sb = createClient();
+        const { data: { user } } = await sb.auth.getUser();
+        const [lista, perfil] = await Promise.all([
+          fetchMotivosInactividad(),
+          user
+            ? sb.from("usuarios").select("workspace_id").eq("id", user.id).maybeSingle()
+            : Promise.resolve({ data: null }),
+        ]);
+        if (cancelado) return;
+        setMotivos(lista);
+        setWsId((perfil.data?.workspace_id as string | undefined) ?? null);
+      } catch {
+        if (!cancelado) setMotivos([]);
+      }
+    })();
+    return () => { cancelado = true; };
+  }, []);
+
+  useEffect(() => {
+    let cancelado = false;
+    fetchJerarquiaActivo(activoId)
+      .then(rel => {
+        if (cancelado) return;
+        setJerarquia(rel);
+        // `critico` es la marca de que el componente está en serie: se propone
+        // marcado. El redundante queda desmarcado, a un clic si hace falta.
+        setTambien(new Set(
+          rel.filter(r => r.criticidad === "critico" && r.estado !== estado).map(r => r.id),
+        ));
+      })
+      .catch(() => { if (!cancelado) setJerarquia([]); });
+    return () => { cancelado = true; };
+    // Solo al abrir. `estado` queda fuera a propósito: recalcular las marcas con
+    // cada cambio del selector pisaría lo que el usuario ya destildó a mano.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activoId]);
+
   // Escape cierra, como cualquier modal. No mientras guarda: la RPC ya salió y
   // cerrar dejaría al usuario sin saber si se escribió.
   useEffect(() => {
@@ -109,15 +180,29 @@ export default function CambiarEstadoDialog({
       setErr("Elige la fecha y hora de inicio.");
       return;
     }
+    // La RPC también lo exige, pero llegar hasta allá significa mostrarle al
+    // usuario una excepción de Postgres en vez de una frase.
+    if (tipo === "sin_planear" && !motivoId) {
+      setErr("Elige el motivo de la falla.");
+      return;
+    }
     setBusy(true);
     try {
-      await cambiarEstadoActivo({
-        activoId,
+      const comun = {
         estado,
         tipoInactividad: estado === "operativo" ? null : (tipo as TipoInactividad),
         desde: resolverDesde(),
         notas: notas.trim() || null,
-      });
+        motivoId: tipo === "sin_planear" ? motivoId : null,
+      };
+      // Con acompañantes va la versión en lote: una sola transacción, así no
+      // queda el equipo parado y sus componentes operativos (o al revés) si
+      // algo falla a mitad de camino.
+      if (tambien.size > 0) {
+        await cambiarEstadoActivos([activoId, ...tambien], comun);
+      } else {
+        await cambiarEstadoActivo({ activoId, ...comun });
+      }
       await onSaved();
       onClose();
     } catch (e) {
@@ -129,7 +214,11 @@ export default function CambiarEstadoDialog({
   // Tope del `datetime-local`: una parada no puede haber empezado en el futuro
   // —la RPC contaría horas negativas de inactividad—. El offset se resta porque
   // el input trabaja en hora local y toISOString devuelve UTC.
-  const ahora = Date.now();
+  //
+  // El reloj se lee una sola vez al abrir el diálogo, no en cada render: leerlo
+  // en pleno render es una función impura y además haría que el tope se moviera
+  // solo mientras el usuario escribe.
+  const [ahora] = useState(() => Date.now());
   const maxLocal = new Date(ahora - new Date(ahora).getTimezoneOffset() * 60000)
     .toISOString().slice(0, 16);
 
@@ -187,6 +276,31 @@ export default function CambiarEstadoDialog({
             </div>
           )}
 
+          {/* Motivo: solo para la avería.
+              La mantención programada ya se explica sola; una avería sin causa
+              registrada es el dato que después no se puede reconstruir, y sin
+              él el Pareto de motivos queda con una barra "sin clasificar" que
+              se come al resto. */}
+          {tipo === "sin_planear" && (
+            <div>
+              <label style={labelStyle}>Motivo de la falla</label>
+              <SearchSelect
+                placeholder="Buscar o crear motivo…"
+                emptyLabel="Sin motivo"
+                value={motivoId}
+                options={motivos.map(m => ({ id: m.id, label: m.nombre }))}
+                onChange={setMotivoId}
+                disabled={busy}
+                createLabel="Crear motivo"
+                onCreate={wsId ? (async nombre => {
+                  const nuevo = await createMotivoInactividad(wsId, nombre);
+                  setMotivos(prev => [...prev, nuevo].sort((a, b) => a.nombre.localeCompare(b.nombre)));
+                  return nuevo.id;
+                }) : undefined}
+              />
+            </div>
+          )}
+
           <div>
             <label style={labelStyle}>
               {estado === "operativo" ? "Operativo desde" : "Fuera de línea desde"}
@@ -215,6 +329,53 @@ export default function CambiarEstadoDialog({
               placeholder="Ej. Falla en el motor principal"
               onChange={e => setNotas(e.target.value)} />
           </div>
+
+          {/* Resto de la jerarquía. Solo aparece si el activo tiene padre o
+              hijos, y solo lista a los que NO están ya en el estado destino:
+              ofrecer "parar" algo que ya está parado no es una opción real. */}
+          {jerarquia.filter(r => r.estado !== estado).length > 0 && (
+            <div>
+              <label style={labelStyle}>Actualizar también</label>
+              <div style={{ border: "1px solid var(--border)", borderRadius: 8, overflow: "hidden" }}>
+                {jerarquia.filter(r => r.estado !== estado).map(rel => (
+                  <label
+                    key={rel.id}
+                    style={{
+                      display: "flex", alignItems: "flex-start", gap: 8,
+                      padding: "9px 12px", cursor: busy ? "default" : "pointer",
+                      borderBottom: "1px solid var(--border)",
+                      background: "var(--surface-1)",
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      disabled={busy}
+                      checked={tambien.has(rel.id)}
+                      onChange={e => setTambien(prev => {
+                        const next = new Set(prev);
+                        if (e.target.checked) next.add(rel.id); else next.delete(rel.id);
+                        return next;
+                      })}
+                      style={{ marginTop: 2, flexShrink: 0 }}
+                    />
+                    <span style={{ flex: 1, minWidth: 0 }}>
+                      <span style={{ display: "block", fontSize: 14, color: "var(--fg-1)" }}>
+                        {rel.nombre}
+                      </span>
+                      <span style={{ display: "block", fontSize: 14, color: "var(--fg-4)" }}>
+                        {rel.relacion === "padre" ? "Equipo padre" : "Componente"}
+                        {rel.criticidad === "critico" && " · crítico"}
+                      </span>
+                    </span>
+                  </label>
+                ))}
+              </div>
+              <p style={{ margin: "6px 0 0", fontSize: 14, color: "var(--fg-4)", lineHeight: 1.5 }}>
+                Los componentes críticos vienen marcados porque su parada detiene al
+                equipo. Desmárcalos si este siguió funcionando.
+              </p>
+            </div>
+          )}
 
           {err && (
             <p style={{ display: "flex", alignItems: "flex-start", gap: 6, margin: 0, fontSize: 14, color: "var(--danger)", lineHeight: 1.5 }}>

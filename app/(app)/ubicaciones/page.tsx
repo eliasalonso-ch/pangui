@@ -6,7 +6,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   MapPin, Building2, Plus, Pencil, Trash2, X, Check,
   Loader2, Search, ChevronRight, QrCode, Package, Wrench, Printer, Share2,
-  Camera, Locate, Layers, Users, Minus,
+  Camera, Locate, Layers, Users, Minus, Maximize2,
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase";
@@ -1144,14 +1144,14 @@ function EntityDetail({ type, item, ubicaciones, lugares, sociedades, activos, r
   const linkedSociedad = type === "ubicaciones" && item.sociedad_id
     ? sociedades.find(s => s.id === item.sociedad_id) ?? null
     : null;
-  // Un lugar hereda la asociación de su ubicación padre.
-  const lugarSociedad = type === "lugares" && item.ubicacion_id
-    ? (() => {
-        const padre = ubicaciones.find(u => u.id === item.ubicacion_id);
-        return padre?.sociedad_id ? sociedades.find(s => s.id === padre.sociedad_id) ?? null : null;
-      })()
+  // La asociación es un dato de la UBICACIÓN, no del lugar: un lugar específico
+  // no tiene sociedad_id propia. Antes se heredaba del edificio padre y se
+  // mostraba como si fuera suya; ahora el lugar enlaza a su ubicación y es esa
+  // ficha la que lleva la asociación.
+  const sociedadAbrible = linkedSociedad;
+  const ubicacionPadre = type === "lugares" && item.ubicacion_id
+    ? ubicaciones.find(u => u.id === item.ubicacion_id) ?? null
     : null;
-  const sociedadAbrible = linkedSociedad ?? lugarSociedad;
 
   // Coordenada: se muestra en la vista de detalle para confirmar que quedó guardada.
   const coordTexto = item.lat != null && item.lng != null
@@ -1181,12 +1181,22 @@ function EntityDetail({ type, item, ubicaciones, lugares, sociedades, activos, r
           paddingTop: 16, paddingBottom: 16,
           borderBottom: "1px solid var(--border)",
         }}>
+          {/* Miniatura igual que en la ficha de un activo: tile de 104 que abre
+              la imagen completa, en vez de una banda de 190 a todo el ancho. */}
           {item.imagen_url && (
-            <img
-              src={item.imagen_url}
-              alt={name}
-              style={{ width: "100%", height: 190, display: "block", objectFit: "contain", background: "var(--surface-2)", borderRadius: "var(--r-md)", marginBottom: 14 }}
-            />
+            <div style={{ marginBottom: 14 }}>
+              <p style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", letterSpacing: "0.01em", margin: "0 0 8px" }}>Imágenes</p>
+              <button
+                type="button"
+                onClick={() => window.open(item.imagen_url, "_blank", "noopener")}
+                title="Ver imagen completa"
+                style={{ position: "relative", width: 104, height: 104, borderRadius: "var(--r-md)", overflow: "hidden", background: "var(--surface-1)", border: "1px solid var(--border)", padding: 0, cursor: "pointer", display: "block" }}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={item.imagen_url} alt={name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                <span style={{ position: "absolute", bottom: 5, right: 5, background: "rgba(0,0,0,0.45)", borderRadius: "50%", padding: 5, color: "#fff", display: "inline-flex" }}><Maximize2 size={13} /></span>
+              </button>
+            </div>
           )}
           {fields.filter(([, value]) => value).map(([label, value]) => (
             <div key={label} style={{ display: "flex", justifyContent: "space-between", gap: 16, padding: "7px 0" }}>
@@ -1217,6 +1227,18 @@ function EntityDetail({ type, item, ubicaciones, lugares, sociedades, activos, r
             img={sociedadAbrible.imagen_url}
             icon={<Building2 size={15} />}
             onClick={() => onOpen("sociedades", sociedadAbrible.id)}
+          />
+        </DetailGroup>
+      )}
+      {ubicacionPadre && (
+        <DetailGroup title="Ubicación">
+          <DetailLink
+            first
+            name={ubicacionPadre.edificio}
+            sub={ubicacionPadre.direccion}
+            img={ubicacionPadre.imagen_url}
+            icon={<Building2 size={15} />}
+            onClick={() => onOpen("ubicaciones", ubicacionPadre.id)}
           />
         </DetailGroup>
       )}

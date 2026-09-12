@@ -1,0 +1,39 @@
+{
+  "version": 1,
+  "author": "Pangui",
+  "editor": "wokwi",
+  "parts": [
+    { "type": "board-esp32-devkit-c-v4", "id": "esp", "top": 0, "left": 0, "attrs": {} },
+    {
+      "type": "wokwi-potentiometer",
+      "id": "pot1",
+      "top": -80,
+      "left": 180,
+      "attrs": { "value": "210" }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "led-alarma",
+      "top": 100,
+      "left": 200,
+      "attrs": { "color": "red", "label": "Alarma" }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "r1",
+      "top": 150,
+      "left": 200,
+      "attrs": { "value": "220" }
+    }
+  ],
+  "connections": [
+    [ "pot1:VCC", "esp:3V3", "red", [ "v0" ] ],
+    [ "pot1:GND", "esp:GND.1", "black", [ "v0" ] ],
+    [ "pot1:SIG", "esp:D34", "green", [ "v0" ] ],
+
+    [ "esp:D2", "r1:1", "orange", [ "v0" ] ],
+    [ "r1:2", "led-alarma:A", "orange", [ "v0" ] ],
+    [ "led-alarma:C", "esp:GND.2", "black", [ "v0" ] ]
+  ],
+  "dependencies": {}
+}

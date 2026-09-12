@@ -1,0 +1,29 @@
+{
+  "Integration": {
+    "Url": "http://localhost:3000",
+    "UploadIntervalMs": 5000
+  },
+  "Mqtt": {
+    "client": {
+      "tcpServer": { "server": "localhost", "port": 1883 },
+      "credentials": { "username": "", "password": "" }
+    }
+  },
+  "MqttSubscriptionSettings": [
+    {
+      "_comentario": "El + captura el token del medidor desde el topic. Payload = el numero pelado.",
+      "Topic": "pangui/medidores/+/lectura",
+      "DecodeMode": "Raw",
+      "Qos": 1
+    },
+    {
+      "_comentario": "Equipo que publica JSON. TokenOverride fija el medidor porque el topic no lo lleva.",
+      "Topic": "planta/linea1/motor1/vibracion",
+      "DecodeMode": "Json",
+      "ValueField": "value",
+      "TimestampField": "ts",
+      "TokenOverride": "pang_mtr_pon_aca_el_token",
+      "Qos": 1
+    }
+  ]
+}

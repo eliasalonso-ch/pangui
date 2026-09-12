@@ -7,17 +7,24 @@ import {
   Box, Boxes, ChevronDown, ChevronRight, ExternalLink, Loader2, Plus, Search, Trash2, X,
   Building2, User, MapPin, Calendar, Hash, GitBranch, FileText, Pencil,
   Maximize2, Inbox, Clock, Link2, CheckCircle2, RefreshCw, PlusCircle, ArrowDown,
-  Check, Camera, Paperclip, File as FileIcon, Tag, Factory, Truck, AlertCircle,
-  MoreVertical, Locate, Users,
+  Check, Camera, Paperclip, File as FileIcon, Tag, Factory, Truck, AlertCircle, DollarSign,
+  MoreVertical, Locate, Users, Gauge, Wifi,
 } from "lucide-react";
 import {
   ACTIVO_SELECT, createActivo, deleteActivo, updateActivo, fetchActivo,
   fetchActivoOTHistoryPage, fetchActivoActividadPage,
+  createFabricante, createModelo, createProveedor,
   type ActivoOTHistoryRow, type ActivoActividadRow,
 } from "@/lib/activos-api";
 import AuditFooter from "@/components/catalogo/AuditFooter";
+import SearchSelect from "@/components/activos/SearchSelect";
 import { EmptyState, EmptyDetail } from "@/components/EmptyState";
 import { cambiarEstadoActivo, fetchPeriodoVigente, type EstadoPeriodo } from "@/lib/activo-estado-api";
+import {
+  fetchMedidoresDeActivo, nivelDeLectura,
+  type MedidorConUltima, type NivelLectura,
+} from "@/lib/medidores-api";
+import NuevoMedidorDialog from "@/components/activos/NuevoMedidorDialog";
 import { uploadToR2 } from "@/lib/r2";
 import { createClient, logRealtimeChannel } from "@/lib/supabase";
 import type {
@@ -488,111 +495,8 @@ function FieldRow({ icon, label, children }: {
   );
 }
 
-function SearchSelect({ placeholder, value, options, onChange, disabled, emptyLabel = "Sin asignar" }: {
-  placeholder: string;
-  value: string;
-  options: { id: string; label: string; sub?: string }[];
-  onChange: (id: string) => void;
-  disabled?: boolean;
-  emptyLabel?: string;
-}) {
-  const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState("");
-  const ref = useRef<HTMLDivElement>(null);
-  const selected = options.find(o => o.id === value);
-  const filtered = options.filter(o =>
-    o.label.toLowerCase().includes(query.toLowerCase()) ||
-    (o.sub ?? "").toLowerCase().includes(query.toLowerCase())
-  );
-
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, []);
-
-  return (
-    <div ref={ref} style={{ position: "relative" }}>
-      <button
-        type="button"
-        disabled={disabled}
-        onClick={() => { if (disabled) return; setOpen(!open); setQuery(""); }}
-        style={{
-          width: "100%", height: 40, display: "flex", alignItems: "center", gap: 8,
-          padding: "0 12px", border: "1px solid var(--border)", borderRadius: 8,
-          background: "var(--surface-1)", fontSize: 14, color: selected ? "var(--fg-1)" : "var(--fg-4)",
-          cursor: disabled ? "not-allowed" : "pointer", textAlign: "left", opacity: disabled ? 0.6 : 1,
-          fontFamily: "inherit",
-        }}
-      >
-        <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-          {selected ? selected.label : placeholder}
-        </span>
-        <ChevronDown size={13} style={{ flexShrink: 0, color: "var(--fg-4)" }} />
-      </button>
-      {open && (
-        <div style={{
-          position: "absolute", top: "calc(100% + 3px)", left: 0, right: 0, zIndex: 200,
-          background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: 8,
-          boxShadow: "var(--shadow-md)", overflow: "hidden",
-        }}>
-          <div style={{ padding: "8px 8px 4px" }}>
-            <input
-              autoFocus
-              placeholder="Buscar…"
-              value={query}
-              onChange={e => setQuery(e.target.value)}
-              style={{
-                width: "100%", height: 36, padding: "0 10px",
-                border: "1px solid var(--border)", borderRadius: 8,
-                fontSize: 14, outline: "none", color: "var(--fg-1)", fontFamily: "inherit",
-                background: "var(--surface-1)", boxSizing: "border-box",
-              }}
-            />
-          </div>
-          <div style={{ maxHeight: 200, overflowY: "auto" }}>
-            <button
-              type="button"
-              onClick={() => { onChange(""); setOpen(false); }}
-              style={{
-                display: "block", width: "100%", textAlign: "left",
-                padding: "10px 12px", fontSize: 14, color: "var(--fg-4)",
-                background: !value ? "var(--brand-tint)" : "transparent",
-                border: "none", cursor: "pointer", fontFamily: "inherit",
-              }}
-            >
-              {emptyLabel}
-            </button>
-            {filtered.map(o => (
-              <button
-                key={o.id}
-                type="button"
-                onClick={() => { onChange(o.id); setOpen(false); }}
-                style={{
-                  display: "flex", alignItems: "center", gap: 6,
-                  width: "100%", padding: "10px 12px", fontSize: 14,
-                  background: value === o.id ? "var(--brand-tint)" : "transparent",
-                  border: "none", cursor: "pointer", fontFamily: "inherit",
-                }}
-              >
-                {value === o.id && <Check size={11} style={{ color: "var(--brand)", flexShrink: 0 }} />}
-                <div style={{ flex: 1, minWidth: 0, textAlign: "left" }}>
-                  <div style={{ color: "var(--fg-1)" }}>{o.label}</div>
-                  {o.sub && <div style={{ fontSize: 14, color: "var(--fg-4)" }}>{o.sub}</div>}
-                </div>
-              </button>
-            ))}
-            {filtered.length === 0 && (
-              <div style={{ padding: "8px 10px", fontSize: 14, color: "var(--fg-4)" }}>Sin resultados</div>
-            )}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
+// SearchSelect vive ahora en components/activos/SearchSelect.tsx: lo comparte
+// el diálogo de cambio de estado para elegir el motivo de una parada.
 
 /**
  * Cuadrillas a cargo de un activo. Igual que MaterialPicker (fichas + lista
@@ -909,10 +813,13 @@ function MaterialPicker({ materiales, selected, onToggle, disabled }: {
 }
 
 function ActivoForm({
-  activo, usuarios, ubicaciones, lugares, sociedades, fabricantes, modelos, proveedores,
+  activo, padreInicial, usuarios, ubicaciones, lugares, sociedades, fabricantes, modelos, proveedores,
   activos, materiales, cuadrillas, wsId, onSaved, onClose,
+  onFabricanteCreado, onModeloCreado, onProveedorCreado,
 }: {
   activo?: Activo | null;
+  /** Alta de un sub-activo: el padre viene elegido desde la ficha. */
+  padreInicial?: string | null;
   materiales: MaterialOpcion[];
   cuadrillas: CuadrillaOpcion[];
   usuarios: Usuario[];
@@ -926,12 +833,16 @@ function ActivoForm({
   wsId: string;
   onSaved: (activo: Activo) => void;
   onClose: () => void;
+  onFabricanteCreado: (f: Fabricante) => void;
+  onModeloCreado: (m: Modelo) => void;
+  onProveedorCreado: (p: Proveedor) => void;
 }) {
   const [form, setForm] = useState({
     nombre: activo?.nombre ?? "",
     descripcion: activo?.descripcion ?? "",
     numero_serie: activo?.numero_serie ?? "",
     año_fabricacion: activo?.año_fabricacion ? String(activo.año_fabricacion) : "",
+    costo_hora_parada: activo?.costo_hora_parada != null ? String(activo.costo_hora_parada) : "",
     criticidad: (activo?.criticidad ?? "no_critico") as AssetCriticality,
     estado: (activo?.estado ?? "operativo") as AssetStatus,
     fabricante_id: activo?.fabricante_id ?? "",
@@ -941,7 +852,7 @@ function ActivoForm({
     sociedad_id: activo?.sociedad_id ?? "",
     responsable_id: activo?.responsable_id ?? "",
     proveedor_id: activo?.proveedor_id ?? "",
-    activo_padre_id: activo?.activo_padre_id ?? "",
+    activo_padre_id: activo?.activo_padre_id ?? padreInicial ?? "",
   });
   const [imagenUrl, setImagenUrl] = useState<string | null>(activo?.imagen_url ?? null);
   const [adjuntos, setAdjuntos] = useState<AssetAttachment[]>(
@@ -1004,9 +915,32 @@ function ActivoForm({
     .map(m => ({ id: m.id, label: m.nombre, sub: m.fabricante?.nombre ?? undefined }));
   const proveedorOptions = proveedores.map(p => ({ id: p.id, label: p.nombre, sub: p.contacto ?? undefined }));
   const responsableOptions = usuarios.map(u => ({ id: u.id, label: u.nombre }));
-  const parentOptions = activos
-    .filter(a => a.id !== activo?.id)
-    .map(a => ({ id: a.id, label: a.nombre + (a.numero_serie ? ` (${a.numero_serie})` : "") }));
+  /**
+   * Candidatos a activo padre: todos menos este y su propia descendencia.
+   *
+   * Excluir solo el activo mismo no alcanza. Si A es padre de B, ofrecer B como
+   * padre de A cierra un círculo: el recorrido de la jerarquía no termina nunca.
+   * La base lo rechaza (trg_validar_activo_padre), pero llegar hasta allá
+   * significa mostrarle al usuario un error de Postgres; mejor no ofrecerlo.
+   */
+  const parentOptions = (() => {
+    const descendientes = new Set<string>();
+    if (activo?.id) {
+      const pendientes = [activo.id];
+      while (pendientes.length > 0) {
+        const actual = pendientes.pop()!;
+        for (const a of activos) {
+          if (a.activo_padre_id === actual && !descendientes.has(a.id)) {
+            descendientes.add(a.id);
+            pendientes.push(a.id);
+          }
+        }
+      }
+    }
+    return activos
+      .filter(a => a.id !== activo?.id && !descendientes.has(a.id))
+      .map(a => ({ id: a.id, label: a.nombre + (a.numero_serie ? ` (${a.numero_serie})` : "") }));
+  })();
 
   async function uploadImagen(file: File) {
     setUploadingImage(true);
@@ -1081,6 +1015,7 @@ function ActivoForm({
         descripcion: form.descripcion.trim() || null,
         numero_serie: form.numero_serie.trim() || null,
         año_fabricacion: anioNum,
+        costo_hora_parada: form.costo_hora_parada.trim() ? Number(form.costo_hora_parada.trim()) : null,
         criticidad: form.criticidad,
         estado: form.estado,
         fabricante_id: form.fabricante_id || null,
@@ -1293,7 +1228,18 @@ function ActivoForm({
           </FieldRow>
 
           <FieldRow icon={<Factory size={16} />} label="Fabricante">
-            <SearchSelect placeholder="Elegir fabricante…" value={form.fabricante_id} options={fabricanteOptions} onChange={v => set("fabricante_id", v)} />
+            <SearchSelect
+              placeholder="Elegir fabricante…"
+              value={form.fabricante_id}
+              options={fabricanteOptions}
+              onChange={v => set("fabricante_id", v)}
+              createLabel="Crear fabricante"
+              onCreate={async nombre => {
+                const nuevo = await createFabricante(wsId, nombre);
+                onFabricanteCreado(nuevo);
+                return nuevo.id;
+              }}
+            />
           </FieldRow>
 
           <FieldRow icon={<Tag size={16} />} label="Modelo">
@@ -1303,6 +1249,14 @@ function ActivoForm({
               options={modeloOptions}
               onChange={v => set("modelo_id", v)}
               disabled={!form.fabricante_id}
+              createLabel="Crear modelo"
+              // Un modelo cuelga de un fabricante, y el campo esta deshabilitado
+              // hasta que haya uno, asi que aca form.fabricante_id nunca es "".
+              onCreate={async nombre => {
+                const nuevo = await createModelo(wsId, form.fabricante_id, nombre);
+                onModeloCreado(nuevo);
+                return nuevo.id;
+              }}
             />
           </FieldRow>
 
@@ -1315,6 +1269,26 @@ function ActivoForm({
               onChange={e => set("año_fabricacion", e.target.value.replace(/[^0-9]/g, ""))}
               style={otInputStyle}
             />
+          </FieldRow>
+
+          {/* Lo que cuesta una hora con este equipo detenido.
+              Es el dato que convierte "47 horas de parada" en un monto, que es
+              la única forma de que la analítica sirva para pedir presupuesto.
+              No se puede derivar: depende de la línea, del turno y del precio
+              del producto, así que lo carga el cliente. Si queda vacío, los
+              informes muestran las horas sin convertir en vez de inventar. */}
+          <FieldRow icon={<DollarSign size={16} />} label="Costo por hora detenido">
+            <input
+              type="text"
+              inputMode="numeric"
+              placeholder="Ej: 850000"
+              value={form.costo_hora_parada}
+              onChange={e => set("costo_hora_parada", e.target.value.replace(/[^0-9]/g, ""))}
+              style={otInputStyle}
+            />
+            <p style={{ margin: "6px 0 0", fontSize: 14, color: "var(--fg-4)" }}>
+              Producción perdida por hora. Alimenta el costo de las paradas en Analítica.
+            </p>
           </FieldRow>
 
           <FieldRow icon={<Building2 size={16} />} label="Cliente">
@@ -1357,7 +1331,21 @@ function ActivoForm({
           </FieldRow>
 
           <FieldRow icon={<Truck size={16} />} label="Proveedor">
-            <SearchSelect placeholder="Elegir proveedor…" value={form.proveedor_id} options={proveedorOptions} onChange={v => set("proveedor_id", v)} emptyLabel="Sin proveedor" />
+            <SearchSelect
+              placeholder="Elegir proveedor…"
+              value={form.proveedor_id}
+              options={proveedorOptions}
+              onChange={v => set("proveedor_id", v)}
+              emptyLabel="Sin proveedor"
+              createLabel="Crear proveedor"
+              // Solo el nombre: contacto/email/telefono se completan despues en
+              // la ficha del proveedor, no vale trabar el alta del activo por eso.
+              onCreate={async nombre => {
+                const nuevo = await createProveedor(wsId, nombre);
+                onProveedorCreado(nuevo);
+                return nuevo.id;
+              }}
+            />
           </FieldRow>
 
           <FieldRow icon={<GitBranch size={16} />} label="Activo padre">
@@ -1661,6 +1649,181 @@ function EstadoCard({ activo, onChangeEstado, changing }: {
   );
 }
 
+// ── Lecturas de medidores (pestaña General) ──────────────────────────────────
+
+const NIVEL_COLOR: Record<NivelLectura, string> = {
+  normal: "#10B981",
+  advertencia: "#F59E0B",
+  critico: "#EF4444",
+};
+
+const NIVEL_LABEL: Record<NivelLectura, string> = {
+  normal: "Normal",
+  advertencia: "Advertencia",
+  critico: "Crítico",
+};
+
+/** "hace 4 s" / "hace 3 min" — a qué distancia quedó la última lectura. */
+function haceCuanto(iso: string): string {
+  const seg = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 1000));
+  if (seg < 60) return `hace ${seg} s`;
+  if (seg < 3600) return `hace ${Math.round(seg / 60)} min`;
+  if (seg < 86400) return `hace ${Math.round(seg / 3600)} h`;
+  return `hace ${Math.round(seg / 86400)} d`;
+}
+
+/**
+ * Una fila del panel: el número grande, su unidad y en qué franja cayó.
+ *
+ * El valor es lo único que la vista necesita destacar —es el dato que el
+ * usuario vino a mirar—, así que va en cuerpo grande y el resto queda de apoyo.
+ */
+function MedidorRow({ medidor, last }: { medidor: MedidorConUltima; last: boolean }) {
+  const nivel = medidor.ultima ? nivelDeLectura(medidor.ultima.valor, medidor) : null;
+  const color = nivel ? NIVEL_COLOR[nivel] : "var(--fg-4)";
+
+  return (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "13px 16px", borderBottom: last ? "none" : "1px solid var(--border)" }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 0 }}>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 14, color: "var(--fg-1)" }}>
+          {/* El ícono distingue de un vistazo el medidor que se alimenta solo
+              del que alguien carga a mano en la ronda. */}
+          {medidor.tipo === "automatizado"
+            ? <Wifi size={14} style={{ color: "var(--fg-4)", flexShrink: 0 }} />
+            : <User size={14} style={{ color: "var(--fg-4)", flexShrink: 0 }} />}
+          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{medidor.nombre}</span>
+        </span>
+        <span style={{ fontSize: 14, color: "var(--fg-4)" }}>
+          {medidor.ultima ? haceCuanto(medidor.ultima.ts) : "Sin lecturas"}
+          {medidor.critico != null && ` · crítico ${medidor.critico} ${medidor.unidad}`}
+        </span>
+      </div>
+
+      <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
+        {nivel && nivel !== "normal" && (
+          <span style={{ padding: "2px 8px", borderRadius: "var(--r-xs)", fontSize: 14, background: color + "22", color }}>
+            {NIVEL_LABEL[nivel]}
+          </span>
+        )}
+        <span style={{ fontSize: 22, fontWeight: 500, color, fontVariantNumeric: "tabular-nums" }}>
+          {medidor.ultima ? medidor.ultima.valor : "—"}
+          <span style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-4)", marginLeft: 4 }}>{medidor.unidad}</span>
+        </span>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Panel de lecturas en vivo.
+ *
+ * Se suscribe a `medidor_lecturas` del activo: cuando el dispositivo publica,
+ * el número cambia solo. Es el punto de la función —ver el dato de la máquina
+ * moverse— y por eso no hay polling: sin cambios no se consulta nada.
+ */
+function MedidoresCard({ activo }: { activo: Activo }) {
+  const [medidores, setMedidores] = useState<MedidorConUltima[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [creando, setCreando] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    fetchMedidoresDeActivo(activo.id)
+      .then(m => { if (!cancelled) setMedidores(m); })
+      .catch(() => { if (!cancelled) setMedidores([]); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [activo.id]);
+
+  // Los ids son la dependencia real de la suscripción: mientras no cambien, el
+  // canal no necesita rearmarse aunque lleguen lecturas nuevas.
+  const idsMedidores = useMemo(() => medidores.map(m => m.id).sort().join(","), [medidores]);
+
+  useEffect(() => {
+    if (!idsMedidores) return;
+    const ids = new Set(idsMedidores.split(","));
+    const sb = createClient();
+    const channelName = `medidor-lecturas-${activo.id}`;
+    const channelDetails = {
+      channelName,
+      screen: "ActivosBandeja",
+      table: "medidor_lecturas",
+      filter: `workspace_id=eq.${activo.workspace_id}`,
+    };
+    logRealtimeChannel("create", channelDetails, sb);
+
+    // Se filtra por workspace y no por medidor: postgres_changes admite un solo
+    // filtro por suscripción, así que filtrar por medidor obligaría a un canal
+    // por medidor. Llega algo de más y se descarta acá.
+    const channel = sb
+      .channel(channelName)
+      .on("postgres_changes",
+        { event: "INSERT", schema: "public", table: "medidor_lecturas", filter: `workspace_id=eq.${activo.workspace_id}` },
+        (payload) => {
+          const fila = payload.new as { id: string; medidor_id: string; valor: number; ts: string; creado_por: string | null; created_at: string };
+          if (!ids.has(fila.medidor_id)) return;
+          setMedidores(prev => prev.map(m => {
+            if (m.id !== fila.medidor_id) return m;
+            // Una lectura atrasada (buffer de un gateway que reconecta) no debe
+            // pisar a la última: `ultima` es la más reciente por `ts`, no la
+            // que llegó al final.
+            if (m.ultima && new Date(fila.ts) < new Date(m.ultima.ts)) return m;
+            return { ...m, ultima: fila };
+          }));
+        })
+      .subscribe();
+
+    return () => {
+      logRealtimeChannel("remove", channelDetails, sb);
+      sb.removeChannel(channel);
+    };
+  }, [idsMedidores, activo.id, activo.workspace_id]);
+
+  // Mientras carga no se pinta nada: un esqueleto que aparece y desaparece en
+  // 200ms mueve el resto de la ficha hacia abajo y molesta más de lo que informa.
+  if (loading) return null;
+
+  return (
+    <div>
+      <SectionHeader
+        title="Lecturas de medidores"
+        action={
+          <button
+            type="button"
+            onClick={() => setCreando(true)}
+            style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: "inherit", fontSize: 14, fontWeight: 400, color: "var(--brand)" }}
+          >
+            <Plus size={14} /> Agregar
+          </button>
+        }
+      />
+      <Card>
+        {medidores.length === 0 ? (
+          <div style={{ padding: "20px 16px", display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
+            <Gauge size={20} style={{ color: "var(--fg-4)" }} />
+            <span style={{ fontSize: 14, color: "var(--fg-4)", textAlign: "center" }}>
+              Sin medidores. Agrega uno para seguir su condición en vivo.
+            </span>
+          </div>
+        ) : medidores.map((m, i) => (
+          <MedidorRow key={m.id} medidor={m} last={i === medidores.length - 1} />
+        ))}
+      </Card>
+
+      {creando && activo.workspace_id && (
+        <NuevoMedidorDialog
+          workspaceId={activo.workspace_id}
+          activoId={activo.id}
+          ubicacionId={activo.ubicacion_id}
+          onClose={() => setCreando(false)}
+          onCreado={medidor => setMedidores(prev => [...prev, { ...medidor, ultima: null }])}
+        />
+      )}
+    </div>
+  );
+}
+
 function GeneralTab({ activo, onChangeEstado, changingEstado }: {
   activo: Activo;
   onChangeEstado: (e: AssetStatus) => void;
@@ -1704,6 +1867,8 @@ function GeneralTab({ activo, onChangeEstado, changingEstado }: {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16, paddingTop: 16 }}>
       <EstadoCard activo={activo} onChangeEstado={onChangeEstado} changing={changingEstado} />
+
+      <MedidoresCard activo={activo} />
 
       <div>
         <SectionHeader
@@ -1762,19 +1927,28 @@ const META_GRID: React.CSSProperties = {
 };
 
 // ── Detalles tab — OTDetail idiom: flowing sections + meta-field grids ─────────
-function DetallesTab({ activo, hijos, onOpenActivo, onOpenMaterial, onFullscreen }: { activo: Activo; hijos: Activo[]; onOpenActivo: (id: string) => void; onOpenMaterial: (id: string) => void; onFullscreen: () => void }) {
+function DetallesTab({ activo, hijos, padreActivo, onOpenActivo, onOpenMaterial, onFullscreen, onCrearSubActivo }: { activo: Activo; hijos: Activo[]; padreActivo?: Activo | null; onOpenActivo: (id: string) => void; onOpenMaterial: (id: string) => void; onFullscreen: () => void; onCrearSubActivo?: (padreId: string) => void }) {
   const crit = (activo.criticidad ?? "no_critico") as AssetCriticality;
   const adjuntos = Array.isArray(activo.adjuntos) ? activo.adjuntos : [];
   const ubic = ubicacionLabel(activo);
   const partes = activo.materiales ?? [];
   /**
-   * Activo padre real. El embed de PostgREST puede llegar como objeto vacio o
-   * como arreglo aunque la FK sea null, y en ambos casos `activo.parent` es
-   * truthy: la tarjeta se dibujaba con el nombre en blanco. Solo cuenta como
-   * padre si trae id y nombre.
+   * Activo padre, buscado en la lista que ya tenemos en memoria.
+   *
+   * NO se usa el embed `activo.parent`. En una tabla que se referencia a si
+   * misma, `activos!activo_padre_id` le dice a PostgREST el nombre de la
+   * COLUMNA y lo resuelve al reves: devuelve las filas cuyo `activo_padre_id`
+   * apunta a esta —los HIJOS—, asi que la ficha mostraba al primer hijo como
+   * "Activo padre" y los que si tenian padre no mostraban ninguno. Nombrar la
+   * constraint tampoco sirve: PostgREST no la tiene en su cache de esquema y
+   * responde PGRST200, con lo cual la consulta entera falla y el listado sale
+   * vacio.
+   *
+   * `activo_padre_id` ya viene como columna y la bandeja ya tiene todos los
+   * activos cargados, asi que resolverlo en memoria es exacto, no agrega una
+   * consulta y no depende de como PostgREST interprete la FK.
    */
-  const parentRaw = Array.isArray(activo.parent) ? activo.parent[0] : activo.parent;
-  const padre = parentRaw?.id && parentRaw?.nombre ? parentRaw : null;
+  const padre = padreActivo ?? null;
   /** Se muestran de a 4 para que la seccion no empuje al resto de la ficha
    *  fuera de pantalla cuando un equipo tiene decenas de repuestos. */
   const [partesVisibles, setPartesVisibles] = useState(PARTES_CHUNK);
@@ -1785,6 +1959,13 @@ function DetallesTab({ activo, hijos, onOpenActivo, onOpenMaterial, onFullscreen
     { label: "Modelo", value: activo.modelo?.nombre ?? "Sin modelo", icon: <Tag size={16} /> },
     { label: "N° de serie", value: activo.numero_serie ?? "Sin número de serie", icon: <Hash size={16} /> },
     { label: "Año", value: activo.año_fabricacion ? String(activo.año_fabricacion) : "Sin año", icon: <Calendar size={16} /> },
+    {
+      label: "Costo por hora detenido",
+      value: activo.costo_hora_parada != null
+        ? `$${Math.round(Number(activo.costo_hora_parada)).toLocaleString("es-CL")}/h`
+        : "Sin informar",
+      icon: <DollarSign size={16} />,
+    },
     { label: "Proveedor", value: activo.proveedor?.nombre ?? "Sin proveedor", icon: <Truck size={16} /> },
   ];
 
@@ -1965,26 +2146,77 @@ function DetallesTab({ activo, hijos, onOpenActivo, onOpenMaterial, onFullscreen
           padre" ocupaba un bloque entero en la mayoría de los activos (que no
           cuelgan de ninguno) para no decir nada ni ofrecer ninguna acción: el
           padre se asigna en crear/editar, no acá. */}
-      {(padre || hijos.length > 0) && (
+      {/* Jerarquía.
+          El padre, si lo hay, y los sub-activos con su propio botón de alta.
+          La sección se muestra siempre que se pueda crear: es el único lugar
+          desde donde se arma el árbol hacia abajo, y esconderla cuando todavía
+          no hay hijos dejaba sin camino al primero. */}
+      {(padre || hijos.length > 0 || onCrearSubActivo) && (
       <div style={{ marginLeft: -28, marginRight: -28, paddingLeft: 28, paddingRight: 28, paddingTop: 16, paddingBottom: 16, borderBottom: "1px solid var(--border)" }}>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {padre && (
-              <button onClick={() => onOpenActivo(padre.id)} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", border: "1px solid var(--border)", borderRadius: "var(--r-md)", background: "var(--surface-0)", cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}>
-                <span style={{ width: 30, height: 30, borderRadius: 8, background: "var(--brand-tint)", color: "var(--brand-fg)", display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><GitBranch size={15} /></span>
-                <span style={{ flex: 1, minWidth: 0 }}>
-                  <span style={{ display: "block", fontSize: 14, fontWeight: 400, color: "var(--fg-4)", letterSpacing: "0.01em" }}>Activo padre</span>
-                  <span style={{ display: "block", marginTop: 2, fontSize: 14, fontWeight: 400, color: "var(--fg-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{padre.nombre}</span>
-                </span>
-                <ChevronRight size={15} style={{ color: "var(--fg-4)", flexShrink: 0 }} />
+          {padre && (
+            <button onClick={() => onOpenActivo(padre.id)} style={{ width: "100%", marginBottom: 8, display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", border: "1px solid var(--border)", borderRadius: "var(--r-md)", background: "var(--surface-0)", cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}>
+              <span style={{ width: 30, height: 30, borderRadius: 8, background: "var(--brand-tint)", color: "var(--brand-fg)", display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><GitBranch size={15} /></span>
+              <span style={{ flex: 1, minWidth: 0 }}>
+                <span style={{ display: "block", fontSize: 14, fontWeight: 400, color: "var(--fg-4)", letterSpacing: "0.01em" }}>Activo padre</span>
+                <span style={{ display: "block", marginTop: 2, fontSize: 14, fontWeight: 400, color: "var(--fg-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{padre.nombre}</span>
+              </span>
+              <ChevronRight size={15} style={{ color: "var(--fg-4)", flexShrink: 0 }} />
+            </button>
+          )}
+
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 10 }}>
+            <span style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)" }}>
+              Sub-activos ({hijos.length})
+            </span>
+            {onCrearSubActivo && (
+              <button
+                type="button"
+                onClick={() => onCrearSubActivo(activo.id)}
+                style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: 0, background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", fontSize: 14, color: "var(--brand-fg)" }}
+              >
+                <PlusCircle size={15} /> Crear sub-activo
               </button>
             )}
+          </div>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {hijos.map(h => (
-              <button key={h.id} onClick={() => onOpenActivo(h.id)} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", border: "1px solid var(--border)", borderRadius: "var(--r-md)", background: "var(--surface-0)", cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}>
+              <div key={h.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "12px 14px", border: "1px solid var(--border)", borderRadius: "var(--r-md)", background: "var(--surface-0)" }}>
                 <span style={{ width: 30, height: 30, borderRadius: 8, background: "var(--surface-hover)", color: "var(--fg-3)", display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><ArrowDown size={15} /></span>
-                <span style={{ flex: 1, fontSize: 14, fontWeight: 400, color: "var(--fg-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{h.nombre}</span>
+                <button
+                  type="button"
+                  onClick={() => onOpenActivo(h.id)}
+                  style={{ flex: 1, minWidth: 0, textAlign: "left", background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: "inherit", fontSize: 14, fontWeight: 400, color: "var(--fg-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+                >
+                  {h.nombre}
+                </button>
+                {/* Estado del componente a la vista: es el dato que dice si el
+                    equipo padre puede trabajar o no. */}
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 6, flexShrink: 0, height: 26, padding: "0 9px", background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: "var(--r-sm)", fontSize: 14, color: "var(--fg-1)" }}>
+                  <span style={{ width: 7, height: 7, borderRadius: "50%", background: estadoColor(h.estado), flexShrink: 0 }} />
+                  {estadoLabel(h.estado)}
+                </span>
+                {/* Anidar sin tener que abrir el hijo primero: es la forma en
+                    que se arma un árbol de varios niveles de un tirón. */}
+                {onCrearSubActivo && (
+                  <button
+                    type="button"
+                    title={`Crear un sub-activo dentro de ${h.nombre}`}
+                    onClick={() => onCrearSubActivo(h.id)}
+                    style={{ display: "inline-flex", alignItems: "center", gap: 4, flexShrink: 0, padding: 0, background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", fontSize: 14, color: "var(--brand-fg)" }}
+                  >
+                    <PlusCircle size={14} /> Sub-activo
+                  </button>
+                )}
                 <ChevronRight size={15} style={{ color: "var(--fg-4)", flexShrink: 0 }} />
-              </button>
+              </div>
             ))}
+
+            {hijos.length === 0 && (
+              <p style={{ margin: 0, fontSize: 14, color: "var(--fg-4)" }}>
+                Agrega los componentes que forman parte de este activo.
+              </p>
+            )}
           </div>
       </div>
       )}
@@ -2090,13 +2322,17 @@ function HistorialTab({ activoId, onOpenOT }: { activoId: string; onOpenOT: (otI
 }
 
 function ActivoDetail({
-  activo, activos, onEdit, onDeleted, onUpdated,
+  activo, activos, onEdit, onDeleted, onUpdated, onCrearSubActivo, onOpenActivo,
 }: {
   activo: Activo;
   activos: Activo[];
   onEdit: () => void;
   onDeleted: (id: string) => void;
   onUpdated: (activo: Activo) => void;
+  /** Abre el alta con este activo (o un hijo suyo) ya puesto como padre. */
+  onCrearSubActivo?: (padreId: string) => void;
+  /** Selecciona otro activo de la jerarquía en la misma bandeja. */
+  onOpenActivo?: (id: string) => void;
 }) {
   const router = useRouter();
   const [tab, setTab] = useState<ActivoTab>("general");
@@ -2106,6 +2342,15 @@ function ActivoDetail({
   const [accionesMenuOpen, setAccionesMenuOpen] = useState(false);
   const accionesMenuRef = useRef<HTMLDivElement>(null);
   const hijos = activos.filter(a => a.activo_padre_id === activo.id);
+  /**
+   * El activo padre sale de la lista que ya está en memoria, no del embed
+   * `activo.parent`: ver el comentario en DetallesTab. Acá `activos` está en
+   * alcance y ya trae todo el workspace, así que la búsqueda es exacta y no
+   * cuesta una consulta más.
+   */
+  const padreActivo = activo.activo_padre_id
+    ? activos.find(a => a.id === activo.activo_padre_id) ?? null
+    : null;
 
   // Reset to the first tab whenever a different asset is opened.
   useEffect(() => { setTab("general"); }, [activo.id]);
@@ -2166,7 +2411,16 @@ function ActivoDetail({
     }
   }
 
-  const openActivo = (id: string) => router.push(`/activos/activos?id=${encodeURIComponent(id)}`);
+  /**
+   * Abrir otro activo desde la jerarquía.
+   *
+   * NO puede ser `router.push("/activos/activos?id=…")`. El activo abierto vive
+   * en el estado de la bandeja (`selected`), y el `?id=` de la URL se escribe
+   * DESDE ese estado con replaceState — nunca se lee de vuelta al navegar. Con
+   * push cambiaba la barra de direcciones y el panel se quedaba donde estaba:
+   * los enlaces al activo padre y a los sub-activos no hacían nada.
+   */
+  const openActivo = (id: string) => onOpenActivo?.(id);
 
   return (
     <div style={{ height: "100%", display: "flex", flexDirection: "column", background: "var(--surface-canvas)" }}>
@@ -2300,7 +2554,7 @@ function ActivoDetail({
           </div>
 
           {tab === "general" && <GeneralTab activo={activo} onChangeEstado={handleChangeEstado} changingEstado={changingEstado} />}
-          {tab === "detalles" && <DetallesTab activo={activo} hijos={hijos} onOpenActivo={openActivo} onOpenMaterial={id => router.push(`/partes?material=${encodeURIComponent(id)}`)} onFullscreen={() => setFullscreen(true)} />}
+          {tab === "detalles" && <DetallesTab activo={activo} hijos={hijos} padreActivo={padreActivo} onOpenActivo={openActivo} onOpenMaterial={id => router.push(`/partes?material=${encodeURIComponent(id)}`)} onFullscreen={() => setFullscreen(true)} onCrearSubActivo={onCrearSubActivo} />}
           {tab === "historial" && <HistorialTab activoId={activo.id} onOpenOT={(otId) => router.push(`/ordenes?id=${encodeURIComponent(otId)}`)} />}
         </div>
       </div>
@@ -2349,13 +2603,33 @@ function ActivoDetail({
   );
 }
 
-export default function ActivosBandeja({ initialActivos, usuarios, ubicaciones, lugares, sociedades, fabricantes, modelos, proveedores, materiales, cuadrillas, myRol, wsId, initialSelectedId }: Props) {
+export default function ActivosBandeja({ initialActivos, usuarios, ubicaciones, lugares, sociedades, fabricantes: fabricantesIniciales, modelos: modelosIniciales, proveedores: proveedoresIniciales, materiales, cuadrillas, myRol, wsId, initialSelectedId }: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const [activos, setActivos] = useState<Activo[]>(initialActivos);
+  /**
+   * Catalogos como estado local, no props directas.
+   *
+   * Llegan del servidor, pero ahora se pueden crear desde el desplegable del
+   * formulario. Si se leyeran de la prop, el fabricante recien creado no
+   * aparecia en la lista hasta recargar la pagina.
+   */
+  const [fabricantes, setFabricantes] = useState<Fabricante[]>(fabricantesIniciales);
+  const [modelos, setModelos] = useState<Modelo[]>(modelosIniciales);
+  const [proveedores, setProveedores] = useState<Proveedor[]>(proveedoresIniciales);
+  const porNombre = <T extends { nombre: string }>(lista: T[]) =>
+    [...lista].sort((a, b) => a.nombre.localeCompare(b.nombre));
   const [selected, setSelected] = useState<string | null>(initialSelectedId ?? null);
   const selectedRef = useRef<string | null>(initialSelectedId ?? null);
-  const [editing, setEditing] = useState<Activo | null | "new">(null);
+  /**
+   * Formulario abierto: `null` cerrado, un activo = editando, `"new"` = alta
+   * suelta, `{ bajo }` = alta de un sub-activo con el padre ya elegido.
+   *
+   * Esa última forma es lo que permite "Crear Sub-Activo" desde la ficha: el
+   * activo nace colgando del que se estaba mirando, sin que el usuario tenga
+   * que buscarlo de nuevo en el selector de activo padre.
+   */
+  const [editing, setEditing] = useState<Activo | null | "new" | { bajo: string }>(null);
   const [search, setSearch] = useState("");
   const locationsView = pathname.endsWith("/ubicaciones");
   const [filterCrit, setFilterCrit] = useState<CritFilter>("all");
@@ -2466,7 +2740,24 @@ export default function ActivosBandeja({ initialActivos, usuarios, ubicaciones, 
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
+    // Se calcula acá y no se toma de `hayFiltros`: esa constante se declara más
+    // abajo, así que usarla dentro del memo la leería antes de existir.
+    const filtrando = filterCrit !== "all" || filterSociedadId !== "all"
+      || filterEstado !== "all" || filterUbicacionId !== "all" || filterLugarId !== "all"
+      || filterResponsableId !== "all" || filterFabricanteId !== "all" || filterModeloId !== "all";
     const list = activos.filter(a => {
+      /**
+       * Los sub-activos no aparecen sueltos en el listado: viven dentro de la
+       * ficha de su padre. Un motor listado al lado de su propia máquina hace
+       * que el inventario cuente dos veces lo mismo.
+       *
+       * La excepción es buscar o filtrar: si alguien escribe "motor", quiere
+       * ese motor, esté donde esté. Esconderlo ahí sería un resultado faltante
+       * sin explicación. El padre puede no estar en `activos` si quedó fuera de
+       * este workspace, así que solo se oculta cuando el padre está a la vista.
+       */
+      if (!q && !filtrando && a.activo_padre_id
+          && activos.some(p => p.id === a.activo_padre_id)) return false;
       if (filterCrit !== "all" && a.criticidad !== filterCrit) return false;
       if (filterSociedadId !== "all" && a.sociedad_id !== filterSociedadId) return false;
       // `operativo` es el valor por defecto: un activo sin estado cargado
@@ -2880,7 +3171,8 @@ export default function ActivosBandeja({ initialActivos, usuarios, ubicaciones, 
               <EmptyDetail icon={<MapPin size={28} strokeWidth={1.5} />} title="Selecciona una ubicación" hint="Abre una ubicación para ver sus activos" />
             ) : editing ? (
               <ActivoForm
-                activo={editing === "new" ? null : editing}
+                activo={typeof editing === "object" && editing !== null && "bajo" in editing ? null : (editing === "new" ? null : editing)}
+                padreInicial={typeof editing === "object" && editing !== null && "bajo" in editing ? editing.bajo : null}
                 cuadrillas={cuadrillas}
                 usuarios={usuarios}
                 ubicaciones={ubicaciones}
@@ -2894,6 +3186,9 @@ export default function ActivosBandeja({ initialActivos, usuarios, ubicaciones, 
                 wsId={wsId}
                 onSaved={handleSaved}
                 onClose={() => setEditing(null)}
+                onFabricanteCreado={f => setFabricantes(prev => porNombre([...prev, f]))}
+                onModeloCreado={m => setModelos(prev => porNombre([...prev, m]))}
+                onProveedorCreado={p => setProveedores(prev => porNombre([...prev, p]))}
               />
             ) : selectedActivo ? (
               <ActivoDetail
@@ -2902,6 +3197,8 @@ export default function ActivosBandeja({ initialActivos, usuarios, ubicaciones, 
                 onEdit={() => setEditing(selectedActivo)}
                 onDeleted={handleDeleted}
                 onUpdated={handleSaved}
+                onCrearSubActivo={canCreate ? (padreId => setEditing({ bajo: padreId })) : undefined}
+                onOpenActivo={id => { setEditing(null); setSelected(id); }}
               />
             ) : (
               <EmptyDetail icon={<Box size={28} strokeWidth={1.5} />} title="Selecciona un activo" />

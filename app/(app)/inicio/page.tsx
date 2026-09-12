@@ -1025,6 +1025,7 @@ export default function InicioDashboard() {
               <MapaOperacion
                 ots={allOTs}
                 ubicaciones={ubicacionesRef}
+                sociedades={sociedadesRef}
                 equipo={equipo}
                 socId={mapaSoc}
                 calor={mapaCalor}

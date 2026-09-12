@@ -1,0 +1,14 @@
+{
+  "name": "pangui-agente-mqtt",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Agente on-premise: lee un broker MQTT y envia las lecturas a Pangui.",
+  "type": "commonjs",
+  "main": "agente.js",
+  "scripts": {
+    "start": "node agente.js"
+  },
+  "dependencies": {
+    "mqtt": "^5.10.1"
+  }
+}

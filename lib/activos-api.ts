@@ -2,10 +2,23 @@ import { createClient } from "@/lib/supabase";
 import { ensureActivosCatalogo } from "@/lib/cuotas-client";
 import type { Activo, AssetAttachment, AssetCriticality, AssetStatus, Fabricante, Modelo, Proveedor } from "@/types/ordenes";
 
+/**
+ * Columnas y embeds de un activo.
+ *
+ * Ojo con `parent`: se nombra la CONSTRAINT (`activos_activo_padre_id_fkey`) y
+ * no la columna. `activos!activo_padre_id` parece decir "segui esta FK", pero en
+ * una tabla que se referencia a si misma PostgREST lo resuelve al reves y
+ * devuelve las filas cuyo `activo_padre_id` apunta a esta —o sea los HIJOS—.
+ * Con eso la ficha tomaba `parent[0]` y mostraba al primer hijo como "Activo
+ * padre", mientras que los activos que si tenian padre no mostraban ninguno.
+ *
+ * Este string viaja como parametro de PostgREST, no es SQL: no admite
+ * comentarios `--` adentro.
+ */
 export const ACTIVO_SELECT = `
   id, workspace_id, nombre, descripcion, imagen_url,
   ubicacion_id, lugar_id, sociedad_id, fabricante_id, modelo_id, proveedor_id, responsable_id,
-  activo_padre_id, criticidad, numero_serie, año_fabricacion,
+  activo_padre_id, criticidad, numero_serie, año_fabricacion, costo_hora_parada,
   estado, fecha_garantia, archivo_url, archivo_nombre,
   adjuntos, activo, created_at, updated_at,
   creador:usuarios!creado_por(id, nombre),
@@ -43,6 +56,14 @@ export interface ActivoInput {
   criticidad?: AssetCriticality | null;
   numero_serie?: string | null;
   año_fabricacion?: number | null;
+  /**
+   * Costo de una hora de este activo detenido (producción perdida).
+   *
+   * Lo carga el cliente: depende de la línea, del turno y del precio del
+   * producto, no se puede derivar. `null` = no informado, y la analítica
+   * muestra las horas sin convertirlas a pesos en vez de inventar un número.
+   */
+  costo_hora_parada?: number | null;
   estado?: AssetStatus | string | null;
   fecha_garantia?: string | null;
   archivo_url?: string | null;
@@ -66,6 +87,7 @@ function cleanInput(input: ActivoInput): Record<string, unknown> {
   if (input.criticidad !== undefined) out.criticidad = input.criticidad ?? null;
   if (input.numero_serie !== undefined) out.numero_serie = input.numero_serie?.toString().trim() || null;
   if (input.año_fabricacion !== undefined) out["año_fabricacion"] = input.año_fabricacion ?? null;
+  if (input.costo_hora_parada !== undefined) out.costo_hora_parada = input.costo_hora_parada ?? null;
   if (input.estado !== undefined) out.estado = input.estado ?? null;
   if (input.fecha_garantia !== undefined) out.fecha_garantia = input.fecha_garantia ?? null;
   if (input.archivo_url !== undefined) out.archivo_url = input.archivo_url ?? null;
@@ -304,6 +326,46 @@ export async function fetchModelos(fabricanteId?: string | null): Promise<Modelo
   const { data, error } = await q;
   if (error) throw error;
   return (data ?? []) as unknown as Modelo[];
+}
+
+// Crea un fabricante privado del workspace. Los seeds globales
+// (workspace_id null) son compartidos; lo que agrega un usuario queda acotado a
+// su workspace, que es lo unico que permite el with_check de la RLS.
+export async function createFabricante(workspaceId: string, nombre: string): Promise<Fabricante> {
+  const sb = createClient();
+  const { data, error } = await sb
+    .from("fabricantes")
+    .insert({ nombre: nombre.trim(), workspace_id: workspaceId })
+    .select("id, nombre, created_at")
+    .single();
+  if (error) throw error;
+  return data as Fabricante;
+}
+
+export async function createModelo(
+  workspaceId: string,
+  fabricanteId: string,
+  nombre: string,
+): Promise<Modelo> {
+  const sb = createClient();
+  const { data, error } = await sb
+    .from("modelos")
+    .insert({ nombre: nombre.trim(), fabricante_id: fabricanteId, workspace_id: workspaceId })
+    .select("id, fabricante_id, nombre, created_at, fabricante:fabricantes(id, nombre)")
+    .single();
+  if (error) throw error;
+  return data as unknown as Modelo;
+}
+
+export async function createProveedor(workspaceId: string, nombre: string): Promise<Proveedor> {
+  const sb = createClient();
+  const { data, error } = await sb
+    .from("proveedores")
+    .insert({ nombre: nombre.trim(), workspace_id: workspaceId })
+    .select("id, workspace_id, nombre, contacto, email, telefono, created_at")
+    .single();
+  if (error) throw error;
+  return data as Proveedor;
 }
 
 export async function fetchProveedores(workspaceId: string): Promise<Proveedor[]> {

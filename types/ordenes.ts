@@ -203,6 +203,14 @@ export interface Activo {
   criticidad?: AssetCriticality | null;
   numero_serie?: string | null;
   año_fabricacion?: number | null;
+  /**
+   * Costo de una hora de este activo detenido (producción perdida).
+   *
+   * Lo carga el cliente —depende de la línea, del turno y del precio del
+   * producto—, y es lo que permite expresar las horas de parada en dinero.
+   * `null` = no informado: la analítica muestra horas sin convertir.
+   */
+  costo_hora_parada?: number | null;
   estado?: AssetStatus | string | null;
   fecha_garantia?: string | null;
   archivo_url?: string | null;
