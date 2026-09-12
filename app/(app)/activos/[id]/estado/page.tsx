@@ -84,6 +84,26 @@ export default function EstadoActivoPage() {
   const [todosPeriodos, setTodosPeriodos] = useState<EstadoPeriodo[]>([]);
   const [rango, setRango] = useState<(typeof RANGOS)[number]["key"]>("1s");
   const [medidores, setMedidores] = useState<Medidor[]>([]);
+  /**
+   * Tic de refresco de los gráficos de medidores.
+   *
+   * Esta pantalla no tiene realtime —se carga una vez y se queda—, así que sin
+   * esto un gráfico abierto durante una ronda o una demo nunca incorpora las
+   * lecturas que van llegando. Avanza un contador y `LecturasChart` lo usa
+   * como dependencia para volver a pedir su serie.
+   */
+  const [ticLecturas, setTicLecturas] = useState(0);
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      if (typeof document !== "undefined" && document.hidden) return;
+      setTicLecturas(t => t + 1);
+      // El borde derecho del gráfico sale de `ahora`; sin moverlo, una lectura
+      // recién llegada cae fuera de la ventana y no se dibuja.
+      setAhora(Date.now());
+    }, 10_000);
+    return () => clearInterval(id);
+  }, []);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
 
@@ -282,7 +302,7 @@ export default function EstadoActivoPage() {
                     )}
                   </span>
                 </div>
-                <LecturasChart medidor={m} desde={ventana.desde} hasta={ventana.hasta} />
+                <LecturasChart medidor={m} desde={ventana.desde} hasta={ventana.hasta} refrescar={ticLecturas} />
               </div>
             ))}
           </div>

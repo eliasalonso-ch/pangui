@@ -1740,6 +1740,38 @@ function MedidoresCard({ activo }: { activo: Activo }) {
   // canal no necesita rearmarse aunque lleguen lecturas nuevas.
   const idsMedidores = useMemo(() => medidores.map(m => m.id).sort().join(","), [medidores]);
 
+  /**
+   * Respaldo por sondeo, además del realtime.
+   *
+   * El realtime es el camino normal y llega en menos de un segundo, pero se
+   * cae por cosas que esta pantalla no controla: el WebSocket se corta, la
+   * pestaña queda en segundo plano y el navegador la suspende, o el canal no
+   * alcanza a suscribirse. Cuando eso pasa el panel se queda congelado y no
+   * hay ninguna señal de que esté desactualizado — que es peor que mostrar un
+   * dato viejo, porque nadie sabe que lo es.
+   *
+   * Diez segundos es un compromiso: suficiente para que una demo se vea viva
+   * si el realtime falló, y lo bastante espaciado para no pesar (una consulta
+   * por activo abierto, solo mientras la ficha está a la vista).
+   *
+   * ponytail: sondea siempre, incluso con el realtime sano. Podría apagarse al
+   * recibir el primer evento, pero eso agrega estado para ahorrar una consulta
+   * cada diez segundos. Si el costo llega a notarse, ese es el upgrade.
+   */
+  useEffect(() => {
+    if (!idsMedidores) return;
+    const id = setInterval(() => {
+      // Sin la pestaña visible no sirve de nada: el usuario no lo está mirando
+      // y al volver, `visibilitychange` no hace falta porque el próximo tick
+      // llega en diez segundos.
+      if (typeof document !== "undefined" && document.hidden) return;
+      fetchMedidoresDeActivo(activo.id)
+        .then(setMedidores)
+        .catch(() => { /* Un fallo puntual no debe romper el panel: el próximo tick reintenta. */ });
+    }, 10_000);
+    return () => clearInterval(id);
+  }, [idsMedidores, activo.id]);
+
   useEffect(() => {
     if (!idsMedidores) return;
     const ids = new Set(idsMedidores.split(","));
