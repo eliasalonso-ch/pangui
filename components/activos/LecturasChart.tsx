@@ -77,15 +77,20 @@ export default function LecturasChart({
   const t1 = hasta.getTime();
   const span = Math.max(t1 - t0, 1);
 
+  // Se depende de los milisegundos y NO de los objetos `Date`: React compara las
+  // dependencias por identidad, y la ventana crea un `Date` nuevo en cada
+  // render. Con los objetos, el efecto se redispara aunque la ventana sea la
+  // misma —una consulta por render— y el `setLoading(true)` de cada pasada deja
+  // el gráfico parpadeando en vez de dibujar.
   useEffect(() => {
     let cancelado = false;
     setLoading(true);
-    fetchLecturas(medidor.id, desde, hasta)
+    fetchLecturas(medidor.id, new Date(t0), new Date(t1))
       .then(l => { if (!cancelado) setLecturas(l); })
       .catch(() => { if (!cancelado) setLecturas([]); })
       .finally(() => { if (!cancelado) setLoading(false); });
     return () => { cancelado = true; };
-  }, [medidor.id, desde, hasta, refrescar]);
+  }, [medidor.id, t0, t1, refrescar]);
 
   const marcas = useMemo(() => marcasDeTiempo(t0, t1), [t0, t1]);
   const { min, max } = useMemo(() => escala(lecturas, medidor), [lecturas, medidor]);
