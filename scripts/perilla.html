@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Perilla de Medidor</title>
+<style>
+  :root {
+    --bg: #f6f7f9;
+    --surface: #ffffff;
+    --border: #e3e6ea;
+    --fg: #14181d;
+    --fg-2: #4a5560;
+    --fg-4: #8b95a1;
+    --brand: #2f7df6;
+    --ok: #10b981;
+    --warn: #f59e0b;
+    --crit: #ef4444;
+  }
+  :root:not([data-theme="light"]) {
+    @media (prefers-color-scheme: dark) {
+      --bg: #14181d; --surface: #1c2127; --border: #2c333b;
+      --fg: #eef1f4; --fg-2: #b3bcc6; --fg-4: #7b8593;
+    }
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #14181d; --surface: #1c2127; --border: #2c333b;
+      --fg: #eef1f4; --fg-2: #b3bcc6; --fg-4: #7b8593;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #14181d; --surface: #1c2127; --border: #2c333b;
+    --fg: #eef1f4; --fg-2: #b3bcc6; --fg-4: #7b8593;
+  }
+
+  body {
+    background: var(--bg); color: var(--fg);
+    font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+    padding-block: 28px; padding-left: 16px; padding-right: 16px;
+  }
+  .wrap { max-width: 560px; margin: 0 auto; }
+  h1 { font-size: 19px; font-weight: 600; margin: 0 0 4px; letter-spacing: -0.01em; }
+  .sub { color: var(--fg-4); font-size: 14px; margin: 0 0 22px; }
+
+  .card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 14px; padding: 22px; margin-bottom: 14px;
+  }
+
+  .lectura { text-align: center; margin-bottom: 4px; }
+  .valor {
+    font-size: 62px; font-weight: 600; line-height: 1;
+    font-variant-numeric: tabular-nums; letter-spacing: -0.03em;
+    transition: color .18s;
+  }
+  .unidad { font-size: 19px; color: var(--fg-4); font-weight: 400; margin-left: 5px; }
+  .estado {
+    display: inline-block; margin-top: 11px; padding: 3px 12px;
+    border-radius: 999px; font-size: 13px; font-weight: 500;
+  }
+
+  input[type=range] {
+    width: 100%; margin: 26px 0 6px; accent-color: var(--brand);
+    height: 26px; cursor: grab;
+  }
+  input[type=range]:active { cursor: grabbing; }
+
+  .escala {
+    display: flex; justify-content: space-between;
+    font-size: 12px; color: var(--fg-4); font-variant-numeric: tabular-nums;
+  }
+
+  .campos { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px; }
+  @media (max-width: 460px) { .campos { grid-template-columns: 1fr; } }
+  label { display: block; font-size: 13px; color: var(--fg-2); margin-bottom: 5px; }
+  input[type=text], input[type=number] {
+    width: 100%; box-sizing: border-box; height: 38px; padding: 0 11px;
+    border: 1px solid var(--border); border-radius: 9px;
+    background: var(--bg); color: var(--fg); font: inherit; font-size: 14px;
+  }
+
+  .fila { display: flex; gap: 9px; align-items: center; flex-wrap: wrap; }
+  button {
+    height: 38px; padding: 0 15px; border-radius: 9px; font: inherit;
+    font-size: 14px; cursor: pointer; border: 1px solid var(--border);
+    background: var(--surface); color: var(--fg-2);
+  }
+  button.primario {
+    background: var(--brand); border-color: var(--brand); color: #fff; font-weight: 500;
+  }
+  button:disabled { opacity: .5; cursor: default; }
+
+  .log {
+    font-family: ui-monospace, "Cascadia Code", monospace; font-size: 12.5px;
+    background: var(--bg); border: 1px solid var(--border); border-radius: 9px;
+    padding: 11px; height: 132px; overflow-y: auto; color: var(--fg-2);
+    white-space: pre-wrap; word-break: break-word;
+  }
+  .log div { padding: 1px 0; }
+  .ok { color: var(--ok); }
+  .err { color: var(--crit); }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <h1>Perilla de medidor</h1>
+  <p class="sub">Mueve el control y Pangui recibe la lectura, igual que un sensor real.</p>
+
+  <div class="card">
+    <div class="lectura">
+      <span class="valor" id="valor">2.5</span><span class="unidad" id="unidad">mm/s</span>
+      <div><span class="estado" id="estado"></span></div>
+    </div>
+
+    <input type="range" id="perilla" min="0" max="12" step="0.1" value="2.5">
+    <div class="escala">
+      <span>0</span><span id="marcaAdv">adv 4</span><span id="marcaCrit">alarma 7</span><span>12</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="campos">
+      <div>
+        <label for="url">URL de Pangui</label>
+        <input type="text" id="url" value="http://localhost:3000">
+      </div>
+      <div>
+        <label for="token">Token del medidor</label>
+        <input type="text" id="token" placeholder="pang_mtr_…">
+      </div>
+      <div>
+        <label for="adv">Advertencia</label>
+        <input type="number" id="adv" value="4" step="0.1">
+      </div>
+      <div>
+        <label for="crit">Alarma</label>
+        <input type="number" id="crit" value="7" step="0.1">
+      </div>
+    </div>
+
+    <div class="fila">
+      <button class="primario" id="enviar">Enviar lectura</button>
+      <button id="auto">Enviar cada 3 s</button>
+      <button id="rampa">Simular degradación</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="log" id="log"><div style="color:var(--fg-4)">Pega el token y mueve la perilla.</div></div>
+  </div>
+</div>
+
+<script>
+  const $ = id => document.getElementById(id);
+  const perilla = $("perilla"), valorEl = $("valor"), estadoEl = $("estado");
+
+  // El token se guarda en el navegador para no repegarlo en cada demo. Es
+  // localStorage y no una cookie: nunca sale de esta máquina.
+  try {
+    const g = localStorage.getItem("pangui_perilla");
+    if (g) { const c = JSON.parse(g); $("url").value = c.url || $("url").value; $("token").value = c.token || ""; }
+  } catch {}
+
+  function guardar() {
+    try {
+      localStorage.setItem("pangui_perilla", JSON.stringify({ url: $("url").value, token: $("token").value }));
+    } catch {}
+  }
+  $("url").addEventListener("change", guardar);
+  $("token").addEventListener("change", guardar);
+
+  function nivel(v) {
+    const c = parseFloat($("crit").value), a = parseFloat($("adv").value);
+    if (!isNaN(c) && v >= c) return { txt: "Crítico", color: "var(--crit)" };
+    if (!isNaN(a) && v >= a) return { txt: "Advertencia", color: "var(--warn)" };
+    return { txt: "Normal", color: "var(--ok)" };
+  }
+
+  function pintar() {
+    const v = parseFloat(perilla.value);
+    const n = nivel(v);
+    valorEl.textContent = v.toFixed(1);
+    valorEl.style.color = n.color;
+    estadoEl.textContent = n.txt;
+    estadoEl.style.background = n.color + "22";
+    estadoEl.style.color = n.color;
+    $("marcaAdv").textContent = "adv " + $("adv").value;
+    $("marcaCrit").textContent = "alarma " + $("crit").value;
+  }
+
+  perilla.addEventListener("input", pintar);
+  $("adv").addEventListener("input", pintar);
+  $("crit").addEventListener("input", pintar);
+  pintar();
+
+  function log(msg, clase) {
+    const d = document.createElement("div");
+    if (clase) d.className = clase;
+    const t = new Date().toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    d.textContent = `${t}  ${msg}`;
+    const c = $("log");
+    c.appendChild(d);
+    c.scrollTop = c.scrollHeight;
+  }
+
+  async function enviar() {
+    const token = $("token").value.trim();
+    if (!token) { log("Falta el token del medidor.", "err"); return; }
+    const v = parseFloat(perilla.value);
+    try {
+      const res = await fetch($("url").value.replace(/\/$/, "") + "/api/medidores/lecturas", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": "Bearer " + token },
+        body: JSON.stringify({ valor: v }),
+      });
+      const cuerpo = await res.json().catch(() => ({}));
+      if (res.ok) log(`${v.toFixed(1)} enviado  ✓`, "ok");
+      else log(`${res.status} ${cuerpo.error || "error"}`, "err");
+    } catch (e) {
+      // Casi siempre es CORS o la app caída; el mensaje del navegador no lo dice.
+      log(`Sin conexión: ${e.message}. ¿Está corriendo la app en esa URL?`, "err");
+    }
+  }
+
+  $("enviar").addEventListener("click", enviar);
+
+  let timer = null;
+  $("auto").addEventListener("click", () => {
+    if (timer) {
+      clearInterval(timer); timer = null;
+      $("auto").textContent = "Enviar cada 3 s";
+      $("auto").classList.remove("primario");
+      log("Envío automático detenido.");
+    } else {
+      enviar();
+      timer = setInterval(enviar, 3000);
+      $("auto").textContent = "Detener envío";
+      $("auto").classList.add("primario");
+      log("Enviando cada 3 s.");
+    }
+  });
+
+  // Sube sola hasta pasar la alarma: la demo sin manos, para cuando estás
+  // hablando y no quieres estar moviendo el control.
+  let rampa = null;
+  $("rampa").addEventListener("click", () => {
+    if (rampa) {
+      clearInterval(rampa); rampa = null;
+      $("rampa").textContent = "Simular degradación";
+      return;
+    }
+    $("rampa").textContent = "Detener";
+    perilla.value = "2.5"; pintar();
+    rampa = setInterval(() => {
+      const v = Math.min(12, parseFloat(perilla.value) + 0.25 + Math.random() * 0.15);
+      perilla.value = v.toFixed(1);
+      pintar();
+      enviar();
+      const crit = parseFloat($("crit").value);
+      if (!isNaN(crit) && v >= crit + 1) {
+        clearInterval(rampa); rampa = null;
+        $("rampa").textContent = "Simular degradación";
+        log("Degradación completa. Revisa las órdenes de trabajo.", "ok");
+      }
+    }, 3000);
+  });
+</script>
+
+</body>
+</html>

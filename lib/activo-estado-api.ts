@@ -9,7 +9,7 @@
  */
 
 import { createClient } from "@/lib/supabase";
-import type { AssetStatus } from "@/types/ordenes";
+import type { AssetCriticality, AssetStatus } from "@/types/ordenes";
 
 /** Clasificación de una parada. `operativo` nunca la lleva. */
 export type TipoInactividad = "planeado" | "sin_planear";
@@ -106,6 +106,62 @@ export interface CambioEstadoInput {
   /** Permite fechar hacia atrás. `undefined` = ahora. */
   desde?: Date | null;
   notas?: string | null;
+  /**
+   * Causa de la parada, de catálogo. Obligatoria cuando la parada es
+   * `sin_planear`: la RPC la exige, porque una avería sin causa registrada es
+   * el dato que después no se puede reconstruir.
+   */
+  motivoId?: string | null;
+}
+
+/** Motivo de parada imprevista. Catálogo propio de cada workspace. */
+export interface MotivoInactividad {
+  id: string;
+  nombre: string;
+  slug: string;
+}
+
+/** Motivos vigentes del workspace, alfabéticos. */
+export async function fetchMotivosInactividad(): Promise<MotivoInactividad[]> {
+  const sb = createClient();
+  const { data, error } = await sb
+    .from("motivos_inactividad")
+    .select("id, nombre, slug")
+    .eq("activo", true)
+    .order("nombre");
+  if (error) throw error;
+  return (data ?? []) as MotivoInactividad[];
+}
+
+/**
+ * Crea un motivo nuevo desde el mismo desplegable.
+ *
+ * El catálogo que viene por defecto es un punto de partida, no una lista
+ * cerrada: cada planta tiene su propio vocabulario de fallas y lo que no se
+ * puede nombrar termina cayendo en "Otro", que es donde el Pareto deja de
+ * servir. El `slug` se deriva del nombre para chocar con el índice único y no
+ * duplicar el mismo motivo escrito distinto.
+ */
+export async function createMotivoInactividad(
+  workspaceId: string,
+  nombre: string,
+): Promise<MotivoInactividad> {
+  const limpio = nombre.trim();
+  const slug = limpio
+    .toLowerCase()
+    .normalize("NFD").replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 60);
+
+  const sb = createClient();
+  const { data, error } = await sb
+    .from("motivos_inactividad")
+    .insert({ nombre: limpio, slug, workspace_id: workspaceId })
+    .select("id, nombre, slug")
+    .single();
+  if (error) throw error;
+  return data as MotivoInactividad;
 }
 
 /**
@@ -121,9 +177,87 @@ export async function cambiarEstadoActivo(input: CambioEstadoInput): Promise<str
     p_tipo_inactividad: input.tipoInactividad ?? null,
     p_desde: input.desde ? input.desde.toISOString() : null,
     p_notas: input.notas ?? null,
+    p_motivo: input.motivoId ?? null,
   });
   if (error) throw error;
   return data as string;
+}
+
+/**
+ * Un activo de la jerarquía, para ofrecerlo en el diálogo de cambio de estado.
+ *
+ * `critico` es la señal de que el componente está en serie con su padre —si se
+ * para, el padre no puede trabajar—, que es lo que decide si viene marcado por
+ * defecto. Un componente redundante (`no_critico`) no arrastra al equipo.
+ */
+export interface ActivoJerarquia {
+  id: string;
+  nombre: string;
+  estado: AssetStatus;
+  criticidad: AssetCriticality | null;
+  /** `padre` = el equipo del que cuelga este activo; `hijo` = un componente suyo. */
+  relacion: "padre" | "hijo";
+}
+
+/**
+ * El padre directo y los hijos directos de un activo.
+ *
+ * Solo un nivel hacia cada lado a propósito: es lo que el usuario puede juzgar
+ * de un vistazo al registrar una parada. Ofrecer el árbol entero lo obligaría a
+ * decidir sobre equipos que no está mirando.
+ */
+export async function fetchJerarquiaActivo(activoId: string): Promise<ActivoJerarquia[]> {
+  const sb = createClient();
+  const COLS = "id, nombre, estado, criticidad, activo_padre_id";
+
+  const { data: self, error: errSelf } = await sb
+    .from("activos").select(COLS).eq("id", activoId).maybeSingle();
+  if (errSelf) throw errSelf;
+  if (!self) return [];
+
+  const [padreRes, hijosRes] = await Promise.all([
+    self.activo_padre_id
+      ? sb.from("activos").select(COLS).eq("id", self.activo_padre_id).eq("activo", true).maybeSingle()
+      : Promise.resolve({ data: null, error: null }),
+    sb.from("activos").select(COLS).eq("activo_padre_id", activoId).eq("activo", true).order("nombre"),
+  ]);
+  if (padreRes.error) throw padreRes.error;
+  if (hijosRes.error) throw hijosRes.error;
+
+  const out: ActivoJerarquia[] = [];
+  if (padreRes.data) {
+    const p = padreRes.data as unknown as { id: string; nombre: string; estado: AssetStatus; criticidad: AssetCriticality | null };
+    out.push({ id: p.id, nombre: p.nombre, estado: p.estado, criticidad: p.criticidad, relacion: "padre" });
+  }
+  for (const h of (hijosRes.data ?? []) as unknown as { id: string; nombre: string; estado: AssetStatus; criticidad: AssetCriticality | null }[]) {
+    out.push({ id: h.id, nombre: h.nombre, estado: h.estado, criticidad: h.criticidad, relacion: "hijo" });
+  }
+  return out;
+}
+
+/**
+ * Cambia el estado de varios activos de la misma jerarquía, en una transacción.
+ *
+ * La lista la arma el usuario en el diálogo: la propagación NO es automática
+ * porque un componente redundante que falla no detiene al equipo padre (ISO
+ * 14224). Marcar al padre por reflejo inventaría horas de parada, y de esas
+ * horas salen la disponibilidad y el MTBF.
+ */
+export async function cambiarEstadoActivos(
+  activoIds: string[],
+  input: Omit<CambioEstadoInput, "activoId">,
+): Promise<number> {
+  const sb = createClient();
+  const { data, error } = await sb.rpc("cambiar_estado_activos", {
+    p_activos: activoIds,
+    p_estado: input.estado,
+    p_tipo_inactividad: input.tipoInactividad ?? null,
+    p_desde: input.desde ? input.desde.toISOString() : null,
+    p_notas: input.notas ?? null,
+    p_motivo: input.motivoId ?? null,
+  });
+  if (error) throw error;
+  return (data ?? 0) as number;
 }
 
 // ── Totales ───────────────────────────────────────────────────────────────────

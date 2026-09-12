@@ -5,7 +5,7 @@ import {
   CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
 import {
-  Settings, Filter, Inbox, Loader2, ChevronDown,
+  Settings, Filter, Inbox, Loader2, Plus,
   Minus, Pause, Check, RotateCw, UserRoundX,
   ArrowUp, ArrowDown, AlertTriangle,
   type LucideIcon,
@@ -335,8 +335,6 @@ export default function HistorialOT({ workspaceId, target }: {
   const [fechas, setFechas] = useState<FechaHistorial[]>([]);
   const [error, setError] = useState<string | null>(null);
 
-  const sentinelRef = useRef<HTMLDivElement>(null);
-
   // `target` es un objeto nuevo en cada render del padre: se serializa para que
   // los efectos dependan del valor y no de la identidad, y no recarguen en loop.
   const targetKey =
@@ -391,18 +389,6 @@ export default function HistorialOT({ workspaceId, target }: {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workspaceId, targetKey, filas.length, hayMas, cargandoMas]);
-
-  // Scroll infinito, igual que la bandeja: sentinela + margen de 240px.
-  useEffect(() => {
-    const node = sentinelRef.current;
-    if (!node || !hayMas) return;
-    const observer = new IntersectionObserver(
-      entries => { if (entries[0]?.isIntersecting) void cargarMas(); },
-      { rootMargin: "240px" },
-    );
-    observer.observe(node);
-    return () => observer.disconnect();
-  }, [hayMas, cargarMas]);
 
   const serie = useMemo(() => construirSerie(fechas, rango), [fechas, rango]);
 
@@ -566,23 +552,24 @@ export default function HistorialOT({ workspaceId, target }: {
           })
         )}
 
-        {/* Sentinela + botón de respaldo, igual que la bandeja de Órdenes. */}
+        {/* "Ver más" explicito: el historial no se carga solo al hacer scroll,
+            se pide tanda por tanda. */}
         {hayMas && (
-          <div ref={sentinelRef} style={{ padding: "14px 0 4px", display: "flex", justifyContent: "center" }}>
+          <div style={{ padding: "14px 0 4px", display: "flex", justifyContent: "center" }}>
             <button
               type="button"
               onClick={() => void cargarMas()}
               disabled={cargandoMas}
               style={{
-                height: 34, padding: "0 14px", border: "1px solid var(--border)",
-                borderRadius: "var(--r-md)", background: "var(--surface-1)", color: "var(--fg-2)",
+                padding: 0, border: "none", background: "none",
+                color: "var(--brand)",
                 fontSize: 14, fontWeight: 400, cursor: cargandoMas ? "default" : "pointer",
-                fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 7,
+                fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 4,
               }}
             >
               {cargandoMas
                 ? <><Loader2 size={12} className="animate-spin" />Cargando…</>
-                : <><ChevronDown size={12} />Cargar {HISTORIAL_PAGE_SIZE} más</>}
+                : <><Plus size={14} />Ver más</>}
             </button>
           </div>
         )}

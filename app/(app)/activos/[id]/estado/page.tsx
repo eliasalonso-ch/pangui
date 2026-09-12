@@ -21,6 +21,9 @@ import {
 } from "@/lib/activo-estado-api";
 import type { AssetStatus } from "@/types/ordenes";
 import CambiarEstadoDialog from "@/components/activos/CambiarEstadoDialog";
+import { MS_POR_HORA, RANGOS, marcasDeTiempo } from "@/lib/eje-tiempo";
+import LecturasChart from "@/components/activos/LecturasChart";
+import { fetchMedidoresDeActivo, type Medidor } from "@/lib/medidores-api";
 
 const ESTADO_LABEL: Record<AssetStatus, string> = {
   operativo: "Operativo",
@@ -51,89 +54,13 @@ const FILAS: { estados: AssetStatus[]; label: string }[] = [
   { estados: ["fuera_servicio"], label: "Fuera de servicio" },
 ];
 
-const RANGOS = [
-  { key: "1h", label: "1H", horas: 1 },
-  { key: "1d", label: "1D", horas: 24 },
-  { key: "1s", label: "1S", horas: 24 * 7 },
-  { key: "1m", label: "1M", horas: 24 * 30 },
-  { key: "3m", label: "3M", horas: 24 * 90 },
-  { key: "6m", label: "6M", horas: 24 * 180 },
-  { key: "1a", label: "1A", horas: 24 * 365 },
-] as const;
 
-const MS_POR_HORA = 3_600_000;
 
 function fmtFecha(iso: string) {
   return new Date(iso).toLocaleString("es-CL", {
     day: "2-digit", month: "2-digit", year: "numeric",
     hour: "2-digit", minute: "2-digit",
   });
-}
-
-/**
- * Marcas del eje en instantes REDONDOS de reloj, no en fracciones de la ventana.
- *
- * Antes el eje partia el rango en seis pedazos iguales desde "ahora", asi que
- * en la vista de 1 hora salian etiquetas como 05:18, 05:28, 05:38: numeros
- * exactos pero imposibles de usar para ubicar algo. Un eje temporal se lee por
- * los bordes conocidos —y cuarto, en punto, medianoche—, no por sextos.
- *
- * Se elige el primer paso de la escala que no produzca mas de ~8 marcas, y
- * despues se avanza desde el primer multiplo de ese paso dentro de la ventana.
- * Con eso, 1H cae de 15 en 15 minutos, 1D de 3 en 3 horas, 1S dia por dia.
- */
-function marcasDeTiempo(t0: number, t1: number): { pct: number; label: string }[] {
-  const largo = Math.max(t1 - t0, 1);
-  const MIN = 60_000;
-  const MAX_MARCAS = 8;
-
-  // Escala de pasos "redondos". `mes` es aproximado a propósito: para rangos de
-  // medio año en adelante el eje se rotula por mes y da igual que unos midan 30
-  // días y otros 31.
-  const PASOS = [
-    5 * MIN, 15 * MIN, 30 * MIN,
-    MS_POR_HORA, 3 * MS_POR_HORA, 6 * MS_POR_HORA, 12 * MS_POR_HORA,
-    24 * MS_POR_HORA, 7 * 24 * MS_POR_HORA, 14 * 24 * MS_POR_HORA,
-    30 * 24 * MS_POR_HORA, 90 * 24 * MS_POR_HORA,
-  ];
-  const paso = PASOS.find(p => largo / p <= MAX_MARCAS) ?? PASOS[PASOS.length - 1];
-
-  // Formato segun cuanto abarca la ventana: dentro de dos días interesa la hora;
-  // más allá, la fecha; más de un año, el mes.
-  const conHora = largo <= 48 * MS_POR_HORA;
-  const conAnio = largo > 300 * 24 * MS_POR_HORA;
-  const rotular = (t: Date) =>
-    conHora ? t.toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" })
-    : conAnio ? t.toLocaleDateString("es-CL", { month: "short", year: "2-digit" })
-    : t.toLocaleDateString("es-CL", { day: "2-digit", month: "2-digit" });
-
-  const out: { pct: number; label: string }[] = [];
-
-  // Para pasos de un día o más se arranca desde la medianoche local, porque un
-  // múltiplo del epoch cae a una hora arbitraria segun la zona horaria.
-  let cursor: number;
-  if (paso >= 24 * MS_POR_HORA) {
-    const d = new Date(t0);
-    d.setHours(0, 0, 0, 0);
-    cursor = d.getTime();
-    while (cursor < t0) cursor += paso;
-  } else {
-    cursor = Math.ceil(t0 / paso) * paso;
-  }
-
-  for (let t = cursor; t <= t1; t += paso) {
-    out.push({ pct: ((t - t0) / largo) * 100, label: rotular(new Date(t)) });
-  }
-
-  // Una ventana muy corta puede no contener ningun multiplo: se rotulan los
-  // extremos antes que dejar el eje mudo.
-  if (out.length === 0) {
-    return [
-      { pct: 0, label: rotular(new Date(t0)) },
-      { pct: 100, label: rotular(new Date(t1)) },
-    ];
-  }
-  return out;
 }
 
 const labelStyle: React.CSSProperties = {
@@ -156,6 +83,7 @@ export default function EstadoActivoPage() {
   // Historial completo, para los totales de por vida (los de arriba).
   const [todosPeriodos, setTodosPeriodos] = useState<EstadoPeriodo[]>([]);
   const [rango, setRango] = useState<(typeof RANGOS)[number]["key"]>("1s");
+  const [medidores, setMedidores] = useState<Medidor[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
 
@@ -189,6 +117,9 @@ export default function EstadoActivoPage() {
       setEstadoActual((activo.estado ?? "operativo") as AssetStatus);
       setPeriodos(filas);
       setTodosPeriodos(todas);
+      // Los medidores no dependen de la ventana —sus gráficos sí— así que se
+      // traen junto al resto y el rango solo cambia lo que pide cada gráfico.
+      setMedidores(await fetchMedidoresDeActivo(activoId));
     } catch (e) {
       setErr(e instanceof Error ? e.message : "No se pudo cargar el historial.");
     }
@@ -319,6 +250,44 @@ export default function EstadoActivoPage() {
           </p>
         )}
       </div>
+
+      {/* Lecturas de medidores: misma ventana que el historial de arriba, para
+          poder cruzar "vibró alto" con "estuvo fuera de servicio" mirando dos
+          gráficos alineados en el mismo eje. Si el activo no tiene medidores la
+          sección no aparece. */}
+      {medidores.length > 0 && (
+        <div style={{ border: "1px solid var(--border)", borderRadius: 12, background: "var(--surface-1)", padding: 20, marginBottom: 18 }}>
+          <h2 style={{ margin: "0 0 18px", fontSize: 14, fontWeight: 400, color: "var(--fg-1)" }}>
+            Lecturas de medidores
+          </h2>
+          <div style={{ display: "grid", gap: 26 }}>
+            {medidores.map(m => (
+              <div key={m.id}>
+                <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12, marginBottom: 10, flexWrap: "wrap" }}>
+                  <span style={{ fontSize: 14, color: "var(--fg-2)" }}>
+                    {m.nombre} <span style={{ color: "var(--fg-4)" }}>({m.unidad})</span>
+                  </span>
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 12, fontSize: 14, color: "var(--fg-4)" }}>
+                    {m.advertencia != null && (
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+                        <span style={{ width: 8, height: 0, borderTop: "1px dashed #F59E0B" }} />
+                        Advertencia {m.advertencia}
+                      </span>
+                    )}
+                    {m.critico != null && (
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+                        <span style={{ width: 8, height: 0, borderTop: "1px dashed #EF4444" }} />
+                        Alarma {m.critico}
+                      </span>
+                    )}
+                  </span>
+                </div>
+                <LecturasChart medidor={m} desde={ventana.desde} hasta={ventana.hasta} />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Tabla */}
       <div style={{ border: "1px solid var(--border)", borderRadius: 12, background: "var(--surface-1)", overflow: "hidden" }}>
