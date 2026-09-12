@@ -5,15 +5,19 @@ import { useRouter } from "next/navigation";
 import { Download, Plus, Trash2, FileSpreadsheet, X, Copy } from "lucide-react";
 import {
   fetchHojas, fetchFilas, createHoja, updateHoja, deleteHoja,
-  createFila, updateFila, deleteFila,
+  createFila, updateFila, deleteFila, COLUMNA_CODIGO,
 } from "@/lib/hojas-api";
 import type { Hoja, HojaColumna, HojaFila, HojaTipo } from "@/lib/hojas-api";
 import { setPendingHojaCopy } from "@/lib/hoja-copy-store";
+import { buscarMateriales, tieneCobros } from "@/lib/catalogo-api";
+import type { MaterialCatalogo } from "@/lib/catalogo-api";
+import { construirCobro, descargarCobro } from "@/lib/cobro-export";
 
 const SHEET_TYPES: { tipo: HojaTipo; title: string; description: string }[] = [
   { tipo: "general", title: "Hoja general", description: "Registra datos libres para trabajos específicos." },
   { tipo: "materiales_usados", title: "Materiales usados", description: "Registra materiales y cantidades utilizadas en la OT." },
   { tipo: "materiales_solicitados", title: "Solicitud de materiales", description: "Registra materiales necesarios para continuar el trabajo." },
+  { tipo: "cobro", title: "Cobro", description: "Código del material y cantidad. Los precios los pone la app de cobros." },
 ];
 
 const COL_WIDTH = 160;
@@ -28,16 +32,29 @@ function genId() {
 // ── Cell ──────────────────────────────────────────────────────────────────────
 
 function Cell({
-  value, tipo, readOnly, onChange, onBlur,
+  value, tipo, readOnly, onChange, onBlur, sugerir,
 }: {
   value: string;
   tipo: "texto" | "numero";
   readOnly: boolean;
   onChange: (v: string) => void;
   onBlur: () => void;
+  /** Si viene, la celda ofrece autocompletar (columna Código de la hoja de cobro). */
+  sugerir?: (texto: string) => Promise<MaterialCatalogo[]>;
 }) {
   const [editing, setEditing] = useState(false);
+  const [opciones, setOpciones] = useState<MaterialCatalogo[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
+  const cerrando = useRef(false);
+
+  // Busca mientras se escribe, con una pausa para no consultar en cada tecla.
+  useEffect(() => {
+    if (!editing || !sugerir) return;
+    const t = setTimeout(() => {
+      sugerir(value).then(setOpciones).catch(() => setOpciones([]));
+    }, 200);
+    return () => clearTimeout(t);
+  }, [value, editing, sugerir]);
 
   function handleClick() {
     if (readOnly) return;
@@ -46,8 +63,22 @@ function Cell({
   }
 
   function handleBlur() {
+    // Al hacer clic en una sugerencia el input pierde el foco antes del onMouseDown:
+    // se pospone el cierre para no perder la selección.
+    setTimeout(() => {
+      if (cerrando.current) { cerrando.current = false; return; }
+      setEditing(false);
+      setOpciones([]);
+      onBlur();
+    }, 120);
+  }
+
+  function elegir(m: MaterialCatalogo) {
+    cerrando.current = true;
+    onChange(m.codigo);
+    setOpciones([]);
     setEditing(false);
-    onBlur();
+    setTimeout(onBlur, 0);
   }
 
   const cellStyle: React.CSSProperties = {
@@ -63,14 +94,20 @@ function Cell({
 
   if (editing) {
     return (
-      <div style={cellStyle}>
+      <div style={{ ...cellStyle, position: "relative" }}>
         <input
           ref={inputRef}
           type={tipo === "numero" ? "number" : "text"}
           value={value}
           onChange={e => onChange(e.target.value)}
           onBlur={handleBlur}
-          onKeyDown={e => { if (e.key === "Enter") { e.currentTarget.blur(); } }}
+          onKeyDown={e => {
+            if (e.key === "Enter") {
+              if (opciones.length) { elegir(opciones[0]); return; }
+              e.currentTarget.blur();
+            }
+            if (e.key === "Escape") { setOpciones([]); e.currentTarget.blur(); }
+          }}
           autoFocus
           style={{
             width: "100%", height: "100%", border: "none", outline: "2px solid var(--brand)",
@@ -79,6 +116,28 @@ function Cell({
             boxSizing: "border-box",
           }}
         />
+        {opciones.length > 0 && (
+          <div
+            style={{
+              position: "absolute", top: ROW_HEIGHT, left: 0, zIndex: 40, width: 380,
+              maxHeight: 260, overflowY: "auto", background: "var(--surface-1)",
+              border: "1px solid var(--border)", borderRadius: 8,
+              boxShadow: "0 8px 24px rgba(0,0,0,.18)",
+            }}
+          >
+            {opciones.map(m => (
+              <div
+                key={m.codigo}
+                onMouseDown={() => elegir(m)}
+                style={{ padding: "7px 10px", cursor: "pointer", borderBottom: "1px solid var(--border)" }}
+              >
+                <div style={{ fontFamily: "monospace", fontSize: 12, color: "var(--brand)" }}>{m.codigo}</div>
+                <div style={{ fontSize: 13, color: "var(--fg-1)" }}>{m.descripcion}</div>
+                {m.unidad && <div style={{ fontSize: 11, color: "var(--fg-3)" }}>{m.unidad}</div>}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     );
   }
@@ -128,6 +187,19 @@ function SheetGrid({
   const [rows, setRows] = useState<{ hojaId: string; filas: HojaFila[] } | null>(null);
   const [localCells, setLocalCells] = useState<Record<string, Record<string, string>>>({});
   const loading = rows?.hojaId !== hoja.id;
+
+  // Autocompletar: sólo en la columna "Código" de una hoja de cobro, y sólo
+  // donde la función está habilitada (Electrilam).
+  const colCodigoId = useMemo(
+    () => (hoja.tipo === "cobro" && tieneCobros(workspaceId)
+      ? hoja.columnas.find(c => c.label.trim().toLowerCase() === COLUMNA_CODIGO.toLowerCase())?.id
+      : undefined),
+    [hoja.tipo, hoja.columnas, workspaceId],
+  );
+  const sugerirMaterial = useCallback(
+    (texto: string) => buscarMateriales(workspaceId, texto),
+    [workspaceId],
+  );
   // useMemo so the empty-array identity is stable while loading — otherwise
   // every render hands downstream hooks a new [].
   const filas = useMemo(() => (rows?.hojaId === hoja.id ? rows.filas : []), [rows, hoja.id]);
@@ -314,6 +386,7 @@ function SheetGrid({
                 readOnly={readOnly}
                 onChange={v => handleCellChange(fila.id, col.id, v)}
                 onBlur={() => handleCellBlur(fila, col.id)}
+                sugerir={col.id === colCodigoId ? sugerirMaterial : undefined}
               />
             ))}
             {!readOnly && <div style={{ width: COL_WIDTH, flexShrink: 0 }} />}
@@ -484,6 +557,25 @@ export default function HojaSpreadsheet({
           </button>
         )}
 
+        {/* Exportar cobro: el .json que abre la app local de cobros de Electrilam */}
+        {canExport && activeHoja?.tipo === "cobro" && tieneCobros(workspaceId) && (
+          <button
+            onClick={async () => {
+              try {
+                descargarCobro(await construirCobro(activeHoja, ordenId));
+              } catch (e) {
+                alert("No se pudo generar el cobro: " + (e as Error).message);
+              }
+            }}
+            style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 12px", background: "var(--brand)", border: "1px solid var(--brand)", borderRadius: 6, cursor: "pointer", fontSize: 14, color: "#fff", fontWeight: 500, fontFamily: "inherit", flexShrink: 0 }}
+            onMouseEnter={e => { e.currentTarget.style.opacity = "0.85"; }}
+            onMouseLeave={e => { e.currentTarget.style.opacity = "1"; }}
+            title="Descarga el archivo que abre la app de cobros con este trabajo ya cargado"
+          >
+            <Download size={13} /> Exportar cobro
+          </button>
+        )}
+
         {/* Export button */}
         {canExport && activeHoja && (
           <button
@@ -554,7 +646,7 @@ export default function HojaSpreadsheet({
             </div>
             <div style={{ padding: 18, display: "grid", gap: 10 }}>
               <p style={{ margin: "0 0 2px", fontSize: 14, color: "var(--fg-3)" }}>Selecciona la plantilla que necesitas. Podrás renombrarla después.</p>
-              {SHEET_TYPES.map(option => (
+              {SHEET_TYPES.filter(o => o.tipo !== "cobro" || tieneCobros(workspaceId)).map(option => (
                 <button key={option.tipo} type="button" disabled={creating} onClick={() => handleCreateSheet(option.tipo)} style={{ padding: "14px 16px", border: "1px solid var(--border)", borderRadius: "var(--r-lg)", background: "var(--surface-1)", textAlign: "left", cursor: "pointer", fontFamily: "inherit" }}>
                   <span style={{ display: "block", fontSize: 14, fontWeight: 400, color: "var(--fg-1)" }}>{option.title}</span>
                   <span style={{ display: "block", marginTop: 3, fontSize: 14, color: "var(--fg-3)" }}>{option.description}</span>
