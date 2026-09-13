@@ -32,6 +32,7 @@ import { createClient } from "@/lib/supabase";
 import { getSoloAsignadasUserId } from "@/lib/ordenes-api";
 import { esAdmin } from "@/lib/roles";
 import { useSuscripcion } from "@/hooks/useSuscripcion";
+import { UpgradePrompt } from "@/components/UpgradePrompt";
 import type { Estado, Prioridad, TipoTrabajo } from "@/types/ordenes";
 
 const C = {
@@ -618,6 +619,19 @@ export default function AnaliticaPage() {
     for (const o of allOTs) if (o.ubicacion_id && o.ubicaciones?.edificio) map.set(o.ubicacion_id, o.ubicaciones.edificio);
     return [...map.entries()].sort((a, b) => a[1].localeCompare(b[1]));
   }, [allOTs]);
+
+  // El `data?.plan_features &&` es fail-open a proposito: sin el, un cliente que
+  // paga ve el paywall en cada carga fria mientras la suscripcion resuelve.
+  if (suscripcion.data?.plan_features && !suscripcion.data.plan_features.analytics_pro) {
+    return (
+      <UpgradePrompt
+        variant="card"
+        title="Analitica de ordenes"
+        description="Los indicadores MTTR y MTBF, con el historial completo de tus ordenes, estan disponibles en el plan Empresa."
+        upgradeTo="Empresa"
+      />
+    );
+  }
 
   if (loading) {
     return <div style={{ padding: 40, color: C.text3, fontSize: 14 }}>Cargando analitica...</div>;

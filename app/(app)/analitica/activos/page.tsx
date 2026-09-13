@@ -26,6 +26,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase";
 import { esAdmin } from "@/lib/roles";
 import { useSuscripcion } from "@/hooks/useSuscripcion";
+import { UpgradePrompt } from "@/components/UpgradePrompt";
 import { computeActivoMetrics, buildMonthlySeries } from "@/lib/activo-metrics";
 import {
   construirSerieDisponibilidad, resumirDisponibilidad, resumirPorActivo,
@@ -686,6 +687,18 @@ export default function AnaliticaActivosPage() {
   const disponibilidadActual = enServicio > 0
     ? (statusCounts.operativo / enServicio) * 100
     : null;
+
+  // Fail-open mientras carga la suscripcion (ver analitica/ordenes).
+  if (suscripcion.data?.plan_features && !suscripcion.data.plan_features.analytics_pro) {
+    return (
+      <UpgradePrompt
+        variant="card"
+        title="Analítica de activos"
+        description="La disponibilidad, el MTBF y el costo por activo están disponibles en el plan Empresa."
+        upgradeTo="Empresa"
+      />
+    );
+  }
 
   if (loading) {
     return <div style={{ padding: 40, color: C.text3, fontSize: 14 }}>Cargando analítica...</div>;

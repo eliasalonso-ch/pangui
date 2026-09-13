@@ -1,7 +1,9 @@
 /**
  * Pangui plan catalog (Flow.cl).
  *
- * 3 self-serve tiers + 1 sales-contact tier. All priced per active user / month.
+ * 3 self-serve tiers + Empresa (contacto a ventas, sin plan en Flow).
+ * Priced per active user / month. Empresa se lleva abastecimiento,
+ * planificación y analítica avanzada; Pro es el techo self-serve.
  * Inspired by the MaintainX model: OTs are always unlimited; the limits live on
  * sub-categories of OTs (procedimientos adjuntos, fotos adjuntas, repetitivas)
  * counted over a rolling 30-day window.
@@ -31,6 +33,12 @@ export interface PlanDef {
     ots_repetitivas_mes:            number;
     // Analytics history window (months visible in dashboards)
     historial_meses:                number;
+    // Seats. Basic es gratis, así que el tope de usuarios es lo que impide que
+    // una empresa entera se quede en el tier gratuito para siempre.
+    usuarios:                       number;
+    // COGS directo: sin estos dos el plan gratis es un agujero abierto.
+    storage_gb:                     number;
+    ai_scans_mes:                   number;
   };
   features: {
     // Operations
@@ -69,29 +77,32 @@ export const TRIAL_DAYS = 30;
 export const PLANS: PlanDef[] = [
   {
     key: "basic",
+    // Gratis para siempre: es el tier de adquisición, no se cobra por Flow.
+    // Un usuario de Esencial subsidia ~57 usuarios gratis, así que el riesgo
+    // real no es el precio sino que las cuotas se respeten de verdad.
     name: "Basic",
-    pricePerUser: 4990,
-    selfServe: true,
-    envVar: "FLOW_PLAN_BASIC",
-    tagline: "Lo esencial para empezar",
+    pricePerUser: 0,
+    selfServe: false,
+    tagline: "Gratis para partir",
     highlights: [
       "Órdenes de trabajo ilimitadas",
       "5 OT con procedimientos / mes",
-      "5 OT con fotos adjuntas / mes",
-      "5 OT repetitivas / mes",
-      "Hasta 3 procedimientos en catálogo",
-      "Hasta 30 activos",
+      "10 OT con fotos adjuntas / mes",
+      "Hasta 5 procedimientos en catálogo",
+      "Hasta 25 activos",
       "Exportar OT a PDF",
       "1 mes de historial en analítica",
-      "Soporte por email",
     ],
     limits: {
-      procedimientos:             3,
-      activos:                    30,
+      procedimientos:             5,
+      activos:                    25,
       ots_con_procedimientos_mes: 5,
-      ots_con_fotos_mes:          5,
-      ots_repetitivas_mes:        5,
+      ots_con_fotos_mes:          10,
+      ots_repetitivas_mes:        3,
       historial_meses:            1,
+      usuarios:                   3,
+      storage_gb:                 1,
+      ai_scans_mes:               0,
     },
     features: {
       exports:                   false,
@@ -112,29 +123,32 @@ export const PLANS: PlanDef[] = [
   {
     key: "esencial",
     name: "Esencial",
-    pricePerUser: 6990,
+    pricePerUser: 15000,
     selfServe: true,
     envVar: "FLOW_PLAN_ESENCIAL",
     tagline: "Para equipos en operación",
     highlights: [
+      "Usuarios ilimitados",
       "Órdenes de trabajo ilimitadas",
-      "10 OT con procedimientos / mes",
+      "25 OT con procedimientos / mes",
       "Fotos adjuntas ilimitadas",
       "OT repetitivas (preventivos) ilimitadas",
-      "Hasta 20 procedimientos en catálogo",
-      "Hasta 200 activos",
+      "Hasta 50 procedimientos en catálogo",
+      "Hasta 300 activos",
       "QR / códigos de barras",
-      "Jerarquías de activos",
       "Exportar PDF, Excel y CSV",
       "3 meses de historial en analítica",
     ],
     limits: {
-      procedimientos:             20,
-      activos:                    200,
-      ots_con_procedimientos_mes: 10,
+      procedimientos:             50,
+      activos:                    300,
+      ots_con_procedimientos_mes: 25,
       ots_con_fotos_mes:          Infinity,
       ots_repetitivas_mes:        Infinity,
       historial_meses:            3,
+      usuarios:                   Infinity,
+      storage_gb:                 20,
+      ai_scans_mes:               20,
     },
     features: {
       exports:                   true,
@@ -149,26 +163,26 @@ export const PLANS: PlanDef[] = [
       analytics_pro:             false,
       scheduler:                 false,
       push:                      true,
-      ai_scan:                   false,
+      // El acceso lo acota la cuota `ai_scans_mes` (20), no la bandera: cuestan
+      // ~CLP 140 al mes y son el mejor gancho para subir a Pro.
+      ai_scan:                   true,
     },
   },
   {
     key: "pro",
     name: "Pro",
-    pricePerUser: 9990,
+    pricePerUser: 25000,
     selfServe: true,
     envVar: "FLOW_PLAN_PRO",
-    tagline: "Todo lo que tu operación necesita",
+    tagline: "Sin límites para el día a día",
     highlights: [
       "Todo lo de Esencial, sin límites",
       "Procedimientos y activos ilimitados",
       "Inventario completo (módulo Partes)",
       "Hojas de cálculo en OT",
-      "Analítica avanzada (MTTR, MTBF, FTFR)",
-      "Analítica de materiales",
-      "Historial de analítica ilimitado",
+      "12 meses de historial en analítica",
       "Exportes programados",
-      "Escaneo de OT con IA",
+      "200 escaneos de OT con IA / mes",
       "Soporte prioritario",
     ],
     limits: {
@@ -177,7 +191,10 @@ export const PLANS: PlanDef[] = [
       ots_con_procedimientos_mes: Infinity,
       ots_con_fotos_mes:          Infinity,
       ots_repetitivas_mes:        Infinity,
-      historial_meses:            Infinity,
+      historial_meses:            12,
+      usuarios:                   Infinity,
+      storage_gb:                 100,
+      ai_scans_mes:               200,
     },
     features: {
       exports:                   true,
@@ -186,10 +203,12 @@ export const PLANS: PlanDef[] = [
       jerarquias_activos:        true,
       preventivos:               true,
       inventario:                true,
-      proveedores:               true,
-      ordenes_compra:            true,
-      planes_mantencion:         true,
-      analytics_pro:             true,
+      // Abastecimiento (proveedores + OC), planificación y analítica avanzada
+      // son de Empresa: van juntos porque una OC sin proveedor no sirve.
+      proveedores:               false,
+      ordenes_compra:            false,
+      planes_mantencion:         false,
+      analytics_pro:             false,
       scheduler:                 true,
       push:                      true,
       ai_scan:                   true,
@@ -197,17 +216,17 @@ export const PLANS: PlanDef[] = [
   },
   {
     key: "enterprise",
-    name: "Enterprise",
+    name: "Empresa",
     pricePerUser: 0,
     selfServe: false,
-    tagline: "Soluciones a medida para grandes operaciones",
+    tagline: "Para operaciones que planifican y compran",
     highlights: [
       "Todo lo de Pro",
-      "SSO / SAML",
-      "Onboarding y capacitación dedicada",
-      "SLA garantizado",
-      "Integraciones a medida",
-      "Account manager",
+      "Analítica de órdenes (MTTR, MTBF)",
+      "Analítica de activos",
+      "Planes de mantención",
+      "Órdenes de compra y proveedores",
+      "Onboarding, SLA y account manager",
     ],
     limits: {
       procedimientos:             Infinity,
@@ -216,6 +235,9 @@ export const PLANS: PlanDef[] = [
       ots_con_fotos_mes:          Infinity,
       ots_repetitivas_mes:        Infinity,
       historial_meses:            Infinity,
+      usuarios:                   Infinity,
+      storage_gb:                 Infinity,
+      ai_scans_mes:               Infinity,
     },
     features: {
       exports:                   true,
@@ -238,11 +260,12 @@ export const PLANS: PlanDef[] = [
 export const SELF_SERVE_PLANS = PLANS.filter(p => p.selfServe);
 
 /**
- * Planes mostrados en /precios y /suscripcion. Hoy = self-serve.
- * Enterprise existe en el catálogo pero NO se muestra (decisión de producto:
- * lo activamos cuando tengamos demanda real / un proceso de ventas).
+ * Planes mostrados en /precios: los 3 self-serve + Empresa.
+ *
+ * Empresa se muestra pero NO es self-serve: no tiene plan en Flow y su CTA
+ * lleva a /demo. Por eso las rutas de cobro siguen usando SELF_SERVE_PLANS.
  */
-export const UI_VISIBLE_PLANS = SELF_SERVE_PLANS;
+export const UI_VISIBLE_PLANS = PLANS;
 
 export function planByKey(key: PlanKey | string | null | undefined): PlanDef {
   const k = (key && PLANS.find(p => p.key === key)?.key) || "basic";

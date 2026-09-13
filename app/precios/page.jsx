@@ -31,6 +31,13 @@ const limitLabel = (value, suffix = "") => {
 
 const MATRIX_ROWS = [
   {
+    section: "Equipo y almacenamiento",
+    rows: [
+      { label: "Usuarios",                      value: (p) => limitLabel(p.limits.usuarios) },
+      { label: "Almacenamiento de fotos y archivos", value: (p) => limitLabel(p.limits.storage_gb, " GB") },
+    ],
+  },
+  {
     section: "Órdenes de trabajo",
     rows: [
       { label: "Órdenes de trabajo",            value: () => "Ilimitadas" },
@@ -49,7 +56,6 @@ const MATRIX_ROWS = [
       { label: "QR / códigos de barras",          feature: "qr_codes" },
       { label: "Jerarquías de activos",           feature: "jerarquias_activos" },
       { label: "Mantenimiento preventivo",        feature: "preventivos" },
-      { label: "Auto-attach de procedimientos",   feature: "procedimiento_auto_attach" },
     ],
   },
   {
@@ -60,10 +66,19 @@ const MATRIX_ROWS = [
     ],
   },
   {
+    section: "Abastecimiento y planificación",
+    rows: [
+      { label: "Proveedores",                     feature: "proveedores" },
+      { label: "Órdenes de compra",               feature: "ordenes_compra" },
+      { label: "Planes de mantención",            feature: "planes_mantencion" },
+    ],
+  },
+  {
     section: "Analítica e insights",
     rows: [
-      { label: "Historial de analítica",          value: (p) => limitLabel(p.limits.historial_meses, " meses") },
-      { label: "Dashboard avanzado (MTTR/MTBF)",  feature: "analytics_pro" },
+      { label: "Historial de analítica",          value: (p) => limitLabel(p.limits.historial_meses, p.limits.historial_meses === 1 ? " mes" : " meses") },
+      { label: "Analítica de órdenes (MTTR/MTBF)", feature: "analytics_pro" },
+      { label: "Analítica de activos",            feature: "analytics_pro" },
       { label: "Exportes programados",            feature: "scheduler" },
     ],
   },
@@ -73,7 +88,7 @@ const MATRIX_ROWS = [
     // de otro.
     section: "Avanzado",
     rows: [
-      { label: "Escaneo de OT con IA", feature: "ai_scan" },
+      { label: "Escaneo de OT con IA / mes", value: (p) => (p.limits.ai_scans_mes === 0 ? "—" : limitLabel(p.limits.ai_scans_mes)) },
     ],
   },
 ];
@@ -120,7 +135,7 @@ export default function PreciosPage() {
 
         <section className="bg-white">
           <div className="mx-auto max-w-[1440px] px-4 py-14 sm:px-5 md:px-10 md:py-20 xl:px-12">
-            <div className="grid gap-px border border-[var(--hairline)] bg-[var(--hairline)] lg:grid-cols-3">
+            <div className="grid gap-px border border-[var(--hairline)] bg-[var(--hairline)] md:grid-cols-2 lg:grid-cols-4">
               {UI_VISIBLE_PLANS.map((plan) => (
                 <PricingCard key={plan.key} plan={plan} featured={plan.key === "pro"} />
               ))}
@@ -185,8 +200,12 @@ export default function PreciosPage() {
 function PricingCard({ plan, featured }) {
   const isEnterprise = plan.key === "enterprise";
 
+  // bg condicional, no un override encadenado: Tailwind resuelve utilidades en
+  // conflicto por orden en la hoja de estilos, no por orden en el string, así
+  // que un `bg-white` base le ganaba al `bg-[#0A0B0D]` de Empresa y la tarjeta
+  // salía blanca sobre blanca.
   return (
-    <article className={`flex min-h-[430px] flex-col bg-white p-6 md:p-7 ${featured ? "is-recommended" : ""} ${isEnterprise ? "bg-[#0A0B0D] text-white" : ""}`}>
+    <article className={`flex min-h-[430px] flex-col p-6 md:p-7 ${featured ? "is-recommended" : ""} ${isEnterprise ? "bg-[#0A0B0D] text-white" : "bg-white"}`}>
       <div>
         <p className={`font-mono text-[11px] font-bold uppercase tracking-[0.16em] ${isEnterprise ? "text-white/65" : "text-[var(--accent)]"}`}>
           {plan.name}
@@ -201,6 +220,11 @@ function PricingCard({ plan, featured }) {
           <>
             <p className="font-display text-[38px] font-bold leading-none tracking-[-0.03em]">A medida</p>
             <p className="mt-2 text-[13px] text-white/65">vía contrato</p>
+          </>
+        ) : plan.pricePerUser === 0 ? (
+          <>
+            <p className="font-display text-[38px] font-bold leading-none tracking-[-0.03em]">Gratis</p>
+            <p className="mt-2 text-[13px] text-[var(--ink-3)]">para siempre, hasta {plan.limits.usuarios} usuarios</p>
           </>
         ) : (
           <>
@@ -220,12 +244,12 @@ function PricingCard({ plan, featured }) {
       </ul>
 
       {isEnterprise ? (
-        <a
-          href="mailto:contacto@getpangui.com?subject=Pangui%20Enterprise"
+        <Link
+          href="/demo"
           className="mt-auto inline-flex h-11 items-center justify-center border border-white/40 px-5 text-[14px] font-semibold text-white transition-colors hover:bg-white hover:text-black"
         >
-          Contactar ventas
-        </a>
+          Hablar con ventas
+        </Link>
       ) : (
         <Link
           href={planUrl(plan.key)}
@@ -235,7 +259,7 @@ function PricingCard({ plan, featured }) {
               : "border border-[var(--hairline-strong)] hover:bg-black/5"
           }`}
         >
-          Empezar con {plan.name}
+          {plan.pricePerUser === 0 ? "Crear cuenta gratis" : `Empezar con ${plan.name}`}
         </Link>
       )}
     </article>

@@ -262,6 +262,7 @@ export default function AppSidebar() {
   const hasPlanes       = !planFeatures || planFeatures.planes_mantencion;
   const hasProveedores  = !planFeatures || planFeatures.proveedores;
   const hasOrdenesCompra = !planFeatures || planFeatures.ordenes_compra;
+  const hasAnalitica    = !planFeatures || planFeatures.analytics_pro;
   const isAdmin = mounted && (effectiveRol === "jefe" || effectiveRol === "admin" || effectiveRol === "owner");
 
   // Entering the section from anywhere else opens the submenu. Leaving it does
@@ -464,7 +465,7 @@ export default function AppSidebar() {
                   workspace, so it is not a member-level view.
                   Two reports live under it (órdenes and activos), so the item
                   expands rather than linking straight to a page. */}
-              {isAdmin && (
+              {isAdmin && hasAnalitica && (
                 <SidebarMenuItem>
                   {collapsed ? (
                     // En el riel colapsado no cabe el submenú, pero navegar

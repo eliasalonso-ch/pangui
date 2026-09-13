@@ -1,10 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
+import { serverSupabase } from "../suscripcion/_helpers";
 
 export const dynamic = "force-dynamic";
 
 const PDF_SERVICE_URL = "https://pdf.getpangui.com/generate-oc-pdf";
 
 export async function POST(req: NextRequest) {
+  // Ver export-pdf: sin auth esto es un relay abierto contra un servicio pago.
+  const sb = await serverSupabase();
+  const { data: { user } } = await sb.auth.getUser();
+  if (!user) return NextResponse.json({ error: "No autenticado." }, { status: 401 });
+
   const body = await req.text();
 
   let res: Response;

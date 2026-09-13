@@ -1,10 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
+import { serverSupabase } from "../suscripcion/_helpers";
 
 export const dynamic = "force-dynamic";
 
 const PDF_SERVICE_URL = "https://pdf.getpangui.com/generate-pdf";
 
 export async function POST(req: NextRequest) {
+  // Sin esta verificación la ruta es un relay abierto: cualquiera en internet
+  // puede POSTear y quemar el servicio de PDFs, que se paga por invocación.
+  const sb = await serverSupabase();
+  const { data: { user } } = await sb.auth.getUser();
+  if (!user) return NextResponse.json({ error: "No autenticado." }, { status: 401 });
+
   const body = await req.text();
 
   let res: Response;

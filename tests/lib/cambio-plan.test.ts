@@ -28,9 +28,9 @@ describe("resumirCambio — subida", () => {
   const r = resumirCambio({ ...base, planActual: "basic", planNuevo: "pro" });
 
   it("calcula los totales con el IVA agregado por fuera", () => {
-    // 3 × $4.990 = $14.970 → 3 × $9.990 = $29.970
-    expect(r.totalActual).toBe(17_814);
-    expect(r.totalNuevo).toBe(35_664);
+    // Basic es gratis: 3 × $0 = $0 → 3 × $25.000 = $75.000 + IVA = $89.250
+    expect(r.totalActual).toBe(0);
+    expect(r.totalNuevo).toBe(89_250);
   });
 
   it("avisa que el cambio es inmediato y cobra la diferencia", () => {
@@ -65,8 +65,8 @@ describe("resumirCambio — bajada", () => {
   });
 
   it("muestra la baja de precio", () => {
-    expect(r.totalActual).toBe(35_664);
-    expect(r.totalNuevo).toBe(17_814);
+    expect(r.totalActual).toBe(89_250);
+    expect(r.totalNuevo).toBe(0);
   });
 });
 
