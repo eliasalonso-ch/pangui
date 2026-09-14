@@ -69,6 +69,10 @@ export interface PlanDef {
     // que es la razón por la que alguien sube de Esencial a Pro. Dejarlo en
     // Empresa lo escondería justo del cliente que lo pide.
     medidores:                boolean;   // /medidores route
+    // Automatizaciones: el constructor de reglas medidor → acción. Empresa y
+    // solo Empresa. A diferencia de `medidores` —que es ver el número— esto es
+    // que el sistema actúe solo, y es la línea que separa Pro de Empresa.
+    automatizaciones:         boolean;   // /automatizaciones route
     // Analytics & insights
     analytics_pro:            boolean;   // advanced analytics dashboard (MTTR/MTBF)
     scheduler:                boolean;   // export schedules
@@ -123,6 +127,7 @@ export const PLANS: PlanDef[] = [
       ordenes_compra:            false,
       planes_mantencion:         false,
       medidores:                 false,
+      automatizaciones:          false,
       analytics_pro:             false,
       scheduler:                 false,
       push:                      true,
@@ -170,6 +175,7 @@ export const PLANS: PlanDef[] = [
       ordenes_compra:            false,
       planes_mantencion:         false,
       medidores:                 false,
+      automatizaciones:          false,
       analytics_pro:             false,
       scheduler:                 false,
       push:                      true,
@@ -189,7 +195,7 @@ export const PLANS: PlanDef[] = [
       "Todo lo de Esencial, sin límites",
       "Procedimientos y activos ilimitados",
       "Inventario completo (módulo Partes)",
-      "Medidores y mantenimiento por condición",
+      "Medidores y seguimiento de condición",
       "Hojas de cálculo en OT",
       "12 meses de historial en analítica",
       "Exportes programados",
@@ -222,6 +228,7 @@ export const PLANS: PlanDef[] = [
       // Medidores SÍ entra en Pro: es mantenimiento basado en condición, el
       // motivo por el que un cliente sube desde Esencial. No es abastecimiento.
       medidores:                 true,
+      automatizaciones:          false,
       analytics_pro:             false,
       scheduler:                 true,
       push:                      true,
@@ -236,6 +243,7 @@ export const PLANS: PlanDef[] = [
     tagline: "Para operaciones que planifican y compran",
     highlights: [
       "Todo lo de Pro",
+      "Automatizaciones (medidor → orden de trabajo)",
       "Analítica de órdenes (MTTR, MTBF)",
       "Analítica de activos",
       "Planes de mantención",
@@ -264,6 +272,7 @@ export const PLANS: PlanDef[] = [
       ordenes_compra:            true,
       planes_mantencion:         true,
       medidores:                 true,
+      automatizaciones:          true,
       analytics_pro:             true,
       scheduler:                 true,
       push:                      true,
