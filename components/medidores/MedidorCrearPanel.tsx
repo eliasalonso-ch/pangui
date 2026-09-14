@@ -28,16 +28,60 @@ import {
  * Catálogo de sugerencias, no lista cerrada: `SearchSelect` deja escribir la que
  * no esté, porque cada planta tiene las suyas y una lista fija obligaría a tocar
  * el código por cada unidad nueva. Por eso `unidad` es texto libre en la base.
+ *
+ * SE GUARDA EL NOMBRE, NO EL SÍMBOLO:
+ * La unidad se muestra tal cual al lado del número en toda la app ("9 Amperios",
+ * "Alarma sobre 80 Celsius"), y el que lee esa ficha no es siempre el que
+ * configuró el medidor. "9 A" obliga a adivinar; "9 Amperios" no. El símbolo
+ * queda solo para buscar. Espejo de `features/medidores/reglas.ts` en la móvil.
  */
-const UNIDADES: { grupo: string; unidades: string[] }[] = [
-  { grupo: "Vibración", unidades: ["mm/s", "µm", "g"] },
-  { grupo: "Eléctrico", unidades: ["A", "V", "kW", "kWh", "Hz", "cos φ"] },
-  { grupo: "Temperatura", unidades: ["°C", "°F", "K"] },
-  { grupo: "Presión", unidades: ["bar", "psi", "kPa", "mca"] },
-  { grupo: "Caudal", unidades: ["L/min", "m³/h", "L/s"] },
-  { grupo: "Rotación", unidades: ["rpm", "rad/s"] },
-  { grupo: "Uso", unidades: ["horas", "ciclos", "km", "unidades"] },
-  { grupo: "Nivel", unidades: ["%", "m", "cm", "L", "m³"] },
+const UNIDADES: { grupo: string; unidades: { nombre: string; simbolo: string }[] }[] = [
+  { grupo: "Vibración", unidades: [
+    { nombre: "Milímetros por segundo", simbolo: "mm/s" },
+    { nombre: "Micrómetros", simbolo: "µm" },
+    { nombre: "G", simbolo: "g" },
+  ] },
+  { grupo: "Eléctrico", unidades: [
+    { nombre: "Amperios", simbolo: "A" },
+    { nombre: "Voltios", simbolo: "V" },
+    { nombre: "Kilovatios", simbolo: "kW" },
+    { nombre: "Kilovatios hora", simbolo: "kWh" },
+    { nombre: "Hercios", simbolo: "Hz" },
+    { nombre: "Factor de potencia", simbolo: "cos φ" },
+  ] },
+  { grupo: "Temperatura", unidades: [
+    { nombre: "Celsius", simbolo: "°C" },
+    { nombre: "Fahrenheit", simbolo: "°F" },
+    { nombre: "Kelvin", simbolo: "K" },
+  ] },
+  { grupo: "Presión", unidades: [
+    { nombre: "Bar", simbolo: "bar" },
+    { nombre: "PSI", simbolo: "psi" },
+    { nombre: "Kilopascales", simbolo: "kPa" },
+    { nombre: "Metros de columna de agua", simbolo: "mca" },
+  ] },
+  { grupo: "Caudal", unidades: [
+    { nombre: "Litros por minuto", simbolo: "L/min" },
+    { nombre: "Metros cúbicos por hora", simbolo: "m³/h" },
+    { nombre: "Litros por segundo", simbolo: "L/s" },
+  ] },
+  { grupo: "Rotación", unidades: [
+    { nombre: "Revoluciones por minuto", simbolo: "rpm" },
+    { nombre: "Radianes por segundo", simbolo: "rad/s" },
+  ] },
+  { grupo: "Uso", unidades: [
+    { nombre: "Horas", simbolo: "h" },
+    { nombre: "Ciclos", simbolo: "ciclos" },
+    { nombre: "Kilómetros", simbolo: "km" },
+    { nombre: "Unidades", simbolo: "un" },
+  ] },
+  { grupo: "Nivel", unidades: [
+    { nombre: "Porcentaje", simbolo: "%" },
+    { nombre: "Metros", simbolo: "m" },
+    { nombre: "Centímetros", simbolo: "cm" },
+    { nombre: "Litros", simbolo: "L" },
+    { nombre: "Metros cúbicos", simbolo: "m³" },
+  ] },
 ];
 
 /** Multiplicadores a días, que es como se guarda la frecuencia. */
@@ -214,8 +258,15 @@ export default function MedidorCrearPanel({
     if (act?.ubicacion_id) setUbicacionElegida(act.ubicacion_id);
   }
 
+  // El id y el label son el NOMBRE: es lo que se guarda en `unidad` y lo que se
+  // muestra después al lado del número. El símbolo va en `sub`, que este
+  // SearchSelect además busca —así quien teclea "A" o "°C" encuentra la suya.
   const opcionesUnidad = useMemo(() => [
-    ...UNIDADES.flatMap(g => g.unidades.map(u => ({ id: u, label: u, sub: g.grupo }))),
+    ...UNIDADES.flatMap(g => g.unidades.map(u => ({
+      id: u.nombre,
+      label: u.nombre,
+      sub: u.simbolo === u.nombre ? g.grupo : `${g.grupo} · ${u.simbolo}`,
+    }))),
     ...unidadesExtra.map(u => ({ id: u, label: u, sub: "Personalizada" })),
   ], [unidadesExtra]);
 

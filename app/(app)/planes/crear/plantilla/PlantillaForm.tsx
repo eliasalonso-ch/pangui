@@ -8,9 +8,12 @@ import {
 } from "lucide-react";
 import { createClient } from "@/lib/supabase";
 import { uploadToR2 } from "@/lib/r2";
+import { listCategorias } from "@/lib/categorias-api";
 import { FieldRow, SearchSelect, AssigneeSelect } from "@/components/ot/OTFormFields";
 import ProcedimientosPicker, { type ProcedimientoSeleccionado } from "@/app/(app)/ordenes/ProcedimientosPicker";
-import type { Usuario } from "@/types/ordenes";
+import CategoriaMultiSelect from "@/components/ordenes/CategoriaMultiSelect";
+import CuadrillaQuickAdd from "@/components/ordenes/CuadrillaQuickAdd";
+import type { Usuario, CategoriaOT } from "@/types/ordenes";
 import { usePlanDraft, type PlantillaOT } from "../PlanDraftContext";
 
 /**
@@ -60,7 +63,9 @@ export default function PlantillaForm() {
   const [form, setForm] = useState<PlantillaOT>(plantilla);
 
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
-  const [categorias, setCategorias] = useState<{ id: string; label: string }[]>([]);
+  // Categorías completas (con icono y color) porque el selector las pinta como
+  // chips; `{id,label}` no alcanzaba para eso.
+  const [categorias, setCategorias] = useState<CategoriaOT[]>([]);
   const [proveedores, setProveedores] = useState<{ id: string; label: string }[]>([]);
   const [partes, setPartes] = useState<ParteOpt[]>([]);
   const [wsId, setWsId] = useState<string | null>(null);
@@ -96,7 +101,10 @@ export default function PlantillaForm() {
       const [usr, cat, prov, part, elegidas, proc] = await Promise.all([
         sb.from("usuarios").select("id, nombre, rol, deleted_at")
           .eq("workspace_id", ws).order("nombre").limit(LISTA_PAGE_SIZE),
-        sb.from("categorias_ot").select("id, nombre").order("nombre").limit(LISTA_PAGE_SIZE),
+        // listCategorias resuelve el criterio real: propias MÁS las globales
+        // (workspace_id NULL, que son la mayoría) y descontando las que el
+        // espacio ocultó. Un .eq("workspace_id", …) a secas deja la lista vacía.
+        listCategorias(ws),
         sb.from("proveedores").select("id, nombre")
           .eq("workspace_id", ws).order("nombre").limit(LISTA_PAGE_SIZE),
         sb.from("partes").select("id, nombre, unidad, stock_actual, imagen_url")
@@ -115,7 +123,7 @@ export default function PlantillaForm() {
       ]);
 
       setUsuarios(((usr.data ?? []) as Usuario[]).filter(u => !(u as any).deleted_at));
-      setCategorias(((cat.data ?? []) as any[]).map(c => ({ id: c.id, label: c.nombre })));
+      setCategorias((cat ?? []) as CategoriaOT[]);
       setProveedores(((prov.data ?? []) as any[]).map(p => ({ id: p.id, label: p.nombre })));
       // Las elegidas van primero y sin duplicar: son las que el usuario ya
       // tiene en la tabla y deben poder pintarse siempre.
@@ -204,10 +212,14 @@ export default function PlantillaForm() {
                   onChange={e => set("titulo", e.target.value)}
                   placeholder={draft.nombre.trim() || "Título de la orden de trabajo"}
                   style={{
-                    width: "100%", border: "none", borderBottom: "1px solid var(--border)",
+                    width: "100%", border: "none",
+                    // Mismo realce que el título de OTCrearPanel: el subrayado
+                    // se tiñe de marca en cuanto hay texto.
+                    borderBottom: "2px solid " + (form.titulo ? "var(--brand)" : "var(--border)"),
                     background: "transparent", padding: "14px 2px 12px",
                     fontSize: 20, fontWeight: 400, color: "var(--fg-1)",
                     fontFamily: "inherit", outline: "none",
+                    transition: "border-color 0.15s",
                   }}
                 />
                 <p style={{ fontSize: 14, color: "var(--fg-3)", margin: "7px 0 0" }}>
@@ -229,12 +241,16 @@ export default function PlantillaForm() {
                   />
                 </FieldRow>
 
-                <FieldRow icon={<Tag size={16} />} label="Categoría">
-                  <SearchSelect
-                    placeholder="Sin categoría"
-                    value={form.categoria_id}
-                    options={categorias}
-                    onChange={v => set("categoria_id", v)}
+                <FieldRow icon={<Tag size={16} />} label="Categorías">
+                  {/* Mismo selector que la OT: chips con icono, buscador y
+                      selección múltiple. `categoria_id` sigue el primero, que
+                      es lo único que guarda el plan. */}
+                  <CategoriaMultiSelect
+                    categorias={categorias}
+                    value={form.categoria_ids}
+                    onChange={ids => setForm(prev => ({
+                      ...prev, categoria_ids: ids, categoria_id: ids[0] ?? "",
+                    }))}
                   />
                 </FieldRow>
 
@@ -243,6 +259,12 @@ export default function PlantillaForm() {
                     usuarios={usuarios}
                     value={form.asignados_ids}
                     onChange={v => set("asignados_ids", v)}
+                  />
+                  {/* La cuadrilla expande sus miembros sobre los ya asignados:
+                      no es un campo aparte, es un atajo para llenar este. */}
+                  <CuadrillaQuickAdd
+                    wsId={wsId}
+                    onAdd={ids => set("asignados_ids", Array.from(new Set([...form.asignados_ids, ...ids])))}
                   />
                 </FieldRow>
 
@@ -266,24 +288,28 @@ export default function PlantillaForm() {
                 </FieldRow>
 
                 <FieldRow icon={<Flag size={16} />} label="Prioridad">
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                      {PRIORIDADES.map(o => {
-                        const active = form.prioridad === o.value;
-                        return (
-                          <button
-                            key={o.value}
-                            type="button"
-                            onClick={() => set("prioridad", o.value)}
-                            style={{
-                              height: 32, padding: "0 14px",
-                              border: active ? "none" : "1px solid var(--border)",
-                              borderRadius: 6, fontSize: 14, fontWeight: 400,
-                              background: active ? "var(--surface-hover)" : "var(--surface-1)",
-                              color: active ? o.activeColor : "var(--fg-2)",
-                              cursor: "pointer", transition: "all 0.1s", fontFamily: "inherit",
-                            }}
-                          >
-                            {o.label}
+                  {/* Control segmentado unido, igual que OTCrearPanel: un solo
+                      marco y las cajas separadas solo por su borde izquierdo. */}
+                  <div style={{ display: "inline-flex", border: "1px solid var(--border)", borderRadius: 8, overflow: "hidden" }}>
+                    {PRIORIDADES.map((o, i) => {
+                      const active = form.prioridad === o.value;
+                      return (
+                        <button
+                          key={o.value}
+                          type="button"
+                          onClick={() => set("prioridad", o.value)}
+                          style={{
+                            height: 38, padding: "0 16px",
+                            border: "none",
+                            borderLeft: i === 0 ? "none" : "1px solid var(--border)",
+                            background: active ? "var(--surface-hover)" : "var(--surface-1)",
+                            fontSize: 14, fontWeight: 400,
+                            color: active ? o.activeColor : "var(--fg-2)",
+                            cursor: "pointer", transition: "all 0.12s",
+                            fontFamily: "inherit",
+                          }}
+                        >
+                          {o.label}
                         </button>
                       );
                     })}

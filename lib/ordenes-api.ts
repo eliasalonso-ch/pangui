@@ -132,7 +132,7 @@ export const ORDEN_SELECT = `
   creado_por, asignados_ids, workspace_id,
   n_serie, solicitante, solicitante_telefono, solicitante_email, hito, presupuesto,
   numero, categoria_id, categoria_ids, ubicacion_id, activo_id, lugar_id, sociedad_id,
-  iniciado_at, pausado_at, en_ejecucion, tiempo_total_segundos,
+  iniciado_at, pausado_at, en_ejecucion, tiempo_total_segundos, tiempo_estimado,
   recurrencia, recurrencia_config, proxima_ejecucion, recurrencia_origen_id, recurrencia_iteracion, parent_id,
   requiere_materiales, requiere_hoja, requiere_fotos,
   cierre_forzado, cierre_forzado_motivo, cierre_forzado_por, cierre_forzado_at,
@@ -715,6 +715,8 @@ export async function createOrden(payload: {
   asignados_ids?: string[] | null;
   fecha_inicio?: string | null;
   fecha_termino?: string | null;
+  /** Duración estimada en MINUTOS (la columna se documenta así). */
+  tiempo_estimado?: number | null;
   links?: OTLink[];
 }): Promise<OrdenTrabajo> {
   const sb = createClient();
@@ -759,6 +761,7 @@ export async function createOrden(payload: {
           asignados_ids: payload.asignados_ids,
           fecha_inicio: payload.fecha_inicio,
           fecha_termino: payload.fecha_termino,
+          tiempo_estimado: payload.tiempo_estimado,
           links: payload.links?.filter((link) => link.url.trim()) ?? [],
         },
       });
@@ -810,6 +813,7 @@ export async function createOrden(payload: {
       ...(payload.asignados_ids?.length ? { asignados_ids: payload.asignados_ids } : {}),
       ...(payload.fecha_inicio  ? { fecha_inicio:  payload.fecha_inicio  } : {}),
       ...(payload.fecha_termino ? { fecha_termino: payload.fecha_termino } : {}),
+      ...(payload.tiempo_estimado ? { tiempo_estimado: payload.tiempo_estimado } : {}),
       links: payload.links?.filter(l => l.url.trim()) ?? [],
     })
     .select(ORDEN_SELECT)

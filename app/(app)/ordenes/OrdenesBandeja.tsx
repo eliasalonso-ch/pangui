@@ -2057,6 +2057,7 @@ export default function OrdenesBandeja({
                 categorias={categorias}
                 myId={myId}
                 wsId={wsId}
+                medidorId={searchParams?.get("medidor") ?? null}
                 onClose={() => { setRightPanel("none"); router.push("/ordenes", { scroll: false }); }}
                 onCreated={async (orden) => {
                   setRightPanel("none");
@@ -2152,6 +2153,7 @@ export default function OrdenesBandeja({
                 categorias={categorias}
                 myId={myId}
                 wsId={wsId}
+                medidorId={searchParams?.get("medidor") ?? null}
                 onClose={() => { setRightPanel("none"); router.push(viewPath, { scroll: false }); }}
                 onCreated={async (orden) => {
                   setRightPanel("none");

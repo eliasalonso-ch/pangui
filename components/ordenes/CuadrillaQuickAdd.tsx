@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Users, ChevronDown } from "lucide-react";
 import { createClient } from "@/lib/supabase";
+import { ASIGNAR_BTN_WIDTH } from "@/components/ot/OTFormFields";
 
 interface CuadrillaConMiembros {
   id: string;
@@ -108,6 +109,8 @@ export default function CuadrillaQuickAdd({ wsId, onAdd }: {
         type="button"
         onClick={() => { setOpen(v => !v); setQuery(""); }}
         style={{
+          // Mismo ancho que "Asignar técnico" — ver ASIGNAR_BTN_WIDTH.
+          width: ASIGNAR_BTN_WIDTH,
           height: 40, display: "flex", alignItems: "center", gap: 8,
           padding: "0 12px", border: "1px solid var(--border)", borderRadius: 8,
           background: "var(--surface-1)", fontSize: 14, color: "var(--fg-4)",
@@ -116,7 +119,7 @@ export default function CuadrillaQuickAdd({ wsId, onAdd }: {
       >
         <Users size={13} />
         Asignar una cuadrilla
-        <ChevronDown size={12} style={{ color: "var(--fg-4)", marginLeft: 2 }} />
+        <ChevronDown size={12} style={{ color: "var(--fg-4)", marginLeft: "auto" }} />
       </button>
 
       {open && (

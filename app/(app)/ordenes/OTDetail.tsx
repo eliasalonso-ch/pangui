@@ -21,7 +21,7 @@ import {
   Lock, LockOpen, Mic, MicOff, Volume2, GitBranch, Wrench, Link as LinkIcon, Paperclip,
   Phone, Mail, Circle, MessageSquare,
   Minus, ArrowUp, ArrowDown, RotateCw, UserRoundX, UserRoundCheck, Zap, Locate, Contact,
-  Boxes,
+  Box, Clock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { LinksDisplay } from "@/components/LinksInput";
@@ -259,7 +259,9 @@ function ActivoSection({ activo, onEstadoChanged }: {
             border: "1px solid var(--border)",
             display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
           }}>
-            <Boxes size={16} />
+            {/* Box, no Boxes: es el mismo icono que Activos en la barra lateral
+                (Boxes es el de Materiales, y usarlo acá los confundía). */}
+            <Box size={16} />
           </span>
         )}
 
@@ -3055,59 +3057,15 @@ export default function OTDetail({
                   <DetailBadge icon={prioIcon} iconColor={prioSolid}>{prioLabel}</DetailBadge>
                 )}
               </div>
-            </div>
-            {orden.parent_id && (
-              <button
-                type="button"
-                onClick={() => orden.parent_id && openOrden(orden.parent_id)}
-                style={{
-                  width: "100%", display: "flex", alignItems: "center", gap: 10,
-                  marginBottom: 14, padding: "10px 12px",
-                  border: "1px solid var(--brand-tint-2)", borderRadius: "var(--r-md)",
-                  background: "var(--brand-tint)", color: "var(--brand-fg)",
-                  cursor: "pointer", textAlign: "left", fontFamily: "inherit",
-                }}
-              >
-                <GitBranch size={15} style={{ flexShrink: 0 }} />
-                <span style={{ flex: 1, minWidth: 0 }}>
-                  <span style={{ display: "block", fontSize: 14, fontWeight: 400 }}>Sub-OT · Ver orden principal</span>
-                  {parentOrden?.titulo && (
-                    <span style={{ display: "block", marginTop: 2, fontSize: 14, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {parentOrden.titulo}
-                    </span>
-                  )}
-                </span>
-                <ChevronDown size={14} style={{ transform: "rotate(-90deg)" }} />
-              </button>
-            )}
-
-            {/* N° OT badge */}
-            {meta.nOT && (
-              <div style={{ paddingTop: 16 }}>
-                <p style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", letterSpacing: "0.01em", margin: "0 0 8px" }}>N° de OT</p>
-                <NOTBadge nOT={meta.nOT} />
-              </div>
-            )}
-
-            {/* Description */}
-            {meta.descripcion && (
-              <div style={{ paddingTop: 16 }}>
-                <p style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", letterSpacing: "0.01em", margin: "0 0 8px" }}>Descripción</p>
-                <p style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-2)", lineHeight: 1.75, whiteSpace: "pre-wrap", margin: 0 }}>{meta.descripcion}</p>
-              </div>
-            )}
-
             {/* Estado */}
             {(() => {
               // Solid per-status fill when selected; the unselected state always
               // shows the brand blue (see button styles below).
               return (
-                <div style={{
-                  marginLeft: -28, marginRight: -28,
-                  paddingLeft: 28, paddingRight: 28,
-                  paddingTop: 16, paddingBottom: 16,
-                  borderBottom: "1px solid var(--border)",
-                }}>
+                // Sin el sangrado -28/+28 ni borderBottom propios: este bloque
+                // ahora vive DENTRO del encabezado, que ya los aplica. Repetirlos
+                // sacaba los botones 28px fuera del panel y pintaba dos bordes.
+                <div style={{ marginTop: 16 }}>
                   <p style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", letterSpacing: "0.01em", margin: "0 0 12px" }}>Estado</p>
                   <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
                     {ESTADOS.map(e => {
@@ -3241,6 +3199,47 @@ export default function OTDetail({
                 </div>
               );
             })()}
+            </div>
+            {orden.parent_id && (
+              <button
+                type="button"
+                onClick={() => orden.parent_id && openOrden(orden.parent_id)}
+                style={{
+                  width: "100%", display: "flex", alignItems: "center", gap: 10,
+                  marginBottom: 14, padding: "10px 12px",
+                  border: "1px solid var(--brand-tint-2)", borderRadius: "var(--r-md)",
+                  background: "var(--brand-tint)", color: "var(--brand-fg)",
+                  cursor: "pointer", textAlign: "left", fontFamily: "inherit",
+                }}
+              >
+                <GitBranch size={15} style={{ flexShrink: 0 }} />
+                <span style={{ flex: 1, minWidth: 0 }}>
+                  <span style={{ display: "block", fontSize: 14, fontWeight: 400 }}>Sub-OT · Ver orden principal</span>
+                  {parentOrden?.titulo && (
+                    <span style={{ display: "block", marginTop: 2, fontSize: 14, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {parentOrden.titulo}
+                    </span>
+                  )}
+                </span>
+                <ChevronDown size={14} style={{ transform: "rotate(-90deg)" }} />
+              </button>
+            )}
+
+            {/* N° OT badge */}
+            {meta.nOT && (
+              <div style={{ paddingTop: 16 }}>
+                <p style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", letterSpacing: "0.01em", margin: "0 0 8px" }}>N° de OT</p>
+                <NOTBadge nOT={meta.nOT} />
+              </div>
+            )}
+
+            {/* Description */}
+            {meta.descripcion && (
+              <div style={{ paddingTop: 16 }}>
+                <p style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", letterSpacing: "0.01em", margin: "0 0 8px" }}>Descripción</p>
+                <p style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-2)", lineHeight: 1.75, whiteSpace: "pre-wrap", margin: 0 }}>{meta.descripcion}</p>
+              </div>
+            )}
 
             {/* Pause-reason banner (en_espera). Highlights "Reprogramar" because
                 it carries a user-coordinated date the supervisor should see. */}
@@ -3487,6 +3486,10 @@ export default function OTDetail({
                 orden.fecha_termino && { label: "Fecha de vencimiento", value: fmtFechaLocal(orden.fecha_termino), icon: <Calendar size={16} /> },
                 orden.fecha_inicio && { label: "Fecha de inicio", value: fmtFechaLocal(orden.fecha_inicio), icon: <Calendar size={16} /> },
                 (orden.tiempo_total_segundos != null && orden.tiempo_total_segundos > 0) && { label: "Tiempo total", value: fmtSecs(orden.tiempo_total_segundos), icon: <RotateCcw size={16} /> },
+                // tiempo_estimado viene en MINUTOS y fmtSecs espera segundos.
+                // Va junto a "Tiempo total" a propósito: lo estimado contra lo
+                // realmente trabajado es la comparación que interesa.
+                (orden.tiempo_estimado != null && orden.tiempo_estimado > 0) && { label: "Tiempo estimado", value: fmtSecs(orden.tiempo_estimado * 60), icon: <Clock size={16} /> },
               ].filter(Boolean).map((field: any) => (
                 <div key={field.label}>
                   <p style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", letterSpacing: "0.01em", marginBottom: 7, marginTop: 0 }}>{field.label}</p>

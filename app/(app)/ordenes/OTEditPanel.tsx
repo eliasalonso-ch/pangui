@@ -11,6 +11,7 @@ import { fetchSolicitantes as fetchSolicitantesCatalog, upsertSolicitante, type 
 import { uploadToR2 } from "@/lib/r2";
 import { createClient } from "@/lib/supabase";
 import CuadrillaQuickAdd from "@/components/ordenes/CuadrillaQuickAdd";
+import { ASIGNAR_BTN_WIDTH } from "@/components/ot/OTFormFields";
 import { getOTProcedimientos, attachProcedimiento, detachProcedimiento } from "@/lib/procedimientos-api";
 import ProcedimientosPicker, { type ProcedimientoSeleccionado } from "./ProcedimientosPicker";
 import { buildRecurrenciaConfig, RecurrenceControls } from "./RecurrenceControls";
@@ -257,6 +258,8 @@ function AssigneeSelect({ usuarios, value, onChange }: {
         type="button"
         onClick={() => { setOpen(!open); setQuery(""); }}
         style={{
+          // Mismo ancho que "Asignar una cuadrilla", que va justo debajo.
+          width: ASIGNAR_BTN_WIDTH,
           height: 40, display: "flex", alignItems: "center", gap: 8,
           padding: "0 12px", border: "1px solid var(--border)", borderRadius: 8,
           background: "var(--surface-1)", fontSize: 14, color: "var(--fg-4)", cursor: "pointer", fontFamily: "inherit",
@@ -264,7 +267,7 @@ function AssigneeSelect({ usuarios, value, onChange }: {
       >
         <User size={13} />
         Asignar técnico
-        <ChevronDown size={12} style={{ color: "var(--fg-4)", marginLeft: 2 }} />
+        <ChevronDown size={12} style={{ color: "var(--fg-4)", marginLeft: "auto" }} />
       </button>
       {open && (
         <div style={{
@@ -822,7 +825,8 @@ export default function OTEditPanel({
               value={form.titulo}
               onChange={e => setF("titulo", e.target.value)}
               style={{
-                width: "100%", fontSize: 14, fontWeight: 400, color: "var(--fg-1)",
+                // 20px como en OTCrearPanel: es el título de la OT, no un campo más.
+                width: "100%", fontSize: 20, fontWeight: 400, color: "var(--fg-1)",
                 border: "none", outline: "none", background: "transparent", padding: "8px 0",
                 borderBottom: form.titulo ? "2px solid var(--brand)" : "2px solid var(--border)",
                 fontFamily: "inherit", transition: "border-color 0.15s",

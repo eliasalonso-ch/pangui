@@ -311,6 +311,8 @@ export interface OrdenTrabajo {
   pausado_at: string | null;
   en_ejecucion: boolean;
   tiempo_total_segundos: number | null;
+  /** Duración estimada en MINUTOS (tiempo_total_segundos es lo realmente trabajado, en segundos). */
+  tiempo_estimado: number | null;
   // Dedicated metadata columns (previously encoded inside descripcion)
   n_serie: string | null;
   solicitante: string | null;
