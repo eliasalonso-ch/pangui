@@ -538,7 +538,10 @@ export default function MedidorCrearPanel({
             <div style={seccion}>
               <label style={{ ...labelStyle, marginBottom: 2 }}>Ajustes de umbral</label>
               <p style={{ margin: "0 0 12px", fontSize: 14, color: "var(--fg-4)", lineHeight: 1.5 }}>
-                Al superar la alarma, Pangui abre una OT de emergencia sobre este activo.
+                Al superar la advertencia, Pangui avisa al equipo. Al superar la alarma,
+                además abre una OT de emergencia sobre este activo. Avisa una sola vez por
+                cruce: mientras el medidor siga arriba no vuelve a insistir, y recién
+                vuelve a avisar si baja un 5% bajo el umbral y sube de nuevo.
                 Déjalos vacíos si el medidor solo registra.
               </p>
 

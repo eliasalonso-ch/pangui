@@ -83,7 +83,7 @@ function classifyWaitingReason(comment: string | null | undefined): { key: Waiti
 const EMPTY_FILTROS: FiltrosState = {
   estados: [], prioridades: [], tipos: [],
   asignadoIds: [], ubicacionIds: [], sociedadIds: [],
-  itos: [],
+  itos: [], categoriaIds: [],
   fechaVencimiento: null,
   sinAsignar: false,
   soloAsignados: false,
@@ -1050,7 +1050,14 @@ export default function OrdenesBandeja({
     return debouncedSearch !== q || isSearchFetching;
   })();
 
-  const hasActiveFilters = needsFullWorkspaceSet({ scope, ocultarMarcadas, filtros });
+  // `allOrdenesForCounts != null` = el snapshot completo ya está en memoria, sea
+  // porque la primera página vino corta (ya era todo el workspace) o porque el
+  // bulk fetch terminó. Preferirlo no cuesta una request extra y evita que la
+  // lista muestre vacío mientras el contador de la pestaña marca N.
+  const usarSetCompleto = needsFullWorkspaceSet({
+    scope, ocultarMarcadas, filtros,
+    haySnapshotCompleto: allOrdenesForCounts != null,
+  });
 
   // Apply filters + search + sort
   const filtered = useMemo(() => {
@@ -1069,7 +1076,7 @@ export default function OrdenesBandeja({
     // en la página 2 devolvía una lista vacía mientras el contador de la
     // pestaña — que sí usa el set completo — mostraba "2". El dato ya estaba
     // en memoria; solo la lista no lo miraba.
-    const baseSource = searchResults ?? (hasActiveFilters ? countOrdenes : ordenes);
+    const baseSource = searchResults ?? (usarSetCompleto ? countOrdenes : ordenes);
     // Tab decides active vs. completed; scope narrows further. Kanban shows
     // all states side-by-side, so the tab gate is bypassed in that view.
     let list = baseSource.filter(o =>
@@ -1127,7 +1134,7 @@ export default function OrdenesBandeja({
       });
     }
     return list;
-  }, [ordenes, countOrdenes, hasActiveFilters, searchResults, view, tab, scope, search, sort, filtros, ubicaciones, dadosDeBajaIds, reprogramadaIds, faltanMaterialesIds, ocultarMarcadas, marcadas, todayKey]);
+  }, [ordenes, countOrdenes, usarSetCompleto, searchResults, view, tab, scope, search, sort, filtros, ubicaciones, dadosDeBajaIds, reprogramadaIds, faltanMaterialesIds, ocultarMarcadas, marcadas, todayKey]);
 
   // The calendar needs recurrencia_config + activos, which the lean bulk select
   // omits. Fetch them the first time the calendar opens, not on every list load.
@@ -1172,7 +1179,7 @@ export default function OrdenesBandeja({
   // completo del workspace): en ambos casos no existe una "pagina siguiente"
   // que pedir, asi que arrastrar hasMoreOrdenes dejaba el boton "Cargar mas"
   // visible incluso con un unico resultado.
-  const fuenteCompleta = searchResults !== null || hasActiveFilters;
+  const fuenteCompleta = searchResults !== null || usarSetCompleto;
   const canShowMore = visibleCount < filtered.length || (hasMoreOrdenes && !fuenteCompleta);
 
   // Infinite scroll: when the sentinel enters the viewport, reveal the next
@@ -1668,6 +1675,7 @@ export default function OrdenesBandeja({
             usuarios={usuarios}
             ubicaciones={ubicaciones}
             sociedades={sociedades}
+            categorias={categorias}
             itos={itoOptions}
             visibleKeys={visibleFilterKeys}
             onVisibleKeysChange={changeVisibleFilterKeys}

@@ -150,7 +150,7 @@ export const LIST_SELECT = `
   fecha_inicio, fecha_termino, recurrencia, recurrencia_config, proxima_ejecucion,
   recurrencia_origen_id, recurrencia_iteracion, created_at, updated_at,
   n_serie, solicitante, hito,
-  categoria_id, ubicacion_id, activo_id, creado_por, asignados_ids,
+  categoria_id, categoria_ids, ubicacion_id, activo_id, creado_por, asignados_ids,
   numero, parent_id,
   iniciado_at, en_ejecucion, tiempo_total_segundos,
   completado_en,
@@ -181,6 +181,10 @@ export const LIST_SELECT = `
  *   - completado_en → the "Completadas recientemente" sort. This select feeds
  *     the rendered list whenever a filter is active, so dropping it would make
  *     that order silently collapse to "sin fecha" for every row.
+ *   - categoria_ids → el filtro de categorías. Una OT puede tener varias, y las
+ *     extra viven SOLO en este array (categoria_id guarda una sola). Como este
+ *     select es justamente el que se renderiza cuando hay un filtro activo,
+ *     sacarlo haria que el filtro de categorías se coma OTs que si coinciden.
  *
  * Mirrors ORDEN_LIST_SELECT in mobile's features/work-orders/api.ts.
  */
@@ -188,7 +192,7 @@ export const ORDEN_BULK_SELECT = `
   id, titulo, descripcion, estado, prioridad, tipo_trabajo, clasificacion,
   fecha_inicio, fecha_termino, recurrencia, proxima_ejecucion,
   recurrencia_origen_id, created_at,
-  categoria_id, ubicacion_id, activo_id, creado_por, asignados_ids,
+  categoria_id, categoria_ids, ubicacion_id, activo_id, creado_por, asignados_ids,
   numero, parent_id,
   iniciado_at, en_ejecucion, tiempo_total_segundos,
   completado_en,

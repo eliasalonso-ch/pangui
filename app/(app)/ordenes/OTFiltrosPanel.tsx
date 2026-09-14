@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { Check, User, UserRoundX, Clock, MapPin, Flag, Zap, Wrench, Building2, Pause, RotateCw, ArrowUp, ArrowDown, AlertTriangle, Minus, type LucideIcon } from "lucide-react";
+import { Check, User, UserRoundX, Clock, MapPin, Flag, Zap, Wrench, Building2, Tag, Pause, RotateCw, ArrowUp, ArrowDown, AlertTriangle, Minus, type LucideIcon } from "lucide-react";
 
-import type { FiltrosState, Estado, Prioridad, TipoTrabajo, Usuario, Ubicacion, Sociedad } from "@/types/ordenes";
+import type { FiltrosState, Estado, Prioridad, TipoTrabajo, Usuario, Ubicacion, Sociedad, CategoriaOT } from "@/types/ordenes";
+import { CategoriaIcon } from "@/components/ordenes/categoria-icon";
 import { FILTER_META, FILTER_ORDER, type FilterKey, type FilterMeta } from "./filter-registry";
 // Las piezas del dropdown viven en components/filtros: /ordenes-compra y
 // /proveedores dibujan sus filtros con las mismas, así que un cambio de diseño
@@ -52,7 +53,7 @@ function initials(n: string) {
 const EMPTY: FiltrosState = {
   estados: [], prioridades: [], tipos: [],
   asignadoIds: [], ubicacionIds: [], sociedadIds: [],
-  itos: [],
+  itos: [], categoriaIds: [],
   fechaVencimiento: null, sinAsignar: false, soloAsignados: false,
   deUsuariosDadosDeBaja: false,
 };
@@ -66,6 +67,7 @@ const FILTER_ICONS: Record<FilterKey, React.ReactNode> = {
   prioridades:      <Flag size={16} />,
   estados:          <Check size={16} />,
   tipos:            <Wrench size={16} />,
+  categoriaIds:     <Tag size={16} />,
   sociedadIds:      <Building2 size={16} />,
 };
 
@@ -77,6 +79,7 @@ interface FilterBarProps {
   usuarios: Usuario[];
   ubicaciones: Ubicacion[];
   sociedades: Sociedad[];
+  categorias: CategoriaOT[];
   /** Valores de ITO presentes en el workspace, ya deduplicados y ordenados. */
   itos: string[];
   /** Filtros visibles en la barra, en orden. */
@@ -84,11 +87,12 @@ interface FilterBarProps {
   onVisibleKeysChange: (keys: FilterKey[]) => void;
 }
 
-export function FilterBar({ filtros, onChange, usuarios, ubicaciones, sociedades, itos, visibleKeys, onVisibleKeysChange }: FilterBarProps) {
+export function FilterBar({ filtros, onChange, usuarios, ubicaciones, sociedades, categorias, itos, visibleKeys, onVisibleKeysChange }: FilterBarProps) {
   const [userSearch, setUserSearch]  = useState("");
   const [ubicSearch, setUbicSearch]  = useState("");
   const [socSearch,  setSocSearch]   = useState("");
   const [itoSearch,  setItoSearch]   = useState("");
+  const [catSearch,  setCatSearch]   = useState("");
 
   function set(patch: Partial<FiltrosState>) {
     onChange({ ...filtros, ...patch });
@@ -114,13 +118,14 @@ export function FilterBar({ filtros, onChange, usuarios, ubicaciones, sociedades
     filtros.asignadoIds.length + filtros.ubicacionIds.length +
     filtros.prioridades.length + filtros.estados.length +
     filtros.tipos.length + filtros.sociedadIds.length +
-    filtros.itos.length +
+    filtros.itos.length + filtros.categoriaIds.length +
     (filtros.fechaVencimiento ? 1 : 0) + (filtros.sinAsignar ? 1 : 0);
 
   const filteredUsers = usuarios.filter(u => u.nombre.toLowerCase().includes(userSearch.toLowerCase()));
   const filteredUbic  = ubicaciones.filter(u => (u.edificio + (u.detalle ?? "")).toLowerCase().includes(ubicSearch.toLowerCase()));
   const filteredSoc   = sociedades.filter(s => s.nombre.toLowerCase().includes(socSearch.toLowerCase()));
   const filteredItos  = itos.filter(i => i.toLowerCase().includes(itoSearch.toLowerCase()));
+  const filteredCats  = categorias.filter(c => c.nombre.toLowerCase().includes(catSearch.toLowerCase()));
 
   return (
     <div style={{ display: "flex", alignItems: "flex-start", gap: 8, width: "100%" }}>
@@ -370,6 +375,38 @@ export function FilterBar({ filtros, onChange, usuarios, ubicaciones, sociedades
               <span style={{ flex: 1, minWidth: 0, fontSize: 14, color: "var(--fg-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.label}</span>
             </OptionRow>
           ))}
+        </div>
+      </FilterDropdown>
+      )}
+
+      {/* ── Categoría ──
+          Como Sociedad e ITO: ademas de estar en la barra, exige que el
+          workspace tenga categorias, si no el dropdown estaria siempre vacio. */}
+      {shown.has("categoriaIds") && categorias.length > 0 && (
+      <FilterDropdown
+        label="Categoría"
+        icon={FILTER_ICONS.categoriaIds}
+        active={filtros.categoriaIds.length > 0}
+        count={filtros.categoriaIds.length}
+        onClear={() => set({ categoriaIds: [] })}
+        onRemove={() => removeFilter("categoriaIds")}
+      >
+        <TokenSearch
+          placeholder="Buscar categoría…"
+          value={catSearch}
+          onChange={setCatSearch}
+          tokens={filtros.categoriaIds.map(id => ({ key: id, label: categorias.find(c => c.id === id)?.nombre ?? id }))}
+          onRemove={id => set({ categoriaIds: filtros.categoriaIds.filter(x => x !== id) })}
+          onClearAll={() => set({ categoriaIds: [] })}
+        />
+        <div style={{ maxHeight: 320, overflowY: "auto", padding: "2px 0 6px" }}>
+          {filteredCats.map(c => (
+            <OptionRow key={c.id} active={filtros.categoriaIds.includes(c.id)} onClick={() => set({ categoriaIds: toggle(filtros.categoriaIds, c.id) })}>
+              <CategoriaIcon icono={c.icono} size={15} color={c.color ?? undefined} />
+              <span style={{ flex: 1, minWidth: 0, fontSize: 14, color: "var(--fg-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.nombre}</span>
+            </OptionRow>
+          ))}
+          {filteredCats.length === 0 && <SinResultados />}
         </div>
       </FilterDropdown>
       )}
