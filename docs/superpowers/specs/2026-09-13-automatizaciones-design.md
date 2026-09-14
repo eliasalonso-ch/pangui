@@ -199,7 +199,8 @@ Tres capas, como el resto de las secciones de pago:
 **Consecuencia asumida:** el disparo medidor → OT deja de existir en Pro. El
 highlight "Medidores y mantenimiento por condición" de Pro pasa a decir solo
 "Medidores y seguimiento de condición", y Empresa suma "Automatizaciones". Los
-medidores (gráfico, historial, rondas, umbrales en automatizados) siguen en Pro.
+medidores (gráfico, historial, rondas, y los umbrales de color en automatizados)
+siguen en Pro.
 
 ## Retirada de umbrales del medidor manual
 
@@ -212,7 +213,11 @@ Los umbrales pasan a ser exclusivos del tipo `automatizado`. En un medidor
 - Móvil `app/(stack)/medidor/form.tsx`: lo mismo, más el texto de pie que hoy
   dice "Una lectura sobre la alarma abre una OT de emergencia sola" — que deja
   de ser cierto.
-- Las columnas se quedan en la tabla: los automatizados las usan.
+- Las columnas se quedan en la tabla: los automatizados las usan **para pintar**,
+  no para disparar. Al retirarse `fn_medidor_lectura_critica` ya nada abre una OT
+  desde `critico`; lo único que siguen alimentando es `nivelDeLectura()`, que
+  colorea la lectura en el gráfico y en la lista. El texto de ayuda del
+  formulario tiene que decir eso y no lo que promete hoy.
 - Una migración limpia `advertencia`, `critico` e `intervalo_ot` en las filas
   `tipo = 'manual'` existentes (hoy: un medidor, "Temperatura carcasa").
 
