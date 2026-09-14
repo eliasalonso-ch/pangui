@@ -21,18 +21,24 @@ export const RANGOS = [
 export const MS_POR_HORA = 3_600_000;
 
 /**
- * Marcas del eje en instantes REDONDOS de reloj, no en fracciones de la ventana.
+ * Los mismos instantes que `marcasDeTiempo`, pero como timestamps y con el
+ * rotulador aparte.
  *
- * Antes el eje partia el rango en seis pedazos iguales desde "ahora", asi que
- * en la vista de 1 hora salian etiquetas como 05:18, 05:28, 05:38: numeros
- * exactos pero imposibles de usar para ubicar algo. Un eje temporal se lee por
- * los bordes conocidos —y cuarto, en punto, medianoche—, no por sextos.
- *
- * Se elige el primer paso de la escala que no produzca mas de ~8 marcas, y
- * despues se avanza desde el primer multiplo de ese paso dentro de la ventana.
- * Con eso, 1H cae de 15 en 15 minutos, 1D de 3 en 3 horas, 1S dia por dia.
+ * Es lo que necesita un eje de tiempo real (recharts con `scale="time"`): las
+ * marcas son valores del dominio, no porcentajes de ancho. La lógica de elegir
+ * el paso redondo es una sola y vive acá abajo; esta función y la de porcentajes
+ * son dos vistas de la misma cuenta.
  */
-export function marcasDeTiempo(t0: number, t1: number): { pct: number; label: string }[] {
+export function instantesDeTiempo(t0: number, t1: number): { ticks: number[]; rotular: (t: number) => string } {
+  const { paso, cursor, rotular } = escalaDeTiempo(t0, t1);
+  const ticks: number[] = [];
+  for (let t = cursor; t <= t1; t += paso) ticks.push(t);
+  if (ticks.length === 0) ticks.push(t0, t1);
+  return { ticks, rotular: (t: number) => rotular(new Date(t)) };
+}
+
+/** Paso redondo, primer múltiplo dentro de la ventana y formato de etiqueta. */
+function escalaDeTiempo(t0: number, t1: number) {
   const largo = Math.max(t1 - t0, 1);
   const MIN = 60_000;
   const MAX_MARCAS = 8;
@@ -57,8 +63,6 @@ export function marcasDeTiempo(t0: number, t1: number): { pct: number; label: st
     : conAnio ? t.toLocaleDateString("es-CL", { month: "short", year: "2-digit" })
     : t.toLocaleDateString("es-CL", { day: "2-digit", month: "2-digit" });
 
-  const out: { pct: number; label: string }[] = [];
-
   // Para pasos de un día o más se arranca desde la medianoche local, porque un
   // múltiplo del epoch cae a una hora arbitraria segun la zona horaria.
   let cursor: number;
@@ -71,6 +75,26 @@ export function marcasDeTiempo(t0: number, t1: number): { pct: number; label: st
     cursor = Math.ceil(t0 / paso) * paso;
   }
 
+  return { paso, cursor, rotular };
+}
+
+/**
+ * Marcas del eje en instantes REDONDOS de reloj, no en fracciones de la ventana.
+ *
+ * Antes el eje partia el rango en seis pedazos iguales desde "ahora", asi que
+ * en la vista de 1 hora salian etiquetas como 05:18, 05:28, 05:38: numeros
+ * exactos pero imposibles de usar para ubicar algo. Un eje temporal se lee por
+ * los bordes conocidos —y cuarto, en punto, medianoche—, no por sextos.
+ *
+ * Se elige el primer paso de la escala que no produzca mas de ~8 marcas, y
+ * despues se avanza desde el primer multiplo de ese paso dentro de la ventana.
+ * Con eso, 1H cae de 15 en 15 minutos, 1D de 3 en 3 horas, 1S dia por dia.
+ */
+export function marcasDeTiempo(t0: number, t1: number): { pct: number; label: string }[] {
+  const largo = Math.max(t1 - t0, 1);
+  const { paso, cursor, rotular } = escalaDeTiempo(t0, t1);
+
+  const out: { pct: number; label: string }[] = [];
   for (let t = cursor; t <= t1; t += paso) {
     out.push({ pct: ((t - t0) / largo) * 100, label: rotular(new Date(t)) });
   }

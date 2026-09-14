@@ -28,6 +28,7 @@ import {
   Wrench,
   ShoppingCart,
   Truck,
+  Gauge,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
@@ -263,6 +264,7 @@ export default function AppSidebar() {
   const hasProveedores  = !planFeatures || planFeatures.proveedores;
   const hasOrdenesCompra = !planFeatures || planFeatures.ordenes_compra;
   const hasAnalitica    = !planFeatures || planFeatures.analytics_pro;
+  const hasMedidores    = !planFeatures || planFeatures.medidores;
   const isAdmin = mounted && (effectiveRol === "jefe" || effectiveRol === "admin" || effectiveRol === "owner");
 
   // Entering the section from anywhere else opens the submenu. Leaving it does
@@ -447,6 +449,20 @@ export default function AppSidebar() {
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
+              {/* Medidores: pegado a Activos porque un medidor es un punto de
+                  lectura sobre uno. Sin gate de admin — la lectura la toma el
+                  técnico, igual que en el móvil; el alta sí es admin y eso se
+                  resuelve dentro de la pantalla. */}
+              {hasMedidores && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={isActive("/medidores")} tooltip="Medidores">
+                    <Link href="/medidores" prefetch={false} style={{ display: "flex", alignItems: "center", gap: collapsed ? 0 : 10 }}>
+                      <Gauge size={16} style={{ flexShrink: 0 }} />
+                      {!collapsed && <span>Medidores</span>}
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )}
               {/* Planes de mantención: configuración del calendario preventivo
                   del espacio (qué se mantiene, cada cuánto), no trabajo del
                   día a día — de ahí que sea admin, igual que Procedimientos.

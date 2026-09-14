@@ -61,6 +61,14 @@ export interface PlanDef {
     // its future dates up front so they can be seen and prepared for in
     // advance. That forward horizon is the Pro-only part.
     planes_mantencion:        boolean;
+    // Medidores: puntos de lectura sobre un activo (vibración, horómetro,
+    // consumo) con umbrales que abren OT solas. Pro y Empresa.
+    //
+    // Por qué Pro y no Empresa como el resto del bloque de arriba: el medidor no
+    // es abastecimiento ni planificación — es mantenimiento basado en condición,
+    // que es la razón por la que alguien sube de Esencial a Pro. Dejarlo en
+    // Empresa lo escondería justo del cliente que lo pide.
+    medidores:                boolean;   // /medidores route
     // Analytics & insights
     analytics_pro:            boolean;   // advanced analytics dashboard (MTTR/MTBF)
     scheduler:                boolean;   // export schedules
@@ -114,6 +122,7 @@ export const PLANS: PlanDef[] = [
       proveedores:               false,
       ordenes_compra:            false,
       planes_mantencion:         false,
+      medidores:                 false,
       analytics_pro:             false,
       scheduler:                 false,
       push:                      true,
@@ -160,6 +169,7 @@ export const PLANS: PlanDef[] = [
       proveedores:               false,
       ordenes_compra:            false,
       planes_mantencion:         false,
+      medidores:                 false,
       analytics_pro:             false,
       scheduler:                 false,
       push:                      true,
@@ -179,6 +189,7 @@ export const PLANS: PlanDef[] = [
       "Todo lo de Esencial, sin límites",
       "Procedimientos y activos ilimitados",
       "Inventario completo (módulo Partes)",
+      "Medidores y mantenimiento por condición",
       "Hojas de cálculo en OT",
       "12 meses de historial en analítica",
       "Exportes programados",
@@ -208,6 +219,9 @@ export const PLANS: PlanDef[] = [
       proveedores:               false,
       ordenes_compra:            false,
       planes_mantencion:         false,
+      // Medidores SÍ entra en Pro: es mantenimiento basado en condición, el
+      // motivo por el que un cliente sube desde Esencial. No es abastecimiento.
+      medidores:                 true,
       analytics_pro:             false,
       scheduler:                 true,
       push:                      true,
@@ -249,6 +263,7 @@ export const PLANS: PlanDef[] = [
       proveedores:               true,
       ordenes_compra:            true,
       planes_mantencion:         true,
+      medidores:                 true,
       analytics_pro:             true,
       scheduler:                 true,
       push:                      true,

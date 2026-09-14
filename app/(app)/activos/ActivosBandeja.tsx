@@ -21,10 +21,11 @@ import SearchSelect from "@/components/activos/SearchSelect";
 import { EmptyState, EmptyDetail } from "@/components/EmptyState";
 import { cambiarEstadoActivo, fetchPeriodoVigente, type EstadoPeriodo } from "@/lib/activo-estado-api";
 import {
-  fetchMedidoresDeActivo, nivelDeLectura,
-  type MedidorConUltima, type NivelLectura,
+  fetchMedidoresDeActivo, lecturaVencida, nivelDeLectura,
+  type Lectura, type MedidorConUltima, type NivelLectura,
 } from "@/lib/medidores-api";
-import NuevoMedidorDialog from "@/components/activos/NuevoMedidorDialog";
+import MedidorCrearVentana from "@/components/medidores/MedidorCrearVentana";
+import RegistrarLecturaDialog from "@/components/activos/RegistrarLecturaDialog";
 import { uploadToR2 } from "@/lib/r2";
 import { createClient, logRealtimeChannel } from "@/lib/supabase";
 import type {
@@ -1678,9 +1679,17 @@ function haceCuanto(iso: string): string {
  * El valor es lo único que la vista necesita destacar —es el dato que el
  * usuario vino a mirar—, así que va en cuerpo grande y el resto queda de apoyo.
  */
-function MedidorRow({ medidor, last }: { medidor: MedidorConUltima; last: boolean }) {
+function MedidorRow({ medidor, last, onRegistrar }: {
+  medidor: MedidorConUltima;
+  last: boolean;
+  onRegistrar: () => void;
+}) {
   const nivel = medidor.ultima ? nivelDeLectura(medidor.ultima.valor, medidor) : null;
   const color = nivel ? NIVEL_COLOR[nivel] : "var(--fg-4)";
+  // La ronda vencida se avisa en la fila: es la señal de que a este medidor le
+  // toca lectura, y sin esto `frecuencia_dias` se guarda y no se usa en ningún
+  // lado.
+  const vencida = lecturaVencida(medidor);
 
   return (
     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "13px 16px", borderBottom: last ? "none" : "1px solid var(--border)" }}>
@@ -1696,6 +1705,8 @@ function MedidorRow({ medidor, last }: { medidor: MedidorConUltima; last: boolea
         <span style={{ fontSize: 14, color: "var(--fg-4)" }}>
           {medidor.ultima ? haceCuanto(medidor.ultima.ts) : "Sin lecturas"}
           {medidor.critico != null && ` · crítico ${medidor.critico} ${medidor.unidad}`}
+          {medidor.intervalo_ot != null && ` · cada ${medidor.intervalo_ot} ${medidor.unidad}`}
+          {vencida && <span style={{ color: "#F59E0B" }}> · lectura pendiente</span>}
         </span>
       </div>
 
@@ -1709,6 +1720,23 @@ function MedidorRow({ medidor, last }: { medidor: MedidorConUltima; last: boolea
           {medidor.ultima ? medidor.ultima.valor : "—"}
           <span style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-4)", marginLeft: 4 }}>{medidor.unidad}</span>
         </span>
+        {/* Solo en los manuales: un automatizado recibe su número del gateway, y
+            ofrecer cargarlo a mano invita a ensuciar su serie. */}
+        {medidor.tipo === "manual" && (
+          <button
+            type="button"
+            onClick={onRegistrar}
+            title="Registrar lectura"
+            style={{
+              height: 30, padding: "0 10px", display: "inline-flex", alignItems: "center", gap: 6,
+              border: `1px solid ${vencida ? "#F59E0B" : "var(--border)"}`, borderRadius: 8,
+              background: "var(--surface-1)", fontSize: 14, fontFamily: "inherit",
+              color: vencida ? "#F59E0B" : "var(--fg-2)", cursor: "pointer",
+            }}
+          >
+            <Plus size={13} /> Lectura
+          </button>
+        )}
       </div>
     </div>
   );
@@ -1725,6 +1753,8 @@ function MedidoresCard({ activo }: { activo: Activo }) {
   const [medidores, setMedidores] = useState<MedidorConUltima[]>([]);
   const [loading, setLoading] = useState(true);
   const [creando, setCreando] = useState(false);
+  /** Medidor cuyo diálogo de carga de lectura está abierto. */
+  const [registrando, setRegistrando] = useState<MedidorConUltima | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -1808,7 +1838,10 @@ function MedidoresCard({ activo }: { activo: Activo }) {
       .on("postgres_changes",
         { event: "INSERT", schema: "public", table: "medidor_lecturas", filter: `workspace_id=eq.${activo.workspace_id}` },
         (payload) => {
-          const fila = payload.new as { id: string; medidor_id: string; valor: number; ts: string; creado_por: string | null; created_at: string };
+          // El payload trae la fila completa, así que se tipa con `Lectura` en
+          // vez de repetir sus campos acá — que es lo que la dejó desalineada
+          // cuando se agregó `foto_url`.
+          const fila = payload.new as Lectura;
           if (!ids.has(fila.medidor_id)) return;
           setMedidores(prev => prev.map(m => {
             if (m.id !== fila.medidor_id) return m;
@@ -1854,17 +1887,40 @@ function MedidoresCard({ activo }: { activo: Activo }) {
             </span>
           </div>
         ) : medidores.map((m, i) => (
-          <MedidorRow key={m.id} medidor={m} last={i === medidores.length - 1} />
+          <MedidorRow
+            key={m.id}
+            medidor={m}
+            last={i === medidores.length - 1}
+            onRegistrar={() => setRegistrando(m)}
+          />
         ))}
       </Card>
 
+      {/* Acá sí va en una ventana: esta tarjeta vive dentro de la ficha del
+          activo, que no tiene un panel derecho donde montar el formulario. El
+          contenido es el mismo componente que usa /medidores — una sola copia
+          del formulario, dos contenedores. */}
       {creando && activo.workspace_id && (
-        <NuevoMedidorDialog
+        <MedidorCrearVentana
           workspaceId={activo.workspace_id}
           activoId={activo.id}
           ubicacionId={activo.ubicacion_id}
           onClose={() => setCreando(false)}
           onCreado={medidor => setMedidores(prev => [...prev, { ...medidor, ultima: null }])}
+        />
+      )}
+
+      {registrando && activo.workspace_id && (
+        <RegistrarLecturaDialog
+          medidor={registrando}
+          workspaceId={activo.workspace_id}
+          onClose={() => setRegistrando(null)}
+          // Se relee en vez de parchear la fila en memoria: la lectura puede
+          // haber disparado una OT y movido `ultimo_disparo_ot` en la base, así
+          // que el estado local ya no es la verdad.
+          onRegistrada={() => {
+            void fetchMedidoresDeActivo(activo.id).then(setMedidores).catch(() => {});
+          }}
         />
       )}
     </div>

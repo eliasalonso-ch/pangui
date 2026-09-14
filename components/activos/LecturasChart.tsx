@@ -52,12 +52,14 @@ function escala(lecturas: Lectura[], medidor: Pick<Medidor, "advertencia" | "cri
 
   if (candidatos.length === 0) return { min: 0, max: 1 };
 
-  let min = Math.min(...candidatos, 0);
+  // El eje sigue el RANGO de los datos y no se ancla en 0: una serie entre 7,5 y
+  // 7,6 contra un eje 0–8,5 se ve como una raya plana y la variación desaparece.
+  let min = Math.min(...candidatos);
   let max = Math.max(...candidatos);
-  if (max === min) max = min + 1;
+  if (max === min) { min = min - 1; max = max + 1; }
 
-  const aire = (max - min) * 0.08;
-  return { min: min - (min < 0 ? aire : 0), max: max + aire };
+  const aire = (max - min) * 0.12;
+  return { min: min - aire, max: max + aire };
 }
 
 export default function LecturasChart({
@@ -120,7 +122,10 @@ export default function LecturasChart({
     return [max, medio, min].map(v => ({
       v,
       // Sin decimales cuando el rango es grande: "1.234,567 rpm" no se lee.
-      label: Math.abs(max - min) >= 20 ? Math.round(v).toString() : v.toFixed(1),
+      // Decimales según lo fino que sea el rango: con el eje ajustado a los datos
+      // un tramo de 0,1 necesita más de un decimal o las tres etiquetas salen
+      // iguales; uno de miles no necesita ninguno ("1.234,567 rpm" no se lee).
+      label: v.toFixed(Math.max(0, Math.min(6, -Math.floor(Math.log10(Math.abs(max - min) / 2 || 1)) + 1))),
       pct: pctDe(v),
     }));
   }, [min, max]);
