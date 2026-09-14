@@ -366,7 +366,7 @@ export type OrdenListItem = Pick<
   | "iniciado_at" | "en_ejecucion" | "tiempo_total_segundos" | "completado_en"
   | "categorias_ot" | "ubicaciones" | "activos" | "lugar"
   | "_pending"
-> & Partial<Pick<OrdenTrabajo, "proxima_ejecucion" | "recurrencia_origen_id" | "recurrencia_iteracion">>;
+> & Partial<Pick<OrdenTrabajo, "proxima_ejecucion" | "recurrencia_origen_id" | "recurrencia_iteracion" | "categoria_ids">>;
 
 // ─── Bulk item (workspace-wide snapshot for counts + filtered lists) ──────────
 
@@ -413,6 +413,13 @@ export interface FiltrosState {
    * el filtro siempre coincide con lo que el usuario ve en la fila.
    */
   itos: string[];
+  /**
+   * Categorías seleccionadas, por id. Una OT matchea si la categoría está en
+   * `categoria_id` (la principal) O en `categoria_ids` (el array multi): hay OTs
+   * cuyo `categoria_id` no está repetido dentro del array, así que mirar solo
+   * una de las dos columnas se come resultados válidos.
+   */
+  categoriaIds: string[];
   fechaVencimiento: "hoy" | "manana" | "7dias" | "30dias" | "este_mes" | "vencidas" | null;
   sinAsignar: boolean;
   soloAsignados: boolean;

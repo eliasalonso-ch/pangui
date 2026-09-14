@@ -6,7 +6,7 @@ import type { FiltrosState } from "@/types/ordenes";
 const SIN_FILTROS: FiltrosState = {
   estados: [], prioridades: [], tipos: [],
   asignadoIds: [], ubicacionIds: [], sociedadIds: [],
-  itos: [],
+  itos: [], categoriaIds: [],
   fechaVencimiento: null,
   sinAsignar: false,
   soloAsignados: false,
@@ -91,6 +91,28 @@ describe("applyFiltros", () => {
       ot({ descripcion: null }),
     ];
     expect(run(list, { itos: ["ITO 2"] })).toHaveLength(1);
+  });
+
+  // Las dos columnas de categoría no son redundantes en produccion: hay OTs
+  // cuyo `categoria_id` no esta repetido dentro de `categoria_ids`. Mirar una
+  // sola se come resultados validos, y el filtro se veria simplemente "roto".
+  it("filtra por categoría mirando categoria_id y categoria_ids", () => {
+    const list = [
+      ot({ categoria_id: "c1", categoria_ids: null }),   // solo la principal
+      ot({ categoria_id: null, categoria_ids: ["c1"] }), // solo el array
+      ot({ categoria_id: "c2", categoria_ids: ["c3"] }), // ninguna es c1
+      ot({ categoria_id: null, categoria_ids: null }),   // sin categoría
+    ];
+    expect(run(list, { categoriaIds: ["c1"] })).toHaveLength(2);
+  });
+
+  it("varias categorías seleccionadas son un OR", () => {
+    const list = [
+      ot({ categoria_id: "c1", categoria_ids: null }),
+      ot({ categoria_id: null, categoria_ids: ["c3", "c2"] }),
+      ot({ categoria_id: "c9", categoria_ids: null }),
+    ];
+    expect(run(list, { categoriaIds: ["c1", "c2"] })).toHaveLength(2);
   });
 
   it("filtra sin asignar", () => {

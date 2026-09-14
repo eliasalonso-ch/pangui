@@ -11,7 +11,7 @@ const NUEVO_WS = "00000000-0000-0000-0000-000000000001";
 const SIN_FILTROS: FiltrosState = {
   estados: [], prioridades: [], tipos: [],
   asignadoIds: [], ubicacionIds: [], sociedadIds: [],
-  itos: [],
+  itos: [], categoriaIds: [],
   fechaVencimiento: null,
   sinAsignar: false,
   soloAsignados: false,
@@ -112,7 +112,7 @@ describe("FILTER_META", () => {
       ...SIN_FILTROS,
       estados: ["completado"], prioridades: ["urgente"], tipos: ["reactiva"],
       asignadoIds: ["u1"], ubicacionIds: ["ub1"], sociedadIds: ["s1"],
-      itos: ["ITO 1"], fechaVencimiento: "hoy", sinAsignar: true,
+      itos: ["ITO 1"], categoriaIds: ["c1"], fechaVencimiento: "hoy", sinAsignar: true,
     };
     for (const key of FILTER_ORDER) {
       const meta = FILTER_META[key];
