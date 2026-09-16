@@ -34,7 +34,7 @@ import {
 import {
   updateOrdenEstado, updateOrdenPrioridad, updateOrden,
   iniciarOrden, pausarOrden, reanudarOrden, completarOrden,
-  fetchActividad, addComentario,
+  fetchActividad, addComentario, editComentario, deleteComentario,
   uploadOrdenFoto, addOrdenFoto, removeOrdenFoto,
   parseDescMeta, fetchOrden, fetchSubOrdenes, createSubOrden,
 } from "@/lib/ordenes-api";
@@ -710,6 +710,10 @@ export default function OTDetail({
   const [latestPause, setLatestPause] = useState<{ comentario: string | null; created_at: string } | null>(null);
   const [commentText, setCommentText] = useState("");
   const [sending, setSending] = useState(false);
+  // Comentario propio abierto en edicion en el hilo: id de la fila + el texto
+  // que se esta escribiendo. Solo uno a la vez, como en el movil.
+  const [editingComment, setEditingComment] = useState<{ id: string; text: string } | null>(null);
+  const [savingComment, setSavingComment] = useState(false);
   const [recording, setRecording] = useState(false);
   const [recordingElapsed, setRecordingElapsed] = useState(0);
   const [pendingAudio, setPendingAudio] = useState<{ blob: Blob; url: string } | null>(null);
@@ -1913,6 +1917,35 @@ export default function OTDetail({
       alert(message);
     } finally {
       setSending(false);
+    }
+  };
+
+  const removeComentario = async (actId: string) => {
+    await deleteComentario(actId);
+    setEditingComment(prev => (prev?.id === actId ? null : prev));
+    await queryClient.invalidateQueries({ queryKey: ["actividad", orden.id] });
+  };
+
+  /* Guardar la edicion. Si el usuario borro todo el texto, Enter no guarda un
+     comentario vacio (la tabla lo rechaza): se lee como que lo quiere eliminar,
+     asi que abre la misma confirmacion que el boton de la papelera. */
+  const saveEditedComment = async () => {
+    if (!editingComment) return;
+    const text = editingComment.text.trim();
+    const actId = editingComment.id;
+    if (!text) {
+      setConfirmDelete({ label: "este comentario", onConfirm: () => removeComentario(actId) });
+      return;
+    }
+    setSavingComment(true);
+    try {
+      await editComentario(actId, text);
+      setEditingComment(null);
+      await queryClient.invalidateQueries({ queryKey: ["actividad", orden.id] });
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "No se pudo editar el comentario.");
+    } finally {
+      setSavingComment(false);
     }
   };
 
@@ -3965,8 +3998,18 @@ export default function OTDetail({
                     ? resolvedComentario
                     : [label, resolvedComentario].filter(Boolean).join(": ");
 
+                  /* Editar/eliminar solo en comentarios propios: el RLS es
+                     author-only, y el resto de las filas son eventos del
+                     sistema. Mismo criterio que el movil (ActivityTab). */
+                  const puedeGestionar = act.tipo === "comentario" && isMine;
+                  const editando = editingComment?.id === act.id;
+
                   return (
-                    <div key={act.id} style={{ display: "flex", gap: 10, padding: "9px 0" }}>
+                    <div
+                      key={act.id}
+                      className={puedeGestionar ? "act-row" : undefined}
+                      style={{ display: "flex", gap: 10, padding: "9px 0", position: "relative" }}
+                    >
                       {tieneAutor ? (
                         <div title={nombre} style={avatarStyle(32)}>
                           {iniciales(nombre)}
@@ -3987,8 +4030,43 @@ export default function OTDetail({
                           {isMine && (
                             <span style={{ fontSize: 14, color: "var(--fg-4)" }}>· tú</span>
                           )}
+                          {act.editado_at && (
+                            <span style={{ fontSize: 14, color: "var(--fg-4)" }}>· editado</span>
+                          )}
                         </div>
-                        {cuerpo && (
+                        {editando ? (
+                          /* Caja de edicion en linea: el texto se reemplaza por
+                             un campo con el borde de marca, igual que el
+                             compositor al enfocarse. */
+                          <div style={{ marginTop: 4 }}>
+                            <textarea
+                              autoFocus
+                              rows={2}
+                              disabled={savingComment}
+                              value={editingComment.text}
+                              onChange={e => setEditingComment({ id: act.id, text: e.target.value })}
+                              onKeyDown={e => {
+                                if (e.key === "Escape") { e.preventDefault(); setEditingComment(null); return; }
+                                if (e.key !== "Enter") return;
+                                if (e.ctrlKey || e.metaKey || e.shiftKey) return;  // salto de linea
+                                e.preventDefault();
+                                saveEditedComment();
+                              }}
+                              style={{
+                                display: "block", width: "100%", boxSizing: "border-box",
+                                minHeight: 56, maxHeight: 200, resize: "vertical",
+                                fontSize: 14, lineHeight: 1.5, fontFamily: "inherit",
+                                padding: "9px 11px", borderRadius: "var(--r-md)",
+                                border: "1px solid var(--brand)", outline: "none",
+                                background: "var(--surface-0)", color: "var(--fg-1)",
+                              }}
+                            />
+                            <div style={{ marginTop: 4, fontSize: 13, color: "var(--fg-4)" }}>
+                              Presiona <span style={{ color: "var(--brand)", fontWeight: 600 }}>Enter</span> para editar el comentario y{" "}
+                              <span style={{ color: "var(--brand)", fontWeight: 600 }}>Esc</span> para cancelar
+                            </div>
+                          </div>
+                        ) : cuerpo ? (
                           <div style={{
                             marginTop: 2, fontSize: 14, lineHeight: 1.6, color: "var(--fg-1)",
                             whiteSpace: "pre-wrap", wordBreak: "break-word",
@@ -3998,7 +4076,7 @@ export default function OTDetail({
                               <span style={{ color: "var(--fg-4)" }}> ×{entry.count}</span>
                             )}
                           </div>
-                        )}
+                        ) : null}
                         {act.foto_url && (
                           // Abre el visor de la app (mismo lightbox que Fotos y
                           // procedimientos) en vez de una pestaña nueva: navegar
@@ -4035,6 +4113,47 @@ export default function OTDetail({
                           </div>
                         )}
                       </div>
+                      {/* Acciones del comentario propio. Aparecen al pasar el
+                          mouse sobre la fila (ver `.act-row` en el <style>): un
+                          par de iconos fijos en cada mensaje era ruido en un
+                          hilo largo. */}
+                      {puedeGestionar && !editando && (
+                        <div
+                          className="act-row-actions"
+                          style={{
+                            position: "absolute", top: 4, right: 0,
+                            display: "flex", alignItems: "center", gap: 2,
+                            padding: 2, borderRadius: 8,
+                            background: "var(--surface-0)", border: "1px solid var(--border)",
+                          }}
+                        >
+                          <button
+                            type="button"
+                            title="Editar comentario"
+                            onClick={() => setEditingComment({ id: act.id, text: act.comentario ?? "" })}
+                            style={{
+                              background: "none", border: "none", padding: 4, cursor: "pointer",
+                              display: "flex", alignItems: "center", color: "var(--brand)",
+                            }}
+                          >
+                            <PenLine size={17} />
+                          </button>
+                          <button
+                            type="button"
+                            title="Eliminar comentario"
+                            onClick={() => setConfirmDelete({
+                              label: "este comentario",
+                              onConfirm: () => removeComentario(act.id),
+                            })}
+                            style={{
+                              background: "none", border: "none", padding: 4, cursor: "pointer",
+                              display: "flex", alignItems: "center", color: "var(--danger)",
+                            }}
+                          >
+                            <Trash2 size={17} />
+                          </button>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -4420,7 +4539,7 @@ export default function OTDetail({
         />
       )}
 
-      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } } @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }`}</style>
+      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } } @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } } .act-row .act-row-actions { opacity: 0; transition: opacity .12s; } .act-row:hover .act-row-actions, .act-row:focus-within .act-row-actions { opacity: 1; }`}</style>
 
       {/* ── Export config modal ── */}
       {exportConfigOpen && (
