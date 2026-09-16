@@ -273,6 +273,8 @@ export interface ActividadOT {
   audio_url: string | null;
   usuario_id: string | null;
   created_at: string;
+  /** Sellado al editar un comentario; la UI lo usa para marcar "editado". */
+  editado_at?: string | null;
   usuario?: Pick<Usuario, "id" | "nombre"> | null;
 }
 

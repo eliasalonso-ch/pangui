@@ -685,7 +685,7 @@ export async function fetchActividad(ordenId: string): Promise<ActividadOT[]> {
   const sb = createClient();
   const { data, error } = await sb
     .from("actividad_ot")
-    .select("id, orden_id, tipo, comentario, foto_url, audio_url, usuario_id, created_at, usuario:usuarios!usuario_id(id, nombre)")
+    .select("id, orden_id, tipo, comentario, foto_url, audio_url, usuario_id, created_at, editado_at, usuario:usuarios!usuario_id(id, nombre)")
     .eq("orden_id", ordenId)
     .order("created_at", { ascending: false });
   if (error) throw error;
@@ -1409,6 +1409,29 @@ export async function addComentario(
   fotoUrl?: string | null,
 ): Promise<void> {
   await insertActividad(ordenId, userId, "comentario", comentario, fotoUrl, audioUrl);
+}
+
+/**
+ * Edita el texto de un comentario. Solo el autor pasa el RLS; los adjuntos
+ * (foto/audio) se dejan como estan — la edicion web es de texto nada mas.
+ * `editado_at` se sella para que la UI pueda marcar "editado", igual que el movil.
+ */
+export async function editComentario(actividadId: string, comentario: string): Promise<void> {
+  const texto = comentario.trim();
+  if (!texto) throw new Error("El comentario no puede quedar vacío.");
+  const sb = createClient();
+  const { error } = await sb
+    .from("actividad_ot")
+    .update({ comentario: texto, editado_at: new Date().toISOString() })
+    .eq("id", actividadId);
+  if (error) throw error;
+}
+
+/** Borra un comentario. Solo el autor pasa el RLS. */
+export async function deleteComentario(actividadId: string): Promise<void> {
+  const sb = createClient();
+  const { error } = await sb.from("actividad_ot").delete().eq("id", actividadId);
+  if (error) throw error;
 }
 
 export async function insertActividad(
