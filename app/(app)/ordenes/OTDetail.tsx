@@ -8,6 +8,7 @@ import { encuadrarFirma } from "@/lib/firma-encuadre";
 import HojaSpreadsheet from "@/components/HojaSpreadsheet";
 import { createHoja } from "@/lib/hojas-api";
 import { notifySolicitudMateriales } from "@/lib/notificar";
+import { tieneItos } from "@/lib/itos-gate";
 import {
   X, Pencil, Trash2, Check, Copy, MapPin, Settings2, User, Flag,
   Calendar, Tag, Send, AlertTriangle, Loader2,
@@ -21,7 +22,7 @@ import {
   Lock, LockOpen, Mic, MicOff, Volume2, GitBranch, Wrench, Link as LinkIcon, Paperclip,
   Phone, Mail, Circle, MessageSquare,
   Minus, ArrowUp, ArrowDown, RotateCw, UserRoundX, UserRoundCheck, Zap, Locate, Contact,
-  Boxes,
+  Box, Clock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { LinksDisplay } from "@/components/LinksInput";
@@ -34,7 +35,7 @@ import {
 import {
   updateOrdenEstado, updateOrdenPrioridad, updateOrden,
   iniciarOrden, pausarOrden, reanudarOrden, completarOrden,
-  fetchActividad, addComentario,
+  fetchActividad, addComentario, editComentario, deleteComentario,
   uploadOrdenFoto, addOrdenFoto, removeOrdenFoto,
   parseDescMeta, fetchOrden, fetchSubOrdenes, createSubOrden,
 } from "@/lib/ordenes-api";
@@ -51,7 +52,7 @@ import type { FotoGrupo } from "@/lib/foto-grupos-api";
 import { FotosGaleria } from "./FotosGaleria";
 import { optimizedImageUrl } from "@/lib/image-cdn";
 import {
-  getOTProcedimientos,
+  getOTProcedimientos, detachProcedimiento,
   startEjecucion, saveRespuesta, completeEjecucion, maybeTriggerCorrectiva,
 } from "@/lib/procedimientos-api";
 import type {
@@ -259,7 +260,9 @@ function ActivoSection({ activo, onEstadoChanged }: {
             border: "1px solid var(--border)",
             display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
           }}>
-            <Boxes size={16} />
+            {/* Box, no Boxes: es el mismo icono que Activos en la barra lateral
+                (Boxes es el de Materiales, y usarlo acá los confundía). */}
+            <Box size={16} />
           </span>
         )}
 
@@ -708,6 +711,10 @@ export default function OTDetail({
   const [latestPause, setLatestPause] = useState<{ comentario: string | null; created_at: string } | null>(null);
   const [commentText, setCommentText] = useState("");
   const [sending, setSending] = useState(false);
+  // Comentario propio abierto en edicion en el hilo: id de la fila + el texto
+  // que se esta escribiendo. Solo uno a la vez, como en el movil.
+  const [editingComment, setEditingComment] = useState<{ id: string; text: string } | null>(null);
+  const [savingComment, setSavingComment] = useState(false);
   const [recording, setRecording] = useState(false);
   const [recordingElapsed, setRecordingElapsed] = useState(0);
   const [pendingAudio, setPendingAudio] = useState<{ blob: Blob; url: string } | null>(null);
@@ -854,7 +861,12 @@ export default function OTDetail({
     { key: "tipo_trabajo",    label: "Tipo de trabajo",      group: "Información general" },
     { key: "categoria",       label: "Categoría",            group: "Información general" },
     { key: "solicitante",     label: "Solicitante",          group: "Información general" },
-    { key: "hito",            label: "ITO",                  group: "Información general" },
+    // ITO es exclusivo de Electrilam: ofrecer la casilla en otros workspaces
+    // exportaba un campo que siempre sale vacío. Mismo criterio que el menú
+    // "Más" de la app móvil (constants/index.ts).
+    ...(tieneItos(wsId)
+      ? [{ key: "hito" as const, label: "ITO", group: "Información general" }]
+      : []),
     { key: "descripcion",     label: "Descripción",          group: "Información general" },
     { key: "asignados",       label: "Asignados",            group: "Personas y ubicación" },
     { key: "empresa",         label: "Empresa",              group: "Personas y ubicación" },
@@ -911,6 +923,8 @@ export default function OTDetail({
   // ── Procedimientos state ─────────────────────────────────────────────────────
   const [otProcs, setOtProcs] = useState<OTProcedimiento[]>([]);
   const [loadingProcs, setLoadingProcs] = useState(false);
+  // Menú "⋮" del procedimiento visible en el carrusel.
+  const [procMenuOpen, setProcMenuOpen] = useState(false);
   // Pending destructive action awaiting confirmation (shared across the tab —
   // procedures, photo groups, individual photos, materials). Guards accidental clicks.
   const [confirmDelete, setConfirmDelete] = useState<ConfirmDelete | null>(null);
@@ -1914,6 +1928,35 @@ export default function OTDetail({
     }
   };
 
+  const removeComentario = async (actId: string) => {
+    await deleteComentario(actId);
+    setEditingComment(prev => (prev?.id === actId ? null : prev));
+    await queryClient.invalidateQueries({ queryKey: ["actividad", orden.id] });
+  };
+
+  /* Guardar la edicion. Si el usuario borro todo el texto, Enter no guarda un
+     comentario vacio (la tabla lo rechaza): se lee como que lo quiere eliminar,
+     asi que abre la misma confirmacion que el boton de la papelera. */
+  const saveEditedComment = async () => {
+    if (!editingComment) return;
+    const text = editingComment.text.trim();
+    const actId = editingComment.id;
+    if (!text) {
+      setConfirmDelete({ label: "este comentario", onConfirm: () => removeComentario(actId) });
+      return;
+    }
+    setSavingComment(true);
+    try {
+      await editComentario(actId, text);
+      setEditingComment(null);
+      await queryClient.invalidateQueries({ queryKey: ["actividad", orden.id] });
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "No se pudo editar el comentario.");
+    } finally {
+      setSavingComment(false);
+    }
+  };
+
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -1992,7 +2035,12 @@ export default function OTDetail({
   };
 
   const meta = parseDescMeta(orden.descripcion ?? null);
-  const nOT  = meta.nOT ?? `OT-${orden.id.slice(-8).toUpperCase()}`;
+  // `orden.numero` primero: es el correlativo que la gente usa para hablar de
+  // la OT ("la 548"). `meta.nOT` sale del texto de la descripción y suele traer
+  // el folio largo del cliente, que en la cabecera del PDF no dice nada.
+  const nOT  = orden.numero != null
+    ? String(orden.numero)
+    : (meta.nOT ?? `OT-${orden.id.slice(-8).toUpperCase()}`);
 
   function handleExportPDF() {
     setExportMenuOpen(false);
@@ -3055,59 +3103,15 @@ export default function OTDetail({
                   <DetailBadge icon={prioIcon} iconColor={prioSolid}>{prioLabel}</DetailBadge>
                 )}
               </div>
-            </div>
-            {orden.parent_id && (
-              <button
-                type="button"
-                onClick={() => orden.parent_id && openOrden(orden.parent_id)}
-                style={{
-                  width: "100%", display: "flex", alignItems: "center", gap: 10,
-                  marginBottom: 14, padding: "10px 12px",
-                  border: "1px solid var(--brand-tint-2)", borderRadius: "var(--r-md)",
-                  background: "var(--brand-tint)", color: "var(--brand-fg)",
-                  cursor: "pointer", textAlign: "left", fontFamily: "inherit",
-                }}
-              >
-                <GitBranch size={15} style={{ flexShrink: 0 }} />
-                <span style={{ flex: 1, minWidth: 0 }}>
-                  <span style={{ display: "block", fontSize: 14, fontWeight: 400 }}>Sub-OT · Ver orden principal</span>
-                  {parentOrden?.titulo && (
-                    <span style={{ display: "block", marginTop: 2, fontSize: 14, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {parentOrden.titulo}
-                    </span>
-                  )}
-                </span>
-                <ChevronDown size={14} style={{ transform: "rotate(-90deg)" }} />
-              </button>
-            )}
-
-            {/* N° OT badge */}
-            {meta.nOT && (
-              <div style={{ paddingTop: 16 }}>
-                <p style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", letterSpacing: "0.01em", margin: "0 0 8px" }}>N° de OT</p>
-                <NOTBadge nOT={meta.nOT} />
-              </div>
-            )}
-
-            {/* Description */}
-            {meta.descripcion && (
-              <div style={{ paddingTop: 16 }}>
-                <p style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", letterSpacing: "0.01em", margin: "0 0 8px" }}>Descripción</p>
-                <p style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-2)", lineHeight: 1.75, whiteSpace: "pre-wrap", margin: 0 }}>{meta.descripcion}</p>
-              </div>
-            )}
-
             {/* Estado */}
             {(() => {
               // Solid per-status fill when selected; the unselected state always
               // shows the brand blue (see button styles below).
               return (
-                <div style={{
-                  marginLeft: -28, marginRight: -28,
-                  paddingLeft: 28, paddingRight: 28,
-                  paddingTop: 16, paddingBottom: 16,
-                  borderBottom: "1px solid var(--border)",
-                }}>
+                // Sin el sangrado -28/+28 ni borderBottom propios: este bloque
+                // ahora vive DENTRO del encabezado, que ya los aplica. Repetirlos
+                // sacaba los botones 28px fuera del panel y pintaba dos bordes.
+                <div style={{ marginTop: 16 }}>
                   <p style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", letterSpacing: "0.01em", margin: "0 0 12px" }}>Estado</p>
                   <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
                     {ESTADOS.map(e => {
@@ -3241,6 +3245,47 @@ export default function OTDetail({
                 </div>
               );
             })()}
+            </div>
+            {orden.parent_id && (
+              <button
+                type="button"
+                onClick={() => orden.parent_id && openOrden(orden.parent_id)}
+                style={{
+                  width: "100%", display: "flex", alignItems: "center", gap: 10,
+                  marginBottom: 14, padding: "10px 12px",
+                  border: "1px solid var(--brand-tint-2)", borderRadius: "var(--r-md)",
+                  background: "var(--brand-tint)", color: "var(--brand-fg)",
+                  cursor: "pointer", textAlign: "left", fontFamily: "inherit",
+                }}
+              >
+                <GitBranch size={15} style={{ flexShrink: 0 }} />
+                <span style={{ flex: 1, minWidth: 0 }}>
+                  <span style={{ display: "block", fontSize: 14, fontWeight: 400 }}>Sub-OT · Ver orden principal</span>
+                  {parentOrden?.titulo && (
+                    <span style={{ display: "block", marginTop: 2, fontSize: 14, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {parentOrden.titulo}
+                    </span>
+                  )}
+                </span>
+                <ChevronDown size={14} style={{ transform: "rotate(-90deg)" }} />
+              </button>
+            )}
+
+            {/* N° OT badge */}
+            {meta.nOT && (
+              <div style={{ paddingTop: 16 }}>
+                <p style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", letterSpacing: "0.01em", margin: "0 0 8px" }}>N° de OT</p>
+                <NOTBadge nOT={meta.nOT} />
+              </div>
+            )}
+
+            {/* Description */}
+            {meta.descripcion && (
+              <div style={{ paddingTop: 16 }}>
+                <p style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", letterSpacing: "0.01em", margin: "0 0 8px" }}>Descripción</p>
+                <p style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-2)", lineHeight: 1.75, whiteSpace: "pre-wrap", margin: 0 }}>{meta.descripcion}</p>
+              </div>
+            )}
 
             {/* Pause-reason banner (en_espera). Highlights "Reprogramar" because
                 it carries a user-coordinated date the supervisor should see. */}
@@ -3487,6 +3532,10 @@ export default function OTDetail({
                 orden.fecha_termino && { label: "Fecha de vencimiento", value: fmtFechaLocal(orden.fecha_termino), icon: <Calendar size={16} /> },
                 orden.fecha_inicio && { label: "Fecha de inicio", value: fmtFechaLocal(orden.fecha_inicio), icon: <Calendar size={16} /> },
                 (orden.tiempo_total_segundos != null && orden.tiempo_total_segundos > 0) && { label: "Tiempo total", value: fmtSecs(orden.tiempo_total_segundos), icon: <RotateCcw size={16} /> },
+                // tiempo_estimado viene en MINUTOS y fmtSecs espera segundos.
+                // Va junto a "Tiempo total" a propósito: lo estimado contra lo
+                // realmente trabajado es la comparación que interesa.
+                (orden.tiempo_estimado != null && orden.tiempo_estimado > 0) && { label: "Tiempo estimado", value: fmtSecs(orden.tiempo_estimado * 60), icon: <Clock size={16} /> },
               ].filter(Boolean).map((field: any) => (
                 <div key={field.label}>
                   <p style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", letterSpacing: "0.01em", marginBottom: 7, marginTop: 0 }}>{field.label}</p>
@@ -3656,6 +3705,82 @@ export default function OTDetail({
                         </button>
                       </div>
                     )}
+                    {/* Quitar el procedimiento de la OT. Solo mientras no tenga
+                        respuestas: `detachProcedimiento` borra el vínculo pero
+                        no la ejecución, así que quitar uno ya respondido dejaría
+                        las respuestas huérfanas en la base — evidencia que
+                        desaparece de la vista sin quedar registrada. */}
+                    {canFillProcs && (() => {
+                      const visible = otProcs.find(o => o.id === procVisibleId) ?? otProcs[0];
+                      if (!visible) return null;
+                      const respuestas = visible.ejecucion?.respuestas?.length ?? 0;
+                      return (
+                        <div style={{ position: "relative", marginLeft: 6 }}>
+                          <button
+                            type="button"
+                            onClick={() => setProcMenuOpen(o => !o)}
+                            aria-label="Opciones del procedimiento"
+                            style={{
+                              width: 26, height: 26, display: "flex", alignItems: "center", justifyContent: "center",
+                              border: "1px solid var(--border)", borderRadius: "var(--r-xs)",
+                              background: "var(--surface-1)", cursor: "pointer", color: "var(--fg-2)",
+                            }}
+                          >
+                            <MoreVertical size={14} />
+                          </button>
+                          {procMenuOpen && (
+                            <>
+                              <div
+                                onClick={() => setProcMenuOpen(false)}
+                                style={{ position: "fixed", inset: 0, zIndex: 40 }}
+                              />
+                              <div style={{
+                                position: "absolute", top: 30, right: 0, zIndex: 41, minWidth: 210,
+                                background: "var(--surface-1)", border: "1px solid var(--border)",
+                                borderRadius: "var(--r-md)", boxShadow: "var(--shadow-lg)", padding: 4,
+                              }}>
+                                <button
+                                  type="button"
+                                  disabled={respuestas > 0}
+                                  title={respuestas > 0
+                                    ? "No se puede quitar: el procedimiento ya tiene respuestas registradas."
+                                    : undefined}
+                                  onClick={() => {
+                                    setProcMenuOpen(false);
+                                    setConfirmDelete({
+                                      title: "¿Quitar este procedimiento de la OT?",
+                                      description: visible.procedimiento?.nombre ?? undefined,
+                                      confirmLabel: "Quitar",
+                                      onConfirm: async () => {
+                                        await detachProcedimiento(orden.id, visible.procedimiento_id);
+                                        const frescos = await getOTProcedimientos(orden.id);
+                                        setOtProcs(frescos);
+                                        setProcVisibleId(frescos[0]?.id ?? null);
+                                      },
+                                    });
+                                  }}
+                                  style={{
+                                    display: "flex", alignItems: "center", gap: 8, width: "100%",
+                                    padding: "8px 10px", border: "none", borderRadius: "var(--r-sm)",
+                                    background: "none", fontFamily: "inherit", fontSize: 14,
+                                    textAlign: "left",
+                                    color: respuestas > 0 ? "var(--fg-4)" : "var(--danger)",
+                                    cursor: respuestas > 0 ? "default" : "pointer",
+                                  }}
+                                >
+                                  <Trash2 size={14} /> Quitar de esta OT
+                                </button>
+                                {respuestas > 0 && (
+                                  <div style={{ padding: "2px 10px 8px", fontSize: 14, color: "var(--fg-4)", lineHeight: 1.4 }}>
+                                    Ya tiene {respuestas} {respuestas === 1 ? "respuesta" : "respuestas"}.
+                                  </div>
+                                )}
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
                 );
               })()}
@@ -3962,8 +4087,18 @@ export default function OTDetail({
                     ? resolvedComentario
                     : [label, resolvedComentario].filter(Boolean).join(": ");
 
+                  /* Editar/eliminar solo en comentarios propios: el RLS es
+                     author-only, y el resto de las filas son eventos del
+                     sistema. Mismo criterio que el movil (ActivityTab). */
+                  const puedeGestionar = act.tipo === "comentario" && isMine;
+                  const editando = editingComment?.id === act.id;
+
                   return (
-                    <div key={act.id} style={{ display: "flex", gap: 10, padding: "9px 0" }}>
+                    <div
+                      key={act.id}
+                      className={puedeGestionar ? "act-row" : undefined}
+                      style={{ display: "flex", gap: 10, padding: "9px 0", position: "relative" }}
+                    >
                       {tieneAutor ? (
                         <div title={nombre} style={avatarStyle(32)}>
                           {iniciales(nombre)}
@@ -3984,8 +4119,43 @@ export default function OTDetail({
                           {isMine && (
                             <span style={{ fontSize: 14, color: "var(--fg-4)" }}>· tú</span>
                           )}
+                          {act.editado_at && (
+                            <span style={{ fontSize: 14, color: "var(--fg-4)" }}>· editado</span>
+                          )}
                         </div>
-                        {cuerpo && (
+                        {editando ? (
+                          /* Caja de edicion en linea: el texto se reemplaza por
+                             un campo con el borde de marca, igual que el
+                             compositor al enfocarse. */
+                          <div style={{ marginTop: 4 }}>
+                            <textarea
+                              autoFocus
+                              rows={2}
+                              disabled={savingComment}
+                              value={editingComment.text}
+                              onChange={e => setEditingComment({ id: act.id, text: e.target.value })}
+                              onKeyDown={e => {
+                                if (e.key === "Escape") { e.preventDefault(); setEditingComment(null); return; }
+                                if (e.key !== "Enter") return;
+                                if (e.ctrlKey || e.metaKey || e.shiftKey) return;  // salto de linea
+                                e.preventDefault();
+                                saveEditedComment();
+                              }}
+                              style={{
+                                display: "block", width: "100%", boxSizing: "border-box",
+                                minHeight: 56, maxHeight: 200, resize: "vertical",
+                                fontSize: 14, lineHeight: 1.5, fontFamily: "inherit",
+                                padding: "9px 11px", borderRadius: "var(--r-md)",
+                                border: "1px solid var(--brand)", outline: "none",
+                                background: "var(--surface-0)", color: "var(--fg-1)",
+                              }}
+                            />
+                            <div style={{ marginTop: 4, fontSize: 13, color: "var(--fg-4)" }}>
+                              Presiona <span style={{ color: "var(--brand)", fontWeight: 600 }}>Enter</span> para editar el comentario y{" "}
+                              <span style={{ color: "var(--brand)", fontWeight: 600 }}>Esc</span> para cancelar
+                            </div>
+                          </div>
+                        ) : cuerpo ? (
                           <div style={{
                             marginTop: 2, fontSize: 14, lineHeight: 1.6, color: "var(--fg-1)",
                             whiteSpace: "pre-wrap", wordBreak: "break-word",
@@ -3995,7 +4165,7 @@ export default function OTDetail({
                               <span style={{ color: "var(--fg-4)" }}> ×{entry.count}</span>
                             )}
                           </div>
-                        )}
+                        ) : null}
                         {act.foto_url && (
                           // Abre el visor de la app (mismo lightbox que Fotos y
                           // procedimientos) en vez de una pestaña nueva: navegar
@@ -4032,6 +4202,47 @@ export default function OTDetail({
                           </div>
                         )}
                       </div>
+                      {/* Acciones del comentario propio. Aparecen al pasar el
+                          mouse sobre la fila (ver `.act-row` en el <style>): un
+                          par de iconos fijos en cada mensaje era ruido en un
+                          hilo largo. */}
+                      {puedeGestionar && !editando && (
+                        <div
+                          className="act-row-actions"
+                          style={{
+                            position: "absolute", top: 4, right: 0,
+                            display: "flex", alignItems: "center", gap: 2,
+                            padding: 2, borderRadius: 8,
+                            background: "var(--surface-0)", border: "1px solid var(--border)",
+                          }}
+                        >
+                          <button
+                            type="button"
+                            title="Editar comentario"
+                            onClick={() => setEditingComment({ id: act.id, text: act.comentario ?? "" })}
+                            style={{
+                              background: "none", border: "none", padding: 4, cursor: "pointer",
+                              display: "flex", alignItems: "center", color: "var(--brand)",
+                            }}
+                          >
+                            <PenLine size={17} />
+                          </button>
+                          <button
+                            type="button"
+                            title="Eliminar comentario"
+                            onClick={() => setConfirmDelete({
+                              label: "este comentario",
+                              onConfirm: () => removeComentario(act.id),
+                            })}
+                            style={{
+                              background: "none", border: "none", padding: 4, cursor: "pointer",
+                              display: "flex", alignItems: "center", color: "var(--danger)",
+                            }}
+                          >
+                            <Trash2 size={17} />
+                          </button>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -4417,7 +4628,7 @@ export default function OTDetail({
         />
       )}
 
-      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } } @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }`}</style>
+      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } } @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } } .act-row .act-row-actions { opacity: 0; transition: opacity .12s; } .act-row:hover .act-row-actions, .act-row:focus-within .act-row-actions { opacity: 1; }`}</style>
 
       {/* ── Export config modal ── */}
       {exportConfigOpen && (
@@ -4684,7 +4895,13 @@ function isAnsweredForType(paso: ProcedimientoPaso, resp: PendingResp | undefine
     case "inspeccion":     return resp.valor_json != null;
     case "imagen":         return !!resp.foto_url;
     case "archivo":        return !!resp.archivo_url;
-    case "firma":          return !!resp.firma_svg;
+    // Firmante externo (cliente, establecimiento): el trazo sin nombre no
+    // acredita a nadie, y `respondido_por` es el tecnico que sostiene el
+    // telefono. Se exigen los dos o el paso no cuenta como respondido.
+    case "firma":
+      return paso.rol_firmante != null && paso.rol_firmante !== "tecnico"
+        ? !!resp.firma_svg && !!resp.firmado_nombre?.trim()
+        : !!resp.firma_svg;
     case "fecha":
     case "hora":
     case "fecha_hora":     return !!resp.valor_fecha;
@@ -5147,6 +5364,14 @@ function ReadonlyAnswer({ paso, resp, onPhotoClick }: { paso: ProcedimientoPaso;
             }}
           >
             <FirmaImagen src={src} altoBase={200} />
+            {/* El trazo solo no dice quien firmo. Para un firmante externo
+                (cliente, establecimiento) `firmado_nombre` es el unico dato que
+                lo identifica, y sin mostrarlo aca la firma se revisa a ciegas. */}
+            {resp.firmado_nombre && (
+              <span style={{ display: "block", marginTop: 6, fontSize: 14, color: "#0F172A" }}>
+                {resp.firmado_nombre}
+              </span>
+            )}
           </button>
         )
         : <div style={{ fontSize: 14, color: "var(--success)", marginTop: 4 }}>✓ Firmado</div>;
@@ -5204,6 +5429,11 @@ function SignatureCanvas({
   // The signature is uploaded to R2 before it is saved, so the button has to
   // stay busy across the round-trip and not just the parent's write.
   const [uploading, setUploading] = useState(false);
+  // `cleared` recuerda que se limpio un lienzo que tenia una firma ya guardada.
+  // Sin esto el useEffect de abajo, que depende de existingDataUrl, vuelve a
+  // pintar la firma vieja encima apenas React re-renderiza, y el usuario no
+  // logra reemplazarla: firma de nuevo y termina guardando la anterior.
+  const [cleared, setCleared] = useState(false);
 
   // Runs when the modal opens: the canvas is unmounted until then, so the
   // context has to be configured (and any existing signature redrawn) each time.
@@ -5220,7 +5450,7 @@ function SignatureCanvas({
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
     ctx.fillStyle = "#0F172A";
-    const normalizedExisting = signatureImageSrc(existingDataUrl);
+    const normalizedExisting = cleared ? null : signatureImageSrc(existingDataUrl);
     if (normalizedExisting) {
       const img = new window.Image();
       // Flag the strokes only once the bitmap is actually on the canvas, so a
@@ -5232,7 +5462,11 @@ function SignatureCanvas({
       };
       img.src = normalizedExisting;
     }
-  }, [open, existingDataUrl]);
+  }, [open, existingDataUrl, cleared]);
+
+  // Cada apertura del modal empieza limpia: `cleared` solo describe lo que pasó
+  // dentro de la sesión de firma actual.
+  useEffect(() => { if (open) setCleared(false); }, [open]);
 
   function getPos(e: React.MouseEvent | React.TouchEvent) {
     const canvas = canvasRef.current;
@@ -5258,6 +5492,9 @@ function SignatureCanvas({
     ctx.beginPath();
     ctx.arc(pos.x, pos.y, 1.2, 0, Math.PI * 2);
     ctx.fill();
+    // Este punto ya es tinta: sin esto, un toque sin arrastrar dibuja pero deja
+    // "Guardar" deshabilitado, porque setHasStrokes solo vivia en draw().
+    setHasStrokes(true);
     setSaved(false);
   }
 
@@ -5287,6 +5524,7 @@ function SignatureCanvas({
     canvas.getContext("2d")!.clearRect(0, 0, canvas.width, canvas.height);
     setHasStrokes(false);
     setSaved(false);
+    setCleared(true);
   }
 
   /**
@@ -5565,7 +5803,7 @@ function PasoInput({
    * what is already stored, so tabbing through a form issues no requests.
    */
   const saveIfDirty = () => {
-    const keys: (keyof PendingResp)[] = ["valor_texto", "valor_medido", "notas", "valor_fecha"];
+    const keys: (keyof PendingResp)[] = ["valor_texto", "valor_medido", "notas", "valor_fecha", "firmado_nombre"];
     const dirty = keys.some(k => resp[k] !== undefined && resp[k] !== (existingResp as any)?.[k]);
     if (dirty) onSave();
   };
@@ -5833,12 +6071,29 @@ function PasoInput({
   }
 
   if (paso.tipo === "firma") {
+    // Un trazo no dice quien firmo. Cuando el firmante es alguien de fuera del
+    // sistema (el cliente, el establecimiento), `respondido_por` es el tecnico
+    // que sostiene el telefono y no hay usuario que resolver, asi que sin este
+    // campo el informe sale con la firma dibujada y un guion debajo.
+    const esFirmanteExterno = paso.rol_firmante != null && paso.rol_firmante !== "tecnico";
+    const nombreFirmante = (val("firmado_nombre") as string | null | undefined) ?? "";
+
     return (
       <div>
         {paso.rol_firmante && (
           <div style={{ fontSize: 14, color: "var(--fg-2)", marginBottom: 6 }}>
             Firma de: <strong>{paso.rol_firmante}</strong>
           </div>
+        )}
+        {esFirmanteExterno && (
+          <input
+            type="text"
+            value={nombreFirmante}
+            onChange={e => onUpdate({ firmado_nombre: e.target.value })}
+            onBlur={saveIfDirty}
+            placeholder="Nombre de quien firma"
+            style={{ ...inputStyle, marginBottom: 8, maxWidth: 320 }}
+          />
         )}
         <SignatureCanvas
           ordenId={ordenId}
@@ -5847,8 +6102,10 @@ function PasoInput({
           onSave={dataUrl => onSave(dataUrl
             ? { firma_svg: dataUrl, firmado_at: new Date().toISOString() }
             // Empty means the user cleared it: wipe the signature and its
-            // timestamp rather than storing a blank image.
-            : { firma_svg: null, firmado_at: null })}
+            // timestamp rather than storing a blank image. El nombre se va con
+            // el trazo: un nombre sin firma acreditaria una recepcion que se
+            // acaba de borrar.
+            : { firma_svg: null, firmado_at: null, firmado_nombre: null })}
         />
       </div>
     );
@@ -6135,11 +6392,19 @@ function PasoExtras({
       {showNota && (
         <textarea
           value={nota}
-          onChange={e => onNotaChange(e.target.value)}
+          // Crece con el contenido en vez de dejar la nota larga dentro de una
+          // caja de 64px que hay que arrastrar: el técnico tiene que poder
+          // releer lo que escribió antes de cerrar el paso.
+          ref={el => { if (el) { el.style.height = "auto"; el.style.height = `${el.scrollHeight}px`; } }}
+          onChange={e => {
+            e.currentTarget.style.height = "auto";
+            e.currentTarget.style.height = `${e.currentTarget.scrollHeight}px`;
+            onNotaChange(e.target.value);
+          }}
           onBlur={e => { e.currentTarget.style.borderColor = "var(--border)"; onNotaCommit(); }}
           placeholder="Introducir nota"
           rows={2}
-          style={{ ...inputStyle, height: "auto", minHeight: 64, padding: "9px 12px", resize: "vertical", lineHeight: 1.5 }}
+          style={{ ...inputStyle, height: "auto", minHeight: 64, padding: "9px 12px", resize: "vertical", lineHeight: 1.5, overflow: "hidden" }}
           onFocus={e => { e.currentTarget.style.borderColor = "var(--brand)"; }}
         />
       )}

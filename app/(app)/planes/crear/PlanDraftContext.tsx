@@ -19,7 +19,13 @@ import { createContext, useContext, useState, type ReactNode } from "react";
 export interface PlantillaOT {
   titulo: string;
   descripcion: string;
+  /**
+   * Primera categoría elegida. Se conserva porque es lo que guarda el plan y
+   * lee el resto de la app; `categoria_ids` es la selección completa.
+   */
   categoria_id: string;
+  /** Selección múltiple del formulario (la primera se refleja en categoria_id). */
+  categoria_ids: string[];
   prioridad: string;
   asignados_ids: string[];
   tiempo_h: string;
@@ -40,6 +46,7 @@ export const PLANTILLA_VACIA: PlantillaOT = {
   titulo: "",
   descripcion: "",
   categoria_id: "",
+  categoria_ids: [],
   prioridad: "ninguna",
   asignados_ids: [],
   tiempo_h: "",

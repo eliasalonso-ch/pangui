@@ -17,9 +17,10 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  Boxes, Gauge, Loader2, MapPin, MoreVertical, Pencil, Plus, Search, User, Wifi, X,
+  Box, Gauge, Inbox, Loader2, MapPin, MoreVertical, Pencil, Plus, Search, User, Wifi, X,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase";
 import { useDeepLinkId } from "@/lib/use-deep-link-id";
@@ -100,6 +101,7 @@ export default function MedidoresPage() {
 }
 
 function MedidoresPageInner() {
+  const router = useRouter();
   const queryClient = useQueryClient();
   const [wsId, setWsId] = useState<string | null>(null);
   const [rol, setRol] = useState<string | null>(null);
@@ -443,6 +445,7 @@ function MedidoresPageInner() {
                 onEditar={() => setEditando(detalle)}
                 onVerTodas={() => setHistorialId(detalle.id)}
                 onEliminar={() => eliminar(detalle)}
+                onNuevaOT={() => router.push(`/ordenes?panel=crear&medidor=${detalle.id}`)}
               />
             </div>
           ) : (
@@ -510,13 +513,15 @@ function MedidorRow({ m, selected, onOpen }: {
         </span>
         {m.activo_nombre && (
           <span style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 3, fontSize: 14, color: "var(--fg-3)", overflow: "hidden" }}>
-            <Boxes size={13} style={{ flexShrink: 0, color: "var(--fg-4)" }} />
+            {/* Box (no Boxes) y en azul: mismo icono que Activos en la barra
+                lateral. Boxes es el de Materiales. */}
+            <Box size={13} style={{ flexShrink: 0, color: "var(--brand)" }} />
             <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m.activo_nombre}</span>
           </span>
         )}
         {m.ubicacion_nombre && (
           <span style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 2, fontSize: 14, color: "var(--fg-3)", overflow: "hidden" }}>
-            <MapPin size={13} style={{ flexShrink: 0, color: "var(--fg-4)" }} />
+            <MapPin size={13} style={{ flexShrink: 0, color: "var(--brand)" }} />
             <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m.ubicacion_nombre}</span>
           </span>
         )}
@@ -588,7 +593,7 @@ function Dato({ label, valor, color, nota }: {
   );
 }
 
-function MedidorDetalle({ m, isAdmin, tic, onRegistrar, onEditar, onVerTodas, onEliminar }: {
+function MedidorDetalle({ m, isAdmin, tic, onRegistrar, onEditar, onVerTodas, onEliminar, onNuevaOT }: {
   m: MedidorConUltima;
   isAdmin: boolean;
   tic: number;
@@ -596,6 +601,7 @@ function MedidorDetalle({ m, isAdmin, tic, onRegistrar, onEditar, onVerTodas, on
   onEditar: () => void;
   onVerTodas: () => void;
   onEliminar: () => void;
+  onNuevaOT: () => void;
 }) {
   const nivel = m.ultima ? nivelDeLectura(m.ultima.valor, m) : null;
   const prox = proximaLectura(m);
@@ -734,6 +740,29 @@ function MedidorDetalle({ m, isAdmin, tic, onRegistrar, onEditar, onVerTodas, on
           viene a mirar. */}
       <div style={seccionDetalle}>
         <MedidorAnalitica medidor={m} refrescar={tic} onVerTodas={onVerTodas} />
+      </div>
+
+      {/* CTA fija al pie: mismo pie que /categorias y /itos. Acá abre la OT con
+          el procedimiento de lectura de ESTE medidor ya adjunto, así que la
+          lectura que tome el técnico entra sola a la serie de arriba. */}
+      <div style={{
+        position: "sticky", bottom: 0, zIndex: 10,
+        marginLeft: -28, marginRight: -28, marginBottom: -76,
+        padding: "14px 18px", borderTop: "1px solid var(--border)",
+        background: "var(--surface-canvas)", display: "flex", justifyContent: "center",
+      }}>
+        <button
+          onClick={onNuevaOT}
+          style={{
+            display: "flex", alignItems: "center", gap: 8, height: 36, padding: "0 16px",
+            border: "1px solid var(--brand)", borderRadius: "var(--r-md)",
+            background: "var(--surface-canvas)", cursor: "pointer",
+            fontSize: 14, fontWeight: 400, color: "var(--brand)", fontFamily: "inherit",
+          }}
+        >
+          <Inbox size={14} />
+          Utilizar en una nueva orden de trabajo
+        </button>
       </div>
     </div>
   );

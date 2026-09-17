@@ -576,6 +576,7 @@ export default function ProcedimientoBuilder({ editId, initialNombre, initialDes
             {/* Paleta */}
             <div style={{
               width: 190, flexShrink: 0, position: "sticky", top: 0,
+              maxHeight: "100vh", overflowY: "auto",
               background: "var(--surface-1)", border: "1px solid var(--border)",
               borderRadius: 12, padding: "14px 12px",
               boxShadow: "0 1px 3px rgba(15,23,42,0.06)",
@@ -765,10 +766,14 @@ function PasoEditor({
 
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+            {/* Wrap a 2 líneas en vez de truncar: los títulos de pauta real
+                ("Cable de poder y conectores en buen estado") no caben en una
+                sola y el ellipsis escondía justo la parte que los distingue. */}
             <span style={{
-              fontSize: 14, fontWeight: 400,
+              fontSize: 14, fontWeight: 400, lineHeight: 1.35,
               color: paso.titulo ? "var(--fg-1)" : "var(--fg-4)",
-              overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+              overflow: "hidden", overflowWrap: "anywhere",
+              display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical",
             }}>
               {paso.titulo || meta.label}
             </span>

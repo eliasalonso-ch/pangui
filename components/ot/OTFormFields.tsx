@@ -13,6 +13,15 @@ import { useState, useEffect, useRef } from "react";
 import { ChevronDown, Check, User, X } from "lucide-react";
 import type { Usuario } from "@/types/ordenes";
 
+/**
+ * Ancho de los botones "Asignar técnico" y "Asignar una cuadrilla".
+ *
+ * Van uno debajo del otro y sin un ancho común cada uno medía lo que su texto,
+ * dejándolos escalonados. Se exporta para que CuadrillaQuickAdd use el mismo
+ * valor y no haya dos números que mantener sincronizados a mano.
+ */
+export const ASIGNAR_BTN_WIDTH = 210;
+
 // ── Shared field row ─────────────────────────────────────
 
 export function FieldRow({ icon, label, children }: {
@@ -204,14 +213,19 @@ export function AssigneeSelect({ usuarios, value, onChange }: {
         type="button"
         onClick={() => { setOpen(!open); setQuery(""); }}
         style={{
-          height: 36, display: "flex", alignItems: "center", gap: 8,
-          padding: "0 10px", border: "1px solid var(--border)", borderRadius: 6,
-          background: "var(--surface-1)", fontSize: 14, color: "var(--fg-3)",
-          cursor: "pointer",
+          // Mismas medidas que CuadrillaQuickAdd: los dos botones se apilan uno
+          // sobre el otro y un ancho distinto los dejaba escalonados. El ancho
+          // es fijo porque si no cada uno mide lo que su propio texto.
+          width: ASIGNAR_BTN_WIDTH,
+          height: 40, display: "flex", alignItems: "center", gap: 8,
+          padding: "0 12px", border: "1px solid var(--border)", borderRadius: 8,
+          background: "var(--surface-1)", fontSize: 14, color: "var(--fg-4)",
+          cursor: "pointer", fontFamily: "inherit",
         }}
       >
         <User size={14} />
         Asignar técnico
+        <ChevronDown size={12} style={{ color: "var(--fg-4)", marginLeft: "auto" }} />
       </button>
 
       {open && (

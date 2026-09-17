@@ -52,6 +52,8 @@ export type CreateWorkOrderPayloadV1 = {
   fecha_inicio?: string | null;
   fecha_termino?: string | null;
   imagen_url?: string | null;
+  /** Duración estimada en MINUTOS (así lo guarda ordenes_trabajo.tiempo_estimado). */
+  tiempo_estimado?: number | null;
   links?: OTLink[];
 };
 

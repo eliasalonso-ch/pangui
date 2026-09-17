@@ -123,6 +123,9 @@ function planAPlantilla(p: PlanMantencion): PlantillaOT {
     titulo: p.titulo_ot ?? "",
     descripcion: p.descripcion_ot ?? "",
     categoria_id: p.categoria_id ?? "",
+    // El plan guarda una sola categoría; al editar, la selección múltiple
+    // arranca con esa.
+    categoria_ids: p.categoria_id ? [p.categoria_id] : [],
     prioridad: p.prioridad ?? "ninguna",
     asignados_ids: p.asignados_ids ?? [],
     tiempo_h: horas ? String(horas) : "",
@@ -502,7 +505,11 @@ function PlanCrearFormInner() {
             placeholder="Plan sin título (Necesario)"
             autoFocus
             style={{
-              width: "100%", border: "none", borderBottom: "1px solid var(--border)",
+              width: "100%", border: "none",
+              // Igual que el título de la OT: el subrayado se tiñe de marca en
+              // cuanto hay texto.
+              borderBottom: "2px solid " + (nombre ? "var(--brand)" : "var(--border)"),
+              transition: "border-color 0.15s",
               background: "transparent", padding: "6px 2px 10px", marginBottom: 22,
               fontSize: 20, fontWeight: 400, color: "var(--fg-1)",
               fontFamily: "inherit", outline: "none",

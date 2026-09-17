@@ -83,7 +83,7 @@ function classifyWaitingReason(comment: string | null | undefined): { key: Waiti
 const EMPTY_FILTROS: FiltrosState = {
   estados: [], prioridades: [], tipos: [],
   asignadoIds: [], ubicacionIds: [], sociedadIds: [],
-  itos: [],
+  itos: [], categoriaIds: [],
   fechaVencimiento: null,
   sinAsignar: false,
   soloAsignados: false,
@@ -826,6 +826,20 @@ export default function OrdenesBandeja({
     return () => document.removeEventListener("visibilitychange", onVisible);
   }, [refreshVisible]);
 
+  // Una OT vive en DOS stores: `ordenes` (la página visible) y
+  // `allOrdenesForCounts` (el snapshot del workspace). La lista filtrada y los
+  // contadores de pestaña leen el snapshot, así que sacarla solo de `ordenes`
+  // dejaba la tarjeta en pantalla hasta recargar. Siempre por acá.
+  const removeOrdenLocal = useCallback((id: string) => {
+    setOrdenes(prev => prev.filter(o => o.id !== id));
+    setAllOrdenesForCounts(prev => prev ? prev.filter(o => o.id !== id) : prev);
+    queryClient.setQueryData<OrdenBulkItem[]>(
+      ["ordenes-snapshot", wsId],
+      prev => prev ? prev.filter(o => o.id !== id) : prev,
+    );
+    queryClient.removeQueries({ queryKey: ["orden", id] });
+  }, [queryClient, wsId]);
+
   useEffect(() => {
     if (!wsId) return;
     const sb = createClient();
@@ -847,8 +861,7 @@ export default function OrdenesBandeja({
           if (payload.eventType === "DELETE") {
             const oldRow = payload.old as { id?: string };
             if (!oldRow.id) return;
-            setOrdenes(prev => prev.filter(o => o.id !== oldRow.id));
-            queryClient.removeQueries({ queryKey: ["orden", oldRow.id] });
+            removeOrdenLocal(oldRow.id);
             if (selectedId === oldRow.id) setDetail(null);
             return;
           }
@@ -859,8 +872,7 @@ export default function OrdenesBandeja({
           // Soft-delete arrives as an UPDATE (deleted_at set). Treat it like a
           // removal so trashed OTs drop out of the active list.
           if (next.deleted_at) {
-            setOrdenes(prev => prev.filter(o => o.id !== next.id));
-            queryClient.removeQueries({ queryKey: ["orden", next.id] });
+            removeOrdenLocal(next.id);
             if (selectedId === next.id) setDetail(null);
             return;
           }
@@ -940,11 +952,11 @@ export default function OrdenesBandeja({
         logRealtimeChannel("remove:done", channelDetails, sb);
       });
     };
-  }, [refreshList, refreshVisible, wsId, queryClient]);
+  }, [refreshList, refreshVisible, wsId, queryClient, removeOrdenLocal]);
 
   const deleteOT = async (id: string) => {
     await deleteOrden(id);
-    setOrdenes(prev => prev.filter(o => o.id !== id));
+    removeOrdenLocal(id);
     if (selected === id) {
       setSelected(null);
       setDetail(null);
@@ -1050,7 +1062,14 @@ export default function OrdenesBandeja({
     return debouncedSearch !== q || isSearchFetching;
   })();
 
-  const hasActiveFilters = needsFullWorkspaceSet({ scope, ocultarMarcadas, filtros });
+  // `allOrdenesForCounts != null` = el snapshot completo ya está en memoria, sea
+  // porque la primera página vino corta (ya era todo el workspace) o porque el
+  // bulk fetch terminó. Preferirlo no cuesta una request extra y evita que la
+  // lista muestre vacío mientras el contador de la pestaña marca N.
+  const usarSetCompleto = needsFullWorkspaceSet({
+    scope, ocultarMarcadas, filtros,
+    haySnapshotCompleto: allOrdenesForCounts != null,
+  });
 
   // Apply filters + search + sort
   const filtered = useMemo(() => {
@@ -1069,7 +1088,7 @@ export default function OrdenesBandeja({
     // en la página 2 devolvía una lista vacía mientras el contador de la
     // pestaña — que sí usa el set completo — mostraba "2". El dato ya estaba
     // en memoria; solo la lista no lo miraba.
-    const baseSource = searchResults ?? (hasActiveFilters ? countOrdenes : ordenes);
+    const baseSource = searchResults ?? (usarSetCompleto ? countOrdenes : ordenes);
     // Tab decides active vs. completed; scope narrows further. Kanban shows
     // all states side-by-side, so the tab gate is bypassed in that view.
     let list = baseSource.filter(o =>
@@ -1127,7 +1146,7 @@ export default function OrdenesBandeja({
       });
     }
     return list;
-  }, [ordenes, countOrdenes, hasActiveFilters, searchResults, view, tab, scope, search, sort, filtros, ubicaciones, dadosDeBajaIds, reprogramadaIds, faltanMaterialesIds, ocultarMarcadas, marcadas, todayKey]);
+  }, [ordenes, countOrdenes, usarSetCompleto, searchResults, view, tab, scope, search, sort, filtros, ubicaciones, dadosDeBajaIds, reprogramadaIds, faltanMaterialesIds, ocultarMarcadas, marcadas, todayKey]);
 
   // The calendar needs recurrencia_config + activos, which the lean bulk select
   // omits. Fetch them the first time the calendar opens, not on every list load.
@@ -1172,7 +1191,7 @@ export default function OrdenesBandeja({
   // completo del workspace): en ambos casos no existe una "pagina siguiente"
   // que pedir, asi que arrastrar hasMoreOrdenes dejaba el boton "Cargar mas"
   // visible incluso con un unico resultado.
-  const fuenteCompleta = searchResults !== null || hasActiveFilters;
+  const fuenteCompleta = searchResults !== null || usarSetCompleto;
   const canShowMore = visibleCount < filtered.length || (hasMoreOrdenes && !fuenteCompleta);
 
   // Infinite scroll: when the sentinel enters the viewport, reveal the next
@@ -1668,6 +1687,7 @@ export default function OrdenesBandeja({
             usuarios={usuarios}
             ubicaciones={ubicaciones}
             sociedades={sociedades}
+            categorias={categorias}
             itos={itoOptions}
             visibleKeys={visibleFilterKeys}
             onVisibleKeysChange={changeVisibleFilterKeys}
@@ -2057,6 +2077,7 @@ export default function OrdenesBandeja({
                 categorias={categorias}
                 myId={myId}
                 wsId={wsId}
+                medidorId={searchParams?.get("medidor") ?? null}
                 onClose={() => { setRightPanel("none"); router.push("/ordenes", { scroll: false }); }}
                 onCreated={async (orden) => {
                   setRightPanel("none");
@@ -2152,6 +2173,7 @@ export default function OrdenesBandeja({
                 categorias={categorias}
                 myId={myId}
                 wsId={wsId}
+                medidorId={searchParams?.get("medidor") ?? null}
                 onClose={() => { setRightPanel("none"); router.push(viewPath, { scroll: false }); }}
                 onCreated={async (orden) => {
                   setRightPanel("none");

@@ -19,6 +19,7 @@ export type FilterKey =
   | "prioridades"
   | "estados"
   | "tipos"
+  | "categoriaIds"
   | "sociedadIds";
 
 export interface FilterMeta {
@@ -76,6 +77,11 @@ export const FILTER_META: Record<FilterKey, FilterMeta> = {
     clear: () => ({ tipos: [] }),
     count: f => f.tipos.length,
   },
+  categoriaIds: {
+    key: "categoriaIds", label: "Categoría",
+    clear: () => ({ categoriaIds: [] }),
+    count: f => f.categoriaIds.length,
+  },
   sociedadIds: {
     key: "sociedadIds", label: "Sociedad",
     clear: () => ({ sociedadIds: [] }),
@@ -90,7 +96,7 @@ export const FILTER_META: Record<FilterKey, FilterMeta> = {
  */
 export const FILTER_ORDER: FilterKey[] = [
   "sinAsignar", "asignadoIds", "fechaVencimiento", "ubicacionIds",
-  "itos", "prioridades", "estados", "tipos", "sociedadIds",
+  "itos", "prioridades", "estados", "tipos", "categoriaIds", "sociedadIds",
 ];
 
 /**

@@ -11,6 +11,7 @@ const SIN_FILTROS: FiltrosState = {
   ubicacionIds: [],
   sociedadIds: [],
   itos: [],
+  categoriaIds: [],
   fechaVencimiento: null,
   sinAsignar: false,
   soloAsignados: false,
@@ -45,6 +46,7 @@ describe("needsFullWorkspaceSet", () => {
     ["ubicacionIds", { ubicacionIds: ["ub1"] }],
     ["sociedadIds", { sociedadIds: ["s1"] }],
     ["itos", { itos: ["ITO 1"] }],
+    ["categoriaIds", { categoriaIds: ["c1"] }],
     ["fechaVencimiento", { fechaVencimiento: "hoy" }],
     ["sinAsignar", { sinAsignar: true }],
     ["soloAsignados", { soloAsignados: true }],
@@ -55,4 +57,23 @@ describe("needsFullWorkspaceSet", () => {
     ).toBe(true);
   });
 
+  /**
+   * La regresión real, con los números del workspace donde apareció: 22 OTs, las
+   * 20 más nuevas completadas y las 2 pendientes al final. Como la página es de
+   * 20 y viene ordenada created_at DESC, la primera página eran 20 completadas:
+   * la pestaña Pendientes renderizaba vacía mientras su contador marcaba 2.
+   *
+   * Con el snapshot completo en memoria la lista tiene que preferirlo, aunque no
+   * haya ni un filtro ni un scope puesto.
+   */
+  it("con el snapshot completo en memoria, la lista lo prefiere", () => {
+    expect(needsFullWorkspaceSet({ ...base, haySnapshotCompleto: true })).toBe(true);
+  });
+
+  // Y el contrapeso: sin snapshot no puede exigirlo, o el scroll infinito
+  // quedaría muerto (siempre pediría el set completo y nunca paginaría).
+  it("sin snapshot completo sigue paginando", () => {
+    expect(needsFullWorkspaceSet({ ...base, haySnapshotCompleto: false })).toBe(false);
+    expect(needsFullWorkspaceSet(base)).toBe(false);
+  });
 });

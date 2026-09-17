@@ -132,12 +132,13 @@ export const ORDEN_SELECT = `
   creado_por, asignados_ids, workspace_id,
   n_serie, solicitante, solicitante_telefono, solicitante_email, hito, presupuesto,
   numero, categoria_id, categoria_ids, ubicacion_id, activo_id, lugar_id, sociedad_id,
-  iniciado_at, pausado_at, en_ejecucion, tiempo_total_segundos,
+  iniciado_at, pausado_at, en_ejecucion, tiempo_total_segundos, tiempo_estimado,
   recurrencia, recurrencia_config, proxima_ejecucion, recurrencia_origen_id, recurrencia_iteracion, parent_id,
   requiere_materiales, requiere_hoja, requiere_fotos,
   cierre_forzado, cierre_forzado_motivo, cierre_forzado_por, cierre_forzado_at,
   imagen_url, fotos_urls, links,
-  activos (id, nombre, imagen_url, estado),
+  activos (id, nombre, imagen_url, estado, numero_serie, criticidad, fecha_garantia,
+           fabricantes(nombre), modelos(nombre)),
   ubicaciones (id, edificio, detalle, sociedad_id, sociedades(nombre)),
   lugar:lugares!lugar_id(id, nombre, imagen_url),
   sociedad:sociedades!sociedad_id(id, nombre, imagen_url),
@@ -150,7 +151,7 @@ export const LIST_SELECT = `
   fecha_inicio, fecha_termino, recurrencia, recurrencia_config, proxima_ejecucion,
   recurrencia_origen_id, recurrencia_iteracion, created_at, updated_at,
   n_serie, solicitante, hito,
-  categoria_id, ubicacion_id, activo_id, creado_por, asignados_ids,
+  categoria_id, categoria_ids, ubicacion_id, activo_id, creado_por, asignados_ids,
   numero, parent_id,
   iniciado_at, en_ejecucion, tiempo_total_segundos,
   completado_en,
@@ -181,6 +182,10 @@ export const LIST_SELECT = `
  *   - completado_en → the "Completadas recientemente" sort. This select feeds
  *     the rendered list whenever a filter is active, so dropping it would make
  *     that order silently collapse to "sin fecha" for every row.
+ *   - categoria_ids → el filtro de categorías. Una OT puede tener varias, y las
+ *     extra viven SOLO en este array (categoria_id guarda una sola). Como este
+ *     select es justamente el que se renderiza cuando hay un filtro activo,
+ *     sacarlo haria que el filtro de categorías se coma OTs que si coinciden.
  *
  * Mirrors ORDEN_LIST_SELECT in mobile's features/work-orders/api.ts.
  */
@@ -188,7 +193,7 @@ export const ORDEN_BULK_SELECT = `
   id, titulo, descripcion, estado, prioridad, tipo_trabajo, clasificacion,
   fecha_inicio, fecha_termino, recurrencia, proxima_ejecucion,
   recurrencia_origen_id, created_at,
-  categoria_id, ubicacion_id, activo_id, creado_por, asignados_ids,
+  categoria_id, categoria_ids, ubicacion_id, activo_id, creado_por, asignados_ids,
   numero, parent_id,
   iniciado_at, en_ejecucion, tiempo_total_segundos,
   completado_en,
@@ -681,7 +686,7 @@ export async function fetchActividad(ordenId: string): Promise<ActividadOT[]> {
   const sb = createClient();
   const { data, error } = await sb
     .from("actividad_ot")
-    .select("id, orden_id, tipo, comentario, foto_url, audio_url, usuario_id, created_at, usuario:usuarios!usuario_id(id, nombre)")
+    .select("id, orden_id, tipo, comentario, foto_url, audio_url, usuario_id, created_at, editado_at, usuario:usuarios!usuario_id(id, nombre)")
     .eq("orden_id", ordenId)
     .order("created_at", { ascending: false });
   if (error) throw error;
@@ -715,6 +720,8 @@ export async function createOrden(payload: {
   asignados_ids?: string[] | null;
   fecha_inicio?: string | null;
   fecha_termino?: string | null;
+  /** Duración estimada en MINUTOS (la columna se documenta así). */
+  tiempo_estimado?: number | null;
   links?: OTLink[];
 }): Promise<OrdenTrabajo> {
   const sb = createClient();
@@ -759,6 +766,7 @@ export async function createOrden(payload: {
           asignados_ids: payload.asignados_ids,
           fecha_inicio: payload.fecha_inicio,
           fecha_termino: payload.fecha_termino,
+          tiempo_estimado: payload.tiempo_estimado,
           links: payload.links?.filter((link) => link.url.trim()) ?? [],
         },
       });
@@ -810,6 +818,7 @@ export async function createOrden(payload: {
       ...(payload.asignados_ids?.length ? { asignados_ids: payload.asignados_ids } : {}),
       ...(payload.fecha_inicio  ? { fecha_inicio:  payload.fecha_inicio  } : {}),
       ...(payload.fecha_termino ? { fecha_termino: payload.fecha_termino } : {}),
+      ...(payload.tiempo_estimado ? { tiempo_estimado: payload.tiempo_estimado } : {}),
       links: payload.links?.filter(l => l.url.trim()) ?? [],
     })
     .select(ORDEN_SELECT)
@@ -1401,6 +1410,29 @@ export async function addComentario(
   fotoUrl?: string | null,
 ): Promise<void> {
   await insertActividad(ordenId, userId, "comentario", comentario, fotoUrl, audioUrl);
+}
+
+/**
+ * Edita el texto de un comentario. Solo el autor pasa el RLS; los adjuntos
+ * (foto/audio) se dejan como estan — la edicion web es de texto nada mas.
+ * `editado_at` se sella para que la UI pueda marcar "editado", igual que el movil.
+ */
+export async function editComentario(actividadId: string, comentario: string): Promise<void> {
+  const texto = comentario.trim();
+  if (!texto) throw new Error("El comentario no puede quedar vacío.");
+  const sb = createClient();
+  const { error } = await sb
+    .from("actividad_ot")
+    .update({ comentario: texto, editado_at: new Date().toISOString() })
+    .eq("id", actividadId);
+  if (error) throw error;
+}
+
+/** Borra un comentario. Solo el autor pasa el RLS. */
+export async function deleteComentario(actividadId: string): Promise<void> {
+  const sb = createClient();
+  const { error } = await sb.from("actividad_ot").delete().eq("id", actividadId);
+  if (error) throw error;
 }
 
 export async function insertActividad(

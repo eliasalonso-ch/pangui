@@ -484,6 +484,69 @@ export async function fetchAutores(ids: string[]): Promise<Map<string, string>> 
   return new Map((data ?? []).map(u => [u.id as string, (u.nombre as string) ?? "—"]));
 }
 
+/**
+ * Procedimiento de un solo paso que toma la lectura de este medidor.
+ *
+ * Es lo que convierte "quiero que alguien vaya a leer el horómetro" en trabajo
+ * asignable: una OT con este procedimiento adjunto le pone al técnico el campo
+ * de la lectura, y al responderlo el número entra a la serie del medidor solo
+ * —eso ya lo hace el trigger `fn_paso_respuesta_a_lectura`, por el `medidor_id`
+ * del paso. Acá no se copia ningún número a mano.
+ *
+ * GET-OR-CREATE y no create: el botón se aprieta todos los meses. Creando uno
+ * nuevo cada vez, el catálogo de /procedimientos termina con doce "Lectura de
+ * Medidor Corriente de Motor" y el historial del medidor queda repartido entre
+ * todos. Se busca por `medidor_id` del paso y no por el nombre, porque al
+ * medidor se le puede cambiar el nombre y el procedimiento tiene que seguir
+ * siendo el mismo.
+ */
+export async function procedimientoDeMedidor(medidor: Pick<Medidor, "id" | "nombre" | "unidad" | "workspace_id">): Promise<string> {
+  const sb = createClient();
+
+  const { data: existente, error: buscarErr } = await sb
+    .from("procedimiento_pasos")
+    .select("procedimiento_id, procedimientos!procedimiento_pasos_procedimiento_id_fkey(id, activo)")
+    .eq("medidor_id", medidor.id)
+    .limit(20);
+  if (buscarErr) throw buscarErr;
+
+  const vigente = (existente ?? []).find((p: any) => p.procedimientos?.activo);
+  if (vigente) return vigente.procedimiento_id as string;
+
+  const { data: auth } = await sb.auth.getUser();
+
+  const { data: proc, error: procErr } = await sb
+    .from("procedimientos")
+    .insert({
+      workspace_id: medidor.workspace_id,
+      nombre: `Lectura de Medidor ${medidor.nombre}`,
+      categoria: "Medidores",
+      // Bloquea el cierre: una OT de lectura sin la lectura tomada no cumplió
+      // su único propósito, y cerrarla igual deja el hoyo en la serie que esta
+      // función existe para evitar.
+      bloquea_cierre_ot: true,
+      created_by: auth.user?.id ?? null,
+    })
+    .select("id")
+    .single();
+  if (procErr) throw procErr;
+
+  const { error: pasoErr } = await sb.from("procedimiento_pasos").insert({
+    procedimiento_id: proc.id,
+    orden: 1,
+    tipo: "medidor",
+    titulo: medidor.nombre,
+    unidad: medidor.unidad,
+    requerido: true,
+    // El vínculo real de la función: sin esto el paso guarda un número suelto
+    // en `paso_respuestas` y nunca llega a la serie del medidor.
+    medidor_id: medidor.id,
+  });
+  if (pasoErr) throw pasoErr;
+
+  return proc.id as string;
+}
+
 /** Baja lógica: borrar de verdad se llevaría el historial de lecturas. */
 export async function deleteMedidor(medidorId: string): Promise<void> {
   const sb = createClient();

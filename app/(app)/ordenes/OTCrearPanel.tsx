@@ -5,11 +5,12 @@ import {
   X, Loader2, User, MapPin, Settings2,
   CalendarDays, Tag, Check, ChevronDown, Building2, Hash, FileUp, Plus, AlertTriangle,
   Camera, ImagePlus, Trash2, Upload, Paperclip, FileText, File, DollarSign, Sparkles,
-  FolderOpen, Image as ImageIcon, ImageUp, Pencil, Link2, Box, Repeat, Zap, Locate, Contact, Flag,
+  FolderOpen, Image as ImageIcon, ImageUp, Pencil, Link2, Box, Repeat, Zap, Locate, Contact, Flag, Clock,
 } from "lucide-react";
 import { AlbumModal } from "./AlbumModal";
 import { createClient } from "@/lib/supabase";
 import CuadrillaQuickAdd from "@/components/ordenes/CuadrillaQuickAdd";
+import { ASIGNAR_BTN_WIDTH } from "@/components/ot/OTFormFields";
 import { useOTBorrador } from "@/hooks/useOTBorrador";
 import BorradorEstado from "./BorradorEstado";
 import { callEdge } from "@/lib/edge";
@@ -19,6 +20,7 @@ import { analytics } from "@/lib/analytics";
 import { uploadAndAddFotoToGrupo, createFotoGrupo } from "@/lib/foto-grupos-api";
 import { uploadToR2 } from "@/lib/r2";
 import { attachProcedimiento } from "@/lib/procedimientos-api";
+import { procedimientoDeMedidor } from "@/lib/medidores-api";
 import ProcedimientosPicker, { type ProcedimientoSeleccionado } from "./ProcedimientosPicker";
 import { buildRecurrenciaConfig, RecurrenceControls } from "./RecurrenceControls";
 import type {
@@ -126,6 +128,14 @@ interface Props {
   wsId:        string;
   onClose:     () => void;
   onCreated:   (orden: { id: string }) => void;
+  /**
+   * Medidor del que se viene (pie de /medidores).
+   *
+   * Siembra título, activo y el procedimiento de lectura de ese medidor, para
+   * que la OT nazca con el paso que recoge el número. No es un campo del
+   * formulario: no se elige acá, viene dado por la pantalla anterior.
+   */
+  medidorId?:  string | null;
 }
 
 interface DraftFoto { file: File; preview: string; }
@@ -153,6 +163,9 @@ interface FormState {
   tipo_trabajo:  TipoTrabajo | "";
   prioridad:     Prioridad;
   categoria_id:  string;
+  /** Duración estimada, partida en horas y minutos como en OTCrearForm. */
+  tiempo_h:      string;
+  tiempo_m:      string;
   links:         OTLink[];
 }
 
@@ -178,6 +191,7 @@ const BLANK: FormState = {
   fecha_termino: "", fecha_inicio: "",
   recurrencia: "ninguna", recurrencia_config: null, tipo_trabajo: "reactiva",
   prioridad: "ninguna", categoria_id: "",
+  tiempo_h: "", tiempo_m: "",
   links: [],
 };
 
@@ -715,7 +729,7 @@ function SolicitanteSelect({ value, telefono, email, onChange, wsId, catalog, on
 
 export default function OTCrearPanel({
   usuarios, ubicaciones: initialUbicaciones, lugares: initialLugares, sociedades, activos, categorias,
-  myId, wsId, onClose, onCreated,
+  myId, wsId, onClose, onCreated, medidorId,
 }: Props) {
   const [form, setForm] = useState<FormState>(BLANK);
   const [saving, setSaving] = useState(false);
@@ -747,6 +761,51 @@ export default function OTCrearPanel({
   // Procedures are attached after the OT row exists, so the picker holds them
   // as a draft selection until save.
   const [procedimientos, setProcedimientos] = useState<ProcedimientoSeleccionado[]>([]);
+
+  /**
+   * Siembra de "Utilizar en una nueva orden de trabajo" del pie de /medidores.
+   *
+   * Consigue (o crea) el procedimiento de lectura de ese medidor y lo deja
+   * seleccionado como cualquier otro: de ahí en adelante el panel lo trata
+   * igual —se ve en la lista, se puede sacar— y lo adjunta al guardar con el
+   * mismo `attachProcedimiento` de siempre. Así el técnico recibe el campo de
+   * la lectura, y al responderlo el número entra solo a la serie del medidor.
+   */
+  useEffect(() => {
+    if (!medidorId) return;
+    let vivo = true;
+    (async () => {
+      try {
+        const sb = createClient();
+        const { data: medidor } = await sb
+          .from("medidores")
+          .select("id, workspace_id, nombre, unidad, activo_id, ubicacion_id")
+          .eq("id", medidorId)
+          .maybeSingle();
+        if (!vivo || !medidor) return;
+
+        const procId = await procedimientoDeMedidor(medidor as never);
+        if (!vivo) return;
+
+        setForm(prev => ({
+          ...prev,
+          // Solo lo vacío: si el usuario ya escribió algo, no se le pisa.
+          titulo: prev.titulo || `Lectura de Medidor ${medidor.nombre}`,
+          activo_id: prev.activo_id || (medidor.activo_id ?? ""),
+          ubicacion_id: prev.ubicacion_id || (medidor.ubicacion_id ?? ""),
+          tipo_trabajo: prev.tipo_trabajo || "preventiva",
+        }));
+        setProcedimientos(prev =>
+          prev.some(p => p.id === procId)
+            ? prev
+            : [...prev, { id: procId, nombre: `Lectura de Medidor ${medidor.nombre}`, pasos_count: 1 }],
+        );
+      } catch (e) {
+        if (vivo) setError(e instanceof Error ? e.message : "No se pudo preparar el procedimiento de lectura.");
+      }
+    })();
+    return () => { vivo = false; };
+  }, [medidorId]);
 
   // Local copies so newly created records appear immediately without a full reload
   const [ubicaciones, setUbicaciones] = useState<Ubicacion[]>(initialUbicaciones);
@@ -1280,6 +1339,8 @@ export default function OTCrearPanel({
         asignados_ids: form.asignados_ids.length > 0 ? form.asignados_ids : null,
         fecha_inicio:  form.fecha_inicio  || null,
         fecha_termino: form.fecha_termino || null,
+        // Minutos, como la columna. 0 => null: no estimado.
+        tiempo_estimado: ((parseInt(form.tiempo_h) || 0) * 60) + (parseInt(form.tiempo_m) || 0) || null,
         links:         form.links,
       });
 
@@ -2083,6 +2144,27 @@ export default function OTCrearPanel({
             />
           </FieldRow>
 
+          {/* Tiempo estimado — horas y minutos, como en OTCrearForm y en la
+              plantilla del plan. Se guarda en minutos. */}
+          <FieldRow icon={<Clock size={16} />} label="Tiempo estimado">
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <input
+                type="number" min={0} placeholder="0"
+                value={form.tiempo_h}
+                onChange={e => setF("tiempo_h", e.target.value)}
+                style={tiempoInput}
+              />
+              <span style={{ fontSize: 14, color: "var(--fg-3)" }}>h</span>
+              <input
+                type="number" min={0} max={59} placeholder="0"
+                value={form.tiempo_m}
+                onChange={e => setF("tiempo_m", e.target.value)}
+                style={tiempoInput}
+              />
+              <span style={{ fontSize: 14, color: "var(--fg-3)" }}>min</span>
+            </div>
+          </FieldRow>
+
           {/* Priority — connected segmented control (MaintainX style) */}
           <FieldRow icon={<Flag size={16} />} label="Prioridad">
             <div style={{ display: "inline-flex", border: "1px solid var(--border)", borderRadius: 8, overflow: "hidden" }}>
@@ -2244,3 +2326,11 @@ export default function OTCrearPanel({
     </div>
   );
 }
+
+/** Caja chica de horas/minutos del tiempo estimado. */
+const tiempoInput = {
+  width: 72, height: 38,
+  border: "1px solid var(--border)", borderRadius: 8,
+  padding: "0 10px", fontSize: 14, color: "var(--fg-1)",
+  background: "var(--surface-1)", fontFamily: "inherit", outline: "none",
+} as const;

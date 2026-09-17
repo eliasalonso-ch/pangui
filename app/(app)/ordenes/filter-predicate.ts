@@ -34,6 +34,8 @@ export interface FilterableOrden {
   ubicacion_id: string | null;
   fecha_termino: string | null;
   descripcion: string | null;
+  categoria_id?: string | null;
+  categoria_ids?: string[] | null;
 }
 
 export interface FilterDeps {
@@ -74,6 +76,16 @@ export function applyFiltros<T extends FilterableOrden>(
   }
   if (filtros.ubicacionIds.length) {
     list = list.filter(o => o.ubicacion_id != null && filtros.ubicacionIds.includes(o.ubicacion_id));
+  }
+  // Una OT puede tener varias categorías: `categoria_id` guarda la principal y
+  // `categoria_ids` el set completo. Las dos se consultan porque no son
+  // redundantes — hay OTs cuyo categoria_id no aparece dentro del array.
+  if (filtros.categoriaIds.length) {
+    list = list.filter(o =>
+      filtros.categoriaIds.some(id =>
+        id === o.categoria_id || (o.categoria_ids ?? []).includes(id),
+      ),
+    );
   }
   if (filtros.sociedadIds.length) {
     // Match via ubicacion.sociedad_id (joined in list select)
