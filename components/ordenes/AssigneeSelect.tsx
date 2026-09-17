@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { X, User, ChevronDown, Check } from "lucide-react";
 import type { Usuario } from "@/types/ordenes";
+import { ASIGNAR_BTN_WIDTH } from "@/components/ot/OTFormFields";
 
 /**
  * Selector de responsables. Vivía dentro de OTCrearPanel.
@@ -77,6 +78,12 @@ export default function AssigneeSelect({ usuarios, value, onChange }: {
         type="button"
         onClick={() => { setOpen(!open); setQuery(""); }}
         style={{
+          // Mismo ancho fijo que CuadrillaQuickAdd (ASIGNAR_BTN_WIDTH): los dos
+          // botones se apilan uno sobre el otro, y sin ancho este medía lo que
+          // su texto (~160px) contra los 210px del de cuadrilla, así que
+          // quedaban escalonados. Es la misma razón que ya estaba escrita en la
+          // otra copia de este botón, en components/ot/OTFormFields.tsx.
+          width: ASIGNAR_BTN_WIDTH,
           height: 40, display: "flex", alignItems: "center", gap: 8,
           padding: "0 12px", border: "1px solid var(--border)", borderRadius: 8,
           background: "var(--surface-1)", fontSize: 14, color: "var(--fg-4)",
@@ -85,7 +92,7 @@ export default function AssigneeSelect({ usuarios, value, onChange }: {
       >
         <User size={13} />
         Asignar técnico
-        <ChevronDown size={12} style={{ color: "var(--fg-4)", marginLeft: 2 }} />
+        <ChevronDown size={12} style={{ color: "var(--fg-4)", marginLeft: "auto" }} />
       </button>
 
       {open && (

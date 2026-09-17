@@ -1,5 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
-import { describirTrigger } from "@/lib/automatizaciones-api";
+import {
+  agruparTriggersPorMedidor, describirTrigger, medidorTrasCambiarActivo,
+} from "@/lib/automatizaciones-api";
 
 describe("describirTrigger", () => {
   it("describe un mayor o igual", () => {
@@ -77,5 +79,87 @@ describe("updateAutomatizacion", () => {
     expect(ops.filter(o => o.endsWith(".delete")).length).toBe(2);
     expect(ops.some(o => o.startsWith("automatizacion_triggers.delete:acotado"))).toBe(true);
     expect(ops.some(o => o.startsWith("automatizacion_acciones.delete:acotado"))).toBe(true);
+  });
+});
+
+/**
+ * El activo del disparador es un filtro de la UI, no un dato guardado. Lo único
+ * con enjundia es qué pasa con el medidor ya elegido al cambiarlo.
+ */
+describe("medidorTrasCambiarActivo", () => {
+  const medidores = [
+    { id: "m1", activo_id: "a1" },
+    { id: "m2", activo_id: "a2" },
+    { id: "m3", activo_id: "a2" },
+  ];
+
+  it("respeta el medidor cuando se quita el filtro", () => {
+    // Quitar un filtro no puede borrar lo que el usuario ya eligió.
+    expect(medidorTrasCambiarActivo("m1", "", medidores)).toBe("m1");
+  });
+
+  it("conserva el medidor si pertenece al activo elegido", () => {
+    expect(medidorTrasCambiarActivo("m2", "a2", medidores)).toBe("m2");
+  });
+
+  it("elige solo el medidor cuando el activo tiene exactamente uno", () => {
+    expect(medidorTrasCambiarActivo("", "a1", medidores)).toBe("m1");
+  });
+
+  it("suelta el medidor ajeno cuando el activo tiene varios", () => {
+    // Con dos candidatos no se puede adivinar: elige el usuario.
+    expect(medidorTrasCambiarActivo("m1", "a2", medidores)).toBe("");
+  });
+
+  it("suelta el medidor cuando el activo no tiene ninguno", () => {
+    expect(medidorTrasCambiarActivo("m1", "a9", medidores)).toBe("");
+  });
+});
+
+/**
+ * El constructor agrupa las filas por medidor y al guardar las vuelve a
+ * aplanar. Si ese viaje de ida y vuelta pierde una fila, el usuario abre una
+ * regla con tres condiciones, guarda sin tocar nada y se queda con menos.
+ */
+describe("agruparTriggersPorMedidor", () => {
+  it("junta las condiciones del mismo medidor en un grupo", () => {
+    const grupos = agruparTriggersPorMedidor([
+      { id: "t1", medidor_id: "m1" },
+      { id: "t2", medidor_id: "m1" },
+      { id: "t3", medidor_id: "m2" },
+    ]);
+    expect(grupos).toHaveLength(2);
+    expect(grupos[0].condiciones.map(c => c.id)).toEqual(["t1", "t2"]);
+    expect(grupos[1].condiciones.map(c => c.id)).toEqual(["t3"]);
+  });
+
+  it("respeta el orden de aparición aunque los medidores se intercalen", () => {
+    // Sin esto, reabrir la regla barajaba las tarjetas.
+    const grupos = agruparTriggersPorMedidor([
+      { id: "t1", medidor_id: "m2" },
+      { id: "t2", medidor_id: "m1" },
+      { id: "t3", medidor_id: "m2" },
+    ]);
+    expect(grupos.map(g => g.medidor_id)).toEqual(["m2", "m1"]);
+    expect(grupos[0].condiciones.map(c => c.id)).toEqual(["t1", "t3"]);
+  });
+
+  it("agrupar y volver a aplanar no pierde ni duplica filas", () => {
+    const filas = [
+      { id: "t1", medidor_id: "m1" },
+      { id: "t2", medidor_id: "m2" },
+      { id: "t3", medidor_id: "m1" },
+      { id: "t4", medidor_id: "m3" },
+    ];
+    const aplanado = agruparTriggersPorMedidor(filas)
+      .flatMap(g => g.condiciones.map(c => ({ id: c.id, medidor_id: g.medidor_id })));
+    expect(aplanado).toHaveLength(filas.length);
+    expect([...aplanado].sort((a, b) => a.id.localeCompare(b.id))).toEqual(
+      [...filas].sort((a, b) => a.id.localeCompare(b.id)),
+    );
+  });
+
+  it("no crea grupos cuando no hay filas", () => {
+    expect(agruparTriggersPorMedidor([])).toEqual([]);
   });
 });

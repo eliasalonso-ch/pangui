@@ -9,6 +9,7 @@
  */
 
 import { createClient } from "@/lib/supabase";
+import type { OTLink } from "@/types/ordenes";
 
 export type OperadorTrigger = "mayor_igual" | "menor_igual" | "igual" | "entre";
 export type ModoTrigger = "una_lectura" | "una_lectura_reset" | "lecturas_multiples";
@@ -50,6 +51,25 @@ export interface ConfigCrearOT {
   tiempo_estimado?: number | null;
   prioridad?: string;
   tipo_trabajo?: string;
+  /**
+   * Procedimientos que se adjuntan a cada OT generada.
+   *
+   * Los ids solos: el nombre y el número de pasos se releen del catálogo al
+   * abrir el panel. Guardar el nombre acá lo dejaría congelado en el que tenía
+   * el día que se configuró la regla.
+   *
+   * Los inserta el trigger en `ot_procedimientos`, no el cliente: cuando la OT
+   * nace no hay nadie escuchando. Ver 20260917120000.
+   */
+  procedimiento_ids?: string[];
+  /**
+   * Adjuntos e imágenes, con la forma de `ordenes_trabajo.links`.
+   *
+   * El archivo se sube UNA vez, al guardar la automatización, y cada OT
+   * generada hereda la misma URL. El archivo pertenece a la regla, no a la
+   * ejecución: el manual adjunto es el mismo manual en las 200 OT que abra.
+   */
+  links?: OTLink[];
 }
 
 export interface AutomatizacionAccion {
@@ -94,13 +114,22 @@ export const OPERADORES: { value: OperadorTrigger; label: string }[] = [
   { value: "entre",       label: "Está entre" },
 ];
 
+/**
+ * Los tres modos, dichos como los diría un jefe de mantenimiento.
+ *
+ * Las etiquetas viejas venían calcadas del inglés de MaintainX y no se
+ * entendían: "Una lectura, luego reiniciar" no dice qué se reinicia —no es el
+ * medidor ni la OT, es la regla, que se queda esperando a que el valor vuelva a
+ * la normalidad—, y "Lecturas múltiples" no dice múltiples de qué ni cuántas.
+ * Ahora cada etiqueta dice el comportamiento y la ayuda lo ejemplifica.
+ */
 export const MODOS: { value: ModoTrigger; label: string; ayuda: string }[] = [
-  { value: "una_lectura", label: "Una lectura",
-    ayuda: "Se activa cada vez que una lectura cumple la condición." },
-  { value: "una_lectura_reset", label: "Una lectura, luego reiniciar",
-    ayuda: "No se vuelve a activar hasta que la condición se despeje y se cumpla de nuevo." },
-  { value: "lecturas_multiples", label: "Lecturas múltiples",
-    ayuda: "Se activa cuando un número definido de las últimas lecturas cumplen la condición." },
+  { value: "una_lectura", label: "Cada vez que pase",
+    ayuda: "Abre una orden con cada lectura que cumpla la condición." },
+  { value: "una_lectura_reset", label: "Sólo la primera vez (hasta que se normalice)",
+    ayuda: "Abre una orden la primera vez y no vuelve a abrir otra hasta que el medidor vuelva a valores normales y se pase de nuevo. Evita una orden por cada lectura mientras el problema sigue ahí." },
+  { value: "lecturas_multiples", label: "Recién cuando se repita varias veces",
+    ayuda: "Espera a que varias de las últimas lecturas cumplan la condición antes de abrir la orden. Sirve para no reaccionar a una medición suelta o mal tomada." },
 ];
 
 /**
@@ -344,4 +373,54 @@ export async function deleteAutomatizacion(id: string): Promise<void> {
   const sb = createClient();
   const { error } = await sb.from("automatizaciones").delete().eq("id", id);
   if (error) throw error;
+}
+
+/**
+ * Qué medidor queda elegido al cambiar el activo del disparador.
+ *
+ * El activo es un filtro de la UI —el disparador se guarda solo con
+ * `medidor_id`—, así que esta función existe para responder la única pregunta
+ * con enjundia del filtro: qué pasa con el medidor que ya estaba elegido.
+ *
+ *  - Sin activo (se quitó el filtro) el medidor se respeta: quitar un filtro no
+ *    puede borrar lo que el usuario ya eligió.
+ *  - Si el medidor pertenece al activo nuevo, se queda.
+ *  - Si no, y el activo tiene exactamente uno, se elige solo. Es el caso normal
+ *    —un activo, un medidor— y pedir un segundo clic para la única opción
+ *    posible es trabajo por gusto.
+ *  - Si no, y hay varios (o ninguno), se suelta y el usuario elige.
+ */
+export function medidorTrasCambiarActivo(
+  medidorActual: string,
+  activoId: string,
+  medidores: { id: string; activo_id?: string | null }[],
+): string {
+  if (!activoId) return medidorActual;
+  const suyos = medidores.filter(m => m.activo_id === activoId);
+  if (suyos.some(m => m.id === medidorActual)) return medidorActual;
+  return suyos.length === 1 ? suyos[0].id : "";
+}
+
+/**
+ * Agrupa las filas guardadas por medidor.
+ *
+ * En la base cada condición es una fila de `automatizacion_triggers` con su
+ * `medidor_id`; el constructor las muestra agrupadas —un medidor, sus
+ * condiciones unidas por O— porque es como se piensan y porque repetir el
+ * selector de medidor en cada fila era el mismo dato N veces.
+ *
+ * El orden de los grupos sigue al de la primera fila de cada medidor, para que
+ * reabrir la regla no baraje las tarjetas.
+ */
+export function agruparTriggersPorMedidor<T extends { medidor_id: string }>(
+  filas: T[],
+): { medidor_id: string; condiciones: T[] }[] {
+  const porMedidor = new Map<string, { medidor_id: string; condiciones: T[] }>();
+  for (const f of filas) {
+    if (!porMedidor.has(f.medidor_id)) {
+      porMedidor.set(f.medidor_id, { medidor_id: f.medidor_id, condiciones: [] });
+    }
+    porMedidor.get(f.medidor_id)!.condiciones.push(f);
+  }
+  return [...porMedidor.values()];
 }
