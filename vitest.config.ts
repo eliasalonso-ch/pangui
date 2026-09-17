@@ -8,6 +8,11 @@ export default defineConfig({
     environment: "jsdom",
     globals: true,
     setupFiles: ["./tests/setup.tsx"],
+    // `.worktrees/` es una copia del repo (git worktree) dentro del propio
+    // repo, así que sin esto vitest recoge cada test DOS veces —una por copia—
+    // y el total se duplica sin que falle nada. Se vio al correr la suite con
+    // una rama de feature montada ahí: 695 tests pasaron a 1391.
+    exclude: ["**/node_modules/**", "**/dist/**", "**/.worktrees/**"],
     server: {
       deps: {
         // Force Vite (not oxc) to handle .js files that contain JSX

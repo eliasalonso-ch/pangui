@@ -44,6 +44,10 @@ const labelStyle: React.CSSProperties = {
 /** Fila del editor de disparadores. Los números viven como texto: un input
  *  vacío no es 0, y `Number("")` sí lo es. */
 interface TriggerForm {
+  /** Id de la fila en la base, al editar. Vacío = disparador nuevo. Se arrastra
+   *  para que guardar actualice la fila en vez de recrearla: `armado` (el latch
+   *  de "una lectura, luego reiniciar") vive ahí y no en el formulario. */
+  id?: string;
   medidor_id: string;
   operador: OperadorTrigger;
   valor: string;
@@ -82,6 +86,7 @@ export default function AutomatizacionCrearPanel({
   const [triggers, setTriggers] = useState<TriggerForm[]>(() =>
     inicial && inicial.triggers.length > 0
       ? inicial.triggers.map(t => ({
+          id: t.id,
           medidor_id: t.medidor_id,
           operador: t.operador,
           valor: String(t.valor),
@@ -156,6 +161,7 @@ export default function AutomatizacionCrearPanel({
       nombre,
       descripcion,
       triggers: triggers.map(t => ({
+        id: t.id,
         medidor_id: t.medidor_id,
         operador: t.operador,
         valor: Number(t.valor),
@@ -164,6 +170,9 @@ export default function AutomatizacionCrearPanel({
         modo_n: Number(t.modo_n) || 2,
       })),
       acciones: [{
+        // Igual que en los disparadores: sin el id, la acción se recrea y el
+        // freno de retrigger —que busca por accion_id— estrena historial.
+        id: accionInicial?.id,
         tipo: "crear_ot" as const,
         config,
         retrigger_minutos: Number(retrigger) || 0,

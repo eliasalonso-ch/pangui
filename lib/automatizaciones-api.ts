@@ -170,6 +170,15 @@ export interface AutomatizacionInput {
   nombre: string;
   descripcion?: string | null;
   triggers: {
+    /**
+     * Id de la fila existente, al editar. Ausente = disparador nuevo.
+     *
+     * Es lo que permite actualizar en vez de reemplazar, y con eso conservar
+     * `armado`: sin el id, editar el título de una automatización le devolvía
+     * el latch a "sin disparar" y el modo "una lectura, luego reiniciar"
+     * volvía a dispararse.
+     */
+    id?: string;
     medidor_id: string;
     operador: OperadorTrigger;
     valor: number;
@@ -178,6 +187,14 @@ export interface AutomatizacionInput {
     modo_n?: number | null;
   }[];
   acciones: {
+    /**
+     * Id de la fila existente, al editar. Ausente = acción nueva.
+     *
+     * El freno de retrigger busca la última ejecución por `accion_id`, así que
+     * una acción recreada estrena historial y el freno se olvida de lo que ya
+     * había disparado. Conservar el id mantiene el enfriamiento.
+     */
+    id?: string;
     tipo: TipoAccion;
     config: ConfigCrearOT;
     retrigger_minutos: number;
@@ -227,12 +244,61 @@ export async function updateAutomatizacion(id: string, input: AutomatizacionInpu
     .eq("id", id);
   if (error) throw error;
 
-  const { error: eT } = await sb.from("automatizacion_triggers").delete().eq("automatizacion_id", id);
-  if (eT) throw eT;
-  const { error: eA } = await sb.from("automatizacion_acciones").delete().eq("automatizacion_id", id);
-  if (eA) throw eA;
+  // Las filas se actualizan en su lugar, no se borran y recrean.
+  //
+  // Antes esto era DELETE + INSERT, que es más corto y estaba mal: los hijos
+  // guardan ESTADO que no está en el formulario. `automatizacion_triggers.armado`
+  // es el latch de "una lectura, luego reiniciar", y el freno de retrigger busca
+  // la última ejecución por `accion_id`. Recrear las filas les daba ids nuevos,
+  // así que editar el título rearmaba el latch, reseteaba el enfriamiento y
+  // dejaba el historial apuntando a una acción que ya no existía (accion_id NULL
+  // por el ON DELETE SET NULL). Se detectó editando una automatización en vivo
+  // entre dos lecturas.
+  const idsT = input.triggers.map(t => t.id).filter(Boolean) as string[];
+  const idsA = input.acciones.map(a => a.id).filter(Boolean) as string[];
 
-  await insertarHijos(id, input);
+  // Primero se van los que el usuario sacó del formulario. `not in ()` con lista
+  // vacía es sintaxis inválida en PostgREST, de ahí las dos ramas.
+  const borrarSobrantes = async (tabla: string, conservar: string[]) => {
+    let q = sb.from(tabla).delete().eq("automatizacion_id", id);
+    if (conservar.length > 0) q = q.not("id", "in", `(${conservar.join(",")})`);
+    const { error } = await q;
+    if (error) throw error;
+  };
+  await borrarSobrantes("automatizacion_triggers", idsT);
+  await borrarSobrantes("automatizacion_acciones", idsA);
+
+  for (const t of input.triggers) {
+    const fila = {
+      medidor_id: t.medidor_id,
+      operador: t.operador,
+      valor: t.valor,
+      // La constraint exige NULL fuera de 'entre' y un valor dentro.
+      valor_hasta: t.operador === "entre" ? (t.valor_hasta ?? null) : null,
+      modo: t.modo,
+      modo_n: t.modo === "lecturas_multiples" ? (t.modo_n ?? 2) : null,
+    };
+    // `armado` queda fuera del update a propósito: es estado del motor, no del
+    // formulario. Un disparador nuevo nace armado por el default de la tabla.
+    const { error } = t.id
+      ? await sb.from("automatizacion_triggers").update(fila).eq("id", t.id)
+      : await sb.from("automatizacion_triggers").insert({ automatizacion_id: id, ...fila });
+    if (error) throw error;
+  }
+
+  for (const [i, a] of input.acciones.entries()) {
+    const fila = {
+      tipo: a.tipo,
+      config: a.config,
+      retrigger_minutos: a.retrigger_minutos,
+      solo_si_anterior_cerrada: a.solo_si_anterior_cerrada,
+      orden: i,
+    };
+    const { error } = a.id
+      ? await sb.from("automatizacion_acciones").update(fila).eq("id", a.id)
+      : await sb.from("automatizacion_acciones").insert({ automatizacion_id: id, ...fila });
+    if (error) throw error;
+  }
 }
 
 async function insertarHijos(id: string, input: AutomatizacionInput): Promise<void> {
