@@ -826,6 +826,20 @@ export default function OrdenesBandeja({
     return () => document.removeEventListener("visibilitychange", onVisible);
   }, [refreshVisible]);
 
+  // Una OT vive en DOS stores: `ordenes` (la página visible) y
+  // `allOrdenesForCounts` (el snapshot del workspace). La lista filtrada y los
+  // contadores de pestaña leen el snapshot, así que sacarla solo de `ordenes`
+  // dejaba la tarjeta en pantalla hasta recargar. Siempre por acá.
+  const removeOrdenLocal = useCallback((id: string) => {
+    setOrdenes(prev => prev.filter(o => o.id !== id));
+    setAllOrdenesForCounts(prev => prev ? prev.filter(o => o.id !== id) : prev);
+    queryClient.setQueryData<OrdenBulkItem[]>(
+      ["ordenes-snapshot", wsId],
+      prev => prev ? prev.filter(o => o.id !== id) : prev,
+    );
+    queryClient.removeQueries({ queryKey: ["orden", id] });
+  }, [queryClient, wsId]);
+
   useEffect(() => {
     if (!wsId) return;
     const sb = createClient();
@@ -847,8 +861,7 @@ export default function OrdenesBandeja({
           if (payload.eventType === "DELETE") {
             const oldRow = payload.old as { id?: string };
             if (!oldRow.id) return;
-            setOrdenes(prev => prev.filter(o => o.id !== oldRow.id));
-            queryClient.removeQueries({ queryKey: ["orden", oldRow.id] });
+            removeOrdenLocal(oldRow.id);
             if (selectedId === oldRow.id) setDetail(null);
             return;
           }
@@ -859,8 +872,7 @@ export default function OrdenesBandeja({
           // Soft-delete arrives as an UPDATE (deleted_at set). Treat it like a
           // removal so trashed OTs drop out of the active list.
           if (next.deleted_at) {
-            setOrdenes(prev => prev.filter(o => o.id !== next.id));
-            queryClient.removeQueries({ queryKey: ["orden", next.id] });
+            removeOrdenLocal(next.id);
             if (selectedId === next.id) setDetail(null);
             return;
           }
@@ -940,11 +952,11 @@ export default function OrdenesBandeja({
         logRealtimeChannel("remove:done", channelDetails, sb);
       });
     };
-  }, [refreshList, refreshVisible, wsId, queryClient]);
+  }, [refreshList, refreshVisible, wsId, queryClient, removeOrdenLocal]);
 
   const deleteOT = async (id: string) => {
     await deleteOrden(id);
-    setOrdenes(prev => prev.filter(o => o.id !== id));
+    removeOrdenLocal(id);
     if (selected === id) {
       setSelected(null);
       setDetail(null);
