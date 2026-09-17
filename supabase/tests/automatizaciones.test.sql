@@ -121,11 +121,16 @@ SELECT extensions.is(
   2, 'una automatización pausada no dispara');
 
 -- ── 5. El motor viejo ya no existe ──────────────────────────────────────────
+-- Las alertas de medidor (fn_medidor_lectura_critica, 20260914193001) conviven
+-- con el motor: avisan al cruzar un umbral, mientras el motor abre la OT que el
+-- usuario configuró. Se afirma que las DOS siguen vivas — una versión anterior
+-- de esta prueba exigía que la vieja estuviera borrada, que es justamente el
+-- error que apagó las alertas al aplicar el motor.
 SELECT extensions.is(
   (SELECT count(*)::integer FROM pg_trigger
     WHERE tgrelid = 'public.medidor_lecturas'::regclass
-      AND tgname = 'trg_medidor_lectura_critica'),
-  0, 'el trigger de umbrales soldados fue retirado');
+      AND tgname IN ('trg_medidor_lectura_critica','trg_automatizacion_lectura')),
+  2, 'alertas y automatizaciones conviven, cada una en su trigger');
 
 -- ── 6. Un workspace sin plan Empresa no dispara ─────────────────────────────
 INSERT INTO public.medidor_lecturas (medidor_id, workspace_id, valor)

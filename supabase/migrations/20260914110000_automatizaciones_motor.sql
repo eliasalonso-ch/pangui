@@ -313,14 +313,25 @@ CREATE TRIGGER trg_automatizacion_lectura
   FOR EACH ROW
   EXECUTE FUNCTION public.fn_automatizacion_lectura();
 
--- ── Retirada del motor viejo ────────────────────────────────────────────────
-DROP TRIGGER IF EXISTS trg_medidor_lectura_critica ON public.medidor_lecturas;
-DROP FUNCTION IF EXISTS public.fn_medidor_lectura_critica();
+-- ── Convivencia con las alertas de medidor ──────────────────────────────────
+-- ESTA MIGRACIÓN YA NO BORRA fn_medidor_lectura_critica.
+--
+-- El diseño original (2026-09-13) la eliminaba: en ese momento era el disparo
+-- soldado viejo —umbral crítico e intervalo de uso, sin configuración— y tenerlo
+-- vivo al lado del motor significaba dos OT por la misma lectura.
+--
+-- Entre el diseño y la aplicación, 20260914193001 (medidores_alertas) redefinió
+-- esa misma función: ahora notifica al cruzar advertencia/alarma con histéresis
+-- del 5%, y guarda el nivel en medidores.nivel_actual. Eso NO es lo que este
+-- motor reemplaza. Son dos cosas sobre el mismo evento:
+--   - fn_medidor_lectura_critica  -> avisa (y abre OT en la transición a alarma)
+--   - fn_automatizacion_lectura   -> abre la OT que el usuario configuró
+-- Cada una en su trigger. Borrar la primera acá apagaría las alertas.
+--
+-- Por el mismo motivo tampoco se limpian los umbrales de los medidores
+-- manuales: son exactamente lo que la función de alertas lee.
 
--- Los umbrales dejan de existir en los medidores manuales: ahí la vigilancia se
--- configura como automatización. En los automatizados se quedan (el gateway los
--- usa para colorear la serie), por eso las columnas NO se borran.
-UPDATE public.medidores
-   SET advertencia = NULL, critico = NULL, intervalo_ot = NULL
- WHERE tipo = 'manual'
-   AND (advertencia IS NOT NULL OR critico IS NOT NULL OR intervalo_ot IS NOT NULL);
+-- ponytail: un medidor con umbral Y una automatización sobre el mismo valor
+-- puede abrir dos OT. El dedupe por OT abierta de fn_medidor_lectura_critica lo
+-- cubre en la práctica. Si molesta, el upgrade es que las alertas dejen de abrir
+-- OT y solo notifiquen, moviendo ese trabajo a una automatización.
