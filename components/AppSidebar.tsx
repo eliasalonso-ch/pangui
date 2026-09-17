@@ -451,34 +451,6 @@ export default function AppSidebar() {
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
-              {/* Medidores: pegado a Activos porque un medidor es un punto de
-                  lectura sobre uno. Sin gate de admin — la lectura la toma el
-                  técnico, igual que en el móvil; el alta sí es admin y eso se
-                  resuelve dentro de la pantalla. */}
-              {hasMedidores && (
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={isActive("/medidores")} tooltip="Medidores">
-                    <Link href="/medidores" prefetch={false} style={{ display: "flex", alignItems: "center", gap: collapsed ? 0 : 10 }}>
-                      <Gauge size={16} style={{ flexShrink: 0 }} />
-                      {!collapsed && <span>Medidores</span>}
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              )}
-              {/* Automatizaciones: la regla que convierte una lectura en trabajo.
-                  Va pegada a Medidores porque hoy todo disparador es una lectura.
-                  Con gate de admin —igual que Planes de mantención— porque es
-                  configuración del espacio, no trabajo del día a día. */}
-              {isAdmin && hasAutomatizaciones && (
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={isActive("/automatizaciones")} tooltip="Automatizaciones">
-                    <Link href="/automatizaciones" prefetch={false} style={{ display: "flex", alignItems: "center", gap: collapsed ? 0 : 10 }}>
-                      <Workflow size={16} style={{ flexShrink: 0 }} />
-                      {!collapsed && <span>Automatizaciones</span>}
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              )}
               {/* Planes de mantención: configuración del calendario preventivo
                   del espacio (qué se mantiene, cada cuánto), no trabajo del
                   día a día — de ahí que sea admin, igual que Procedimientos.
@@ -644,6 +616,46 @@ export default function AppSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+
+        {/* Condición: mantenimiento basado en el estado real de la máquina.
+            Medidores toma el número y Automatizaciones decide qué hacer con él
+            —son las dos mitades de lo mismo, y separadas en "Operaciones" se
+            leían como dos utilidades sueltas. El grupo entero desaparece si el
+            plan no incluye ninguna de las dos. */}
+        {(hasMedidores || (isAdmin && hasAutomatizaciones)) && (
+          <SidebarGroup>
+            <SidebarGroupLabel>Condición</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {/* Sin gate de admin — la lectura la toma el técnico, igual que
+                    en el móvil; el alta sí es admin y eso se resuelve dentro de
+                    la pantalla. */}
+                {hasMedidores && (
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild isActive={isActive("/medidores")} tooltip="Medidores">
+                      <Link href="/medidores" prefetch={false} style={{ display: "flex", alignItems: "center", gap: collapsed ? 0 : 10 }}>
+                        <Gauge size={16} style={{ flexShrink: 0 }} />
+                        {!collapsed && <span>Medidores</span>}
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                )}
+                {/* Con gate de admin —igual que Planes de mantención— porque es
+                    configuración del espacio, no trabajo del día a día. */}
+                {isAdmin && hasAutomatizaciones && (
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild isActive={isActive("/automatizaciones")} tooltip="Automatizaciones">
+                      <Link href="/automatizaciones" prefetch={false} style={{ display: "flex", alignItems: "center", gap: collapsed ? 0 : 10 }}>
+                        <Workflow size={16} style={{ flexShrink: 0 }} />
+                        {!collapsed && <span>Automatizaciones</span>}
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                )}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
 
         <SidebarGroup>
           <SidebarGroupLabel>Gestión</SidebarGroupLabel>
