@@ -8,6 +8,7 @@ import { encuadrarFirma } from "@/lib/firma-encuadre";
 import HojaSpreadsheet from "@/components/HojaSpreadsheet";
 import { createHoja } from "@/lib/hojas-api";
 import { notifySolicitudMateriales } from "@/lib/notificar";
+import { tieneItos } from "@/lib/itos-gate";
 import {
   X, Pencil, Trash2, Check, Copy, MapPin, Settings2, User, Flag,
   Calendar, Tag, Send, AlertTriangle, Loader2,
@@ -51,7 +52,7 @@ import type { FotoGrupo } from "@/lib/foto-grupos-api";
 import { FotosGaleria } from "./FotosGaleria";
 import { optimizedImageUrl } from "@/lib/image-cdn";
 import {
-  getOTProcedimientos,
+  getOTProcedimientos, detachProcedimiento,
   startEjecucion, saveRespuesta, completeEjecucion, maybeTriggerCorrectiva,
 } from "@/lib/procedimientos-api";
 import type {
@@ -860,7 +861,12 @@ export default function OTDetail({
     { key: "tipo_trabajo",    label: "Tipo de trabajo",      group: "Información general" },
     { key: "categoria",       label: "Categoría",            group: "Información general" },
     { key: "solicitante",     label: "Solicitante",          group: "Información general" },
-    { key: "hito",            label: "ITO",                  group: "Información general" },
+    // ITO es exclusivo de Electrilam: ofrecer la casilla en otros workspaces
+    // exportaba un campo que siempre sale vacío. Mismo criterio que el menú
+    // "Más" de la app móvil (constants/index.ts).
+    ...(tieneItos(wsId)
+      ? [{ key: "hito" as const, label: "ITO", group: "Información general" }]
+      : []),
     { key: "descripcion",     label: "Descripción",          group: "Información general" },
     { key: "asignados",       label: "Asignados",            group: "Personas y ubicación" },
     { key: "empresa",         label: "Empresa",              group: "Personas y ubicación" },
@@ -917,6 +923,8 @@ export default function OTDetail({
   // ── Procedimientos state ─────────────────────────────────────────────────────
   const [otProcs, setOtProcs] = useState<OTProcedimiento[]>([]);
   const [loadingProcs, setLoadingProcs] = useState(false);
+  // Menú "⋮" del procedimiento visible en el carrusel.
+  const [procMenuOpen, setProcMenuOpen] = useState(false);
   // Pending destructive action awaiting confirmation (shared across the tab —
   // procedures, photo groups, individual photos, materials). Guards accidental clicks.
   const [confirmDelete, setConfirmDelete] = useState<ConfirmDelete | null>(null);
@@ -2027,7 +2035,12 @@ export default function OTDetail({
   };
 
   const meta = parseDescMeta(orden.descripcion ?? null);
-  const nOT  = meta.nOT ?? `OT-${orden.id.slice(-8).toUpperCase()}`;
+  // `orden.numero` primero: es el correlativo que la gente usa para hablar de
+  // la OT ("la 548"). `meta.nOT` sale del texto de la descripción y suele traer
+  // el folio largo del cliente, que en la cabecera del PDF no dice nada.
+  const nOT  = orden.numero != null
+    ? String(orden.numero)
+    : (meta.nOT ?? `OT-${orden.id.slice(-8).toUpperCase()}`);
 
   function handleExportPDF() {
     setExportMenuOpen(false);
@@ -3692,6 +3705,82 @@ export default function OTDetail({
                         </button>
                       </div>
                     )}
+                    {/* Quitar el procedimiento de la OT. Solo mientras no tenga
+                        respuestas: `detachProcedimiento` borra el vínculo pero
+                        no la ejecución, así que quitar uno ya respondido dejaría
+                        las respuestas huérfanas en la base — evidencia que
+                        desaparece de la vista sin quedar registrada. */}
+                    {canFillProcs && (() => {
+                      const visible = otProcs.find(o => o.id === procVisibleId) ?? otProcs[0];
+                      if (!visible) return null;
+                      const respuestas = visible.ejecucion?.respuestas?.length ?? 0;
+                      return (
+                        <div style={{ position: "relative", marginLeft: 6 }}>
+                          <button
+                            type="button"
+                            onClick={() => setProcMenuOpen(o => !o)}
+                            aria-label="Opciones del procedimiento"
+                            style={{
+                              width: 26, height: 26, display: "flex", alignItems: "center", justifyContent: "center",
+                              border: "1px solid var(--border)", borderRadius: "var(--r-xs)",
+                              background: "var(--surface-1)", cursor: "pointer", color: "var(--fg-2)",
+                            }}
+                          >
+                            <MoreVertical size={14} />
+                          </button>
+                          {procMenuOpen && (
+                            <>
+                              <div
+                                onClick={() => setProcMenuOpen(false)}
+                                style={{ position: "fixed", inset: 0, zIndex: 40 }}
+                              />
+                              <div style={{
+                                position: "absolute", top: 30, right: 0, zIndex: 41, minWidth: 210,
+                                background: "var(--surface-1)", border: "1px solid var(--border)",
+                                borderRadius: "var(--r-md)", boxShadow: "var(--shadow-lg)", padding: 4,
+                              }}>
+                                <button
+                                  type="button"
+                                  disabled={respuestas > 0}
+                                  title={respuestas > 0
+                                    ? "No se puede quitar: el procedimiento ya tiene respuestas registradas."
+                                    : undefined}
+                                  onClick={() => {
+                                    setProcMenuOpen(false);
+                                    setConfirmDelete({
+                                      title: "¿Quitar este procedimiento de la OT?",
+                                      description: visible.procedimiento?.nombre ?? undefined,
+                                      confirmLabel: "Quitar",
+                                      onConfirm: async () => {
+                                        await detachProcedimiento(orden.id, visible.procedimiento_id);
+                                        const frescos = await getOTProcedimientos(orden.id);
+                                        setOtProcs(frescos);
+                                        setProcVisibleId(frescos[0]?.id ?? null);
+                                      },
+                                    });
+                                  }}
+                                  style={{
+                                    display: "flex", alignItems: "center", gap: 8, width: "100%",
+                                    padding: "8px 10px", border: "none", borderRadius: "var(--r-sm)",
+                                    background: "none", fontFamily: "inherit", fontSize: 14,
+                                    textAlign: "left",
+                                    color: respuestas > 0 ? "var(--fg-4)" : "var(--danger)",
+                                    cursor: respuestas > 0 ? "default" : "pointer",
+                                  }}
+                                >
+                                  <Trash2 size={14} /> Quitar de esta OT
+                                </button>
+                                {respuestas > 0 && (
+                                  <div style={{ padding: "2px 10px 8px", fontSize: 14, color: "var(--fg-4)", lineHeight: 1.4 }}>
+                                    Ya tiene {respuestas} {respuestas === 1 ? "respuesta" : "respuestas"}.
+                                  </div>
+                                )}
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
                 );
               })()}
@@ -4806,7 +4895,13 @@ function isAnsweredForType(paso: ProcedimientoPaso, resp: PendingResp | undefine
     case "inspeccion":     return resp.valor_json != null;
     case "imagen":         return !!resp.foto_url;
     case "archivo":        return !!resp.archivo_url;
-    case "firma":          return !!resp.firma_svg;
+    // Firmante externo (cliente, establecimiento): el trazo sin nombre no
+    // acredita a nadie, y `respondido_por` es el tecnico que sostiene el
+    // telefono. Se exigen los dos o el paso no cuenta como respondido.
+    case "firma":
+      return paso.rol_firmante != null && paso.rol_firmante !== "tecnico"
+        ? !!resp.firma_svg && !!resp.firmado_nombre?.trim()
+        : !!resp.firma_svg;
     case "fecha":
     case "hora":
     case "fecha_hora":     return !!resp.valor_fecha;
@@ -5269,6 +5364,14 @@ function ReadonlyAnswer({ paso, resp, onPhotoClick }: { paso: ProcedimientoPaso;
             }}
           >
             <FirmaImagen src={src} altoBase={200} />
+            {/* El trazo solo no dice quien firmo. Para un firmante externo
+                (cliente, establecimiento) `firmado_nombre` es el unico dato que
+                lo identifica, y sin mostrarlo aca la firma se revisa a ciegas. */}
+            {resp.firmado_nombre && (
+              <span style={{ display: "block", marginTop: 6, fontSize: 14, color: "#0F172A" }}>
+                {resp.firmado_nombre}
+              </span>
+            )}
           </button>
         )
         : <div style={{ fontSize: 14, color: "var(--success)", marginTop: 4 }}>✓ Firmado</div>;
@@ -5326,6 +5429,11 @@ function SignatureCanvas({
   // The signature is uploaded to R2 before it is saved, so the button has to
   // stay busy across the round-trip and not just the parent's write.
   const [uploading, setUploading] = useState(false);
+  // `cleared` recuerda que se limpio un lienzo que tenia una firma ya guardada.
+  // Sin esto el useEffect de abajo, que depende de existingDataUrl, vuelve a
+  // pintar la firma vieja encima apenas React re-renderiza, y el usuario no
+  // logra reemplazarla: firma de nuevo y termina guardando la anterior.
+  const [cleared, setCleared] = useState(false);
 
   // Runs when the modal opens: the canvas is unmounted until then, so the
   // context has to be configured (and any existing signature redrawn) each time.
@@ -5342,7 +5450,7 @@ function SignatureCanvas({
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
     ctx.fillStyle = "#0F172A";
-    const normalizedExisting = signatureImageSrc(existingDataUrl);
+    const normalizedExisting = cleared ? null : signatureImageSrc(existingDataUrl);
     if (normalizedExisting) {
       const img = new window.Image();
       // Flag the strokes only once the bitmap is actually on the canvas, so a
@@ -5354,7 +5462,11 @@ function SignatureCanvas({
       };
       img.src = normalizedExisting;
     }
-  }, [open, existingDataUrl]);
+  }, [open, existingDataUrl, cleared]);
+
+  // Cada apertura del modal empieza limpia: `cleared` solo describe lo que pasó
+  // dentro de la sesión de firma actual.
+  useEffect(() => { if (open) setCleared(false); }, [open]);
 
   function getPos(e: React.MouseEvent | React.TouchEvent) {
     const canvas = canvasRef.current;
@@ -5380,6 +5492,9 @@ function SignatureCanvas({
     ctx.beginPath();
     ctx.arc(pos.x, pos.y, 1.2, 0, Math.PI * 2);
     ctx.fill();
+    // Este punto ya es tinta: sin esto, un toque sin arrastrar dibuja pero deja
+    // "Guardar" deshabilitado, porque setHasStrokes solo vivia en draw().
+    setHasStrokes(true);
     setSaved(false);
   }
 
@@ -5409,6 +5524,7 @@ function SignatureCanvas({
     canvas.getContext("2d")!.clearRect(0, 0, canvas.width, canvas.height);
     setHasStrokes(false);
     setSaved(false);
+    setCleared(true);
   }
 
   /**
@@ -5687,7 +5803,7 @@ function PasoInput({
    * what is already stored, so tabbing through a form issues no requests.
    */
   const saveIfDirty = () => {
-    const keys: (keyof PendingResp)[] = ["valor_texto", "valor_medido", "notas", "valor_fecha"];
+    const keys: (keyof PendingResp)[] = ["valor_texto", "valor_medido", "notas", "valor_fecha", "firmado_nombre"];
     const dirty = keys.some(k => resp[k] !== undefined && resp[k] !== (existingResp as any)?.[k]);
     if (dirty) onSave();
   };
@@ -5955,12 +6071,29 @@ function PasoInput({
   }
 
   if (paso.tipo === "firma") {
+    // Un trazo no dice quien firmo. Cuando el firmante es alguien de fuera del
+    // sistema (el cliente, el establecimiento), `respondido_por` es el tecnico
+    // que sostiene el telefono y no hay usuario que resolver, asi que sin este
+    // campo el informe sale con la firma dibujada y un guion debajo.
+    const esFirmanteExterno = paso.rol_firmante != null && paso.rol_firmante !== "tecnico";
+    const nombreFirmante = (val("firmado_nombre") as string | null | undefined) ?? "";
+
     return (
       <div>
         {paso.rol_firmante && (
           <div style={{ fontSize: 14, color: "var(--fg-2)", marginBottom: 6 }}>
             Firma de: <strong>{paso.rol_firmante}</strong>
           </div>
+        )}
+        {esFirmanteExterno && (
+          <input
+            type="text"
+            value={nombreFirmante}
+            onChange={e => onUpdate({ firmado_nombre: e.target.value })}
+            onBlur={saveIfDirty}
+            placeholder="Nombre de quien firma"
+            style={{ ...inputStyle, marginBottom: 8, maxWidth: 320 }}
+          />
         )}
         <SignatureCanvas
           ordenId={ordenId}
@@ -5969,8 +6102,10 @@ function PasoInput({
           onSave={dataUrl => onSave(dataUrl
             ? { firma_svg: dataUrl, firmado_at: new Date().toISOString() }
             // Empty means the user cleared it: wipe the signature and its
-            // timestamp rather than storing a blank image.
-            : { firma_svg: null, firmado_at: null })}
+            // timestamp rather than storing a blank image. El nombre se va con
+            // el trazo: un nombre sin firma acreditaria una recepcion que se
+            // acaba de borrar.
+            : { firma_svg: null, firmado_at: null, firmado_nombre: null })}
         />
       </div>
     );
@@ -6257,11 +6392,19 @@ function PasoExtras({
       {showNota && (
         <textarea
           value={nota}
-          onChange={e => onNotaChange(e.target.value)}
+          // Crece con el contenido en vez de dejar la nota larga dentro de una
+          // caja de 64px que hay que arrastrar: el técnico tiene que poder
+          // releer lo que escribió antes de cerrar el paso.
+          ref={el => { if (el) { el.style.height = "auto"; el.style.height = `${el.scrollHeight}px`; } }}
+          onChange={e => {
+            e.currentTarget.style.height = "auto";
+            e.currentTarget.style.height = `${e.currentTarget.scrollHeight}px`;
+            onNotaChange(e.target.value);
+          }}
           onBlur={e => { e.currentTarget.style.borderColor = "var(--border)"; onNotaCommit(); }}
           placeholder="Introducir nota"
           rows={2}
-          style={{ ...inputStyle, height: "auto", minHeight: 64, padding: "9px 12px", resize: "vertical", lineHeight: 1.5 }}
+          style={{ ...inputStyle, height: "auto", minHeight: 64, padding: "9px 12px", resize: "vertical", lineHeight: 1.5, overflow: "hidden" }}
           onFocus={e => { e.currentTarget.style.borderColor = "var(--brand)"; }}
         />
       )}
