@@ -29,6 +29,7 @@ import {
   ShoppingCart,
   Truck,
   Gauge,
+  Workflow,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
@@ -265,6 +266,7 @@ export default function AppSidebar() {
   const hasOrdenesCompra = !planFeatures || planFeatures.ordenes_compra;
   const hasAnalitica    = !planFeatures || planFeatures.analytics_pro;
   const hasMedidores    = !planFeatures || planFeatures.medidores;
+  const hasAutomatizaciones = !planFeatures || planFeatures.automatizaciones;
   const isAdmin = mounted && (effectiveRol === "jefe" || effectiveRol === "admin" || effectiveRol === "owner");
 
   // Entering the section from anywhere else opens the submenu. Leaving it does
@@ -459,6 +461,20 @@ export default function AppSidebar() {
                     <Link href="/medidores" prefetch={false} style={{ display: "flex", alignItems: "center", gap: collapsed ? 0 : 10 }}>
                       <Gauge size={16} style={{ flexShrink: 0 }} />
                       {!collapsed && <span>Medidores</span>}
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )}
+              {/* Automatizaciones: la regla que convierte una lectura en trabajo.
+                  Va pegada a Medidores porque hoy todo disparador es una lectura.
+                  Con gate de admin —igual que Planes de mantención— porque es
+                  configuración del espacio, no trabajo del día a día. */}
+              {isAdmin && hasAutomatizaciones && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={isActive("/automatizaciones")} tooltip="Automatizaciones">
+                    <Link href="/automatizaciones" prefetch={false} style={{ display: "flex", alignItems: "center", gap: collapsed ? 0 : 10 }}>
+                      <Workflow size={16} style={{ flexShrink: 0 }} />
+                      {!collapsed && <span>Automatizaciones</span>}
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
