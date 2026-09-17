@@ -17,7 +17,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Search, Workflow, X } from "lucide-react";
+import { Loader2, Plus, Search, Workflow, X } from "lucide-react";
 import { createClient } from "@/lib/supabase";
 import { useDeepLinkId } from "@/lib/use-deep-link-id";
 import {
@@ -29,6 +29,10 @@ import { EmptyState, EmptyDetail } from "@/components/EmptyState";
 import { useSuscripcion } from "@/hooks/useSuscripcion";
 import { UpgradePrompt } from "@/components/UpgradePrompt";
 import AutomatizacionDetalle from "@/components/automatizaciones/AutomatizacionDetalle";
+import AutomatizacionCrearPanel from "@/components/automatizaciones/AutomatizacionCrearPanel";
+import { listCategorias } from "@/lib/categorias-api";
+import { useUsuarios } from "@/lib/queries";
+import type { CategoriaOT, Usuario } from "@/types/ordenes";
 
 // Misma división que /medidores, con su propia clave: el ancho cómodo para una
 // lista de reglas no es el mismo que para una lista de medidores.
@@ -72,6 +76,9 @@ function AutomatizacionesPageInner() {
   const [rol, setRol] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const { selectedId, open, close } = useDeepLinkId("/automatizaciones");
+  const [creando, setCreando] = useState(false);
+  /** En edición: el mismo panel con los valores cargados. */
+  const [editando, setEditando] = useState<AutomatizacionCompleta | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const [listWidth, setListWidth] = useState<number>(DEFAULT_LIST_WIDTH);
@@ -151,6 +158,49 @@ function AutomatizacionesPageInner() {
   });
   const medidores: MedidorConUltima[] = useMemo(() => medidoresQuery.data ?? [], [medidoresQuery.data]);
 
+  // Catálogos que consume el constructor: activos y ubicaciones para la OT que
+  // la acción deja preparada. Una sola consulta con las dos porque son dos
+  // listas chicas y separarlas solo duplica el manejo de carga.
+  const catalogos = useQuery({
+    queryKey: ["automatizaciones", "catalogos", wsId],
+    enabled: !!wsId,
+    staleTime: 5 * 60 * 1000,
+    queryFn: async () => {
+      const sb = createClient();
+      const [act, ubi] = await Promise.all([
+        sb.from("activos").select("id, nombre, numero_serie")
+          .eq("workspace_id", wsId!).eq("activo", true)
+          .order("nombre", { ascending: true }).limit(500),
+        sb.from("ubicaciones").select("id, edificio, detalle")
+          .eq("workspace_id", wsId!).eq("activa", true)
+          .order("edificio", { ascending: true }).limit(500),
+      ]);
+      return {
+        activos: ((act.data ?? []) as { id: string; nombre: string | null; numero_serie: string | null }[])
+          .map(a => ({ id: a.id, label: a.nombre ?? "Sin nombre", sub: a.numero_serie ?? undefined })),
+        ubicaciones: ((ubi.data ?? []) as { id: string; edificio: string | null; detalle: string | null }[])
+          // Mismo rótulo "edificio · detalle" que el resto de la app.
+          .map(u => ({ id: u.id, label: [u.edificio, u.detalle].filter(Boolean).join(" · ") || "Sin nombre" })),
+      };
+    },
+  });
+
+  const usuariosQuery = useUsuarios(wsId);
+  // Dados de baja fuera del selector: siguen en la tabla para poder nombrar
+  // trabajo viejo, pero no reciben trabajo nuevo.
+  const usuarios: Usuario[] = useMemo(
+    () => (usuariosQuery.data ?? []).filter(u => !u.deleted_at) as Usuario[],
+    [usuariosQuery.data],
+  );
+
+  const categoriasQuery = useQuery({
+    queryKey: ["categorias", wsId],
+    queryFn: () => listCategorias(wsId!),
+    enabled: !!wsId,
+    staleTime: 5 * 60 * 1000,
+  });
+  const categorias: CategoriaOT[] = useMemo(() => categoriasQuery.data ?? [], [categoriasQuery.data]);
+
   const items = useMemo(() => query.data ?? [], [query.data]);
   const loading = query.isLoading;
   const listError = query.error ? (query.error as Error).message : null;
@@ -229,6 +279,23 @@ function AutomatizacionesPageInner() {
               </button>
             )}
           </div>
+
+          {isAdmin && (
+            <button
+              onClick={() => { setEditando(null); setCreando(true); }}
+              style={{
+                display: "flex", alignItems: "center", gap: 6, height: 38, padding: "0 16px",
+                background: "var(--brand)", border: "none", borderRadius: 8, cursor: "pointer",
+                fontSize: 14, fontWeight: 400, color: "var(--fg-on-brand)", fontFamily: "inherit",
+                whiteSpace: "nowrap", gridColumn: 3, gridRow: 1,
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = "var(--brand-active)"; }}
+              onMouseLeave={e => { e.currentTarget.style.background = "var(--brand)"; }}
+            >
+              <Plus size={16} strokeWidth={2} />
+              Nueva automatización
+            </button>
+          )}
         </div>
       </div>
 
@@ -254,6 +321,8 @@ function AutomatizacionesPageInner() {
               icon={<Workflow size={38} strokeWidth={1.4} />}
               title={hayBusqueda ? "Ninguna automatización coincide con la búsqueda" : "Todavía no hay automatizaciones"}
               description="Una automatización vigila un medidor y actúa sola: abre la orden de trabajo en cuanto la lectura cruza el valor que definas."
+              onCreate={isAdmin ? () => { setEditando(null); setCreando(true); } : undefined}
+              createLabel="Crear la primera"
               hasSearch={hayBusqueda}
             />
           ) : (
@@ -286,14 +355,35 @@ function AutomatizacionesPageInner() {
         </div>
 
         <div style={{ flex: 1, minWidth: 0, overflow: "hidden", background: "var(--surface-canvas)" }}>
-          {detalle ? (
+          {/* El constructor ocupa el panel, no un modal: entre disparadores,
+              los campos de la OT y los dos frenos, el formulario es largo. */}
+          {(creando || editando) && wsId ? (
+            <AutomatizacionCrearPanel
+              key={editando?.id ?? "nueva"}
+              wsId={wsId}
+              inicial={editando}
+              medidores={medidores}
+              activos={catalogos.data?.activos ?? []}
+              ubicaciones={catalogos.data?.ubicaciones ?? []}
+              usuarios={usuarios}
+              categorias={categorias}
+              onClose={() => { setCreando(false); setEditando(null); }}
+              onGuardada={() => {
+                setCreando(false);
+                setEditando(null);
+                void queryClient.invalidateQueries({ queryKey: ["automatizaciones"] });
+              }}
+            />
+          ) : detalle ? (
             <div style={{ height: "100%", overflowY: "auto" }}>
               <AutomatizacionDetalle
                 key={detalle.id}
                 automatizacion={detalle}
                 medidores={medidores}
-                onEditar={() => { /* Task 7 monta el constructor acá. */ }}
-                onEliminar={() => { if (isAdmin) void eliminar(detalle); }}
+                usuarios={usuarios}
+                puedeEditar={isAdmin}
+                onEditar={() => { setCreando(false); setEditando(detalle); }}
+                onEliminar={() => { void eliminar(detalle); }}
               />
             </div>
           ) : (

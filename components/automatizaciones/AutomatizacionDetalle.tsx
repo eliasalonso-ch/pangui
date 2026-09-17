@@ -61,12 +61,14 @@ function tituloSeccion(texto: string) {
 }
 
 export default function AutomatizacionDetalle({
-  automatizacion: a, medidores, usuarios, onEditar, onEliminar,
+  automatizacion: a, medidores, usuarios, puedeEditar = true, onEditar, onEliminar,
 }: {
   automatizacion: AutomatizacionCompleta;
   medidores: MedidorConUltima[];
   /** Solo para poner nombre a `asignados_ids`. Vacío = se muestra el conteo. */
   usuarios?: { id: string; nombre: string }[];
+  /** Falso esconde Editar y Eliminar. La RLS es la garantía; esto es la UI. */
+  puedeEditar?: boolean;
   onEditar: () => void;
   onEliminar: () => void;
 }) {
@@ -121,7 +123,7 @@ export default function AutomatizacionDetalle({
             <p style={{ fontSize: 14, color: "var(--fg-2)", margin: "6px 0 0", lineHeight: 1.6 }}>{a.descripcion}</p>
           )}
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+        <div style={{ display: puedeEditar ? "flex" : "none", alignItems: "center", gap: 8, flexShrink: 0 }}>
           <button onClick={onEditar} style={btnSecundario}>
             <Pencil size={14} /> Editar
           </button>
@@ -163,7 +165,7 @@ export default function AutomatizacionDetalle({
           <input
             type="checkbox"
             checked={a.activa}
-            disabled={guardandoToggle}
+            disabled={guardandoToggle || !puedeEditar}
             onChange={e => { void cambiarActiva(e.target.checked); }}
           />
           Habilitar la automatización
