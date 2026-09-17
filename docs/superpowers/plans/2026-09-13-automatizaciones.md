@@ -1164,79 +1164,89 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 
 ---
 
-### Task 5: Extract the two shared selects
+### Task 5: Extract `AssigneeSelect`
 
-`SearchSelect` and `AssigneeSelect` are currently local to `OTCrearPanel.tsx` and
-are exactly the controls the action form needs. Extract, don't copy.
+> **Corrected before execution.** This task originally also extracted
+> `SearchSelect`. It must not: `components/activos/SearchSelect.tsx` ALREADY
+> EXISTS as a shared component whose props are a superset of OTCrearPanel's local
+> copy, with an identical option shape (`{id, label, sub?}`). Creating a third
+> copy is exactly the duplication that file's own header comment warns against.
+> Task 7 imports the existing one. Only `AssigneeSelect` is extracted here —
+> no shared version of it exists.
 
 **Files:**
-- Create: `components/ordenes/SearchSelect.tsx`
 - Create: `components/ordenes/AssigneeSelect.tsx`
-- Modify: `app/(app)/ordenes/OTCrearPanel.tsx:230-343` (remove `SearchSelect`,
-  import it), `:392-532` (remove `AssigneeSelect`, import it)
+- Modify: `app/(app)/ordenes/OTCrearPanel.tsx:392-532` (remove `AssigneeSelect`,
+  import it)
+
+Do **not** touch OTCrearPanel's local `SearchSelect` (line 230). Replacing it
+with the shared one is unrelated cleanup, and the Global Constraints forbid
+changes that do not trace to this task.
 
 **Interfaces:**
 - Consumes: nothing.
-- Produces:
-  - `SearchSelect({ placeholder, value, options, onChange })` — `options` is
-    `{ id: string; label: string }[]`, `value` is `string`, `onChange` is
-    `(id: string) => void`. Default export from `components/ordenes/SearchSelect`.
-  - `AssigneeSelect({ usuarios, value, onChange })` — `value` is `string[]`,
-    `onChange` is `(ids: string[]) => void`. Default export from
-    `components/ordenes/AssigneeSelect`.
+- Produces: `AssigneeSelect({ usuarios, value, onChange })` — `usuarios` is the
+  panel's `Usuario[]`, `value` is `string[]`, `onChange` is
+  `(ids: string[]) => void`. Default export from
+  `components/ordenes/AssigneeSelect`.
+- Task 7 additionally consumes the pre-existing
+  `components/activos/SearchSelect.tsx`:
+  `SearchSelect({ placeholder, value, options, onChange, disabled?, emptyLabel?,
+  onCreate?, createLabel? })` with `options: { id: string; label: string; sub?: string }[]`.
+  It is not modified by this task.
 
-- [ ] **Step 1: Read the exact current implementations**
+- [ ] **Step 1: Read the current implementation**
 
-Read `app/(app)/ordenes/OTCrearPanel.tsx` lines 228-343 and 390-532. Copy them
-verbatim — including comments. Do not "improve" them while moving; a behaviour
-change here shows up in OT creation, which is the app's hottest path.
+Read `app/(app)/ordenes/OTCrearPanel.tsx` lines 390-532. Copy it verbatim —
+including comments. Do not "improve" it while moving; a behaviour change here
+shows up in OT creation, which is the app's hottest path.
 
-- [ ] **Step 2: Create the two files**
+- [ ] **Step 2: Create the file**
 
-Move each function into its own file, adding `"use client";` at the top and
-changing `function X(...)` to `export default function X(...)`. Carry over only
-the imports each one actually uses (check for `useState`, `useRef`, `useEffect`,
-lucide icons, and any style constants — if a style constant like `inputStyle` is
-defined in OTCrearPanel, import it from `@/components/catalogo/PanelCatalogo`
-instead if identical, otherwise copy the constant into the new file).
+Move the function into `components/ordenes/AssigneeSelect.tsx`, adding
+`"use client";` at the top and changing `function AssigneeSelect(...)` to
+`export default function AssigneeSelect(...)`. Carry over only the imports it
+actually uses (check for `useState`, `useRef`, `useEffect`, lucide icons, the
+`Usuario` type, and any style constants — if a style constant is defined in
+OTCrearPanel and is identical to one in `@/components/catalogo/PanelCatalogo`,
+import it from there; otherwise copy the constant into the new file).
 
-Add a header comment to each, e.g. for `SearchSelect.tsx`:
+Header comment:
 
 ```typescript
 /**
- * Selector con búsqueda. Vivía dentro de OTCrearPanel.
+ * Selector de responsables. Vivía dentro de OTCrearPanel.
  *
- * Salió de ahí porque el formulario de acción de una automatización necesita
- * exactamente este control —elegir un activo, una ubicación— y la alternativa
- * era una segunda copia que se separa de esta en cuanto alguien toca una.
+ * Salió de ahí porque la acción "crear OT" de una automatización asigna gente
+ * igual que el formulario de OT, y la alternativa era una segunda copia que se
+ * separa de esta en cuanto alguien toca una.
  */
 ```
 
-- [ ] **Step 3: Wire OTCrearPanel to the extracted versions**
+- [ ] **Step 3: Wire OTCrearPanel to the extracted version**
 
-Delete both function bodies from `OTCrearPanel.tsx` and add at the top with the
+Delete the function body from `OTCrearPanel.tsx` and add at the top with the
 other component imports:
 
 ```typescript
-import SearchSelect from "@/components/ordenes/SearchSelect";
 import AssigneeSelect from "@/components/ordenes/AssigneeSelect";
 ```
 
 - [ ] **Step 4: Verify nothing broke**
 
 ```bash
-cd /c/dev/pangui && npx tsc --noEmit -p tsconfig.json 2>&1 | head -20 && npm test 2>&1 | tail -15
+npx tsc --noEmit -p tsconfig.json 2>&1 | head -20
+npm test 2>&1 | tail -15
 ```
 
-Expected: no new type errors; the existing suite passes exactly as before this
-task (same number of passing tests).
+Expected: no new type errors; the suite passes with the same count as the
+baseline recorded in the ledger (687 tests, 57 files).
 
 - [ ] **Step 5: Commit**
 
 ```bash
-cd /c/dev/pangui
-git add components/ordenes/SearchSelect.tsx components/ordenes/AssigneeSelect.tsx "app/(app)/ordenes/OTCrearPanel.tsx"
-git commit -m "refactor(ordenes): extrae SearchSelect y AssigneeSelect para reuso
+git add components/ordenes/AssigneeSelect.tsx "app/(app)/ordenes/OTCrearPanel.tsx"
+git commit -m "refactor(ordenes): extrae AssigneeSelect para reuso
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 ```
@@ -1365,8 +1375,11 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 
 **Interfaces:**
 - Consumes: `createAutomatizacion`, `updateAutomatizacion`, `OPERADORES`,
-  `MODOS`, `ConfigCrearOT` from Task 4; `SearchSelect` and `AssigneeSelect` from
-  Task 5; `FieldRow`, `inputStyle`, `textareaStyle` from
+  `MODOS`, `ConfigCrearOT` from Task 4; `AssigneeSelect` from Task 5; the
+  pre-existing `SearchSelect` from `@/components/activos/SearchSelect` (NOT
+  from `components/ordenes/` — see Task 5's correction note); the pre-existing
+  `CategoriaMultiSelect` from `@/components/ordenes/CategoriaMultiSelect`;
+  `FieldRow`, `inputStyle`, `textareaStyle` from
   `@/components/catalogo/PanelCatalogo`.
 - Produces: `AutomatizacionCrearPanel({ wsId, inicial, medidores, activos,
   ubicaciones, usuarios, categorias, onClose, onGuardada })` — default export.

@@ -26,13 +26,21 @@ export interface SearchSelectOption {
 
 export default function SearchSelect({
   placeholder, value, options, onChange, disabled,
-  emptyLabel = "Sin asignar", onCreate, createLabel,
+  emptyLabel = "Sin asignar", onCreate, createLabel, icono,
 }: {
   placeholder: string;
   value: string;
   options: SearchSelectOption[];
   onChange: (id: string) => void;
   disabled?: boolean;
+  /**
+   * Icono a la izquierda del texto (un medidor, un activo…).
+   *
+   * Opcional: sin él el control se ve como siempre, que es lo que esperan los
+   * demás pickers que ya usan este componente. Se muestra igual con y sin
+   * selección, para que el campo diga qué se elige ahí antes de elegir nada.
+   */
+  icono?: React.ReactNode;
   emptyLabel?: string;
   onCreate?: (nombre: string) => Promise<string>;
   createLabel?: string;
@@ -92,6 +100,11 @@ export default function SearchSelect({
           fontFamily: "inherit",
         }}
       >
+        {icono && (
+          <span style={{ flexShrink: 0, display: "flex", color: selected ? "var(--fg-3)" : "var(--fg-4)" }}>
+            {icono}
+          </span>
+        )}
         <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
           {selected ? selected.label : placeholder}
         </span>
