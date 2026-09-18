@@ -82,7 +82,7 @@ const labelStyle: React.CSSProperties = {
  * elemento, porque estos estilos son objetos inline y no hay hoja donde
  * declarar `::after`. El último paso la apaga con `ultimo`.
  */
-function Paso({ icono, titulo, ultimo, children }: {
+export function Paso({ icono, titulo, ultimo, children }: {
   icono: React.ReactNode;
   titulo: string;
   ultimo?: boolean;
@@ -112,7 +112,7 @@ function Paso({ icono, titulo, ultimo, children }: {
 }
 
 /** Tarjeta de un paso: encabezado teñido con el título y sus controles. */
-function Tarjeta({ titulo, subtitulo, icono, acciones, abierta, onToggle, children }: {
+export function Tarjeta({ titulo, subtitulo, icono, acciones, abierta, onToggle, children }: {
   titulo: string;
   /** Segunda línea del encabezado, para decir qué hay dentro sin abrir. */
   subtitulo?: string;
