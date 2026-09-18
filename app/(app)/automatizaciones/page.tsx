@@ -381,6 +381,9 @@ function AutomatizacionesPageInner() {
                 automatizacion={detalle}
                 medidores={medidores}
                 usuarios={usuarios}
+                activos={catalogos.data?.activos ?? []}
+                ubicaciones={catalogos.data?.ubicaciones ?? []}
+                categorias={categorias}
                 puedeEditar={isAdmin}
                 onEditar={() => { setCreando(false); setEditando(detalle); }}
                 onEliminar={() => { void eliminar(detalle); }}
