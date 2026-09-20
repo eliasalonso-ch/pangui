@@ -18,7 +18,7 @@ import { AlertCircle, Check, Copy, Loader2, User, Wifi } from "lucide-react";
 import SearchSelect from "@/components/activos/SearchSelect";
 import { createClient } from "@/lib/supabase";
 import {
-  createMedidor, updateMedidor,
+  createMedidor, updateMedidor, FRECUENCIAS,
   type Medidor, type MedidorConUltima, type TipoMedidor,
 } from "@/lib/medidores-api";
 
@@ -85,7 +85,19 @@ const UNIDADES: { grupo: string; unidades: { nombre: string; simbolo: string }[]
 ];
 
 /** Multiplicadores a días, que es como se guarda la frecuencia. */
-const UNIDAD_FRECUENCIA: Record<string, number> = { dias: 1, semanas: 7, meses: 30 };
+/**
+ * Opciones del selector de ronda, con el "Sin ronda" adelante.
+ *
+ * Salen de `FRECUENCIAS` (lib/medidores-api) para no tener dos catálogos: la
+ * móvil ofrece los mismos valores y las dos escriben la misma columna.
+ * `SearchSelect` trabaja con ids de texto, así que los minutos viajan como
+ * string y "" es el sin ronda.
+ */
+const OPCIONES_FRECUENCIA = FRECUENCIAS.map(f => ({
+  id: f.minutos == null ? "" : String(f.minutos),
+  label: f.label,
+  sub: f.grupo || undefined,
+}));
 
 /** Fila cruda de `activos` para el selector. */
 interface ActivoOpcion {
@@ -157,8 +169,13 @@ export default function MedidorCrearPanel({
   const [alarma, setAlarma] = useState(inicial?.critico?.toString() ?? "");
   // La frecuencia se guarda en días; al editar se muestra tal cual en días para
   // no adivinar si "14" se escribió como 2 semanas o como 14 días.
-  const [frecuencia, setFrecuencia] = useState(inicial?.frecuencia_dias?.toString() ?? "");
-  const [unidadFrecuencia, setUnidadFrecuencia] = useState("dias");
+  // Minutos, como texto, que es lo que maneja el selector. La columna vieja es
+  // el respaldo: una fila que todavía no tenga la nueva igual muestra su ronda.
+  const [frecuencia, setFrecuencia] = useState(
+    inicial?.frecuencia_minutos != null ? String(inicial.frecuencia_minutos)
+      : inicial?.frecuencia_dias != null ? String(inicial.frecuencia_dias * 1440)
+      : "",
+  );
   const [intervalo, setIntervalo] = useState(inicial?.intervalo_ot?.toString() ?? "");
   const [lecturaInicial, setLecturaInicial] = useState(inicial?.ultimo_disparo_ot?.toString() ?? "");
 
@@ -275,6 +292,12 @@ export default function MedidorCrearPanel({
     if (!nombre.trim()) { setErr("Indica el nombre del medidor."); return; }
     if (!unidad.trim()) { setErr("Indica la unidad de medida."); return; }
 
+    // Los tres umbrales ya no se editan desde acá (ver el bloque comentado en el
+    // formulario), pero SÍ se siguen enviando: los estados conservan el valor
+    // que traía el medidor, así que guardar un cambio de nombre no le borra los
+    // umbrales a un medidor viejo que los tenía configurados. En uno nuevo
+    // salen null, que es lo que corresponde.
+    //
     // Se valida acá y no solo en la base para poder decir cuál de los dos está
     // mal: la constraint devuelve el nombre de la restricción, no una frase.
     const adv = advertencia.trim() === "" ? null : Number(advertencia);
@@ -285,12 +308,9 @@ export default function MedidorCrearPanel({
       setErr("La alarma tiene que ser mayor que la advertencia."); return;
     }
 
-    let dias: number | null = null;
-    if (tipo === "manual" && frecuencia.trim() !== "") {
-      const n = Number(frecuencia);
-      if (!Number.isFinite(n) || n <= 0) { setErr("La frecuencia tiene que ser un número mayor que cero."); return; }
-      dias = Math.round(n * UNIDAD_FRECUENCIA[unidadFrecuencia]);
-    }
+    // El selector solo ofrece valores del catálogo, así que no hay nada que
+    // validar: o es uno de ellos o es "sin ronda".
+    const minutos = tipo === "manual" && frecuencia !== "" ? Number(frecuencia) : null;
 
     const intv = intervalo.trim() === "" ? null : Number(intervalo);
     if (intv != null && (!Number.isFinite(intv) || intv <= 0)) {
@@ -309,7 +329,7 @@ export default function MedidorCrearPanel({
           descripcion: descripcion.trim() || null,
           advertencia: adv,
           critico: alm,
-          frecuencia_dias: dias,
+          frecuencia_minutos: minutos,
           intervalo_ot: intv,
           ultimo_disparo_ot: ancla,
           // El activo también se puede reasignar: sin esto el selector dejaba
@@ -325,6 +345,9 @@ export default function MedidorCrearPanel({
       const medidor = await createMedidor({
         workspaceId,
         nombre,
+        // Siempre 'manual' mientras el selector esté desactivado. Se sigue
+        // pasando la variable y no un literal para que reactivar el selector sea
+        // descomentar y nada más.
         tipo,
         unidad,
         descripcion,
@@ -334,7 +357,7 @@ export default function MedidorCrearPanel({
         ubicacionId: ubicacionElegida || null,
         advertencia: adv,
         critico: alm,
-        frecuenciaDias: dias,
+        frecuenciaMinutos: minutos,
         intervaloOt: intv,
         lecturaInicial: ancla,
       });
@@ -464,6 +487,23 @@ export default function MedidorCrearPanel({
               </p>
             </div>
 
+            {/* SELECTOR DE TIPO — DESACTIVADO A PROPÓSITO (2026-09-20)
+                ────────────────────────────────────────────────────────────────
+                El medidor automatizado funciona: hay token, endpoint
+                (/api/medidores/lecturas) y motor de automatizaciones detrás. Lo
+                que NO hay todavía es forma de que un cliente conecte un sensor
+                real: lo probamos con un ESP32 virtual en Wokwi, no con hardware
+                en planta. Ofrecer el tipo significa que alguien lo elige, se
+                queda con un token y un medidor que nunca recibe una lectura.
+
+                Se comenta en vez de borrarse: es la integración que viene, y
+                todo lo de abajo (el paso del token, el `curl` de ejemplo, la
+                columna `tipo`) sigue en su sitio esperándola.
+
+                Los automatizados QUE YA EXISTEN no se tocan: se siguen viendo,
+                siguen recibiendo por la API y conservan su token. Esto solo
+                impide crear nuevos, y por eso `tipo` queda fijo en 'manual'.
+
             <div>
               <label style={labelStyle}>Tipo de medidor</label>
               <div style={{ display: "flex", gap: 8 }}>
@@ -490,6 +530,7 @@ export default function MedidorCrearPanel({
                 ))}
               </div>
             </div>
+            */}
 
             <div>
               <label style={labelStyle}>Descripción (opcional)</label>
@@ -521,19 +562,49 @@ export default function MedidorCrearPanel({
             {tipo === "manual" && (
               <div>
                 <label style={labelStyle}>Frecuencia de lectura (opcional)</label>
-                <div style={{ display: "flex", gap: 8 }}>
-                  <input type="number" min="1" value={frecuencia} disabled={busy}
-                    style={{ ...inputStyle, width: 110 }} placeholder="Cada"
-                    onChange={e => setFrecuencia(e.target.value)} />
-                  <select value={unidadFrecuencia} disabled={busy} style={{ ...inputStyle, flex: 1 }}
-                    onChange={e => setUnidadFrecuencia(e.target.value)}>
-                    <option value="dias">Días</option>
-                    <option value="semanas">Semanas</option>
-                    <option value="meses">Meses</option>
-                  </select>
-                </div>
+                {/* Un solo `SearchSelect`, como el resto del formulario: antes
+                    eran un número y un `<select>` nativo, que el sistema
+                    operativo pinta con otro alto y otra tipografía y desentonaba
+                    al lado del activo, la ubicación y la unidad. Además, un
+                    número libre dejaba escribir "cada 0 días". */}
+                <SearchSelect
+                  placeholder="Sin ronda"
+                  emptyLabel="Sin ronda"
+                  value={frecuencia}
+                  options={OPCIONES_FRECUENCIA}
+                  onChange={setFrecuencia}
+                  disabled={busy}
+                />
+                <p style={{ margin: "6px 0 0", fontSize: 14, color: "var(--fg-4)", lineHeight: 1.5 }}>
+                  Cada cuánto toca leerlo. Si se pasa, el medidor aparece como
+                  pendiente en la lista.
+                </p>
               </div>
             )}
+
+            {/* UMBRALES Y MANTENIMIENTO POR USO — DESACTIVADOS (2026-09-20)
+                ────────────────────────────────────────────────────────────────
+                Los tres campos —advertencia, alarma e intervalo de uso— son la
+                versión soldada de lo que ahora hace /automatizaciones, y peor:
+                título y prioridad fijos, sin elegir asignado, sin frenos, sin
+                historial de por qué disparó o no.
+
+                Equivalencias exactas en el constructor de automatizaciones:
+                  advertencia   → operador "Es mayor o igual a" + notificar
+                  alarma        → operador "Es mayor o igual a" + crear OT
+                  intervalo_ot  → operador "Aumenta en (desde el último disparo)",
+                                  y "Va en" es su campo "Empezar a disparar en"
+
+                Sobre todo: dejar los dos caminos vivos hace que un medidor con
+                intervalo 250 y una automatización cada 250 abran DOS OT por la
+                misma lectura.
+
+                Se comenta y no se borra, y las columnas siguen en la base
+                (`advertencia`, `critico`, `intervalo_ot`, `ultimo_disparo_ot`)
+                con su trigger `fn_medidor_lectura_critica`: los medidores que ya
+                tienen umbrales cargados siguen avisando igual que ayer. Esto
+                solo saca los campos del formulario para que no se configuren
+                medidores nuevos por el camino viejo.
 
             <div style={seccion}>
               <label style={{ ...labelStyle, marginBottom: 2 }}>Ajustes de umbral</label>
@@ -572,9 +643,9 @@ export default function MedidorCrearPanel({
               </div>
             </div>
 
-            {/* Mantenimiento por uso acumulado: el umbral de arriba vigila una
+            (nota: Mantenimiento por uso acumulado: el umbral de arriba vigila una
                 magnitud instantánea (vibró 9 mm/s = está mal AHORA); esto cuenta
-                uso (cada 250 horas toca servicio, aunque todo esté perfecto). */}
+                uso (cada 250 horas toca servicio, aunque todo esté perfecto).  (fin nota)
             <div style={seccion}>
               <label style={{ ...labelStyle, marginBottom: 2 }}>Mantenimiento por uso (opcional)</label>
               <p style={{ margin: "0 0 12px", fontSize: 14, color: "var(--fg-4)", lineHeight: 1.5 }}>
@@ -598,8 +669,8 @@ export default function MedidorCrearPanel({
                   </div>
                 </div>
 
-                {/* Sin esto, un horómetro que ya marca 1.240 h dispararía la OT
-                    en la primera lectura porque la cuenta arrancaría en 0. */}
+                (nota: Sin esto, un horómetro que ya marca 1.240 h dispararía la OT
+                    en la primera lectura porque la cuenta arrancaría en 0.  (fin nota)
                 {intervalo.trim() !== "" && (
                   <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                     <span style={{ width: 120, flexShrink: 0, fontSize: 14, color: "var(--fg-2)" }}>Va en</span>
@@ -618,6 +689,7 @@ export default function MedidorCrearPanel({
                 )}
               </div>
             </div>
+            */}
           </div>
         )}
       </div>

@@ -32,8 +32,13 @@ export interface Medidor {
   token: string | null;
   advertencia: number | null;
   critico: number | null;
-  /** Cada cuántos días toca leerlo. Solo en los manuales; `null` = sin ronda. */
+  /**
+   * DEPRECADA: usar `frecuencia_minutos`. La mantiene sincronizada un trigger
+   * y redondea hacia arriba, así que una ronda sub-diaria se ve como 1 día.
+   */
   frecuencia_dias: number | null;
+  /** Cada cuántos minutos toca leerlo. Solo en los manuales; `null` = sin ronda. */
+  frecuencia_minutos: number | null;
   /**
    * Cada cuántas unidades acumuladas se abre una OT preventiva.
    *
@@ -78,6 +83,52 @@ export function origenDeLectura(l: Pick<Lectura, "creado_por" | "paso_respuesta_
   return l.creado_por ? "manual" : "api";
 }
 
+const MIN_POR_HORA = 60;
+const MIN_POR_DIA = 1440;
+
+/**
+ * Las rondas que se ofrecen, en minutos.
+ *
+ * Espejo de `FRECUENCIAS` en `features/medidores/reglas.ts` de la móvil: las dos
+ * apps escriben la misma columna, así que si acá falta "Cada hora" un medidor
+ * configurado desde el teléfono se ve mal en la web.
+ *
+ * Se guarda en minutos y no en días porque la ronda más corta que permitía
+ * `frecuencia_dias` era de un día, y una lectura por turno es el caso normal en
+ * planta. Ver 20260913220000_medidores_frecuencia_minutos.sql.
+ */
+export const FRECUENCIAS: { minutos: number | null; label: string; grupo: string }[] = [
+  { minutos: null, label: "Sin ronda", grupo: "" },
+
+  { minutos: 1 * MIN_POR_HORA,  label: "Cada hora",     grupo: "Por turno" },
+  { minutos: 4 * MIN_POR_HORA,  label: "Cada 4 horas",  grupo: "Por turno" },
+  { minutos: 8 * MIN_POR_HORA,  label: "Cada 8 horas",  grupo: "Por turno" },
+  { minutos: 12 * MIN_POR_HORA, label: "Cada 12 horas", grupo: "Por turno" },
+
+  { minutos: 1 * MIN_POR_DIA,   label: "Diaria",     grupo: "Periódica" },
+  { minutos: 7 * MIN_POR_DIA,   label: "Semanal",    grupo: "Periódica" },
+  { minutos: 15 * MIN_POR_DIA,  label: "Quincenal",  grupo: "Periódica" },
+  { minutos: 30 * MIN_POR_DIA,  label: "Mensual",    grupo: "Periódica" },
+  { minutos: 90 * MIN_POR_DIA,  label: "Trimestral", grupo: "Periódica" },
+  { minutos: 180 * MIN_POR_DIA, label: "Semestral",  grupo: "Periódica" },
+  { minutos: 365 * MIN_POR_DIA, label: "Anual",      grupo: "Periódica" },
+];
+
+/**
+ * La etiqueta de una frecuencia guardada.
+ *
+ * Una que no esté en el catálogo —de una versión vieja de la app o del
+ * backfill— se rotula sola en la unidad que menos ruido haga.
+ */
+export function etiquetaFrecuencia(minutos: number | null): string {
+  if (minutos == null) return "Sin ronda";
+  const conocida = FRECUENCIAS.find(f => f.minutos === minutos);
+  if (conocida) return conocida.label;
+  if (minutos % MIN_POR_DIA === 0) return `Cada ${minutos / MIN_POR_DIA} días`;
+  if (minutos % MIN_POR_HORA === 0) return `Cada ${minutos / MIN_POR_HORA} horas`;
+  return `Cada ${minutos} minutos`;
+}
+
 /** Medidor con su última lectura ya resuelta, que es lo que muestra el panel. */
 export interface MedidorConUltima extends Medidor {
   ultima: Lectura | null;
@@ -89,7 +140,7 @@ export interface MedidorConUltima extends Medidor {
 
 const MEDIDOR_SELECT = `
   id, workspace_id, nombre, descripcion, tipo, unidad, activo_id, ubicacion_id,
-  token, advertencia, critico, frecuencia_dias, intervalo_ot, ultimo_disparo_ot,
+  token, advertencia, critico, frecuencia_dias, frecuencia_minutos, intervalo_ot, ultimo_disparo_ot,
   activo, creado_por, created_at
 `;
 
@@ -256,7 +307,8 @@ export async function createMedidor(input: {
   ubicacionId?: string | null;
   advertencia?: number | null;
   critico?: number | null;
-  frecuenciaDias?: number | null;
+  /** Minutos. `null` = sin ronda. */
+  frecuenciaMinutos?: number | null;
   intervaloOt?: number | null;
   /**
    * Lectura actual del contador al dar de alta el medidor.
@@ -285,7 +337,8 @@ export async function createMedidor(input: {
       advertencia: input.advertencia ?? null,
       critico: input.critico ?? null,
       // Un automatizado publica al ritmo de su gateway: la ronda no le aplica.
-      frecuencia_dias: input.tipo === "manual" ? (input.frecuenciaDias ?? null) : null,
+      // Solo la columna nueva: el trigger sincroniza `frecuencia_dias` sola.
+      frecuencia_minutos: input.tipo === "manual" ? (input.frecuenciaMinutos ?? null) : null,
       intervalo_ot: input.intervaloOt ?? null,
       // El ancla se guarda aunque no haya intervalo todavía: si mañana se
       // configura uno, la cuenta parte desde donde iba el contador y no desde 0.
@@ -304,7 +357,7 @@ export async function updateMedidor(
   medidorId: string,
   cambios: Partial<Pick<Medidor,
     "nombre" | "descripcion" | "advertencia" | "critico" |
-    "frecuencia_dias" | "intervalo_ot" | "ultimo_disparo_ot" |
+    "frecuencia_dias" | "frecuencia_minutos" | "intervalo_ot" | "ultimo_disparo_ot" |
     // Activo y ubicación sí se editan: un medidor se puede remontar o pasar a
     // otra máquina, y el trigger copia ambos a la OT que genera.
     "activo_id" | "ubicacion_id">>,
@@ -384,17 +437,25 @@ export function faltaParaIntervalo(
 /**
  * Cuándo le toca la próxima lectura a un medidor manual.
  *
- * `null` cuando no hay ronda definida (`frecuencia_dias` NULL) o cuando el
- * medidor es automatizado — su gateway no espera que nadie vaya a leerlo.
+ * `null` cuando no hay ronda definida o cuando el medidor es automatizado — su
+ * gateway no espera que nadie vaya a leerlo.
+ *
+ * Se cuenta en MINUTOS: con `frecuencia_dias` una ronda por turno se redondeaba
+ * a un día y la lista de pendientes no la mostraba hasta el día siguiente. Se
+ * cae a la columna vieja si la fila todavía no tiene la nueva, porque las dos
+ * apps conviven mientras dure el despliegue.
  *
  * Sin lecturas todavía, la ronda vence YA: el medidor se creó para leerse, y
  * dejarlo fuera de la lista de pendientes lo esconde justo cuando hace falta
  * que aparezca.
  */
 export function proximaLectura(medidor: MedidorConUltima): Date | null {
-  if (medidor.tipo !== "manual" || medidor.frecuencia_dias == null) return null;
+  if (medidor.tipo !== "manual") return null;
+  const minutos = medidor.frecuencia_minutos
+    ?? (medidor.frecuencia_dias != null ? medidor.frecuencia_dias * 1440 : null);
+  if (minutos == null) return null;
   if (!medidor.ultima) return new Date(0);
-  return new Date(new Date(medidor.ultima.ts).getTime() + medidor.frecuencia_dias * 86_400_000);
+  return new Date(new Date(medidor.ultima.ts).getTime() + minutos * 60_000);
 }
 
 /** Un medidor manual cuya ronda ya venció. */
