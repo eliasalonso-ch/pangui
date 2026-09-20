@@ -14,6 +14,20 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
+
+/**
+ * 15s en vez de los 5 por defecto.
+ *
+ * Este panel es el formulario más grande de la app y cada prueba lo monta
+ * entero y lo recorre con `userEvent`, que escribe carácter por carácter. Los
+ * pasos de acciones y condiciones ahora arrancan en su selector de tipo, así
+ * que cada prueba hace dos clics más. Solo, el archivo pasa de sobra; con la
+ * suite completa en paralelo compite por CPU y algunas rozaban los 5s.
+ *
+ * Se sube el techo en vez de recortar las pruebas: lo que tardan es el recorrido
+ * real del usuario, y es justo lo que se quiere estar probando.
+ */
+vi.setConfig({ testTimeout: 15_000 });
 import { render, screen, fireEvent, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
@@ -103,12 +117,33 @@ function inputValor() {
 }
 
 /**
- * Despliega la primera acción, que al crear nace plegada.
+ * Suma una acción desde el selector de tipo.
  *
- * Los campos de la OT no existen en el DOM hasta abrirla, así que casi todo lo
- * que toca la acción empieza por acá.
+ * El paso ya no nace con una OT puesta: muestra la lista de tipos y la tarjeta
+ * aparece al elegir uno. Vacío el paso la lista está a la vista; con tarjetas
+ * se abre desde "Agregar otra acción".
+ */
+async function agregarAccion(tipo = "Crear una orden de trabajo") {
+  const boton = screen.queryByText("Agregar otra acción");
+  if (boton) await userEvent.click(boton);
+  // Por el aria-label y no por texto: el mismo rótulo es el encabezado de las
+  // tarjetas ya agregadas, así que buscar por texto encuentra varias.
+  await userEvent.click(screen.getByLabelText(`Agregar acción: ${tipo}`));
+}
+
+/**
+ * Deja lista y abierta la acción `indice`, creándola si todavía no existe.
+ *
+ * Los campos de la OT no están en el DOM hasta abrirla, así que casi todo lo
+ * que toca la acción empieza por acá. Una acción recién elegida nace desplegada
+ * —se acaba de pedir—, así que en el caso normal esto solo la crea.
  */
 async function abrirAccion(indice = 0) {
+  const tarjetas = screen.queryAllByLabelText(/Plegar|Desplegar/);
+  if (indice >= tarjetas.length) {
+    await agregarAccion();
+    return;
+  }
   // Sin título la acción no se pliega desde el encabezado: la forma de entrar
   // es la caja de "Escribir la orden de trabajo".
   const cajas = screen.queryAllByText("Escribir la orden de trabajo");
@@ -116,8 +151,7 @@ async function abrirAccion(indice = 0) {
     await userEvent.click(cajas[indice]);
     return;
   }
-  const botones = screen.getAllByLabelText(/Plegar|Desplegar/);
-  await userEvent.click(botones[indice]);
+  await userEvent.click(tarjetas[indice]);
 }
 
 beforeEach(() => {
@@ -308,6 +342,7 @@ describe("AutomatizacionCrearPanel — validación", () => {
     await userEvent.type(screen.getByPlaceholderText("¿Cómo se llama esta regla?"), "Regla");
     await elegirEnSelect("Busca un medidor…", /Corriente de Motor/);
     fireEvent.change(inputValor(), { target: { value: "10" } });
+    await agregarAccion();
     await intentarCrear();
 
     expect(screen.getByText(/es el título de la orden/)).toBeInTheDocument();
@@ -414,7 +449,7 @@ describe("AutomatizacionCrearPanel — varias acciones", () => {
       screen.getByPlaceholderText("¿Qué trabajo se debe realizar?"), "Trabajo eléctrico",
     );
     // La acción nueva nace desplegada: se acaba de pedir, hay que llenarla.
-    await userEvent.click(screen.getByText("Agregar otra acción"));
+    await agregarAccion();
 
     const titulos = screen.getAllByPlaceholderText("¿Qué trabajo se debe realizar?");
     expect(titulos).toHaveLength(2);
@@ -443,7 +478,7 @@ describe("AutomatizacionCrearPanel — varias acciones", () => {
     await userEvent.type(
       screen.getByPlaceholderText("¿Qué trabajo se debe realizar?"), "Trabajo eléctrico",
     );
-    await userEvent.click(screen.getByText("Agregar otra acción"));
+    await agregarAccion();
     await userEvent.click(screen.getByRole("button", { name: "Crear" }));
 
     // "falta el título" sobre cuatro tarjetas idénticas no orienta a nadie.
@@ -471,23 +506,37 @@ describe("AutomatizacionCrearPanel — varias acciones", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("ofrece la caja de escribir cuando la acción no tiene título", async () => {
+  it("arranca sin acciones: primero se elige el tipo", async () => {
     renderPanel();
 
-    // Sin definir no se pliega ni se renombra: se ofrece el atajo para
-    // escribirla, que es lo único que se puede hacer con ella.
-    expect(screen.getByText("Escribir la orden de trabajo")).toBeInTheDocument();
-    expect(screen.queryByLabelText(/Plegar|Desplegar/)).not.toBeInTheDocument();
+    // El paso vacío ES el selector: no hay tarjeta que plegar ni caja que
+    // escribir hasta que el usuario elige qué tiene que pasar.
+    expect(screen.getByLabelText("Agregar acción: Crear una orden de trabajo")).toBeInTheDocument();
+    expect(screen.getByLabelText("Agregar acción: Cambiar el estado del activo")).toBeInTheDocument();
+    expect(screen.queryByText("Escribir la orden de trabajo")).not.toBeInTheDocument();
+    expect(screen.queryByText("Agregar otra acción")).not.toBeInTheDocument();
+  });
+
+  it("no ofrece los tipos de acción que no se construyeron", async () => {
+    renderPanel();
+
+    expect(screen.queryByLabelText(/Crear una solicitud/)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/Enviar una notificación/)).not.toBeInTheDocument();
+  });
+
+  it("muestra el botón de agregar otra recién con una acción puesta", async () => {
+    renderPanel();
+    await agregarAccion();
+
+    expect(screen.getByText("Agregar otra acción")).toBeInTheDocument();
   });
 
   it("solo deja plegar una vez que la OT tiene título", async () => {
     renderPanel();
+    await agregarAccion();
 
-    // Vacía: la caja para escribirla, sin chevron.
-    expect(screen.getByText("Escribir la orden de trabajo")).toBeInTheDocument();
+    // Recién elegida nace abierta y sin título: todavía no hay nada que plegar.
     expect(screen.queryByLabelText(/Plegar|Desplegar/)).not.toBeInTheDocument();
-
-    await abrirAccion();
     await userEvent.type(
       screen.getByPlaceholderText("¿Qué trabajo se debe realizar?"), "Revisar bomba",
     );
@@ -504,7 +553,7 @@ describe("AutomatizacionCrearPanel — varias acciones", () => {
     await userEvent.type(
       screen.getByPlaceholderText("¿Qué trabajo se debe realizar?"), "Primera",
     );
-    await userEvent.click(screen.getByText("Agregar otra acción"));
+    await agregarAccion();
     const titulos = screen.getAllByPlaceholderText("¿Qué trabajo se debe realizar?");
     await userEvent.type(titulos[1], "Segunda");
 
@@ -516,7 +565,7 @@ describe("AutomatizacionCrearPanel — varias acciones", () => {
     expect(restantes[0]).toHaveValue("Segunda");
   });
 
-  it("con una sola acción, borrar la vacía en vez de quitarla", async () => {
+  it("borrar la última acción devuelve el paso al selector", async () => {
     renderPanel();
     await abrirAccion();
     await userEvent.type(
@@ -526,9 +575,11 @@ describe("AutomatizacionCrearPanel — varias acciones", () => {
     await userEvent.click(screen.getByLabelText("Borrar lo que hace esta regla"));
     await userEvent.click(screen.getByRole("button", { name: "Confirmar" }));
 
-    // `crear_ot` es la única acción que el motor implementa, así que una regla
-    // sin ninguna no tiene nada que hacer: vuelve a "sin definir".
-    expect(screen.getByText("Escribir la orden de trabajo")).toBeInTheDocument();
+    // Se quita de verdad. Antes la última se vaciaba en vez de borrarse y
+    // quedaba una tarjeta "sin definir" que no había forma de sacar.
+    expect(screen.queryByText("Escribir la orden de trabajo")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Borrar lo que hace esta regla")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Agregar acción: Crear una orden de trabajo")).toBeInTheDocument();
   });
 
   it("cancelar el diálogo no borra nada", async () => {
@@ -552,6 +603,7 @@ describe("AutomatizacionCrearPanel — edición", () => {
   const existente: AutomatizacionCompleta = {
     id: "auto-1",
     workspace_id: "ws-1",
+    condiciones: [],
     nombre: "Fuga a tierra",
     descripcion: "Vigila la corriente",
     activa: true,
@@ -561,10 +613,10 @@ describe("AutomatizacionCrearPanel — edición", () => {
     triggers: [
       { id: "trg-1", automatizacion_id: "auto-1", medidor_id: "med-1",
         operador: "mayor_igual", valor: 10, valor_hasta: null,
-        modo: "una_lectura_reset", modo_n: null, armado: true },
+        modo: "una_lectura_reset", modo_n: null, armado: true, proximo_disparo: null },
       { id: "trg-2", automatizacion_id: "auto-1", medidor_id: "med-1",
         operador: "menor_igual", valor: 2, valor_hasta: null,
-        modo: "una_lectura_reset", modo_n: null, armado: true },
+        modo: "una_lectura_reset", modo_n: null, armado: true, proximo_disparo: null },
     ],
     acciones: [
       { id: "acc-1", automatizacion_id: "auto-1", tipo: "crear_ot",
@@ -710,6 +762,7 @@ describe("AutomatizacionCrearPanel — archivos", () => {
 describe("AutomatizacionCrearPanel — el globo de frecuencia", () => {
   it("se abre anclado al botón y guarda el valor en la acción", async () => {
     renderPanel();
+    await agregarAccion();
     await userEvent.click(screen.getByLabelText("Con qué frecuencia puede repetirse"));
 
     const minutos = screen.getByDisplayValue("5");
@@ -725,6 +778,7 @@ describe("AutomatizacionCrearPanel — el globo de frecuencia", () => {
     // después de vaciar `currentTarget`: eso tiraba "Cannot read properties of
     // null (reading 'getBoundingClientRect')" en cuanto se tocaba el engranaje.
     renderPanel();
+    await agregarAccion();
     const boton = screen.getByLabelText("Con qué frecuencia puede repetirse");
 
     await userEvent.click(boton);
@@ -743,6 +797,7 @@ describe("AutomatizacionCrearPanel — el globo de frecuencia", () => {
     // volteara, quedaría cortado por el borde inferior.
     const alto = window.innerHeight;
     renderPanel();
+    await agregarAccion();
 
     const boton = screen.getByLabelText("Con qué frecuencia puede repetirse");
     vi.spyOn(boton, "getBoundingClientRect").mockReturnValue({

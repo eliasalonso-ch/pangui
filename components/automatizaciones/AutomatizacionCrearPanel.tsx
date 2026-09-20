@@ -37,13 +37,20 @@ import {
   FieldRow, inputStyle, textareaStyle, seccionDetalle, tituloInputStyle, PanelCatalogo,
 } from "@/components/catalogo/PanelCatalogo";
 import {
-  agruparTriggersPorMedidor, createAutomatizacion, updateAutomatizacion,
-  medidorTrasCambiarActivo, OPERADORES, MODOS,
-  type AutomatizacionCompleta, type ConfigCrearOT,
-  type OperadorTrigger, type ModoTrigger,
+  agruparTriggersPorMedidor, condicionesDisponibles, createAutomatizacion, updateAutomatizacion,
+  esAcumulado, esDelta, medidorTrasCambiarActivo, MODOS, OPERADORES,
+  operadoresDisponibles, proximoDisparoDisponible,
+  CRITICIDADES, DIAS_SEMANA, ESTADOS_ACTIVO, TIPOS_ACCION, TIPOS_CONDICION,
+  type AutomatizacionCompleta, type ConfigCambiarEstado, type ConfigCrearOT,
+  type CondicionConfig, type EstadoActivo, type OperadorTrigger, type ModoTrigger,
+  type TipoAccion, type TipoCondicion,
 } from "@/lib/automatizaciones-api";
+import {
+  createMotivoInactividad, fetchMotivosInactividad,
+  type MotivoInactividad, type TipoInactividad,
+} from "@/lib/activo-estado-api";
 import type { MedidorConUltima } from "@/lib/medidores-api";
-import type { CategoriaOT, OTLink, Usuario } from "@/types/ordenes";
+import type { AssetCriticality, AssetStatus, CategoriaOT, OTLink, Usuario } from "@/types/ordenes";
 
 /**
  * Los mismos cinco de OTCrearPanel y en el mismo orden.
@@ -68,6 +75,18 @@ const PRIORIDADES: { value: string; label: string; activeColor: string }[] = [
   { value: "media",   label: "Media",   activeColor: "var(--brand)" },
   { value: "alta",    label: "Alta",    activeColor: "var(--warning)" },
   { value: "urgente", label: "Urgente", activeColor: "var(--danger)" },
+];
+
+/**
+ * Estados a los que puede pasar la acción. `baja` queda fuera por lo mismo que
+ * en CambiarEstadoDialog: retirar un activo es la acción "Eliminar", y tener
+ * dos caminos con el mismo significado se contradice. Sigue siendo válido en
+ * la base para no invalidar filas históricas.
+ */
+const ESTADOS_DESTINO: { value: AssetStatus; label: string }[] = [
+  { value: "operativo",      label: "Operativo" },
+  { value: "mantencion",     label: "En mantención" },
+  { value: "fuera_servicio", label: "Fuera de servicio" },
 ];
 
 const labelStyle: React.CSSProperties = {
@@ -220,7 +239,8 @@ export function Tarjeta({ titulo, subtitulo, icono, acciones, abierta, onToggle,
 function BotonAgregar({ icono, children, onClick, deshabilitado, titulo }: {
   icono?: React.ReactNode;
   children: React.ReactNode;
-  onClick?: () => void;
+  /** Recibe el evento, igual que BotonIcono, para poder anclarle un globo. */
+  onClick?: (e: React.MouseEvent<HTMLButtonElement>) => void;
   deshabilitado?: boolean;
   titulo?: string;
 }) {
@@ -428,6 +448,384 @@ interface ArchivoItem {
  * Sirve a Imágenes y a Adjuntos porque son la misma lista con otro `accept`;
  * duplicar 90 líneas para cambiar un filtro de archivos no se paga solo.
  */
+/**
+ * Selector de tipo: la lista de opciones de un paso.
+ *
+ * Es el vacío del paso Y el "agregar otro" una vez que hay tarjetas. Las dos
+ * cosas son la misma lista, así que es un componente y no dos bloques: cuando
+ * el paso está vacío se dibuja abierta, y con tarjetas se esconde detrás del
+ * botón punteado para no repetir cuatro filas debajo de cada una.
+ */
+function SelectorTipo<T extends string>({
+  opciones, textoBoton, etiquetaAria, onElegir, icono,
+}: {
+  opciones: { value: T; label: string; disponible?: boolean; yaEsta?: boolean }[];
+  /** Ausente = el paso está vacío y la lista se muestra desplegada. */
+  textoBoton?: string;
+  /** Prefijo del nombre accesible de cada fila, para poder distinguirlas. */
+  etiquetaAria: string;
+  onElegir: (v: T) => void;
+  icono?: (v: T) => React.ReactNode;
+}) {
+  /**
+   * Dónde dibujar la lista desplegada, en coordenadas de viewport.
+   *
+   * `null` = cerrada. Se guarda el rect del botón al abrir porque la lista sale
+   * por un portal: el cuerpo del panel tiene scroll propio, así que un
+   * `position: absolute` dentro quedaba recortado por ese contenedor y las
+   * últimas filas no se podían ni ver ni alcanzar con scroll. Es el mismo
+   * arreglo que ya tenía PopoverFrecuencia.
+   */
+  const [ancla, setAncla] = useState<DOMRect | null>(null);
+  const lista = (
+    <div style={{
+      border: "1px solid var(--border)", borderRadius: "var(--r-md)",
+      background: "var(--surface-1)", overflow: "hidden",
+    }}>
+      {opciones.map((o, i) => {
+        const bloqueada = o.disponible === false || o.yaEsta;
+        return (
+          <button
+            key={o.value}
+            type="button"
+            disabled={bloqueada}
+            aria-label={`${etiquetaAria}: ${o.label}`}
+            title={o.yaEsta ? "Ya agregada" : (o.disponible === false ? "Aún no disponible" : undefined)}
+            onClick={() => { onElegir(o.value); setAncla(null); }}
+            style={{
+              width: "100%", display: "flex", alignItems: "center", gap: 10,
+              padding: "14px 12px", border: "none", textAlign: "left",
+              borderTop: i === 0 ? "none" : "1px solid var(--border)",
+              background: "transparent", fontSize: 14, fontFamily: "inherit",
+              color: "var(--brand)",
+              cursor: bloqueada ? "default" : "pointer",
+            }}
+            onMouseEnter={e => { if (!bloqueada) e.currentTarget.style.background = "var(--surface-hover)"; }}
+            onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}
+          >
+            {/* El icono va en color de marca y el rótulo en negro: azul sobre
+                azul hacía que la fila entera se leyera como un enlace, cuando
+                lo que es, es una opción de una lista. Sin icono —condiciones—
+                la fila es solo el texto. */}
+            {bloqueada
+              ? <Lock size={15} style={{ color: "var(--fg-4)" }} />
+              : icono?.(o.value)}
+            <span style={{ flex: 1, color: bloqueada ? "var(--fg-4)" : "var(--fg-1)" }}>
+              {o.label}
+            </span>
+            <ChevronRight size={15} style={{ color: "var(--fg-4)" }} />
+          </button>
+        );
+      })}
+    </div>
+  );
+
+  if (!textoBoton) return lista;
+
+  // Alto estimado de la lista, para decidir si cabe debajo del botón. Es una
+  // cuenta y no una medición porque hay que resolverlo ANTES de dibujarla.
+  const alto = opciones.length * 48 + 2;
+  const cabeDebajo = ancla
+    ? ancla.bottom + 4 + alto <= window.innerHeight - 8
+    : true;
+
+  return (
+    <>
+      <BotonAgregar
+        onClick={e => setAncla(prev => (prev ? null : e.currentTarget.getBoundingClientRect()))}
+      >
+        {textoBoton}
+      </BotonAgregar>
+
+      {ancla && typeof document !== "undefined" && createPortal(
+        <>
+          {/* Capa de cierre: un clic fuera cierra sin escuchar en window. */}
+          <div onClick={() => setAncla(null)} style={{ position: "fixed", inset: 0, zIndex: 480 }} />
+          <div style={{
+            position: "fixed", zIndex: 481,
+            // Si no cabe debajo se dibuja encima, como un menú nativo: se
+            // acomoda al hueco que hay en vez de desbordar la ventana.
+            top: cabeDebajo ? ancla.bottom + 4 : Math.max(8, ancla.top - 4 - alto),
+            left: ancla.left, width: ancla.width,
+            boxShadow: "var(--shadow-lg)", borderRadius: "var(--r-md)",
+          }}>
+            {lista}
+          </div>
+        </>,
+        document.body,
+      )}
+    </>
+  );
+}
+
+/**
+ * Los campos de "Cambiar el estado del activo".
+ *
+ * Los mismos que CambiarEstadoDialog y en el mismo orden, porque escriben en la
+ * misma tabla: quien registró una parada a mano reconoce el formulario. Lo que
+ * no está es la fecha de inicio —acá el instante es el de la lectura— ni la
+ * jerarquía, que nadie puede confirmar en un disparo automático.
+ */
+function CamposCambiarEstado({ a, activos, onCambiar }: {
+  a: AccionForm;
+  activos: { id: string; label: string; sub?: string }[];
+  onCambiar: (patch: Partial<AccionForm>) => void;
+}) {
+  const [motivos, setMotivos] = useState<MotivoInactividad[]>([]);
+  const [wsMotivos, setWsMotivos] = useState<string | null>(null);
+
+  // El catálogo se pide una vez por tarjeta abierta. Es una lista chica y solo
+  // hace falta cuando la parada es imprevista, pero pedirla al desplegar evita
+  // el salto de un desplegable que aparece vacío y se llena solo.
+  useEffect(() => {
+    let cancelado = false;
+    void (async () => {
+      try {
+        const sb = createClient();
+        const { data: { user } } = await sb.auth.getUser();
+        const [lista, perfil] = await Promise.all([
+          fetchMotivosInactividad(),
+          user
+            ? sb.from("usuarios").select("workspace_id").eq("id", user.id).maybeSingle()
+            : Promise.resolve({ data: null }),
+        ]);
+        if (cancelado) return;
+        setMotivos(lista);
+        setWsMotivos((perfil.data?.workspace_id as string | undefined) ?? null);
+      } catch {
+        if (!cancelado) setMotivos([]);
+      }
+    })();
+    return () => { cancelado = true; };
+  }, []);
+
+  return (
+    <div style={{ padding: 14, display: "flex", flexDirection: "column", gap: 16 }}>
+      <div>
+        <label style={labelStyle}>Activo</label>
+        <SearchSelect
+          placeholder="El activo que disparó la automatización"
+          emptyLabel="El activo que disparó la automatización"
+          value={a.activo_id}
+          options={activos.map(x => ({ id: x.id, label: x.label, sub: x.sub }))}
+          onChange={v => onCambiar({ activo_id: v })}
+        />
+        <p style={{ margin: "6px 0 0", fontSize: 14, color: "var(--fg-4)", lineHeight: 1.5 }}>
+          Sin elegir uno, cambia el del medidor que disparó la regla.
+        </p>
+      </div>
+
+      <div>
+        <label style={labelStyle}>Cambiar el estado a</label>
+        <Desplegable
+          value={a.estado}
+          options={ESTADOS_DESTINO.map(e => ({ value: e.value, label: e.label }))}
+          onChange={v => onCambiar({
+            estado: v as AssetStatus,
+            // Operativo no lleva tipo ni motivo: dejarlos cargados mandaría
+            // valores que la base rechaza.
+            ...(v === "operativo" ? { tipo_inactividad: "" as const, motivo_id: "" } : {}),
+          })}
+        />
+      </div>
+
+      {a.estado !== "operativo" && (
+        <div>
+          <label style={labelStyle}>Tipo de parada</label>
+          <Desplegable
+            value={a.tipo_inactividad}
+            options={[
+              { value: "", label: "Elige el tipo de parada" },
+              { value: "planeado", label: "Planeado — mantención o inspección prevista" },
+              { value: "sin_planear", label: "Sin planear — avería o falla inesperada" },
+            ]}
+            onChange={v => onCambiar({
+              tipo_inactividad: v as TipoInactividad | "",
+              ...(v === "sin_planear" ? {} : { motivo_id: "" }),
+            })}
+          />
+        </div>
+      )}
+
+      {/* Motivo: solo para la avería, igual que en el diálogo. Una parada
+          imprevista sin causa registrada es el dato que después no se puede
+          reconstruir, y deja una barra "sin clasificar" que se come el Pareto. */}
+      {a.estado !== "operativo" && a.tipo_inactividad === "sin_planear" && (
+        <div>
+          <label style={labelStyle}>Motivo de la falla</label>
+          <SearchSelect
+            placeholder="Buscar o crear motivo…"
+            emptyLabel="Sin motivo"
+            value={a.motivo_id}
+            options={motivos.map(m => ({ id: m.id, label: m.nombre }))}
+            onChange={v => onCambiar({ motivo_id: v })}
+            createLabel="Crear motivo"
+            onCreate={wsMotivos ? (async nombre => {
+              const nuevo = await createMotivoInactividad(wsMotivos, nombre);
+              setMotivos(prev => [...prev, nuevo].sort((x, y) => x.nombre.localeCompare(y.nombre)));
+              return nuevo.id;
+            }) : undefined}
+          />
+        </div>
+      )}
+
+      <div>
+        <label style={labelStyle}>Notas (opcional)</label>
+        <input
+          type="text"
+          value={a.notas}
+          onChange={e => onCambiar({ notas: e.target.value })}
+          placeholder="Ej. Falla en el motor principal"
+          style={inputStyle}
+        />
+      </div>
+    </div>
+  );
+}
+
+/** Una condición del paso "Sólo si además…", con su tarjeta y sus campos. */
+function TarjetaCondicion({ c, onCambiar, onQuitar }: {
+  c: RequisitoForm;
+  onCambiar: (patch: Partial<RequisitoForm>) => void;
+  onQuitar: () => void;
+}) {
+  const meta = TIPOS_CONDICION.find(t => t.value === c.tipo);
+
+  // Interruptor de una lista de valores: elegir es alternar. Se usa igual para
+  // estados, criticidades y días, que son las tres listas de esta tarjeta.
+  const alternar = <T,>(lista: T[], v: T): T[] =>
+    lista.includes(v) ? lista.filter(x => x !== v) : [...lista, v];
+
+  return (
+    <Tarjeta
+      titulo={meta?.label ?? c.tipo}
+      acciones={
+        <BotonIcono label="Quitar la condición" onClick={onQuitar} color="var(--danger)">
+          <Trash2 size={15} />
+        </BotonIcono>
+      }
+    >
+      <div style={{ padding: 12, display: "flex", flexDirection: "column", gap: 14 }}>
+        <p style={{ margin: 0, fontSize: 14, color: "var(--fg-3)", lineHeight: 1.5 }}>
+          {meta?.ayuda}
+        </p>
+
+        {c.tipo === "estado_activo" && (
+          <ChipsSeleccion
+            opciones={ESTADOS_ACTIVO.map(e => ({ value: e.value, label: e.label }))}
+            elegidas={c.estados}
+            onAlternar={v => onCambiar({ estados: alternar(c.estados, v as EstadoActivo) })}
+          />
+        )}
+
+        {c.tipo === "criticidad_activo" && (
+          <ChipsSeleccion
+            opciones={CRITICIDADES.map(e => ({ value: e.value, label: e.label }))}
+            elegidas={c.criticidades}
+            onAlternar={v => onCambiar({ criticidades: alternar(c.criticidades, v as AssetCriticality) })}
+          />
+        )}
+
+        {c.tipo === "ventana_horaria" && (
+          <>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              {/* `type="time"` nativo: el navegador ya trae el reloj, el formato
+                  de 24h según el idioma y el teclado correcto en móvil. Un
+                  selector propio serían 200 líneas para empatar. */}
+              <span style={{ fontSize: 14, color: "var(--fg-2)" }}>Entre las</span>
+              <input
+                type="time"
+                value={c.desde}
+                onChange={e => onCambiar({ desde: e.target.value })}
+                style={{ ...inputStyle, width: 120 }}
+              />
+              <span style={{ fontSize: 14, color: "var(--fg-2)" }}>y las</span>
+              <input
+                type="time"
+                value={c.hasta}
+                onChange={e => onCambiar({ hasta: e.target.value })}
+                style={{ ...inputStyle, width: 120 }}
+              />
+            </div>
+
+            {/* Se dice explícitamente porque es la duda que genera: una ventana
+                22:00–06:00 es el turno de noche, no un error del usuario. */}
+            {c.desde > c.hasta && c.hasta !== "" && (
+              <p style={{ margin: 0, fontSize: 14, color: "var(--fg-3)" }}>
+                La ventana cruza la medianoche: va de las {c.desde} de un día a las {c.hasta} del siguiente.
+              </p>
+            )}
+
+            <div>
+              <span style={{ ...labelStyle, marginBottom: 8 }}>Días</span>
+              <ChipsSeleccion
+                opciones={DIAS_SEMANA.map(d => ({ value: String(d.value), label: d.label }))}
+                elegidas={c.dias.map(String)}
+                onAlternar={v => onCambiar({ dias: alternar(c.dias, Number(v)) })}
+              />
+              <p style={{ margin: "8px 0 0", fontSize: 14, color: "var(--fg-4)" }}>
+                Sin ninguno elegido, la regla vale todos los días.
+              </p>
+            </div>
+          </>
+        )}
+
+        {/* `sin_ot_abierta_en_activo` no tiene campos: la condición ES la frase.
+            Solo le queda el interruptor de invertir, que tampoco lleva —invertirla
+            sería "actúa solo si ya hay una OT abierta", que no le sirve a nadie. */}
+
+        {meta?.negable && (
+          <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
+            <input
+              type="checkbox"
+              checked={c.negado}
+              onChange={e => onCambiar({ negado: e.target.checked })}
+              style={{ width: 16, height: 16, accentColor: "var(--brand)", cursor: "pointer" }}
+            />
+            <span style={{ fontSize: 14, color: "var(--fg-2)" }}>{meta.negable}</span>
+          </label>
+        )}
+      </div>
+    </Tarjeta>
+  );
+}
+
+/**
+ * Lista de valores que se eligen tocando, en vez de un desplegable múltiple.
+ *
+ * Son listas de tres a siete opciones cortas y se eligen varias: un desplegable
+ * obligaría a abrirlo para saber qué hay elegido, y acá se ve de un vistazo.
+ */
+function ChipsSeleccion({ opciones, elegidas, onAlternar }: {
+  opciones: { value: string; label: string }[];
+  elegidas: string[];
+  onAlternar: (v: string) => void;
+}) {
+  return (
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+      {opciones.map(o => {
+        const on = elegidas.includes(o.value);
+        return (
+          <button
+            key={o.value}
+            type="button"
+            onClick={() => onAlternar(o.value)}
+            style={{
+              height: 34, padding: "0 14px", borderRadius: 999,
+              border: "1px solid " + (on ? "var(--brand)" : "var(--border)"),
+              background: on ? "var(--brand-tint)" : "var(--surface-1)",
+              color: on ? "var(--brand)" : "var(--fg-2)",
+              fontSize: 14, fontFamily: "inherit", cursor: "pointer",
+            }}
+          >
+            {o.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function SeccionArchivos({
   icono, titulo, textoVacio, textoBoton, accept,
   items, onAgregar, onRenombrar, onQuitar,
@@ -565,6 +963,17 @@ interface CondicionForm {
   operador: OperadorTrigger;
   valor: string;
   valor_hasta: string;
+  /**
+   * "Próximo disparo" de los operadores acumulados, como texto.
+   *
+   * Vacío = que lo fije la primera lectura. Al editar se carga el valor que el
+   * motor viene avanzando, y solo viaja de vuelta si el usuario lo cambió:
+   * reenviarlo tal cual retrocedría el contador al valor que tenía cuando se
+   * abrió el panel.
+   */
+  proximo_disparo: string;
+  /** El que vino de la base, para saber si el de arriba cambió. */
+  proximo_disparo_inicial?: string;
 }
 
 /**
@@ -609,7 +1018,7 @@ interface TriggerForm {
 }
 
 const CONDICION_VACIA: CondicionForm = {
-  operador: "mayor_igual", valor: "", valor_hasta: "",
+  operador: "mayor_igual", valor: "", valor_hasta: "", proximo_disparo: "",
 };
 
 const TRIGGER_VACIO: TriggerForm = {
@@ -649,6 +1058,21 @@ interface AccionForm {
   retrigger: string;
   /** Plegada muestra "Escribir la orden de trabajo" en vez de los campos. */
   abierta: boolean;
+
+  /**
+   * Qué hace esta acción. Decide qué campos usa la tarjeta.
+   *
+   * Los campos de los dos tipos conviven en la misma interfaz plana, igual que
+   * en RequisitoForm: al guardar, `configDeAccion` recorta a los que ese tipo
+   * escribe. Separarlos en dos interfaces obligaría a discriminar en cada
+   * `setAccion` para nada.
+   */
+  tipo: TipoAccion;
+  /** cambiar_estado_activo. Vacío = el activo que disparó. */
+  estado: AssetStatus;
+  tipo_inactividad: TipoInactividad | "";
+  motivo_id: string;
+  notas: string;
 }
 
 /**
@@ -675,13 +1099,114 @@ function resumirAccion(a: AccionForm): string {
   return partes.length > 0 ? partes.join(" · ") : "Sin asignados ni adjuntos";
 }
 
-function accionVacia(abierta: boolean): AccionForm {
+/**
+ * Una condición en el formulario.
+ *
+ * Plana y con TODOS los campos de los cuatro tipos, en vez de una unión
+ * discriminada: cambiar el tipo de una tarjeta conserva lo que el usuario ya
+ * había puesto en los otros campos, y al guardar se recorta a lo que ese tipo
+ * usa. Una unión obligaría a reconstruir el objeto en cada cambio de tipo y
+ * perdería esos valores.
+ */
+interface RequisitoForm {
+  tipo: TipoCondicion;
+  estados: EstadoActivo[];
+  criticidades: AssetCriticality[];
+  desde: string;
+  hasta: string;
+  dias: number[];
+  negado: boolean;
+}
+
+function condicionVacia(tipo: TipoCondicion): RequisitoForm {
+  return {
+    tipo,
+    // Los defaults son el caso que la gente viene a escribir: "no abras otra OT
+    // si ya está en mantención" y "el turno de noche". Arrancar todo vacío
+    // obliga a configurar de cero una condición que casi siempre es la misma.
+    estados: tipo === "estado_activo" ? ["mantencion", "fuera_servicio"] : [],
+    criticidades: tipo === "criticidad_activo" ? ["critico"] : [],
+    desde: "22:00",
+    hasta: "06:00",
+    dias: [],
+    negado: tipo === "estado_activo",
+  };
+}
+
+/** Del formulario al `config` jsonb: solo las claves que ese tipo usa. */
+function configDeCondicion(c: RequisitoForm): CondicionConfig {
+  switch (c.tipo) {
+    case "estado_activo":     return { estados: c.estados };
+    case "criticidad_activo": return { criticidades: c.criticidades };
+    case "ventana_horaria":   return { desde: c.desde, hasta: c.hasta, dias: c.dias };
+    case "sin_ot_abierta_en_activo": return {};
+  }
+}
+
+/** Plegada, la tarjeta de cambio de estado dice qué activo y a qué estado. */
+function resumirCambioEstado(
+  a: AccionForm,
+  activos: { id: string; label: string }[],
+): string {
+  const destino = ESTADOS_DESTINO.find(e => e.value === a.estado)?.label ?? a.estado;
+  const quien = a.activo_id
+    ? (activos.find(x => x.id === a.activo_id)?.label ?? "Activo eliminado")
+    : "El activo que disparó";
+  if (a.estado !== "operativo" && !a.tipo_inactividad) {
+    return `${quien} → ${destino} — falta el tipo de parada`;
+  }
+  return `${quien} → ${destino}`;
+}
+
+function accionVacia(abierta: boolean, tipo: TipoAccion = "crear_ot"): AccionForm {
   return {
     titulo: "", descripcion: "", ubicacion_id: "", activo_id: "",
     asignados: [], categoria_ids: [], horas: "", minutos: "",
     prioridad: "ninguna", tipo_trabajo: "reactiva",
     procedimientos: [], links: [], nuevosArchivos: [],
     solo_si_anterior_cerrada: false, retrigger: "5", abierta,
+    tipo,
+    // `fuera_servicio` y no `operativo`: una regla que reacciona a un medidor
+    // fuera de rango casi siempre está registrando una parada, no el fin de
+    // una. `operativo` no lleva tipo de inactividad, así que arrancar ahí
+    // escondería el campo que en el caso común hay que llenar.
+    estado: "fuera_servicio",
+    tipo_inactividad: "",
+    motivo_id: "",
+    notas: "",
+  };
+}
+
+/** Del formulario al `config` jsonb: solo las claves que ese tipo escribe. */
+function configDeAccion(a: AccionForm, links: OTLink[]): ConfigCrearOT | ConfigCambiarEstado {
+  if (a.tipo === "cambiar_estado_activo") {
+    return {
+      activo_id: a.activo_id || null,
+      estado: a.estado,
+      // La base rechaza un tipo de inactividad en `operativo` y lo exige en el
+      // resto; el mismo criterio que la RPC del diálogo manual.
+      tipo_inactividad: a.estado === "operativo" ? null : (a.tipo_inactividad || null),
+      motivo_id: a.tipo_inactividad === "sin_planear" && a.estado !== "operativo"
+        ? (a.motivo_id || null) : null,
+      notas: a.notas.trim() || undefined,
+    };
+  }
+  const minutos = (Number(a.horas) || 0) * 60 + (Number(a.minutos) || 0);
+  return {
+    titulo: a.titulo.trim(),
+    descripcion: a.descripcion.trim() || undefined,
+    ubicacion_id: a.ubicacion_id || null,
+    activo_id: a.activo_id || null,
+    asignados_ids: a.asignados,
+    categoria_ids: a.categoria_ids,
+    // 0 se guarda como null: "sin estimación" y "estimado en cero" no son lo
+    // mismo.
+    tiempo_estimado: minutos > 0 ? minutos : null,
+    prioridad: a.prioridad,
+    tipo_trabajo: a.tipo_trabajo,
+    // Solo ids: el nombre se relee del catálogo al abrir el panel.
+    procedimiento_ids: a.procedimientos.map(p => p.id),
+    links,
   };
 }
 
@@ -718,6 +1243,10 @@ export default function AutomatizacionCrearPanel({
         operador: t.operador,
         valor: String(t.valor),
         valor_hasta: t.valor_hasta != null ? String(t.valor_hasta) : "",
+        // El objetivo que el motor viene avanzando. Se guarda también sin tocar
+        // para poder distinguir "el usuario lo cambió" de "lo dejó como estaba".
+        proximo_disparo: t.proximo_disparo != null ? String(t.proximo_disparo) : "",
+        proximo_disparo_inicial: t.proximo_disparo != null ? String(t.proximo_disparo) : "",
       })),
       // Todas las filas del grupo comparten modo —así las guarda este panel—,
       // así que la primera lo representa. Si una regla vieja tuviera modos
@@ -728,20 +1257,43 @@ export default function AutomatizacionCrearPanel({
   });
 
   /**
-   * Las acciones arrancan abiertas al editar y cerrada la primera al crear.
+   * Las condiciones guardadas, aplanadas al formulario.
    *
-   * Cerrada muestra "Escribir la orden de trabajo" en vez de los campos, que es
-   * lo que hace legible el paso: al crear, el usuario todavía está eligiendo
-   * QUÉ hace la regla, y once campos de OT ahí abajo entierran el disparador.
-   * Al editar ya eligió, así que esconderle lo que vino a cambiar sería un clic
-   * de peaje.
+   * Sin `id`: no guardan estado del motor, así que al guardar se reemplazan
+   * enteras (ver reemplazarCondiciones en la api).
+   */
+  const [condiciones, setCondiciones] = useState<RequisitoForm[]>(() =>
+    (inicial?.condiciones ?? []).map(c => ({
+      ...condicionVacia(c.tipo),
+      estados: c.config.estados ?? [],
+      criticidades: c.config.criticidades ?? [],
+      desde: c.config.desde ?? "22:00",
+      hasta: c.config.hasta ?? "06:00",
+      dias: c.config.dias ?? [],
+      negado: c.negado,
+    })),
+  );
+
+  /**
+   * Al crear no hay ninguna: el paso muestra el selector de tipo y la primera
+   * tarjeta nace del clic, ya desplegada —se acaba de pedir, hay que llenarla—.
+   * Al editar vienen todas abiertas: esconderle al usuario lo que vino a
+   * cambiar sería un clic de peaje.
    */
   const [acciones, setAcciones] = useState<AccionForm[]>(() => {
-    if (!inicial || inicial.acciones.length === 0) return [accionVacia(false)];
+    // Vacío, no una OT por defecto: crear la orden dejó de ser LA acción en
+    // cuanto hubo dos, así que el paso arranca con el selector de tipo y la
+    // tarjeta aparece recién cuando el usuario elige una.
+    if (!inicial) return [];
     return inicial.acciones.map(a => {
       const c = a.config ?? {};
       return {
         id: a.id,
+        tipo: a.tipo,
+        estado: (c.estado ?? "fuera_servicio") as AssetStatus,
+        tipo_inactividad: (c.tipo_inactividad ?? "") as TipoInactividad | "",
+        motivo_id: c.motivo_id ?? "",
+        notas: c.notas ?? "",
         titulo: c.titulo ?? "",
         descripcion: c.descripcion ?? "",
         ubicacion_id: c.ubicacion_id ?? "",
@@ -942,6 +1494,25 @@ export default function AutomatizacionCrearPanel({
     if (triggers.some(t => t.condiciones.some(c =>
           c.operador === "entre" && !(Number(c.valor_hasta) > Number(c.valor)))))
       return setErr("En un rango, el segundo valor tiene que ser mayor que el primero.");
+    // Un delta de 0 o negativo no es una regla: "cada 0" dispararía siempre. El
+    // sentido lo da el operador elegido, no el signo del número.
+    if (triggers.some(t => t.condiciones.some(c => esDelta(c.operador) && Number(c.valor) <= 0)))
+      return setErr("La cantidad de aumento o disminución tiene que ser mayor que cero.");
+    // El modo cuenta cuántas de las últimas N lecturas cumplen un umbral, y un
+    // cambio no es una propiedad de una lectura suelta. El motor las descarta;
+    // acá se dice antes de guardar una regla que nunca dispararía.
+    if (triggers.some(t => t.modo === "lecturas_multiples" && t.condiciones.some(c => esDelta(c.operador))))
+      return setErr("Las condiciones de aumento o disminución no se pueden combinar con “Recién cuando se repita varias veces”.");
+
+    // Una condición sin valores elegidos no se puede cumplir nunca: la regla
+    // quedaría guardada y muda, y el usuario lo descubriría revisando el
+    // historial. Mejor decirlo acá.
+    if (condiciones.some(c => c.tipo === "estado_activo" && c.estados.length === 0))
+      return setErr("Elige al menos un estado del activo en el requisito extra.");
+    if (condiciones.some(c => c.tipo === "criticidad_activo" && c.criticidades.length === 0))
+      return setErr("Elige al menos una criticidad en el requisito extra.");
+    if (condiciones.some(c => c.tipo === "ventana_horaria" && (!c.desde || !c.hasta)))
+      return setErr("La ventana de días y horas necesita una hora de inicio y una de fin.");
 
     if (acciones.length === 0) return setErr("La regla necesita al menos una acción.");
 
@@ -949,10 +1520,26 @@ export default function AutomatizacionCrearPanel({
     // falta no está en pantalla, y un error que apunta a algo invisible no se
     // puede arreglar. Con varias, se dice CUÁL: "falta el título" sobre cuatro
     // tarjetas no orienta a nadie.
-    const sinTitulo = acciones.findIndex(a => !a.titulo.trim());
+    // La parada imprevista exige motivo, igual que la RPC del diálogo manual.
+    // Sin esto la regla se guarda y el motor la omite en silencio: el usuario lo
+    // descubriría revisando el historial.
+    const sinTipoParada = acciones.findIndex(a =>
+      a.tipo === "cambiar_estado_activo" && a.estado !== "operativo" && !a.tipo_inactividad);
+    if (sinTipoParada >= 0) {
+      setAcciones(prev => prev.map((a, j) => (j === sinTipoParada ? { ...a, abierta: true } : a)));
+      return setErr("Elige el tipo de parada del cambio de estado.");
+    }
+    const sinMotivo = acciones.findIndex(a =>
+      a.tipo === "cambiar_estado_activo" && a.tipo_inactividad === "sin_planear" && !a.motivo_id);
+    if (sinMotivo >= 0) {
+      setAcciones(prev => prev.map((a, j) => (j === sinMotivo ? { ...a, abierta: true } : a)));
+      return setErr("Elige el motivo de la falla del cambio de estado.");
+    }
+
+    const sinTitulo = acciones.findIndex(a => a.tipo === "crear_ot" && !a.titulo.trim());
     if (sinTitulo >= 0) {
       setAcciones(prev => prev.map((a, j) => (j === sinTitulo ? { ...a, abierta: true } : a)));
-      return setErr(acciones.length === 1
+      return setErr(acciones.filter(a => a.tipo === "crear_ot").length === 1
         ? "Escribe qué trabajo hay que hacer: es el título de la orden que se va a crear."
         : `A la acción ${sinTitulo + 1} le falta el título de la orden de trabajo.`);
     }
@@ -996,34 +1583,30 @@ export default function AutomatizacionCrearPanel({
           operador: c.operador,
           valor: Number(c.valor),
           valor_hasta: c.valor_hasta.trim() === "" ? null : Number(c.valor_hasta),
+          // Solo viaja si cambió: es estado del motor y reenviarlo tal cual
+          // retrocedería el contador al valor que tenía al abrir el panel.
+          ...(esAcumulado(c.operador) && c.proximo_disparo !== (c.proximo_disparo_inicial ?? "")
+            ? { proximo_disparo: c.proximo_disparo.trim() === "" ? null : Number(c.proximo_disparo) }
+            : {}),
           // El mismo modo en todas las filas del disparador: en la base es una
           // columna por fila, pero en la regla es una sola decisión.
           modo: t.modo,
           modo_n: Number(t.modo_n) || 2,
         }))),
+        condiciones: condiciones.map(c => ({
+          tipo: c.tipo,
+          config: configDeCondicion(c),
+          negado: c.negado,
+        })),
         acciones: acciones.map((a, i) => {
-          const minutos = (Number(a.horas) || 0) * 60 + (Number(a.minutos) || 0);
           return {
             // Igual que en los disparadores: sin el id, la acción se recrea y el
             // freno de retrigger —que busca por accion_id— estrena historial.
             id: a.id,
-            tipo: "crear_ot" as const,
-            config: {
-              titulo: a.titulo.trim(),
-              descripcion: a.descripcion.trim() || undefined,
-              ubicacion_id: a.ubicacion_id || null,
-              activo_id: a.activo_id || null,
-              asignados_ids: a.asignados,
-              categoria_ids: a.categoria_ids,
-              // 0 se guarda como null: "sin estimación" y "estimado en cero" no
-              // son lo mismo.
-              tiempo_estimado: minutos > 0 ? minutos : null,
-              prioridad: a.prioridad,
-              tipo_trabajo: a.tipo_trabajo,
-              // Solo ids: el nombre se relee del catálogo al abrir el panel.
-              procedimiento_ids: a.procedimientos.map(p => p.id),
-              links: linksPorAccion[i],
-            } satisfies ConfigCrearOT,
+            tipo: a.tipo,
+            // Cada tipo escribe solo sus claves: guardar las quince de la OT en
+            // un cambio de estado dejaría un config que se lee de dos maneras.
+            config: configDeAccion(a, linksPorAccion[i]),
             retrigger_minutos: Number(a.retrigger) || 0,
             solo_si_anterior_cerrada: a.solo_si_anterior_cerrada,
           };
@@ -1075,14 +1658,14 @@ export default function AutomatizacionCrearPanel({
 
       <div style={{ ...seccionDetalle, borderBottom: "none", paddingTop: 22 }}>
         {/* Activador */}
-        <Paso icono={<SlidersHorizontal size={15} />} titulo="Cuando pase esto">
+        <Paso icono={<SlidersHorizontal size={15} />} titulo="Cuando...">
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             {triggers.map((t, i) => {
               const unidad = medidores.find(m => m.id === t.medidor_id)?.unidad ?? "";
               return (
                 <Tarjeta
                   key={i}
-                  titulo="Cuando llegue una lectura del medidor"
+                  titulo="Una lectura del medidor del activo elegido..."
                   acciones={
                     // Solo desde el segundo: el primero no se puede quitar, una
                     // automatización sin disparador no se ejecuta nunca.
@@ -1192,7 +1775,10 @@ export default function AutomatizacionCrearPanel({
                             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                               <Desplegable
                                 value={c.operador}
-                                options={OPERADORES}
+                                // Solo los que esta base acepta: el CHECK viejo
+                                // rechaza 'mayor' y los de cambio con un error
+                                // de constraint que no le dice nada al usuario.
+                                options={operadoresDisponibles()}
                                 onChange={v => setCondicion(i, k, { operador: v as OperadorTrigger })}
                               />
                               <div style={{ position: "relative", width: 160, flexShrink: 0 }}>
@@ -1238,6 +1824,43 @@ export default function AutomatizacionCrearPanel({
                                 </BotonIcono>
                               )}
                             </div>
+                            {/* Qué hace el operador elegido, en una línea.
+                                Los once no se distinguen por el nombre solo:
+                                "aumenta en" no dice respecto de qué, y confundir
+                                el acumulado con el de salto cambia por completo
+                                cuándo dispara la regla. */}
+                            <p style={{ margin: 0, fontSize: 14, color: "var(--fg-4)", lineHeight: 1.5 }}>
+                              {OPERADORES.find(o => o.value === c.operador)?.ayuda}
+                            </p>
+
+                            {/* "Próximo disparo": solo los acumulados lo usan. */}
+                            {esAcumulado(c.operador) && proximoDisparoDisponible() && (
+                              <div>
+                                <label style={{ ...labelStyle, marginBottom: 6 }}>
+                                  Empezar a disparar en (opcional)
+                                </label>
+                                <div style={{ position: "relative", width: 200 }}>
+                                  <input
+                                    type="number"
+                                    value={c.proximo_disparo}
+                                    onChange={e => setCondicion(i, k, { proximo_disparo: e.target.value })}
+                                    placeholder="Primera lectura"
+                                    style={{ ...inputStyle, height: 40, paddingRight: unidad ? 74 : 10 }}
+                                  />
+                                  {unidad && (
+                                    <span style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", fontSize: 14, color: "var(--fg-4)" }}>
+                                      {unidad}
+                                    </span>
+                                  )}
+                                </div>
+                                <p style={{ margin: "6px 0 0", fontSize: 14, color: "var(--fg-4)", lineHeight: 1.5 }}>
+                                  En qué marca del medidor se abre la primera orden. Un
+                                  camión que se atiende cada {c.valor || "5.000"}{unidad ? ` ${unidad}` : ""} pero
+                                  recién a partir de los 15.000 va con 15.000 acá. Déjalo
+                                  vacío y el conteo arranca en la próxima lectura que llegue.
+                                </p>
+                              </div>
+                            )}
                           </div>
                         ))}
 
@@ -1293,16 +1916,49 @@ export default function AutomatizacionCrearPanel({
           </div>
         </Paso>
 
-        {/* Condiciones: la v1 no trae motor. El paso se dibuja igual, con el
-            botón apagado, para que la ausencia sea explícita y no parezca que
-            falta cargar algo. */}
+        {/* Condiciones: el filtro que corre DESPUÉS del disparador. Vacío, la
+            regla actúa siempre que la lectura cumpla lo de arriba, que es el
+            comportamiento que tenía antes de que este paso existiera. */}
         <Paso icono={<GitBranch size={15} />} titulo="Sólo si además…">
-          <BotonAgregar icono={<Lock size={15} />} deshabilitado titulo="Aún no disponible">
-            Agregar un requisito extra
-          </BotonAgregar>
-          <p style={{ margin: "10px 0 0", fontSize: 14, color: "var(--fg-4)", lineHeight: 1.5 }}>
-            Por ahora la regla actúa siempre que la lectura cumpla lo de arriba.
-          </p>
+          {!condicionesDisponibles() ? (
+            // La tabla todavía no está en esta base (ver fetchAutomatizaciones).
+            // Se dice, en vez de ofrecer un paso que fallaría al guardar.
+            <p style={{ margin: 0, fontSize: 14, color: "var(--fg-4)", lineHeight: 1.5, display: "flex", alignItems: "center", gap: 8 }}>
+              <Lock size={15} /> Los requisitos extra todavía no están habilitados en este espacio.
+            </p>
+          ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            {condiciones.map((c, i) => (
+              <TarjetaCondicion
+                key={i}
+                c={c}
+                onCambiar={patch => setCondiciones(prev =>
+                  prev.map((x, j) => (j === i ? { ...x, ...patch } : x)))}
+                onQuitar={() => setCondiciones(prev => prev.filter((_, j) => j !== i))}
+              />
+            ))}
+
+            <SelectorTipo
+              opciones={TIPOS_CONDICION.map(t => ({
+                value: t.value,
+                label: t.label,
+                // Un tipo por regla: dos tarjetas del mismo se combinan con Y,
+                // así que la segunda solo puede restringir más o contradecir a
+                // la primera. Los valores múltiples ya se eligen dentro.
+                yaEsta: condiciones.some(c => c.tipo === t.value),
+              }))}
+              textoBoton={condiciones.length > 0 ? "Agregar un requisito extra" : undefined}
+              etiquetaAria="Agregar requisito"
+              onElegir={v => setCondiciones(prev => [...prev, condicionVacia(v)])}
+            />
+
+            {condiciones.length === 0 && (
+              <p style={{ margin: 0, fontSize: 14, color: "var(--fg-4)", lineHeight: 1.5 }}>
+                Opcional. Sin requisitos, la regla actúa siempre que la lectura cumpla lo de arriba.
+              </p>
+            )}
+          </div>
+          )}
         </Paso>
 
         {/* Acciones */}
@@ -1317,17 +1973,23 @@ export default function AutomatizacionCrearPanel({
                 // Plegada, el título es el de la OT: "Revisar bomba 3" dice
                 // cuál es sin abrirla, y "Crear una orden de trabajo" repetido
                 // tres veces no.
-                titulo={!a.abierta && a.titulo.trim()
-                  ? a.titulo.trim()
-                  : (acciones.length > 1
-                      ? `Crear una orden de trabajo (${ai + 1} de ${acciones.length})`
-                      : "Crear una orden de trabajo")}
-                subtitulo={!a.abierta && a.titulo.trim() ? resumirAccion(a) : undefined}
+                titulo={a.tipo === "cambiar_estado_activo"
+                  ? "Cambiar el estado del activo"
+                  : (!a.abierta && a.titulo.trim()
+                      ? a.titulo.trim()
+                      : (acciones.filter(x => x.tipo === "crear_ot").length > 1
+                          ? `Crear una orden de trabajo (${acciones.filter((x, j) => x.tipo === "crear_ot" && j <= ai).length} de ${acciones.filter(x => x.tipo === "crear_ot").length})`
+                          : "Crear una orden de trabajo"))}
+                subtitulo={a.tipo === "cambiar_estado_activo"
+                  ? (a.abierta ? undefined : resumirCambioEstado(a, activos))
+                  : (!a.abierta && a.titulo.trim() ? resumirAccion(a) : undefined)}
                 abierta={a.abierta}
                 // Sin título no hay nada que plegar: la tarjeta muestra la caja
                 // de "Escribir la orden de trabajo" y el chevron sobraría,
                 // porque plegar un formulario vacío no ahorra nada.
-                onToggle={a.titulo.trim() ? () => setAccion(ai, { abierta: !a.abierta }) : undefined}
+                onToggle={a.tipo === "cambiar_estado_activo" || a.titulo.trim()
+                  ? () => setAccion(ai, { abierta: !a.abierta })
+                  : undefined}
                 acciones={
                   <>
                     <BotonIcono
@@ -1354,7 +2016,15 @@ export default function AutomatizacionCrearPanel({
                   </>
                 }
               >
-                {a.abierta ? (
+                {a.tipo === "cambiar_estado_activo" ? (
+                  a.abierta ? (
+                    <CamposCambiarEstado
+                      a={a}
+                      activos={activos}
+                      onCambiar={patch => setAccion(ai, patch)}
+                    />
+                  ) : null
+                ) : a.abierta ? (
                   // Mismo orden y los mismos iconos que OTCrearPanel: título,
                   // descripción y tipo de trabajo arriba; después los adjuntos de
                   // la OT (procedimientos, imágenes, archivos) y al final los
@@ -1593,13 +2263,23 @@ export default function AutomatizacionCrearPanel({
               </Tarjeta>
             ))}
 
-            {/* Varias acciones = varias OT con la misma lectura: la del
-                eléctrico y la del mecánico, por ejemplo. El motor ya las
-                recorría todas y frena cada una por separado (`accion_id`), así
-                que esto no necesitó tocar la base. */}
-            <BotonAgregar onClick={() => setAcciones(prev => [...prev, accionVacia(true)])}>
-              Agregar otra acción
-            </BotonAgregar>
+            {/* Varias acciones = varias cosas con la misma lectura: abrir la OT
+                del eléctrico, la del mecánico y además marcar el activo fuera de
+                servicio. El motor ya las recorría todas y frena cada una por
+                separado (`accion_id`).
+
+                El selector lista los cuatro tipos del enum, con candado en los
+                dos que el motor todavía no ejecuta: esconderlos haría parecer
+                que la lista está completa. */}
+            <SelectorTipo
+              opciones={TIPOS_ACCION.map(t => ({ value: t.value, label: t.label }))}
+              // Vacío el paso, la lista se muestra desplegada: es el contenido
+              // del paso, no algo escondido detrás de un botón.
+              textoBoton={acciones.length > 0 ? "Agregar otra acción" : undefined}
+              etiquetaAria="Agregar acción"
+              icono={v => (v === "crear_ot" ? <Inbox size={15} /> : <Settings2 size={15} />)}
+              onElegir={v => setAcciones(prev => [...prev, accionVacia(true, v)])}
+            />
           </div>
         </Paso>
       </div>
@@ -1657,16 +2337,15 @@ export default function AutomatizacionCrearPanel({
               <button
                 type="button"
                 onClick={() => {
-                  // Con varias, se quita la tarjeta. Con una sola se vacía y se
-                  // pliega en vez de quitarla: `crear_ot` es la única acción que
-                  // el motor implementa, así que una regla sin ninguna no tiene
-                  // nada que hacer. Esto la devuelve a "sin definir".
+                  // Se quita, siempre. Antes la última se vaciaba en vez de
+                  // borrarse, porque sin acciones el paso quedaba en blanco;
+                  // ahora el paso vacío es el selector de tipo, así que dejar
+                  // una tarjeta hueca era una acción sin definir que no se podía
+                  // sacar de encima.
                   //
                   // Los links se sueltan, pero el objeto en R2 se queda: las OT
                   // ya generadas lo siguen apuntando.
-                  setAcciones(prev => prev.length > 1
-                    ? prev.filter((_, j) => j !== confirmarBorrar)
-                    : [accionVacia(false)]);
+                  setAcciones(prev => prev.filter((_, j) => j !== confirmarBorrar));
                   setConfirmarBorrar(null);
                 }}
                 style={{

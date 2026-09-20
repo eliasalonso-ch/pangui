@@ -25,7 +25,8 @@ import {
 import { createClient } from "@/lib/supabase";
 import { useDeepLinkId } from "@/lib/use-deep-link-id";
 import {
-  deleteMedidor, fetchMedidores, lecturaVencida, nivelDeLectura, proximaLectura,
+  deleteMedidor, etiquetaFrecuencia, fetchMedidores, lecturaVencida, nivelDeLectura,
+  proximaLectura,
   type MedidorConUltima, type NivelLectura,
 } from "@/lib/medidores-api";
 import { EmptyState, EmptyDetail } from "@/components/EmptyState";
@@ -709,6 +710,11 @@ function MedidorDetalle({ m, isAdmin, tic, onRegistrar, onEditar, onVerTodas, on
           nota={m.ultima ? `${nivel && nivel !== "normal" ? `${NIVEL_LABEL[nivel]} · ` : ""}${fmtFecha(m.ultima.ts)}` : null}
         />
         <Dato label="Descripción" valor={m.descripcion} />
+        {/* Los tres umbrales ya no se configuran (ver MedidorCrearPanel), pero
+            la ficha los SIGUE mostrando: `Dato` no dibuja nada cuando el valor
+            es null, así que un medidor nuevo no los enseña y uno viejo que los
+            tenga cargados sigue explicando por qué avisa. Esconderlos dejaría
+            un medidor avisando sin que la ficha diga de dónde sale. */}
         <Dato
           label="Umbral de advertencia"
           valor={m.advertencia != null ? `${m.advertencia} ${m.unidad}` : null}
@@ -726,7 +732,10 @@ function MedidorDetalle({ m, isAdmin, tic, onRegistrar, onEditar, onVerTodas, on
         />
         <Dato
           label="Frecuencia de lectura"
-          valor={m.frecuencia_dias != null ? `Cada ${m.frecuencia_dias} días` : null}
+          // Por minutos: con días, "Cada hora" se mostraba como "Cada 1 días".
+          valor={m.frecuencia_minutos != null || m.frecuencia_dias != null
+            ? etiquetaFrecuencia(m.frecuencia_minutos ?? m.frecuencia_dias! * 1440)
+            : null}
         />
         <Dato label="Siguiente lectura" valor={siguienteLectura} />
         {/* El token se muestra siempre, no una sola vez: es lo que el cliente

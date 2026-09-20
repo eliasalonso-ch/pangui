@@ -14,11 +14,11 @@ import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertCircle, Box, Check, CheckCircle2, Clock, Flag, FileText, Gauge, GitBranch,
-  Inbox, Loader2, Lock, MapPin, MinusCircle, MoreVertical, Paperclip, Pencil, Play,
+  Inbox, Loader2, MapPin, MinusCircle, MoreVertical, Paperclip, Pencil, Play,
   Settings2, SlidersHorizontal, Tag, User,
 } from "lucide-react";
 import {
-  fetchEjecuciones, toggleAutomatizacion, describirTrigger, MODOS,
+  fetchEjecuciones, toggleAutomatizacion, describirCondicion, describirTrigger, MODOS,
   type AutomatizacionCompleta, type ResultadoEjecucion,
 } from "@/lib/automatizaciones-api";
 import type { MedidorConUltima } from "@/lib/medidores-api";
@@ -47,6 +47,14 @@ const RESULTADO_ICONO: Record<ResultadoEjecucion, React.ReactNode> = {
 
 const PRIORIDAD_LABEL: Record<string, string> = {
   ninguna: "Ninguna", baja: "Baja", media: "Media", alta: "Alta", urgente: "Urgente",
+};
+
+/** Los estados de un activo, en castellano. Mismos rótulos que /activos. */
+const ESTADO_LABEL: Record<string, string> = {
+  operativo: "Operativo",
+  mantencion: "En mantención",
+  fuera_servicio: "Fuera de servicio",
+  baja: "De baja",
 };
 
 const TIPO_TRABAJO_LABEL: Record<string, string> = {
@@ -281,7 +289,7 @@ export default function AutomatizacionDetalle({
           medallón, encabezado celeste— pero de solo lectura. Quien acaba de
           armar la regla vuelve a ver la regla que armó, no otro formato. */}
       <div style={{ ...seccionDetalle, paddingTop: 22 }}>
-        <Paso icono={<SlidersHorizontal size={15} />} titulo="Cuando pase esto">
+        <Paso icono={<SlidersHorizontal size={15} />} titulo="Cuando...">
           {a.triggers.length === 0 ? (
             <p style={{ margin: 0, fontSize: 14, color: "var(--fg-4)" }}>Sin disparadores.</p>
           ) : (
@@ -292,7 +300,7 @@ export default function AutomatizacionDetalle({
                 return (
                   <Tarjeta
                     key={t.id}
-                    titulo={`Cuando: ${medidor?.nombre ?? "Medidor eliminado"} ${describirTrigger(t, medidor?.unidad ?? "")}`}
+                    titulo={`${medidor?.nombre ?? "Medidor eliminado"} ${describirTrigger(t, medidor?.unidad ?? "")}`}
                   >
                     <div>
                       <FilaDato icono={<Box size={15} />} label="Activo" valor={medidor?.activo_nombre ?? "Todos los activos"} />
@@ -314,9 +322,20 @@ export default function AutomatizacionDetalle({
         {/* El paso de condiciones se dibuja igual que en el constructor: sin él,
             la ficha y el formulario dejarían de leerse como la misma regla. */}
         <Paso icono={<GitBranch size={15} />} titulo="Sólo si además…">
-          <p style={{ margin: 0, fontSize: 14, color: "var(--fg-4)", lineHeight: 1.5, display: "flex", alignItems: "center", gap: 8 }}>
-            <Lock size={15} /> Sin requisitos extra: actúa siempre que la lectura cumpla lo de arriba.
-          </p>
+          {a.condiciones.length === 0 ? (
+            <p style={{ margin: 0, fontSize: 14, color: "var(--fg-4)", lineHeight: 1.5 }}>
+              Sin requisitos extra: actúa siempre que la lectura cumpla lo de arriba.
+            </p>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              {a.condiciones.map(c => (
+                // Sin cuerpo: la frase de `describirCondicion` YA dice la regla
+                // entera. Abrirla para repetir "estados: mantención" sería el
+                // mismo dato dos veces.
+                <Tarjeta key={c.id} titulo={describirCondicion(c)} />
+              ))}
+            </div>
+          )}
         </Paso>
 
         <Paso icono={<Play size={15} />} titulo="Haz esto" ultimo>
@@ -326,6 +345,46 @@ export default function AutomatizacionDetalle({
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               {a.acciones.map(acc => {
                 const c = acc.config ?? {};
+
+                // El cambio de estado tiene sus propios campos: pasarlo por la
+                // ficha de la OT mostraría cinco filas vacías.
+                if (acc.tipo === "cambiar_estado_activo") {
+                  const activo = c.activo_id
+                    ? (activos?.find(x => x.id === c.activo_id)?.label ?? "Activo eliminado")
+                    : "El activo que disparó la regla";
+                  return (
+                    <Tarjeta
+                      key={acc.id}
+                      titulo="Cambiar el estado del activo"
+                      subtitulo={acc.retrigger_minutos > 0
+                        ? `Ejecutar como máximo una vez cada ${acc.retrigger_minutos} minutos`
+                        : undefined}
+                    >
+                      <div>
+                        <FilaDato icono={<Box size={15} />} label="Activo" valor={activo} />
+                        <FilaDato
+                          icono={<Settings2 size={15} />}
+                          label="Nuevo estado"
+                          valor={c.estado ? (ESTADO_LABEL[c.estado] ?? c.estado) : null}
+                        />
+                        <FilaDato
+                          icono={<Clock size={15} />}
+                          label="Tipo de parada"
+                          valor={c.tipo_inactividad
+                            ? (c.tipo_inactividad === "planeado" ? "Planeado" : "Sin planear")
+                            : null}
+                        />
+                        <FilaDato
+                          icono={<FileText size={15} />}
+                          label="Notas"
+                          valor={c.notas || null}
+                          ultima
+                        />
+                      </div>
+                    </Tarjeta>
+                  );
+                }
+
                 const frenos = [
                   acc.retrigger_minutos > 0 ? `Ejecutar como máximo una vez cada ${acc.retrigger_minutos} minutos` : null,
                   acc.solo_si_anterior_cerrada ? "Sólo si la orden anterior está cerrada" : null,
