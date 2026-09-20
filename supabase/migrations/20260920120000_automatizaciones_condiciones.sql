@@ -216,6 +216,13 @@ BEGIN
 END;
 $$;
 
+-- No es una RPC: la llama el motor y nadie mas. Sin esto queda expuesta en
+-- /rest/v1/rpc/ y, como es SECURITY DEFINER y lee por id sin comprobar
+-- workspace —confia en que el activo se lo pasa el motor—, un llamador podria
+-- sondear con uuids ajenos si un activo esta en mantencion o su criticidad.
+REVOKE ALL ON FUNCTION public.fn_automatizacion_condiciones_bloqueo(uuid, uuid, timestamptz)
+  FROM PUBLIC, anon, authenticated;
+
 -- ── El motor, con el gate de condiciones ────────────────────────────────────
 -- Se redefine entera (CREATE OR REPLACE) en vez de parchearla: una función
 -- plpgsql no se edita por pedazos. El cuerpo es el de 20260914110000 con dos
