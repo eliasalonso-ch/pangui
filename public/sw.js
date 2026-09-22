@@ -62,9 +62,27 @@ self.addEventListener('push', (e) => {
 });
 
 // ── Click ─────────────────────────────────────────────────
+
+/**
+ * Las notificaciones se guardan con las rutas del movil (`/orden/<id>`,
+ * `/orden/<id>/procedimiento/<id>`), que en la web NO existen: aqui las OTs
+ * viven en `/ordenes?id=`. La campana ya traduce con su propio `destination()`,
+ * pero el service worker navegaba con la url cruda y mandaba cada push de OT
+ * a un 404. Se traduce aqui tambien, y no en el generador, porque hay miles de
+ * notificaciones ya emitidas con la forma antigua.
+ */
+function webUrl(url) {
+  if (!url) return '/';
+  const orden = url.match(/(?:^|\/)orden(?:es)?\/([0-9a-f-]{36})/i);
+  if (orden) return `/ordenes?id=${encodeURIComponent(orden[1])}`;
+  const material = url.match(/(?:^|\/)parte(?:s)?\/([0-9a-f-]{36})/i);
+  if (material) return `/partes?material=${encodeURIComponent(material[1])}`;
+  return url;
+}
+
 self.addEventListener('notificationclick', (e) => {
   e.notification.close();
-  const targetUrl = e.notification.data?.url || '/';
+  const targetUrl = webUrl(e.notification.data?.url);
 
   e.waitUntil((async () => {
     const windows = await clients.matchAll({ type: 'window', includeUncontrolled: true });

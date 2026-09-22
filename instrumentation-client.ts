@@ -30,7 +30,14 @@ Sentry.init({
   // — including the marketing pages — even though replaysSessionSampleRate is
   // 0 and replay therefore only ever fires on an error. It is loaded lazily
   // after the page settles instead (see below).
-  integrations: [],
+  // Se quita BrowserSession: emite un envelope de sesion por navegacion
+  // (lifecycle "route") y Sentry los rechaza con 400 porque el proyecto no
+  // define `release` — obligatorio en un envelope de sesion, opcional en uno de
+  // error. Eso llenaba la consola de POST /monitoring 400 sin perderse ningun
+  // error. Release Health no se usa: la analitica de sesiones es de PostHog.
+  // Para recuperarlo hay que configurar `release` en el build, no basta con
+  // volver a poner la integracion.
+  integrations: (defaults) => defaults.filter((i) => i.name !== "BrowserSession"),
 
   // Drop noise from Supabase auth-js's Web Locks self-recovery. When an auth
   // token lock is orphaned (React Strict Mode double-mount / a component
