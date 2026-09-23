@@ -95,6 +95,12 @@ jobs:
           echo "-- CI ONLY. Exists only in the runner temp dir; the 2999" > "$ci_sql"
           echo "-- timestamp keeps it applied last. Never reaches production." >> "$ci_sql"
           echo "drop trigger if exists on_notification_insert on public.notifications;" >> "$ci_sql"
+          # Same reason as the webhook trigger above: this stack starts with
+          # --exclude realtime, and the contract tests insert into actividad_ot.
+          # realtime.broadcast_changes would raise on the missing daily partition
+          # of realtime.messages (partitions are created when a client connects),
+          # and an AFTER trigger raising there fails the INSERT itself.
+          echo "drop trigger if exists trg_broadcast_actividad_ot on public.actividad_ot;" >> "$ci_sql"
           echo "WORK_ORDER_CONTRACT_ROOT=$root" >> "$GITHUB_ENV"
 
       - name: Start isolated Supabase
