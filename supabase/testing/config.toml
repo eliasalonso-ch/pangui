@@ -21,6 +21,20 @@ enabled = false
 [storage]
 enabled = false
 
+# `supabase start --exclude realtime` only skips STARTING the container -- the
+# CLI still pulls ghcr.io/supabase/realtime, which was failing the job on
+# ghcr rate limits after everything else had already pulled. Disabling it here
+# means the image is never fetched. These contract tests are pgTAP against the
+# database and never touch Realtime; the broadcast trigger is dropped in the
+# CI-only migration built by work-order-contract.yml.
+[realtime]
+enabled = false
+
+# Same reason: logflare/vector are in the workflow's --exclude list but the
+# image is still pulled unless analytics is disabled here.
+[analytics]
+enabled = false
+
 [auth]
 enabled = true
 site_url = "http://localhost:3000"
