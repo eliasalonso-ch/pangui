@@ -1212,15 +1212,15 @@ export default function OTDetail({
   useEffect(() => {
     if (tab !== "actividad") return;
     const sb = createClient();
+    // Broadcast en vez de postgres_changes: el decoder de Realtime era el 89%
+    // del tiempo total de la base, porque postgres_changes revisa RLS por cada
+    // suscriptor y por cada registro del WAL. Broadcast autoriza una sola vez
+    // al entrar al canal. Lo emite trg_broadcast_actividad_ot.
     const channel = sb
-      .channel(`actividad-ot-${orden.id}`)
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "actividad_ot", filter: `orden_id=eq.${orden.id}` },
-        () => {
-          void queryClient.invalidateQueries({ queryKey: ["actividad", orden.id] });
-        },
-      )
+      .channel(`ot:${orden.id}`, { config: { private: true } })
+      .on("broadcast", { event: "*" }, () => {
+        void queryClient.invalidateQueries({ queryKey: ["actividad", orden.id] });
+      })
       .subscribe();
 
     // Realtime no reenvia lo que paso mientras el socket estuvo caido, asi que
