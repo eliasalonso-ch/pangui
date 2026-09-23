@@ -328,21 +328,14 @@ async function shouldTriggerAlert(
   workspaceId: string,
   now: Date
 ): Promise<boolean> {
-  // Matches uq_alert_log_resource_open, the partial unique index that actually
-  // enforces this: (workspace_id, resource_type, resource_id, type) WHERE
-  // resolved_at IS NULL. Querying by work_order_id alone would miss the
-  // workspace and resource columns the constraint is keyed on.
-  const { data: existing } = await supabase
-    .from("notifications_alertas_log")
-    .select("id, triggered_at")
-    .eq("workspace_id", workspaceId)
-    .eq("resource_type", "orden")
-    .eq("resource_id", workOrderId)
-    .eq("type", tipo)
-    .is("resolved_at", null)
-    .maybeSingle();
-
-  if (existing) return false;
+  // The pre-SELECT that used to live here was a second round-trip per work
+  // order per rule: 88,448 calls cumulatively, and 70% of ALL overnight API
+  // traffic (925 of ~1,320 requests between 03:00 and 08:00, when nobody is
+  // working). It guarded nothing that the database does not already guard --
+  // uq_alert_log_resource_open is a partial unique index on
+  // (workspace_id, resource_type, resource_id, type) WHERE resolved_at IS NULL,
+  // and the 23505 branch below already treats a conflict as "already open".
+  // Let the INSERT be the check.
 
   // resource_type / resource_id are NOT NULL and have no default. They were
   // added to generalise the log beyond work orders (an alert about a material
