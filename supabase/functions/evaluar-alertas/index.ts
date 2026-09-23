@@ -328,14 +328,10 @@ async function shouldTriggerAlert(
   workspaceId: string,
   now: Date
 ): Promise<boolean> {
-  // The pre-SELECT that used to live here was a second round-trip per work
-  // order per rule: 88,448 calls cumulatively, and 70% of ALL overnight API
-  // traffic (925 of ~1,320 requests between 03:00 and 08:00, when nobody is
-  // working). It guarded nothing that the database does not already guard --
-  // uq_alert_log_resource_open is a partial unique index on
-  // (workspace_id, resource_type, resource_id, type) WHERE resolved_at IS NULL,
-  // and the 23505 branch below already treats a conflict as "already open".
-  // Let the INSERT be the check.
+  // Callers skip alerts already open (see openAlerts in the handler), so this
+  // only runs for new ones. uq_alert_log_resource_open still guards against a
+  // concurrent run inserting the same alert first; 23505 below means "already
+  // open".
 
   // resource_type / resource_id are NOT NULL and have no default. They were
   // added to generalise the log beyond work orders (an alert about a material
@@ -483,6 +479,26 @@ Deno.serve(async (req) => {
       throw new Error(`Error fetching users: ${usuariosErr.message}`);
     }
 
+    // One read of every open alert, instead of one round-trip per OT per rule.
+    // Almost every alert evaluated each hour is already open: per-OT lookups
+    // were ~112 requests/hour, and replacing them with bare INSERTs just traded
+    // them for ~110 failing 23505 inserts/hour.
+    // ponytail: capped by PostgREST max_rows (1000); ~150 open today, page it if that grows.
+    const { data: abiertas, error: abiertasErr } = await supabase
+      .from("notifications_alertas_log")
+      .select("workspace_id, type, resource_id")
+      .eq("resource_type", "orden")
+      .is("resolved_at", null)
+      .in("workspace_id", workspaceIds);
+
+    if (abiertasErr) {
+      throw new Error(`Error fetching open alerts: ${abiertasErr.message}`);
+    }
+
+    const openAlerts = new Set(
+      (abiertas ?? []).map((a) => `${a.workspace_id}|${a.type}|${a.resource_id}`),
+    );
+
     const usuariosByWorkspace = new Map<string, UsuarioRow[]>();
     const validUserIds = new Set<string>();
     for (const u of (usuarios ?? []) as UsuarioRow[]) {
@@ -517,6 +533,11 @@ Deno.serve(async (req) => {
         if (!conditionMet) continue;
 
         activeIds.push(orden.id);
+
+        if (openAlerts.has(`${regla.workspace_id}|${regla.tipo}|${orden.id}`)) {
+          skipped++;
+          continue;
+        }
 
         const trigger = await shouldTriggerAlert(
           supabase,
