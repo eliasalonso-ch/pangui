@@ -101,7 +101,8 @@ Deno.serve(async (req) => {
     // browser alert either, so these run before any delivery.
     if (prefs?.push_activo === false) return new Response("Push disabled", { status: 200 });
     if (record.tipo === "asignado" && prefs?.notif_asignada === false) return new Response("Assignment push disabled", { status: 200 });
-    if (record.tipo === "comentario" && prefs?.notif_comentario === false) return new Response("Comment push disabled", { status: 200 });
+    // Reactions ride on the comment toggle (no separate preference).
+    if ((record.tipo === "comentario" || record.tipo === "reaccion") && prefs?.notif_comentario === false) return new Response("Comment push disabled", { status: 200 });
     if (["estado_cambiado", "completado", "pausado", "reanudado"].includes(record.tipo) && prefs?.notif_estado_cambiado === false) return new Response("State push disabled", { status: 200 });
 
     // ─── Mobile (Expo) ───────────────────────────────────────────────────────

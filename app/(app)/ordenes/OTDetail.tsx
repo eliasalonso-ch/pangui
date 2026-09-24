@@ -22,7 +22,7 @@ import {
   Lock, LockOpen, Mic, MicOff, Volume2, GitBranch, Wrench, Link as LinkIcon, Paperclip,
   Phone, Mail, Circle, MessageSquare,
   Minus, ArrowUp, ArrowDown, RotateCw, UserRoundX, UserRoundCheck, Zap, Locate, Contact,
-  Box, Clock,
+  Box, Clock, SmilePlus,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { LinksDisplay } from "@/components/LinksInput";
@@ -35,13 +35,15 @@ import {
 import {
   updateOrdenEstado, updateOrdenPrioridad, updateOrden,
   iniciarOrden, pausarOrden, reanudarOrden, completarOrden,
-  fetchActividad, addComentario, editComentario, deleteComentario,
+  fetchActividad, addComentario, editComentario, deleteComentario, setReaccion,
   uploadOrdenFoto, addOrdenFoto, removeOrdenFoto,
   parseDescMeta, fetchOrden, fetchSubOrdenes, createSubOrden,
 } from "@/lib/ordenes-api";
 import type { ForceClose } from "@/lib/ordenes-api";
 import { useCategorias, useActividad, useWorkspaceConfig, usePartesCatalogo } from "@/lib/queries";
 import { iniciales, avatarStyle } from "@/lib/avatar";
+import { REACCIONES, TIPOS_REACCIONABLES, agruparReacciones, miReaccion, siguienteReaccion } from "@/lib/reacciones";
+import { tonoDeActividad, type TonoEstado } from "@/lib/actividad-estado";
 import { useQueryClient } from "@tanstack/react-query";
 import { analytics } from "@/lib/analytics";
 import {
@@ -336,6 +338,18 @@ function ActivoSection({ activo, onEstadoChanged }: {
     </div>
   );
 }
+
+/* Fondo tenue de las filas de estado en Actividad. El azul sale bien del token
+   (--st-progress-dot), pero el verde y el naranjo de los tokens son oscuros:
+   al 7% se leian oliva y beige. Para el tinte se usan tonos mas vivos. */
+const TINTE_ESTADO: Record<TonoEstado, string> = {
+  progress: "color-mix(in srgb, var(--st-progress-dot) 7%, transparent)",
+  done:     "color-mix(in srgb, #22C55E 10%, transparent)",
+  wait:     "color-mix(in srgb, #FF8A00 11%, transparent)",
+  cancel:   "color-mix(in srgb, var(--st-cancel-dot) 12%, transparent)",
+  open:     "color-mix(in srgb, var(--st-open-dot) 8%, transparent)",
+  review:   "color-mix(in srgb, var(--st-review-dot) 8%, transparent)",
+};
 
 const ACT_ICON: Record<ActividadTipo, React.ComponentType<{ className?: string; size?: number; style?: React.CSSProperties }>> = {
   creado:               CircleDot,
@@ -1925,6 +1939,28 @@ export default function OTDetail({
       alert(message);
     } finally {
       setSending(false);
+    }
+  };
+
+  /* Reaccionar a un comentario o estado: una por persona, la misma la quita.
+     Se pinta al tiro sobre la cache y despues se confirma contra la base. */
+  const reaccionar = async (act: ActividadOT, elegida: string) => {
+    const emoji = siguienteReaccion(miReaccion(act.reacciones, myId), elegida);
+    queryClient.setQueryData<ActividadOT[]>(["actividad", orden.id], prev => prev?.map(a =>
+      a.id !== act.id ? a : {
+        ...a,
+        reacciones: [
+          ...(a.reacciones ?? []).filter(r => r.usuario_id !== myId),
+          ...(emoji ? [{ emoji, usuario_id: myId }] : []),
+        ],
+      },
+    ));
+    try {
+      await setReaccion(act.id, myId, emoji);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "No se pudo guardar la reacción.");
+    } finally {
+      await queryClient.invalidateQueries({ queryKey: ["actividad", orden.id] });
     }
   };
 
@@ -4092,12 +4128,25 @@ export default function OTDetail({
                      sistema. Mismo criterio que el movil (ActivityTab). */
                   const puedeGestionar = act.tipo === "comentario" && isMine;
                   const editando = editingComment?.id === act.id;
+                  /* Comentarios y estados admiten reacciones (de cualquiera),
+                     como en el movil. Mismo criterio que el RLS. */
+                  const reaccionable = TIPOS_REACCIONABLES.has(act.tipo) && entry.count === 1;
+                  const reaccionesAct = agruparReacciones(act.reacciones, myId);
+                  /* Los estados llevan un fondo muy tenue del color de su
+                     estado (TINTE_ESTADO): verde completado, naranjo en espera... */
+                  const tono = act.tipo === "comentario" ? null : tonoDeActividad(act.tipo, act.comentario);
 
                   return (
                     <div
                       key={act.id}
-                      className={puedeGestionar ? "act-row" : undefined}
-                      style={{ display: "flex", gap: 10, padding: "9px 0", position: "relative" }}
+                      className={puedeGestionar || reaccionable ? "act-row" : undefined}
+                      style={{
+                        display: "flex", gap: 10, padding: "9px 0", position: "relative",
+                        ...(tono ? {
+                          background: TINTE_ESTADO[tono],
+                          borderRadius: 10, padding: "9px 10px", margin: "2px -10px",
+                        } : null),
+                      }}
                     >
                       {tieneAutor ? (
                         <div title={nombre} style={avatarStyle(32)}>
@@ -4201,21 +4250,81 @@ export default function OTDetail({
                             <audio controls src={act.audio_url} style={{ height: 28, maxWidth: 240 }} />
                           </div>
                         )}
+                        {reaccionesAct.length > 0 && (
+                          <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 6 }}>
+                            {reaccionesAct.map(g => (
+                              <button
+                                key={g.emoji}
+                                type="button"
+                                onClick={() => reaccionar(act, g.emoji)}
+                                title={g.usuarios.map(uid => usuarios.find(u => u.id === uid)?.nombre ?? "Usuario").join(", ")}
+                                style={{
+                                  display: "flex", alignItems: "center", gap: 4,
+                                  height: 24, padding: "0 8px", borderRadius: 12, cursor: "pointer",
+                                  fontSize: 13, lineHeight: 1, color: "var(--fg-2)",
+                                  background: g.mine ? "color-mix(in srgb, var(--brand) 12%, transparent)" : "var(--surface-1)",
+                                  border: `1px solid ${g.mine ? "var(--brand)" : "var(--border)"}`,
+                                }}
+                              >
+                                <span>{g.emoji}</span>
+                                {g.usuarios.length > 1 && <span style={{ fontVariantNumeric: "tabular-nums" }}>{g.usuarios.length}</span>}
+                              </button>
+                            ))}
+                          </div>
+                        )}
                       </div>
                       {/* Acciones del comentario propio. Aparecen al pasar el
                           mouse sobre la fila (ver `.act-row` en el <style>): un
                           par de iconos fijos en cada mensaje era ruido en un
                           hilo largo. */}
-                      {puedeGestionar && !editando && (
+                      {(puedeGestionar || reaccionable) && !editando && (
                         <div
                           className="act-row-actions"
                           style={{
-                            position: "absolute", top: 4, right: 0,
+                            position: "absolute", top: 4, right: tono ? 6 : 0,
                             display: "flex", alignItems: "center", gap: 2,
                             padding: 2, borderRadius: 8,
                             background: "var(--surface-0)", border: "1px solid var(--border)",
                           }}
                         >
+                          {reaccionable && (
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <button
+                                  type="button"
+                                  title="Reaccionar"
+                                  style={{
+                                    background: "none", border: "none", padding: 4, cursor: "pointer",
+                                    display: "flex", alignItems: "center", color: "var(--fg-3)",
+                                  }}
+                                >
+                                  <SmilePlus size={17} />
+                                </button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" style={{ padding: 6 }}>
+                                <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 34px)", gap: 2 }}>
+                                  {REACCIONES.map(emoji => {
+                                    const actual = miReaccion(act.reacciones, myId) === emoji;
+                                    return (
+                                      <DropdownMenuItem
+                                        key={emoji}
+                                        onSelect={() => reaccionar(act, emoji)}
+                                        title={actual ? "Quitar reacción" : undefined}
+                                        style={{
+                                          width: 34, height: 34, padding: 0, justifyContent: "center",
+                                          fontSize: 20, borderRadius: 17, cursor: "pointer",
+                                          background: actual ? "var(--brand)" : undefined,
+                                        }}
+                                      >
+                                        {emoji}
+                                      </DropdownMenuItem>
+                                    );
+                                  })}
+                                </div>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          )}
+                          {puedeGestionar && (<>
                           <button
                             type="button"
                             title="Editar comentario"
@@ -4241,6 +4350,7 @@ export default function OTDetail({
                           >
                             <Trash2 size={17} />
                           </button>
+                          </>)}
                         </div>
                       )}
                     </div>
@@ -4628,7 +4738,7 @@ export default function OTDetail({
         />
       )}
 
-      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } } @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } } .act-row .act-row-actions { opacity: 0; transition: opacity .12s; } .act-row:hover .act-row-actions, .act-row:focus-within .act-row-actions { opacity: 1; }`}</style>
+      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } } @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } } .act-row .act-row-actions { opacity: 0; transition: opacity .12s; } .act-row:hover .act-row-actions, .act-row:focus-within .act-row-actions, .act-row-actions:has([data-state="open"]) { opacity: 1; }`}</style>
 
       {/* ── Export config modal ── */}
       {exportConfigOpen && (

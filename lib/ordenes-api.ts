@@ -686,11 +686,26 @@ export async function fetchActividad(ordenId: string): Promise<ActividadOT[]> {
   const sb = createClient();
   const { data, error } = await sb
     .from("actividad_ot")
-    .select("id, orden_id, tipo, comentario, foto_url, audio_url, usuario_id, created_at, editado_at, usuario:usuarios!usuario_id(id, nombre)")
+    .select("id, orden_id, tipo, comentario, foto_url, audio_url, usuario_id, created_at, editado_at, usuario:usuarios!usuario_id(id, nombre), reacciones:actividad_reacciones(emoji, usuario_id)")
     .eq("orden_id", ordenId)
     .order("created_at", { ascending: false });
   if (error) throw error;
   return (data ?? []) as unknown as ActividadOT[];
+}
+
+// One reaction per person per row: an emoji upserts yours, null removes it.
+export async function setReaccion(actividadId: string, usuarioId: string, emoji: string | null): Promise<void> {
+  const sb = createClient();
+  const { error } = emoji
+    ? await sb
+        .from("actividad_reacciones")
+        .upsert({ actividad_id: actividadId, usuario_id: usuarioId, emoji }, { onConflict: "actividad_id,usuario_id" })
+    : await sb
+        .from("actividad_reacciones")
+        .delete()
+        .eq("actividad_id", actividadId)
+        .eq("usuario_id", usuarioId);
+  if (error) throw error;
 }
 
 // ── Create ────────────────────────────────────────────────────────────────────

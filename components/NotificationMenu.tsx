@@ -16,6 +16,7 @@ import {
   Info,
   Loader2,
   MessageSquare,
+  SmilePlus,
   Package,
   PackageSearch,
   Search,
@@ -50,6 +51,7 @@ const TYPE_ICON: Record<string, typeof Info> = {
   ot_abierta_sin_progreso: Clock,
   ot_sin_asignar: UserPlus,
   comentario: MessageSquare,
+  reaccion: SmilePlus,
   archivo_ot: FileText,
   // MeConecta (UdeC portal) — links out to an external site.
   meconecta: ExternalLink,

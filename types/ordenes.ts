@@ -276,6 +276,8 @@ export interface ActividadOT {
   /** Sellado al editar un comentario; la UI lo usa para marcar "editado". */
   editado_at?: string | null;
   usuario?: Pick<Usuario, "id" | "nombre"> | null;
+  /** Una por persona (actividad_reacciones). */
+  reacciones?: { emoji: string; usuario_id: string }[];
 }
 
 // ─── Main order type ──────────────────────────────────────────────────────────
