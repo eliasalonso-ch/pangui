@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { MapPin, AlertTriangle, UserRoundX, UserRoundCheck, Pause, RotateCw, Check } from "lucide-react";
 import type { UbicacionRef } from "@/lib/queries";
+import { FotoOIniciales } from "@/components/FotoPerfil";
 import { cargarMaps, ESTILO_MAPA_LIMPIO, colorMarca, iconoCirculo } from "@/lib/google-maps";
 
 /** Solo lo que el mapa necesita de una OT (definido aquí para no acoplarse al dashboard). */
@@ -407,11 +408,11 @@ export default function MapaOperacion({
                   {/* Quien esta asignado: el supervisor necesita saber QUIEN
                       esta en terreno, no solo que hay trabajo activo ahi. */}
                   {(o.asignados_ids ?? [])
-                    .map(id => nombrePorId.get(id))
-                    .filter((n): n is string => !!n)
-                    .map(n => (
+                    .filter(id => nombrePorId.has(id))
+                    .map(id => [id, nombrePorId.get(id)!] as const)
+                    .map(([id, n]) => (
                       <span
-                        key={n}
+                        key={id}
                         title={n}
                         style={{
                           display: "inline-flex", alignItems: "center", gap: 4,
@@ -423,7 +424,7 @@ export default function MapaOperacion({
                           background: "linear-gradient(135deg, var(--brand-active), var(--brand))",
                           color: "var(--fg-on-brand)", fontSize: 10,
                           display: "flex", alignItems: "center", justifyContent: "center",
-                        }}>{iniciales(n)}</span>
+                        }}><FotoOIniciales id={id}>{iniciales(n)}</FotoOIniciales></span>
                         {n}
                       </span>
                     ))}

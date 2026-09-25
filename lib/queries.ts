@@ -183,6 +183,28 @@ export function useUsuarios(wsId: string | null | undefined) {
   });
 }
 
+/**
+ * Fotos de perfil del workspace, como mapa id → URL.
+ *
+ * Sin wsId: RLS de `usuarios` ya limita a mi workspace. Solo trae a quienes
+ * tienen foto, así que son unas pocas filas. Cada avatar de la app lo lee de
+ * aquí en vez de sumar `avatar_url` a las ~30 consultas que traen usuarios.
+ */
+export function useAvatares() {
+  return useQuery({
+    queryKey: ["avatares"],
+    staleTime: REFERENCE_STALE_TIME,
+    queryFn: async (): Promise<Map<string, string>> => {
+      const { data, error } = await createClient()
+        .from("usuarios")
+        .select("id, avatar_url")
+        .not("avatar_url", "is", null);
+      if (error) throw error;
+      return new Map((data ?? []).map((u) => [u.id as string, u.avatar_url as string]));
+    },
+  });
+}
+
 // ─── OT detail sub-resources ─────────────────────────────────────────────────
 //
 // Everything below is per-OT data rendered inside OTDetail. It used to load

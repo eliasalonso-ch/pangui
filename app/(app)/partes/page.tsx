@@ -14,6 +14,7 @@ import { useSuscripcion } from "@/hooks/useSuscripcion";
 import { UpgradePrompt } from "@/components/UpgradePrompt";
 import styles from "./partes.module.css";
 import { InventoryFilterDialog } from "./InventoryFilterDialog";
+import { FotoOIniciales } from "@/components/FotoPerfil";
 
 interface Material {
   id: string; nombre: string; descripcion: string | null; codigo: string;
@@ -914,7 +915,7 @@ function AuditLine({ label, usuario, fecha }: {
           display: "flex", alignItems: "center", justifyContent: "center",
           fontSize: 14, fontWeight: 400, flexShrink: 0,
         }}>
-          {usuario ? initials(usuario.nombre) : <User size={15} />}
+          {usuario ? <FotoOIniciales id={usuario.id}>{initials(usuario.nombre)}</FotoOIniciales> : <User size={15} />}
         </span>
         <span style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)" }}>
           {usuario ? `${usuario.nombre} · ${cuando}` : cuando}

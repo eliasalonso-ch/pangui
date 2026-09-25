@@ -1,6 +1,7 @@
 "use client";
 
 import { User } from "lucide-react";
+import { FotoOIniciales } from "@/components/FotoPerfil";
 
 /** Iniciales para el avatar, igual que en OTDetail. */
 function initials(n: string) {
@@ -30,7 +31,7 @@ function AuditLine({ label, usuario, fecha }: {
           display: "flex", alignItems: "center", justifyContent: "center",
           fontSize: 14, fontWeight: 400, flexShrink: 0,
         }}>
-          {usuario ? initials(usuario.nombre) : <User size={15} />}
+          {usuario ? <FotoOIniciales id={usuario.id}>{initials(usuario.nombre)}</FotoOIniciales> : <User size={15} />}
         </span>
         <span style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)" }}>
           {usuario ? `${usuario.nombre} · ${cuando}` : cuando}

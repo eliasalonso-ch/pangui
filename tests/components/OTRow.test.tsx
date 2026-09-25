@@ -4,6 +4,12 @@ import userEvent from "@testing-library/user-event";
 import OTRow from "@/app/(app)/ordenes/OTRow";
 import type { OrdenListItem, Usuario } from "@/types/ordenes";
 
+// La foto de perfil sale de una query (TanStack) que en la app provee el
+// layout. Aca solo importan las iniciales: se renderizan tal cual.
+vi.mock("@/components/FotoPerfil", () => ({
+  FotoOIniciales: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}));
+
 const baseOrden: OrdenListItem = {
   id: "ot-1",
   titulo: "Cambio de tubos fluorescentes",

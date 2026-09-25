@@ -19,7 +19,7 @@ import {
   Package, Search,
   ClipboardCheck, Info, Hash as HashIcon, Camera, PenLine, Shield, CheckSquare,
   Type, DollarSign, List, ListChecks, AlertCircle, ImagePlus, FolderOpen,
-  Lock, LockOpen, Mic, MicOff, Volume2, GitBranch, Wrench, Link as LinkIcon, Paperclip,
+  Lock, LockOpen, Mic, MicOff, GitBranch, Wrench, Link as LinkIcon, Paperclip,
   Phone, Mail, Circle, MessageSquare,
   Minus, ArrowUp, ArrowDown, RotateCw, UserRoundX, UserRoundCheck, Zap, Locate, Contact,
   Box, Clock, SmilePlus,
@@ -70,6 +70,8 @@ import type {
   OTProcedimiento, ProcedimientoEjecucion,
   PasoRespuesta, TipoPasoProc, ProcedimientoPaso,
 } from "@/types/procedimientos";
+import { FotoOIniciales } from "@/components/FotoPerfil";
+import { AudioNota } from "@/components/ordenes/AudioNota";
 
 type PendingResp = Omit<Partial<PasoRespuesta>, "firmado_nombre"> & { firmado_nombre?: string | null };
 type PauseReason = "acceso" | "materiales" | "reprogramar" | "otro";
@@ -3652,7 +3654,7 @@ export default function OTDetail({
                           display: "flex", alignItems: "center", justifyContent: "center",
                           fontSize: 14, fontWeight: 400, flexShrink: 0,
                         }}>
-                          {initials(u.nombre)}
+                          <FotoOIniciales id={u.id}>{initials(u.nombre)}</FotoOIniciales>
                         </span>
                         <div>
                           <p style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", margin: 0 }}>{u.nombre}</p>
@@ -3673,7 +3675,7 @@ export default function OTDetail({
                         color: "var(--fg-on-brand)",
                         display: "flex", alignItems: "center", justifyContent: "center",
                         fontSize: 14, fontWeight: 400, flexShrink: 0,
-                      }}>{initials(orden.creador.nombre)}</span>
+                      }}><FotoOIniciales id={orden.creador.id}>{initials(orden.creador.nombre)}</FotoOIniciales></span>
                       <span style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)" }}>
                         {orden.creador.nombre}
                         {orden.created_at ? ` · ${fmtFechaHora(orden.created_at)}` : ""}
@@ -3892,8 +3894,7 @@ export default function OTDetail({
               {/* Pending audio preview */}
               {pendingAudio && !recording && (
                 <div style={{ display: "flex", alignItems: "center", gap: 8, background: "var(--surface-hover)", borderRadius: 8, padding: "6px 10px", marginBottom: 8 }}>
-                  <Volume2 size={14} style={{ color: "var(--brand)", flexShrink: 0 }} />
-                  <audio controls src={pendingAudio.url} preload="metadata" style={{ height: 28, flex: 1, minWidth: 0 }} />
+                  <div style={{ flex: 1, minWidth: 0 }}><AudioNota src={pendingAudio.url} /></div>
                   <button type="button" onClick={() => { URL.revokeObjectURL(pendingAudio.url); setPendingAudio(null); }} title="Descartar" style={{ background: "none", border: "none", cursor: "pointer", color: "var(--fg-4)", display: "flex", alignItems: "center" }}>
                     <X size={14} />
                   </button>
@@ -4150,7 +4151,7 @@ export default function OTDetail({
                     >
                       {tieneAutor ? (
                         <div title={nombre} style={avatarStyle(32)}>
-                          {iniciales(nombre)}
+                          <FotoOIniciales id={act.usuario_id}>{iniciales(nombre)}</FotoOIniciales>
                         </div>
                       ) : (
                         <div style={{
@@ -4245,9 +4246,8 @@ export default function OTDetail({
                           </button>
                         )}
                         {act.audio_url && (
-                          <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 6 }}>
-                            <Volume2 size={13} style={{ color: "var(--brand-fg)", flexShrink: 0 }} />
-                            <audio controls src={act.audio_url} style={{ height: 28, maxWidth: 240 }} />
+                          <div style={{ marginTop: 8 }}>
+                            <AudioNota src={act.audio_url} />
                           </div>
                         )}
                         {reaccionesAct.length > 0 && (
@@ -4325,7 +4325,8 @@ export default function OTDetail({
                             </DropdownMenu>
                           )}
                           {puedeGestionar && (<>
-                          <button
+                          {/* Una nota de voz no se edita (la grabacion no cambia), solo se elimina. Igual que en el movil. */}
+                          {!act.audio_url && <button
                             type="button"
                             title="Editar comentario"
                             onClick={() => setEditingComment({ id: act.id, text: act.comentario ?? "" })}
@@ -4335,7 +4336,7 @@ export default function OTDetail({
                             }}
                           >
                             <PenLine size={17} />
-                          </button>
+                          </button>}
                           <button
                             type="button"
                             title="Eliminar comentario"

@@ -27,6 +27,7 @@ const deps: FilterDeps = {
 
 function ot(over: Partial<FilterableOrden> = {}): FilterableOrden {
   return {
+    id: "ot1",
     estado: "en_curso",
     prioridad: "media",
     tipo_trabajo: "reactiva",
@@ -42,6 +43,16 @@ const run = (list: FilterableOrden[], over: Partial<FiltrosState> = {}, d: Filte
   applyFiltros(list, { ...SIN_FILTROS, ...over }, d);
 
 describe("applyFiltros", () => {
+  it("filtra por color de bandera (las OTs sin bandera quedan fuera)", () => {
+    const list = [ot({ id: "a" }), ot({ id: "b" }), ot({ id: "c" })];
+    const banderaColorPorOrden = new Map([["a", "#EF4444"], ["b", "#3B82F6"]]);
+    const d = { ...deps, banderaColorPorOrden };
+    expect(run(list, { banderaColores: ["#3B82F6"] }, d).map(o => o.id)).toEqual(["b"]);
+    expect(run(list, { banderaColores: ["#EF4444", "#3B82F6"] }, d).map(o => o.id)).toEqual(["a", "b"]);
+    // Sin el campo (filtros guardados de antes) no filtra nada.
+    expect(run(list, {}, d)).toHaveLength(3);
+  });
+
   it("sin filtros no descarta nada", () => {
     const list = [ot(), ot({ estado: "completado" })];
     expect(run(list)).toHaveLength(2);

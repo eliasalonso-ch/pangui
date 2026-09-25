@@ -50,6 +50,7 @@ export function needsFullWorkspaceSet(args: {
     filtros.sociedadIds.length > 0 ||
     filtros.itos.length > 0 ||
     filtros.categoriaIds.length > 0 ||
+    (filtros.banderaColores?.length ?? 0) > 0 ||
     filtros.fechaVencimiento != null ||
     filtros.sinAsignar ||
     filtros.deUsuariosDadosDeBaja ||

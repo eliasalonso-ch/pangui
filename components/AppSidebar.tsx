@@ -55,8 +55,10 @@ import {
   SidebarMenuButton,
   useSidebar,
 } from "@/components/ui/sidebar";
+import { FotoOIniciales } from "@/components/FotoPerfil";
 
 interface UserData {
+  id: string;
   nombre: string;
   rol: string;
 }
@@ -162,7 +164,7 @@ function SidebarUserFooter({ user }: { user: UserData | null }) {
           title={user.nombre}
           style={{ ...avatarStyle, width: 36, height: 36 }}
         >
-          {initials(user.nombre)}
+          <FotoOIniciales id={user.id}>{initials(user.nombre)}</FotoOIniciales>
         </button>
       </div>
     );
@@ -206,7 +208,7 @@ function SidebarUserFooter({ user }: { user: UserData | null }) {
         onMouseLeave={e => { e.currentTarget.style.background = "none"; }}
       >
         <span style={{ ...avatarStyle, width: 32, height: 32 }}>
-          {initials(user.nombre)}
+          <FotoOIniciales id={user.id}>{initials(user.nombre)}</FotoOIniciales>
         </span>
         <div style={{ flex: 1, minWidth: 0, textAlign: "left" }}>
           <div style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{user.nombre}</div>
@@ -297,7 +299,7 @@ export default function AppSidebar() {
       // Papelera, Espacio de trabajo, Suscripcion) sin ningun aviso. Paso de
       // verdad cuando la base estuvo saturada y devolvio 503: el menu aparecio
       // recortado y solo se arreglaba recargando.
-      let data: { workspace_id?: string | null; rol?: string | null; nombre?: string | null } | null = null;
+      let data: { id: string; workspace_id?: string | null; rol?: string | null; nombre?: string | null } | null = null;
       for (let intento = 1; intento <= 3; intento++) {
         // getPerfilUsuario() no cachea los fallos, asi que reintentar sigue
         // yendo a la red; un exito posterior queda cacheado para los demas.
@@ -310,7 +312,7 @@ export default function AppSidebar() {
       if (!active) return;
 
       if (data?.rol) setUserRol(data.rol);
-      if (data?.nombre && data?.rol) setUserData({ nombre: data.nombre, rol: data.rol });
+      if (data?.nombre && data?.rol) setUserData({ id: data.id, nombre: data.nombre, rol: data.rol });
 
       if (data?.workspace_id) {
         setWorkspaceId(data.workspace_id);

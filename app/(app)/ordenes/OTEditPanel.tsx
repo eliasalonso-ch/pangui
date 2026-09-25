@@ -22,6 +22,7 @@ import type {
 import LinksInput from "@/components/LinksInput";
 import CategoriaMultiSelect from "@/components/ordenes/CategoriaMultiSelect";
 import CatalogoSelect from "@/components/ordenes/CatalogoSelect";
+import { FotoOIniciales } from "@/components/FotoPerfil";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -244,7 +245,7 @@ function AssigneeSelect({ usuarios, value, onChange }: {
               <span style={{
                 width: 18, height: 18, borderRadius: "50%", background: "var(--brand)", color: "var(--fg-on-brand)",
                 display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 400,
-              }}>{initials(u.nombre)}</span>
+              }}><FotoOIniciales id={u.id}>{initials(u.nombre)}</FotoOIniciales></span>
               {u.nombre}
               <button type="button" onClick={() => toggle(u.id)}
                 style={{ background: "none", border: "none", cursor: "pointer", color: "var(--brand)", display: "flex", padding: 0, lineHeight: 1 }}>
@@ -288,7 +289,7 @@ function AssigneeSelect({ usuarios, value, onChange }: {
                 <button key={u.id} type="button" onClick={() => toggle(u.id)}
                   style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "10px 12px", background: sel ? "var(--brand-tint)" : "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}>
                   <span style={{ width: 26, height: 26, borderRadius: "50%", background: sel ? "var(--brand)" : "var(--surface-hover)", color: sel ? "var(--fg-on-brand)" : "var(--fg-3)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 400, flexShrink: 0 }}>
-                    {initials(u.nombre)}
+                    <FotoOIniciales id={u.id}>{initials(u.nombre)}</FotoOIniciales>
                   </span>
                   <div style={{ flex: 1, textAlign: "left" }}>
                     <div style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)" }}>{u.nombre}</div>
