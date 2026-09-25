@@ -17,7 +17,7 @@ import { mergeCalendarExtras } from "@/lib/orden-merge";
 import { buildOrdenesWorkbook, type ExportCols as SharedExportCols, type OrdenInput, type HojaInput, type FilaInput, type FotoItemInput, type MaterialUsadoInput } from "@/lib/excel-export-shared";
 import { ExportScheduler } from "./ExportScheduler";
 import MeconectaCheck from "./MeconectaCheck";
-import OTRow from "./OTRow";
+import OTRow, { type HojaSolicitudResumen } from "./OTRow";
 import { EmptyState, EmptyDetail } from "@/components/EmptyState";
 import CalendarView from "./CalendarView";
 import KanbanView from "./KanbanView";
@@ -37,6 +37,8 @@ import type {
   Usuario, Ubicacion, LugarEspecifico, Sociedad, Activo, CategoriaOT,
   Estado, FiltrosState, SortOption, TipoTrabajo,
 } from "@/types/ordenes";
+import { classifyWaitingReason, type WaitingReasonKey } from "@/lib/waiting-reason";
+import { COLORES_BANDERA, useOTBanderaActions, useOTBanderas } from "@/lib/ot-banderas";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -56,7 +58,6 @@ const SORT_OPTIONS: { value: SortOption; label: string; soloCompletas?: true }[]
   { value: "ubicacion",          label: "Ubicación" },
 ];
 
-type WaitingReasonKey = "materiales" | "acceso" | "reprogramar" | "otro";
 
 type WaitingAlert = {
   id: string;
@@ -66,19 +67,10 @@ type WaitingAlert = {
   reasonLabel: string;
   comment: string | null;
   pausedAt: string | null;
+  hojas: HojaSolicitudResumen[];
 };
 
 
-function classifyWaitingReason(comment: string | null | undefined): { key: WaitingReasonKey; label: string } {
-  const c = (comment ?? "").toLowerCase();
-  if (c.includes("material")) return { key: "materiales", label: "Faltan materiales" };
-  // "coordinad" catches coordinado/coordinada/coordinados/coordinadas — humans
-  // write freely; "Coordinado para las 17:00hrs" means rescheduled even though
-  // the mobile auto-prefix is "Reprogramar:".
-  if (c.includes("reprogram") || c.includes("reagend") || c.includes("coordinad") || c.includes("coordino") || c.includes("coordinó")) return { key: "reprogramar", label: "Reprogramar" };
-  if (c.includes("acceso") || c.includes("ingresar") || c.includes("instalacion") || c.includes("instalación")) return { key: "acceso", label: "Sin acceso" };
-  return { key: "otro", label: "Otro motivo" };
-}
 
 const EMPTY_FILTROS: FiltrosState = {
   estados: [], prioridades: [], tipos: [],
@@ -442,7 +434,33 @@ export default function OrdenesBandeja({
         .in("orden_id", ids)
         .order("created_at", { ascending: false });
 
+      // Hojas "Solicitud de materiales" de las OTs en espera: se muestran en el
+      // tooltip de "En espera" (todas, si el técnico agregó más de una).
+      const { data: hojasData } = await sb
+        .from("hojas_inventario")
+        .select("orden_id, nombre, created_at, filas:hojas_inventario_filas(orden, celdas)")
+        .eq("tipo", "materiales_solicitados")
+        .in("orden_id", ids)
+        .order("created_at", { ascending: true });
+
       if (cancelled) return;
+      const hojasPorOrden = new Map<string, HojaSolicitudResumen[]>();
+      for (const h of (hojasData ?? []) as { orden_id: string; nombre: string | null; filas: { orden: number | null; celdas: Record<string, unknown> | null }[] | null }[]) {
+        const filas = [...(h.filas ?? [])].sort((a, b) => (a.orden ?? 0) - (b.orden ?? 0));
+        const items = filas
+          .map(f => {
+            const c = f.celdas ?? {};
+            const material = String(c.material_solicitado ?? "").trim();
+            if (!material) return null;
+            const cantidad = String(c.cantidad_solicitada ?? "").trim();
+            const unidad = String(c.unidad_solicitada ?? "").trim();
+            return cantidad ? `${material} — ${cantidad}${unidad ? ` ${unidad}` : ""}` : material;
+          })
+          .filter((x): x is string => x != null);
+        const resumen = { nombre: h.nombre?.trim() || "Solicitud de materiales", items: items.slice(0, 6), total: items.length };
+        hojasPorOrden.set(h.orden_id, [...(hojasPorOrden.get(h.orden_id) ?? []), resumen]);
+      }
+
       const latest = new Map<string, { comentario: string | null; created_at: string | null }>();
       for (const row of (data ?? []) as { orden_id: string; comentario: string | null; created_at: string | null }[]) {
         if (!latest.has(row.orden_id)) latest.set(row.orden_id, { comentario: row.comentario, created_at: row.created_at });
@@ -450,7 +468,15 @@ export default function OrdenesBandeja({
 
       setWaitingAlerts(waiting.map((o) => {
         const activity = latest.get(o.id);
-        const reason = classifyWaitingReason(activity?.comentario);
+        const hojas = hojasPorOrden.get(o.id) ?? [];
+        // Si el comentario no dice otra cosa (texto libre o vacío) pero la OT
+        // tiene hojas de solicitud, es por materiales. Si el comentario sí
+        // nombra otro motivo, manda el comentario: una hoja vieja puede quedar
+        // de una pausa anterior.
+        const clasif = classifyWaitingReason(activity?.comentario);
+        const reason = clasif.key === "otro" && hojas.length > 0
+          ? { key: "materiales" as const, label: "Faltan materiales" }
+          : clasif;
         return {
           id: o.id,
           title: o.titulo ?? "Orden sin título",
@@ -459,6 +485,7 @@ export default function OrdenesBandeja({
           reasonLabel: reason.label,
           comment: activity?.comentario ?? null,
           pausedAt: activity?.created_at ?? null,
+          hojas,
         };
       }));
     }
@@ -985,6 +1012,38 @@ export default function OrdenesBandeja({
     [waitingAlerts],
   );
 
+  // Banderas (color + nota) por OT, solo dueño/admin; RLS igual lo impone.
+  const puedeMarcar = esAdmin(myRol);
+  const { data: banderas } = useOTBanderas(puedeMarcar);
+  const banderaColorPorOrden = useMemo(
+    () => (banderas ? new Map([...banderas].map(([id, b]) => [id, b.color])) : undefined),
+    [banderas],
+  );
+  // Colores en uso, en el orden de la paleta: son las opciones del filtro.
+  const coloresBandera = useMemo(() => {
+    const usados = new Set(banderaColorPorOrden?.values() ?? []);
+    return COLORES_BANDERA.filter(c => usados.has(c));
+  }, [banderaColorPorOrden]);
+  const banderaActions = useOTBanderaActions(wsId);
+  // Estables para no romper el memo de cada fila.
+  const guardarBandera = useCallback(
+    (ordenId: string, color: string, nota: string) => banderaActions.guardar(ordenId, color, nota),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [wsId],
+  );
+  const quitarBandera = useCallback(
+    (ordenId: string) => banderaActions.quitar(ordenId),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [wsId],
+  );
+
+  // Motivo de pausa por OT: tooltip de "En espera" en la fila (categoría +
+  // comentario del técnico). Mismos datos que alimentan los contadores.
+  const motivoEsperaPorId = useMemo(
+    () => new Map(waitingAlerts.map(a => [a.id, { label: a.reasonLabel, comment: a.comment, hojas: a.hojas }])),
+    [waitingAlerts],
+  );
+
   // ITOs disponibles para el dropdown. Se derivan de `countOrdenes` (el set
   // completo del workspace) y no de `ordenes`: si saliera de la lista paginada,
   // el dropdown solo ofreceria los ITOs de la primera pagina y filtrar por uno
@@ -1101,7 +1160,7 @@ export default function OrdenesBandeja({
 
     // Filtros + búsqueda — cadena compartida con los contadores de pestaña.
     list = applyFiltros(list, filtros, {
-      ubicaciones, dadosDeBajaIds, todayKey, search, matchesSearch,
+      ubicaciones, dadosDeBajaIds, todayKey, search, matchesSearch, banderaColorPorOrden,
     });
 
     // Hide the current user's marked ("leídas") OTs when the toggle is on.
@@ -1146,7 +1205,7 @@ export default function OrdenesBandeja({
       });
     }
     return list;
-  }, [ordenes, countOrdenes, usarSetCompleto, searchResults, view, tab, scope, search, sort, filtros, ubicaciones, dadosDeBajaIds, reprogramadaIds, faltanMaterialesIds, ocultarMarcadas, marcadas, todayKey]);
+  }, [ordenes, countOrdenes, usarSetCompleto, searchResults, view, tab, scope, search, sort, filtros, ubicaciones, dadosDeBajaIds, reprogramadaIds, faltanMaterialesIds, ocultarMarcadas, marcadas, todayKey, banderaColorPorOrden]);
 
   // The calendar needs recurrencia_config + activos, which the lean bulk select
   // omits. Fetch them the first time the calendar opens, not on every list load.
@@ -1256,7 +1315,7 @@ export default function OrdenesBandeja({
     // every field read below exists on both.
     const applyFilters = (list: OrdenBulkItem[]) =>
       applyFiltros(list, filtros, {
-        ubicaciones, dadosDeBajaIds, todayKey, search, matchesSearch,
+        ubicaciones, dadosDeBajaIds, todayKey, search, matchesSearch, banderaColorPorOrden,
       });
     // Per tab × per scope. Drives the dropdown labels, the red-dot indicators,
     // and the tab pill counts. All respect search + filtros so the count
@@ -1299,7 +1358,7 @@ export default function OrdenesBandeja({
         presupuestos:   applyFilters(closed.filter(esPresupuesto)).length,
       },
     };
-  }, [countOrdenes, searchResults, filtros, search, ubicaciones, dadosDeBajaIds, reprogramadaIds, faltanMaterialesIds, todayKey]);
+  }, [countOrdenes, searchResults, filtros, search, ubicaciones, dadosDeBajaIds, reprogramadaIds, faltanMaterialesIds, todayKey, banderaColorPorOrden]);
   const currentSortLabel = SORT_OPTIONS.find(o => o.value === sort)?.label ?? "";
   const scopeLabel: Record<ScopeKey, string> = {
     todas: "Todas",
@@ -1400,7 +1459,7 @@ export default function OrdenesBandeja({
         // contadores. Antes esta era una tercera copia a mano y ya se habia
         // quedado sin los filtros de sociedad y de ITO.
         list = applyFiltros(list, filtros, {
-          ubicaciones, dadosDeBajaIds, todayKey, search, matchesSearch,
+          ubicaciones, dadosDeBajaIds, todayKey, search, matchesSearch, banderaColorPorOrden,
         });
         list.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
         return list;
@@ -1691,6 +1750,7 @@ export default function OrdenesBandeja({
             itos={itoOptions}
             visibleKeys={visibleFilterKeys}
             onVisibleKeysChange={changeVisibleFilterKeys}
+            coloresBandera={coloresBandera}
           />
         </div>
       </div>}
@@ -1996,6 +2056,10 @@ export default function OrdenesBandeja({
                     myId={myId}
                     onAssigned={handleRowAssigned}
                     coordinadaPara={scope === "reprogramadas" ? (o.fecha_inicio ?? null) : null}
+                    motivoEspera={o.estado === "en_espera" ? motivoEsperaPorId.get(o.id) ?? null : null}
+                    bandera={puedeMarcar ? banderas?.get(o.id) ?? null : undefined}
+                    onGuardarBandera={puedeMarcar ? guardarBandera : undefined}
+                    onQuitarBandera={puedeMarcar ? quitarBandera : undefined}
                     isMarcada={marcadas.has(o.id)}
                     onToggleMarcada={handleToggleMarcada}
                     todayKey={todayKey}

@@ -430,6 +430,11 @@ export interface FiltrosState {
   /** OTs cuyo responsable fue dado de baja: trabajo que quedo sin duenio real
    *  cuando alguien dejo el equipo. */
   deUsuariosDadosDeBaja: boolean;
+  /**
+   * Colores de bandera (ot_banderas), solo dueño/admin. Opcional a propósito:
+   * los filtros guardados de antes no lo traen, y `?? []` evita romperlos.
+   */
+  banderaColores?: string[];
 }
 
 export type SortOption =

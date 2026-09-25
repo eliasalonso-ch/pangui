@@ -9,6 +9,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { ScanResult, Prioridad, Usuario } from "@/types/ordenes";
+import { FotoOIniciales } from "@/components/FotoPerfil";
 
 interface ScanSheetProps {
   open: boolean;
@@ -289,7 +290,7 @@ export default function ScanSheet({
                               active ? "bg-primary-foreground/20" : "bg-muted"
                             )}
                           >
-                            {initials(u.nombre)}
+                            <FotoOIniciales id={u.id}>{initials(u.nombre)}</FotoOIniciales>
                           </span>
                           {u.nombre.split(" ")[0]}
                         </button>

@@ -33,6 +33,7 @@ import {
   aggregateTimeDistribution,
   avgResolutionTime,
 } from "@/lib/ot-metrics";
+import { FotoOIniciales } from "@/components/FotoPerfil";
 
 /**
  * Todo lo pesado de /inicio se carga aparte del bundle inicial.
@@ -554,6 +555,7 @@ export default function InicioDashboard() {
         const partes = nombre.trim().split(/\s+/);
         filas.push({
           otId: o.id,
+          uid,
           numero: o.numero ?? null,
           titulo: o.titulo || o.descripcion?.slice(0, 50) || "Sin título",
           nombre,
@@ -1062,7 +1064,7 @@ export default function InicioDashboard() {
                   color: "var(--fg-on-brand)",
                   display: "flex", alignItems: "center", justifyContent: "center",
                   fontSize: 14, fontWeight: 400,
-                }}>{t.iniciales}</span>
+                }}><FotoOIniciales id={t.uid}>{t.iniciales}</FotoOIniciales></span>
                 <span style={{ flex: 1, minWidth: 0 }}>
                   <span style={{ display: "block", fontSize: 14, fontWeight: 400, color: "var(--fg-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     {t.nombre}

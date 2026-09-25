@@ -12,6 +12,7 @@
 import { useState, useEffect, useRef } from "react";
 import { ChevronDown, Check, User, X } from "lucide-react";
 import type { Usuario } from "@/types/ordenes";
+import { FotoOIniciales } from "@/components/FotoPerfil";
 
 /**
  * Ancho de los botones "Asignar técnico" y "Asignar una cuadrilla".
@@ -196,7 +197,7 @@ export function AssigneeSelect({ usuarios, value, onChange }: {
               display: "flex", alignItems: "center", justifyContent: "center",
               fontSize: 14, fontWeight: 400,
             }}>
-              {initials(u.nombre)}
+              <FotoOIniciales id={u.id}>{initials(u.nombre)}</FotoOIniciales>
             </span>
             {u.nombre}
             <button type="button" onClick={() => toggle(u.id)} style={{
@@ -269,7 +270,7 @@ export function AssigneeSelect({ usuarios, value, onChange }: {
                     display: "flex", alignItems: "center", justifyContent: "center",
                     fontSize: 14, fontWeight: 400, flexShrink: 0,
                   }}>
-                    {initials(u.nombre)}
+                    <FotoOIniciales id={u.id}>{initials(u.nombre)}</FotoOIniciales>
                   </span>
                   <div style={{ flex: 1, textAlign: "left" }}>
                     <div style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)" }}>{u.nombre}</div>

@@ -5,6 +5,10 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase";
 import { ROL_LABEL, esAdmin } from "@/lib/roles";
 import { resetPerfilUsuarioCache } from "@/lib/perfil-usuario";
+import { useQueryClient } from "@tanstack/react-query";
+import { useAvatares } from "@/lib/queries";
+import { guardarFotoPerfil } from "@/lib/foto-perfil";
+import { FotoOIniciales } from "@/components/FotoPerfil";
 import {
   LogOut, KeyRound, Bell, User, Loader2, Check, Eye, EyeOff, ChevronRight,
   Pencil, MonitorSmartphone, X, ImagePlus, Trash2, UserRoundX, AlertTriangle, UserRoundCog,
@@ -135,6 +139,12 @@ export default function ConfiguracionPage({ section }: { section?: Configuracion
   const [logoSaved, setLogoSaved]   = useState(false);
   const [logoError, setLogoError]   = useState<string | null>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
+  const queryClient = useQueryClient();
+  const { data: avatares } = useAvatares();
+  const miFoto = (myId && avatares?.get(myId)) || null;
+  const [subiendoFoto, setSubiendoFoto] = useState(false);
+  const [fotoError, setFotoError] = useState<string | null>(null);
+  const fotoInputRef = useRef<HTMLInputElement>(null);
 
   // Workspace edit (admin/owner only)
   const [ws, setWs]               = useState({ nombre: "", sector: "", region: "" });
@@ -441,6 +451,21 @@ export default function ConfiguracionPage({ section }: { section?: Configuracion
     }
   }
 
+  async function cambiarFoto(file: File | null) {
+    if (!myId) return;
+    setFotoError(null);
+    setSubiendoFoto(true);
+    try {
+      await guardarFotoPerfil(myId, file, miFoto);
+      await queryClient.invalidateQueries({ queryKey: ["avatares"] });
+    } catch (err: unknown) {
+      setFotoError(err instanceof Error ? err.message : "No se pudo guardar la foto.");
+    } finally {
+      setSubiendoFoto(false);
+      if (fotoInputRef.current) fotoInputRef.current.value = "";
+    }
+  }
+
   async function handleLogoDelete() {
     if (!workspaceId) return;
     setUploadingLogo(true);
@@ -489,7 +514,7 @@ export default function ConfiguracionPage({ section }: { section?: Configuracion
 
         {/* ── Page header: title, identity line, section tabs ── */}
         <div style={{ maxWidth: 720, margin: "0 auto 26px" }}>
-          <h1 style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", margin: 0, letterSpacing: "-0.02em" }}>
+          <h1 style={{ fontSize: 20, fontWeight: 500, color: "var(--fg-1)", margin: 0, letterSpacing: "-0.02em" }}>
             {SECTION_TITLES[tab]}
           </h1>
           <p style={{ fontSize: 14, color: "var(--fg-3)", margin: "6px 0 0" }}>
@@ -527,14 +552,6 @@ export default function ConfiguracionPage({ section }: { section?: Configuracion
                 </div>
               ) : (
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <span style={{
-                    width: 34, height: 34, borderRadius: "50%", flexShrink: 0,
-                    background: "linear-gradient(135deg, var(--brand-active), var(--brand))",
-                    color: "var(--fg-on-brand)", display: "flex", alignItems: "center", justifyContent: "center",
-                    fontSize: 14, fontWeight: 400,
-                  }}>
-                    {initials ?? <User size={16} />}
-                  </span>
                   <span style={{ fontSize: 14, color: "var(--fg-2)" }}>{nombre || "—"}</span>
                   <button type="button" onClick={() => { setNombreDraft(nombre); setEditingNombre(true); }}
                     style={{ background: "none", border: "none", cursor: "pointer", color: "var(--fg-4)", display: "flex", padding: 4 }}>
@@ -542,6 +559,54 @@ export default function ConfiguracionPage({ section }: { section?: Configuracion
                   </button>
                 </div>
               )}
+            </SettingCard>
+
+            <SettingCard
+              label="Foto de perfil"
+              hint="Aparece en las órdenes, la actividad y el equipo. Sin foto se muestran tus iniciales."
+            >
+              {fotoError && <span style={{ fontSize: 14, color: "var(--danger)", maxWidth: 220 }}>{fotoError}</span>}
+              <span style={{
+                width: 64, height: 64, borderRadius: "50%", flexShrink: 0,
+                background: "linear-gradient(135deg, var(--brand-active), var(--brand))",
+                color: "var(--fg-on-brand)", display: "flex", alignItems: "center", justifyContent: "center",
+                fontSize: 20, fontWeight: 400,
+              }}>
+                {subiendoFoto
+                  ? <Loader2 size={20} className="animate-spin" />
+                  : <FotoOIniciales id={myId}>{initials ?? <User size={24} />}</FotoOIniciales>}
+              </span>
+              <input
+                ref={fotoInputRef}
+                type="file"
+                accept="image/*"
+                style={{ display: "none" }}
+                onChange={e => { const f = e.target.files?.[0]; if (f) void cambiarFoto(f); }}
+              />
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                <button
+                  type="button"
+                  aria-label={miFoto ? "Cambiar foto" : "Subir foto"}
+                  title={miFoto ? "Cambiar foto" : "Subir foto"}
+                  onClick={() => fotoInputRef.current?.click()}
+                  disabled={subiendoFoto}
+                  style={{ ...fotoBtnStyle, color: "var(--fg-1)", cursor: subiendoFoto ? "default" : "pointer" }}
+                >
+                  <ImagePlus size={14} />
+                </button>
+                {miFoto && (
+                  <button
+                    type="button"
+                    aria-label="Quitar foto"
+                    title="Quitar foto"
+                    onClick={() => void cambiarFoto(null)}
+                    disabled={subiendoFoto}
+                    style={{ ...fotoBtnStyle, color: "var(--danger)", cursor: subiendoFoto ? "default" : "pointer" }}
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                )}
+              </div>
             </SettingCard>
 
             {/* One card per setting. Each control saves on change, so there is
@@ -1173,6 +1238,12 @@ export default function ConfiguracionPage({ section }: { section?: Configuracion
  * One setting per card: bold label (and optional hint) on the left, its control
  * right-aligned. Cards stack with a gap rather than sharing a bordered box.
  */
+/** Botón cuadrado solo-ícono de la tarjeta "Foto de perfil". */
+const fotoBtnStyle: React.CSSProperties = {
+  width: 30, height: 30, border: "1px solid var(--border)", borderRadius: "var(--r-md)",
+  background: "var(--surface-1)", display: "flex", alignItems: "center", justifyContent: "center",
+};
+
 function SettingCard({
   label, hint, children, saving,
 }: {

@@ -12,6 +12,7 @@ import {
   Cpu, Droplets, ShieldAlert, Flame, Paintbrush, Leaf, User,
   Lock, Check, MoreHorizontal, Plus,
 } from "lucide-react";
+import { FotoOIniciales } from "@/components/FotoPerfil";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 interface Usuario {
@@ -620,7 +621,7 @@ export default function UsuariosPage() {
                                     color: isActive ? "var(--fg-on-brand)" : "var(--fg-4)",
                                     fontSize: 14, fontWeight: 400,
                                   }}>
-                                    {u.nombre?.charAt(0)?.toUpperCase() ?? "?"}
+                                    <FotoOIniciales id={u.id}>{u.nombre?.charAt(0)?.toUpperCase() ?? "?"}</FotoOIniciales>
                                   </span>
                                   <span style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)" }}>{u.nombre}</span>
                                 </span>

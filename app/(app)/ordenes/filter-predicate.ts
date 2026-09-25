@@ -27,6 +27,7 @@ import { matchesIto } from "./ito-filter";
 
 /** The row fields this chain reads. Both OrdenBulkItem and OrdenListItem satisfy it. */
 export interface FilterableOrden {
+  id: string;
   estado: string;
   prioridad: string;
   tipo_trabajo: string | null;
@@ -45,6 +46,8 @@ export interface FilterDeps {
   dadosDeBajaIds: Set<string>;
   /** Today as a Chile-local YYYY-MM-DD key, for the fechaVencimiento presets. */
   todayKey: string;
+  /** orden_id → color de su bandera (solo dueño/admin), para banderaColores. */
+  banderaColorPorOrden?: Map<string, string>;
   /** Free-text search. Applied last, via `matchesSearch`, when non-empty. */
   search?: string;
   /**
@@ -86,6 +89,14 @@ export function applyFiltros<T extends FilterableOrden>(
         id === o.categoria_id || (o.categoria_ids ?? []).includes(id),
       ),
     );
+  }
+  // Bandera: la OT pasa si tiene bandera de alguno de los colores elegidos.
+  const banderaColores = filtros.banderaColores ?? [];
+  if (banderaColores.length) {
+    list = list.filter(o => {
+      const color = deps.banderaColorPorOrden?.get(o.id);
+      return color != null && banderaColores.includes(color);
+    });
   }
   if (filtros.sociedadIds.length) {
     // Match via ubicacion.sociedad_id (joined in list select)

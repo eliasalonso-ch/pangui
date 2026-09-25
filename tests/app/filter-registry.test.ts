@@ -113,6 +113,7 @@ describe("FILTER_META", () => {
       estados: ["completado"], prioridades: ["urgente"], tipos: ["reactiva"],
       asignadoIds: ["u1"], ubicacionIds: ["ub1"], sociedadIds: ["s1"],
       itos: ["ITO 1"], categoriaIds: ["c1"], fechaVencimiento: "hoy", sinAsignar: true,
+      banderaColores: ["#EF4444"],
     };
     for (const key of FILTER_ORDER) {
       const meta = FILTER_META[key];

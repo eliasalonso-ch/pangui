@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Check, User, UserRoundX, Clock, MapPin, Flag, Zap, Wrench, Building2, Tag, Pause, RotateCw, ArrowUp, ArrowDown, AlertTriangle, Minus, type LucideIcon } from "lucide-react";
+import { Check, User, UserRoundX, Clock, MapPin, Flag, Zap, Wrench, Building2, Tag, FlagTriangleRight, Pause, RotateCw, ArrowUp, ArrowDown, AlertTriangle, Minus, type LucideIcon } from "lucide-react";
 
 import type { FiltrosState, Estado, Prioridad, TipoTrabajo, Usuario, Ubicacion, Sociedad, CategoriaOT } from "@/types/ordenes";
 import { CategoriaIcon } from "@/components/ordenes/categoria-icon";
@@ -13,6 +13,7 @@ import {
   Checkbox, OptionRow, TokenSearch, SinResultados, OptionList,
   FilterDropdown, AddFilterMenu, toggle,
 } from "@/components/filtros/primitivas";
+import { FotoOIniciales } from "@/components/FotoPerfil";
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
@@ -69,6 +70,7 @@ const FILTER_ICONS: Record<FilterKey, React.ReactNode> = {
   tipos:            <Wrench size={16} />,
   categoriaIds:     <Tag size={16} />,
   sociedadIds:      <Building2 size={16} />,
+  banderaColores:   <FlagTriangleRight size={16} />,
 };
 
 // ── FilterBar (inline toolbar) ────────────────────────────────────────────────
@@ -85,9 +87,11 @@ interface FilterBarProps {
   /** Filtros visibles en la barra, en orden. */
   visibleKeys: FilterKey[];
   onVisibleKeysChange: (keys: FilterKey[]) => void;
+  /** Colores de bandera en uso (solo dueño/admin). Vacío = el filtro no se ofrece. */
+  coloresBandera?: string[];
 }
 
-export function FilterBar({ filtros, onChange, usuarios, ubicaciones, sociedades, categorias, itos, visibleKeys, onVisibleKeysChange }: FilterBarProps) {
+export function FilterBar({ filtros, onChange, usuarios, ubicaciones, sociedades, categorias, itos, visibleKeys, onVisibleKeysChange, coloresBandera = [] }: FilterBarProps) {
   const [userSearch, setUserSearch]  = useState("");
   const [ubicSearch, setUbicSearch]  = useState("");
   const [socSearch,  setSocSearch]   = useState("");
@@ -112,7 +116,11 @@ export function FilterBar({ filtros, onChange, usuarios, ubicaciones, sociedades
     onChange({ ...filtros, ...FILTER_META[key].clear(filtros) });
     onVisibleKeysChange(visibleKeys.filter(k => k !== key));
   };
-  const available = FILTER_ORDER.filter(k => !shown.has(k)).map(k => FILTER_META[k]);
+  // Bandera solo se ofrece si hay OTs con bandera (y solo dueño/admin las ve).
+  const available = FILTER_ORDER
+    .filter(k => !shown.has(k) && (k !== "banderaColores" || coloresBandera.length > 0))
+    .map(k => FILTER_META[k]);
+  const banderaColores = filtros.banderaColores ?? [];
 
   const totalActive =
     filtros.asignadoIds.length + filtros.ubicacionIds.length +
@@ -179,7 +187,7 @@ export function FilterBar({ filtros, onChange, usuarios, ubicaciones, sociedades
             return (
               <OptionRow key={u.id} active={active} onClick={() => set({ asignadoIds: toggle(filtros.asignadoIds, u.id) })}>
                 <span style={{ width: 22, height: 22, borderRadius: "50%", background: active ? "var(--brand)" : "var(--surface-hover)", color: active ? "var(--fg-on-brand)" : "var(--fg-2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 400, flexShrink: 0 }}>
-                  {initials(u.nombre)}
+                  <FotoOIniciales id={u.id}>{initials(u.nombre)}</FotoOIniciales>
                 </span>
                 <span style={{ flex: 1, minWidth: 0, fontSize: 14, color: "var(--fg-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{u.nombre}</span>
               </OptionRow>
@@ -436,6 +444,41 @@ export function FilterBar({ filtros, onChange, usuarios, ubicaciones, sociedades
               </OptionRow>
             ))}
             {filteredSoc.length === 0 && <SinResultados />}
+          </div>
+        </FilterDropdown>
+      )}
+
+      {/* ── Bandera (interna, solo dueño/admin) ── */}
+      {shown.has("banderaColores") && coloresBandera.length > 0 && (
+        <FilterDropdown
+          label="Bandera"
+          icon={FILTER_ICONS.banderaColores}
+          active={banderaColores.length > 0}
+          count={banderaColores.length}
+          onClear={() => set({ banderaColores: [] })}
+          onRemove={() => removeFilter("banderaColores")}
+        >
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, padding: 12, maxWidth: 240 }}>
+            {coloresBandera.map(color => {
+              const on = banderaColores.includes(color);
+              return (
+                <button
+                  key={color}
+                  type="button"
+                  aria-label={`Bandera ${color}`}
+                  aria-pressed={on}
+                  onClick={() => set({ banderaColores: toggle(banderaColores, color) })}
+                  style={{
+                    width: 34, height: 34, borderRadius: 10, cursor: "pointer",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    background: on ? `${color}26` : "transparent",
+                    border: on ? `2px solid ${color}` : "1px solid var(--border)",
+                  }}
+                >
+                  <FlagTriangleRight size={18} color={color} fill={color} />
+                </button>
+              );
+            })}
           </div>
         </FilterDropdown>
       )}

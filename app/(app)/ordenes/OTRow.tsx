@@ -6,13 +6,15 @@ import {
   Clock, MapPin, Copy, Check as CheckIcon, AlertCircle, UserPlus, X as XIcon,
   CheckCircle2, Circle,
   Minus, Pause, Check, RotateCw, UserRoundX, UserRoundCheck,
-  ArrowUp, ArrowDown, AlertTriangle,
+  ArrowUp, ArrowDown, AlertTriangle, FlagTriangleRight,
   type LucideIcon,
 } from "lucide-react";
+import { COLORES_BANDERA, type OTBandera } from "@/lib/ot-banderas";
 import { parseDescMeta, updateOrden } from "@/lib/ordenes-api";
 import type { OrdenListItem, OrdenBulkItem, Usuario, Estado, Prioridad } from "@/types/ordenes";
 import { chileDateKey, dateKey, daysBetweenKeys } from "./date-utils";
 import { iniciales } from "@/lib/avatar";
+import { FotoOIniciales } from "@/components/FotoPerfil";
 
 // Estado y prioridad se muestran como etiquetas sin relleno: borde de 1px,
 // texto casi negro en peso normal y el ícono como único portador del color.
@@ -103,7 +105,7 @@ function dueLabel(fecha: string, todayKey: string): { text: string; overdue: boo
 
 function HoverTooltip({ label, body, children, triggerStyle }: {
   label: string;
-  body: string;
+  body: React.ReactNode;
   children: React.ReactNode;
   triggerStyle?: React.CSSProperties;
 }) {
@@ -162,12 +164,55 @@ function HoverTooltip({ label, body, children, triggerStyle }: {
           <p style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", letterSpacing: "0.01em", margin: "0 0 6px" }}>
             {label}
           </p>
-          <p style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", lineHeight: 1.6, margin: 0, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+          <div style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", lineHeight: 1.6, margin: 0, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
             {body}
-          </p>
+          </div>
         </div>,
         document.body
       )}
+    </>
+  );
+}
+
+// ── Motivo de pausa ───────────────────────────────────────────────────────────
+
+export interface HojaSolicitudResumen {
+  nombre: string;
+  /** "Material — cantidad unidad", ya armado; solo los primeros. */
+  items: string[];
+  total: number;
+}
+
+export interface MotivoEspera {
+  label: string;
+  comment: string | null;
+  /** Hojas "Solicitud de materiales" de la OT (pueden ser varias). */
+  hojas?: HojaSolicitudResumen[];
+}
+
+// Cuerpo del tooltip de "En espera": el comentario del técnico y, si hay, cada
+// hoja de solicitud de materiales con lo pedido.
+function MotivoEsperaBody({ motivo }: { motivo: MotivoEspera }) {
+  const hojas = motivo.hojas ?? [];
+  return (
+    <>
+      {motivo.comment && <div>{motivo.comment}</div>}
+      {!motivo.comment && hojas.length === 0 && <div>{motivo.label}</div>}
+      {hojas.map((h, i) => (
+        <div key={i} style={{ marginTop: motivo.comment || i > 0 ? 10 : 0 }}>
+          <div style={{ fontSize: 13, color: "var(--fg-3)", marginBottom: 2 }}>
+            {h.nombre}{hojas.length > 1 ? ` (${i + 1}/${hojas.length})` : ""}
+          </div>
+          {h.items.length === 0 ? (
+            <div style={{ color: "var(--fg-4)" }}>Sin materiales anotados</div>
+          ) : (
+            h.items.map((it, j) => <div key={j}>• {it}</div>)
+          )}
+          {h.total > h.items.length && (
+            <div style={{ color: "var(--fg-4)" }}>+{h.total - h.items.length} más</div>
+          )}
+        </div>
+      ))}
     </>
   );
 }
@@ -283,7 +328,7 @@ function AssignDropdown({ orden, usuarios, myId, onAssigned, onClose, anchorRect
                 display: "flex", alignItems: "center", justifyContent: "center",
                 fontSize: 14, fontWeight: 400,
               }}>
-                {iniciales(u.nombre)}
+                <FotoOIniciales id={u.id}>{iniciales(u.nombre)}</FotoOIniciales>
               </span>
               <span style={{ flex: 1, fontSize: 14, fontWeight: 400, color: "var(--fg-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                 {u.nombre}
@@ -299,6 +344,166 @@ function AssignDropdown({ orden, usuarios, myId, onAssigned, onClose, anchorRect
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+
+// ── Bandera (solo dueño/admin) ────────────────────────────────────────────────
+
+// Sin bandera: ícono tenue. Con bandera: relleno de su color; al pasar el mouse
+// muestra la nota. Click → popover para elegir color y escribir la nota.
+function BanderaTrigger({ ordenId, bandera, onGuardar, onQuitar }: {
+  ordenId:   string;
+  bandera:   OTBandera | null;
+  onGuardar: (ordenId: string, color: string, nota: string) => Promise<void>;
+  onQuitar:  (ordenId: string) => Promise<void>;
+}) {
+  const ref = useRef<HTMLButtonElement>(null);
+  const [anchor, setAnchor] = useState<DOMRect | null>(null);
+
+  const boton = (
+    <button
+      ref={ref}
+      type="button"
+      title={bandera ? undefined : "Marcar con bandera"}
+      aria-label={bandera ? "Editar bandera" : "Marcar con bandera"}
+      onClick={e => {
+        e.stopPropagation();
+        setAnchor(a => (a ? null : ref.current?.getBoundingClientRect() ?? null));
+      }}
+      style={{
+        background: "none", border: "none", cursor: "pointer", padding: 2,
+        display: "flex", alignItems: "center",
+        color: bandera ? bandera.color : "var(--fg-4)",
+        opacity: bandera ? 1 : 0.45,
+      }}
+    >
+      <FlagTriangleRight size={17} fill={bandera ? bandera.color : "none"} />
+    </button>
+  );
+
+  return (
+    <>
+      {bandera?.nota ? <HoverTooltip label="Nota" body={bandera.nota}>{boton}</HoverTooltip> : boton}
+      {anchor && (
+        <BanderaPopover
+          anchorRect={anchor}
+          bandera={bandera}
+          onClose={() => setAnchor(null)}
+          onGuardar={(color, nota) => onGuardar(ordenId, color, nota)}
+          onQuitar={() => onQuitar(ordenId)}
+        />
+      )}
+    </>
+  );
+}
+
+function BanderaPopover({ anchorRect, bandera, onClose, onGuardar, onQuitar }: {
+  anchorRect: DOMRect;
+  bandera:    OTBandera | null;
+  onClose:    () => void;
+  onGuardar:  (color: string, nota: string) => Promise<void>;
+  onQuitar:   () => Promise<void>;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [color, setColor] = useState<string>(bandera?.color ?? COLORES_BANDERA[0]);
+  const [nota, setNota] = useState(bandera?.nota ?? "");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    function onDown(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
+    }
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [onClose]);
+
+  const run = async (fn: () => Promise<void>) => {
+    setSaving(true);
+    setError(null);
+    try {
+      await fn();
+      onClose();
+    } catch {
+      setError("No se pudo guardar. Inténtalo de nuevo.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const W = 260;
+  const vw = window.innerWidth;
+  let left = anchorRect.right - W;
+  if (left < 8) left = 8;
+  if (left + W > vw - 8) left = vw - W - 8;
+  const flipUp = window.innerHeight - anchorRect.bottom < 260;
+  const top = flipUp ? anchorRect.top : anchorRect.bottom + 6;
+
+  return createPortal(
+    <div
+      ref={ref}
+      onClick={e => e.stopPropagation()}
+      onMouseDown={e => e.stopPropagation()}
+      style={{
+        position: "fixed", top, left, width: W, zIndex: 9999,
+        background: "var(--surface-2)", border: "1px solid var(--border)",
+        borderRadius: "var(--r-md)", boxShadow: "var(--shadow-md)", padding: 12,
+        transform: flipUp ? "translateY(-100%) translateY(-6px)" : "none",
+        display: "flex", flexDirection: "column", gap: 10,
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <span style={{ fontSize: 14, color: "var(--fg-1)" }}>Bandera</span>
+        <button type="button" onClick={onClose} aria-label="Cerrar" style={{ background: "none", border: "none", cursor: "pointer", color: "var(--fg-4)", padding: 2, display: "flex" }}>
+          <XIcon size={14} />
+        </button>
+      </div>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+        {COLORES_BANDERA.map(c => (
+          <button
+            key={c}
+            type="button"
+            aria-label={`Color ${c}`}
+            aria-pressed={c === color}
+            onClick={() => setColor(c)}
+            style={{
+              width: 26, height: 26, borderRadius: "50%", cursor: "pointer", background: c,
+              border: "none",
+              boxShadow: c === color ? `0 0 0 2px var(--surface-2), 0 0 0 4px ${c}` : "none",
+            }}
+          />
+        ))}
+      </div>
+      <textarea
+        value={nota}
+        onChange={e => setNota(e.target.value)}
+        maxLength={2000}
+        rows={3}
+        placeholder="Nota (opcional): por qué la marcaste…"
+        style={{
+          width: "100%", resize: "vertical", fontFamily: "inherit", fontSize: 14,
+          padding: "8px 10px", borderRadius: "var(--r-sm)", border: "1px solid var(--border)",
+          background: "var(--surface-1)", color: "var(--fg-1)", outline: "none",
+        }}
+      />
+      {error && <span style={{ fontSize: 13, color: "var(--danger)" }}>{error}</span>}
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+        {bandera ? (
+          <button type="button" disabled={saving} onClick={() => void run(onQuitar)}
+            style={{ background: "none", border: "none", cursor: "pointer", color: "var(--danger)", fontSize: 14, padding: "6px 0" }}>
+            Quitar bandera
+          </button>
+        ) : <span />}
+        <button type="button" disabled={saving} onClick={() => void run(() => onGuardar(color, nota))}
+          style={{
+            border: "none", cursor: "pointer", borderRadius: "var(--r-sm)", padding: "6px 14px",
+            background: "var(--brand)", color: "var(--fg-on-brand)", fontSize: 14, opacity: saving ? 0.6 : 1,
+          }}>
+          {saving ? "Guardando…" : "Guardar"}
+        </button>
+      </div>
+    </div>,
+    document.body,
+  );
+}
 
 interface Props {
   orden:        OrdenBulkItem;
@@ -316,11 +521,18 @@ interface Props {
   isMarcada?:       boolean;
   onToggleMarcada?: (id: string, next: boolean) => void;
   todayKey?:         string;
+  // En espera: por qué (del comentario de pausa). Se suma a la pastilla de estado.
+  motivoEspera?: MotivoEspera | null;
+  // Bandera (color + nota), solo dueño/admin. `undefined` = sin permiso (no
+  // se dibuja); `null` = puede marcar pero la OT no tiene bandera.
+  bandera?:          OTBandera | null;
+  onGuardarBandera?: (ordenId: string, color: string, nota: string) => Promise<void>;
+  onQuitarBandera?:  (ordenId: string) => Promise<void>;
 }
 
 // `rowNumber` sigue en Props porque el contenedor lo pasa, pero ya no se
 // muestra: el número correlativo no aportaba y competía con el N° de OT real.
-function OTRow({ orden, usuarios, isSelected, onClick, onPrefetch, myId, onAssigned, coordinadaPara, isMarcada, onToggleMarcada, todayKey }: Props) {
+function OTRow({ orden, usuarios, isSelected, onClick, onPrefetch, myId, onAssigned, coordinadaPara, isMarcada, onToggleMarcada, todayKey, motivoEspera, bandera, onGuardarBandera, onQuitarBandera }: Props) {
   const effectiveTodayKey = todayKey ?? chileDateKey();
   const isPending = Boolean(orden._pending);
   const hasAssignees = (orden.asignados_ids ?? []).length > 0;
@@ -482,10 +694,19 @@ function OTRow({ orden, usuarios, isSelected, onClick, onPrefetch, myId, onAssig
             segunda línea la tarjeta crecería y se rompería la altura uniforme. */}
         <div style={{ display: "flex", alignItems: "center", gap: 5, flexWrap: "nowrap", flex: 1, minWidth: 0, overflow: "hidden" }}>
 
-          {/* Status pill */}
-          <RowBadge icon={estado.icon} iconColor={estado.color}>
-            {estado.label}
-          </RowBadge>
+          {/* Status pill. En espera: al pasar el mouse, el motivo de la pausa
+              con el comentario del técnico. */}
+          {motivoEspera ? (
+            <HoverTooltip label={`Motivo: ${motivoEspera.label}`} body={<MotivoEsperaBody motivo={motivoEspera} />}>
+              <RowBadge icon={estado.icon} iconColor={estado.color}>
+                {estado.label}
+              </RowBadge>
+            </HoverTooltip>
+          ) : (
+            <RowBadge icon={estado.icon} iconColor={estado.color}>
+              {estado.label}
+            </RowBadge>
+          )}
 
           {/* Coordinated date — only shown inside the Reprogramadas tab. */}
           {coordinadaPara && (
@@ -515,8 +736,11 @@ function OTRow({ orden, usuarios, isSelected, onClick, onPrefetch, myId, onAssig
 
         </div>
 
-        {/* Right: time + avatars */}
+        {/* Right: flag + time + avatars */}
         <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+          {bandera !== undefined && onGuardarBandera && onQuitarBandera && (
+            <BanderaTrigger ordenId={orden.id} bandera={bandera} onGuardar={onGuardarBandera} onQuitar={onQuitarBandera} />
+          )}
           <span suppressHydrationWarning style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-4)" }}>{mounted ? timeAgo(orden.created_at) : ""}</span>
 
           {/* Avatar trigger — always shown as a button when onAssigned is wired */}
@@ -554,7 +778,7 @@ function OTRow({ orden, usuarios, isSelected, onClick, onPrefetch, myId, onAssig
                       marginLeft: i > 0 ? -7 : 0,
                     }}
                   >
-                    {iniciales(u.nombre)}
+                    <FotoOIniciales id={u.id}>{iniciales(u.nombre)}</FotoOIniciales>
                   </span>
                 ))}
                 {assigned.length > 3 && (

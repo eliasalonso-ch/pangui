@@ -10,6 +10,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import type { OrdenListItem, Usuario, Estado, Prioridad } from "@/types/ordenes";
 import { CategoriaIcon } from "@/components/ordenes/categoria-icon";
+import { FotoOIniciales } from "@/components/FotoPerfil";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -318,7 +319,7 @@ export function OTCard({
                 title={u.nombre}
                 className="inline-flex items-center justify-center size-5 rounded-full bg-muted text-muted-foreground text-[10px] font-bold border border-border"
               >
-                {initials(u.nombre)}
+                <FotoOIniciales id={u.id}>{initials(u.nombre)}</FotoOIniciales>
               </span>
             ))}
             {assignedUsers.length > 3 && (

@@ -46,6 +46,11 @@ const MIME_MAP: Record<string, string> = {
   dwg:  "application/acad",
   dxf:  "application/dxf",
   zip:  "application/zip",
+  // Notas de voz de la Actividad: el móvil graba AAC en .m4a y el navegador
+  // .webm. Sin estas entradas el presign respondía unsupported_extension y el
+  // audio desaparecía del chat sin aviso.
+  m4a:  "audio/mp4",
+  webm: "audio/webm",
 };
 
 const ALLOWED_FOLDER_RE = /^[a-zA-Z0-9._\-/]+$/;
