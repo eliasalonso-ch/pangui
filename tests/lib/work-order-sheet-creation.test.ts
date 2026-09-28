@@ -4,11 +4,13 @@ import { describe, expect, it } from "vitest";
 import { HOJA_TEMPLATES } from "@/lib/hojas-api";
 
 describe("work-order sheet creation policy", () => {
-  it("offers the three explicit sheet templates", () => {
+  // "cobro" existe para todos en la BD, pero el selector sólo lo ofrece a Electrilam (tieneCobros).
+  it("offers the explicit sheet templates", () => {
     expect(Object.keys(HOJA_TEMPLATES)).toEqual([
       "general",
       "materiales_usados",
       "materiales_solicitados",
+      "cobro",
     ]);
     expect(HOJA_TEMPLATES.materiales_solicitados.nombre).toBe("Solicitud de materiales");
   });

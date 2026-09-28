@@ -4,6 +4,8 @@ export interface HojaColumna {
   id: string;
   label: string;
   tipo: "texto" | "numero";
+  /** Ancho en px elegido arrastrando el borde del encabezado (web). Sin valor = ancho por defecto. */
+  ancho?: number;
 }
 
 export type HojaTipo = "general" | "materiales_usados" | "materiales_solicitados" | "cobro";

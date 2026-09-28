@@ -2,13 +2,19 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Download, Plus, Trash2, FileSpreadsheet, X, Copy, Maximize2, Minimize2 } from "lucide-react";
+import { Download, Plus, Trash2, FileSpreadsheet, X, Copy, Expand, ChevronDown, Pencil, Type, Hash, Check } from "lucide-react";
 import {
   fetchHojas, fetchFilas, createHoja, updateHoja, deleteHoja,
   createFila, updateFila, deleteFila, COLUMNA_CODIGO,
 } from "@/lib/hojas-api";
 import type { Hoja, HojaColumna, HojaFila, HojaTipo } from "@/lib/hojas-api";
 import { setPendingHojaCopy } from "@/lib/hoja-copy-store";
+import ConfirmDeleteModal from "@/components/ConfirmDeleteModal";
+import type { ConfirmDelete } from "@/components/ConfirmDeleteModal";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
+  DropdownMenuSeparator, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { buscarMateriales, tieneCobros } from "@/lib/catalogo-api";
 import type { MaterialCatalogo } from "@/lib/catalogo-api";
 import { construirCobro, descargarCobro } from "@/lib/cobro-export";
@@ -21,6 +27,8 @@ const SHEET_TYPES: { tipo: HojaTipo; title: string; description: string }[] = [
 ];
 
 const COL_WIDTH = 160;
+const MIN_COL_WIDTH = 60;
+const MAX_COL_WIDTH = 800;
 const ROW_NUM_WIDTH = 44;
 const ROW_HEIGHT = 38;
 const HEADER_HEIGHT = 48;
@@ -29,12 +37,50 @@ function genId() {
   return crypto.randomUUID();
 }
 
+// ── Renombrar en el lugar (columnas y pestañas), en vez del prompt() del navegador ──
+
+function InlineInput({ initial, onDone, style }: {
+  initial: string;
+  /** El texto escrito, o null si se canceló con Escape. */
+  onDone: (value: string | null) => void;
+  style?: React.CSSProperties;
+}) {
+  // Enter y el blur que le sigue llegarían los dos: sólo cuenta el primero.
+  const done = useRef(false);
+  const finish = (value: string | null) => {
+    if (done.current) return;
+    done.current = true;
+    onDone(value);
+  };
+  return (
+    <input
+      autoFocus
+      defaultValue={initial}
+      onFocus={e => e.currentTarget.select()}
+      onBlur={e => finish(e.currentTarget.value)}
+      onKeyDown={e => {
+        if (e.key === "Enter") finish(e.currentTarget.value);
+        // preventDefault: que Escape no cierre también la vista ampliada.
+        if (e.key === "Escape") { e.preventDefault(); finish(null); }
+      }}
+      onClick={e => e.stopPropagation()}
+      onDoubleClick={e => e.stopPropagation()}
+      style={{
+        width: "100%", minWidth: 0, height: 26, padding: "0 6px", fontSize: 14, fontFamily: "inherit",
+        color: "var(--fg-1)", background: "var(--surface-1)", border: "1px solid var(--brand)",
+        borderRadius: 6, outline: "none", boxSizing: "border-box", ...style,
+      }}
+    />
+  );
+}
+
 // ── Cell ──────────────────────────────────────────────────────────────────────
 
 function Cell({
-  value, tipo, readOnly, onChange, onBlur, sugerir,
+  value, tipo, width, readOnly, onChange, onBlur, sugerir,
 }: {
   value: string;
+  width: number;
   tipo: "texto" | "numero";
   readOnly: boolean;
   onChange: (v: string) => void;
@@ -97,7 +143,7 @@ function Cell({
   }
 
   const cellStyle: React.CSSProperties = {
-    width: COL_WIDTH,
+    width,
     height: ROW_HEIGHT,
     borderRight: "1px solid var(--border)",
     display: "flex",
@@ -109,7 +155,8 @@ function Cell({
 
   if (editing) {
     return (
-      <div style={{ ...cellStyle, position: "relative" }}>
+      // overflow visible: con el hidden de cellStyle el autocompletar quedaba recortado.
+      <div style={{ ...cellStyle, position: "relative", overflow: "visible", zIndex: 2 }}>
         <input
           ref={inputRef}
           type={tipo === "numero" ? "number" : "text"}
@@ -121,7 +168,7 @@ function Cell({
               if (opciones.length) { elegir(opciones[0]); return; }
               e.currentTarget.blur();
             }
-            if (e.key === "Escape") { setOpciones([]); e.currentTarget.blur(); }
+            if (e.key === "Escape") { e.preventDefault(); setOpciones([]); e.currentTarget.blur(); }
           }}
           autoFocus
           style={{
@@ -259,10 +306,22 @@ function SheetGrid({
     setFilas(prev => [...prev, newFila]);
   }
 
-  async function handleDeleteRow(fila: HojaFila) {
-    if (!confirm("¿Eliminar esta fila?")) return;
-    await deleteFila(fila.id);
-    setFilas(prev => prev.filter(f => f.id !== fila.id));
+  // Confirmaciones de borrado con el modal de la app, no con confirm().
+  const [confirmar, setConfirmar] = useState<ConfirmDelete | null>(null);
+
+  function handleDeleteRow(fila: HojaFila, numero: number) {
+    const borrar = async () => {
+      await deleteFila(fila.id);
+      setFilas(prev => prev.filter(f => f.id !== fila.id));
+    };
+    // Una fila vacía se borra sin preguntar: no hay nada que perder.
+    if (hoja.columnas.every(c => !getCellValue(fila, c.id).trim())) { void borrar(); return; }
+    setConfirmar({
+      title: `¿Eliminar la fila ${numero}?`,
+      description: "Se borran todos los datos de esa fila.",
+      confirmLabel: "Eliminar fila",
+      onConfirm: borrar,
+    });
   }
 
   // All four column edits follow the same shape: persist, then lift the new
@@ -272,28 +331,90 @@ function SheetGrid({
     onColumnsChanged(hoja.id, newCols);
   }
 
+  // Ancho de columna arrastrando el borde derecho del encabezado, como el
+  // divisor lista/detalle de la bandeja. Mientras se arrastra vive en `anchos`;
+  // al soltar se guarda en la columna (hoja.columnas), así queda para todos.
+  // Quien no puede editar igual puede ensanchar, sólo que no se guarda.
+  const [anchos, setAnchos] = useState<Record<string, number>>({});
+  const [resizingId, setResizingId] = useState<string | null>(null);
+  const anchoDe = (col: HojaColumna) => anchos[col.id] ?? col.ancho ?? COL_WIDTH;
+
+  // Sin selección de texto y con cursor de resize en toda la página mientras se arrastra.
+  useEffect(() => {
+    if (!resizingId) return;
+    const prevUserSelect = document.body.style.userSelect;
+    const prevCursor = document.body.style.cursor;
+    document.body.style.userSelect = "none";
+    document.body.style.cursor = "col-resize";
+    return () => {
+      document.body.style.userSelect = prevUserSelect;
+      document.body.style.cursor = prevCursor;
+    };
+  }, [resizingId]);
+
+  function startResize(e: React.MouseEvent, col: HojaColumna) {
+    e.preventDefault();
+    e.stopPropagation();
+    const startX = e.clientX;
+    const startW = anchoDe(col);
+    let w = startW;
+    setResizingId(col.id);
+    const onMove = (ev: MouseEvent) => {
+      w = Math.round(Math.min(Math.max(startW + ev.clientX - startX, MIN_COL_WIDTH), MAX_COL_WIDTH));
+      setAnchos(prev => ({ ...prev, [col.id]: w }));
+    };
+    const onUp = () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+      setResizingId(null);
+      if (!readOnly && w !== startW) {
+        saveColumns(hoja.columnas.map(c => c.id === col.id ? { ...c, ancho: w } : c));
+      }
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  }
+
+  // Doble clic en el borde: vuelve al ancho por defecto.
+  function resetAncho(e: React.MouseEvent, col: HojaColumna) {
+    e.stopPropagation();
+    setAnchos(prev => ({ ...prev, [col.id]: COL_WIDTH }));
+    if (!readOnly && col.ancho !== undefined) {
+      // undefined no sobrevive al JSON: la columna vuelve a no tener ancho.
+      saveColumns(hoja.columnas.map(c => c.id === col.id ? { ...c, ancho: undefined } : c));
+    }
+  }
+
+  // Columna que se está renombrando en el encabezado, y la que tiene el menú abierto.
+  const [editingColId, setEditingColId] = useState<string | null>(null);
+  const [menuColId, setMenuColId] = useState<string | null>(null);
+
+  // Como en una planilla: la columna nace con un nombre y queda lista para renombrar.
   async function handleAddColumn() {
-    const label = prompt("Nombre de la columna:");
-    if (!label?.trim()) return;
-    const newCol: HojaColumna = { id: genId(), label: label.trim(), tipo: "texto" };
+    const newCol: HojaColumna = { id: genId(), label: `Columna ${hoja.columnas.length + 1}`, tipo: "texto" };
     await saveColumns([...hoja.columnas, newCol]);
+    setEditingColId(newCol.id);
   }
 
-  async function handleRenameColumn(col: HojaColumna) {
-    const label = prompt("Nuevo nombre:", col.label);
-    if (!label?.trim()) return;
-    await saveColumns(hoja.columnas.map(c => c.id === col.id ? { ...c, label: label.trim() } : c));
+  function commitRenameColumn(col: HojaColumna, value: string | null) {
+    setEditingColId(null);
+    const label = value?.trim();
+    if (!label || label === col.label) return;
+    void saveColumns(hoja.columnas.map(c => c.id === col.id ? { ...c, label } : c));
   }
 
-  async function handleDeleteColumn(col: HojaColumna) {
-    if (!confirm(`¿Eliminar columna "${col.label}"? Los datos se perderán.`)) return;
-    await saveColumns(hoja.columnas.filter(c => c.id !== col.id));
+  function handleDeleteColumn(col: HojaColumna) {
+    setConfirmar({
+      title: `¿Eliminar la columna “${col.label}”?`,
+      description: "Se borran también sus datos en todas las filas.",
+      confirmLabel: "Eliminar columna",
+      onConfirm: () => saveColumns(hoja.columnas.filter(c => c.id !== col.id)),
+    });
   }
 
-  async function handleToggleTipo(col: HojaColumna) {
-    await saveColumns(hoja.columnas.map(c =>
-      c.id === col.id ? { ...c, tipo: (c.tipo === "texto" ? "numero" : "texto") as "texto" | "numero" } : c
-    ));
+  function handleSetTipo(col: HojaColumna, tipo: HojaColumna["tipo"]) {
+    if (col.tipo === tipo) return;
+    void saveColumns(hoja.columnas.map(c => c.id === col.id ? { ...c, tipo } : c));
   }
 
   // Export to CSV. useCallback so the effect below can depend on it honestly
@@ -322,7 +443,7 @@ function SheetGrid({
   }, [handleExport, onExportReady]);
 
   const cols = hoja.columnas;
-  const totalWidth = ROW_NUM_WIDTH + cols.length * COL_WIDTH + (readOnly ? 0 : COL_WIDTH);
+  const totalWidth = ROW_NUM_WIDTH + cols.reduce((sum, c) => sum + anchoDe(c), 0) + (readOnly ? 0 : COL_WIDTH);
 
   if (loading) {
     return (
@@ -346,22 +467,88 @@ function SheetGrid({
           {cols.map(col => (
             <div
               key={col.id}
-              style={{ width: COL_WIDTH, height: HEADER_HEIGHT, display: "flex", flexDirection: "column", justifyContent: "center", padding: "0 10px", borderRight: "1px solid var(--border)", flexShrink: 0, cursor: readOnly ? "default" : "pointer" }}
-              onDoubleClick={() => !readOnly && handleRenameColumn(col)}
+              className="group"
+              style={{ position: "relative", width: anchoDe(col), height: HEADER_HEIGHT, display: "flex", alignItems: "center", gap: 4, padding: "0 6px 0 10px", borderRight: "1px solid var(--border)", flexShrink: 0 }}
+              onDoubleClick={() => !readOnly && setEditingColId(col.id)}
+              // Clic derecho abre el mismo menú de la flecha, como en una planilla.
               onContextMenu={e => {
                 if (readOnly) return;
                 e.preventDefault();
-                const action = window.confirm(`Columna "${col.label}"\n\nOK = cambiar tipo (${col.tipo === "texto" ? "Texto → Número" : "Número → Texto"})\nCancelar = eliminar columna`);
-                if (action) handleToggleTipo(col);
-                else handleDeleteColumn(col);
+                setMenuColId(col.id);
               }}
             >
-              {/* Sin textTransform: el label lo escribe el usuario al crear la
-                  columna, así que se muestra tal cual lo tipeó. */}
-              <span style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", letterSpacing: "0.01em", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                {col.label}
-              </span>
-              <span style={{ fontSize: 14, color: "var(--fg-4)" }}>{col.tipo === "numero" ? "123" : "Aa"}</span>
+              <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", justifyContent: "center" }}>
+                {editingColId === col.id ? (
+                  <InlineInput initial={col.label} onDone={v => commitRenameColumn(col, v)} />
+                ) : (
+                  // Sin textTransform: el label lo escribe el usuario, se muestra tal cual.
+                  <span title={col.label} style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", letterSpacing: "0.01em", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {col.label}
+                  </span>
+                )}
+                <span style={{ fontSize: 12, color: "var(--fg-4)" }}>{col.tipo === "numero" ? "Número" : "Texto"}</span>
+              </div>
+              {!readOnly && (
+                <DropdownMenu open={menuColId === col.id} onOpenChange={open => setMenuColId(open ? col.id : null)}>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      type="button"
+                      aria-label={`Opciones de la columna ${col.label}`}
+                      onDoubleClick={e => e.stopPropagation()}
+                      className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100 hover:bg-[var(--surface-hover)]"
+                      style={{ width: 24, height: 24, flexShrink: 0, display: "grid", placeItems: "center", padding: 0, border: "none", borderRadius: 6, background: "none", color: "var(--fg-3)", cursor: "pointer", transition: "opacity 0.12s" }}
+                    >
+                      <ChevronDown size={14} />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent
+                    align="end"
+                    // Por encima de la vista ampliada (zIndex 200).
+                    style={{ zIndex: 600, minWidth: 200 }}
+                    // Si el foco vuelve a la flecha, le quita el foco al input de renombrar.
+                    onCloseAutoFocus={e => e.preventDefault()}
+                    // Escape cierra el menú, no la vista ampliada.
+                    onEscapeKeyDown={e => e.stopPropagation()}
+                  >
+                    <DropdownMenuItem onSelect={() => setEditingColId(col.id)} style={{ gap: 8, fontSize: 14 }}>
+                      <Pencil size={14} /> Renombrar
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuLabel style={{ fontSize: 12, fontWeight: 400, color: "var(--fg-4)" }}>Tipo de dato</DropdownMenuLabel>
+                    <DropdownMenuItem onSelect={() => handleSetTipo(col, "texto")} style={{ gap: 8, fontSize: 14 }}>
+                      <Type size={14} /> Texto
+                      {col.tipo === "texto" && <Check size={14} style={{ marginLeft: "auto", color: "var(--brand)" }} />}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => handleSetTipo(col, "numero")} style={{ gap: 8, fontSize: 14 }}>
+                      <Hash size={14} /> Número
+                      {col.tipo === "numero" && <Check size={14} style={{ marginLeft: "auto", color: "var(--brand)" }} />}
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onSelect={() => handleDeleteColumn(col)} style={{ gap: 8, fontSize: 14, color: "var(--danger)" }}>
+                      <Trash2 size={14} /> Eliminar columna
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+              {/* Borde arrastrable: ensancha la columna para ver más texto.
+                  Doble clic vuelve al ancho por defecto. */}
+              <div
+                role="separator"
+                aria-orientation="vertical"
+                aria-label={`Ajustar ancho de ${col.label}`}
+                title="Arrastra para ajustar el ancho · doble clic para restablecer"
+                onMouseDown={e => startResize(e, col)}
+                onDoubleClick={e => resetAncho(e, col)}
+                onClick={e => e.stopPropagation()}
+                onMouseEnter={e => { if (!resizingId) e.currentTarget.style.background = "var(--border-strong)"; }}
+                onMouseLeave={e => { if (resizingId !== col.id) e.currentTarget.style.background = "transparent"; }}
+                style={{
+                  position: "absolute", top: 0, right: -3, width: 6, height: "100%", zIndex: 2,
+                  cursor: "col-resize",
+                  background: resizingId === col.id ? "var(--brand)" : "transparent",
+                  transition: "background 0.12s",
+                }}
+              />
             </div>
           ))}
           {!readOnly && (
@@ -385,7 +572,7 @@ function SheetGrid({
             <div style={{ width: ROW_NUM_WIDTH, height: ROW_HEIGHT, display: "flex", alignItems: "center", justifyContent: "center", borderRight: "1px solid var(--border)", flexShrink: 0 }}>
               {!readOnly ? (
                 <button
-                  onClick={() => handleDeleteRow(fila)}
+                  onClick={() => handleDeleteRow(fila, rowIdx + 1)}
                   title="Eliminar fila"
                   style={{ width: 22, height: 22, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", borderRadius: 4, cursor: "pointer", color: "var(--fg-4)", padding: 0 }}
                   onMouseEnter={e => { e.currentTarget.style.color = "var(--danger)"; e.currentTarget.style.background = "var(--danger-bg)"; }}
@@ -402,6 +589,7 @@ function SheetGrid({
                 key={col.id}
                 value={getCellValue(fila, col.id)}
                 tipo={col.tipo}
+                width={anchoDe(col)}
                 readOnly={readOnly}
                 onChange={v => handleCellChange(fila.id, col.id, v)}
                 onBlur={() => handleCellBlur(fila, col.id)}
@@ -429,6 +617,7 @@ function SheetGrid({
           <div style={{ padding: "32px 0", textAlign: "center", color: "var(--fg-4)", fontSize: 14 }}>Sin filas registradas</div>
         )}
       </div>
+      <ConfirmDeleteModal pending={confirmar} onClose={() => setConfirmar(null)} />
     </div>
   );
 }
@@ -462,7 +651,8 @@ export default function HojaSpreadsheet({
   // el detalle de la OT por detrás.
   useEffect(() => {
     if (!expandido) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setExpandido(false); };
+    // defaultPrevented: Escape ya lo usó un input o el menú de una columna.
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape" && !e.defaultPrevented) setExpandido(false); };
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     window.addEventListener("keydown", onKey);
@@ -495,19 +685,30 @@ export default function HojaSpreadsheet({
     }
   }
 
-  async function handleDeleteSheet(hoja: Hoja) {
-    if (!confirm(`¿Eliminar "${hoja.nombre}" y todas sus filas?`)) return;
-    await deleteHoja(hoja.id);
-    const remaining = hojas.filter(h => h.id !== hoja.id);
-    setHojas(remaining);
-    setActiveId(remaining[0]?.id ?? null);
+  const [confirmar, setConfirmar] = useState<ConfirmDelete | null>(null);
+  const [renamingSheetId, setRenamingSheetId] = useState<string | null>(null);
+  const [errorCobro, setErrorCobro] = useState<string | null>(null);
+
+  function handleDeleteSheet(hoja: Hoja) {
+    setConfirmar({
+      title: `¿Eliminar la hoja “${hoja.nombre}”?`,
+      description: "Se borran también todas sus filas.",
+      confirmLabel: "Eliminar hoja",
+      onConfirm: async () => {
+        await deleteHoja(hoja.id);
+        const remaining = hojas.filter(h => h.id !== hoja.id);
+        setHojas(remaining);
+        setActiveId(remaining[0]?.id ?? null);
+      },
+    });
   }
 
-  async function handleRenameSheet(hoja: Hoja) {
-    const nombre = prompt("Nuevo nombre:", hoja.nombre);
-    if (!nombre?.trim()) return;
-    await updateHoja(hoja.id, { nombre: nombre.trim() });
-    setHojas(prev => prev.map(h => h.id === hoja.id ? { ...h, nombre: nombre.trim() } : h));
+  async function commitRenameSheet(hoja: Hoja, value: string | null) {
+    setRenamingSheetId(null);
+    const nombre = value?.trim();
+    if (!nombre || nombre === hoja.nombre) return;
+    await updateHoja(hoja.id, { nombre });
+    setHojas(prev => prev.map(h => h.id === hoja.id ? { ...h, nombre } : h));
   }
 
   const activeHoja = hojas.find(h => h.id === activeId) ?? null;
@@ -563,12 +764,16 @@ export default function HojaSpreadsheet({
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", borderBottom: "1px solid var(--border)", background: "var(--surface-0)", gap: 8 }}>
         {/* Sheet tabs */}
         <div style={{ display: "flex", alignItems: "center", gap: 6, overflowX: "auto", flex: 1 }}>
-          {hojas.map(h => (
+          {hojas.map(h => renamingSheetId === h.id ? (
+            <InlineInput key={h.id} initial={h.nombre} onDone={v => commitRenameSheet(h, v)} style={{ width: 180, height: 28, flexShrink: 0 }} />
+          ) : (
             <button
               key={h.id}
               onClick={() => setActiveId(h.id)}
-              onDoubleClick={() => canEdit && handleRenameSheet(h)}
+              onDoubleClick={() => canEdit && setRenamingSheetId(h.id)}
+              title={canEdit ? "Doble clic para renombrar" : undefined}
               style={{
+                display: "flex", alignItems: "center", gap: 6,
                 padding: "4px 12px", border: "1px solid", borderRadius: 6, cursor: "pointer",
                 fontSize: 14, fontWeight: 400, fontFamily: "inherit", whiteSpace: "nowrap",
                 background: h.id === activeId ? "var(--brand)" : "var(--surface-1)",
@@ -579,10 +784,13 @@ export default function HojaSpreadsheet({
               {h.nombre}
               {canEdit && h.id === activeId && (
                 <span
+                  role="button"
+                  aria-label={`Eliminar hoja ${h.nombre}`}
                   onClick={e => { e.stopPropagation(); handleDeleteSheet(h); }}
-                  style={{ marginLeft: 6, opacity: 0.6, cursor: "pointer", fontSize: 14 }}
+                  onDoubleClick={e => e.stopPropagation()}
+                  style={{ display: "grid", placeItems: "center", opacity: 0.7, cursor: "pointer" }}
                   title="Eliminar hoja"
-                >✕</span>
+                ><X size={13} /></span>
               )}
             </button>
           ))}
@@ -596,18 +804,6 @@ export default function HojaSpreadsheet({
             </button>
           )}
         </div>
-
-        {/* Ampliar / reducir la hoja */}
-        <button
-          onClick={() => setExpandido(v => !v)}
-          style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 12px", background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: 6, cursor: "pointer", fontSize: 14, color: "var(--fg-2)", fontWeight: 400, fontFamily: "inherit", flexShrink: 0 }}
-          onMouseEnter={e => { e.currentTarget.style.opacity = "0.85"; }}
-          onMouseLeave={e => { e.currentTarget.style.opacity = "1"; }}
-          title={expandido ? "Reducir (Esc)" : "Ampliar la hoja a toda la ventana"}
-        >
-          {expandido ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
-          {expandido ? "Reducir" : "Ampliar"}
-        </button>
 
         {/* Copy to another OT — the mobile-equivalent of retyping rows by hand */}
         {canEdit && activeHoja && (
@@ -626,10 +822,11 @@ export default function HojaSpreadsheet({
         {canExport && activeHoja?.tipo === "cobro" && tieneCobros(workspaceId) && (
           <button
             onClick={async () => {
+              setErrorCobro(null);
               try {
                 descargarCobro(await construirCobro(activeHoja, ordenId));
               } catch (e) {
-                alert("No se pudo generar el cobro: " + (e as Error).message);
+                setErrorCobro("No se pudo generar el cobro: " + (e as Error).message);
               }
             }}
             style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 12px", background: "var(--brand)", border: "1px solid var(--brand)", borderRadius: 6, cursor: "pointer", fontSize: 14, color: "#fff", fontWeight: 500, fontFamily: "inherit", flexShrink: 0 }}
@@ -652,14 +849,26 @@ export default function HojaSpreadsheet({
             <Download size={13} /> Exportar .csv
           </button>
         )}
+
+        {/* Siempre en la esquina derecha: ampliar, y ya ampliada, una X para
+            cerrar — es lo primero que busca alguien que no conoce la pantalla. */}
+        <button
+          type="button"
+          onClick={() => setExpandido(v => !v)}
+          aria-label={expandido ? "Cerrar vista ampliada" : "Ampliar hoja"}
+          title={expandido ? "Cerrar (Esc)" : "Ampliar hoja"}
+          style={{ width: 32, height: 32, display: "grid", placeItems: "center", padding: 0, marginLeft: 4, background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: expandido ? "50%" : 6, cursor: "pointer", color: "var(--fg-2)", flexShrink: 0 }}
+          onMouseEnter={e => { e.currentTarget.style.background = "var(--surface-hover)"; }}
+          onMouseLeave={e => { e.currentTarget.style.background = "var(--surface-1)"; }}
+        >
+          {expandido ? <X size={18} /> : <Expand size={15} />}
+        </button>
       </div>
 
-      {/* Hint */}
-      {canEdit && activeHoja && (
-        <div style={{ padding: "6px 14px", background: "var(--surface-0)", borderBottom: "1px solid var(--divider)" }}>
-          <span style={{ fontSize: 14, color: "var(--fg-4)" }}>
-            Doble clic en encabezado para renombrar · Clic derecho para cambiar tipo o eliminar columna
-          </span>
+      {errorCobro && (
+        <div role="alert" style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 14px", background: "var(--danger-bg)", borderBottom: "1px solid var(--divider)", color: "var(--danger)", fontSize: 14 }}>
+          <span style={{ flex: 1 }}>{errorCobro}</span>
+          <button type="button" aria-label="Cerrar aviso" onClick={() => setErrorCobro(null)} style={{ display: "grid", placeItems: "center", padding: 0, background: "none", border: "none", color: "inherit", cursor: "pointer" }}><X size={14} /></button>
         </div>
       )}
 
@@ -702,6 +911,8 @@ export default function HojaSpreadsheet({
           </span>
         </div>
       )}
+
+      <ConfirmDeleteModal pending={confirmar} onClose={() => setConfirmar(null)} />
 
       {createOpen && (
         <div role="presentation" onMouseDown={e => { if (e.target === e.currentTarget && !creating) setCreateOpen(false); }} style={{ position: "fixed", inset: 0, zIndex: 800, display: "grid", placeItems: "center", padding: 24, background: "rgba(15,23,42,.45)" }}>
