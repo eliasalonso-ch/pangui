@@ -6,7 +6,7 @@ export interface HojaColumna {
   tipo: "texto" | "numero";
 }
 
-export type HojaTipo = "general" | "materiales_usados" | "materiales_solicitados";
+export type HojaTipo = "general" | "materiales_usados" | "materiales_solicitados" | "cobro";
 
 export const HOJA_TEMPLATES: Record<HojaTipo, { nombre: string; columnas: Omit<HojaColumna, "id">[] }> = {
   general: { nombre: "Hoja general", columnas: [
@@ -18,7 +18,15 @@ export const HOJA_TEMPLATES: Record<HojaTipo, { nombre: string; columnas: Omit<H
   materiales_solicitados: { nombre: "Solicitud de materiales", columnas: [
     { label: "Material", tipo: "texto" }, { label: "Cantidad", tipo: "numero" }, { label: "Unidad", tipo: "texto" }, { label: "Observación", tipo: "texto" },
   ] },
+  // La app de cobros resuelve descripción, unidad y precios desde el código:
+  // acá sólo se registra QUÉ y CUÁNTO, nunca cuánto cuesta.
+  cobro: { nombre: "Cobro", columnas: [
+    { label: "Código", tipo: "texto" }, { label: "Cantidad", tipo: "numero" }, { label: "Observación", tipo: "texto" },
+  ] },
 };
+
+/** Etiqueta exacta de la columna que lleva el código del catálogo. */
+export const COLUMNA_CODIGO = "Código";
 
 export interface Hoja {
   id: string;
