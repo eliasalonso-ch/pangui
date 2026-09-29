@@ -459,13 +459,14 @@ function Audience() {
   );
 }
 
-// Figures come from the Electrilam workspace (abril–agosto 2026). Update them
-// together — the copy references the same period.
+// Figures come from the Electrilam workspace: OTs created 2026-05-01 → 2026-09-29
+// and closed normally (no cierre forzado), n=636. Firmas = "Firma del
+// Solicitante" procedure step. Re-run the queries before changing any number.
 const CASO_METRICAS = [
-  { valor: "603", label: "órdenes de trabajo gestionadas en 4 meses" },
-  { valor: "2.824", label: "fotos de evidencia asociadas a sus OTs" },
-  { valor: "160", label: "ubicaciones del campus bajo control" },
-  { valor: "96%", label: "de las OTs de abril a julio cerradas en la plataforma" },
+  { valor: "9 de 10", label: "trabajos cerrados con firma del solicitante y fotos de evidencia" },
+  { valor: "593", label: "firmas de conformidad recogidas en terreno, sin un papel" },
+  { valor: "5.000+", label: "fotos de evidencia, cada una dentro de su OT y no en un chat" },
+  { valor: "32 h", label: "tiempo mediano entre la solicitud y el trabajo cerrado" },
 ];
 
 function CaseStudy() {
@@ -484,7 +485,7 @@ function CaseStudy() {
               Caso de éxito
             </p>
             <h2 className="mt-5 font-display text-[34px] font-bold leading-[1.04] tracking-[-0.03em] text-balance md:mt-7 md:text-[52px]">
-              De papel y Excel a 603 órdenes de trabajo trazables.
+              9 de cada 10 trabajos, firmados por el cliente.
             </h2>
             <p className="mt-6 text-[16px] leading-[1.65] text-[var(--ink-2)] md:text-[18px]">
               <strong className="font-semibold text-[var(--ink)]">
@@ -498,9 +499,10 @@ function CaseStudy() {
             </p>
             <p className="mt-5 text-[16px] leading-[1.65] text-[var(--ink-2)] md:text-[17px]">
               Hoy su equipo de 14 personas trabaja sobre Pangui todos los días.
-              Cada intervención queda registrada con evidencia fotográfica,
-              ubicación exacta dentro del campus y procedimiento aplicado — lista
-              para respaldar el trabajo frente al cliente.
+              Desde mayo, el 90% de sus trabajos cierra con la firma del
+              solicitante y fotos de evidencia, con ubicación exacta dentro del
+              campus. Cuando la universidad pregunta qué se hizo, la respuesta ya
+              está en la orden.
             </p>
           </motion.div>
 

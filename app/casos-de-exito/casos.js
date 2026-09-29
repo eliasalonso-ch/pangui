@@ -9,8 +9,9 @@ export const CASOS = [
     industria: "Mantenimiento eléctrico",
     cliente: "Universidad de Concepción",
     periodo: "Abril – agosto 2026",
-    metrica: "603",
-    metricaLabel: "órdenes de trabajo gestionadas en 4 meses",
+    // Mayo–septiembre 2026, OTs cerradas normalmente (n=636). Ver Landing.jsx CASO_METRICAS.
+    metrica: "9 de 10",
+    metricaLabel: "trabajos cerrados con firma del solicitante y fotos de evidencia",
     resumen:
       "Reemplazaron el registro en papel y planillas Excel por OTs trazables con evidencia fotográfica en un campus de 160 ubicaciones.",
     metricas: [
