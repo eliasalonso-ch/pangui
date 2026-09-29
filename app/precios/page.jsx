@@ -7,7 +7,7 @@ import PublicPageTheme from "@/components/PublicPageTheme";
 import { UI_VISIBLE_PLANS, TRIAL_DAYS } from "@/lib/flow-plans";
 
 const PRECIOS_DESCRIPTION =
-  "Planes por usuario para equipos de mantención. Prueba Pro gratis por 30 días.";
+  "Planes por usuario para equipos de mantención. Pruebe Pro gratis por 30 días.";
 
 export const metadata = {
   title: "Precios",
@@ -107,12 +107,12 @@ export default function PreciosPage() {
                 Precios por usuario activo
               </p>
               <h1 className="mt-5 max-w-[880px] font-display text-[40px] font-bold leading-[1.04] tracking-[-0.03em] text-balance md:mt-7 md:text-[64px]">
-                Elige qué queda desbloqueado para tu operación.
+                Elija qué queda desbloqueado para su operación.
               </h1>
             </div>
             <div className="lg:col-span-5">
               <p className="max-w-[560px] text-[16px] leading-[1.65] text-[var(--ink-2)] md:text-[18px]">
-                Todos parten con {TRIAL_DAYS} días de Pro sin tarjeta. Después puedes quedarte en Basic o subir de plan para quitar límites y activar funciones avanzadas.
+                Todos parten con {TRIAL_DAYS} días de Pro sin tarjeta. Después puede quedarse en Basic o subir de plan para quitar límites y activar funciones avanzadas.
               </p>
               <div className="mt-7 flex flex-col gap-3 sm:flex-row">
                 <Link
@@ -141,7 +141,7 @@ export default function PreciosPage() {
               ))}
             </div>
             <p className="mt-5 text-[13px] leading-[1.55] text-[var(--ink-3)]">
-              Los precios son mensuales por usuario activo y no incluyen IVA (19%), que se agrega al momento del cobro. Sin compromiso anual; puedes cancelar cuando quieras.
+              Los precios son mensuales por usuario activo y no incluyen IVA (19%), que se agrega al momento del cobro. Sin compromiso anual; puede cancelar cuando quiera.
             </p>
           </div>
         </section>
@@ -179,7 +179,7 @@ export default function PreciosPage() {
               Prueba Pangui con Pro desbloqueado
             </h2>
             <p className="mx-auto mt-4 max-w-[620px] text-[15px] leading-[1.65] text-white/82 md:text-[17px]">
-              Sin tarjeta, sin instalación y con el camino claro para decidir qué plan necesita tu equipo.
+              Sin tarjeta, sin instalación y con el camino claro para decidir qué plan necesita su equipo.
             </p>
             <Link
               href={REGISTRO_URL}

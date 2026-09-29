@@ -17,13 +17,12 @@ import {
   ClipboardCheck,
   Clock3,
   Database,
-  FileText,
+  FileSignature,
   Menu,
   Minus,
   PauseCircle,
   Plus,
   RefreshCw,
-  ShieldCheck,
   UserPlus,
   Wrench,
   X,
@@ -175,7 +174,7 @@ function Hero() {
           className="lg:col-span-6"
         >
           <motion.p variants={fadeUp} className="max-w-[280px] font-mono text-[10px] font-medium uppercase tracking-[0.18em] text-white/75 sm:max-w-none sm:text-[11px]">
-            Software de mantenimiento (CMMS) · Hecho en Chile
+            Software de órdenes de trabajo (CMMS) · Hecho en Chile
           </motion.p>
           {/* h1 and the lead <p> below are deliberately NOT motion components.
               They are the LCP element, and framer-motion's initial="hidden"
@@ -183,14 +182,13 @@ function Hero() {
               JS execution, giving a 9.9s element render delay. Plain elements
               paint with the HTML. Everything else in the hero still animates. */}
           <h1 className="mt-6 max-w-[720px] font-display text-[36px] font-bold leading-[1.04] tracking-[-0.035em] text-balance sm:text-[50px] md:mt-8 md:text-[62px] lg:text-[72px]">
-            Órdenes de trabajo bajo control para empresas de mantención.
+            Cada trabajo respaldado. Cada trabajo cobrado.
           </h1>
           <p className="mt-6 max-w-[620px] text-[16px] leading-[1.6] text-white/82 md:mt-8 md:text-[19px]">
-            Pangui es el software de órdenes de trabajo para contratistas y
-            subcontratistas que hacen mantención para otras empresas: planifique
-            OTs, ejecute en terreno con la app móvil y respalde cada trabajo con
-            evidencia, materiales y reportes. Menos trabajo detenido, más
-            control sobre terreno.
+            Pangui es el software de órdenes de trabajo para contratistas de
+            mantención. Su equipo registra fotos, firmas y materiales desde el
+            celular, y usted tiene el respaldo para cobrarle al mandante y el
+            informe listo sin armarlo a mano.
           </p>
 
           <motion.div variants={fadeUp} className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap md:mt-10 md:gap-4">
@@ -283,79 +281,65 @@ function Hero() {
 const FEATURE_TABS = [
   {
     key: "ot",
-    label: "Ordenes de trabajo",
+    label: "Órdenes de trabajo",
     icon: Wrench,
     title: "Planifique, ejecute y cierre trabajos sin perder contexto.",
-    body: "Cada OT concentra responsables, prioridad, fechas, comentarios, fotos, firmas, materiales, procedimientos y actividad. El equipo deja de perseguir informacion entre WhatsApp, Excel y papeles.",
-    outcome: "Reduce el tiempo de coordinacion y mantiene visible que esta pendiente, que esta pausado y que necesita decision administrativa.",
-    mockTitle: "Ordenes de Trabajo",
-    mockItems: ["Inspeccion generador EULA", "Cambio tablero sala comun", "Reprogramar visita HVAC"],
+    body: "Cada OT concentra responsables, prioridad, fechas, comentarios, fotos, firmas, materiales, procedimientos y actividad. El equipo deja de perseguir información entre WhatsApp, Excel y papeles.",
+    outcome: "Reduce el tiempo de coordinación y mantiene visible qué está pendiente, qué está pausado y qué necesita decisión administrativa.",
   },
   {
     key: "preventivo",
     label: "Mantenimiento preventivo",
     icon: Clock3,
     title: "Convierta rutinas repetitivas en trabajo programado.",
-    body: "Las revisiones semanales o mensuales pueden organizarse como ordenes recurrentes y sub-OTs por activo, sala o equipo. El procedimiento no se reinventa cada semana: se ejecuta con la misma estructura.",
+    body: "Las revisiones semanales o mensuales pueden organizarse como órdenes recurrentes y sub-OTs por activo, sala o equipo. El procedimiento no se reinventa cada semana: se ejecuta con la misma estructura.",
     outcome: "Evita olvidos, estandariza revisiones y ayuda a demostrar cumplimiento del plan preventivo.",
-    mockTitle: "Calendario preventivo",
-    mockItems: ["Revision generador EULA", "Revision generador DISE", "Prueba banco baterias"],
   },
   {
     key: "reportes",
     label: "Reportes",
     icon: BarChart3,
     title: "Prepare respaldos operacionales sin reconstruir la historia.",
-    body: "PDF, Excel y reportes programados consolidan evidencia, tiempos, estados, materiales y actividad por OT. La informacion queda lista para revision interna, cliente o cierre administrativo.",
-    outcome: "Menos horas armando informes y mas trazabilidad para justificar trabajos realizados.",
-    mockTitle: "Resumen operacional",
-    mockItems: ["Backlog activo", "OTs vencidas", "Materiales consumidos"],
+    body: "PDF, Excel y reportes programados consolidan evidencia, tiempos, estados, materiales y actividad por OT. La información queda lista para revisión interna, cliente o cierre administrativo.",
+    outcome: "Menos horas armando informes y más trazabilidad para justificar trabajos realizados.",
   },
   {
     key: "activos",
-    label: "Gestion de activos",
+    label: "Gestión de activos",
     icon: Database,
-    title: "Cada equipo tiene historial, criticidad y contexto tecnico.",
-    body: "Registre activos con ubicacion, fabricante, modelo, serie, criticidad, adjuntos, foto y relacion con OTs. Un generador deja de ser solo un nombre en una orden: pasa a tener historia operacional.",
-    outcome: "Mejora decisiones de reparacion, reemplazo y priorizacion de equipos criticos.",
-    mockTitle: "Activo vinculado",
-    mockItems: ["Generador EULA", "Criticidad alta", "Historial de intervenciones"],
+    title: "Cada equipo tiene historial, criticidad y contexto técnico.",
+    body: "Registre activos con ubicación, fabricante, modelo, serie, criticidad, adjuntos, foto y relación con OTs. Un generador deja de ser solo un nombre en una orden: pasa a tener historia operacional.",
+    outcome: "Mejora decisiones de reparación, reemplazo y priorización de equipos críticos.",
   },
   {
     key: "procedimientos",
     label: "Procedimientos",
     icon: ClipboardCheck,
     title: "Un procedimiento es lo que usted necesite que sea.",
-    body: "Usted arma el paso a paso con 20 tipos de campo: texto, numeros, mediciones, opciones, listas, fotos, secciones y firma. No se adapta usted al software; el procedimiento se adapta a como trabaja su equipo.",
-    outcome: "El ejemplo mas usado: una firma de conformidad obligatoria para cerrar la OT, que deja el respaldo del cliente dentro del trabajo.",
-    mockTitle: "Procedimiento",
-    mockItems: ["Voltaje medido", "Foto del tablero", "Firma de conformidad"],
+    body: "Usted arma el paso a paso con 20 tipos de campo: texto, números, mediciones, opciones, listas, fotos, secciones y firma. No se adapta usted al software; el procedimiento se adapta a cómo trabaja su equipo.",
+    outcome: "El ejemplo más usado: una firma de conformidad obligatoria para cerrar la OT, que deja el respaldo del cliente dentro del trabajo.",
   },
   {
     key: "inventario",
     label: "Inventario",
     icon: Boxes,
     title: "Conecte repuestos y consumos con el trabajo real.",
-    body: "Los materiales usados en una OT alimentan stock, costos, minimos y analitica de consumo. El inventario deja de ser una planilla separada de la operacion.",
-    outcome: "Reduce visitas fallidas por faltantes y mejora la planificacion de compras.",
-    mockTitle: "Materiales",
-    mockItems: ["Filtro de aceite", "Stock minimo", "Consumo por activo"],
+    body: "Los materiales usados en una OT alimentan stock, costos, mínimos y analítica de consumo. El inventario deja de ser una planilla separada de la operación.",
+    outcome: "Reduce visitas fallidas por faltantes y mejora la planificación de compras.",
   },
   {
-    key: "cumplimiento",
-    label: "Cumplimiento",
-    icon: ShieldCheck,
-    title: "Privacidad y trazabilidad como parte normal del servicio.",
-    body: "Politica de privacidad, terminos, registros de actividad y control por roles forman la base para operar con datos personales y evidencia de trabajo.",
-    outcome: "El cumplimiento deja de ser improvisado y queda incorporado al flujo operacional.",
-    mockTitle: "Base legal",
-    mockItems: ["Terminos y privacidad", "Actividad por usuario", "Control por roles"],
+    key: "respaldo",
+    label: "Cierre con respaldo",
+    icon: FileSignature,
+    title: "Cada OT cierra con la prueba de que se hizo.",
+    body: "Firma de conformidad del cliente en el celular, fotos de evidencia y la ubicación exacta del trabajo quedan dentro de la orden. Si falta la firma, la OT no se cierra.",
+    outcome: "Menos discusiones con el mandante y cobros respaldados desde el primer día.",
   },
 ];
 
 function FeatureShowcase({ onOpenDetail }) {
   return (
-    <section id="funcionalidades" className="border-y border-[var(--hairline)] bg-white text-[var(--ink)]">
+    <section id="funcionalidades" className="border-y border-[var(--hairline)] bg-[#F6F8FB] text-[var(--ink)]">
       <div className="mx-auto max-w-[1440px] px-4 py-16 sm:px-5 md:px-10 md:py-24 lg:py-28 xl:px-12">
         <motion.div
           variants={fadeUp}
@@ -431,7 +415,7 @@ function Audience() {
   ];
 
   return (
-    <section id="para-quien" className="border-y border-[var(--hairline)] bg-[#F6F8FB] text-[var(--ink)]">
+    <section id="para-quien" className="border-y border-[var(--hairline)] bg-white text-[var(--ink)]">
       <div className="mx-auto max-w-[1440px] px-4 py-16 sm:px-5 md:px-10 md:py-24 lg:py-28 xl:px-12">
         <motion.div
           variants={fadeUp}
@@ -572,8 +556,8 @@ function Implementation() {
       body: "Hablamos el idioma de la operación local: OTs, mantención, terreno. Sin tickets en inglés ni husos horarios imposibles.",
     },
     {
-      title: "Precio simple y transparente",
-      body: "Un plan único por usuario al mes, con 30 días de prueba gratis para todo el equipo. Sin contratos anuales forzados ni módulos escondidos.",
+      title: "Pruebe antes de pagar",
+      body: "30 días de Pro gratis para todo el equipo, sin tarjeta. Después elige entre un plan gratis y planes por usuario activo. Sin contratos anuales forzados.",
     },
   ];
 
@@ -639,7 +623,7 @@ function FinalCta() {
             variants={fadeUp}
             className="font-display text-[32px] font-bold leading-[1.06] tracking-[-0.03em] text-balance md:text-[52px]"
           >
-            Ponga sus órdenes de trabajo bajo control esta semana.
+            Empiece a respaldar cada trabajo esta semana.
           </motion.h2>
           <motion.p variants={fadeUp} className="mt-6 max-w-[560px] text-[16px] leading-[1.6] text-white/82 md:text-[18px]">
             Pruebe Pangui gratis por 30 días con todo su equipo, o agende una
@@ -669,20 +653,20 @@ function FinalCta() {
 function ProblemSection() {
   const problems = [
     {
-      title: "Trabajos pausados dejan de depender de la memoria",
-      body: "Cuando una OT queda sin acceso, sin materiales o reprogramada, el administrador la ve como una alerta operativa. La excepción queda visible hasta que alguien tome una decisión.",
+      title: "Trabajo hecho que nadie puede discutir",
+      body: "Sin foto ni firma, el mandante puede cuestionar lo que cobra. Con Pangui cada OT cierra con evidencia, ubicación y firma de conformidad, lista para respaldar el estado de pago.",
     },
     {
-      title: "La evidencia queda dentro de la orden, no en conversaciones",
-      body: "Fotos, comentarios, firmas, hojas y procedimientos quedan asociados al trabajo que corresponde, con historial para revisión interna, cliente o cierre administrativo.",
+      title: "El informe mensual deja de armarse a mano",
+      body: "Fotos, tiempos, materiales y firmas ya están en cada OT. El PDF o Excel para el cliente sale de ahí, sin juntar fotos de WhatsApp ni copiar planillas a fin de mes.",
     },
     {
-      title: "El consumo de materiales se conecta con el trabajo real",
-      body: "Los repuestos usados en terreno alimentan inventario, costos y alertas de stock. El equipo deja de descubrir faltantes cuando ya está frente al activo.",
+      title: "Presupuestos con lo que realmente costó",
+      body: "Materiales y tiempos quedan registrados por OT y por activo. El próximo presupuesto se arma con datos reales, no con lo que el equipo recuerda.",
     },
     {
-      title: "La gestión deja de esperar al cierre de mes",
-      body: "Backlog, tiempos, fallas repetidas, activos críticos y carga por técnico se observan en el flujo diario, no en reportes reconstruidos a mano.",
+      title: "Nada queda botado sin que usted lo sepa",
+      body: "Cuando una OT queda sin acceso, sin materiales o reprogramada, usted la ve como una alerta hasta que alguien decide. Los atrasos no se descubren cuando reclama el cliente.",
     },
   ];
 
@@ -701,7 +685,7 @@ function ProblemSection() {
               Problemas que resuelve
             </p>
             <h2 className="mt-5 font-display text-[34px] font-bold leading-[1.04] tracking-[-0.03em] text-balance md:mt-7 md:text-[56px]">
-              Mantención falla cuando la información se fragmenta.
+              Lo que se pierde cuando el trabajo no queda registrado.
             </h2>
           </motion.div>
           <motion.div
@@ -753,7 +737,7 @@ function OperatingModel() {
   ];
 
   return (
-    <section id="operacion" className="border-y border-black/10 bg-[#F6F8FB] text-[var(--ink)]">
+    <section id="operacion" className="border-y border-black/10 bg-white text-[var(--ink)]">
       <div className="mx-auto max-w-[1440px] px-4 py-16 sm:px-5 md:px-10 md:py-24 lg:py-28 xl:px-12">
         <div className="grid gap-8 md:gap-12 lg:grid-cols-12 lg:items-end">
           <div className="lg:col-span-7">
@@ -796,63 +780,6 @@ function OperatingModel() {
   );
 }
 
-function Compliance() {
-  const items = [
-    {
-      icon: ShieldCheck,
-      title: "Datos personales con un canal formal",
-      body: "Política de privacidad y términos publicados forman parte de la base legal del servicio, junto con un canal directo para ejercer derechos sobre datos personales. No se presentan como accesorio comercial: son infraestructura mínima para operar responsablemente.",
-    },
-    {
-      icon: FileText,
-      title: "Reportes para revisión y respaldo",
-      body: "PDF, Excel y evidencia por OT ayudan a documentar trabajos, materiales, firmas y comentarios para auditoría, cliente o cierre interno.",
-    },
-    {
-      icon: Database,
-      title: "Trazabilidad por usuario y por orden",
-      body: "Cada cambio relevante queda asociado a la OT y al equipo que lo ejecutó, reduciendo discusiones por información incompleta.",
-    },
-  ];
-
-  return (
-    <section id="cumplimiento" className="bg-white text-[var(--ink)]">
-      <div className="mx-auto max-w-[1440px] px-4 py-16 sm:px-5 md:px-10 md:py-24 lg:py-28 xl:px-12">
-        <div className="grid gap-8 md:gap-12 lg:grid-cols-12">
-          <div className="lg:col-span-5">
-            <p className="font-mono text-[10px] font-medium uppercase tracking-[0.18em] text-[var(--accent)] md:text-[11px]">
-              Confianza y cumplimiento
-            </p>
-            <h2 className="mt-5 font-display text-[34px] font-bold leading-[1.04] tracking-[-0.03em] text-balance md:mt-7 md:text-[56px]">
-              Lo obligatorio debe estar resuelto antes de crecer.
-            </h2>
-          </div>
-          <div className="grid gap-7 md:gap-8 lg:col-span-7">
-            {items.map((item) => {
-              const Icon = item.icon;
-              return (
-                <article key={item.title} className="border-t border-[var(--hairline-strong)] pt-8">
-                  <div className="flex gap-4 md:gap-5">
-                    <Icon size={24} strokeWidth={1.5} className="mt-1 shrink-0 text-[var(--accent)]" />
-                    <div>
-                      <h3 className="font-display text-[22px] font-semibold leading-[1.15] tracking-[-0.02em] md:text-[25px]">
-                        {item.title}
-                      </h3>
-                      <p className="mt-4 max-w-[680px] text-[15px] leading-[1.65] text-[var(--ink-2)]">
-                        {item.body}
-                      </p>
-                    </div>
-                  </div>
-                </article>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-    </section>
-  );
-}
-
 function FAQ() {
   const [open, setOpen] = useState(0);
   const faqs = [
@@ -874,7 +801,7 @@ function FAQ() {
     },
     {
       q: "¿Cuánto cuesta Pangui?",
-      a: "Pangui tiene un plan único por usuario al mes, con 30 días de prueba gratis para todo el equipo. Sin contratos anuales forzados. El detalle está en la página de precios.",
+      a: "Pangui tiene un plan Basic gratis para equipos de hasta 3 usuarios y planes pagados por usuario activo al mes, desde $15.000 + IVA. Todos parten con 30 días de Pro gratis, sin tarjeta y sin contratos anuales forzados. El detalle está en la página de precios.",
     },
     {
       q: "¿Incluye factura electrónica?",
@@ -978,13 +905,12 @@ export default function Landing() {
       <PublicPageTheme />
       <LandingNav />
       <Hero />
-      <Audience />
       <ProblemSection />
+      <CaseStudy />
       <OperatingModel />
       <FeatureShowcase onOpenDetail={detail.open} />
-      <CaseStudy />
+      <Audience />
       <Implementation />
-      <Compliance />
       <FAQ />
       <FinalCta />
       <LandingFooter />

@@ -92,7 +92,7 @@ export const faqStructuredData = {
           name: "¿Cuánto cuesta Pangui?",
           acceptedAnswer: {
             "@type": "Answer",
-            text: "Pangui tiene un plan único por usuario al mes, con 30 días de prueba gratis para todo el equipo. El detalle está en getpangui.com/precios.",
+            text: "Pangui tiene un plan Basic gratis para equipos de hasta 3 usuarios y planes pagados por usuario activo al mes, desde $15.000 + IVA. Todos parten con 30 días de Pro gratis, sin tarjeta. El detalle está en getpangui.com/precios.",
           },
         },
         {
