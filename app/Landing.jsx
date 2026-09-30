@@ -12,6 +12,7 @@ import { StoreBadges } from "@/components/StoreBadges";
 import FeatureDetailPanel, { useFeatureDetail } from "@/components/landing/FeatureDetailPanel";
 import {
   ArrowRight,
+  ArrowUpRight,
   BarChart3,
   Boxes,
   Check,
@@ -20,7 +21,6 @@ import {
   Database,
   Download,
   FileSignature,
-  FileText,
   Menu,
   Minus,
   PauseCircle,
@@ -94,13 +94,13 @@ export function LandingNav({ mobileOnly = false }) {
           </a>
           <Link
             href="/demo"
-            className="inline-flex h-10 items-center border border-[var(--accent)] px-5 text-[14px] font-semibold text-[var(--accent)] transition-colors hover:bg-[var(--accent)] hover:text-white"
+            className="inline-flex h-10 items-center border-2 border-[var(--accent)] px-5 text-[16px] font-semibold text-[var(--accent)] transition-colors hover:bg-[var(--accent)] hover:text-white"
           >
             Agendar demo
           </Link>
           <a
             href={REGISTRO_URL}
-            className="inline-flex h-10 items-center bg-[var(--accent)] px-5 text-[14px] font-semibold text-white transition-colors hover:bg-[var(--accent-hover)]"
+            className="inline-flex h-10 items-center bg-[var(--accent)] px-5 text-[16px] font-semibold text-white transition-colors hover:bg-[var(--accent-hover)]"
           >
             Prueba gratis
           </a>
@@ -197,14 +197,14 @@ function Hero() {
           <motion.div variants={fadeUp} className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap md:mt-10 md:gap-4">
             <a
               href={REGISTRO_URL}
-              className="inline-flex h-12 w-full items-center justify-center gap-3 bg-white px-6 text-[15px] font-semibold text-[var(--accent)] transition-colors hover:bg-white/90 sm:w-auto md:h-14 md:px-7"
+              className="inline-flex h-12 w-full items-center justify-center gap-3 bg-white px-6 text-[16px] font-semibold text-[var(--accent)] transition-colors hover:bg-white/90 sm:w-auto md:h-14 md:px-7 md:text-[18px]"
             >
               Prueba gratis 30 días
               <ArrowRight size={17} />
             </a>
             <Link
               href="/demo"
-              className="inline-flex h-12 w-full items-center justify-center border border-white/70 px-6 text-[15px] font-semibold text-white transition-colors hover:bg-white hover:text-[var(--accent)] sm:w-auto md:h-14 md:px-7"
+              className="inline-flex h-12 w-full items-center justify-center border-2 border-white px-6 text-[16px] font-semibold text-white transition-colors hover:bg-white hover:text-[var(--accent)] sm:w-auto md:h-14 md:px-7 md:text-[18px]"
             >
               Agendar demo
             </Link>
@@ -467,10 +467,11 @@ function Audience() {
 // Solicitante" procedure step. Re-run the queries before changing any number.
 const CASO_METRICAS = [
   { valor: "9 de 10", label: "trabajos cerrados con firma del solicitante y fotos de evidencia" },
-  { valor: "593", label: "firmas de conformidad recogidas en terreno, sin un papel" },
   { valor: "5.000+", label: "fotos de evidencia, cada una dentro de su OT y no en un chat" },
   { valor: "32 h", label: "tiempo mediano entre la solicitud y el trabajo cerrado" },
 ];
+// Leads the big photo card; CASO_METRICAS fill the strip below it.
+const CASO_DESTACADA = { valor: "593 firmas", label: "de conformidad recogidas en terreno, sin un papel" };
 
 function CaseStudy() {
   return (
@@ -510,37 +511,71 @@ function CaseStudy() {
           </motion.div>
 
           <motion.div
-            variants={stagger}
+            variants={fadeUp}
             initial="hidden"
             whileInView="visible"
             viewport={{ once: true, amount: 0.2 }}
             className="lg:col-span-7"
           >
-            <div className="grid gap-px border border-[var(--hairline)] bg-[var(--hairline)] sm:grid-cols-2">
-              {CASO_METRICAS.map((metrica) => (
-                <motion.div key={metrica.label} variants={fadeUp} className="bg-white p-6 md:p-9">
-                  <p className="font-display text-[44px] font-bold leading-none tracking-[-0.04em] text-[var(--accent)] md:text-[56px]">
-                    {metrica.valor}
+            <Link
+              href="/casos-de-exito/electrilam"
+              aria-label="Ver el caso completo de Electrilam en la Universidad de Concepción"
+              className="group relative block aspect-[4/5] w-full overflow-hidden rounded-[18px] bg-[var(--ink)] text-white sm:aspect-[16/11] md:rounded-[22px] lg:aspect-auto lg:h-full lg:min-h-[560px]"
+            >
+              <Image
+                src="/caso-electrilam-udec.jpg"
+                alt="Vista aérea del Arco de Medicina, Universidad de Concepción"
+                fill
+                sizes="(min-width: 1024px) 58vw, 100vw"
+                className="object-cover transition-transform duration-[2200ms] ease-in-out group-hover:scale-[1.08]"
+              />
+              {/* The photo is bright sky + white facade: scrims top and bottom
+                  keep the white type legible without darkening the middle. */}
+              <div className="absolute inset-0 bg-[linear-gradient(to_bottom,rgba(0,0,0,0.62)_0%,rgba(0,0,0,0.15)_38%,rgba(0,0,0,0.1)_62%,rgba(0,0,0,0.6)_100%)]" />
+              <div className="absolute inset-0 bg-black/0 transition-colors duration-[1600ms] ease-in-out group-hover:bg-black/30" />
+              <div className="relative flex h-full flex-col justify-between p-6 md:p-10">
+                <div>
+                  <p className="font-display text-[52px] font-bold leading-none tracking-[-0.04em] md:text-[80px]">
+                    {CASO_DESTACADA.valor}
                   </p>
-                  <p className="mt-4 text-[15px] leading-[1.5] text-[var(--ink-2)]">{metrica.label}</p>
-                </motion.div>
-              ))}
-            </div>
-            <motion.div variants={fadeUp} className="mt-8 border-t border-[var(--hairline-strong)] pt-8 md:mt-10">
-              <p className="text-[14px] leading-[1.5] text-[var(--ink-2)]">
-                Ingeniería y Construcción Electrilam SpA · Mantenimiento
-                eléctrico, Universidad de Concepción
-              </p>
-              <Link
-                href="/casos-de-exito/electrilam"
-                className="mt-5 inline-flex items-center gap-3 text-[15px] font-semibold text-[var(--accent)] transition-colors hover:text-[var(--accent-hover)]"
-              >
-                Ver el caso completo
-                <ArrowRight size={17} />
-              </Link>
-            </motion.div>
+                  <p className="mt-3 max-w-[340px] text-[17px] font-semibold leading-[1.3] md:text-[22px]">
+                    {CASO_DESTACADA.label}
+                  </p>
+                </div>
+                <div className="flex items-end justify-between gap-6">
+                  <div>
+                    <p className="font-display text-[26px] font-bold tracking-[-0.02em] md:text-[34px]">Electrilam</p>
+                    <p className="mt-1 text-[13px] text-white/80 md:text-[14px]">
+                      Mantenimiento eléctrico · Universidad de Concepción
+                    </p>
+                  </div>
+                  <ArrowUpRight
+                    size={40}
+                    strokeWidth={2.25}
+                    className="shrink-0 transition-transform duration-[1200ms] ease-in-out group-hover:scale-125"
+                  />
+                </div>
+              </div>
+            </Link>
           </motion.div>
         </div>
+
+        <motion.div
+          variants={stagger}
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: true, amount: 0.2 }}
+          className="mt-10 grid gap-px border border-[var(--hairline)] bg-[var(--hairline)] sm:grid-cols-3 md:mt-12"
+        >
+          {CASO_METRICAS.map((metrica) => (
+            <motion.div key={metrica.label} variants={fadeUp} className="bg-white p-6 md:p-9">
+              <p className="font-display text-[44px] font-bold leading-none tracking-[-0.04em] text-[var(--accent)] md:text-[56px]">
+                {metrica.valor}
+              </p>
+              <p className="mt-4 text-[15px] leading-[1.5] text-[var(--ink-2)]">{metrica.label}</p>
+            </motion.div>
+          ))}
+        </motion.div>
       </div>
     </section>
   );
@@ -637,14 +672,14 @@ function FinalCta() {
           <motion.div variants={fadeUp} className="mt-9 flex w-full flex-col justify-center gap-3 sm:w-auto sm:flex-row md:gap-4">
             <a
               href={REGISTRO_URL}
-              className="inline-flex h-12 items-center justify-center gap-3 bg-white px-6 text-[15px] font-semibold text-[var(--accent)] transition-colors hover:bg-white/90 md:h-14 md:px-7"
+              className="inline-flex h-12 items-center justify-center gap-3 bg-white px-6 text-[16px] font-semibold text-[var(--accent)] transition-colors hover:bg-white/90 md:h-14 md:px-7 md:text-[18px]"
             >
               Prueba gratis 30 días
               <ArrowRight size={17} />
             </a>
             <Link
               href="/demo"
-              className="inline-flex h-12 items-center justify-center border border-white/70 px-6 text-[15px] font-semibold text-white transition-colors hover:bg-white hover:text-[var(--accent)] md:h-14 md:px-7"
+              className="inline-flex h-12 items-center justify-center border-2 border-white px-6 text-[16px] font-semibold text-white transition-colors hover:bg-white hover:text-[var(--accent)] md:h-14 md:px-7 md:text-[18px]"
             >
               Agendar demo
             </Link>
@@ -658,6 +693,8 @@ function FinalCta() {
 // PDF real exportado desde la OT de demo (workspace "Servicios de Mantención
 // SpA"). Si se re-exporta, reemplazar el archivo en /public con el mismo nombre.
 const SAMPLE_REPORT_URL = "/ejemplo-informe-ot.pdf";
+// Página 1 de ese mismo PDF, renderizada a 3x con pdfjs-dist (WebP q90). Si cambia el PDF, re-renderizarla.
+const SAMPLE_REPORT_PREVIEW = "/ejemplo-informe-ot-p1.webp";
 
 function SampleReport() {
   const contenido = [
@@ -670,14 +707,14 @@ function SampleReport() {
   ];
 
   return (
-    <section id="ejemplo-informe" className="border-y border-[var(--hairline)] bg-[#F6F8FB] text-[var(--ink)]">
-      <div className="mx-auto grid max-w-[1440px] gap-10 px-4 py-16 sm:px-5 md:px-10 md:py-24 lg:grid-cols-12 lg:items-center lg:gap-12 xl:px-12">
+    <section id="ejemplo-informe" className="overflow-hidden border-y border-[var(--hairline)] bg-[#F6F8FB] text-[var(--ink)]">
+      <div className="mx-auto grid max-w-[1440px] gap-10 px-4 pt-16 sm:px-5 md:px-10 md:pt-24 lg:grid-cols-12 lg:gap-12 lg:pt-0 xl:px-12">
         <motion.div
           variants={fadeUp}
           initial="hidden"
           whileInView="visible"
           viewport={{ once: true, amount: 0.3 }}
-          className="lg:col-span-6"
+          className="lg:col-span-6 lg:py-28"
         >
           <p className="font-mono text-[10px] font-medium uppercase tracking-[0.18em] text-[var(--accent)] md:text-[11px]">
             Ejemplo real
@@ -701,7 +738,7 @@ function SampleReport() {
           <a
             href={SAMPLE_REPORT_URL}
             download
-            className="mt-9 inline-flex h-12 w-full items-center justify-center gap-3 bg-[var(--accent)] px-6 text-[15px] font-semibold text-white transition-colors hover:bg-[var(--accent-hover)] sm:w-auto md:h-14 md:px-7"
+            className="mt-9 inline-flex h-12 w-full items-center justify-center gap-3 bg-[var(--accent)] lg:mt-[213px] px-6 text-[16px] font-semibold text-white transition-colors hover:bg-[var(--accent-hover)] sm:w-auto md:h-14 md:px-7 md:text-[18px]"
           >
             <Download size={18} />
             Descargar informe de ejemplo (PDF)
@@ -717,59 +754,20 @@ function SampleReport() {
           whileInView="visible"
           viewport={{ once: true, amount: 0.3 }}
           aria-label="Abrir el informe de ejemplo"
-          className="group block lg:col-span-6"
+          className="relative block lg:col-span-6"
         >
-          {/* Portada estilizada del informe, no una captura: se mantiene
-              nítida en cualquier pantalla y no hay que regenerarla. */}
-          <div className="mx-auto max-w-[460px] rotate-[-1.5deg] border border-black/10 bg-white p-7 shadow-2xl shadow-black/15 transition-transform duration-300 group-hover:rotate-0 md:p-9">
-            <div className="flex items-center justify-between border-b border-black/10 pb-5">
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--ink-3)]">Orden de trabajo</p>
-                <p className="mt-1 font-display text-[22px] font-bold tracking-[-0.02em]">N° 566</p>
-              </div>
-              <span className="bg-[#34C759] px-3 py-1 text-[12px] font-bold text-white">Completada</span>
-            </div>
-            <p className="mt-5 text-[15px] font-semibold leading-[1.35]">
-              Mantención preventiva semestral UPS 10 kVA – Sala de servidores
-            </p>
-            <div className="mt-5 grid grid-cols-2 gap-4 text-[12px]">
-              {[
-                ["Duración", "2 h 35 min"],
-                ["Resultado", "Operativo"],
-                ["Mediciones", "Dentro de rango"],
-                ["Hallazgo", "2 baterías reemplazadas"],
-              ].map(([k, v]) => (
-                <div key={k}>
-                  <p className="text-[var(--ink-3)]">{k}</p>
-                  <p className="mt-0.5 font-semibold">{v}</p>
-                </div>
-              ))}
-            </div>
-            <div className="mt-6 grid grid-cols-2 gap-4 border-t border-black/10 pt-5">
-              {/* Las mismas firmas que trae la OT de ejemplo. */}
-              {[
-                ["Técnico responsable", "M20 70 C35 20 50 20 55 60 S75 85 85 45 C90 25 100 30 102 55 C104 75 115 70 125 40 L130 62 C140 48 150 45 160 58 C172 72 185 40 200 50 C215 60 230 35 260 42"],
-                ["Recepción conforme", "M25 55 C40 30 60 25 62 50 C64 75 45 80 40 62 C60 60 80 40 95 35 L92 72 C105 50 120 40 130 55 C138 68 150 60 160 45 C170 30 175 70 190 62 C205 55 220 50 270 58"],
-              ].map(([rol, trazo]) => (
-                <div key={rol}>
-                  <svg viewBox="0 0 300 100" className="h-10 w-full" aria-hidden>
-                    <path
-                      d={trazo}
-                      fill="none"
-                      stroke="#1a1a1a"
-                      strokeWidth="3"
-                      strokeLinecap="round"
-                    />
-                  </svg>
-                  <p className="mt-1 border-t border-black/20 pt-1 text-[11px] text-[var(--ink-3)]">{rol}</p>
-                </div>
-              ))}
-            </div>
-            <p className="mt-6 flex items-center gap-2 text-[13px] font-semibold text-[var(--accent)]">
-              <FileText size={16} />
-              Ver el PDF completo
-              <ArrowRight size={15} className="transition-transform group-hover:translate-x-1" />
-            </p>
+          {/* The page rises from the section's bottom edge and is cut off by it:
+              on desktop it fills the column width at 90% of the section's
+              height, so the lower part of the page is cropped away. */}
+          <div className="relative mx-auto aspect-[1190/1300] w-[88%] max-w-[440px] overflow-hidden border border-b-0 border-black/10 bg-white shadow-2xl shadow-black/20 lg:absolute lg:inset-x-0 lg:bottom-0 lg:h-[90%] lg:w-full lg:max-w-none lg:aspect-auto">
+            <Image
+              src={SAMPLE_REPORT_PREVIEW}
+              alt="Primera página del informe de ejemplo de la OT N° 566"
+              fill
+              // Text-heavy page: next/image's q75 re-encode + downscale blurs the small print.
+              unoptimized
+              className="object-cover object-top"
+            />
           </div>
         </motion.a>
       </div>

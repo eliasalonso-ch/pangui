@@ -3,12 +3,23 @@ import "../landing.css";
 import Link from "next/link";
 import {
   ArrowRight,
+  BrickWall,
   Building2,
-  Droplets,
+  Car,
+  Check,
   Factory,
-  GraduationCap,
-  Snowflake,
-  Zap,
+  FlaskConical,
+  Fuel,
+  Hotel,
+  House,
+  Landmark,
+  LayoutGrid,
+  Package,
+  Pickaxe,
+  Store,
+  Tractor,
+  Truck,
+  UtensilsCrossed,
 } from "lucide-react";
 import { LandingFooter, LandingNav } from "../Landing";
 import PublicPageTheme from "@/components/PublicPageTheme";
@@ -16,110 +27,178 @@ import PublicPageTheme from "@/components/PublicPageTheme";
 export const metadata = {
   title: "Industrias",
   description:
-    "Software de órdenes de trabajo para contratistas de mantención eléctrica, climatización, sanitaria, industrial, campus e inmobiliaria en Chile. Un mismo flujo de OT para cada rubro.",
+    "Software de mantención (CMMS) para manufactura, alimentos, químicos, minería, flotas, retail, gobierno, facility management, propiedades, hospitalidad y más. Cómo Pangui atiende cada industria en Chile.",
   alternates: { canonical: "/industrias" },
   openGraph: {
     title: "Industrias que atendemos | Pangui",
     description:
-      "Software de órdenes de trabajo para contratistas de mantención en Chile: eléctrica, climatización, sanitaria, industrial, campus e inmobiliaria.",
+      "Cómo Pangui atiende la mantención de manufactura, alimentos, químicos, minería, flotas, retail, gobierno, propiedades, hospitalidad y más.",
     url: "/industrias",
   },
 };
 
-// Each vertical is described through the same OT lifecycle Electrilam runs
-// today: solicitud → OT con ubicación → ejecución con evidencia → respaldo.
+// Each industry: what its maintenance looks like (contexto) and how Pangui
+// serves it (como). Only claim features the product actually has today.
 const INDUSTRIAS = [
   {
-    slug: "electrica",
-    icon: Zap,
-    nombre: "Mantención eléctrica",
-    resumen:
-      "Tableros, alumbrado, canalizaciones, empalmes y cortes programados repartidos en decenas de edificios.",
-    trabajos: [
-      "Reparación y cambio de tableros",
-      "Revisión de alumbrado por sector",
-      "Emergencias por corte de energía",
-      "Instalación de nuevos circuitos",
-    ],
-    valor:
-      "Es el rubro donde Pangui se probó primero: 603 OTs en cuatro meses sobre un campus universitario completo.",
-    probado: true,
-  },
-  {
-    slug: "climatizacion",
-    icon: Snowflake,
-    nombre: "Climatización y HVAC",
-    resumen:
-      "Equipos distribuidos en muchas salas, con rutinas periódicas que deben demostrarse ante el mandante.",
-    trabajos: [
-      "Mantención preventiva por equipo",
-      "Limpieza y cambio de filtros",
-      "Fallas de temperatura reportadas",
-      "Puestas en marcha estacionales",
-    ],
-    valor:
-      "Las rutinas repetitivas se programan una vez y se ejecutan siempre con el mismo procedimiento y evidencia.",
-  },
-  {
-    slug: "industrial",
     icon: Factory,
-    nombre: "Mantención industrial",
-    resumen:
-      "Plantas y equipos críticos donde una detención no planificada cuesta producción.",
-    trabajos: [
-      "Inspecciones de equipo crítico",
-      "Correctivos con repuestos",
-      "Paradas de planta programadas",
-      "Historial por activo",
+    nombre: "Fabricación general",
+    contexto: "Líneas y equipos que no pueden detenerse sin aviso, con turnos que se traspasan el trabajo.",
+    como: [
+      "Preventivos recurrentes por máquina: el siguiente se genera solo al cerrar el anterior",
+      "Historial por activo: qué falló, cuántas veces y con qué repuestos",
+      "Checklists con mediciones y su rango aceptable en cada inspección",
     ],
-    valor:
-      "El historial por activo muestra qué falló, cuántas veces y con qué materiales se resolvió.",
   },
   {
-    slug: "campus",
-    icon: GraduationCap,
-    nombre: "Campus y educación",
-    resumen:
-      "Recintos grandes con muchas ubicaciones, múltiples solicitantes y trabajo que no puede interrumpir clases.",
-    trabajos: [
-      "Solicitudes por edificio o sala",
-      "Emergencias en horario académico",
-      "Trabajos por etapas",
-      "Reportes por facultad",
+    icon: BrickWall,
+    nombre: "Materiales de construcción",
+    contexto: "Chancadores, hornos, correas y plantas de áridos o cemento con desgaste alto y polvo constante.",
+    como: [
+      "Rutinas de lubricación e inspección de desgaste programadas por equipo",
+      "Fotos del antes y después en cada correctivo",
+      "Materiales y repuestos usados registrados en la OT",
     ],
-    valor:
-      "160 ubicaciones bajo control es lo que hoy administra un solo contratista en Pangui.",
-    probado: true,
   },
   {
-    slug: "inmobiliaria",
+    icon: UtensilsCrossed,
+    nombre: "Alimentos y bebidas",
+    contexto: "Plantas donde la mantención también responde a inocuidad y auditorías de calidad.",
+    como: [
+      "Procedimientos paso a paso con la hora de cada paso, listos para el auditor",
+      "Limpiezas y sanitizaciones de equipos como preventivos recurrentes",
+      "Informe PDF por OT con evidencia y firma de recepción",
+    ],
+  },
+  {
+    icon: FlaskConical,
+    nombre: "Químicos",
+    contexto: "Equipos críticos y trabajos con riesgo, donde el procedimiento seguro no es opcional.",
+    como: [
+      "Pasos de seguridad verificados dentro del procedimiento antes de intervenir",
+      "Criticidad por activo para priorizar lo que no puede fallar",
+      "Registro de quién hizo qué y cuándo en el historial de cada OT",
+    ],
+  },
+  {
+    icon: Package,
+    nombre: "Plásticos",
+    contexto: "Inyectoras, extrusoras, moldes y sistemas de enfriamiento que marcan el ritmo de la producción.",
+    como: [
+      "Planes preventivos por equipo y por molde",
+      "Fallas reportadas desde la planta con foto y prioridad",
+      "Tiempo de cada intervención registrado, para ver dónde se va la mano de obra",
+    ],
+  },
+  {
+    icon: Car,
+    nombre: "Automóviles",
+    contexto: "Plantas, talleres y concesionarios con elevadores, compresores y cabinas de pintura que deben estar al día.",
+    como: [
+      "Inventario de equipos con número de serie, estado y criticidad",
+      "Revisiones periódicas con checklist y firma del responsable",
+      "Historial completo para respaldar certificaciones y garantías",
+    ],
+  },
+  {
+    icon: Store,
+    nombre: "Venta minorista",
+    contexto: "Muchas tiendas o locales, cada uno con su clima, iluminación, frío y cortinas.",
+    como: [
+      "Cada local como ubicación, con sus equipos y su historial",
+      "Solicitudes de todos los locales centralizadas en un solo lugar",
+      "Informes PDF y Excel para rendir a la gerencia o al cliente",
+    ],
+  },
+  {
+    icon: Landmark,
+    nombre: "Gobierno",
+    contexto: "Edificios públicos y servicios con contratos licitados que exigen rendición de cada trabajo.",
+    como: [
+      "Respaldo de cada trabajo con fotos, firma y fecha para la rendición",
+      "Exportación a PDF y Excel para el inspector del contrato",
+      "Solicitudes por edificio con prioridad y responsable asignado",
+    ],
+  },
+  {
     icon: Building2,
-    nombre: "Facility e inmobiliaria",
-    resumen:
-      "Edificios, oficinas y espacios comunes donde la administración pide respaldo de cada intervención.",
-    trabajos: [
-      "Requerimientos de administración",
-      "Mantención de espacios comunes",
-      "Rondas periódicas",
-      "Respaldo para el comité",
+    nombre: "Gestión de instalaciones",
+    contexto: "Edificios y oficinas con clima, electricidad, sanitaria y espacios comunes bajo un mismo contrato.",
+    como: [
+      "Varias especialidades en un mismo sistema, sin planillas paralelas",
+      "Rondas y mantenciones periódicas programadas",
+      "Firma del solicitante al cerrar, como conformidad del cliente",
     ],
-    valor:
-      "Cada trabajo cerrado queda con fotos y firma, listo para presentar en la rendición mensual.",
   },
   {
-    slug: "sanitaria",
-    icon: Droplets,
-    nombre: "Sanitaria y especialidades",
-    resumen:
-      "Gasfitería, redes húmedas, bombas y otras especialidades que conviven en un mismo contrato de servicio.",
-    trabajos: [
-      "Fugas y cortes de suministro",
-      "Mantención de bombas",
-      "Revisiones normativas",
-      "Trabajos multiespecialidad",
+    icon: Tractor,
+    nombre: "Agricultura y granjas",
+    contexto: "Maquinaria, riego, bodegas y cámaras de frío repartidos en predios extensos.",
+    como: [
+      "Mantenciones de temporada programadas con anticipación",
+      "Ubicación de cada trabajo dentro del predio",
+      "Fotos y materiales registrados desde el celular, en terreno",
     ],
-    valor:
-      "Un mismo equipo puede atender varias especialidades sin duplicar sistemas ni planillas.",
+  },
+  {
+    icon: Fuel,
+    nombre: "Petróleo y gas upstream",
+    contexto: "Instalaciones remotas y equipos críticos con exigencias estrictas de seguridad y trazabilidad.",
+    como: [
+      "Procedimientos con pasos de seguridad y mediciones con rango aceptable",
+      "Criticidad por activo para priorizar intervenciones",
+      "Trazabilidad completa: quién, cuándo, con qué materiales y con qué resultado",
+    ],
+  },
+  {
+    icon: Pickaxe,
+    nombre: "Minería",
+    contexto: "Faenas con equipos pesados, contratistas y turnos que deben demostrar cada trabajo al mandante.",
+    como: [
+      "Respaldo por OT con fotos, firmas y tiempos para el estado de pago",
+      "Historial por equipo para anticipar fallas repetidas",
+      "Órdenes de compra de materiales generadas desde el plan de mantención",
+    ],
+  },
+  {
+    icon: House,
+    nombre: "Gestión de propiedades",
+    contexto: "Condominios, edificios residenciales y carteras de arriendo con requerimientos de residentes y administración.",
+    como: [
+      "Cada requerimiento entra como OT con su ubicación y responsable",
+      "Mantención programada de espacios comunes, bombas, portones y ascensores",
+      "Respaldo con fotos y firma para el comité o el propietario",
+    ],
+  },
+  {
+    icon: Truck,
+    nombre: "Gestión de flotas",
+    contexto: "Camiones, maquinaria y vehículos livianos que deben estar disponibles y con su mantención al día.",
+    como: [
+      "Cada vehículo como activo, con su historial de mantenciones y reparaciones",
+      "Mantenciones preventivas programadas por fecha",
+      "Repuestos y horas de taller registrados en cada OT",
+    ],
+  },
+  {
+    icon: Hotel,
+    nombre: "Hospitalidad",
+    contexto: "Hoteles, restaurantes y centros de eventos donde una falla la nota el huésped antes que nadie.",
+    como: [
+      "Solicitudes por habitación o sector, con prioridad y responsable",
+      "Rondas preventivas de clima, agua caliente y cocina",
+      "Tiempo visible entre la solicitud y el trabajo cerrado",
+    ],
+  },
+  {
+    icon: LayoutGrid,
+    nombre: "Otras industrias",
+    contexto: "Si su equipo recibe solicitudes, trabaja en terreno y tiene que demostrar lo que hizo, Pangui le sirve.",
+    como: [
+      "Trabajos reactivos, preventivos, de emergencia, levantamientos y presupuestos",
+      "Procedimientos propios para su especialidad",
+      "Prueba gratis de 30 días con todo su equipo",
+    ],
   },
 ];
 
@@ -173,15 +252,11 @@ export default function IndustriasPage() {
 
         <section className="bg-white">
           <div className="mx-auto max-w-[1440px] px-4 py-14 sm:px-5 md:px-10 md:py-20 xl:px-12">
-            <div className="grid gap-px border border-[var(--hairline)] bg-[var(--hairline)] md:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-px border border-[var(--hairline)] bg-[var(--hairline)] md:grid-cols-2 xl:grid-cols-4">
               {INDUSTRIAS.map((industria) => (
-                <IndustriaCard key={industria.slug} industria={industria} />
+                <IndustriaCard key={industria.nombre} industria={industria} />
               ))}
             </div>
-            <p className="mt-5 text-[13px] leading-[1.55] text-[var(--ink-3)]">
-              Las cifras citadas provienen de la operación real de un contratista
-              de mantención eléctrica en Pangui.
-            </p>
           </div>
         </section>
 
@@ -247,32 +322,26 @@ export default function IndustriasPage() {
 function IndustriaCard({ industria }) {
   const Icon = industria.icon;
   return (
-    <article className="flex flex-col bg-white p-6 md:p-9">
-      <div className="flex items-start justify-between gap-4">
-        <Icon size={40} strokeWidth={1.2} className="text-[var(--accent)]" />
-        {industria.probado && (
-          <span className="font-mono text-[9px] uppercase tracking-[0.16em] text-[var(--accent)]">
-            En operación
-          </span>
-        )}
-      </div>
-      <h2 className="mt-7 font-display text-[24px] font-semibold leading-[1.15] tracking-[-0.02em] md:text-[26px]">
+    <article className="flex flex-col bg-white p-6 md:p-8">
+      <Icon size={36} strokeWidth={1.2} className="text-[var(--accent)]" />
+      <h2 className="mt-6 font-display text-[22px] font-semibold leading-[1.15] tracking-[-0.02em] md:text-[24px]">
         {industria.nombre}
       </h2>
-      <p className="mt-4 text-[15px] leading-[1.6] text-[var(--ink-2)]">{industria.resumen}</p>
+      <p className="mt-3 text-[15px] leading-[1.6] text-[var(--ink-2)]">{industria.contexto}</p>
 
-      <ul className="mt-6 flex flex-col gap-2 border-t border-[var(--hairline)] pt-6">
-        {industria.trabajos.map((trabajo) => (
-          <li key={trabajo} className="flex items-start gap-2.5 text-[14px] leading-[1.5] text-[var(--ink-2)]">
-            <span aria-hidden className="mt-[9px] h-[3px] w-[3px] shrink-0 rounded-full bg-[var(--accent)]" />
-            <span>{trabajo}</span>
-          </li>
-        ))}
-      </ul>
-
-      <p className="mt-auto pt-6 text-[14px] font-semibold leading-[1.55] text-[var(--ink)]">
-        {industria.valor}
-      </p>
+      <div className="mt-6 border-t border-[var(--hairline)] pt-5">
+        <p className="font-mono text-[9px] font-medium uppercase tracking-[0.16em] text-[var(--accent)] md:text-[10px]">
+          Cómo lo atendemos
+        </p>
+        <ul className="mt-4 flex flex-col gap-3">
+          {industria.como.map((item) => (
+            <li key={item} className="flex items-start gap-2.5 text-[14px] leading-[1.5] text-[var(--ink)]">
+              <Check size={16} strokeWidth={2.2} className="mt-[3px] shrink-0 text-[var(--accent)]" />
+              <span>{item}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
     </article>
   );
 }
