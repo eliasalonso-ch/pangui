@@ -129,8 +129,32 @@ export async function GET(req: Request) {
       ])
     : [null, null, null] as const;
 
+  // Empresa se cobra fuera de Flow: el contrato (precio, moneda, forma de pago)
+  // y, si paga por transferencia, los datos bancarios de Pangui. Solo el owner
+  // gestiona la suscripción, así que solo a él se le entregan.
+  let contrato = null;
+  let transferencia = null;
+  if (full && perfil.rol === "owner" && subscription?.plan_key === "enterprise") {
+    const { data } = await admin
+      .from("contratos_empresa")
+      .select("precio, moneda, periodicidad, forma_pago, usuarios_contratados, inicio, fin, notas, activo")
+      .eq("workspace_id", perfil.workspace_id)
+      .maybeSingle();
+    contrato = data;
+    if (contrato?.forma_pago === "transferencia") {
+      const { data: banco } = await admin
+        .from("datos_transferencia")
+        .select("titular, rut, banco, tipo_cuenta, numero_cuenta, email_comprobantes")
+        .eq("id", 1)
+        .maybeSingle();
+      transferencia = banco;
+    }
+  }
+
   return NextResponse.json({
     rol:             perfil.rol,
+    contrato,
+    transferencia,
     workspace_id:    perfil.workspace_id,
     subscription,
     customer: customer

@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { Suspense, useState, useEffect, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion, useMotionValue, useSpring, useTransform } from "framer-motion";
 import { Loader2, Check, CreditCard, AlertCircle, ArrowLeft, X, Sparkles, ShieldCheck, Pencil, Trash2 } from "lucide-react";
-import { SELF_SERVE_PLANS, PLANS, costoMensual, type PlanDef, type PlanKey } from "@/lib/flow-plans";
+import { PLANS, planByKey, costoMensual, type PlanDef, type PlanKey } from "@/lib/flow-plans";
 import { textoDesglose, desglosarNeto } from "@/lib/tributario";
 import { resumirCambio, type ResumenCambio } from "@/lib/cambio-plan";
 import { resolveCardBrand } from "@/lib/card-brand";
@@ -13,6 +14,7 @@ import { CardBrandLogo } from "@/components/CardBrandLogo";
 import { InvoicesPanel } from "./InvoicesPanel";
 import { DocumentosPanel } from "./DocumentosPanel";
 import { SubscriptionOverview } from "./SubscriptionOverview";
+import { VerPlanes, type AccionPlan } from "./VerPlanes";
 
 type PendingAction = PlanKey | "cancel" | "card_change" | "card_remove";
 type RedirectAction = PlanKey | "card_change";
@@ -40,6 +42,30 @@ interface SubStatus {
   active_users: number;
   monthly_cost: number;
   effective_plan: PlanKey;
+  // Solo Empresa (y solo para el owner): contrato fuera de Flow.
+  contrato?: Contrato | null;
+  transferencia?: DatosTransferencia | null;
+}
+
+interface Contrato {
+  precio: number | null;
+  moneda: "UF" | "CLP";
+  periodicidad: "mensual" | "anual";
+  forma_pago: "transferencia" | "tarjeta" | "otro";
+  usuarios_contratados: number | null;
+  inicio: string | null;
+  fin: string | null;
+  notas: string | null;
+  activo: boolean;
+}
+
+interface DatosTransferencia {
+  titular: string | null;
+  rut: string | null;
+  banco: string | null;
+  tipo_cuenta: string | null;
+  numero_cuenta: string | null;
+  email_comprobantes: string | null;
 }
 
 const fmtCLP = (n: number) => n.toLocaleString("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 });
@@ -78,6 +104,7 @@ function SuscripcionPageInner() {
   // dinero —una subida cobra la diferencia al instante— así que no puede
   // dispararse con un solo clic.
   const [planPorConfirmar, setPlanPorConfirmar] = useState<PlanKey | null>(null);
+  const [verPlanes, setVerPlanes] = useState(false);
   const [cancelandoAgendado, setCancelandoAgendado] = useState(false);
   // Reemplaza al antiguo checkbox de aceptación: en vez de pedir un clic extra,
   // exigimos los datos que realmente hacen falta para cobrar y emitir la factura.
@@ -261,6 +288,20 @@ function SuscripcionPageInner() {
   const activeUsers = data?.active_users ?? 0;
   const monthlyCost = data?.monthly_cost ?? 0;
 
+  // Empresa no pasa por Flow: es un contrato anual en UF pagado por
+  // transferencia (lib/flow-sync.ts y la emisión de DTE lo saltan). Tarjeta,
+  // cambio de plan, cobros y cancelación no aplican; todo cambio va por ventas.
+  if (sub?.plan_key === "enterprise") {
+    return (
+      <ContratoEmpresa
+        activeUsers={activeUsers}
+        fundador={sub.is_early_customer ? { nota: sub.custom_price_note ?? null, precioPorUsuario: sub.price_per_user_clp } : null}
+        contrato={data?.contrato ?? null}
+        transferencia={data?.transferencia ?? null}
+      />
+    );
+  }
+
   const isTrial = sub?.status === "trialing";
   const isFree = sub?.status === "basic_free";
   const isPaid = sub?.status === "active" || sub?.status === "past_due";
@@ -285,12 +326,73 @@ function SuscripcionPageInner() {
     ? `${fmtCLP(sub!.price_per_user_clp)} + IVA por usuario`
     : currentPlan ? detallePlan(currentPlan) : "";
   const costoEstimado = monthlyCost || (currentPlan ? costoMensual(currentPlan, activeUsers) : 0);
+  const planMostrado = currentPlan ?? planByKey(data?.effective_plan ?? "basic");
+
+  /** Botón de cada plan en "Ver planes". Empresa usa el de /precios (demo). */
+  function accionPlan(p: PlanDef): AccionPlan | undefined {
+    if (p.key === "enterprise") return undefined;
+    // Basic no se contrata: es donde queda el workspace al terminar la prueba
+    // o al cancelar.
+    if (!p.selfServe) {
+      const actual = data?.effective_plan === "basic";
+      return {
+        label: actual ? <><Check size={16} /> Plan actual</> : "Plan gratuito",
+        disabled: true,
+        nota: actual ? undefined
+          : isTrial ? "Quedas en Basic si no eliges plan"
+          : isBilled && !sub?.canceled_at ? "Quedas en Basic al cancelar"
+          : undefined,
+      };
+    }
+    // Cancelada: ningún plan cuenta como "actual", así el usuario puede
+    // reactivar el mismo que tenía sin quedar bloqueado.
+    const isCurrent = sub?.plan_key === p.key && isBilled && !sub?.canceled_at;
+    // El precio de fundador vive en un cupón de monto fijo atado a su tier:
+    // cambiarse de plan solo por la UI cobraría un precio que nadie pactó. El
+    // backend lo rechaza (409), así que se ofrece escribirnos.
+    if (sub?.is_early_customer && sub.plan_key !== p.key) {
+      return { label: "Escríbenos para cambiar", href: "mailto:contacto@getpangui.com" };
+    }
+    const neto = isCurrent ? costoEstimado : costoMensual(p, activeUsers);
+    return {
+      label: submitting === p.key ? <Loader2 size={16} className="animate-spin" />
+        : isCurrent ? <><Check size={16} /> Plan actual</>
+        : isBilled ? "Cambiar a este plan"
+        : `Elegir ${p.name}`,
+      disabled: isCurrent || submitting !== null || !profileReady,
+      // Cambiar entre planes ya cobrados pide confirmación: una subida cobra la
+      // diferencia al instante. Contratar por primera vez no la pide — ahí el
+      // paso siguiente es el formulario de tarjeta de Flow, que ya es una
+      // confirmación en sí.
+      //
+      // La condición mira `isBilled`, no `has_card`: un workspace con cliente
+      // en Flow pero sin suscripción cobrándose (tarjeta quitada, o alta
+      // manual) se iba a change-plan, que respondía 402 "needs_card" y obligaba
+      // a un segundo clic para recién ahí llegar a Flow.
+      onClick: () => {
+        if (isBilled) return setPlanPorConfirmar(p.key);
+        setVerPlanes(false);
+        void startCheckout(p.key);
+      },
+      nota: `Con tus ${activeUsers} ${activeUsers === 1 ? "usuario" : "usuarios"}: ${fmtCLP(desglosarNeto(neto).bruto)} al mes con IVA`,
+    };
+  }
 
   return (
     // Sin height:100dvh ni overflow propios: eso creaba un segundo viewport
     // dentro del scroll del layout. La página fluye y scrollea una sola vez.
     <div style={{ minHeight: "100%", background: "var(--surface-canvas)" }}>
       {redirecting && <CheckoutRedirectOverlay planKey={redirecting} />}
+
+      {verPlanes && (
+        <VerPlanes
+          accion={accionPlan}
+          onClose={() => setVerPlanes(false)}
+          faltanDatos={!profileReady}
+          enPrueba={isTrial}
+          pausado={planPorConfirmar !== null}
+        />
+      )}
 
       {planPorConfirmar && sub && (
         <ConfirmarCambioPlan
@@ -306,6 +408,7 @@ function SuscripcionPageInner() {
           onConfirmar={() => {
             const plan = planPorConfirmar;
             setPlanPorConfirmar(null);
+            setVerPlanes(false);
             void changePlan(plan);
           }}
         />
@@ -317,24 +420,7 @@ function SuscripcionPageInner() {
           {error && <Notice kind="err">{error}</Notice>}
 
           {sub?.is_early_customer && (
-            <div style={{
-              ...card,
-              // Theme-aware: brand-tint switches between pale blue (light) and
-              // a deep brand-tinted dark surface (dark) automatically.
-              background: "linear-gradient(135deg, var(--brand-tint) 0%, var(--surface-1) 100%)",
-              border: "1px solid var(--brand)",
-            }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
-                <Sparkles size={16} style={{ color: "var(--brand)" }} />
-                <p style={{ ...sectionLabel, color: "var(--brand-fg)" }}>Cliente fundador</p>
-              </div>
-              <p style={{ fontSize: 14, color: "var(--fg-1)", margin: 0, lineHeight: 1.5 }}>
-                {sub.custom_price_note ?? `Precio especial de ${fmtCLP(sub.price_per_user_clp)} + IVA por usuario para siempre.`}
-              </p>
-              <p style={{ fontSize: 14, color: "var(--fg-2)", margin: "6px 0 0", lineHeight: 1.5 }}>
-                Este precio se mantiene mientras la suscripción siga activa. Está acordado para tu plan actual: si quieres cambiarte de plan conservándolo, escríbenos a <a href="mailto:contacto@getpangui.com" style={linkStyle}>contacto@getpangui.com</a>.
-              </p>
-            </div>
+            <BannerFundador nota={sub.custom_price_note ?? null} precioPorUsuario={sub.price_per_user_clp} />
           )}
 
           {/* Suscripción pendiente de pago. Con cargo automático hay dos causas
@@ -488,108 +574,23 @@ function SuscripcionPageInner() {
                 </div>
               </div>
             )}
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
-              {SELF_SERVE_PLANS.map(p => {
-                // Cancelada: ningún plan cuenta como "actual", así el usuario
-                // puede reactivar el mismo que tenía sin quedar bloqueado.
-                const isCurrent = sub?.plan_key === p.key && isBilled && !sub?.canceled_at;
-                // El precio de fundador vive en un cupón de monto fijo atado a
-                // su tier: cambiarse de plan solo por la UI cobraría un precio
-                // que nadie pactó. El backend lo rechaza (409); acá se muestra
-                // apagado para no ofrecer un camino que va a fallar.
-                const bloqueadoPorFundador = Boolean(sub?.is_early_customer) && sub?.plan_key !== p.key;
-                const disabled = isCurrent || bloqueadoPorFundador || submitting !== null || !profileReady;
-                // Lo que costaría hoy con el equipo actual: base + adicionales.
-                const adicionales = Math.max(0, activeUsers - p.includedUsers);
-                const preview = costoMensual(p, activeUsers);
-                const previo = SELF_SERVE_PLANS[SELF_SERVE_PLANS.indexOf(p) - 1];
-                return (
-                  <div
-                    key={p.key}
-                    style={{
-                      ...card,
-                      border: `1.5px solid ${isCurrent ? "var(--brand)" : "var(--border)"}`,
-                      background: isCurrent ? "var(--brand-tint)" : "var(--surface-1)",
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: 10,
-                    }}
-                  >
-                    <div>
-                      <p style={{ ...sectionLabel, color: "var(--fg-2)" }}>{p.name}</p>
-                      <p style={{ fontSize: 14, color: "var(--fg-4)", margin: "2px 0 0" }}>{p.tagline}</p>
-                    </div>
-                    <div>
-                      {p.listPrice && (
-                        <p style={{ fontSize: 12, color: "var(--brand-fg)", margin: "0 0 4px", textTransform: "uppercase", letterSpacing: "0.06em" }}>Precio de lanzamiento</p>
-                      )}
-                      <div style={{ display: "flex", alignItems: "baseline", gap: 6, flexWrap: "wrap" }}>
-                        <p style={{ fontSize: 20, fontWeight: 600, color: "var(--fg-1)", margin: 0 }}>{fmtCLP(p.basePrice)}</p>
-                        {p.listPrice && (
-                          <p style={{ fontSize: 14, color: "var(--fg-4)", margin: 0, textDecoration: "line-through" }}>{fmtCLP(p.listPrice)}</p>
-                        )}
-                        <p style={{ fontSize: 14, color: "var(--fg-4)", margin: 0 }}>+ IVA / mes</p>
-                      </div>
-                      <p style={{ fontSize: 14, color: "var(--fg-3)", margin: "4px 0 0" }}>
-                        Incluye {p.includedUsers} usuarios · adicional {fmtCLP(p.extraUserPrice)} + IVA
-                      </p>
-                      <p style={{ fontSize: 14, color: "var(--fg-3)", margin: "4px 0 0", overflowWrap: "anywhere" }}>
-                        Con tu equipo de {activeUsers} {activeUsers === 1 ? "usuario" : "usuarios"}
-                        {adicionales > 0 ? ` (${adicionales} ${adicionales === 1 ? "adicional" : "adicionales"})` : ""}: {fmtCLP(desglosarNeto(preview).bruto)} al mes con IVA.
-                      </p>
-                    </div>
-                    {previo && (
-                      <p style={{ fontSize: 14, fontWeight: 600, color: "var(--fg-1)", margin: 0 }}>Todo lo de {previo.name}, más:</p>
-                    )}
-                    <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 5 }}>
-                      {p.highlights.map(h => (
-                        <li key={h} style={{ display: "flex", alignItems: "start", gap: 6, fontSize: 14, color: "var(--fg-1)" }}>
-                          <Check size={12} style={{ color: "var(--brand)", flexShrink: 0, marginTop: 2 }} />
-                          <span style={{ flex: 1, minWidth: 0, overflowWrap: "anywhere" }}>{h}</span>
-                        </li>
-                      ))}
-                    </ul>
-                    <button
-                      type="button"
-                      disabled={disabled}
-                      // Cambiar entre planes ya cobrados pide confirmación: una
-                      // subida cobra la diferencia al instante. Contratar por
-                      // primera vez no la pide — ahí el paso siguiente es el
-                      // formulario de tarjeta de Flow, que ya es una
-                      // confirmación en sí.
-                      //
-                      // La condición mira `isBilled`, no `has_card`: un
-                      // workspace con cliente en Flow pero sin suscripción
-                      // cobrándose (tarjeta quitada, o alta manual) se iba a
-                      // change-plan, que respondía 402 "needs_card" y obligaba
-                      // a un segundo clic en "Agregar tarjeta" para recién ahí
-                      // llegar a Flow. Contratar tiene que ser un solo paso.
-                      onClick={() => isBilled
-                        ? setPlanPorConfirmar(p.key)
-                        : startCheckout(p.key)}
-                      style={{
-                        ...primaryBtn,
-                        marginTop: "auto",
-                        background: isCurrent ? "var(--surface-hover)" : "var(--brand)",
-                        color: isCurrent ? "var(--fg-2)" : "var(--surface-1)",
-                        cursor: disabled ? "default" : "pointer",
-                        opacity: !isCurrent && (!profileReady || bloqueadoPorFundador) ? 0.55 : 1,
-                      }}
-                    >
-                      {submitting === p.key
-                        ? <Loader2 size={13} className="animate-spin" />
-                        : isCurrent ? <><Check size={13} /> Plan actual</>
-                        : bloqueadoPorFundador ? "Escríbenos para cambiar"
-                        : isBilled ? "Cambiar a este plan"
-                        : `Elegir ${p.name}`}
-                    </button>
-                  </div>
-                );
-              })}
+            <div style={{ ...card, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
+              <div style={{ minWidth: 0 }}>
+                <p style={{ ...sectionLabel, color: "var(--fg-3)" }}>Plan actual</p>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "6px 0 4px", flexWrap: "wrap" }}>
+                  <p style={{ fontSize: 20, fontWeight: 600, color: "var(--fg-1)", margin: 0 }}>{planMostrado.name}</p>
+                  <span style={statusPill(sub?.status ?? "basic_free")}>{statusLabel(sub?.status ?? "basic_free")}</span>
+                </div>
+                <p style={{ fontSize: 14, color: "var(--fg-3)", margin: 0 }}>
+                  {isTrial
+                    ? `Prueba gratis hasta el ${fmtDate(sub?.trial_end ?? null)} (te ${trialDaysLeft === 1 ? "queda 1 día" : `quedan ${trialDaysLeft} días`})`
+                    : isBilled ? detallePrecioActual : detallePlan(planMostrado)}
+                </p>
+              </div>
+              <button type="button" onClick={() => setVerPlanes(true)} style={{ ...primaryBtn, padding: "0 18px", background: "var(--brand)", color: "var(--surface-1)", cursor: "pointer" }}>
+                Ver planes
+              </button>
             </div>
-            <p style={{ fontSize: 14, color: "var(--fg-4)", margin: "12px 0 0", display: "flex", alignItems: "center", gap: 6 }}>
-              <CreditCard size={12} /> Al elegir un plan te llevamos a Flow.cl para inscribir tu tarjeta. El primer cobro se hace al inscribirla y los siguientes se cargan automáticamente cada mes.{isTrial ? " Al contratar termina la prueba gratis: el plan elegido se activa y se cobra de inmediato." : ""}
-            </p>
           </div>
 
           <BillingDisclosure
@@ -737,7 +738,7 @@ function BillingDisclosure({
 function MiniStat({ label, value }: { label: string; value: string }) {
   return (
     <div style={{ border: "1px solid var(--border)", borderRadius: "var(--r-md)", padding: "10px 12px", background: "var(--surface-0)" }}>
-      <p style={{ fontSize: 14, color: "var(--fg-4)", margin: "0 0 3px", textTransform: "uppercase", fontWeight: 400 }}>{label}</p>
+      <p style={{ fontSize: 14, color: "var(--fg-4)", margin: "0 0 3px", fontWeight: 400 }}>{label}</p>
       <p style={{ fontSize: 14, color: "var(--fg-1)", margin: 0, fontWeight: 400 }}>{value}</p>
     </div>
   );
@@ -989,7 +990,7 @@ function PaymentCardPreview({
           <motion.div style={{ ...cornerLight, bottom: -54, right: -54, opacity: brOpacity, scale: brScale }} />
           <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
             <div>
-              <p style={{ fontSize: 14, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--fg-3)", margin: 0 }}>
+              <p style={{ fontSize: 14, color: "var(--fg-3)", margin: 0 }}>
                 {empty ? "Tarjeta" : "Tarjeta guardada"}
               </p>
               <p style={{ fontSize: 14, fontWeight: 400, margin: "4px 0 0", color: "var(--fg-1)" }}>
@@ -1017,14 +1018,14 @@ function PaymentCardPreview({
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 14, alignItems: "end" }}>
             <div style={{ minWidth: 0 }}>
-              <p style={{ fontSize: 14, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--fg-3)", margin: "0 0 4px" }}>
+              <p style={{ fontSize: 14, color: "var(--fg-3)", margin: "0 0 4px" }}>
                 {empty ? "Procesador" : "Cuenta"}
               </p>
               <p style={{ fontSize: 14, fontWeight: 400, margin: 0, color: "var(--fg-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                 {empty ? "Flow.cl" : email ?? "Facturación Pangui"}
               </p>
             </div>
-            <div style={flowBadge}>FLOW</div>
+            <div style={flowBadge}>Flow</div>
           </div>
         </motion.div>
       </motion.div>
@@ -1040,6 +1041,182 @@ function normalizeCardBrand(brand: string | null): string {
   if (/amex|american/i.test(clean)) return "American Express";
   if (/diners/i.test(clean)) return "Diners Club";
   return clean;
+}
+
+const FORMA_PAGO: Record<Contrato["forma_pago"], string> = {
+  transferencia: "Transferencia bancaria",
+  tarjeta: "Tarjeta",
+  otro: "Según contrato",
+};
+
+function precioContrato(c: Contrato | null): string {
+  if (c?.precio == null) return "Según contrato";
+  const monto = c.moneda === "UF"
+    ? `UF ${Number(c.precio).toLocaleString("es-CL", { maximumFractionDigits: 2 })}`
+    : fmtCLP(Number(c.precio));
+  return `${monto} + IVA ${c.periodicidad === "anual" ? "al año" : "al mes"}`;
+}
+
+/**
+ * En "Comparar planes", un cliente Empresa no contrata ni cambia solo: su plan
+ * es un contrato, así que cambiarse se coordina con nosotros por correo.
+ */
+function accionPlanContrato(p: PlanDef): AccionPlan {
+  if (p.key === "enterprise") return { label: <><Check size={16} /> Plan actual</>, disabled: true };
+  return {
+    label: `Cambiar a ${p.name}`,
+    href: `mailto:contacto@getpangui.com?subject=${encodeURIComponent(`Cambio de plan Empresa a ${p.name}`)}`,
+  };
+}
+
+function vigenciaContrato(c: Contrato): string {
+  if (c.inicio && c.fin) return `${fmtDate(c.inicio)} al ${fmtDate(c.fin)}`;
+  if (c.inicio) return `Desde el ${fmtDate(c.inicio)}`;
+  if (c.fin) return `Hasta el ${fmtDate(c.fin)}`;
+  return "Según contrato";
+}
+
+function BannerFundador({ nota, precioPorUsuario }: { nota: string | null; precioPorUsuario: number }) {
+  return (
+    <div style={{
+      ...card,
+      // Theme-aware: brand-tint switches between pale blue (light) and
+      // a deep brand-tinted dark surface (dark) automatically.
+      background: "linear-gradient(135deg, var(--brand-tint) 0%, var(--surface-1) 100%)",
+      border: "1px solid var(--brand)",
+    }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
+        <Sparkles size={16} style={{ color: "var(--brand)" }} />
+        <p style={{ ...sectionLabel, color: "var(--brand-fg)" }}>Cliente fundador</p>
+      </div>
+      <p style={{ fontSize: 14, color: "var(--fg-1)", margin: 0, lineHeight: 1.5 }}>
+        {nota ?? `Precio especial de ${fmtCLP(precioPorUsuario)} + IVA por usuario para siempre.`}
+      </p>
+      <p style={{ fontSize: 14, color: "var(--fg-2)", margin: "6px 0 0", lineHeight: 1.5 }}>
+        Este precio se mantiene mientras la suscripción siga activa. Está acordado para tu plan actual: si quieres cambiarte de plan conservándolo, escríbenos a <a href="mailto:contacto@getpangui.com" style={linkStyle}>contacto@getpangui.com</a>.
+      </p>
+    </div>
+  );
+}
+
+function ContratoEmpresa({ activeUsers, fundador, contrato, transferencia }: {
+  activeUsers: number;
+  fundador: { nota: string | null; precioPorUsuario: number } | null;
+  contrato: Contrato | null;
+  transferencia: DatosTransferencia | null;
+}) {
+  const plan = planByKey("enterprise");
+  const [verPlanes, setVerPlanes] = useState(false);
+  const usuarios = contrato?.usuarios_contratados
+    ? `${activeUsers} de ${contrato.usuarios_contratados}`
+    : `${activeUsers} · según contrato`;
+  return (
+    <div style={{ minHeight: "100%", background: "var(--surface-canvas)" }}>
+      {verPlanes && (
+        <VerPlanes
+          accion={accionPlanContrato}
+          onClose={() => setVerPlanes(false)}
+          faltanDatos={false}
+          enPrueba={false}
+          porContrato
+          pausado={false}
+        />
+      )}
+      <div style={{ padding: "28px 24px" }}>
+        <div style={{ maxWidth: 1240, margin: "0 auto", display: "flex", flexDirection: "column", gap: 20 }}>
+          {fundador && <BannerFundador {...fundador} />}
+          <div style={{ ...card, display: "grid", gap: 16 }}>
+            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
+              <div style={{ minWidth: 0 }}>
+                <p style={{ ...sectionLabel, color: "var(--fg-3)" }}>Plan actual</p>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "6px 0 4px", flexWrap: "wrap" }}>
+                  <p style={{ fontSize: 20, fontWeight: 600, color: "var(--fg-1)", margin: 0 }}>{plan.name}</p>
+                  {/* Sin contrato cargado todavía se asume vigente. */}
+                  {contrato?.activo === false
+                    ? <span style={statusPill("canceled")}>Contrato inactivo</span>
+                    : <span style={statusPill("active")}>Contrato activo</span>}
+                </div>
+                <p style={{ fontSize: 14, color: "var(--fg-3)", margin: 0 }}>
+                  Tu plan se gestiona por contrato.
+                </p>
+              </div>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <a
+                  href="mailto:contacto@getpangui.com?subject=Contrato%20Empresa"
+                  style={{ ...ghostBtn, display: "inline-flex", alignItems: "center", height: 38, textDecoration: "none" }}
+                >
+                  Contáctanos
+                </a>
+                <button type="button" onClick={() => setVerPlanes(true)} style={{ ...primaryBtn, padding: "0 18px", background: "var(--brand)", color: "var(--surface-1)", cursor: "pointer" }}>
+                  Comparar planes
+                </button>
+              </div>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 10 }}>
+              <MiniStat label="Precio" value={precioContrato(contrato)} />
+              <MiniStat label="Forma de pago" value={contrato ? FORMA_PAGO[contrato.forma_pago] : "Según contrato"} />
+              <MiniStat label="Vigencia" value={contrato ? vigenciaContrato(contrato) : "Según contrato"} />
+              <MiniStat label="Usuarios activos" value={usuarios} />
+            </div>
+            {contrato?.notas && <p style={{ fontSize: 14, color: "var(--fg-2)", margin: 0, lineHeight: 1.5, whiteSpace: "pre-line" }}>{contrato.notas}</p>}
+            <p style={{ fontSize: 14, color: "var(--fg-2)", margin: 0, lineHeight: 1.55 }}>
+              Las facturas te llegan directamente de Pangui según lo pactado en el contrato. Para sumar usuarios, renovar o cambiar condiciones, escríbenos a <a href="mailto:contacto@getpangui.com" style={linkStyle}>contacto@getpangui.com</a>.
+            </p>
+          </div>
+
+          {contrato?.forma_pago === "transferencia" && transferencia && (
+            <DatosParaTransferir datos={transferencia} />
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DatosParaTransferir({ datos }: { datos: DatosTransferencia }) {
+  const [copiado, setCopiado] = useState(false);
+  const filas = ([
+    ["Titular", datos.titular],
+    ["RUT", datos.rut],
+    ["Banco", datos.banco],
+    ["Tipo de cuenta", datos.tipo_cuenta],
+    ["N° de cuenta", datos.numero_cuenta],
+    ["Email", datos.email_comprobantes],
+  ] as [string, string | null][]).filter((f): f is [string, string] => Boolean(f[1]));
+  if (filas.length === 0) return null;
+
+  async function copiar() {
+    try {
+      await navigator.clipboard.writeText(filas.map(([k, v]) => `${k}: ${v}`).join("\n"));
+      setCopiado(true);
+      setTimeout(() => setCopiado(false), 2000);
+    } catch { /* sin permiso de portapapeles: los datos siguen a la vista */ }
+  }
+
+  return (
+    <div style={{ ...card, display: "grid", gap: 12 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+          <p style={sectionLabel}>Datos para transferencia</p>
+          {/* El banco es texto libre en superadmin: el logo solo cuando es Global66. */}
+          {/global\s*66/i.test(datos.banco ?? "") && (
+            <Image src="/brands/global66.png" alt="Global66" width={83} height={26} />
+          )}
+        </div>
+        <button type="button" onClick={() => void copiar()} style={{ ...ghostBtn, display: "inline-flex", alignItems: "center", gap: 6 }}>
+          {copiado ? <><Check size={14} /> Copiado</> : "Copiar datos"}
+        </button>
+      </div>
+      <div style={{ display: "grid", gap: 8 }}>
+        {filas.map(([k, v]) => <Row key={k} label={k} value={v} />)}
+      </div>
+      {datos.email_comprobantes && (
+        <p style={{ fontSize: 14, color: "var(--fg-3)", margin: 0, lineHeight: 1.5 }}>
+          Envía el comprobante a {datos.email_comprobantes} indicando el nombre de tu empresa.
+        </p>
+      )}
+    </div>
+  );
 }
 
 function Centered({ children }: { children: React.ReactNode }) {
@@ -1246,8 +1423,6 @@ const sectionLabel: React.CSSProperties = {
   fontWeight: 400,
   color: "var(--fg-2)",
   margin: 0,
-  textTransform: "uppercase",
-  letterSpacing: "0.06em",
 };
 
 const ghostBtn: React.CSSProperties = {
@@ -1353,7 +1528,6 @@ const flowBadge: React.CSSProperties = {
   padding: "5px 8px",
   fontSize: 14,
   fontWeight: 400,
-  letterSpacing: "0.08em",
   color: "var(--fg-2)",
   background: "var(--surface-0)",
 };

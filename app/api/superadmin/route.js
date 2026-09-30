@@ -2,6 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { createClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
+import { usuariosCobrables } from "@/lib/flow-sync";
 
 const SUPERADMIN_EMAIL = process.env.SUPERADMIN_EMAIL;
 
@@ -27,14 +28,20 @@ function createAdminClient() {
   );
 }
 
-export async function GET(request) {
-  // 1. Auth check
+/** null si es el superadmin; si no, la respuesta de error a devolver. */
+async function denySuperadmin() {
   const supabase = await createSupabaseServer();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (!SUPERADMIN_EMAIL || user.email !== SUPERADMIN_EMAIL) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
+  return null;
+}
+
+export async function GET(request) {
+  const denied = await denySuperadmin();
+  if (denied) return denied;
 
   const { searchParams } = new URL(request.url);
   const tab = searchParams.get("tab") ?? "feedback";
@@ -181,17 +188,93 @@ export async function GET(request) {
     });
   }
 
+  if (tab === "contratos") {
+    // Workspaces en Empresa (plan fuera de Flow) con su contrato, si ya tiene.
+    const [subs, contratos, banco] = await Promise.all([
+      admin.from("subscriptions").select("workspace_id, workspaces(nombre)").eq("plan_key", "enterprise").neq("status", "canceled"),
+      admin.from("contratos_empresa").select("*"),
+      admin.from("datos_transferencia").select("*").eq("id", 1).maybeSingle(),
+    ]);
+    const error = subs.error ?? contratos.error ?? banco.error;
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    const porWorkspace = new Map();
+    for (const s of subs.data) {
+      porWorkspace.set(s.workspace_id, {
+        workspace_id: s.workspace_id,
+        nombre: s.workspaces?.nombre ?? s.workspace_id,
+        contrato: contratos.data.find((c) => c.workspace_id === s.workspace_id) ?? null,
+      });
+    }
+    // Empresa no tiene tope de usuarios: se factura por contrato, así que el
+    // conteo (mismo criterio que el cobro de Flow) es lo que sirve para
+    // calcular el próximo cobro.
+    const workspaces = await Promise.all(
+      [...porWorkspace.values()].map(async (w) => ({ ...w, usuarios_cobrables: await usuariosCobrables(admin, w.workspace_id) }))
+    );
+    return NextResponse.json({ workspaces, transferencia: banco.data });
+  }
+
   return NextResponse.json({ error: "Unknown tab" }, { status: 400 });
+}
+
+const texto = (v, max = 200) => (typeof v === "string" && v.trim() ? v.trim().slice(0, max) : null);
+const fecha = (v) => (typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null);
+
+// PUT: guarda el contrato de un workspace Empresa o los datos bancarios.
+export async function PUT(request) {
+  const denied = await denySuperadmin();
+  if (denied) return denied;
+
+  const body = await request.json();
+  const admin = createAdminClient();
+  const ahora = new Date().toISOString();
+
+  if (body.tipo === "contrato") {
+    if (typeof body.workspace_id !== "string") return NextResponse.json({ error: "Falta workspace_id" }, { status: 400 });
+    const precio = body.precio === null || body.precio === "" ? null : Number(body.precio);
+    const usuarios = body.usuarios_contratados === null || body.usuarios_contratados === "" ? null : Number(body.usuarios_contratados);
+    if (precio !== null && !(Number.isFinite(precio) && precio >= 0)) return NextResponse.json({ error: "Precio inválido" }, { status: 400 });
+    if (usuarios !== null && !(Number.isInteger(usuarios) && usuarios > 0)) return NextResponse.json({ error: "Usuarios inválidos" }, { status: 400 });
+    // moneda / periodicidad / forma_pago los valida el CHECK de la tabla.
+    const { error } = await admin.from("contratos_empresa").upsert({
+      workspace_id: body.workspace_id,
+      precio,
+      moneda: body.moneda,
+      periodicidad: body.periodicidad,
+      forma_pago: body.forma_pago,
+      usuarios_contratados: usuarios,
+      inicio: fecha(body.inicio),
+      fin: fecha(body.fin),
+      notas: texto(body.notas, 2000),
+      activo: body.activo !== false,
+      updated_at: ahora,
+    });
+    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+    return NextResponse.json({ ok: true });
+  }
+
+  if (body.tipo === "transferencia") {
+    const { error } = await admin.from("datos_transferencia").upsert({
+      id: 1,
+      titular: texto(body.titular),
+      rut: texto(body.rut),
+      banco: texto(body.banco),
+      tipo_cuenta: texto(body.tipo_cuenta),
+      numero_cuenta: texto(body.numero_cuenta),
+      email_comprobantes: texto(body.email_comprobantes),
+      updated_at: ahora,
+    });
+    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+    return NextResponse.json({ ok: true });
+  }
+
+  return NextResponse.json({ error: "Tipo inválido" }, { status: 400 });
 }
 
 // PATCH: update ARCO request status
 export async function PATCH(request) {
-  const supabase = await createSupabaseServer();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (!SUPERADMIN_EMAIL || user.email !== SUPERADMIN_EMAIL) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const denied = await denySuperadmin();
+  if (denied) return denied;
 
   const { id, estado } = await request.json();
   if (!id || !estado) return NextResponse.json({ error: "Missing fields" }, { status: 400 });

@@ -6,6 +6,7 @@ import {
   ResponsiveContainer, LineChart, Line, BarChart, Bar,
   PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
 } from "recharts";
+import ContratosTab from "./ContratosTab";
 
 const TABS = [
   { key: "analytics",  label: "Analytics" },
@@ -13,6 +14,7 @@ const TABS = [
   { key: "arco",       label: "ARCO" },
   { key: "usuarios",   label: "Usuarios" },
   { key: "workspaces", label: "Workspaces" },
+  { key: "contratos",  label: "Contratos" },
 ];
 
 const COLORS = ["#273d88", "#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4", "#ec4899"];
@@ -365,6 +367,11 @@ export default function SuperadminDashboard() {
               </tbody>
             </table>
           </div>
+        )}
+
+        {/* ── CONTRATOS ── */}
+        {!loading && tab === "contratos" && data?.workspaces && (
+          <ContratosTab data={data} />
         )}
 
         {/* ── WORKSPACES ── */}
