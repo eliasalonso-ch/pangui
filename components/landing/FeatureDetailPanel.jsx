@@ -66,7 +66,7 @@ export const FEATURE_DETAIL = {
     label: "Procedimientos",
     titulo: "Un procedimiento es exactamente lo que usted necesite que sea.",
     intro:
-      "No es una lista de chequeo rígida. Usted arma el paso a paso con 20 tipos de campo y decide qué es obligatorio, qué se mide y qué se fotografía. El software se adapta a cómo trabaja su equipo, no al revés.",
+      "No es una lista de chequeo rígida. Usted arma el paso a paso con más de 15 tipos de campo y decide qué es obligatorio, qué se mide y qué se fotografía. El software se adapta a cómo trabaja su equipo, no al revés.",
     puntos: [
       [
         "Firma para cerrar la OT",
@@ -93,18 +93,18 @@ export const FEATURE_DETAIL = {
     ],
     cierre: "Reduce visitas fallidas por faltantes y mejora la planificación de compras.",
   },
-  cumplimiento: {
-    label: "Cumplimiento",
-    titulo: "Trazabilidad y control de acceso como parte del servicio.",
+  respaldo: {
+    label: "Cierre con respaldo",
+    titulo: "Cada OT cierra con la prueba de que se hizo.",
     intro:
-      "Operar con datos personales y evidencia de trabajo exige orden. Pangui incorpora lo mínimo necesario para hacerlo con responsabilidad, sin que sea un módulo aparte que alguien deba configurar.",
+      "Cuando el mandante pregunta qué se hizo, la respuesta ya está en la orden: quién fue, dónde, qué encontró y quién firmó la conformidad. Sin buscar fotos en WhatsApp ni papeles firmados en la camioneta.",
     puntos: [
-      ["Control por roles", "Cada persona ve y hace solo lo que su rol permite dentro del espacio de trabajo."],
-      ["Registro de actividad", "Quién hizo qué y cuándo, por orden y por usuario."],
-      ["Base legal publicada", "Política de privacidad y términos vigentes, con canal directo para ejercer derechos."],
-      ["Evidencia defendible", "Fotos, firmas y fechas asociadas al trabajo que respaldan ante el cliente."],
+      ["Firma de conformidad", "El cliente firma en el celular del técnico. Puede hacerla obligatoria para cerrar la OT."],
+      ["Evidencia fotográfica", "Fotos de referencia y de evidencia asociadas al trabajo, no a un chat."],
+      ["Ubicación exacta", "Cada trabajo queda ligado al edificio, piso o sala donde se ejecutó."],
+      ["Historial de actividad", "Quién hizo qué y cuándo, por orden y por usuario."],
     ],
-    cierre: "El cumplimiento queda incorporado al flujo, no improvisado al final.",
+    cierre: "Menos discusiones con el mandante y cobros respaldados desde el primer día.",
   },
 };
 

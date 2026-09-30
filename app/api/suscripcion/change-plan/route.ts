@@ -114,7 +114,8 @@ export async function POST(req: Request) {
         plan_key: planKey,
         flow_subscription_id: created.subscriptionId,
         flow_plan_id: newFlowPlanId,
-        price_per_user_clp: esFundador ? sub.price_per_user_clp : plan.pricePerUser,
+        // Solo el fundador tiene precio por usuario; el resto sale del catálogo.
+        price_per_user_clp: esFundador ? sub.price_per_user_clp : 0,
         status: estado,
         canceled_at: null,
         trial_end: null,
@@ -156,8 +157,8 @@ export async function POST(req: Request) {
   // No se toca Flow todavía: la suscripción sigue cobrando el plan actual hasta
   // la renovación, que es exactamente lo que queremos. El cambio se materializa
   // cuando llega el webhook del período siguiente.
-  const currentPlanPrice = planByKey(sub.plan_key).pricePerUser;
-  const isDowngrade = plan.pricePerUser < currentPlanPrice;
+  const currentPlanPrice = planByKey(sub.plan_key).basePrice;
+  const isDowngrade = plan.basePrice < currentPlanPrice;
 
   if (isDowngrade) {
     await admin.from("subscriptions").update({
@@ -185,9 +186,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: fe.message ?? "Error cambiando plan." }, { status: 502 });
   }
 
-  // Early customers keep their negotiated price even when switching tier.
-  // Anyone else snaps to the current catalog price for the new tier.
-  const newPrice = sub.is_early_customer ? sub.price_per_user_clp : plan.pricePerUser;
+  // Early customers keep their negotiated per-user price. Everyone else has no
+  // per-user price: base + extra users come from the catalog (0 here).
+  const newPrice = sub.is_early_customer ? sub.price_per_user_clp : 0;
 
   // Refresh period dates from Flow. changePlan may shift the billing cycle.
   const refreshed = await flow.getSubscription(sub.flow_subscription_id).catch(() => null);

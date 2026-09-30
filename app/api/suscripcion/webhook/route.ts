@@ -139,9 +139,10 @@ export async function POST(req: Request) {
         });
         updates.plan_key           = scheduledPlan.key;
         updates.flow_plan_id       = flowPlanId(scheduledPlan.key);
+        // Solo el fundador tiene precio por usuario; el resto sale del catálogo.
         updates.price_per_user_clp = existing.is_early_customer
           ? existing.price_per_user_clp
-          : scheduledPlan.pricePerUser;
+          : 0;
         updates.scheduled_plan_key = null;
         updates.scheduled_plan_at  = null;
 
@@ -170,13 +171,14 @@ export async function POST(req: Request) {
       workspaceId:      existing.workspace_id,
       subscriptionId:   existing.id,
       precioPorUsuario,
+      planKey:          (updates.plan_key as string | undefined) ?? existing.plan_key,
       status:           newStatus,
       periodStart:      sub.period_start ?? sub.subscription_start ?? null,
       periodEnd:        sub.period_end ?? null,
       nextInvoiceDate:  sub.next_invoice_date ?? null,
     });
 
-    // Mirror status onto usuarios (used by lib/planes.js for gating)
+    // Mirror status onto usuarios.plan / plan_status (legacy gating)
     const planStatus =
       newStatus === "active"   ? "active"   :
       newStatus === "trialing" ? "trial"    :

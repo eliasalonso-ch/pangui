@@ -13,8 +13,8 @@
  *
  * Este módulo es puro para poder probar los mensajes sin montar la pantalla.
  */
-import { planByKey, type PlanKey } from "./flow-plans";
-import { desglosarCobroSuscripcion, formatearCLP } from "./tributario";
+import { planByKey, costoMensual, type PlanKey } from "./flow-plans";
+import { desglosarCobroSuscripcion, desglosarNeto, formatearCLP } from "./tributario";
 
 export type TipoCambio = "subida" | "bajada" | "mismo";
 
@@ -45,11 +45,11 @@ export interface ResumenCambio {
   reversible:    boolean;
 }
 
-/** Compara dos planes por su precio de lista. */
+/** Compara dos planes por su precio base. */
 export function tipoDeCambio(planActual: string, planNuevo: string): TipoCambio {
   if (planActual === planNuevo) return "mismo";
-  const actual = planByKey(planActual).pricePerUser;
-  const nuevo  = planByKey(planNuevo).pricePerUser;
+  const actual = planByKey(planActual).basePrice;
+  const nuevo  = planByKey(planNuevo).basePrice;
   if (nuevo === actual) return "mismo";
   return nuevo > actual ? "subida" : "bajada";
 }
@@ -76,19 +76,18 @@ export function resumirCambio(ctx: ContextoCambio): ResumenCambio {
   const tipo    = tipoDeCambio(ctx.planActual, ctx.planNuevo);
   const actual  = planByKey(ctx.planActual);
   const nuevo   = planByKey(ctx.planNuevo);
-  const usuarios = Math.max(0, ctx.usuariosActivos);
+  const usuarios = Math.max(0, Math.trunc(ctx.usuariosActivos));
 
-  // Un cliente fundador conserva su precio negociado al cambiar de tier, así
-  // que el total no puede calcularse desde el catálogo. Ver change-plan.
-  const precioActual = ctx.precioPorUsuario && ctx.precioPorUsuario > 0
-    ? ctx.precioPorUsuario
-    : actual.pricePerUser;
-  const precioNuevo = ctx.precioPorUsuario && ctx.precioPorUsuario > 0
-    ? ctx.precioPorUsuario
-    : nuevo.pricePerUser;
+  // Un cliente fundador conserva su precio negociado por usuario al cambiar de
+  // tier, así que su total no sale del catálogo. El resto paga la base del plan
+  // más los usuarios que excedan los incluidos. Ver change-plan.
+  const fundador = Boolean(ctx.precioPorUsuario && ctx.precioPorUsuario > 0);
+  const total = (plan: typeof actual) => fundador
+    ? desglosarCobroSuscripcion(ctx.precioPorUsuario as number, usuarios).bruto
+    : desglosarNeto(costoMensual(plan, usuarios)).bruto;
 
-  const totalActual = desglosarCobroSuscripcion(precioActual, usuarios).bruto;
-  const totalNuevo  = desglosarCobroSuscripcion(precioNuevo, usuarios).bruto;
+  const totalActual = total(actual);
+  const totalNuevo  = total(nuevo);
 
   if (tipo === "subida") {
     return {

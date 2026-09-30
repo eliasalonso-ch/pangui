@@ -20,7 +20,6 @@
  *   FLOW_COUPON_EARLY_CUSTOMER=<id>
  */
 import { config } from "dotenv";
-import { planByKey } from "../lib/flow-plans";
 
 // `lib/flow` lee FLOW_API_KEY / FLOW_SECRET_KEY al importarse, así que el .env
 // tiene que cargarse antes. Por eso el import de flow es dinámico más abajo:
@@ -28,7 +27,10 @@ import { planByKey } from "../lib/flow-plans";
 // HMAC revienta con "key must be of type string... Received undefined".
 config({ path: ".env.local" });
 
-const LIST_PRICE = planByKey("pro").pricePerUser; // 9990
+// Precio de lista por usuario de Pro cuando se creó el cupón (modelo por
+// usuario, 2026-09). El catálogo ya no tiene precio por usuario: Pro es una
+// base con usuarios incluidos, y este cupón no aplica a ese modelo.
+const LIST_PRICE = 9990;
 const EARLY_PRICE = 3990;
 const DISCOUNT = LIST_PRICE - EARLY_PRICE;
 

@@ -32,11 +32,14 @@ vi.mock("@/app/api/suscripcion/_helpers", () => ({
   }),
 }));
 
-import { syncSubscriptionToUserCount, itemUsuariosExtra } from "@/lib/flow-sync";
+import { syncSubscriptionToUserCount, itemUsuariosExtra, extrasDelCobro } from "@/lib/flow-sync";
+import { planByKey } from "@/lib/flow-plans";
 
+// La mecánica de ítems se prueba con un cliente fundador (precio por usuario):
+// es el caso que ejercita todas las ramas de reconciliación con 10 usuarios.
 const subCobrada = {
   id: "s1", flow_subscription_id: "sus_x", status: "active",
-  plan_key: "pro", price_per_user_clp: 3990,
+  plan_key: "pro", is_early_customer: true, price_per_user_clp: 3990,
 };
 // 3990 neto → 4748 bruto, que es lo que Flow tiene que cobrar por usuario.
 const ITEM_4748 = { id: 970, name: "Usuario adicional", amount: 4748, currency: "CLP", status: 1 };
@@ -145,6 +148,37 @@ describe("syncSubscriptionToUserCount", () => {
     });
     await expect(itemUsuariosExtra(9, 4748)).resolves.toEqual({ id: 843 });
     expect(flowMock.createSubscriptionItem).not.toHaveBeenCalled();
+  });
+
+  // Plan de catálogo: la base cubre los incluidos y solo el excedente va al ítem.
+  it("plan de catálogo: cobra aparte solo los usuarios sobre los incluidos", async () => {
+    estado.sub = { ...subCobrada, is_early_customer: false, price_per_user_clp: 0 };
+    estado.usuarios = 12; // Pro incluye 10 → 2 adicionales a $10.000 neto
+    const ITEM_11900 = { id: 971, name: "Usuario adicional", amount: 11_900, currency: "CLP", status: 1 };
+    flowMock.listSubscriptionItemCatalog.mockResolvedValue({ data: [ITEM_11900] });
+
+    await syncSubscriptionToUserCount("ws");
+
+    expect(flowMock.addSubscriptionItem).toHaveBeenCalledWith({ subscriptionId: "sus_x", itemId: 971 });
+    expect(flowMock.updateSubscriptionItem).toHaveBeenCalledWith({ subscriptionId: "sus_x", itemId: 971, quantity: 2 });
+  });
+
+  it("plan de catálogo dentro de lo incluido: sin ítem", async () => {
+    estado.sub = { ...subCobrada, is_early_customer: false, price_per_user_clp: 0 };
+    estado.usuarios = 10;
+    flowMock.getSubscription.mockResolvedValue({ items: [{ item_id: 971, quantity: 2 }] });
+
+    await syncSubscriptionToUserCount("ws");
+
+    expect(flowMock.removeSubscriptionItem).toHaveBeenCalledWith({ subscriptionId: "sus_x", itemId: 971 });
+    expect(flowMock.addSubscriptionItem).not.toHaveBeenCalled();
+  });
+
+  it("extrasDelCobro: catálogo vs fundador", () => {
+    const esencial = planByKey("esencial");
+    expect(extrasDelCobro(esencial, null, 7)).toEqual({ cantidad: 2, precioNeto: 8000 });
+    expect(extrasDelCobro(esencial, null, 3)).toEqual({ cantidad: 0, precioNeto: 8000 });
+    expect(extrasDelCobro(esencial, 3990, 7)).toEqual({ cantidad: 6, precioNeto: 3990 });
   });
 
   it("un fallo de Flow no se propaga al llamador", async () => {

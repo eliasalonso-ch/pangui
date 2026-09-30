@@ -15,7 +15,7 @@ import { NextResponse } from "next/server";
 import { adminSupabase } from "../../_helpers";
 import { flow, FlowError } from "@/lib/flow";
 import { flowPlanId, planByKey, type PlanKey } from "@/lib/flow-plans";
-import { syncSubscriptionToUserCount, usuariosExtra, itemUsuariosExtra } from "@/lib/flow-sync";
+import { syncSubscriptionToUserCount, usuariosCobrables, extrasDelCobro, itemUsuariosExtra } from "@/lib/flow-sync";
 import { montoParaFlow } from "@/lib/tributario";
 import { estadoDesdeFlow } from "@/lib/flow-status";
 import { registrarPeriodoFacturado } from "@/lib/dte/registrar-periodo";
@@ -136,10 +136,10 @@ async function handle(req: Request) {
       .neq("status", "canceled")
       .maybeSingle();
 
-    // Un cliente fundador conserva su precio negociado. Este callback es el
-    // camino real con cargo automático, y escribía el precio de catálogo
-    // (y no adjuntaba el cupón), dejando al fundador a precio de lista.
-    const { esFundador, precio } = precioEfectivo(existingSub, plan.pricePerUser);
+    // Un cliente fundador conserva su precio negociado por usuario. El resto
+    // no tiene precio por usuario: paga la base del plan más los adicionales,
+    // ambos del catálogo, así que se guarda 0.
+    const { esFundador, precio } = precioEfectivo(existingSub, 0);
 
     // Una suscripción cancelada al fin del período sigue "active" localmente
     // pero su mandato en Flow ya no cobra: hay que crear uno nuevo, no
@@ -158,7 +158,8 @@ async function handle(req: Request) {
 
     // Usuarios extra que hay que reflejar en el cobro. Se cuentan ANTES de
     // crear la suscripción porque determinan cómo se crea (ver abajo).
-    const extras = await usuariosExtra(admin, workspaceId);
+    const cobrables = await usuariosCobrables(admin, workspaceId);
+    const { cantidad: extras, precioNeto } = extrasDelCobro(plan, esFundador ? precio : null, cobrables);
 
     if (!flowSubId) {
       // El primer cobro tiene que incluir a los usuarios extra, y Flow emite
@@ -177,7 +178,7 @@ async function handle(req: Request) {
       // Verificado: plan $9.990 + ítem de $42.732 → factura inmediata de
       // $52.722.
       const item = extras > 0
-        ? await itemUsuariosExtra(extras, montoParaFlow(precio))
+        ? await itemUsuariosExtra(extras, montoParaFlow(precioNeto))
         : null;
 
       const created = await flow.createSubscription({
@@ -285,6 +286,7 @@ async function handle(req: Request) {
         workspaceId,
         subscriptionId:   subRow.id,
         precioPorUsuario: precio,
+        planKey,
         status:           estado,
         periodStart:      flowSub?.period_start ?? null,
         periodEnd:        flowSub?.period_end ?? null,

@@ -21,6 +21,7 @@ function fakeAdmin(opciones: {
         const cadena = {
           select: () => cadena,
           eq: () => cadena,
+          neq: () => cadena,
           is: () => Promise.resolve({ count: usuarios }),
         };
         return cadena;
@@ -131,6 +132,31 @@ describe("registrarPeriodoFacturado", () => {
     const { admin, capturado } = fakeAdmin();
     expect(await registrarPeriodoFacturado(admin, { ...ctxBase, precioPorUsuario: 0 })).toBeNull();
     expect(capturado.documento).toBeUndefined();
+  });
+
+  it("plan de catálogo: factura base + usuarios sobre los incluidos", async () => {
+    const { admin, capturado } = fakeAdmin({ usuarios: 12 });
+    const id = await registrarPeriodoFacturado(admin, { ...ctxBase, precioPorUsuario: 0, planKey: "pro" });
+    expect(id).toBe("doc-9");
+    // Pro: $129.000 + 2 × $10.000 = $149.000 neto; con IVA, $177.310.
+    expect(capturado.documento?.neto_clp).toBe(149_000);
+    expect(capturado.documento?.total_clp).toBe(177_310);
+    expect(capturado.documento?.usuarios_facturados).toBe(12);
+  });
+
+  it("plan de catálogo dentro de lo incluido: factura solo la base", async () => {
+    const { admin, capturado } = fakeAdmin({ usuarios: 4 });
+    await registrarPeriodoFacturado(admin, { ...ctxBase, precioPorUsuario: 0, planKey: "esencial" });
+    expect(capturado.documento?.neto_clp).toBe(59_000);
+    expect(capturado.documento?.total_clp).toBe(70_210);
+  });
+
+  it("no factura Basic ni Empresa por la plataforma", async () => {
+    for (const planKey of ["basic", "enterprise"]) {
+      const { admin, capturado } = fakeAdmin();
+      expect(await registrarPeriodoFacturado(admin, { ...ctxBase, precioPorUsuario: 0, planKey })).toBeNull();
+      expect(capturado.documento).toBeUndefined();
+    }
   });
 
   it("no factura un workspace sin usuarios cobrables", async () => {

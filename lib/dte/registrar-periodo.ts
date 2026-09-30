@@ -13,11 +13,15 @@
 import { EmisorManual, DocumentoDuplicadoError, type ClienteAdmin } from "./emisor";
 import { periodoAFacturar, type EntradaPeriodo } from "./periodo-facturable";
 import { tipoDtePara, type TipoReceptor } from "./tipos";
+import { planByKey, costoMensual } from "@/lib/flow-plans";
 
 export interface ContextoPeriodo extends EntradaPeriodo {
   workspaceId:      string;
   subscriptionId:   string;
+  /** Solo clientes fundadores: precio pactado por usuario. 0 para el resto. */
   precioPorUsuario: number;
+  /** Plan del período: base + usuarios adicionales (ver lib/flow-plans.ts). */
+  planKey?:         string | null;
   flowInvoiceId?:   string | null;
 }
 
@@ -32,14 +36,17 @@ export async function registrarPeriodoFacturado(
   const periodo = periodoAFacturar(ctx);
   if (!periodo) return null;
 
-  if (!ctx.precioPorUsuario || ctx.precioPorUsuario <= 0) {
+  // Fundador: precio pactado por usuario. Resto: base del plan + adicionales.
+  const fundador = ctx.precioPorUsuario > 0;
+  const plan = !fundador && ctx.planKey ? planByKey(ctx.planKey) : null;
+  if (!fundador && (!plan || plan.key === "enterprise" || plan.basePrice <= 0)) {
     // Plan gratis o enterprise facturado fuera de la plataforma.
     return null;
   }
 
   try {
-    // Usuarios cobrados: los mismos criterios que lib/flow-sync.ts usa para
-    // calcular el cargo. Si esto divergiera, la factura no cuadraría con lo
+    // Usuarios cobrados: los mismos criterios que usuariosCobrables en
+    // lib/flow-sync.ts. Si esto divergiera, la factura no cuadraría con lo
     // que Flow cobró.
     const { count } = await admin
       .from("usuarios")
@@ -47,10 +54,13 @@ export async function registrarPeriodoFacturado(
       .eq("workspace_id", ctx.workspaceId)
       .eq("activo", true)
       .eq("excluir_de_facturacion", false)
+      .neq("rol", "requester")
       .is("deleted_at", null);
 
     const usuarios = count ?? 0;
-    if (usuarios === 0) return null;
+    // Con precio por usuario, cero usuarios es cero cobro. Con base, la base
+    // se paga igual.
+    if (fundador && usuarios === 0) return null;
 
     const { data: perfil } = await admin
       .from("billing_profiles")
@@ -70,7 +80,10 @@ export async function registrarPeriodoFacturado(
       periodoInicio:      periodo.periodoInicio,
       periodoFin:         periodo.periodoFin,
       usuariosFacturados: usuarios,
-      precioUnitarioClp:  ctx.precioPorUsuario,
+      // Con plan de catálogo el unitario de referencia es el del usuario
+      // adicional; el monto real va en netoClp.
+      precioUnitarioClp:  fundador ? ctx.precioPorUsuario : plan!.extraUserPrice,
+      netoClp:            fundador ? undefined : costoMensual(plan!, usuarios),
       flowInvoiceId:      ctx.flowInvoiceId ?? null,
       receptor: {
         rut:         String(perfil?.rut ?? ""),

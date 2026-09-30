@@ -29,7 +29,8 @@ interface Props {
   status: string;
   statusLabel: string;
   renewalDate: string | null;
-  unitPrice: number;
+  /** Cómo se compone el precio: "Base $129.000 + IVA al mes · incluye 10 usuarios". */
+  priceDetail: string;
   totalPrice: number;
   activeUsers: number;
   cardBrand: string | null;
@@ -181,7 +182,7 @@ export function SubscriptionOverview(props: Props) {
                     <Cell>{date(props.renewalDate)}</Cell>
                     {/* El precio de lista es neto; se muestra el total con IVA
                         porque es lo que se le cobra a la tarjeta. */}
-                    <Cell><strong>{money(desglosarNeto(props.totalPrice).bruto)}/mes</strong><span style={subtext}>{money(props.unitPrice)} + IVA por usuario</span></Cell>
+                    <Cell><strong>{money(desglosarNeto(props.totalPrice).bruto)}/mes</strong><span style={subtext}>{props.priceDetail}</span></Cell>
                   </tr>
                 </tbody>
               </table>
