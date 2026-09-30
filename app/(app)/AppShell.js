@@ -9,6 +9,7 @@ import { TopBarActionsProvider } from "@/components/TopBarActions";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { StoreBadges } from "@/components/StoreBadges";
 import PushActivationPrompt from "@/components/PushActivationPrompt";
+import { OnboardingObligatorio } from "@/components/OnboardingObligatorio";
 
 function applyStoredTheme() {
   const stored = localStorage.getItem("pangui_theme");
@@ -143,6 +144,8 @@ export default function AppShell({ children }) {
   return (
     <>
       {tooNarrow && <MobileWall />}
+      {/* Full-screen until a freshly signed-up owner finishes setup. */}
+      <OnboardingObligatorio />
       <SidebarProvider>
         <AppSidebar />
         <SidebarInset>

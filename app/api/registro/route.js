@@ -2,6 +2,14 @@
  * POST /api/registro
  * Crea usuario en Supabase Auth + planta + perfil en un solo request.
  * Usa service role para evitar exponer credenciales admin al cliente.
+ *
+ * Dos formas de llamarlo:
+ *  - Web (/registro): solo nombre, email, password y terms_accepted. El
+ *    workspace nace como "Mi empresa" con onboarding_pendiente = true y el
+ *    dueño completa empresa, industria y logo dentro del dashboard
+ *    (components/OnboardingObligatorio.tsx).
+ *  - App móvil: manda además empresa_nombre, cargo, etc. Se mantiene tal cual
+ *    porque hay versiones instaladas que lo usan.
  */
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
@@ -25,11 +33,17 @@ export async function POST(req) {
     sector,
     tamaño_equipo,
     region,
+    terms_accepted,
   } = await req.json();
 
+  const registroMinimo = !empresa_nombre;
+
   // Validación básica
-  if (!nombre || !email || !password || !empresa_nombre) {
+  if (!nombre?.trim() || !email || !password) {
     return NextResponse.json({ error: "Faltan campos obligatorios." }, { status: 400 });
+  }
+  if (registroMinimo && terms_accepted !== true) {
+    return NextResponse.json({ error: "Debes aceptar los Términos y la Política de Privacidad." }, { status: 400 });
   }
   if (password.length < 8) {
     return NextResponse.json({ error: "La contraseña debe tener al menos 8 caracteres." }, { status: 400 });
@@ -40,7 +54,10 @@ export async function POST(req) {
     email: email.trim().toLowerCase(),
     password,
     email_confirm: true,
-    user_metadata: { nombre },
+    user_metadata: {
+      nombre: nombre.trim(),
+      ...(terms_accepted === true && { terms_accepted_at: new Date().toISOString() }),
+    },
   });
 
   if (authError) {
@@ -56,9 +73,10 @@ export async function POST(req) {
   const { data: workspace, error: workspaceError } = await admin
     .from("workspaces")
     .insert({
-      nombre: empresa_nombre.trim(),
+      nombre: registroMinimo ? "Mi empresa" : empresa_nombre.trim(),
       sector: sector ?? null,
       region: region ?? null,
+      onboarding_pendiente: registroMinimo,
     })
     .select("id")
     .single();

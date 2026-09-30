@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { SECTORES } from "@/lib/sectores";
+import { LOGO_MAX_BYTES, subirLogoWorkspace } from "@/lib/workspace-logo";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase";
 import { ROL_LABEL, esAdmin } from "@/lib/roles";
@@ -36,20 +38,6 @@ const PLAN_LABEL: Record<string, string> = {
   empresa: "Empresa",
   trial:   "Trial",
 };
-
-// Debe coincidir con app/registro/page.js: el registro guarda el slug
-// ("facilities"), no la etiqueta. Con dos listas distintas el select aparecía
-// vacío para workspaces existentes y al editar cualquier campo se pisaba el
-// slug con un texto que el resto del sistema no reconoce.
-const SECTORES = [
-  { value: "mineria",      label: "Minería" },
-  { value: "facilities",   label: "Facilities / Universidades / Hospitales" },
-  { value: "industria",    label: "Industria manufacturera" },
-  { value: "construccion", label: "Construcción" },
-  { value: "puertos",      label: "Puertos y logística" },
-  { value: "agro",         label: "Agricultura" },
-  { value: "otro",         label: "Otro" },
-];
 
 const SECTION_TITLES: Record<ConfiguracionSection, string> = {
   perfil: "Mi cuenta",
@@ -428,19 +416,11 @@ export default function ConfiguracionPage({ section }: { section?: Configuracion
   async function handleLogoUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file || !workspaceId) return;
-    if (file.size > 2 * 1024 * 1024) { setLogoError("El archivo no puede superar 2 MB."); return; }
+    if (file.size > LOGO_MAX_BYTES) { setLogoError("El archivo no puede superar 2 MB."); return; }
     setLogoError(null);
     setUploadingLogo(true);
     try {
-      const sb = createClient();
-      const ext = file.name.split(".").pop() ?? "png";
-      const path = `${workspaceId}/logo.${ext}`;
-      const { error: upErr } = await sb.storage.from("workspace-logos").upload(path, file, { upsert: true, contentType: file.type });
-      if (upErr) throw upErr;
-      const { data: { publicUrl } } = sb.storage.from("workspace-logos").getPublicUrl(path);
-      const urlWithBust = `${publicUrl}?t=${Date.now()}`;
-      await sb.from("workspaces").update({ logo_url: urlWithBust }).eq("id", workspaceId);
-      setLogoUrl(urlWithBust);
+      setLogoUrl(await subirLogoWorkspace(workspaceId, file));
       setLogoSaved(true);
       setTimeout(() => setLogoSaved(false), 2500);
     } catch (err: unknown) {

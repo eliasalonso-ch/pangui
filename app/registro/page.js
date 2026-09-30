@@ -1,118 +1,31 @@
 "use client";
 import { MARKETING_URL, marketingUrl } from "@/lib/app-urls";
-import { Suspense, useState, useEffect } from "react";
+import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase";
-import {
-  ArrowLeft, ArrowRight, CheckCircle2,
-  User, Mail, Lock, Building2, Briefcase, Users, MapPin, Layers, Wrench,
-  Eye, EyeOff, Loader2, Sparkles,
-} from "lucide-react";
+import { ArrowRight, Check, Eye, EyeOff, Loader2, Lock, Mail, Sparkles, User } from "lucide-react";
 import { PLANS } from "@/lib/flow-plans";
-import { LandingNav } from "../Landing";
 import PublicPageTheme from "@/components/PublicPageTheme";
+import { ONBOARDING_FLAG } from "@/components/OnboardingObligatorio";
+import "../landing.css";
 
-const SECTORES = [
-  { value: "mineria", label: "Minería" },
-  { value: "facilities", label: "Facilities / Universidades / Hospitales" },
-  { value: "industria", label: "Industria manufacturera" },
-  { value: "construccion", label: "Construcción" },
-  { value: "puertos", label: "Puertos y logística" },
-  { value: "agro", label: "Agricultura" },
-  { value: "otro", label: "Otro" },
-];
+// Layout after MaintainX's signup: logo + login link on top, one centered card
+// over a diagonal brand band. Everything inside the card is 14px.
+const BENEFICIOS = ["30 días de Pro gratis", "Sin tarjeta de crédito", "Configuración en minutos"];
 
-const TAMANOS = [
-  { value: "1-5", label: "1 - 5 técnicos" },
-  { value: "6-15", label: "6 - 15 técnicos" },
-  { value: "16-40", label: "16 - 40 técnicos" },
-  { value: "40+", label: "Más de 40 técnicos" },
-];
-
-const REGIONES = [
-  "Arica y Parinacota", "Tarapacá", "Antofagasta", "Atacama",
-  "Coquimbo", "Valparaíso", "Metropolitana de Santiago",
-  "Libertador Gral. Bernardo O'Higgins", "Maule", "Ñuble",
-  "Biobío", "La Araucanía", "Los Ríos", "Los Lagos",
-  "Aysén", "Magallanes",
-];
-
-const FEATURES = [
-  "Órdenes de trabajo en tiempo real",
-  "Procedimientos, fotos y firma digital",
-  "Inventario y alertas de stock crítico",
-  "Reportes PDF, Excel y analítica Pro",
-];
-
-const inputStyle = {
-  width: "100%",
-  height: 42,
-  padding: "0 12px 0 38px",
-  border: "1px solid #E2E8F0",
-  borderRadius: 8,
-  fontSize: 14,
-  fontFamily: "inherit",
-  color: "#0F172A",
-  background: "#FFFFFF",
-  outline: "none",
-  boxSizing: "border-box",
-  transition: "border-color 0.12s, box-shadow 0.12s",
-};
-
-const selectStyle = {
-  width: "100%",
-  height: 42,
-  padding: "0 12px",
-  border: "1px solid #E2E8F0",
-  borderRadius: 8,
-  fontSize: 14,
-  fontFamily: "inherit",
-  color: "#0F172A",
-  background: "#FFFFFF",
-  outline: "none",
-  boxSizing: "border-box",
-  cursor: "pointer",
-  appearance: "none",
-  transition: "border-color 0.12s, box-shadow 0.12s",
-};
-
-const labelStyle = {
-  display: "block",
-  fontSize: 12,
-  fontWeight: 600,
-  color: "#64748B",
-  marginBottom: 6,
-};
-
-function focusInput(e) {
-  e.currentTarget.style.borderColor = "#2563EB";
-  e.currentTarget.style.boxShadow = "0 0 0 3px rgba(37,99,235,0.15)";
-}
-
-function blurInput(e) {
-  e.currentTarget.style.borderColor = "#E2E8F0";
-  e.currentTarget.style.boxShadow = "none";
-}
+const inputClass =
+  "h-12 w-full rounded-lg border border-[#D6DCE5] bg-white pl-11 pr-3 text-[14px] text-[#0A0B0D] outline-none transition-[border-color,box-shadow] placeholder:text-[#94A3B8] focus:border-[#273D88] focus:ring-4 focus:ring-[#273D88]/15";
 
 function Field({ icon: Icon, label, children }) {
   return (
-    <div>
-      <label style={labelStyle}>{label}</label>
-      <div style={{ position: "relative" }}>
-        {Icon && (
-          <Icon size={15} style={{
-            position: "absolute",
-            left: 12,
-            top: "50%",
-            transform: "translateY(-50%)",
-            color: "#94A3B8",
-            pointerEvents: "none",
-          }} />
-        )}
+    <label className="block">
+      <span className="mb-2 block text-[14px] font-semibold text-[#0A0B0D]">{label}</span>
+      <span className="relative block">
+        <Icon size={17} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[#64748B]" />
         {children}
-      </div>
-    </div>
+      </span>
+    </label>
   );
 }
 
@@ -132,66 +45,31 @@ function RegistroPageInner() {
   const requestedPlan = search.get("plan");
   const requestedPlanDef = PLANS.find(p => p.key === requestedPlan && p.selfServe);
 
-  const [step, setStep] = useState(1);
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
+  // Only what's needed to get in. Company, industry and logo are asked inside
+  // the dashboard by components/OnboardingObligatorio.tsx.
   const [nombre, setNombre] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [aceptaTerminos, setAceptaTerminos] = useState(false);
 
-  const [empresaNombre, setEmpresaNombre] = useState("");
-  const [cargoId, setCargoId] = useState("");
-  const [oficioId, setOficioId] = useState("");
-  const [sector, setSector] = useState("");
-  const [tamanoEquipo, setTamanoEquipo] = useState("");
-  const [region, setRegion] = useState("");
-
-  // Cargos + oficios fetched from the canonical DB catalog (workspace_id IS NULL).
-  // Avoids the historical mismatch where hardcoded form options didn't align
-  // with the rows the rest of the app reads from cargos / oficios tables.
-  const [cargos, setCargos] = useState([]);
-  const [oficios, setOficios] = useState([]);
-
-  useEffect(() => {
-    let cancelled = false;
-    fetch("/api/catalogos/cargos-oficios")
-      .then(r => r.ok ? r.json() : { cargos: [], oficios: [] })
-      .then(j => {
-        if (cancelled) return;
-        setCargos(j.cargos ?? []);
-        setOficios(j.oficios ?? []);
-      })
-      .catch(() => {});
-    return () => { cancelled = true; };
-  }, []);
-
-  function validateStep1() {
+  function validate() {
     if (!nombre.trim()) return "Ingresa tu nombre completo.";
     if (!email.trim() || !email.includes("@")) return "Ingresa un correo válido.";
     if (password.length < 8) return "La contraseña debe tener al menos 8 caracteres.";
+    if (!aceptaTerminos) return "Debes aceptar los Términos y la Política de Privacidad.";
     return null;
-  }
-
-  function handleNext(e) {
-    e.preventDefault();
-    const err = validateStep1();
-    if (err) { setError(err); return; }
-    setError(null);
-    setStep(2);
   }
 
   async function handleSubmit(e) {
     e.preventDefault();
-    if (!empresaNombre.trim()) { setError("Ingresa el nombre de tu empresa."); return; }
+    const err = validate();
+    if (err) { setError(err); return; }
     setError(null);
     setLoading(true);
-
-    // Look up the picked cargo / oficio so we can ALSO send the human-readable
-    // name (back-compat for the legacy text columns).
-    const cargoRow  = cargos.find(c => c.id === cargoId)   ?? null;
-    const oficioRow = oficios.find(o => o.id === oficioId) ?? null;
 
     try {
       const res = await fetch("/api/registro", {
@@ -201,14 +79,7 @@ function RegistroPageInner() {
           nombre: nombre.trim(),
           email: email.trim().toLowerCase(),
           password,
-          empresa_nombre: empresaNombre.trim(),
-          cargo_id:    cargoId  || null,
-          cargo:       cargoRow?.nombre  ?? null,
-          oficio_id:   oficioId || null,
-          oficio:      oficioRow?.nombre ?? null,
-          sector:        sector || null,
-          tamaño_equipo: tamanoEquipo || null,
-          region:        region || null,
+          terms_accepted: true,
           // Surface the intent so the API can use it for routing post-signup
           requested_plan: requestedPlanDef?.key ?? null,
         }),
@@ -233,6 +104,10 @@ function RegistroPageInner() {
         return;
       }
 
+      // Lets the setup screen cover the dashboard from its first paint instead
+      // of showing it until the onboarding check comes back.
+      try { localStorage.setItem(ONBOARDING_FLAG, "1"); } catch { /* storage blocked */ }
+
       // If the user came from /precios with a specific plan in mind, drop them
       // on the subscription page so they can activate the card right away.
       // Otherwise go to /inicio with a welcome=trial toast.
@@ -247,358 +122,125 @@ function RegistroPageInner() {
     }
   }
 
-  const progressPct = step === 1 ? 50 : 100;
+  const fuerza = password.length >= 12 ? 2 : password.length >= 8 ? 1 : 0;
 
   return (
-    <div style={{
-      display: "flex",
-      width: "100%",
-      minHeight: "100dvh",
-      background: "#F8FAFC",
-      fontFamily: 'var(--font-sans, "Geist"), system-ui, sans-serif',
-    }}>
+    <div className="landing-root relative flex min-h-dvh flex-col overflow-hidden bg-[#F6F8FB] font-sans text-[#0A0B0D]">
       <PublicPageTheme />
-      <LandingNav mobileOnly />
+      {/* Diagonal brand band behind the lower half of the card. */}
       <div
-        className="registro-left-panel"
-        style={{
-          display: "none",
-          flexDirection: "column",
-          justifyContent: "space-between",
-          width: "52%",
-          minHeight: "100vh",
-          background: "linear-gradient(160deg, #0F172A 0%, #1E3A8A 55%, #2563EB 100%)",
-          padding: "44px 56px",
-          position: "relative",
-          overflow: "hidden",
-        }}
-      >
-        <div style={{
-          position: "absolute", inset: 0, pointerEvents: "none",
-          backgroundImage: "radial-gradient(rgba(255,255,255,0.07) 1px, transparent 1px)",
-          backgroundSize: "28px 28px",
-        }} />
-        <div style={{ position: "absolute", top: -140, right: -140, width: 520, height: 520, borderRadius: "50%", border: "1px solid rgba(255,255,255,0.06)", pointerEvents: "none" }} />
-        <div style={{ position: "absolute", bottom: -100, left: -100, width: 360, height: 360, borderRadius: "50%", border: "1px solid rgba(255,255,255,0.05)", pointerEvents: "none" }} />
+        aria-hidden
+        className="absolute inset-x-0 bottom-0 h-[52%] bg-[linear-gradient(160deg,#0f172a_0%,#1e3a8a_55%,#2563eb_100%)] [clip-path:polygon(0_100%,0_38%,16%_0,100%_0,100%_100%)] max-md:[clip-path:polygon(0_100%,0_12%,100%_0,100%_100%)]"
+      />
 
-        <div style={{ position: "relative", zIndex: 1, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
-          <a href={MARKETING_URL} aria-label="Pangui - inicio" style={{ display: "inline-flex" }}>
-            <img src="/logo6.svg" alt="Pangui" style={{ height: 28, width: "auto" }} />
-          </a>
-        </div>
-
-        <div style={{ position: "relative", zIndex: 1 }}>
-          <span style={{
-            display: "inline-block",
-            fontSize: 11,
-            fontWeight: 700,
-            color: "rgba(255,255,255,0.6)",
-            textTransform: "uppercase",
-            letterSpacing: "0.12em",
-            borderLeft: "3px solid rgba(255,255,255,0.4)",
-            paddingLeft: 10,
-            marginBottom: 28,
-          }}>
-            Pro gratis por 30 días
-          </span>
-          <h1 style={{
-            fontSize: "clamp(1.9rem, 2.8vw, 2.8rem)",
-            fontWeight: 900,
-            color: "#FFFFFF",
-            lineHeight: 1.1,
-            letterSpacing: "-0.03em",
-            margin: "0 0 20px",
-          }}>
-            Tu equipo de mantención,<br />digitalizado en minutos.
-          </h1>
-          <p style={{ fontSize: 15, color: "rgba(255,255,255,0.5)", lineHeight: 1.75, maxWidth: 390, margin: "0 0 44px" }}>
-            Crea tu workspace y prueba todas las funciones Pro sin ingresar tarjeta de crédito.
-          </p>
-          <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
-            {FEATURES.map((feature) => (
-              <li key={feature} style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14, fontSize: 14, color: "rgba(255,255,255,0.75)" }}>
-                <CheckCircle2 size={16} style={{ color: "#10B981", flexShrink: 0 }} />
-                {feature}
-              </li>
-            ))}
-          </ul>
-        </div>
-
-        <div />
-      </div>
-
-      <div className="registro-mobile-bar" style={{
-        position: "fixed",
-        top: 0,
-        left: 0,
-        right: 0,
-        zIndex: 10,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        gap: 16,
-        padding: "14px 24px",
-        background: "#1E3A8A",
-        borderBottom: "1px solid rgba(255,255,255,0.1)",
-      }}>
-        <a href={MARKETING_URL} aria-label="Ir al inicio de Pangui" style={{ display: "inline-flex" }}>
-          <img src="/logo2.svg" alt="Pangui" style={{ height: 24, width: "auto", filter: "brightness(0) invert(1)" }} />
+      <header className="relative z-10 flex items-center justify-between gap-4 px-4 py-5 md:px-12 md:py-7">
+        <a href={MARKETING_URL} aria-label="Pangui - inicio" className="inline-flex">
+          <img src="/logo2.svg" alt="Pangui" width={120} height={32} className="h-7 w-auto md:h-8" />
         </a>
-      </div>
+        <div className="flex items-center gap-4 text-[14px]">
+          <span className="hidden text-[#475569] sm:inline">¿Ya tienes cuenta?</span>
+          <Link
+            href="/login"
+            className="inline-flex h-10 items-center rounded-full border-2 border-[#273D88] px-5 font-semibold text-[#273D88] transition-colors hover:bg-[#273D88] hover:text-white"
+          >
+            Iniciar sesión
+          </Link>
+        </div>
+      </header>
 
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", background: "#F8FAFC", minHeight: "100dvh" }}>
-        <div className="registro-form-area" style={{
-          flex: 1,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          padding: "96px 16px 32px",
-        }}>
-          <div style={{
-            width: "100%",
-            maxWidth: 420,
-            background: "#FFFFFF",
-            borderRadius: 16,
-            padding: "28px 24px",
-            boxSizing: "border-box",
-            boxShadow: "0 10px 40px rgba(15,23,42,0.10), 0 1px 3px rgba(15,23,42,0.06)",
-            border: "1px solid #E2E8F0",
-          }}>
-            <div style={{ marginBottom: 26 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-                <span style={{ fontSize: 11, fontWeight: 700, color: "#64748B", textTransform: "uppercase", letterSpacing: "0.1em" }}>
-                  Paso {step} de 2
-                </span>
-                <span style={{ fontSize: 11, color: "#94A3B8" }}>{progressPct}%</span>
-              </div>
-              <div style={{ height: 3, background: "#E2E8F0", borderRadius: 999 }}>
-                <div style={{ height: "100%", width: `${progressPct}%`, background: "#2563EB", borderRadius: 999, transition: "width 0.4s ease" }} />
-              </div>
-            </div>
+      <main className="relative z-10 flex flex-1 flex-col items-center justify-center px-4 pb-10 pt-4 md:pb-16">
+        <div className="w-full max-w-[560px] rounded-2xl bg-white p-6 shadow-[0_20px_60px_rgba(15,23,42,0.14)] md:p-10">
+          <h1 className="font-display text-[30px] font-bold leading-[1.1] tracking-[-0.03em] md:text-[34px]">
+            Crea tu cuenta
+          </h1>
+          <p className="mt-2 text-[14px] text-[#475569]">
+            Empieza a respaldar cada trabajo hoy. 30 días de Pro gratis, sin tarjeta.
+          </p>
 
-            <div style={{ marginBottom: 28 }}>
-              <h2 style={{
-                fontSize: 24,
-                fontWeight: 800,
-                color: "#0F172A",
-                margin: "0 0 6px",
-                letterSpacing: "-0.025em",
-              }}>
-                {step === 1 ? "Comienza tu prueba gratis" : "Cuéntanos sobre tu equipo"}
-              </h2>
-              <p style={{ color: "#475569", fontSize: 14, margin: 0, lineHeight: 1.55 }}>
-                {step === 1
-                  ? "30 días de Pro gratis. Sin tarjeta de crédito."
-                  : "Esto nos ayuda a configurar tu workspace."}
+          {requestedPlanDef && (
+            <div className="mt-6 flex items-start gap-2.5 rounded-lg border border-[#BFDBFE] bg-[#EFF6FF] px-3.5 py-3 text-[14px] leading-[1.45] text-[#1E40AF]">
+              <Sparkles size={15} className="mt-0.5 shrink-0" />
+              <p>
+                Vienes interesado en <strong>{requestedPlanDef.name}</strong>. Crea tu cuenta con 30 días de Pro gratis y al terminar lo activas en un clic.
               </p>
             </div>
+          )}
 
-            {requestedPlanDef && (
-              <div style={{
-                display: "flex", alignItems: "flex-start", gap: 10,
-                padding: "10px 12px", marginBottom: 20,
-                background: "#EFF6FF", border: "1px solid #BFDBFE",
-                borderRadius: 8,
-                fontSize: 12.5, color: "#1E40AF", lineHeight: 1.45,
-              }}>
-                <Sparkles size={14} style={{ marginTop: 2, flexShrink: 0 }} />
-                <div>
-                  Vienes interesado en <strong>{requestedPlanDef.name}</strong>. Crea tu cuenta con 30 días de Pro gratis y al terminar lo activas en un clic.
+          <form onSubmit={handleSubmit} className="mt-8 flex flex-col gap-5">
+            <Field icon={User} label="Nombre completo">
+              <input type="text" value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Juan Pérez" required autoComplete="name" className={inputClass} />
+            </Field>
+
+            <Field icon={Mail} label="Email de trabajo">
+              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="juan@empresa.cl" required autoComplete="email" autoCapitalize="none" className={inputClass} />
+            </Field>
+
+            <div>
+              <Field icon={Lock} label="Contraseña">
+                <input type={showPass ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Mínimo 8 caracteres" required autoComplete="new-password" className={`${inputClass} pr-12`} />
+                <button
+                  type="button"
+                  onClick={() => setShowPass(!showPass)}
+                  aria-label={showPass ? "Ocultar contraseña" : "Mostrar contraseña"}
+                  className="absolute right-3 top-1/2 flex -translate-y-1/2 p-1 text-[#64748B] hover:text-[#0A0B0D]"
+                >
+                  {showPass ? <EyeOff size={17} /> : <Eye size={17} />}
+                </button>
+              </Field>
+              {password.length > 0 && (
+                <div className="mt-2 flex items-center gap-3">
+                  <div className="h-1 flex-1 rounded-full bg-[#E2E8F0]">
+                    <div
+                      className={`h-full rounded-full transition-all ${["w-1/3 bg-[#EF4444]", "w-2/3 bg-[#F59E0B]", "w-full bg-[#10B981]"][fuerza]}`}
+                    />
+                  </div>
+                  <span className="text-[14px] text-[#64748B]">{["Muy corta", "Aceptable", "Fuerte"][fuerza]}</span>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
+
+            <label className="flex cursor-pointer items-start gap-3 text-[14px] leading-[1.5] text-[#475569]">
+              <input
+                type="checkbox"
+                checked={aceptaTerminos}
+                onChange={(e) => setAceptaTerminos(e.target.checked)}
+                required
+                className="mt-0.5 size-[18px] shrink-0 cursor-pointer accent-[#273D88]"
+              />
+              <span>
+                Acepto los{" "}
+                <a href={marketingUrl("terminos")} target="_blank" rel="noopener" className="font-semibold text-[#0A0B0D] underline">Términos y condiciones</a>
+                {" "}y la{" "}
+                <a href={marketingUrl("privacidad")} target="_blank" rel="noopener" className="font-semibold text-[#0A0B0D] underline">Política de privacidad</a>
+                {" "}de Pangui.
+              </span>
+            </label>
 
             {error && (
-              <div style={{
-                fontSize: 13,
-                color: "#DC2626",
-                background: "#FEF2F2",
-                borderLeft: "3px solid #EF4444",
-                padding: "10px 14px",
-                borderRadius: "0 8px 8px 0",
-                lineHeight: 1.4,
-                marginBottom: 20,
-              }}>
+              <p role="alert" className="rounded-lg border-l-[3px] border-[#EF4444] bg-[#FEF2F2] px-3.5 py-2.5 text-[14px] text-[#DC2626]">
                 {error}
-              </div>
+              </p>
             )}
 
-            {step === 1 && (
-              <form onSubmit={handleNext} style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-                <Field icon={User} label="Nombre completo">
-                  <input type="text" value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Juan Pérez" required style={inputStyle} onFocus={focusInput} onBlur={blurInput} />
-                </Field>
-
-                <Field icon={Mail} label="Email">
-                  <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="juan@empresa.cl" required autoComplete="email" autoCapitalize="none" style={inputStyle} onFocus={focusInput} onBlur={blurInput} />
-                </Field>
-
-                <Field icon={Lock} label="Contraseña">
-                  <input type={showPass ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Mínimo 8 caracteres" required autoComplete="new-password" style={{ ...inputStyle, paddingRight: 42 }} onFocus={focusInput} onBlur={blurInput} />
-                  <button type="button" onClick={() => setShowPass(!showPass)} style={eyeBtn} aria-label={showPass ? "Ocultar contraseña" : "Mostrar contraseña"}>
-                    {showPass ? <EyeOff size={16} /> : <Eye size={16} />}
-                  </button>
-                </Field>
-
-                {password.length > 0 && (
-                  <div style={{ marginTop: -8 }}>
-                    <div style={{ height: 3, background: "#E2E8F0", borderRadius: 999 }}>
-                      <div style={{
-                        height: "100%",
-                        borderRadius: 999,
-                        transition: "width 0.2s, background 0.2s",
-                        width: password.length >= 12 ? "100%" : password.length >= 8 ? "65%" : "30%",
-                        background: password.length >= 12 ? "#10B981" : password.length >= 8 ? "#F59E0B" : "#EF4444",
-                      }} />
-                    </div>
-                    <p style={{ fontSize: 11, color: "#64748B", margin: "5px 0 0" }}>
-                      {password.length >= 12 ? "Contraseña fuerte" : password.length >= 8 ? "Contraseña aceptable" : "Muy corta"}
-                    </p>
-                  </div>
-                )}
-
-                <button type="submit" style={primaryBtn}>
-                  Continuar <ArrowRight size={16} />
-                </button>
-              </form>
-            )}
-
-            {step === 2 && (
-              <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-                <Field icon={Building2} label="Nombre de la empresa">
-                  <input type="text" value={empresaNombre} onChange={(e) => setEmpresaNombre(e.target.value)} placeholder="Minera Los Andes S.A." required style={inputStyle} onFocus={focusInput} onBlur={blurInput} />
-                </Field>
-
-                <div>
-                  <label style={labelStyle}><Briefcase size={11} style={{ display: "inline", marginRight: 4 }} />Tu cargo</label>
-                  <select value={cargoId} onChange={(e) => setCargoId(e.target.value)} style={selectStyle} onFocus={focusInput} onBlur={blurInput}>
-                    <option value="">Selecciona tu cargo...</option>
-                    {cargos.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-                  </select>
-                </div>
-
-                <div>
-                  <label style={labelStyle}><Wrench size={11} style={{ display: "inline", marginRight: 4 }} />Tu oficio (opcional)</label>
-                  <select value={oficioId} onChange={(e) => setOficioId(e.target.value)} style={selectStyle} onFocus={focusInput} onBlur={blurInput}>
-                    <option value="">Sin especificar</option>
-                    {oficios.map((o) => <option key={o.id} value={o.id}>{o.nombre}</option>)}
-                  </select>
-                </div>
-
-                <div>
-                  <label style={labelStyle}><Layers size={11} style={{ display: "inline", marginRight: 4 }} />Sector industria</label>
-                  <select value={sector} onChange={(e) => setSector(e.target.value)} style={selectStyle} onFocus={focusInput} onBlur={blurInput}>
-                    <option value="">Selecciona tu sector...</option>
-                    {SECTORES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-                  </select>
-                </div>
-
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                  <div>
-                    <label style={labelStyle}><Users size={11} style={{ display: "inline", marginRight: 4 }} />Equipo</label>
-                    <select value={tamanoEquipo} onChange={(e) => setTamanoEquipo(e.target.value)} style={selectStyle} onFocus={focusInput} onBlur={blurInput}>
-                      <option value="">Técnicos...</option>
-                      {TAMANOS.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label style={labelStyle}><MapPin size={11} style={{ display: "inline", marginRight: 4 }} />Región</label>
-                    <select value={region} onChange={(e) => setRegion(e.target.value)} style={selectStyle} onFocus={focusInput} onBlur={blurInput}>
-                      <option value="">Región...</option>
-                      {REGIONES.map((r) => <option key={r} value={r}>{r}</option>)}
-                    </select>
-                  </div>
-                </div>
-
-                <div style={{ display: "flex", gap: 10, marginTop: 4 }}>
-                  <button type="button" onClick={() => { setStep(1); setError(null); }} style={secondaryBtn}>
-                    <ArrowLeft size={14} /> Atrás
-                  </button>
-                  <button type="submit" disabled={loading} style={{ ...primaryBtn, flex: 1, marginTop: 0, background: loading ? "#64748B" : primaryBtn.background, cursor: loading ? "not-allowed" : "pointer" }}>
-                    {loading ? <><Loader2 size={16} className="animate-spin" /> Creando...</> : <>Comenzar prueba <CheckCircle2 size={16} /></>}
-                  </button>
-                </div>
-              </form>
-            )}
-
-            <div style={{ marginTop: 26, paddingTop: 20, borderTop: "1px solid #F1F5F9", fontSize: 13, color: "#64748B", textAlign: "center" }}>
-              ¿Ya tienes cuenta?{" "}
-              <Link href="/login" style={{ color: "#2563EB", fontWeight: 600, textDecoration: "none" }}>
-                Iniciar sesión
-              </Link>
-            </div>
-            <p style={{ margin: "10px 0 0", fontSize: 11, color: "#94A3B8", textAlign: "center", lineHeight: 1.5 }}>
-              Al registrarte aceptas nuestros{" "}
-              <a href={marketingUrl("terminos")} style={{ color: "#64748B", textDecoration: "underline" }}>Términos</a>
-              {" "}y{" "}
-              <a href={marketingUrl("privacidad")} style={{ color: "#64748B", textDecoration: "underline" }}>Política de Privacidad</a>.
-            </p>
-          </div>
+            <button
+              type="submit"
+              disabled={loading}
+              className="mt-1 inline-flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-[#273D88] text-[14px] font-semibold text-white transition-colors hover:bg-[#1F316E] disabled:cursor-not-allowed disabled:bg-[#64748B]"
+            >
+              {loading ? <><Loader2 size={17} className="animate-spin" /> Creando cuenta...</> : <>Crear cuenta <ArrowRight size={17} /></>}
+            </button>
+          </form>
         </div>
 
-        <div style={{ padding: "16px 24px", fontSize: 12, color: "#94A3B8", textAlign: "center" }}>
-          © 2026 Pangui
-        </div>
-      </div>
-
-      <style>{`
-        @media (min-width: 768px) {
-          .registro-left-panel { display: flex !important; }
-          .registro-mobile-bar { display: none !important; }
-          .registro-form-area { padding: 48px 24px !important; }
-        }
-        .registro-mobile-bar { display: none !important; }
-      `}</style>
+        <ul className="mt-8 flex flex-wrap justify-center gap-x-6 gap-y-2 text-[14px] font-medium text-white">
+          {BENEFICIOS.map((b) => (
+            <li key={b} className="flex items-center gap-2">
+              <Check size={16} strokeWidth={2.5} className="text-[#6EE7B7]" />
+              {b}
+            </li>
+          ))}
+        </ul>
+      </main>
     </div>
   );
 }
-
-
-const eyeBtn = {
-  position: "absolute",
-  right: 12,
-  top: "50%",
-  transform: "translateY(-50%)",
-  background: "none",
-  border: "none",
-  cursor: "pointer",
-  color: "#94A3B8",
-  display: "flex",
-  padding: 0,
-};
-
-const primaryBtn = {
-  width: "100%",
-  height: 44,
-  marginTop: 4,
-  background: "linear-gradient(135deg, #1E3A8A, #2563EB)",
-  color: "#FFFFFF",
-  border: "none",
-  borderRadius: 8,
-  fontSize: 14,
-  fontWeight: 700,
-  fontFamily: "inherit",
-  cursor: "pointer",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  gap: 8,
-  boxShadow: "0 2px 8px rgba(37,99,235,0.30)",
-};
-
-const secondaryBtn = {
-  height: 44,
-  padding: "0 14px",
-  background: "#FFFFFF",
-  border: "1px solid #CBD5E1",
-  borderRadius: 8,
-  fontSize: 14,
-  fontWeight: 600,
-  color: "#475569",
-  cursor: "pointer",
-  fontFamily: "inherit",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  gap: 6,
-};
