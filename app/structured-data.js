@@ -33,7 +33,7 @@ export const siteStructuredData = {
         "Inventario y materiales",
         "Listas e inspecciones",
         "Reportes PDF y Excel",
-        "App móvil con modo sin conexión",
+        "App móvil para iOS y Android",
       ],
       publisher: { "@id": "https://getpangui.com/#organization" },
     },
@@ -48,62 +48,60 @@ export const siteStructuredData = {
   ],
 };
 
+/**
+ * Preguntas frecuentes de la landing. Una sola lista para la sección visible
+ * (Landing.jsx) y para el FAQPage de abajo: Google exige que el schema calce
+ * con lo que se ve, y dos copias ya se habían desalineado.
+ *
+ * Ordenadas por la objeción que frena la prueba, no por tema. Cada respuesta
+ * describe lo que Pangui hace hoy: nada de funciones a medio terminar.
+ */
+export const FAQS = [
+  {
+    q: "¿Mi cliente tiene que pagar o instalar algo?",
+    a: "No. Su mandante no necesita cuenta ni app: firma la conformidad en el celular del técnico, y usted le envía el respaldo de cada trabajo en PDF.",
+  },
+  {
+    q: "¿El informe sirve para mi estado de pago?",
+    a: "Sí. Cada OT queda con fotos, firma, fecha, ubicación y materiales. Puede descargar cada OT en PDF y, en Esencial y Pro, el listado del mes en Excel, listo para adjuntar al estado de pago o a la recepción conforme.",
+  },
+  {
+    q: "¿Mis técnicos necesitan saber de tecnología?",
+    a: "No. Si usan WhatsApp, pueden usar Pangui: abren la OT en el celular, siguen los pasos, sacan fotos y piden la firma. La planificación y los informes se hacen en la web, desde la oficina. Le ayudamos a capacitar a su equipo.",
+  },
+  {
+    q: "¿Cuánto demora empezar?",
+    a: "El mismo día. Cree su cuenta, invite a su equipo y cree la primera OT. Si prefiere, agende una demo y lo dejamos funcionando juntos.",
+  },
+  {
+    q: "¿Cuánto cuesta Pangui?",
+    a: "Basic es gratis para hasta 3 usuarios. Esencial cuesta $59.000 + IVA al mes con 5 usuarios incluidos, y Pro $129.000 + IVA al mes con 10. Cada usuario adicional cuesta $8.000 + IVA en Esencial y $10.000 + IVA en Pro, sin contrato anual. Empresa parte en $349.000 + IVA al mes, con contrato anual.",
+  },
+  {
+    q: "¿Qué pasa cuando terminan los 30 días de prueba?",
+    a: "Si no elige un plan, su cuenta pasa al plan gratis. No se borra nada: sus OTs, fotos e informes quedan guardados, y al elegir un plan vuelve a tener todas las funciones.",
+  },
+  {
+    q: "¿Emiten factura?",
+    a: "Sí, factura electrónica a nombre de su empresa por la suscripción mensual. Pangui no factura a sus clientes: eso lo sigue haciendo con su sistema actual.",
+  },
+  {
+    q: "¿Qué es un CMMS y para qué sirve?",
+    a: "Un CMMS (software de gestión de mantenimiento) centraliza órdenes de trabajo, activos, materiales y evidencia en un solo sistema. Pangui es un CMMS pensado para contratistas y empresas de servicios de mantención en Chile: reemplaza planillas, WhatsApp y papeles por un flujo trazable entre oficina y terreno.",
+  },
+];
+
 /** Landing page only (app/page.js) — matches the "Preguntas frecuentes" section. */
 export const faqStructuredData = {
   "@context": "https://schema.org",
   "@graph": [
     {
       "@type": "FAQPage",
-      mainEntity: [
-        {
-          "@type": "Question",
-          name: "¿Qué es un CMMS y para qué sirve?",
-          acceptedAnswer: {
-            "@type": "Answer",
-            text: "Un CMMS (software de gestión de mantenimiento) centraliza órdenes de trabajo, activos, materiales y evidencia en un solo sistema. Pangui es un CMMS pensado para contratistas y empresas de servicios de mantención en Chile: reemplaza planillas, WhatsApp y papeles por un flujo trazable entre oficina y terreno.",
-          },
-        },
-        {
-          "@type": "Question",
-          name: "¿Pangui es solo para crear órdenes de trabajo?",
-          acceptedAnswer: {
-            "@type": "Answer",
-            text: "No. La OT es el centro del flujo, pero alrededor de ella se conectan activos, evidencia, materiales, procedimientos, firmas, estados de espera, reportes y analítica operativa.",
-          },
-        },
-        {
-          "@type": "Question",
-          name: "¿La app móvil sigue siendo necesaria si existe la web?",
-          acceptedAnswer: {
-            "@type": "Answer",
-            text: "Sí, para terreno. La web está pensada para administración y revisión; la app móvil nativa está pensada para técnicos, fotos, firmas, procedimientos y trabajo sin conexión.",
-          },
-        },
-        {
-          "@type": "Question",
-          name: "¿Qué tan flexibles son los procedimientos?",
-          acceptedAnswer: {
-            "@type": "Answer",
-            text: "Usted decide qué contiene cada procedimiento. Se arma con 20 tipos de paso —secciones, instrucciones, advertencias, texto, números, montos, lecturas de medidor, fechas, opciones, listas de verificación, inspecciones, fotos, archivos, escaneo QR y firma— con pasos obligatorios y lógica condicional. El caso más usado es agregar una firma de conformidad obligatoria para poder cerrar la OT.",
-          },
-        },
-        {
-          "@type": "Question",
-          name: "¿Cuánto cuesta Pangui?",
-          acceptedAnswer: {
-            "@type": "Answer",
-            text: "Pangui tiene un plan Basic gratis para equipos de hasta 3 usuarios y planes pagados por usuario activo al mes, desde $15.000 + IVA. Todos parten con 30 días de Pro gratis, sin tarjeta. El detalle está en getpangui.com/precios.",
-          },
-        },
-        {
-          "@type": "Question",
-          name: "¿Incluye factura electrónica?",
-          acceptedAnswer: {
-            "@type": "Answer",
-            text: "No. Pangui prepara evidencia operacional, materiales, costos y reportes para respaldo administrativo. La emisión de documentos tributarios se gestiona fuera de la plataforma.",
-          },
-        },
-      ],
+      mainEntity: FAQS.map(({ q, a }) => ({
+        "@type": "Question",
+        name: q,
+        acceptedAnswer: { "@type": "Answer", text: a },
+      })),
     },
   ],
 };

@@ -134,7 +134,7 @@ const FLUJO = [
     paso: "02",
     titulo: "El técnico ejecuta en terreno",
     cuerpo:
-      "Desde la app móvil ve qué le toca, sigue el procedimiento, adjunta fotos y firma. Funciona sin señal y sincroniza al volver la conexión.",
+      "Desde la app móvil ve qué le toca, sigue el procedimiento, adjunta fotos y firma.",
   },
   {
     paso: "03",

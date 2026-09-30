@@ -66,7 +66,7 @@ export const FEATURE_DETAIL = {
     label: "Procedimientos",
     titulo: "Un procedimiento es exactamente lo que usted necesite que sea.",
     intro:
-      "No es una lista de chequeo rígida. Usted arma el paso a paso con 20 tipos de campo y decide qué es obligatorio, qué se mide y qué se fotografía. El software se adapta a cómo trabaja su equipo, no al revés.",
+      "No es una lista de chequeo rígida. Usted arma el paso a paso con más de 15 tipos de campo y decide qué es obligatorio, qué se mide y qué se fotografía. El software se adapta a cómo trabaja su equipo, no al revés.",
     puntos: [
       [
         "Firma para cerrar la OT",

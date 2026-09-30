@@ -197,7 +197,7 @@ export default function CasoElectrilamPage() {
                 </div>
                 <div className="lg:col-span-8">
                   <p className="text-[17px] leading-[1.7] text-[var(--ink-2)] md:text-[19px]">
-                    Hoy su equipo de 14 personas trabaja sobre Pangui todos los
+                    Hoy su equipo de 11 personas trabaja sobre Pangui todos los
                     días. Las solicitudes entran como órdenes de trabajo con
                     ubicación exacta dentro del campus —160 ubicaciones
                     registradas, desde laboratorios y casinos hasta sectores de
