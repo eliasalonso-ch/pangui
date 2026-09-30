@@ -2,8 +2,8 @@
  * GET /api/suscripcion/seed-planes
  *
  * Creates the 3 self-serve plans (basic / esencial / pro) in Flow.cl.
- * Plan amount = price per user / month. The user count is reflected via
- * subscription_items at billing time (see lib/flow-sync.ts).
+ * Plan amount = base price / month (includes `includedUsers`). Users above
+ * that are billed as a subscription item (see lib/flow-sync.ts).
  *
  * Run once per Flow account (sandbox + prod separately). Copy the returned
  * env-var lines into .env.local and restart.
@@ -40,7 +40,7 @@ export async function GET() {
         name:           plan.name,
         // Flow cobra el `amount` tal cual: los precios del catálogo son netos,
         // así que acá viaja el bruto con IVA incluido.
-        amount:         montoParaFlow(plan.pricePerUser),
+        amount:         montoParaFlow(plan.basePrice),
         currency:       "CLP",
         interval:       3,                // 3 = monthly
         interval_count: 1,

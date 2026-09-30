@@ -4,7 +4,8 @@
  */
 import { NextResponse } from "next/server";
 import { adminSupabase, serverSupabase } from "../_helpers";
-import { planByKey } from "@/lib/flow-plans";
+import { planByKey, costoMensual } from "@/lib/flow-plans";
+import { usuariosCobrables } from "@/lib/flow-sync";
 import { expireTrialsIfNeeded } from "@/lib/trial-expiry";
 import { cuotasOtsWorkspace, cuotaProcedimientos, cuotaActivos } from "@/lib/cuotas-mensuales";
 import { flow } from "@/lib/flow";
@@ -98,18 +99,9 @@ export async function GET(req: Request) {
     }
   }
 
-  // Mismo filtro que lib/flow-sync.ts: lo que muestra la UI tiene que ser
-  // exactamente lo que Flow cobra.
-  const { count: usersActivos } = await admin
-    .from("usuarios")
-    .select("id", { count: "exact", head: true })
-    .eq("workspace_id", perfil.workspace_id)
-    .eq("activo", true)
-    .eq("excluir_de_facturacion", false)
-    // Un usuario dado de baja conserva su fila para el historial, pero no se cobra.
-    .is("deleted_at", null);
-
-  const activeUsers = usersActivos ?? 0;
+  // La misma cuenta que usa el cobro (lib/flow-sync.ts): lo que muestra la UI
+  // tiene que ser exactamente lo que Flow cobra.
+  const activeUsers = await usuariosCobrables(admin, perfil.workspace_id);
 
   // Compute next charge for the UI
   let monthlyCost = 0;
@@ -117,7 +109,11 @@ export async function GET(req: Request) {
   if (subscription) {
     effectivePlan = subscription.status === "trialing" ? "pro" : subscription.plan_key;
     if (subscription.status === "active" || subscription.status === "past_due") {
-      monthlyCost = (subscription.price_per_user_clp ?? 0) * activeUsers;
+      // Un cliente fundador conserva su precio pactado por usuario; el resto
+      // paga la base del plan más los usuarios sobre los incluidos.
+      monthlyCost = subscription.is_early_customer && (subscription.price_per_user_clp ?? 0) > 0
+        ? subscription.price_per_user_clp * activeUsers
+        : costoMensual(planByKey(subscription.plan_key), activeUsers);
     }
   }
 

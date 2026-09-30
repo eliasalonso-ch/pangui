@@ -5,7 +5,7 @@ import { Suspense, useState, useEffect, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion, useMotionValue, useSpring, useTransform } from "framer-motion";
 import { Loader2, Check, CreditCard, AlertCircle, ArrowLeft, X, Sparkles, ShieldCheck, Pencil, Trash2 } from "lucide-react";
-import { SELF_SERVE_PLANS, PLANS, type PlanKey } from "@/lib/flow-plans";
+import { SELF_SERVE_PLANS, PLANS, costoMensual, type PlanDef, type PlanKey } from "@/lib/flow-plans";
 import { textoDesglose, desglosarNeto } from "@/lib/tributario";
 import { resumirCambio, type ResumenCambio } from "@/lib/cambio-plan";
 import { resolveCardBrand } from "@/lib/card-brand";
@@ -49,6 +49,12 @@ const fmtCLP = (n: number) => n.toLocaleString("es-CL", { style: "currency", cur
 // como 26 de agosto.
 const fmtDate = (iso: string | null) => iso ? new Date(iso).toLocaleDateString("es-CL", { day: "2-digit", month: "long", year: "numeric", timeZone: "UTC" }) : "-";
 const daysUntil = (iso: string | null) => iso ? Math.max(0, Math.ceil((new Date(iso).getTime() - Date.now()) / 86_400_000)) : 0;
+
+/** "Base $129.000 + IVA · incluye 10 usuarios". Mismo modelo que /precios. */
+function detallePlan(plan: PlanDef): string {
+  if (plan.basePrice === 0) return "Gratis";
+  return `Base ${fmtCLP(plan.basePrice)} + IVA al mes · incluye ${plan.includedUsers} usuarios`;
+}
 
 export default function SuscripcionPage() {
   return (
@@ -273,7 +279,12 @@ function SuscripcionPageInner() {
   );
   const trialDaysLeft = isTrial ? daysUntil(sub?.trial_end ?? null) : 0;
   const currentPlan = sub ? PLANS.find(p => p.key === sub.plan_key) : null;
-  const currentPrice = sub?.price_per_user_clp ?? currentPlan?.pricePerUser ?? 0;
+  // Fundador: precio pactado por usuario. El resto: base + usuarios adicionales.
+  const esFundador = Boolean(sub?.is_early_customer && (sub?.price_per_user_clp ?? 0) > 0);
+  const detallePrecioActual = esFundador
+    ? `${fmtCLP(sub!.price_per_user_clp)} + IVA por usuario`
+    : currentPlan ? detallePlan(currentPlan) : "";
+  const costoEstimado = monthlyCost || (currentPlan ? costoMensual(currentPlan, activeUsers) : 0);
 
   return (
     // Sin height:100dvh ni overflow propios: eso creaba un segundo viewport
@@ -403,7 +414,7 @@ function SuscripcionPageInner() {
             <div style={{ ...card, background: "var(--st-wait-bg)", border: "1px solid var(--border-strong)" }}>
               <p style={{ ...sectionLabel, color: "var(--st-wait-fg)" }}>Estás en Basic (gratis)</p>
               <p style={{ fontSize: 14, color: "var(--fg-1)", margin: "6px 0 0" }}>
-                Tienes funciones básicas gratis. Sube a un plan pagado para invitar usuarios y desbloquear más capacidades.
+                Tienes funciones básicas gratis para hasta 3 usuarios. Sube a un plan pagado para sumar a todo tu equipo y quitar los límites mensuales.
               </p>
             </div>
           )}
@@ -419,7 +430,7 @@ function SuscripcionPageInner() {
               status={sub?.status ?? "canceled"}
               statusLabel={statusLabel(sub?.status ?? "canceled")}
               renewalDate={sub?.current_period_end ?? null}
-              unitPrice={currentPrice}
+              priceDetail={detallePrecioActual}
               totalPrice={monthlyCost}
               activeUsers={activeUsers}
               cardBrand={customer?.card_brand ?? null}
@@ -488,13 +499,10 @@ function SuscripcionPageInner() {
                 // apagado para no ofrecer un camino que va a fallar.
                 const bloqueadoPorFundador = Boolean(sub?.is_early_customer) && sub?.plan_key !== p.key;
                 const disabled = isCurrent || bloqueadoPorFundador || submitting !== null || !profileReady;
-                // El precio negociado solo aplica al tier pactado; en los demás
-                // se muestra el de catálogo para no prometer un descuento que
-                // ese plan no tiene.
-                const precioTarjeta = sub?.is_early_customer && sub.plan_key === p.key
-                  ? sub.price_per_user_clp
-                  : p.pricePerUser;
-                const preview = precioTarjeta * activeUsers;
+                // Lo que costaría hoy con el equipo actual: base + adicionales.
+                const adicionales = Math.max(0, activeUsers - p.includedUsers);
+                const preview = costoMensual(p, activeUsers);
+                const previo = SELF_SERVE_PLANS[SELF_SERVE_PLANS.indexOf(p) - 1];
                 return (
                   <div
                     key={p.key}
@@ -512,17 +520,27 @@ function SuscripcionPageInner() {
                       <p style={{ fontSize: 14, color: "var(--fg-4)", margin: "2px 0 0" }}>{p.tagline}</p>
                     </div>
                     <div>
-                      <div style={{ display: "flex", alignItems: "baseline", gap: 4, flexWrap: "wrap" }}>
-                        <p style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", margin: 0 }}>{fmtCLP(precioTarjeta)}</p>
-                        <p style={{ fontSize: 14, color: "var(--fg-4)", margin: 0 }}>+ IVA / usuario activo / mes</p>
-                        {precioTarjeta !== p.pricePerUser && (
-                          <p style={{ fontSize: 14, color: "var(--fg-4)", margin: 0, textDecoration: "line-through" }}>{fmtCLP(p.pricePerUser)}</p>
+                      {p.listPrice && (
+                        <p style={{ fontSize: 12, color: "var(--brand-fg)", margin: "0 0 4px", textTransform: "uppercase", letterSpacing: "0.06em" }}>Precio de lanzamiento</p>
+                      )}
+                      <div style={{ display: "flex", alignItems: "baseline", gap: 6, flexWrap: "wrap" }}>
+                        <p style={{ fontSize: 20, fontWeight: 600, color: "var(--fg-1)", margin: 0 }}>{fmtCLP(p.basePrice)}</p>
+                        {p.listPrice && (
+                          <p style={{ fontSize: 14, color: "var(--fg-4)", margin: 0, textDecoration: "line-through" }}>{fmtCLP(p.listPrice)}</p>
                         )}
+                        <p style={{ fontSize: 14, color: "var(--fg-4)", margin: 0 }}>+ IVA / mes</p>
                       </div>
+                      <p style={{ fontSize: 14, color: "var(--fg-3)", margin: "4px 0 0" }}>
+                        Incluye {p.includedUsers} usuarios · adicional {fmtCLP(p.extraUserPrice)} + IVA
+                      </p>
                       <p style={{ fontSize: 14, color: "var(--fg-3)", margin: "4px 0 0", overflowWrap: "anywhere" }}>
-                        Hoy serían {fmtCLP(desglosarNeto(preview).bruto)} al mes con IVA, con {activeUsers} {activeUsers === 1 ? "usuario" : "usuarios"}.
+                        Con tu equipo de {activeUsers} {activeUsers === 1 ? "usuario" : "usuarios"}
+                        {adicionales > 0 ? ` (${adicionales} ${adicionales === 1 ? "adicional" : "adicionales"})` : ""}: {fmtCLP(desglosarNeto(preview).bruto)} al mes con IVA.
                       </p>
                     </div>
+                    {previo && (
+                      <p style={{ fontSize: 14, fontWeight: 600, color: "var(--fg-1)", margin: 0 }}>Todo lo de {previo.name}, más:</p>
+                    )}
                     <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 5 }}>
                       {p.highlights.map(h => (
                         <li key={h} style={{ display: "flex", alignItems: "start", gap: 6, fontSize: 14, color: "var(--fg-1)" }}>
@@ -576,8 +594,8 @@ function SuscripcionPageInner() {
 
           <BillingDisclosure
             activeUsers={activeUsers}
-            currentPrice={currentPrice}
-            monthlyCost={monthlyCost}
+            estimatedCost={costoEstimado}
+            modelo={esFundador ? "Mensual por usuario (precio fundador)" : "Base mensual + usuarios adicionales"}
             periodEnd={sub?.current_period_end ?? null}
             canceled={Boolean(sub?.canceled_at)}
           />
@@ -675,15 +693,14 @@ function Notice({ kind, onClose, children }: { kind: "ok" | "err"; onClose?: () 
 }
 
 function BillingDisclosure({
-  activeUsers, currentPrice, monthlyCost, periodEnd, canceled,
+  activeUsers, estimatedCost, modelo, periodEnd, canceled,
 }: {
   activeUsers: number;
-  currentPrice: number;
-  monthlyCost: number;
+  estimatedCost: number;
+  modelo: string;
   periodEnd: string | null;
   canceled: boolean;
 }) {
-  const estimatedCost = monthlyCost || currentPrice * activeUsers;
   return (
     <div style={{ ...card, display: "grid", gap: 12 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -691,7 +708,7 @@ function BillingDisclosure({
         <p style={sectionLabel}>Resumen legal y de cobro</p>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 10 }}>
-        <MiniStat label="Modelo" value="Mensual por usuario activo" />
+        <MiniStat label="Modelo" value={modelo} />
         <MiniStat label="Usuarios activos hoy" value={`${activeUsers}`} />
         <MiniStat label="Total estimado hoy (IVA incl.)" value={estimatedCost > 0 ? fmtCLP(desglosarNeto(estimatedCost).bruto) : "-"} />
         <MiniStat label={canceled ? "Acceso hasta" : "Renovación"} value={periodEnd ? fmtDate(periodEnd) : "Mensual"} />
@@ -702,7 +719,7 @@ function BillingDisclosure({
         </p>
       )}
       <p style={{ fontSize: 14, lineHeight: 1.55, color: "var(--fg-2)", margin: 0 }}>
-        Al activar o cambiar un plan aceptas el cobro mensual en CLP según el plan elegido y la cantidad de usuarios activos del workspace. <strong>El cobro se carga automáticamente a la tarjeta que inscribas en Flow.cl</strong>, cada mes y sin acción de tu parte; el acceso se mantiene mientras el pago esté al día. Puedes desactivar usuarios antes del siguiente ciclo para ajustar el cobro, cambiar la tarjeta desde esta pantalla, y cancelar la suscripción manteniendo acceso hasta el fin del periodo pagado.
+        Al activar o cambiar un plan aceptas el cobro mensual en CLP de la base del plan elegido, más cada usuario activo que exceda los incluidos en el plan. <strong>El cobro se carga automáticamente a la tarjeta que inscribas en Flow.cl</strong>, cada mes y sin acción de tu parte; el acceso se mantiene mientras el pago esté al día. Puedes desactivar usuarios antes del siguiente ciclo para ajustar el cobro, cambiar la tarjeta desde esta pantalla, y cancelar la suscripción manteniendo acceso hasta el fin del periodo pagado.
       </p>
       <p style={{ fontSize: 14, lineHeight: 1.55, color: "var(--fg-2)", margin: 0 }}>
         Los pagos se procesan a través de Flow.cl. Por cada cobro emitimos una <strong>factura electrónica afecta a IVA</strong> ante el SII, disponible para descargar desde esta pantalla. <strong>Los precios publicados no incluyen IVA (19%)</strong>: el impuesto se agrega al momento del cobro y el total a pagar aparece en el desglose de más arriba. Si tu empresa es contribuyente de IVA, la factura da derecho a crédito fiscal por el impuesto desglosado en ella.
@@ -711,7 +728,7 @@ function BillingDisclosure({
           vista y contratar es el acto de aceptación, que es como opera el resto
           del checkout. */}
       <p style={{ fontSize: 14, lineHeight: 1.5, color: "var(--fg-3)", margin: 0 }}>
-        Al elegir un plan aceptas los <Link href="/terminos" target="_blank" style={linkStyle}>Términos y Condiciones</Link> y la <Link href="/privacidad" target="_blank" style={linkStyle}>Política de Privacidad</Link>, y el cobro mensual automático por usuarios activos a la tarjeta inscrita en Flow.cl. Pangui no almacena los datos de tu tarjeta: los procesa y guarda Flow.cl.
+        Al elegir un plan aceptas los <Link href="/terminos" target="_blank" style={linkStyle}>Términos y Condiciones</Link> y la <Link href="/privacidad" target="_blank" style={linkStyle}>Política de Privacidad</Link>, y el cobro mensual automático (base del plan más usuarios adicionales) a la tarjeta inscrita en Flow.cl. Pangui no almacena los datos de tu tarjeta: los procesa y guarda Flow.cl.
       </p>
     </div>
   );

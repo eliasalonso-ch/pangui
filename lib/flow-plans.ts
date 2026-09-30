@@ -2,15 +2,18 @@
  * Pangui plan catalog (Flow.cl).
  *
  * 3 self-serve tiers + Empresa (contacto a ventas, sin plan en Flow).
- * Priced per active user / month. Empresa se lleva abastecimiento,
- * planificación y analítica avanzada; Pro es el techo self-serve.
+ * Precio por equipo: cada plan trae una base mensual que incluye N usuarios, y
+ * cada usuario sobre N se cobra aparte. Los solicitantes (rol requester) no
+ * cuentan nunca: que el cliente pida trabajos no debe costarle al contratista.
+ * Empresa se lleva abastecimiento, planificación y analítica avanzada; Pro es
+ * el techo self-serve.
  * Inspired by the MaintainX model: OTs are always unlimited; the limits live on
  * sub-categories of OTs (procedimientos adjuntos, fotos adjuntas, repetitivas)
  * counted over a rolling 30-day window.
  *
  * Trial: 30 days at Pro features. Auto-downgrade to Basic (paid) on expiry.
- * Billing model: one Flow plan per tier; quantity (user count) is mirrored via
- * subscription_items (see lib/flow-sync.ts).
+ * Billing model: one Flow plan per tier at `basePrice`; users above
+ * `includedUsers` go as one subscription item with quantity (lib/flow-sync.ts).
  */
 
 export type PlanKey = "basic" | "esencial" | "pro" | "enterprise";
@@ -18,11 +21,15 @@ export type PlanKey = "basic" | "esencial" | "pro" | "enterprise";
 export interface PlanDef {
   key:        PlanKey;
   name:       string;
-  pricePerUser: number;          // CLP / user / month (0 = enterprise / contact-sales)
+  basePrice:      number;        // CLP neto / mes, incluye `includedUsers` (0 = gratis o a medida)
+  includedUsers:  number;        // usuarios cubiertos por basePrice
+  extraUserPrice: number;        // CLP neto / mes por cada usuario sobre includedUsers (0 = no se venden)
+  listPrice?:     number;        // precio normal anunciado; basePrice es el de lanzamiento
+  desdePrecio?:   number;        // solo Empresa: precio "desde" publicado, CLP neto / mes
   selfServe:  boolean;
   envVar?:    string;            // Flow planId env var (filled by seed-planes)
-  tagline:    string;
-  highlights: string[];
+  tagline:    string;           // para quién es, una línea
+  highlights: string[];         // lo que suma sobre el plan anterior ("Todo lo de X, más:")
   limits: {
     // Total / catalog limits (lifetime within workspace)
     procedimientos:                 number;
@@ -93,23 +100,25 @@ export const PLANS: PlanDef[] = [
     // Un usuario de Esencial subsidia ~57 usuarios gratis, así que el riesgo
     // real no es el precio sino que las cuotas se respeten de verdad.
     name: "Basic",
-    pricePerUser: 0,
+    basePrice: 0,
+    includedUsers: 3,
+    extraUserPrice: 0,
     selfServe: false,
-    tagline: "Gratis para partir",
+    tagline: "Gratis para siempre. Para equipos pequeños que quieren dejar el papel.",
     highlights: [
+      "Hasta 3 usuarios",
       "Órdenes de trabajo ilimitadas",
-      "5 OT con procedimientos / mes",
-      "10 OT con fotos adjuntas / mes",
-      "Hasta 5 procedimientos en catálogo",
+      "30 OT con procedimientos, firma y fotos / mes",
       "Hasta 25 activos",
       "Exportar OT a PDF",
-      "1 mes de historial en analítica",
     ],
     limits: {
       procedimientos:             5,
       activos:                    25,
-      ots_con_procedimientos_mes: 5,
-      ots_con_fotos_mes:          10,
+      // La evidencia es lo que vende Pangui: el plan gratis tiene que dejar
+      // sentirla. 30/mes alcanza para convencerse y se agota con operación real.
+      ots_con_procedimientos_mes: 30,
+      ots_con_fotos_mes:          30,
       ots_repetitivas_mes:        3,
       historial_meses:            1,
       usuarios:                   3,
@@ -137,18 +146,21 @@ export const PLANS: PlanDef[] = [
   {
     key: "esencial",
     name: "Esencial",
-    pricePerUser: 15000,
+    basePrice: 59000,
+    listPrice: 79000,
+    includedUsers: 5,
+    // $8.000 y no menos: con 10 usuarios Esencial queda en $99.000, cerca de
+    // Pro, y ahí inventario, medidores e IA cierran la subida.
+    extraUserPrice: 8000,
     selfServe: true,
     envVar: "FLOW_PLAN_ESENCIAL",
-    tagline: "Para equipos en operación",
+    tagline: "Para cuadrillas que necesitan respaldar cada trabajo frente al cliente.",
     highlights: [
-      "Usuarios ilimitados",
-      "Órdenes de trabajo ilimitadas",
-      "25 OT con procedimientos / mes",
-      "Fotos adjuntas ilimitadas",
-      "OT repetitivas (preventivos) ilimitadas",
-      "Hasta 50 procedimientos en catálogo",
-      "Hasta 300 activos",
+      "5 usuarios incluidos",
+      "OT con procedimientos y firma ilimitadas",
+      "Fotos de evidencia ilimitadas",
+      "Mantenimiento preventivo (OT repetitivas)",
+      "Hasta 50 procedimientos y 300 activos",
       "QR / códigos de barras",
       "Exportar PDF, Excel y CSV",
       "3 meses de historial en analítica",
@@ -156,7 +168,9 @@ export const PLANS: PlanDef[] = [
     limits: {
       procedimientos:             50,
       activos:                    300,
-      ots_con_procedimientos_mes: 25,
+      // Procedimientos + firma son la prueba del trabajo: lo que vende Pangui.
+      // Racionarlos en un plan pagado frena el uso justo donde más importa.
+      ots_con_procedimientos_mes: Infinity,
       ots_con_fotos_mes:          Infinity,
       ots_repetitivas_mes:        Infinity,
       historial_meses:            3,
@@ -187,12 +201,15 @@ export const PLANS: PlanDef[] = [
   {
     key: "pro",
     name: "Pro",
-    pricePerUser: 25000,
+    basePrice: 129000,
+    listPrice: 169000,
+    includedUsers: 10,
+    extraUserPrice: 10000,
     selfServe: true,
     envVar: "FLOW_PLAN_PRO",
-    tagline: "Sin límites para el día a día",
+    tagline: "Para contratistas que además controlan inventario, equipos y costos.",
     highlights: [
-      "Todo lo de Esencial, sin límites",
+      "10 usuarios incluidos",
       "Procedimientos y activos ilimitados",
       "Inventario completo (módulo Partes)",
       "Medidores y seguimiento de condición",
@@ -238,11 +255,16 @@ export const PLANS: PlanDef[] = [
   {
     key: "enterprise",
     name: "Empresa",
-    pricePerUser: 0,
+    basePrice: 0,
+    // Precio "desde" publicado como ancla. El contrato real es anual en UF y
+    // se factura fuera de Flow: esto no entra al cobro.
+    desdePrecio: 349000,
+    includedUsers: Infinity,
+    extraUserPrice: 0,
     selfServe: false,
-    tagline: "Para operaciones que planifican y compran",
+    tagline: "Para operaciones con varios contratos que planifican, compran y miden.",
     highlights: [
-      "Todo lo de Pro",
+      "Usuarios según contrato",
       "Automatizaciones (medidor → orden de trabajo)",
       "Analítica de órdenes (MTTR, MTBF)",
       "Analítica de activos",
@@ -332,4 +354,18 @@ export function planLimite(
   limit: keyof PlanDef["limits"]
 ): number {
   return effectivePlan(plan, planStatus).limits[limit];
+}
+
+/**
+ * Usuarios que se cobran aparte: los que exceden lo incluido en el plan.
+ * `usuarios` ya viene sin solicitantes ni staff excluido (ver lib/flow-sync.ts).
+ */
+export function usuariosAdicionales(plan: PlanDef, usuarios: number): number {
+  if (!Number.isFinite(plan.includedUsers)) return 0;
+  return Math.max(0, usuarios - plan.includedUsers);
+}
+
+/** Costo mensual neto (sin IVA) de un plan con `usuarios` cobrables. */
+export function costoMensual(plan: PlanDef, usuarios: number): number {
+  return plan.basePrice + usuariosAdicionales(plan, usuarios) * plan.extraUserPrice;
 }

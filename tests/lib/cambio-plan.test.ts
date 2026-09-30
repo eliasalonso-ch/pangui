@@ -28,9 +28,18 @@ describe("resumirCambio — subida", () => {
   const r = resumirCambio({ ...base, planActual: "basic", planNuevo: "pro" });
 
   it("calcula los totales con el IVA agregado por fuera", () => {
-    // Basic es gratis: 3 × $0 = $0 → 3 × $25.000 = $75.000 + IVA = $89.250
+    // Basic es gratis → Pro: base $129.000 (incluye 10 usuarios) + IVA = $153.510
     expect(r.totalActual).toBe(0);
-    expect(r.totalNuevo).toBe(89_250);
+    expect(r.totalNuevo).toBe(153_510);
+  });
+
+  it("suma los usuarios que exceden los incluidos", () => {
+    // Pro con 12 usuarios: $129.000 + 2 × $10.000 = $149.000 + IVA = $177.310
+    const r12 = resumirCambio({ ...base, planActual: "basic", planNuevo: "pro", usuariosActivos: 12 });
+    expect(r12.totalNuevo).toBe(177_310);
+    // Esencial con 7: $59.000 + 2 × $8.000 = $75.000 + IVA = $89.250
+    const e7 = resumirCambio({ ...base, planActual: "basic", planNuevo: "esencial", usuariosActivos: 7 });
+    expect(e7.totalNuevo).toBe(89_250);
   });
 
   it("avisa que el cambio es inmediato y cobra la diferencia", () => {
@@ -65,7 +74,7 @@ describe("resumirCambio — bajada", () => {
   });
 
   it("muestra la baja de precio", () => {
-    expect(r.totalActual).toBe(89_250);
+    expect(r.totalActual).toBe(153_510);
     expect(r.totalNuevo).toBe(0);
   });
 });
@@ -99,14 +108,15 @@ describe("resumirCambio — casos borde", () => {
     expect(r.detalle).not.toContain("usuarios activos");
   });
 
+  // La base se paga igual: con cero usuarios el total es la base, no cero.
   it("cero usuarios no rompe el cálculo", () => {
     const r = resumirCambio({ ...base, planActual: "basic", planNuevo: "pro", usuariosActivos: 0 });
-    expect(r.totalNuevo).toBe(0);
+    expect(r.totalNuevo).toBe(153_510);
   });
 
   it("tolera una cantidad negativa de usuarios", () => {
     const r = resumirCambio({ ...base, planActual: "basic", planNuevo: "pro", usuariosActivos: -5 });
-    expect(r.totalNuevo).toBe(0);
+    expect(r.totalNuevo).toBe(153_510);
   });
 });
 

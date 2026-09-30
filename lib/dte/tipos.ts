@@ -42,7 +42,9 @@ export interface SolicitudDocumento {
   periodoInicio:      string;   // YYYY-MM-DD
   periodoFin:         string;   // YYYY-MM-DD
   usuariosFacturados: number;
-  precioUnitarioClp:  number;   // bruto por usuario, IVA incluido
+  precioUnitarioClp:  number;   // neto por usuario
+  /** Neto total del período cuando no es usuarios × unitario (base + adicionales). */
+  netoClp?:           number;
   receptor:           ReceptorDte;
   flowInvoiceId?:     string | null;
 }

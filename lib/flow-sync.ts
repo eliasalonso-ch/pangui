@@ -2,9 +2,11 @@
  * Sincroniza la cantidad de usuarios cobrables de un workspace con su
  * suscripción en Flow.
  *
- * Modelo de cobro:
- *   - El plan de Flow cubre al usuario #1 (precio por usuario, en bruto).
- *   - Los usuarios extra van como UN ítem de suscripción con `quantity`.
+ * Modelo de cobro (ver extrasDelCobro):
+ *   - El plan de Flow cobra la base del plan, que incluye `includedUsers`.
+ *   - Los usuarios sobre eso van como UN ítem de suscripción con `quantity`,
+ *     al precio de usuario adicional del plan.
+ *   - Cliente fundador: el plan cubre al #1 y el resto va a su precio pactado.
  *
  * Contrato real de Flow, verificado contra producción el 2026-09-03 (la
  * documentación pública no lo describe):
@@ -27,28 +29,55 @@
 import { adminSupabase } from "@/app/api/suscripcion/_helpers";
 import { flow } from "@/lib/flow";
 import { montoParaFlow } from "@/lib/tributario";
+import { planByKey, usuariosAdicionales, type PlanDef } from "@/lib/flow-plans";
 
 /** Cliente Supabase con service role, en su forma mínima. */
 type Admin = { from(tabla: string): any };  // eslint-disable-line @typescript-eslint/no-explicit-any
 
 /**
- * Usuarios que van como ítem de la suscripción: los cobrables menos el #1,
- * que ya cubre el plan.
+ * Qué parte del equipo va como ítem aparte y a qué precio neto por usuario.
+ *
+ * - Plan de catálogo: la base del plan cubre `includedUsers`; cada usuario
+ *   sobre eso se cobra a `extraUserPrice`.
+ * - Cliente fundador: precio pactado por usuario. El plan de Flow cubre al #1
+ *   (con el cupón) y el resto va al precio pactado.
+ *
+ * Una sola regla para el alta (register/callback) y la reconciliación, para
+ * que el primer cobro y los siguientes no se calculen distinto.
+ */
+export function extrasDelCobro(
+  plan: PlanDef,
+  precioFundador: number | null | undefined,
+  cobrables: number,
+): { cantidad: number; precioNeto: number } {
+  if (precioFundador && precioFundador > 0) {
+    return { cantidad: Math.max(0, cobrables - 1), precioNeto: precioFundador };
+  }
+  return { cantidad: usuariosAdicionales(plan, cobrables), precioNeto: plan.extraUserPrice };
+}
+
+/**
+ * Usuarios que cuentan para el cobro. La pantalla de suscripción y la factura
+ * usan esta misma función: lo que se muestra y se factura tiene que ser
+ * exactamente lo que se cobra.
  *
  * `excluir_de_facturacion` deja fuera a las cuentas de staff de Pangui que
  * viven dentro del workspace de un cliente: acceso completo, sin sumar al
  * cobro. Ver 20260729180000_usuarios_excluir_de_facturacion.sql. Un usuario
- * dado de baja conserva su fila para el historial, pero no se cobra.
+ * dado de baja conserva su fila para el historial, pero no se cobra. Los
+ * solicitantes (rol requester) tampoco: que el cliente pida trabajos no debe
+ * costarle al contratista.
  */
-export async function usuariosExtra(admin: Admin, workspaceId: string): Promise<number> {
+export async function usuariosCobrables(admin: Admin, workspaceId: string): Promise<number> {
   const { count } = await admin
     .from("usuarios")
     .select("id", { count: "exact", head: true })
     .eq("workspace_id", workspaceId)
     .eq("activo", true)
     .eq("excluir_de_facturacion", false)
+    .neq("rol", "requester")
     .is("deleted_at", null);
-  return Math.max(0, (count ?? 0) - 1);
+  return count ?? 0;
 }
 
 /**
@@ -74,7 +103,7 @@ export async function syncSubscriptionToUserCount(workspaceId: string): Promise<
 
   const { data: sub } = await admin
     .from("subscriptions")
-    .select("id, flow_subscription_id, status, plan_key, price_per_user_clp")
+    .select("id, flow_subscription_id, status, plan_key, is_early_customer, price_per_user_clp")
     .eq("workspace_id", workspaceId)
     .neq("status", "canceled")
     .maybeSingle();
@@ -83,14 +112,18 @@ export async function syncSubscriptionToUserCount(workspaceId: string): Promise<
   if (!sub.flow_subscription_id)               return; // trialing / basic_free
   if (!["active", "past_due"].includes(sub.status)) return;
   if (sub.plan_key === "enterprise")           return; // off-platform billing
-  if (!sub.price_per_user_clp || sub.price_per_user_clp <= 0) return;
 
-  const extras = await usuariosExtra(admin, workspaceId);
-  // `price_per_user_clp` es neto; Flow cobra el bruto.
-  const monto = montoParaFlow(sub.price_per_user_clp);
+  const plan = planByKey(sub.plan_key);
+  const precioFundador = sub.is_early_customer ? sub.price_per_user_clp : null;
+  if (plan.basePrice <= 0 && !(precioFundador > 0)) return; // plan gratis
+
+  const cobrables = await usuariosCobrables(admin, workspaceId);
+  const { cantidad, precioNeto } = extrasDelCobro(plan, precioFundador, cobrables);
+  // Los precios del catálogo son netos; Flow cobra el bruto.
+  const monto = montoParaFlow(precioNeto);
 
   try {
-    await reconciliarItems(sub.flow_subscription_id, extras, monto);
+    await reconciliarItems(sub.flow_subscription_id, cantidad, monto);
   } catch (err) {
     // No bloquea invitaciones ni contrataciones por un fallo de Flow: queda
     // en el log y el barrido de /api/suscripcion/reconciliar lo reintenta.

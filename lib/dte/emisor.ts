@@ -12,7 +12,7 @@
  * qué corresponde emitir y, después, con qué folio quedó — de modo que la base
  * sepa siempre qué períodos están facturados y cuáles no.
  */
-import { desglosarCobroSuscripcion } from "@/lib/tributario";
+import { desglosarCobroSuscripcion, desglosarNeto } from "@/lib/tributario";
 import type {
   DocumentoTributario,
   SolicitudDocumento,
@@ -105,10 +105,9 @@ export class EmisorManual implements EmisorDTE {
   async registrar(solicitud: SolicitudDocumento): Promise<DocumentoTributario> {
     // El desglose se calcula sobre el total del período, no por usuario: ver
     // la justificación del redondeo en lib/tributario.ts.
-    const montos = desglosarCobroSuscripcion(
-      solicitud.precioUnitarioClp,
-      solicitud.usuariosFacturados,
-    );
+    const montos = solicitud.netoClp != null
+      ? desglosarNeto(solicitud.netoClp)
+      : desglosarCobroSuscripcion(solicitud.precioUnitarioClp, solicitud.usuariosFacturados);
 
     const { data, error } = await this.admin
       .from("documentos_tributarios")
