@@ -95,18 +95,23 @@ function TileLogo({ style, children }: { style: CSSProperties; children: ReactNo
   );
 }
 
-const TITULO = (
-  <>
-    <h1 style={{ margin: 0, fontSize: 24, fontWeight: 500, letterSpacing: "-0.02em", lineHeight: 1.2, color: "var(--fg-1)" }}>MeConecta y Pangui</h1>
-    <p style={{ margin: 0, fontSize: 20, lineHeight: 1.3, color: "var(--fg-3)" }}>Portal de mantención</p>
-  </>
-);
+/** `sobreColor`: va encima de la banda de color (texto blanco) o fuera de ella. */
+function Titulo({ sobreColor }: { sobreColor: boolean }) {
+  const sombra = sobreColor ? "0 1px 2px rgba(0, 0, 0, 0.25)" : undefined;
+  return (
+    <>
+      <h1 style={{ margin: 0, fontSize: 24, fontWeight: 500, letterSpacing: "-0.02em", lineHeight: 1.2, color: sobreColor ? "#FFFFFF" : "var(--fg-1)", textShadow: sombra }}>MeConecta y Pangui</h1>
+      <p style={{ margin: 0, fontSize: 20, lineHeight: 1.3, color: sobreColor ? "rgba(255, 255, 255, 0.88)" : "var(--fg-3)", textShadow: sombra }}>Portal de mantención</p>
+    </>
+  );
+}
 
 /**
  * Banda superior: un bloque por marca con sus colores (Pangui uno, la UdeC dos)
- * y su logo en una tarjeta blanca al centro del bloque.
- * Pangui a la izquierda, la UdeC espejada a la derecha. --a es medio bloque.
- * En móvil no cabe el título entre los bloques: va debajo de la banda.
+ * y su logo en una tarjeta blanca al centro del bloque. Entre ambos, el azul de
+ * Pangui se funde con el amarillo de la UdeC (en OKLab, para que el punto medio
+ * no quede marrón). Pangui a la izquierda, la UdeC espejada a la derecha.
+ * --a es medio bloque. En móvil no cabe el título: va debajo de la banda.
  */
 function Encabezado() {
   return (
@@ -115,9 +120,8 @@ function Encabezado() {
         className="relative [--a:56px] md:[--a:90px]"
         style={{
           height: 148,
-          background: `linear-gradient(90deg,
+          background: `linear-gradient(90deg in oklab,
             ${PANGUI_AZUL_LOGO} 0 calc(var(--a) * 2),
-            var(--surface-1) calc(var(--a) * 2) calc(100% - var(--a) * 2),
             ${UDEC_AMARILLO} calc(100% - var(--a) * 2) calc(100% - var(--a)),
             ${UDEC_AZUL} calc(100% - var(--a)))`,
           borderBottom: "1px solid var(--border)",
@@ -129,11 +133,11 @@ function Encabezado() {
           className="hidden md:flex"
           style={{ position: "absolute", top: 0, bottom: 0, left: "calc(var(--a) * 2 + 24px)", right: "calc(var(--a) * 2 + 24px)", flexDirection: "column", justifyContent: "center", alignItems: "center", gap: 4, textAlign: "center" }}
         >
-          {TITULO}
+          <Titulo sobreColor />
         </div>
       </div>
       <div className="flex md:hidden" style={{ flexDirection: "column", alignItems: "center", gap: 4, textAlign: "center", padding: "20px 16px 0" }}>
-        {TITULO}
+        <Titulo sobreColor={false} />
       </div>
     </>
   );
