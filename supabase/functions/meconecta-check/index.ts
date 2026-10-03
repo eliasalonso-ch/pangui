@@ -3,7 +3,10 @@
 // Reconciles the meconecta (UdeC) portal against Electrilam's own OTs so no
 // solicitud is ever silently missed. Invoked by the web app's
 // /api/meconecta/check route (service-role, server-to-server); the user-facing
-// auth, role checks and rate limiting happen there.
+// auth, role checks and rate limiting happen there. With { soloProbar: true }
+// it only logs in and reads (Integraciones → Probar conexión).
+//
+// Credentials: Vault, entered by Electrilam (see _shared/meconecta-conexion.ts).
 //
 // Why a live scrape instead of reading uni_solicitudes_vistas: that table is an
 // append-only "already seen" log written by meconecta-scrape-cron. Its `estado`
@@ -17,15 +20,11 @@
 // EXCLUSIVE to the Electrilam workspace.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { fetchOrders, login, detalleUrl, type ScrapedRow } from "../_shared/meconecta-scrape.ts";
+import { fetchOrders, login, detalleUrl, MeconectaAuthError, type ScrapedRow } from "../_shared/meconecta-scrape.ts";
+import { ELECTRILAM_WS, getCredenciales, marcarEstado, describirError } from "../_shared/meconecta-conexion.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY  = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const MECONECTA_EMAIL    = Deno.env.get("MECONECTA_EMAIL") ?? "";
-const MECONECTA_PASSWORD = Deno.env.get("MECONECTA_PASSWORD") ?? "";
-
-// Electrilam — the only workspace this feature serves.
-const ELECTRILAM_WS = "f1b64714-6de2-4d49-b6e4-5959553e94d7";
 
 /**
  * Portal estados that mean "still needs work from us". Anything else (resuelta,
@@ -79,19 +78,17 @@ function json(body: unknown, status = 200): Response {
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 Deno.serve(async (req) => {
-  if (!MECONECTA_EMAIL || !MECONECTA_PASSWORD) {
-    return json({ ok: false, error: "MECONECTA_EMAIL / MECONECTA_PASSWORD not configured" }, 503);
-  }
-
   // Optional { desde, hasta } window as "YYYY-MM-DD" (inclusive on both ends).
   // Anything malformed is ignored rather than rejected — a bad date should not
   // block the check, it should just widen it.
   let desde: string | null = null;
   let hasta: string | null = null;
+  let soloProbar = false;
   try {
     const body = await req.json();
     if (typeof body?.desde === "string" && DATE_RE.test(body.desde)) desde = body.desde;
     if (typeof body?.hasta === "string" && DATE_RE.test(body.hasta)) hasta = body.hasta;
+    soloProbar = body?.soloProbar === true;
   } catch {
     // no/invalid body — check everything
   }
@@ -101,14 +98,35 @@ Deno.serve(async (req) => {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 
+  // ── Credentials (Vault) ──
+  const creds = await getCredenciales(supabase);
+  if (!creds) {
+    return json({ ok: false, code: "sin_conexion", error: "MeConecta no está conectado" }, 409);
+  }
+  // A rejected password is only retried when the user explicitly asks to test it.
+  if (creds.status === "credenciales_invalidas" && !soloProbar) {
+    return json({
+      ok: false, code: "credenciales_invalidas",
+      error: "MeConecta rechazó la clave. Vuelve a conectarlo en Integraciones.",
+    }, 409);
+  }
+
   // ── Scrape the portal ──
   let scraped: ScrapedRow[];
   try {
-    scraped = await fetchOrders(await login(MECONECTA_EMAIL, MECONECTA_PASSWORD));
+    scraped = await fetchOrders(await login(creds.username, creds.password));
   } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    return json({ ok: false, error: `No se pudo consultar MeConecta: ${msg}` }, 502);
+    if (e instanceof MeconectaAuthError) {
+      await marcarEstado(supabase, creds, { status: "credenciales_invalidas", last_error: describirError(e) });
+      return json({ ok: false, code: "credenciales_invalidas", error: "MeConecta rechazó el usuario o la clave" }, 409);
+    }
+    await marcarEstado(supabase, creds, { status: "error", last_error: describirError(e) });
+    return json({ ok: false, error: `No se pudo consultar MeConecta: ${describirError(e)}` }, 502);
   }
+  await marcarEstado(supabase, creds, {
+    status: "conectado", last_sync_at: new Date().toISOString(), last_error: null,
+  });
+  if (soloProbar) return json({ ok: true, soloProbar: true, total: scraped.length });
 
   // The window scopes which solicitudes we hold ourselves accountable for.
   const enVentana = scraped.filter((r) => enRango(r.fecha, desde, hasta));

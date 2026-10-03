@@ -17,19 +17,17 @@
 //      Otherwise: insert new rows + a notification per new order for the
 //      owners/admins of Electrilam.
 //
-// Credentials come from function secrets MECONECTA_EMAIL / MECONECTA_PASSWORD.
+// Credentials: Vault, entered by Electrilam in /integraciones/meconecta (see
+// _shared/meconecta-conexion.ts). A rejected password stops the cron until an
+// admin reconnects.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { withCronMonitor } from "../_shared/sentry-cron.ts";
-import { fetchOrders, login, detalleUrl } from "../_shared/meconecta-scrape.ts";
+import { fetchOrders, login, detalleUrl, MeconectaAuthError, type ScrapedRow } from "../_shared/meconecta-scrape.ts";
+import { ELECTRILAM_WS, getCredenciales, marcarEstado, describirError } from "../_shared/meconecta-conexion.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY  = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const MECONECTA_EMAIL    = Deno.env.get("MECONECTA_EMAIL") ?? "";
-const MECONECTA_PASSWORD = Deno.env.get("MECONECTA_PASSWORD") ?? "";
-
-// Electrilam — the only workspace this feature serves.
-const ELECTRILAM_WS = "f1b64714-6de2-4d49-b6e4-5959553e94d7";
 
 // ── Recipients: Electrilam owners + admins ──
 async function getRecipientUserIds(
@@ -43,20 +41,59 @@ async function getRecipientUserIds(
   return (data ?? []).map((u: { id: string }) => u.id);
 }
 
+// One notice per rejection: after this the cron skips until someone reconnects.
+async function notificarClaveRechazada(
+  supabase: ReturnType<typeof createClient>,
+): Promise<void> {
+  const userIds = await getRecipientUserIds(supabase);
+  if (userIds.length === 0) return;
+  await supabase.from("notifications").insert(
+    userIds.map((uid) => ({
+      usuario_id: uid,
+      titulo: "MeConecta rechazó la clave",
+      mensaje: "Pangui dejó de revisar MeConecta. Vuelve a conectarlo en Integraciones.",
+      url: "/integraciones/meconecta",
+      tipo: "meconecta",
+    })),
+  );
+}
+
 Deno.serve(async (_req) => {
   return await withCronMonitor(
     "meconecta-scrape-cron",
     { schedule: "*/15 * * * *", maxRuntime: 5 },
     async () => {
-      if (!MECONECTA_EMAIL || !MECONECTA_PASSWORD) {
-        throw new Error("MECONECTA_EMAIL / MECONECTA_PASSWORD not configured");
-      }
       const supabase = createClient(SUPABASE_URL, SERVICE_KEY, {
         auth: { autoRefreshToken: false, persistSession: false },
       });
 
-      const cookie = await login(MECONECTA_EMAIL, MECONECTA_PASSWORD);
-      const scraped = await fetchOrders(cookie);
+      // Not connected, or the password was rejected: do nothing until an admin
+      // (re)connects. Retrying a rejected password every 15 min would look like
+      // a brute-force attempt in the university's logs and could lock the account.
+      const creds = await getCredenciales(supabase);
+      if (!creds || creds.status === "credenciales_invalidas") {
+        return new Response(JSON.stringify({ skipped: creds ? "credenciales_invalidas" : "sin_conexion" }), {
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+
+      let scraped: ScrapedRow[];
+      try {
+        scraped = await fetchOrders(await login(creds.username, creds.password));
+      } catch (e) {
+        if (e instanceof MeconectaAuthError) {
+          await marcarEstado(supabase, creds, { status: "credenciales_invalidas", last_error: describirError(e) });
+          await notificarClaveRechazada(supabase);
+          return new Response(JSON.stringify({ authFailed: true }), {
+            headers: { "Content-Type": "application/json" },
+          });
+        }
+        await marcarEstado(supabase, creds, { status: "error", last_error: describirError(e) });
+        throw e;
+      }
+      await marcarEstado(supabase, creds, {
+        status: "conectado", last_sync_at: new Date().toISOString(), last_error: null,
+      });
 
       if (scraped.length === 0) {
         return new Response(JSON.stringify({ scraped: 0, new: 0, note: "no rows parsed" }), {
