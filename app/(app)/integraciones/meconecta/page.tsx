@@ -232,19 +232,13 @@ export default function MeconectaIntegracionPage() {
           </Seccion>
 
           <Seccion icono={<Workflow size={20} />} titulo="Cómo funciona">
-            <ol style={{ margin: 0, padding: 0, listStyle: "none", display: "grid", gap: 14 }}>
-              {PASOS.map((paso, i) => (
-                <li key={paso.titulo} style={{ display: "flex", gap: 12 }}>
-                  <span style={{ flexShrink: 0, width: 24, height: 24, borderRadius: 999, display: "grid", placeItems: "center", background: "var(--brand-tint)", color: "var(--brand)", fontSize: 13, fontWeight: 500 }}>
-                    {i + 1}
-                  </span>
-                  <div>
-                    <p style={{ margin: 0, color: "var(--fg-1)", fontWeight: 500 }}>{paso.titulo}</p>
-                    <p style={{ margin: "2px 0 0" }}>{paso.texto}</p>
-                  </div>
+            <ul style={{ margin: 0, paddingLeft: 20, display: "grid", gap: 10, listStyle: "disc" }}>
+              {PASOS.map((paso) => (
+                <li key={paso.titulo}>
+                  <span style={{ color: "var(--fg-1)", fontWeight: 500 }}>{paso.titulo}.</span> {paso.texto}
                 </li>
               ))}
-            </ol>
+            </ul>
           </Seccion>
 
           <Seccion icono={<ShieldCheck size={20} />} titulo="Seguridad y acceso">
