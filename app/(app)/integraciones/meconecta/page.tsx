@@ -264,9 +264,9 @@ export default function MeconectaIntegracionPage() {
           </Seccion>
 
           <section style={{ padding: 24, borderRadius: "var(--r-lg)", background: "var(--brand-tint)" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              <LogoUdec alto={44} />
-              <span style={{ fontSize: 15, color: "var(--fg-2)" }}>Universidad de Concepción</span>
+            {/* Logo completo (texto negro): sobre blanco fijo, como en el catálogo. */}
+            <div style={{ display: "inline-flex", padding: "10px 14px", borderRadius: "var(--r-md)", background: "#FFFFFF", border: "1px solid var(--border)" }}>
+              <LogoUdec completo alto={48} />
             </div>
             <h2 style={{ margin: "16px 0 10px", fontSize: 24, fontWeight: 500, letterSpacing: "-0.02em", color: "var(--fg-1)" }}>
               Acerca de la UdeC y MeConecta
