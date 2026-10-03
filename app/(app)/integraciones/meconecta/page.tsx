@@ -206,7 +206,7 @@ export default function MeconectaIntegracionPage() {
   return (
     <div>
       {/* Mismo breadcrumb de vuelta que /activos/[id]/estado. */}
-      <div style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 14, color: "var(--fg-3)", padding: "14px 24px" }}>
+      <div style={{ height: 56, flexShrink: 0, display: "flex", alignItems: "center", gap: 7, fontSize: 14, color: "var(--fg-3)", padding: "0 18px", borderBottom: "1px solid var(--border)" }}>
         <Link href="/integraciones" prefetch={false} style={{ display: "inline-flex", alignItems: "center", gap: 5, color: "var(--brand)", textDecoration: "none" }}>
           <ArrowLeft size={14} /> Integraciones
         </Link>
