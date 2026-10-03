@@ -96,27 +96,12 @@ function TileLogo({ style, children }: { style: CSSProperties; children: ReactNo
 }
 
 /**
- * Centro de la banda: un "+" entre los dos logos (como "Samsara + MaintainX").
- * El título "MeConecta y Pangui" queda solo para lectores de pantalla.
- * `sobreColor`: va encima de la banda de color (blanco) o fuera de ella (móvil).
- */
-function Titulo({ sobreColor }: { sobreColor: boolean }) {
-  const sombra = sobreColor ? "drop-shadow(0 1px 2px rgba(0, 0, 0, 0.25))" : undefined;
-  return (
-    <>
-      <h1 className="sr-only">MeConecta y Pangui</h1>
-      <Plus aria-hidden size={56} strokeWidth={2.5} style={{ color: sobreColor ? "#FFFFFF" : "var(--fg-3)", filter: sombra }} />
-      <p style={{ margin: 0, fontSize: 20, lineHeight: 1.3, color: sobreColor ? "rgba(255, 255, 255, 0.88)" : "var(--fg-3)", textShadow: sobreColor ? "0 1px 2px rgba(0, 0, 0, 0.25)" : undefined }}>Portal de mantención</p>
-    </>
-  );
-}
-
-/**
  * Banda superior: un bloque por marca con sus colores (Pangui uno, la UdeC dos)
  * y su logo en una tarjeta blanca al centro del bloque. Entre ambos, el azul de
  * Pangui se funde con el amarillo de la UdeC (en OKLab, para que el punto medio
  * no quede marrón). Pangui a la izquierda, la UdeC espejada a la derecha.
- * --a es medio bloque. En móvil no cabe el título: va debajo de la banda.
+ * --a es medio bloque. Al centro, un "+" entre los dos logos (como
+ * "Samsara + MaintainX"); el título queda solo para lectores de pantalla.
  */
 function Encabezado() {
   return (
@@ -134,15 +119,10 @@ function Encabezado() {
       >
         <TileLogo style={{ left: "calc(var(--a) - 40px)" }}><LogoPangui size={66} /></TileLogo>
         <TileLogo style={{ right: "calc(var(--a) - 40px)" }}><LogoUdec alto={66} /></TileLogo>
-        <div
-          className="hidden md:flex"
-          style={{ position: "absolute", top: 0, bottom: 0, left: "calc(var(--a) * 2 + 24px)", right: "calc(var(--a) * 2 + 24px)", flexDirection: "column", justifyContent: "center", alignItems: "center", gap: 4, textAlign: "center" }}
-        >
-          <Titulo sobreColor />
+        <h1 className="sr-only">MeConecta y Pangui</h1>
+        <div style={{ position: "absolute", top: 0, bottom: 0, left: "calc(var(--a) * 2 + 24px)", right: "calc(var(--a) * 2 + 24px)", display: "grid", placeItems: "center" }}>
+          <Plus aria-hidden size={56} strokeWidth={2.5} style={{ color: "#FFFFFF", filter: "drop-shadow(0 1px 2px rgba(0, 0, 0, 0.25))" }} />
         </div>
-      </div>
-      <div className="flex md:hidden" style={{ flexDirection: "column", alignItems: "center", gap: 4, textAlign: "center", padding: "20px 16px 0" }}>
-        <Titulo sobreColor={false} />
       </div>
     </>
   );
