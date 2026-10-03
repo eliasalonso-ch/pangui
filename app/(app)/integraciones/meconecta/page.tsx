@@ -134,7 +134,7 @@ function Seccion({ icono, titulo, children }: { icono: ReactNode; titulo: string
   return (
     <section style={{ padding: 24, border: "1px solid var(--border)", borderRadius: "var(--r-lg)", background: "var(--surface-1)" }}>
       <h2 style={{ margin: "0 0 12px", display: "flex", alignItems: "center", gap: 10, fontSize: 20, fontWeight: 500, letterSpacing: "-0.01em", color: "var(--fg-1)" }}>
-        {icono} {titulo}
+        <span style={{ display: "inline-flex", color: "var(--brand)" }}>{icono}</span> {titulo}
       </h2>
       <div style={{ fontSize: 14, lineHeight: 1.6, color: "var(--fg-2)" }}>{children}</div>
     </section>
