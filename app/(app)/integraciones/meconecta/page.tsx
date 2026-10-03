@@ -6,7 +6,7 @@ import { Loader2, Sparkles, ListChecks, Workflow, CircleHelp, ExternalLink, Mail
 import { LogoUdec, LogoPangui } from "@/components/integraciones/Logos";
 import { useGateIntegraciones } from "@/components/integraciones/useGateIntegraciones";
 import ConexionMeconectaPanel from "@/components/integraciones/ConexionMeconectaPanel";
-import BandaFlujo, { type BlobDef } from "@/components/integraciones/BandaFlujo";
+import BandaFlujo from "@/components/integraciones/BandaFlujo";
 
 const PREGUNTAS: { q: string; a: string }[] = [
   { q: "¿Qué datos lee Pangui de MeConecta?",
@@ -75,23 +75,11 @@ const REQUISITOS = [
   "Para el cruce con OTs: el folio (SF…) de cada solicitud escrito en el campo N° de Serie / Folio de la OT.",
 ];
 
-// Solo colores de marca.
-// Pangui: azul del logo (public/logo.svg) y azul de marca de la app (--brand).
+// Pangui: un solo color, el azul de su logo (public/logo.svg).
 // UdeC: azul y amarillo institucionales (Normas gráficas UdeC, PANTONE 541 C / 130 C).
 const PANGUI_AZUL_LOGO = "#273d88";
-const PANGUI_AZUL_MARCA = "#007AFF";
 const UDEC_AZUL = "#223c6a";
 const UDEC_AMARILLO = "#e69b0a";
-
-// Un set del carrusel (se repite para el loop). x/y en % del tramo entre logos.
-const BLOBS: BlobDef[] = [
-  { x: 6,  y: 30, w: 150, h: 120, color: UDEC_AMARILLO,     dur: 14 },
-  { x: 22, y: 78, w: 180, h: 110, color: PANGUI_AZUL_MARCA, dur: 18 },
-  { x: 38, y: 22, w: 130, h: 120, color: UDEC_AMARILLO,     dur: 16 },
-  { x: 55, y: 72, w: 200, h: 130, color: PANGUI_AZUL_MARCA, dur: 20 },
-  { x: 72, y: 26, w: 160, h: 115, color: UDEC_AMARILLO,     dur: 15 },
-  { x: 89, y: 76, w: 140, h: 120, color: PANGUI_AZUL_MARCA, dur: 17 },
-];
 
 /** Logo de terceros: siempre sobre blanco, en ambos temas. */
 function TileLogo({ style, children }: { style: CSSProperties; children: ReactNode }) {
@@ -111,9 +99,11 @@ function TileLogo({ style, children }: { style: CSSProperties; children: ReactNo
 /**
  * Banda superior: el logo de Pangui a la izquierda y el de la UdeC a la derecha,
  * cada uno en una tarjeta blanca a --a del borde. Por fuera de cada logo, el
- * color sólido de su marca (azul Pangui / azul UdeC). Entre los logos viajan
- * blobs de colores de marca como un carrusel (BandaFlujo). Al centro, un "+"
- * (como "Samsara + MaintainX"); el título queda solo para lectores de pantalla.
+ * color sólido de su marca (azul Pangui / azul UdeC). Entre los logos corre la
+ * corriente animada (BandaFlujo) del azul Pangui al amarillo UdeC; sin
+ * movimiento queda el mismo recorrido como degradado fijo (OKLab, para que el
+ * punto medio no quede marrón). Al centro, un "+" (como "Samsara + MaintainX");
+ * el título queda solo para lectores de pantalla.
  */
 function Encabezado() {
   return (
@@ -122,14 +112,17 @@ function Encabezado() {
         className="relative [--a:56px] md:[--a:90px]"
         style={{
           height: 148,
-          background: `linear-gradient(90deg, ${PANGUI_AZUL_LOGO} 0 var(--a), ${UDEC_AZUL} calc(100% - var(--a)))`,
+          background: `linear-gradient(90deg in oklab,
+            ${PANGUI_AZUL_LOGO} 0 var(--a),
+            ${UDEC_AMARILLO} calc(100% - var(--a)),
+            ${UDEC_AZUL} calc(100% - var(--a)))`,
           borderBottom: "1px solid var(--border)",
         }}
       >
-        {/* Blobs que viajan de logo a logo: entran bajo el de Pangui y salen bajo el
-            de la UdeC, que tapan los bordes. */}
+        {/* Corriente animada de logo a logo (nace bajo el de Pangui, muere bajo el de la
+            UdeC, que tapan la costura); el degradado de arriba queda de base. */}
         <div style={{ position: "absolute", top: 0, bottom: 0, left: "var(--a)", right: "var(--a)" }}>
-          <BandaFlujo desde={PANGUI_AZUL_LOGO} hasta={UDEC_AZUL} blobs={BLOBS} />
+          <BandaFlujo desde={PANGUI_AZUL_LOGO} hasta={UDEC_AMARILLO} colores={[PANGUI_AZUL_LOGO, UDEC_AZUL, UDEC_AMARILLO]} />
         </div>
         <TileLogo style={{ left: "calc(var(--a) - 40px)" }}><LogoPangui size={66} /></TileLogo>
         <TileLogo style={{ right: "calc(var(--a) - 40px)" }}><LogoUdec alto={66} /></TileLogo>
