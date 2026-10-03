@@ -6,6 +6,7 @@ import { Loader2, Sparkles, ListChecks, Workflow, CircleHelp, ExternalLink, Mail
 import { LogoUdec, LogoPangui } from "@/components/integraciones/Logos";
 import { useGateIntegraciones } from "@/components/integraciones/useGateIntegraciones";
 import ConexionMeconectaPanel from "@/components/integraciones/ConexionMeconectaPanel";
+import BandaFlujo from "@/components/integraciones/BandaFlujo";
 
 const PREGUNTAS: { q: string; a: string }[] = [
   { q: "¿Qué datos lee Pangui de MeConecta?",
@@ -117,6 +118,10 @@ function Encabezado() {
           borderBottom: "1px solid var(--border)",
         }}
       >
+        {/* Corriente animada entre los dos bloques; el degradado de arriba queda de base. */}
+        <div style={{ position: "absolute", top: 0, bottom: 0, left: "calc(var(--a) * 2)", right: "calc(var(--a) * 2)" }}>
+          <BandaFlujo desde={PANGUI_AZUL_LOGO} hasta={UDEC_AMARILLO} colores={[PANGUI_AZUL_LOGO, UDEC_AZUL, UDEC_AMARILLO]} />
+        </div>
         <TileLogo style={{ left: "calc(var(--a) - 40px)" }}><LogoPangui size={66} /></TileLogo>
         <TileLogo style={{ right: "calc(var(--a) - 40px)" }}><LogoUdec alto={66} /></TileLogo>
         <h1 className="sr-only">MeConecta y Pangui</h1>
