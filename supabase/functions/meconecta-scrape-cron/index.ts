@@ -82,8 +82,12 @@ Deno.serve(async (_req) => {
         scraped = await fetchOrders(await login(creds.username, creds.password));
       } catch (e) {
         if (e instanceof MeconectaAuthError) {
-          await marcarEstado(supabase, creds, { status: "credenciales_invalidas", last_error: describirError(e) });
-          await notificarClaveRechazada(supabase);
+          // Only notify if this run's password is still the current one — an
+          // admin may have saved a new one while we were logging in.
+          const vigente = await marcarEstado(supabase, creds, {
+            status: "credenciales_invalidas", last_error: describirError(e),
+          });
+          if (vigente) await notificarClaveRechazada(supabase);
           return new Response(JSON.stringify({ authFailed: true }), {
             headers: { "Content-Type": "application/json" },
           });

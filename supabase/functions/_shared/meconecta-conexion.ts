@@ -30,18 +30,21 @@ export async function getCredenciales(supabase: Supabase): Promise<Credenciales 
 /**
  * Updates the connection's status. Conditioned on authorized_at so a run that
  * started with the old password can't overwrite a password saved meanwhile.
+ * Returns false when that happened (nothing was updated).
  */
 export async function marcarEstado(
   supabase: Supabase,
   creds: Credenciales,
   patch: { status?: EstadoConexion; last_sync_at?: string; last_error?: string | null },
-): Promise<void> {
-  await supabase
+): Promise<boolean> {
+  const { data } = await supabase
     .from("integration_connections")
     .update({ ...patch, updated_at: new Date().toISOString() })
     .eq("workspace_id", ELECTRILAM_WS)
     .eq("provider", "meconecta")
-    .eq("authorized_at", creds.authorized_at);
+    .eq("authorized_at", creds.authorized_at)
+    .select("id");
+  return (data?.length ?? 0) > 0;
 }
 
 export function describirError(e: unknown): string {
