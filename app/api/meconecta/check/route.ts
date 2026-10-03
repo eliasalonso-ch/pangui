@@ -6,10 +6,13 @@
  *
  * This route owns the user-facing concerns only: session auth, the Electrilam
  * gate, the role check and rate limiting. The scrape + comparison run in the
- * `meconecta-check` edge function, which is where the MECONECTA_EMAIL /
- * MECONECTA_PASSWORD secrets already live (shared with meconecta-scrape-cron).
- * Keeping the portal credentials in exactly one system is the whole point —
- * do not re-add them to the web env.
+ * `meconecta-check` edge function. The portal credentials live in Vault
+ * (entered by Electrilam in /integraciones/meconecta) and only the edge
+ * function can read them — never add them to the web env.
+ *
+ * `{ soloProbar: true }` runs just the login + fetch, for Integraciones →
+ * Probar conexión. Failures carry a `code` ("sin_conexion" |
+ * "credenciales_invalidas", HTTP 409) so the UI can point to Integraciones.
  *
  * Response (pass-through from the edge function):
  *   {
@@ -72,10 +75,12 @@ export async function POST(req: Request) {
   // rather than rejected, which widens the check instead of blocking it.
   let desde: string | null = null;
   let hasta: string | null = null;
+  let soloProbar = false;
   try {
     const body = await req.json();
     if (typeof body?.desde === "string" && DATE_RE.test(body.desde)) desde = body.desde;
     if (typeof body?.hasta === "string" && DATE_RE.test(body.hasta)) hasta = body.hasta;
+    soloProbar = body?.soloProbar === true;
   } catch {
     // no body — check everything
   }
@@ -112,7 +117,7 @@ export async function POST(req: Request) {
         "Content-Type": "application/json",
         "Authorization": `Bearer ${serviceKey}`,
       },
-      body: JSON.stringify({ desde, hasta }),
+      body: JSON.stringify({ desde, hasta, soloProbar }),
       signal: controller.signal,
     });
 
@@ -121,8 +126,8 @@ export async function POST(req: Request) {
       // A failed run shouldn't burn the cooldown — let the next click retry.
       lastRunAtByWorkspace.delete(perfil.workspace_id);
       return NextResponse.json(
-        { ok: false, error: data?.error ?? `La revisión falló (HTTP ${res.status})` },
-        { status: res.status === 503 ? 503 : 502 }
+        { ok: false, code: data?.code, error: data?.error ?? `La revisión falló (HTTP ${res.status})` },
+        { status: res.status === 409 ? 409 : res.status === 503 ? 503 : 502 }
       );
     }
 
