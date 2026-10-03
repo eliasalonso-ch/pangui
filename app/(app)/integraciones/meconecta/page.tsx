@@ -98,12 +98,11 @@ function TileLogo({ style, children }: { style: CSSProperties; children: ReactNo
 
 /**
  * Banda superior: el logo de Pangui a la izquierda y el de la UdeC a la derecha,
- * cada uno en una tarjeta blanca a --a del borde. Por fuera de cada logo, el
- * color sólido de su marca (azul Pangui / azul UdeC). Entre los logos corre la
- * corriente animada (BandaFlujo) del azul Pangui al amarillo UdeC; sin
- * movimiento queda el mismo recorrido como degradado fijo (OKLab, para que el
- * punto medio no quede marrón). Al centro, un "+" (como "Samsara + MaintainX");
- * el título queda solo para lectores de pantalla.
+ * cada uno en una tarjeta blanca a --a del borde. Toda la banda, de borde a
+ * borde, es la corriente animada (BandaFlujo) en azul Pangui, azul UdeC y
+ * amarillo UdeC; sin movimiento queda un degradado fijo del azul Pangui al
+ * amarillo UdeC (OKLab, para que el punto medio no quede marrón). Al centro, un
+ * "+" (como "Samsara + MaintainX"); el título queda solo para lectores de pantalla.
  */
 function Encabezado() {
   return (
@@ -112,18 +111,14 @@ function Encabezado() {
         className="relative [--a:56px] md:[--a:90px]"
         style={{
           height: 148,
-          background: `linear-gradient(90deg in oklab,
-            ${PANGUI_AZUL_LOGO} 0 var(--a),
-            ${UDEC_AMARILLO} calc(100% - var(--a)),
-            ${UDEC_AZUL} calc(100% - var(--a)))`,
+          // Base fija (sin movimiento o mientras carga el shader): el mismo recorrido
+          // del azul Pangui al amarillo UdeC, de borde a borde.
+          background: `linear-gradient(90deg in oklab, ${PANGUI_AZUL_LOGO}, ${UDEC_AMARILLO})`,
           borderBottom: "1px solid var(--border)",
         }}
       >
-        {/* Corriente animada de logo a logo (nace bajo el de Pangui, muere bajo el de la
-            UdeC, que tapan la costura); el degradado de arriba queda de base. */}
-        <div style={{ position: "absolute", top: 0, bottom: 0, left: "var(--a)", right: "var(--a)" }}>
-          <BandaFlujo desde={PANGUI_AZUL_LOGO} hasta={UDEC_AMARILLO} colores={[PANGUI_AZUL_LOGO, UDEC_AZUL, UDEC_AMARILLO]} />
-        </div>
+        {/* Corriente animada de borde a borde, bajo los logos y el "+". */}
+        <BandaFlujo colores={[PANGUI_AZUL_LOGO, UDEC_AZUL, UDEC_AMARILLO]} />
         <TileLogo style={{ left: "calc(var(--a) - 40px)" }}><LogoPangui size={66} /></TileLogo>
         <TileLogo style={{ right: "calc(var(--a) - 40px)" }}><LogoUdec alto={66} /></TileLogo>
         <h1 className="sr-only">MeConecta y Pangui</h1>
