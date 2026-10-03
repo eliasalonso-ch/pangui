@@ -6,7 +6,7 @@ import { Loader2, Sparkles, ListChecks, Workflow, CircleHelp, ExternalLink, Mail
 import { LogoUdec, LogoPangui } from "@/components/integraciones/Logos";
 import { useGateIntegraciones } from "@/components/integraciones/useGateIntegraciones";
 import ConexionMeconectaPanel from "@/components/integraciones/ConexionMeconectaPanel";
-import BandaFlujo from "@/components/integraciones/BandaFlujo";
+import BandaBlob from "@/components/integraciones/BandaBlob";
 
 const PREGUNTAS: { q: string; a: string }[] = [
   { q: "¿Qué datos lee Pangui de MeConecta?",
@@ -78,6 +78,7 @@ const REQUISITOS = [
 // Pangui: un solo color, el azul de su logo (public/logo.svg).
 // UdeC: azul y amarillo institucionales (Normas gráficas UdeC, PANTONE 541 C / 130 C).
 const PANGUI_AZUL_LOGO = "#273d88";
+const PANGUI_AZUL_MARCA = "#007AFF"; // --brand de la app
 const UDEC_AZUL = "#223c6a";
 const UDEC_AMARILLO = "#e69b0a";
 
@@ -98,11 +99,10 @@ function TileLogo({ style, children }: { style: CSSProperties; children: ReactNo
 
 /**
  * Banda superior: el logo de Pangui a la izquierda y el de la UdeC a la derecha,
- * cada uno en una tarjeta blanca a --a del borde. Toda la banda, de borde a
- * borde, es la corriente animada (BandaFlujo) en azul Pangui, azul UdeC y
- * amarillo UdeC; sin movimiento queda un degradado fijo del azul Pangui al
- * amarillo UdeC (OKLab, para que el punto medio no quede marrón). Al centro, un
- * "+" (como "Samsara + MaintainX"); el título queda solo para lectores de pantalla.
+ * cada uno en una tarjeta blanca a --a del borde. Sobre un fondo del azul
+ * Pangui al azul UdeC corre una nube de puntos (BandaBlob): azul Pangui del lado
+ * de Pangui, amarillo UdeC del lado de la UdeC. Al centro, un "+" (como
+ * "Samsara + MaintainX"); el título queda solo para lectores de pantalla.
  */
 function Encabezado() {
   return (
@@ -111,14 +111,14 @@ function Encabezado() {
         className="relative [--a:56px] md:[--a:90px]"
         style={{
           height: 148,
-          // Base fija (sin movimiento o mientras carga el shader): el mismo recorrido
-          // del azul Pangui al amarillo UdeC, de borde a borde.
-          background: `linear-gradient(90deg in oklab, ${PANGUI_AZUL_LOGO}, ${UDEC_AMARILLO})`,
+          // Fondo de la nube: del azul Pangui al azul UdeC (también es lo que queda
+          // sin WebGL2).
+          background: `linear-gradient(90deg, ${PANGUI_AZUL_LOGO}, ${UDEC_AZUL})`,
           borderBottom: "1px solid var(--border)",
         }}
       >
-        {/* Corriente animada de borde a borde, bajo los logos y el "+". */}
-        <BandaFlujo colores={[PANGUI_AZUL_LOGO, UDEC_AZUL, UDEC_AMARILLO]} />
+        {/* Nube de puntos animada de borde a borde, bajo los logos y el "+". */}
+        <BandaBlob izquierda={PANGUI_AZUL_MARCA} derecha={UDEC_AMARILLO} />
         <TileLogo style={{ left: "calc(var(--a) - 40px)" }}><LogoPangui size={66} /></TileLogo>
         <TileLogo style={{ right: "calc(var(--a) - 40px)" }}><LogoUdec alto={66} /></TileLogo>
         <h1 className="sr-only">MeConecta y Pangui</h1>
