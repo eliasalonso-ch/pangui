@@ -95,13 +95,18 @@ function TileLogo({ style, children }: { style: CSSProperties; children: ReactNo
   );
 }
 
-/** `sobreColor`: va encima de la banda de color (texto blanco) o fuera de ella. */
+/**
+ * Centro de la banda: un "+" entre los dos logos (como "Samsara + MaintainX").
+ * El título "MeConecta y Pangui" queda solo para lectores de pantalla.
+ * `sobreColor`: va encima de la banda de color (blanco) o fuera de ella (móvil).
+ */
 function Titulo({ sobreColor }: { sobreColor: boolean }) {
-  const sombra = sobreColor ? "0 1px 2px rgba(0, 0, 0, 0.25)" : undefined;
+  const sombra = sobreColor ? "drop-shadow(0 1px 2px rgba(0, 0, 0, 0.25))" : undefined;
   return (
     <>
-      <h1 style={{ margin: 0, fontSize: 24, fontWeight: 500, letterSpacing: "-0.02em", lineHeight: 1.2, color: sobreColor ? "#FFFFFF" : "var(--fg-1)", textShadow: sombra }}>MeConecta y Pangui</h1>
-      <p style={{ margin: 0, fontSize: 20, lineHeight: 1.3, color: sobreColor ? "rgba(255, 255, 255, 0.88)" : "var(--fg-3)", textShadow: sombra }}>Portal de mantención</p>
+      <h1 className="sr-only">MeConecta y Pangui</h1>
+      <Plus aria-hidden size={56} strokeWidth={2.5} style={{ color: sobreColor ? "#FFFFFF" : "var(--fg-3)", filter: sombra }} />
+      <p style={{ margin: 0, fontSize: 20, lineHeight: 1.3, color: sobreColor ? "rgba(255, 255, 255, 0.88)" : "var(--fg-3)", textShadow: sobreColor ? "0 1px 2px rgba(0, 0, 0, 0.25)" : undefined }}>Portal de mantención</p>
     </>
   );
 }
