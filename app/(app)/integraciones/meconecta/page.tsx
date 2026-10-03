@@ -97,12 +97,13 @@ function TileLogo({ style, children }: { style: CSSProperties; children: ReactNo
 }
 
 /**
- * Banda superior: un bloque por marca con sus colores (Pangui uno, la UdeC dos)
- * y su logo en una tarjeta blanca al centro del bloque. Entre ambos, el azul de
- * Pangui se funde con el amarillo de la UdeC (en OKLab, para que el punto medio
- * no quede marrón). Pangui a la izquierda, la UdeC espejada a la derecha.
- * --a es medio bloque. Al centro, un "+" entre los dos logos (como
- * "Samsara + MaintainX"); el título queda solo para lectores de pantalla.
+ * Banda superior: el logo de Pangui a la izquierda y el de la UdeC a la derecha,
+ * cada uno en una tarjeta blanca a --a del borde. Por fuera de cada logo, el
+ * color sólido de su marca (azul Pangui / azul UdeC). Entre los logos corre la
+ * corriente animada (BandaFlujo) del azul Pangui al amarillo UdeC; sin
+ * movimiento queda el mismo recorrido como degradado fijo (OKLab, para que el
+ * punto medio no quede marrón). Al centro, un "+" (como "Samsara + MaintainX");
+ * el título queda solo para lectores de pantalla.
  */
 function Encabezado() {
   return (
@@ -112,14 +113,15 @@ function Encabezado() {
         style={{
           height: 148,
           background: `linear-gradient(90deg in oklab,
-            ${PANGUI_AZUL_LOGO} 0 calc(var(--a) * 2),
-            ${UDEC_AMARILLO} calc(100% - var(--a) * 2) calc(100% - var(--a)),
+            ${PANGUI_AZUL_LOGO} 0 var(--a),
+            ${UDEC_AMARILLO} calc(100% - var(--a)),
             ${UDEC_AZUL} calc(100% - var(--a)))`,
           borderBottom: "1px solid var(--border)",
         }}
       >
-        {/* Corriente animada entre los dos bloques; el degradado de arriba queda de base. */}
-        <div style={{ position: "absolute", top: 0, bottom: 0, left: "calc(var(--a) * 2)", right: "calc(var(--a) * 2)" }}>
+        {/* Corriente animada de logo a logo (nace bajo el de Pangui, muere bajo el de la
+            UdeC, que tapan la costura); el degradado de arriba queda de base. */}
+        <div style={{ position: "absolute", top: 0, bottom: 0, left: "var(--a)", right: "var(--a)" }}>
           <BandaFlujo desde={PANGUI_AZUL_LOGO} hasta={UDEC_AMARILLO} colores={[PANGUI_AZUL_LOGO, UDEC_AZUL, UDEC_AMARILLO]} />
         </div>
         <TileLogo style={{ left: "calc(var(--a) - 40px)" }}><LogoPangui size={66} /></TileLogo>

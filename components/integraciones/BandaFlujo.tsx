@@ -62,7 +62,7 @@ export default function BandaFlujo({ desde, hasta, colores }: {
       )}
       <div style={{
         position: "absolute", inset: 0, pointerEvents: "none",
-        background: `linear-gradient(90deg, ${desde} 0%, transparent 22%, transparent 78%, ${hasta} 100%)`,
+        background: `linear-gradient(90deg, ${desde} 0%, transparent 18%, transparent 82%, ${hasta} 100%)`,
       }} />
     </div>
   );
