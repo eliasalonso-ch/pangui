@@ -26,11 +26,12 @@ export function LogoPangui({ size }: { size: number }) {
 export function EstadoBadge({ estado }: { estado: EstadoVisible }) {
   const e = ESTADO_VISIBLE[estado];
   return (
+    // Misma forma que la etiqueta del proveedor en la tarjeta del catálogo.
     <span style={{
-      display: "inline-flex", alignItems: "center", borderRadius: 999, padding: "2px 10px", fontSize: 13,
+      display: "inline-flex", alignItems: "center", borderRadius: "var(--r-md)", padding: "2px 8px", fontSize: 12,
       background: e.bg, color: e.fg, whiteSpace: "nowrap",
       // "Sin conectar" no tiene color propio: el borde lo separa de la tarjeta blanca.
-      border: `1px solid ${estado === "sin_conexion" ? "var(--border-strong)" : "transparent"}`,
+      border: `1px solid ${estado === "sin_conexion" ? "var(--border)" : "transparent"}`,
     }}>
       {e.label}
     </span>
