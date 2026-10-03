@@ -22,7 +22,7 @@ const PREGUNTAS: { q: string; a: string }[] = [
     a: "En la infraestructura de Pangui (Supabase), en servidores ubicados en Estados Unidos." },
 ];
 
-// Dos colores por marca. Pangui: azul del logo (public/logo.svg) + azul de marca.
+// Pangui: un solo color, el azul de su logo (public/logo.svg).
 // UdeC: azul y amarillo institucionales (Normas gráficas UdeC, PANTONE 541 C / 130 C).
 const PANGUI_AZUL_LOGO = "#273d88";
 const UDEC_AZUL = "#223c6a";
@@ -51,8 +51,8 @@ const TITULO = (
 );
 
 /**
- * Banda superior: un bloque por marca con sus dos colores, y su logo en una
- * tarjeta blanca al centro del bloque (justo donde se juntan los dos colores).
+ * Banda superior: un bloque por marca con sus colores (Pangui uno, la UdeC dos)
+ * y su logo en una tarjeta blanca al centro del bloque.
  * Pangui a la izquierda, la UdeC espejada a la derecha. --a es medio bloque.
  * En móvil no cabe el título entre los bloques: va debajo de la banda.
  */
@@ -64,8 +64,7 @@ function Encabezado() {
         style={{
           height: 148,
           background: `linear-gradient(90deg,
-            ${PANGUI_AZUL_LOGO} 0 var(--a),
-            var(--brand) var(--a) calc(var(--a) * 2),
+            ${PANGUI_AZUL_LOGO} 0 calc(var(--a) * 2),
             var(--surface-1) calc(var(--a) * 2) calc(100% - var(--a) * 2),
             ${UDEC_AMARILLO} calc(100% - var(--a) * 2) calc(100% - var(--a)),
             ${UDEC_AZUL} calc(100% - var(--a)))`,
