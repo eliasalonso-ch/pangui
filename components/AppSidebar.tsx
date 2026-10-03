@@ -23,6 +23,7 @@ import {
   CircleUserRound,
   Building2,
   CreditCard,
+  Plug,
   Tag,
   Zap,
   Wrench,
@@ -39,6 +40,7 @@ import { getPerfilUsuario } from "@/lib/perfil-usuario";
 import { usePermisos } from "@/lib/permisos";
 import { ROL_LABEL } from "@/lib/roles";
 import { tieneItos } from "@/lib/itos-gate";
+import { puedeVerIntegraciones } from "@/lib/integraciones";
 import { useSuscripcion } from "@/hooks/useSuscripcion";
 import { useNotificacionesCount, useNotificacionesRealtime } from "@/hooks/useNotificaciones";
 
@@ -759,6 +761,16 @@ export default function AppSidebar() {
                     <Link href="/espacio-trabajo" prefetch={false} style={{ display: "flex", alignItems: "center", gap: collapsed ? 0 : 10 }}>
                       <Building2 size={16} style={{ flexShrink: 0 }} />
                       {!collapsed && <span>Espacio de trabajo</span>}
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )}
+              {mounted && puedeVerIntegraciones(workspaceId, effectiveRol) && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={isActive("/integraciones")} tooltip="Integraciones">
+                    <Link href="/integraciones" prefetch={false} style={{ display: "flex", alignItems: "center", gap: collapsed ? 0 : 10 }}>
+                      <Plug size={16} style={{ flexShrink: 0 }} />
+                      {!collapsed && <span>Integraciones</span>}
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
