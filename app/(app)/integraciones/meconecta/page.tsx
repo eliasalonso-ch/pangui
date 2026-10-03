@@ -22,8 +22,8 @@ const PREGUNTAS: { q: string; a: string }[] = [
     a: "En la infraestructura de Pangui (Supabase), en servidores ubicados en Estados Unidos." },
 ];
 
-// Azul del escudo UdeC (muestreado del logo oficial).
-const UDEC_AZUL = "#033863";
+// Azul institucional UdeC (Normas gráficas UdeC: HEX #223c6a, PANTONE 541 C).
+const UDEC_AZUL = "#223c6a";
 
 /** Logo de terceros: siempre sobre blanco, en ambos temas. */
 function TileLogo({ style, children }: { style: CSSProperties; children: ReactNode }) {
@@ -41,23 +41,23 @@ function TileLogo({ style, children }: { style: CSSProperties; children: ReactNo
 }
 
 /**
- * Banda superior: un bloque con el azul de la UdeC y otro con el de Pangui,
- * cada logo en una tarjeta blanca montada sobre el borde de su color.
- * --a / --b son los bordes de cada bloque; los tiles y el título se alinean a ellos.
+ * Banda superior: Pangui a la izquierda con su azul, la UdeC a la derecha con
+ * su azul institucional, cada logo en una tarjeta blanca montada sobre el borde
+ * de su bloque. --a es el ancho de cada bloque; tiles y título se alinean a él.
  */
 function Encabezado() {
   return (
     <div
-      className="relative [--a:56px] [--b:160px] md:[--a:140px] md:[--b:280px]"
+      className="relative [--a:56px] md:[--a:140px]"
       style={{
         height: 148,
-        background: `linear-gradient(90deg, ${UDEC_AZUL} 0 var(--a), var(--brand) var(--a) var(--b), var(--surface-1) var(--b))`,
+        background: `linear-gradient(90deg, var(--brand) 0 var(--a), var(--surface-1) var(--a) calc(100% - var(--a)), ${UDEC_AZUL} calc(100% - var(--a)))`,
         borderBottom: "1px solid var(--border)",
       }}
     >
-      <TileLogo style={{ left: "calc(var(--a) - 40px)" }}><LogoUdec alto={54} /></TileLogo>
-      <TileLogo style={{ left: "calc(var(--b) - 40px)" }}><LogoPangui size={44} /></TileLogo>
-      <div style={{ position: "absolute", top: 0, bottom: 0, left: "calc(var(--b) + 64px)", right: 24, display: "flex", flexDirection: "column", justifyContent: "center", gap: 4 }}>
+      <TileLogo style={{ left: "calc(var(--a) - 40px)" }}><LogoPangui size={44} /></TileLogo>
+      <TileLogo style={{ right: "calc(var(--a) - 40px)" }}><LogoUdec alto={54} /></TileLogo>
+      <div style={{ position: "absolute", top: 0, bottom: 0, left: "calc(var(--a) + 64px)", right: "calc(var(--a) + 64px)", display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", gap: 4, textAlign: "center" }}>
         <h1 style={{ margin: 0, fontSize: 24, fontWeight: 500, letterSpacing: "-0.02em", lineHeight: 1.2, color: "var(--fg-1)" }}>MeConecta y Pangui</h1>
         <p style={{ margin: 0, fontSize: 14, color: "var(--fg-3)" }}>Universidad de Concepción · Portal de mantención</p>
       </div>
