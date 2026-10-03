@@ -72,8 +72,8 @@ function Encabezado() {
           borderBottom: "1px solid var(--border)",
         }}
       >
-        <TileLogo style={{ left: "calc(var(--a) - 40px)" }}><LogoPangui size={44} /></TileLogo>
-        <TileLogo style={{ right: "calc(var(--a) - 40px)" }}><LogoUdec alto={54} /></TileLogo>
+        <TileLogo style={{ left: "calc(var(--a) - 40px)" }}><LogoPangui size={66} /></TileLogo>
+        <TileLogo style={{ right: "calc(var(--a) - 40px)" }}><LogoUdec alto={66} /></TileLogo>
         <div
           className="hidden md:flex"
           style={{ position: "absolute", top: 0, bottom: 0, left: "calc(var(--a) * 2 + 24px)", right: "calc(var(--a) * 2 + 24px)", flexDirection: "column", justifyContent: "center", alignItems: "center", gap: 4, textAlign: "center" }}
