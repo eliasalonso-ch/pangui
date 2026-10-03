@@ -264,7 +264,7 @@ export default function MeconectaIntegracionPage() {
           </Seccion>
 
           <section style={{ padding: 24, borderRadius: "var(--r-lg)", background: "var(--brand-tint)" }}>
-            <LogoUdec completo alto={48} />
+            <LogoUdec completo alto={72} />
             <h2 style={{ margin: "16px 0 10px", fontSize: 24, fontWeight: 500, letterSpacing: "-0.02em", color: "var(--fg-1)" }}>
               Acerca de la UdeC y MeConecta
             </h2>
