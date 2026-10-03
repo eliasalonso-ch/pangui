@@ -46,7 +46,7 @@ function TileLogo({ style, children }: { style: CSSProperties; children: ReactNo
 const TITULO = (
   <>
     <h1 style={{ margin: 0, fontSize: 24, fontWeight: 500, letterSpacing: "-0.02em", lineHeight: 1.2, color: "var(--fg-1)" }}>MeConecta y Pangui</h1>
-    <p style={{ margin: 0, fontSize: 14, color: "var(--fg-3)" }}>Portal de mantención</p>
+    <p style={{ margin: 0, fontSize: 20, lineHeight: 1.3, color: "var(--fg-3)" }}>Portal de mantención</p>
   </>
 );
 
