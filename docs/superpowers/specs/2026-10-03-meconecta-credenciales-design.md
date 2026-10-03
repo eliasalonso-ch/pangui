@@ -72,7 +72,9 @@ Todas `security definer set search_path = ''`, workspace derivado de
 - `disconnect_meconecta()`
   - Borra el secreto de `vault.secrets` y la fila.
   - `grant execute` solo a `authenticated`.
-- `get_meconecta_credentials()` → `(username text, password text, status text)`
+- `get_meconecta_credentials()` → `(username text, password text, status text, authorized_at timestamptz)`
+  - `authorized_at` hace de versión: las Edge Functions condicionan sus cambios de
+    estado a él para no pisar una clave guardada a mitad de un run.
   - Lee `vault.decrypted_secrets` para la fila de Electrilam.
   - `revoke all from public, anon, authenticated`; `grant execute to service_role`.
 
@@ -93,11 +95,14 @@ frontend ni pasa por Vercel.
 - `meconecta-scrape-cron`
   - Sin credenciales utilizables → responde `{ skipped: "sin conexión" }`, sin lanzar
     (no dispara la alerta de cron de Sentry cada 15 min).
+  - Detección de clave rechazada: el portal responde HTTP 200 y entrega PHPSESSID
+    igual; la señal es el cuerpo `{"login_status":"invalid"}` (verificado
+    2026-10-03 con un email inventado).
   - `MeconectaAuthError` → `status='credenciales_invalidas'`, `last_error`, y **una**
     notificación a owners/admins de Electrilam ("MeConecta rechazó la clave —
     vuelve a conectarla", url `/integraciones/meconecta`). Deja de intentar.
   - Éxito → `status='conectado'`, `last_sync_at=now()`, `last_error=null`.
-  - Otro error → `last_error`, status sin cambio; se relanza (Sentry) y reintenta
+  - Otro error → `status='error'` + `last_error`; se relanza (Sentry) y reintenta
     en el próximo tick.
 - `meconecta-check`
   - Mismo manejo de credenciales/estado.
@@ -149,15 +154,16 @@ una sola entrada: `meconecta`.
     último error.
   - **Conectar** / **Cambiar clave** → diálogo: usuario, clave, checkbox
     "Autorizo a Pangui a sincronizar mis solicitudes de MeConecta", botón
-    **Guardar y probar** (RPC → `/api/meconecta/probar`).
-  - **Probar conexión** → `/api/meconecta/probar`.
+    **Guardar y probar** (RPC → `/api/meconecta/check` con `{ soloProbar: true }`).
+  - **Probar conexión** → `/api/meconecta/check` con `{ soloProbar: true }`.
   - **Desconectar** (con confirmación) → RPC `disconnect_meconecta`.
   - "Gestionado por: Pangui"; enlaces Contacto y Abrir MeConecta.
 - Tokens de color del proyecto y modo oscuro.
 
-### `/api/meconecta/probar`
-Mismo auth / gate Electrilam / `esAdmin` / cooldown que `/api/meconecta/check`;
-invoca `meconecta-check` con `{ soloProbar: true }`.
+### `/api/meconecta/check` (modo prueba)
+No hay ruta nueva: la existente acepta `{ soloProbar: true }` (mismo auth, gate
+Electrilam, `esAdmin` y cooldown) y lo pasa a `meconecta-check`. Los errores
+traen `code` (`sin_conexion` / `credenciales_invalidas`, HTTP 409).
 
 ### Revisar MeConecta (Órdenes)
 `MeconectaCheck.tsx`: si la respuesta es `sin_conexion`, muestra "Conecta MeConecta
