@@ -42,8 +42,9 @@ export default function IntegracionesPage() {
               <span style={{ fontSize: 12, color: "var(--fg-3)", border: "1px solid var(--border)", borderRadius: "var(--r-md)", padding: "2px 8px" }}>{i.proveedor}</span>
               {estado && <EstadoBadge estado={estado} />}
             </div>
-            <div style={{ height: 120, display: "grid", placeItems: "center", border: "1px solid var(--border)", borderRadius: "var(--r-md)", background: "var(--surface-0)" }}>
-              <LogoUdec size={64} />
+            {/* Blanco fijo en ambos temas: el logo completo trae texto negro. */}
+            <div style={{ height: 120, display: "grid", placeItems: "center", border: "1px solid var(--border)", borderRadius: "var(--r-md)", background: "#FFFFFF" }}>
+              <LogoUdec completo alto={56} />
             </div>
             <div>
               <p style={{ margin: 0, fontSize: 15, fontWeight: 500, color: "var(--fg-1)" }}>{i.nombre}</p>

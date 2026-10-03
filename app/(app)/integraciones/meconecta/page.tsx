@@ -53,7 +53,7 @@ export default function MeconectaIntegracionPage() {
         </nav>
         <div style={{ marginTop: 28, display: "flex", flexDirection: "column", alignItems: "center", gap: 18, textAlign: "center" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 14, color: "var(--fg-3)" }}>
-            <LogoUdec size={44} /> <span style={{ fontSize: 20 }}>+</span> <LogoPangui size={40} />
+            <LogoUdec alto={48} /> <span style={{ fontSize: 20 }}>+</span> <LogoPangui size={40} />
           </div>
           <h1 style={{ margin: 0, fontSize: 36, fontWeight: 500, letterSpacing: "-0.03em", color: "var(--fg-1)" }}>MeConecta y Pangui</h1>
           <p style={{ margin: 0, maxWidth: 560, fontSize: 15, lineHeight: 1.55, color: "var(--fg-2)" }}>

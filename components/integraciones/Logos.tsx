@@ -1,20 +1,20 @@
 import { ESTADO_VISIBLE, type EstadoVisible } from "@/lib/meconecta-conexion";
 
-// Placeholder hasta tener el logo oficial de la UdeC.
-export function LogoUdec({ size }: { size: number }) {
+/**
+ * Logo oficial de la UdeC. `completo` es el escudo + "Universidad de
+ * Concepción" en texto negro: solo va sobre fondo blanco fijo (en modo oscuro
+ * el texto desaparece). El escudo solo funciona sobre cualquier fondo.
+ */
+export function LogoUdec({ alto, completo = false }: { alto: number; completo?: boolean }) {
   return (
-    <div
-      role="img"
-      aria-label="Universidad de Concepción"
-      style={{
-        width: size, height: size, borderRadius: size * 0.22, flexShrink: 0,
-        display: "grid", placeItems: "center",
-        background: "var(--brand-tint)", color: "var(--brand)",
-        fontSize: Math.round(size * 0.3), fontWeight: 500, letterSpacing: "-0.02em",
-      }}
-    >
-      UdeC
-    </div>
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={completo ? "/integraciones/udec.webp" : "/integraciones/udec-escudo.webp"}
+      alt="Universidad de Concepción"
+      height={alto}
+      width={Math.round(alto * (completo ? 727 / 287 : 233 / 287))}
+      style={{ height: alto, width: "auto", flexShrink: 0 }}
+    />
   );
 }
 
