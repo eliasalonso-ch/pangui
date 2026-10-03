@@ -26,7 +26,12 @@ export function LogoPangui({ size }: { size: number }) {
 export function EstadoBadge({ estado }: { estado: EstadoVisible }) {
   const e = ESTADO_VISIBLE[estado];
   return (
-    <span style={{ display: "inline-flex", alignItems: "center", borderRadius: 999, padding: "3px 10px", fontSize: 13, background: e.bg, color: e.fg, whiteSpace: "nowrap" }}>
+    <span style={{
+      display: "inline-flex", alignItems: "center", borderRadius: 999, padding: "2px 10px", fontSize: 13,
+      background: e.bg, color: e.fg, whiteSpace: "nowrap",
+      // "Sin conectar" no tiene color propio: el borde lo separa de la tarjeta blanca.
+      border: `1px solid ${estado === "sin_conexion" ? "var(--border-strong)" : "transparent"}`,
+    }}>
       {e.label}
     </span>
   );

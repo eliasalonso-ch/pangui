@@ -26,7 +26,7 @@ const btn = (primario: boolean): CSSProperties => ({
   height: 38, width: "100%", borderRadius: "var(--r-md)", fontSize: 14, fontWeight: 500, cursor: "pointer",
   border: primario ? "none" : "1px solid var(--border-strong)",
   background: primario ? "var(--brand)" : "var(--surface-1)",
-  color: primario ? "var(--brand-fg)" : "var(--fg-1)",
+  color: primario ? "var(--fg-on-brand)" : "var(--fg-1)",
   display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8,
 });
 

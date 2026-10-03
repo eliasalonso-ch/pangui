@@ -43,8 +43,8 @@ export default function IntegracionesPage() {
               {estado && <EstadoBadge estado={estado} />}
             </div>
             {/* Blanco fijo en ambos temas: el logo completo trae texto negro. */}
-            <div style={{ height: 120, display: "grid", placeItems: "center", border: "1px solid var(--border)", borderRadius: "var(--r-md)", background: "#FFFFFF" }}>
-              <LogoUdec completo alto={56} />
+            <div style={{ height: 140, display: "grid", placeItems: "center", border: "1px solid var(--border)", borderRadius: "var(--r-md)", background: "#FFFFFF" }}>
+              <LogoUdec completo alto={72} />
             </div>
             <div>
               <p style={{ margin: 0, fontSize: 15, fontWeight: 500, color: "var(--fg-1)" }}>{i.nombre}</p>
@@ -53,7 +53,7 @@ export default function IntegracionesPage() {
             <Link
               href={i.href}
               prefetch={false}
-              style={{ marginTop: "auto", height: 38, display: "grid", placeItems: "center", borderRadius: "var(--r-md)", background: "var(--brand)", color: "var(--brand-fg)", fontSize: 14, fontWeight: 500, textDecoration: "none" }}
+              style={{ marginTop: "auto", height: 38, display: "grid", placeItems: "center", borderRadius: "var(--r-md)", background: "var(--brand)", color: "var(--fg-on-brand)", fontSize: 14, fontWeight: 500, textDecoration: "none" }}
             >
               {estado && estado !== "sin_conexion" ? "Administrar" : "Conectar"}
             </Link>

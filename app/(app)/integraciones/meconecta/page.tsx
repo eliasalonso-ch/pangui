@@ -1,8 +1,8 @@
 "use client";
 
-import Link from "next/link";
-import type { ReactNode } from "react";
-import { ChevronRight, Loader2, Sparkles, ListChecks, Workflow, CircleHelp, ExternalLink, Mail } from "lucide-react";
+import { useState, type CSSProperties, type ReactNode } from "react";
+import { AnimatePresence, motion } from "framer-motion";
+import { Loader2, Sparkles, ListChecks, Workflow, CircleHelp, ExternalLink, Mail, Plus, Minus } from "lucide-react";
 import { LogoUdec, LogoPangui } from "@/components/integraciones/Logos";
 import { useGateIntegraciones } from "@/components/integraciones/useGateIntegraciones";
 import ConexionMeconectaPanel from "@/components/integraciones/ConexionMeconectaPanel";
@@ -21,6 +21,91 @@ const PREGUNTAS: { q: string; a: string }[] = [
   { q: "¿Dónde se almacenan los datos?",
     a: "En la infraestructura de Pangui (Supabase), en servidores ubicados en Estados Unidos." },
 ];
+
+// Azul del escudo UdeC (muestreado del logo oficial).
+const UDEC_AZUL = "#033863";
+
+/** Logo de terceros: siempre sobre blanco, en ambos temas. */
+function TileLogo({ style, children }: { style: CSSProperties; children: ReactNode }) {
+  return (
+    <div style={{
+      position: "absolute", top: "50%", transform: "translateY(-50%)", width: 80, height: 80,
+      display: "grid", placeItems: "center", background: "#FFFFFF", borderRadius: 18,
+      border: "1px solid rgba(0, 0, 0, 0.06)",
+      boxShadow: "0 1px 2px rgba(0, 0, 0, 0.08), 0 6px 16px rgba(0, 0, 0, 0.10)",
+      ...style,
+    }}>
+      {children}
+    </div>
+  );
+}
+
+/**
+ * Banda superior: un bloque con el azul de la UdeC y otro con el de Pangui,
+ * cada logo en una tarjeta blanca montada sobre el borde de su color.
+ * --a / --b son los bordes de cada bloque; los tiles y el título se alinean a ellos.
+ */
+function Encabezado() {
+  return (
+    <div
+      className="relative [--a:56px] [--b:160px] md:[--a:140px] md:[--b:280px]"
+      style={{
+        height: 148,
+        background: `linear-gradient(90deg, ${UDEC_AZUL} 0 var(--a), var(--brand) var(--a) var(--b), var(--surface-1) var(--b))`,
+        borderBottom: "1px solid var(--border)",
+      }}
+    >
+      <TileLogo style={{ left: "calc(var(--a) - 40px)" }}><LogoUdec alto={54} /></TileLogo>
+      <TileLogo style={{ left: "calc(var(--b) - 40px)" }}><LogoPangui size={44} /></TileLogo>
+      <div style={{ position: "absolute", top: 0, bottom: 0, left: "calc(var(--b) + 64px)", right: 24, display: "flex", flexDirection: "column", justifyContent: "center", gap: 4 }}>
+        <h1 style={{ margin: 0, fontSize: 24, fontWeight: 500, letterSpacing: "-0.02em", lineHeight: 1.2, color: "var(--fg-1)" }}>MeConecta y Pangui</h1>
+        <p style={{ margin: 0, fontSize: 14, color: "var(--fg-3)" }}>Universidad de Concepción · Portal de mantención</p>
+      </div>
+    </div>
+  );
+}
+
+/** Mismo acordeón que las preguntas frecuentes de la landing, con los tokens de la app. */
+function PreguntasFrecuentes() {
+  const [abierta, setAbierta] = useState(-1);
+  return (
+    <div>
+      {PREGUNTAS.map((p, i) => {
+        const open = abierta === i;
+        const Icono = open ? Minus : Plus;
+        return (
+          <div key={p.q} style={{ borderTop: i === 0 ? "none" : "1px solid var(--border)" }}>
+            <button
+              type="button"
+              onClick={() => setAbierta(open ? -1 : i)}
+              aria-expanded={open}
+              style={{
+                width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16,
+                padding: "12px 0", background: "none", border: 0, cursor: "pointer", textAlign: "left",
+                font: "inherit", color: "var(--fg-1)",
+              }}
+            >
+              <span>{p.q}</span>
+              <Icono size={18} strokeWidth={2} aria-hidden style={{ flexShrink: 0, color: "var(--brand)" }} />
+            </button>
+            <AnimatePresence initial={false}>
+              {open && (
+                <motion.p
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: "auto", opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  style={{ margin: 0, overflow: "hidden", paddingBottom: 12, paddingRight: 32 }}
+                >
+                  {p.a}
+                </motion.p>
+              )}
+            </AnimatePresence>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 function Seccion({ icono, titulo, children }: { icono: ReactNode; titulo: string; children: ReactNode }) {
   return (
@@ -45,22 +130,7 @@ export default function MeconectaIntegracionPage() {
 
   return (
     <div>
-      <div style={{ background: "var(--brand-tint)", padding: "20px 24px 40px" }}>
-        <nav aria-label="Ruta" style={{ maxWidth: 1080, margin: "0 auto", display: "flex", alignItems: "center", gap: 6, fontSize: 14, color: "var(--fg-3)" }}>
-          <Link href="/integraciones" prefetch={false} style={{ color: "var(--fg-3)", textDecoration: "none" }}>Integraciones</Link>
-          <ChevronRight size={14} />
-          <span style={{ color: "var(--fg-1)" }}>MeConecta</span>
-        </nav>
-        <div style={{ marginTop: 28, display: "flex", flexDirection: "column", alignItems: "center", gap: 18, textAlign: "center" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 14, color: "var(--fg-3)" }}>
-            <LogoUdec alto={48} /> <span style={{ fontSize: 20 }}>+</span> <LogoPangui size={40} />
-          </div>
-          <h1 style={{ margin: 0, fontSize: 36, fontWeight: 500, letterSpacing: "-0.03em", color: "var(--fg-1)" }}>MeConecta y Pangui</h1>
-          <p style={{ margin: 0, maxWidth: 560, fontSize: 15, lineHeight: 1.55, color: "var(--fg-2)" }}>
-            Las solicitudes de mantención que la UdeC te asigna en MeConecta, a la vista de tu equipo en Pangui.
-          </p>
-        </div>
-      </div>
+      <Encabezado />
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]" style={{ maxWidth: 1080, margin: "0 auto", padding: "32px 24px 56px", alignItems: "start" }}>
         <div style={{ display: "grid", gap: 20 }}>
@@ -89,14 +159,7 @@ export default function MeconectaIntegracionPage() {
           </Seccion>
 
           <Seccion icono={<CircleHelp size={20} />} titulo="Preguntas frecuentes">
-            <div style={{ display: "grid" }}>
-              {PREGUNTAS.map((p, i) => (
-                <details key={p.q} style={{ borderTop: i === 0 ? "none" : "1px solid var(--border)", padding: "12px 0" }}>
-                  <summary style={{ cursor: "pointer", color: "var(--fg-1)", fontWeight: 500 }}>{p.q}</summary>
-                  <p style={{ margin: "8px 0 0" }}>{p.a}</p>
-                </details>
-              ))}
-            </div>
+            <PreguntasFrecuentes />
           </Seccion>
         </div>
 
