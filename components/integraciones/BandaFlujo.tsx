@@ -48,7 +48,9 @@ export default function BandaFlujo({ colores }: { colores: string[] }) {
           colors={colores}
           speed={0.4}
           paused={!visible}
-          params={{ scale: 1.5, curl: 0.6, drift: 0.5, openness: 0.25, grain: 0.03 }}
+          // Sin grano: la librería lo escala al ancho de un cuadro 16:9, no a píxeles, y en
+          // una banda tan ancha queda en bloques de ~8×5 px que se ven pixelados.
+          params={{ scale: 1.5, curl: 0.6, drift: 0.5, openness: 0.25, grain: 0 }}
           style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}
         />
       )}
