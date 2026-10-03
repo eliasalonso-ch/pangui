@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, type CSSProperties, type ReactNode } from "react";
+import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
-import { Loader2, Sparkles, ListChecks, Workflow, CircleHelp, ExternalLink, Mail, Plus, Minus, ShieldCheck, ClipboardCheck, Globe } from "lucide-react";
+import { ArrowLeft, ChevronRight, Loader2, Sparkles, ListChecks, Workflow, CircleHelp, ExternalLink, Mail, Plus, Minus, ShieldCheck, ClipboardCheck, Globe } from "lucide-react";
 import { LogoUdec, LogoPangui } from "@/components/integraciones/Logos";
 import { useGateIntegraciones } from "@/components/integraciones/useGateIntegraciones";
 import ConexionMeconectaPanel from "@/components/integraciones/ConexionMeconectaPanel";
@@ -204,6 +205,15 @@ export default function MeconectaIntegracionPage() {
 
   return (
     <div>
+      {/* Mismo breadcrumb de vuelta que /activos/[id]/estado. */}
+      <div style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 14, color: "var(--fg-3)", padding: "14px 24px" }}>
+        <Link href="/integraciones" prefetch={false} style={{ display: "inline-flex", alignItems: "center", gap: 5, color: "var(--brand)", textDecoration: "none" }}>
+          <ArrowLeft size={14} /> Integraciones
+        </Link>
+        <ChevronRight size={13} style={{ color: "var(--fg-4)" }} />
+        <span style={{ color: "var(--fg-1)", fontWeight: 400 }}>MeConecta</span>
+      </div>
+
       <Encabezado />
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]" style={{ maxWidth: 1080, margin: "0 auto", padding: "32px 24px 56px", alignItems: "start" }}>
