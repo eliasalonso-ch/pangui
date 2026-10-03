@@ -13,8 +13,12 @@
  *   lado de la UdeC, con una transición corta al centro.
  * - Nítido: puntos redondos en píxeles de dispositivo (DPR hasta 2).
  * - Con "reducir movimiento" dibuja un solo cuadro quieto. Se pausa fuera de
- *   pantalla y libera el contexto WebGL al desmontar. Sin WebGL2 no dibuja nada
- *   y queda el degradado de fondo de la banda.
+ *   pantalla y borra sus recursos GPU al desmontar. Sin WebGL2 no dibuja nada y
+ *   queda el degradado de fondo de la banda.
+ * - No se llama a loseContext() al desmontar: el canvas devuelve el MISMO
+ *   contexto en el siguiente montaje (StrictMode y Fast Refresh montan dos
+ *   veces) y, ya perdido, los shaders no compilan. El navegador libera el
+ *   contexto solo cuando el canvas sale del DOM.
  */
 
 import { useEffect, useRef } from "react";
@@ -108,7 +112,7 @@ export default function BandaBlob({ izquierda, derecha }: {
   useEffect(() => {
     const canvas = ref.current;
     const gl = canvas?.getContext("webgl2", { alpha: true, premultipliedAlpha: true, antialias: true });
-    if (!canvas || !gl) return;
+    if (!canvas || !gl || gl.isContextLost()) return;
 
     const vs = compilar(gl, gl.VERTEX_SHADER, VERT);
     const fs = compilar(gl, gl.FRAGMENT_SHADER, FRAG);
@@ -216,7 +220,6 @@ export default function BandaBlob({ izquierda, derecha }: {
       gl.deleteBuffer(buf);
       gl.deleteVertexArray(vao);
       gl.deleteProgram(prog);
-      gl.getExtension("WEBGL_lose_context")?.loseContext();
     };
   }, [izquierda, derecha]);
 
