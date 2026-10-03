@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Check, ChevronRight, CircleUserRound, CreditCard, LogOut, Monitor, Moon, Sun } from "lucide-react";
 import { createClient } from "@/lib/supabase";
@@ -30,11 +31,15 @@ const THEMES: { value: ThemePref; label: string; icon: typeof Sun }[] = [
   { value: "dark", label: "Oscuro", icon: Moon },
 ];
 
-function pageTrail(pathname: string): string[] {
+// A crumb is plain text unless it carries an href, in which case it links back
+// to that parent page (the last crumb is the current page and never links).
+type Crumb = string | { label: string; href: string };
+
+function pageTrail(pathname: string): Crumb[] {
   if (pathname.startsWith("/suscripcion")) return ["Cuenta", "Suscripción"];
   if (pathname.startsWith("/mi-cuenta")) return ["Cuenta", "Mi cuenta"];
   if (pathname.startsWith("/espacio-trabajo")) return ["Cuenta", "Espacio de trabajo"];
-  if (pathname.startsWith("/integraciones/meconecta")) return ["Cuenta", "Integraciones", "MeConecta"];
+  if (pathname.startsWith("/integraciones/meconecta")) return ["Cuenta", { label: "Integraciones", href: "/integraciones" }, "MeConecta"];
   if (pathname.startsWith("/integraciones")) return ["Cuenta", "Integraciones"];
   if (pathname.startsWith("/preferencias-notificaciones")) return ["Cuenta", "Notificaciones"];
   // These must precede `/ordenes`: a bare prefix would otherwise label
@@ -109,12 +114,29 @@ export default function GlobalTopBar() {
     // read as sitting on top.
     <header style={{ height: 56, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 18px", background: "var(--sidebar-bg)", borderBottom: "1px solid var(--border)", position: "relative", zIndex: 100 }}>
       <nav aria-label="Ubicación actual" style={{ minWidth: 0, display: "flex", alignItems: "center", gap: 8, color: "var(--fg-2)" }}>
-        {trail.map((label, index) => (
-          <span key={`${label}-${index}`} style={{ minWidth: 0, display: "inline-flex", alignItems: "center", gap: 8 }}>
-            {index > 0 && <ChevronRight size={14} color="var(--fg-4)" />}
-            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 14, fontWeight: 400, color: index === trail.length - 1 ? "var(--fg-1)" : "var(--fg-3)" }}>{label}</span>
-          </span>
-        ))}
+        {trail.map((crumb, index) => {
+          const label = typeof crumb === "string" ? crumb : crumb.label;
+          const last = index === trail.length - 1;
+          const textStyle = { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 14, fontWeight: 400, color: last ? "var(--fg-1)" : "var(--fg-3)" } as const;
+          return (
+            <span key={`${label}-${index}`} style={{ minWidth: 0, display: "inline-flex", alignItems: "center", gap: 8 }}>
+              {index > 0 && <ChevronRight size={14} color="var(--fg-4)" />}
+              {typeof crumb !== "string" && !last ? (
+                <Link
+                  href={crumb.href}
+                  prefetch={false}
+                  style={{ ...textStyle, textDecoration: "none" }}
+                  onMouseEnter={(e) => { e.currentTarget.style.color = "var(--fg-1)"; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.color = "var(--fg-3)"; }}
+                >
+                  {label}
+                </Link>
+              ) : (
+                <span style={textStyle}>{label}</span>
+              )}
+            </span>
+          );
+        })}
       </nav>
       <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
         {/* Page-contributed icon buttons (see TopBarActions), left of the bell. */}
