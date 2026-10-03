@@ -17,6 +17,25 @@ const RETRY_DELAYS_MS = [0, 1_000, 3_000] as const;
 
 export const MECONECTA_BASE = BASE;
 
+/** The portal rejected the username/password — retrying will not help. */
+export class MeconectaAuthError extends Error {
+  override name = "MeconectaAuthError";
+}
+
+/**
+ * The login endpoint answers HTTP 200 and even sets a PHPSESSID for a wrong
+ * password; only the JSON body says so ({"login_status":"invalid",...}). Any
+ * other or unparseable body is NOT treated as a rejection, so a markup change
+ * on their side can't silently disable the integration.
+ */
+export function loginRechazado(body: string): boolean {
+  try {
+    return (JSON.parse(body) as { login_status?: unknown })?.login_status === "invalid";
+  } catch {
+    return false;
+  }
+}
+
 export interface ScrapedRow {
   idExterno: number;
   folio: string;
@@ -99,6 +118,9 @@ export async function login(email: string, password: string): Promise<string> {
     .find(Boolean);
 
   const text = await res.text().catch(() => "");
+  if (loginRechazado(text)) {
+    throw new MeconectaAuthError("MeConecta rechazó el usuario o la clave");
+  }
   if (!sess) {
     throw new Error(`login: no PHPSESSID returned (status ${res.status}, body ${text.slice(0, 120)})`);
   }
