@@ -14,6 +14,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { RefreshCw, Loader2, Check, AlertTriangle, ExternalLink, X, ChevronDown } from "lucide-react";
 
 const COOLDOWN_MS = 5_000;
@@ -99,6 +100,8 @@ export default function MeconectaCheck({ onOpenOrden }: Props) {
   const [cooldown, setCooldown] = useState(0);
   const [result, setResult]     = useState<CheckResult | null>(null);
   const [error, setError]       = useState<string | null>(null);
+  // "sin_conexion" | "credenciales_invalidas": the fix lives in Integraciones.
+  const [errorCode, setErrorCode] = useState<string | null>(null);
   const [open, setOpen]         = useState(false);
 
   // Period selection. Defaults to "todo" so the safe answer (miss nothing) is
@@ -143,6 +146,7 @@ export default function MeconectaCheck({ onOpenOrden }: Props) {
     if (loading || cooldown > 0) return;
     setLoading(true);
     setError(null);
+    setErrorCode(null);
     try {
       const res = await fetch("/api/meconecta/check", {
         method: "POST",
@@ -153,6 +157,7 @@ export default function MeconectaCheck({ onOpenOrden }: Props) {
 
       if (!res.ok || !data.ok) {
         setError(data?.error ?? "No se pudo revisar MeConecta");
+        setErrorCode(data?.code ?? null);
         // Honour the server's own backoff when it is the one rate-limiting us.
         startCooldown(typeof data?.retryIn === "number" ? data.retryIn : COOLDOWN_MS / 1000);
         setOpen(true);
@@ -361,6 +366,11 @@ export default function MeconectaCheck({ onOpenOrden }: Props) {
               }}>
                 <AlertTriangle size={14} style={{ flexShrink: 0, marginTop: 1 }} />
                 <span>{error}</span>
+                {(errorCode === "sin_conexion" || errorCode === "credenciales_invalidas") && (
+                  <Link href="/integraciones/meconecta" prefetch={false} style={{ marginLeft: "auto", color: "var(--brand)", whiteSpace: "nowrap" }}>
+                    Ir a Integraciones
+                  </Link>
+                )}
               </div>
             )}
 
