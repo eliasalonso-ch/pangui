@@ -14,7 +14,7 @@
  * - Nítido: puntos redondos en píxeles de dispositivo (DPR hasta 2).
  * - Con "reducir movimiento" dibuja un solo cuadro quieto. Se pausa fuera de
  *   pantalla y borra sus recursos GPU al desmontar. Sin WebGL2 no dibuja nada y
- *   queda el degradado de fondo de la banda.
+ *   queda la banda vacía.
  * - No se llama a loseContext() al desmontar: el canvas devuelve el MISMO
  *   contexto en el siguiente montaje (StrictMode y Fast Refresh montan dos
  *   veces) y, ya perdido, los shaders no compilan. El navegador libera el

@@ -75,21 +75,17 @@ const REQUISITOS = [
   "Para el cruce con OTs: el folio (SF…) de cada solicitud escrito en el campo N° de Serie / Folio de la OT.",
 ];
 
-// Pangui: un solo color, el azul de su logo (public/logo.svg).
-// UdeC: azul y amarillo institucionales (Normas gráficas UdeC, PANTONE 541 C / 130 C).
-const PANGUI_AZUL_LOGO = "#273d88";
+// Colores de la nube: azul de marca de Pangui y amarillo institucional UdeC
+// (Normas gráficas UdeC, PANTONE 130 C).
 const PANGUI_AZUL_MARCA = "#007AFF"; // --brand de la app
-const UDEC_AZUL = "#223c6a";
 const UDEC_AMARILLO = "#e69b0a";
 
-/** Logo de terceros: siempre sobre blanco, en ambos temas. */
+/** Lugar de cada logo en la banda (sin fondo propio). */
 function TileLogo({ style, children }: { style: CSSProperties; children: ReactNode }) {
   return (
     <div style={{
       position: "absolute", top: "50%", transform: "translateY(-50%)", width: 80, height: 80,
-      display: "grid", placeItems: "center", background: "#FFFFFF", borderRadius: 18,
-      border: "1px solid rgba(0, 0, 0, 0.06)",
-      boxShadow: "0 1px 2px rgba(0, 0, 0, 0.08), 0 6px 16px rgba(0, 0, 0, 0.10)",
+      display: "grid", placeItems: "center",
       ...style,
     }}>
       {children}
@@ -99,8 +95,8 @@ function TileLogo({ style, children }: { style: CSSProperties; children: ReactNo
 
 /**
  * Banda superior: el logo de Pangui a la izquierda y el de la UdeC a la derecha,
- * cada uno en una tarjeta blanca a --a del borde. Sobre un fondo del azul
- * Pangui al azul UdeC corre una nube de puntos (BandaBlob): azul Pangui del lado
+ * cada uno en una tarjeta blanca a --a del borde. Sin fondo propio, corre
+ * una nube de puntos (BandaBlob): azul Pangui del lado
  * de Pangui, amarillo UdeC del lado de la UdeC. Al centro, un "+" (como
  * "Samsara + MaintainX"); el título queda solo para lectores de pantalla.
  */
@@ -111,9 +107,6 @@ function Encabezado() {
         className="relative [--a:56px] md:[--a:90px]"
         style={{
           height: 148,
-          // Fondo de la nube: del azul Pangui al azul UdeC (también es lo que queda
-          // sin WebGL2).
-          background: `linear-gradient(90deg, ${PANGUI_AZUL_LOGO}, ${UDEC_AZUL})`,
           borderBottom: "1px solid var(--border)",
         }}
       >
