@@ -41,24 +41,24 @@ export const metadata = {
 
 const CAMBIOS = [
   {
-    titulo: "El trabajo dejó de perderse",
+    titulo: "Cada trabajo queda registrado",
     cuerpo:
-      "Cada solicitud entra como OT con responsable y ubicación. Nada depende de un papel que se traspapela ni de una fila en una planilla que nadie actualizó.",
+      "Cada solicitud entra como OT con responsable y ubicación, y se cierra en terreno con su evidencia, sin traspasos entre papeles y planillas.",
   },
   {
     titulo: "Las emergencias quedan documentadas",
     cuerpo:
-      "Un corte eléctrico se registra el mismo día, con su evidencia y su cierre, en vez de reconstruirse semanas después de memoria.",
+      "Un corte eléctrico se registra el mismo día, con su evidencia y su cierre.",
   },
   {
-    titulo: "Presupuestar sobre datos, no memoria",
+    titulo: "Planificar sobre datos",
     cuerpo:
-      "El historial por ubicación muestra qué se hizo y cuántas veces, lo que permite cotizar y planificar con información verificable.",
+      "El historial por ubicación muestra qué se hizo y cuántas veces, lo que permite planificar el mantenimiento con información verificable.",
   },
   {
-    titulo: "Respaldo inmediato ante el cliente",
+    titulo: "Transparencia ante el cliente",
     cuerpo:
-      "2.824 fotos asociadas a sus OTs permiten demostrar el trabajo ejecutado sin depender de conversaciones de WhatsApp.",
+      "2.824 fotos asociadas a sus OTs muestran el trabajo ejecutado con su evidencia, sin depender de conversaciones de WhatsApp.",
   },
 ];
 
@@ -171,16 +171,14 @@ export default function CasoElectrilamPage() {
                   <p className="mt-6 text-[16px] leading-[1.7] text-[var(--ink-2)] md:text-[17px]">
                     Antes de Pangui, cada trabajo se registraba en papel y
                     planillas Excel. Con decenas de solicitudes entrando por
-                    semana desde distintas facultades, el registro no alcanzaba a
-                    seguirle el ritmo a la operación: era difícil saber con
-                    certeza qué se había completado, qué seguía pendiente y qué
-                    respaldo existía de lo ya ejecutado.
+                    semana desde distintas facultades, mantener ese registro al
+                    día y con su respaldo exigía cada vez más tiempo
+                    administrativo.
                   </p>
                   <p className="mt-6 text-[16px] leading-[1.7] text-[var(--ink-2)] md:text-[17px]">
-                    Esa falta de control tenía un costo concreto. Sin un registro
-                    confiable de lo realizado, presupuestar y cerrar proyectos se
-                    apoyaba en la memoria del equipo — y esa diferencia entre lo
-                    ejecutado y lo documentado se traducía en pérdidas.
+                    Lo que buscaban era simple: que cada trabajo quedara
+                    registrado una sola vez, en terreno y con su evidencia, y que
+                    ese registro le sirviera tanto al equipo como al cliente.
                   </p>
                 </div>
               </div>
@@ -207,8 +205,8 @@ export default function CasoElectrilamPage() {
                     En terreno, los técnicos ejecutan desde la app móvil: revisan
                     qué les toca, adjuntan fotos del antes y el después, y cierran
                     la OT con su evidencia. Las emergencias —un corte de energía,
-                    un tablero con filtración de agua— se levantan y documentan el
-                    mismo día, no semanas después.
+                    una falla en un tablero— se levantan y documentan el mismo
+                    día.
                   </p>
                   <p className="mt-6 text-[16px] leading-[1.7] text-[var(--ink-2)] md:text-[17px]">
                     En cuatro meses acumularon 603 órdenes de trabajo y 2.824

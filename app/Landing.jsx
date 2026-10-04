@@ -496,10 +496,9 @@ function CaseStudy() {
                 Ingeniería y Construcción Electrilam SpA
               </strong>{" "}
               ejecuta el mantenimiento eléctrico de la Universidad de Concepción.
-              Antes de Pangui, cada trabajo se registraba en papel y planillas
-              Excel: era difícil saber qué se había completado realmente, y esa
-              falta de control se traducía en pérdidas al presupuestar y cerrar
-              proyectos.
+              Con decenas de solicitudes por semana repartidas por todo el
+              campus, el papel y las planillas Excel ya no daban abasto para
+              registrar cada trabajo con su respaldo.
             </p>
             <p className="mt-5 text-[16px] leading-[1.65] text-[var(--ink-2)] md:text-[17px]">
               Hoy su equipo de 11 personas trabaja sobre Pangui todos los días.
