@@ -117,7 +117,7 @@ function Encabezado() {
         <TileLogo style={{ right: "calc(var(--a) - 40px)" }}><LogoUdec alto={66} /></TileLogo>
         <h1 className="sr-only">MeConecta y Pangui</h1>
         <div style={{ position: "absolute", top: 0, bottom: 0, left: "calc(var(--a) * 2 + 24px)", right: "calc(var(--a) * 2 + 24px)", display: "grid", placeItems: "center" }}>
-          <Plus aria-hidden size={66} strokeWidth={2.5} style={{ color: "#FFFFFF", filter: "drop-shadow(0 1px 2px rgba(0, 0, 0, 0.25))" }} />
+          <Plus aria-hidden size={20} style={{ color: "#FFFFFF", filter: "drop-shadow(0 1px 2px rgba(0, 0, 0, 0.25))" }} />
         </div>
       </div>
     </>
