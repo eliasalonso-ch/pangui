@@ -9,8 +9,9 @@
  * que el movimiento no se vea estirado; la nube ocupa todo el alto y llega
  * hasta los logos.
  *
- * - Colores de marca: puntos azul Pangui del lado de Pangui y amarillo UdeC del
- *   lado de la UdeC, con una transición corta al centro.
+ * - Colores de marca: puntos en el azul del logo de Pangui de su lado; del lado
+ *   de la UdeC, su azul y su amarillo institucionales, repartidos por un campo
+ *   de ruido lento (manchas que viajan, no puntos sueltos).
  * - Nítido: puntos redondos en píxeles de dispositivo (DPR hasta 2).
  * - Con "reducir movimiento" dibuja un solo cuadro quieto. Se pausa fuera de
  *   pantalla y borra sus recursos GPU al desmontar. Sin WebGL2 no dibuja nada y
@@ -53,6 +54,7 @@ uniform float u_aspect;
 uniform float u_dpr;
 in vec2 a_position;
 out float v_lado;
+out float v_tono;
 ${SNOISE}
 void main() {
   // a_position está en un disco unitario; w es el mismo punto con la proporción
@@ -64,18 +66,23 @@ void main() {
   gl_Position = vec4(w.x / u_aspect, w.y, 0.0, 1.0);
   gl_PointSize = max(ny * 5.0 + 2.0, 0.75) * u_dpr;
   v_lado = gl_Position.x;
+  // Campo propio, lento y centrado en 0: reparte azul y amarillo UdeC en manchas parejas.
+  v_tono = snoise(w * 0.35 - u_time * 0.15);
 }`;
 
 const FRAG = `#version 300 es
 precision highp float;
 uniform vec3 u_izq;
-uniform vec3 u_der;
+uniform vec3 u_der1;
+uniform vec3 u_der2;
 in float v_lado;
+in float v_tono;
 out vec4 outColor;
 void main() {
   vec2 c = gl_PointCoord - 0.5;
   if (dot(c, c) > 0.25) discard;               // puntos redondos
-  vec3 col = mix(u_izq, u_der, smoothstep(-0.2, 0.2, v_lado));
+  vec3 der = mix(u_der1, u_der2, smoothstep(-0.05, 0.05, v_tono));
+  vec3 col = mix(u_izq, der, smoothstep(-0.2, 0.2, v_lado));
   float a = 0.75;
   outColor = vec4(col * a, a);                 // alpha premultiplicado
 }`;
@@ -104,10 +111,11 @@ function compilar(gl: WebGL2RenderingContext, tipo: number, fuente: string): Web
 export default function BandaBlob({ izquierda, derecha }: {
   /** Color de los puntos del lado de Pangui. */
   izquierda: string;
-  /** Color de los puntos del lado de la UdeC. */
-  derecha: string;
+  /** Los dos colores de los puntos del lado de la UdeC. */
+  derecha: [string, string];
 }) {
   const ref = useRef<HTMLCanvasElement>(null);
+  const [udec1, udec2] = derecha;
 
   useEffect(() => {
     const canvas = ref.current;
@@ -151,11 +159,13 @@ export default function BandaBlob({ izquierda, derecha }: {
       aspect: gl.getUniformLocation(prog, "u_aspect"),
       dpr: gl.getUniformLocation(prog, "u_dpr"),
       izq: gl.getUniformLocation(prog, "u_izq"),
-      der: gl.getUniformLocation(prog, "u_der"),
+      der1: gl.getUniformLocation(prog, "u_der1"),
+      der2: gl.getUniformLocation(prog, "u_der2"),
     };
     gl.useProgram(prog);
     gl.uniform3fv(u.izq, rgb(izquierda));
-    gl.uniform3fv(u.der, rgb(derecha));
+    gl.uniform3fv(u.der1, rgb(udec1));
+    gl.uniform3fv(u.der2, rgb(udec2));
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
 
@@ -221,7 +231,7 @@ export default function BandaBlob({ izquierda, derecha }: {
       gl.deleteVertexArray(vao);
       gl.deleteProgram(prog);
     };
-  }, [izquierda, derecha]);
+  }, [izquierda, udec1, udec2]);
 
   return <canvas ref={ref} aria-hidden style={{ position: "absolute", inset: 0, width: "100%", height: "100%", display: "block" }} />;
 }

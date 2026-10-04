@@ -75,9 +75,10 @@ const REQUISITOS = [
   "Para el cruce con OTs: el folio (SF…) de cada solicitud escrito en el campo N° de Serie / Folio de la OT.",
 ];
 
-// Colores de la nube: azul de marca de Pangui y amarillo institucional UdeC
-// (Normas gráficas UdeC, PANTONE 130 C).
-const PANGUI_AZUL_MARCA = "#007AFF"; // --brand de la app
+// Colores de la nube. Pangui: el azul de su logo (public/logo.svg).
+// UdeC: azul y amarillo institucionales (Normas gráficas UdeC, PANTONE 541 C / 130 C).
+const PANGUI_AZUL_LOGO = "#273d88";
+const UDEC_AZUL = "#223c6a";
 const UDEC_AMARILLO = "#e69b0a";
 
 /** Lugar de cada logo en la banda (sin fondo propio). */
@@ -96,8 +97,8 @@ function TileLogo({ style, children }: { style: CSSProperties; children: ReactNo
 /**
  * Banda superior: el logo de Pangui a la izquierda y el de la UdeC a la derecha,
  * cada uno en una tarjeta blanca a --a del borde. Sin fondo propio, corre
- * una nube de puntos (BandaBlob): azul Pangui del lado
- * de Pangui, amarillo UdeC del lado de la UdeC. Al centro, un "+" (como
+ * una nube de puntos (BandaBlob): azul del logo de Pangui de su lado, azul y
+ * amarillo UdeC del lado de la UdeC. Al centro, un "+" (como
  * "Samsara + MaintainX"); el título queda solo para lectores de pantalla.
  */
 function Encabezado() {
@@ -111,12 +112,12 @@ function Encabezado() {
         }}
       >
         {/* Nube de puntos animada de borde a borde, bajo los logos y el "+". */}
-        <BandaBlob izquierda={PANGUI_AZUL_MARCA} derecha={UDEC_AMARILLO} />
+        <BandaBlob izquierda={PANGUI_AZUL_LOGO} derecha={[UDEC_AZUL, UDEC_AMARILLO]} />
         <TileLogo style={{ left: "calc(var(--a) - 40px)" }}><LogoPangui size={66} /></TileLogo>
         <TileLogo style={{ right: "calc(var(--a) - 40px)" }}><LogoUdec alto={66} /></TileLogo>
         <h1 className="sr-only">MeConecta y Pangui</h1>
         <div style={{ position: "absolute", top: 0, bottom: 0, left: "calc(var(--a) * 2 + 24px)", right: "calc(var(--a) * 2 + 24px)", display: "grid", placeItems: "center" }}>
-          <Plus aria-hidden size={56} strokeWidth={2.5} style={{ color: "#FFFFFF", filter: "drop-shadow(0 1px 2px rgba(0, 0, 0, 0.25))" }} />
+          <Plus aria-hidden size={66} strokeWidth={2.5} style={{ color: "#FFFFFF", filter: "drop-shadow(0 1px 2px rgba(0, 0, 0, 0.25))" }} />
         </div>
       </div>
     </>
@@ -279,11 +280,11 @@ export default function MeconectaIntegracionPage() {
               </p>
             </div>
             <div>
-              <p style={{ margin: 0, color: "var(--fg-1)", fontWeight: 500 }}>Gestionado por</p>
+              <p style={{ margin: 0, color: "var(--fg-1)", fontWeight: 500 }}>Gestionado por:</p>
               <p style={{ margin: 0, color: "var(--fg-2)" }}>Pangui</p>
             </div>
             <div style={{ display: "grid", gap: 8 }}>
-              <p style={{ margin: 0, color: "var(--fg-1)", fontWeight: 500 }}>Enlaces</p>
+              <p style={{ margin: 0, color: "var(--fg-1)", fontWeight: 500 }}>Enlaces:</p>
               <a href="mailto:contacto@getpangui.com?subject=Integraci%C3%B3n%20MeConecta" style={{ display: "inline-flex", alignItems: "center", gap: 8, color: "var(--brand)", textDecoration: "none" }}>
                 <Mail size={15} /> Contactar soporte
               </a>
