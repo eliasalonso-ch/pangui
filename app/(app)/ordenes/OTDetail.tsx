@@ -5091,7 +5091,7 @@ function signatureImageSrc(value: string | null | undefined) {
 /** Nombre por tipo, para pasos guardados sin título. */
 const TIPO_FALLBACK_LABEL: Partial<Record<ProcedimientoPaso["tipo"], string>> = {
   inspeccion: "Inspección",
-  lista_verificacion: "Lista de verificación",
+  lista_verificacion: "Checklist",
   si_no_na: "Verificación",
   firma: "Firma",
   imagen: "Foto",
@@ -6705,7 +6705,8 @@ function ProcEjecucionModal({
   const savedResps: Record<string, PendingResp> = {};
   for (const r of ejec.respuestas ?? []) savedResps[r.paso_id] = r as PendingResp;
 
-  const allRequired = pasos.filter(p => p.requerido && p.tipo !== "instruccion" && p.tipo !== "advertencia");
+  // Instrucción y advertencia requeridas cuentan: requerido = confirmar lectura.
+  const allRequired = pasos.filter(p => p.requerido && p.tipo !== "seccion");
   const answeredRequired = allRequired.filter(p => isAnsweredForType(p, savedResps[p.id]));
 
   const canComplete = answeredRequired.length === allRequired.length;

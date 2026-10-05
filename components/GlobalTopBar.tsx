@@ -59,6 +59,8 @@ function pageTrail(pathname: string): Crumb[] {
   if (pathname.startsWith("/planes")) return ["Operaciones", "Planes de mantención"];
   if (pathname.startsWith("/activos")) return ["Operaciones", "Activos"];
   if (pathname.startsWith("/partes")) return ["Operaciones", "Materiales"];
+  if (pathname === "/procedimientos/nueva") return ["Operaciones", { label: "Procedimientos", href: "/procedimientos" }, "Nuevo"];
+  if (pathname.endsWith("/editar") && pathname.startsWith("/procedimientos/")) return ["Operaciones", { label: "Procedimientos", href: "/procedimientos" }, "Editar"];
   if (pathname.startsWith("/procedimientos")) return ["Operaciones", "Procedimientos"];
   if (pathname.startsWith("/analitica/ordenes")) return ["Operaciones", "Analítica", "Órdenes"];
   if (pathname.startsWith("/analitica/activos")) return ["Operaciones", "Analítica", "Activos"];

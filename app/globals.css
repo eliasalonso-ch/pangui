@@ -1193,6 +1193,11 @@ input, select, textarea { color-scheme: inherit; }
 
 }
 
+/* Opt-out: thumb always visible (short dropdown lists, where a hidden thumb
+   hides that there are more options below). */
+.scroll-visible { scrollbar-color: var(--scroll-thumb) transparent; }
+.scroll-visible::-webkit-scrollbar-thumb { background: var(--scroll-thumb); }
+
 
 
 

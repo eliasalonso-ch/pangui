@@ -34,8 +34,8 @@ export default function NuevaProcedimientoPage() {
         border: "1px solid var(--border)", borderRadius: 14,
         boxShadow: "var(--shadow-lg)", padding: "28px 32px 24px",
       }}>
-        <h1 style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", margin: 0 }}>
-          Da vida a tu nuevo procedimiento
+        <h1 style={{ fontSize: 20, fontWeight: 500, color: "var(--fg-1)", margin: 0 }}>
+          Vamos a crear un procedimiento nuevo
         </h1>
 
         <div style={{ display: "flex", justifyContent: "center", padding: "26px 0 22px" }}>

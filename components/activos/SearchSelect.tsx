@@ -50,6 +50,13 @@ export default function SearchSelect({
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const ref = useRef<HTMLDivElement>(null);
+
+  // Abierto al final de un formulario con scroll, el panel quedaba bajo el
+  // borde: se lleva a la vista (solo lo necesario; si ya se ve, no se mueve).
+  const panelRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (open) panelRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, [open]);
   const selected = options.find(o => o.id === value);
   const filtered = options.filter(o =>
     o.label.toLowerCase().includes(query.toLowerCase()) ||
@@ -111,7 +118,7 @@ export default function SearchSelect({
         <ChevronDown size={13} style={{ flexShrink: 0, color: "var(--fg-4)" }} />
       </button>
       {open && (
-        <div style={{
+        <div ref={panelRef} style={{
           position: "absolute", top: "calc(100% + 3px)", left: 0, right: 0, zIndex: 600,
           background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: 8,
           boxShadow: "var(--shadow-md)", overflow: "hidden",
