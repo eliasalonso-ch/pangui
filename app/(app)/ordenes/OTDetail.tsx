@@ -72,6 +72,7 @@ import type {
 } from "@/types/procedimientos";
 import { FotoOIniciales } from "@/components/FotoPerfil";
 import { AudioNota } from "@/components/ordenes/AudioNota";
+import { TransformWrapper, TransformComponent, useControls } from "react-zoom-pan-pinch";
 
 type PendingResp = Omit<Partial<PasoRespuesta>, "firmado_nombre"> & { firmado_nombre?: string | null };
 type PauseReason = "acceso" | "materiales" | "reprogramar" | "otro";
@@ -2838,14 +2839,21 @@ export default function OTDetail({
             </button>
           )}
 
-          {/* Image */}
-          <div className="relative inline-block max-h-[82vh] max-w-[78vw]" onClick={e => e.stopPropagation()}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={lightboxGrupo.urls[lightboxGrupo.idx]}
-              alt=""
-              className="block max-h-[82vh] max-w-[78vw] select-none object-contain shadow-2xl"
-            />
+          {/* Image — rueda/pellizco/doble clic para zoom, arrastrar para mover.
+              `key` reinicia el zoom al cambiar de foto. */}
+          <div className="relative inline-block max-h-[82vh] max-w-[78vw] shadow-2xl" onClick={e => e.stopPropagation()}>
+            <TransformWrapper key={lightboxGrupo.urls[lightboxGrupo.idx]} maxScale={8} doubleClick={{ mode: "toggle" }}>
+              <ZoomControls iconSize={64} strokeWidth={1} buttonStyle={{ color: "var(--fg-1)", background: "transparent", border: "none" }} />
+              <TransformComponent>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={lightboxGrupo.urls[lightboxGrupo.idx]}
+                  alt=""
+                  className="block max-h-[82vh] max-w-[78vw] select-none object-contain"
+                  style={{ cursor: "grab" }}
+                />
+              </TransformComponent>
+            </TransformWrapper>
           </div>
 
           {/* Counter — only when there's more than one image */}
@@ -6903,12 +6911,19 @@ function ProcEjecucionModal({
               <ChevronRight size={22} />
             </button>
           )}
-          <img
-            src={lightboxImages.urls[lightboxImages.idx]}
-            alt="Vista ampliada"
-            onClick={(e) => e.stopPropagation()}
-            style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain", borderRadius: "var(--r-md)", cursor: "default" }}
-          />
+          <div onClick={(e) => e.stopPropagation()} style={{ borderRadius: "var(--r-md)", overflow: "hidden" }}>
+            <TransformWrapper key={lightboxImages.urls[lightboxImages.idx]} maxScale={8} doubleClick={{ mode: "toggle" }}>
+              <ZoomControls iconSize={20} buttonStyle={{ width: 40, height: 40, borderRadius: 20, background: "rgba(255,255,255,0.15)", border: "none", color: "#fff" }} />
+              <TransformComponent>
+                <img
+                  src={lightboxImages.urls[lightboxImages.idx]}
+                  alt="Vista ampliada"
+                  // vw/vh, no %: el wrapper del zoom mide lo que mide la imagen.
+                  style={{ display: "block", maxWidth: "calc(100vw - 40px)", maxHeight: "calc(100vh - 40px)", objectFit: "contain", cursor: "grab" }}
+                />
+              </TransformComponent>
+            </TransformWrapper>
+          </div>
           <a
             href={lightboxImages.urls[lightboxImages.idx]}
             target="_blank"
@@ -6926,6 +6941,34 @@ function ProcEjecucionModal({
           </a>
         </div>
       )}
+    </div>
+  );
+}
+
+/** −, + y reiniciar para los visores de fotos. Va dentro de un TransformWrapper;
+ *  `fixed` lo saca del marco de la imagen hacia la esquina superior izquierda.
+ *  Tamaño y estilo los pone cada visor para que calcen con su X y sus flechas. */
+function ZoomControls({ iconSize, strokeWidth = 2, buttonStyle }: { iconSize: number; strokeWidth?: number; buttonStyle: React.CSSProperties }) {
+  const { zoomIn, zoomOut, resetTransform } = useControls();
+  const botones = [
+    { label: "Alejar", Icon: Minus, onClick: () => zoomOut() },
+    { label: "Acercar", Icon: Plus, onClick: () => zoomIn() },
+    { label: "Restablecer zoom", Icon: RotateCcw, onClick: () => resetTransform() },
+  ];
+  return (
+    <div style={{ position: "fixed", top: 20, left: 20, zIndex: 1, display: "flex", flexDirection: "column", gap: 8 }}>
+      {botones.map(({ label, Icon, onClick }) => (
+        <button
+          key={label}
+          type="button"
+          aria-label={label}
+          title={label}
+          onClick={e => { e.stopPropagation(); onClick(); }}
+          style={{ display: "grid", placeItems: "center", cursor: "pointer", padding: 0, ...buttonStyle }}
+        >
+          <Icon size={iconSize} strokeWidth={strokeWidth} />
+        </button>
+      ))}
     </div>
   );
 }
