@@ -44,7 +44,12 @@ export function TopBarActionsProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo(() => ({ actions, register, unregister }), [actions, register, unregister]);
 
-  return <TopBarActionsContext.Provider value={value}>{children}</TopBarActionsContext.Provider>;
+  // Incluye el registro de la vista (breadcrumb), para no sumar otro provider en AppShell.
+  return (
+    <TopBarActionsContext.Provider value={value}>
+      <TopBarVistaProvider>{children}</TopBarVistaProvider>
+    </TopBarActionsContext.Provider>
+  );
 }
 
 export function useTopBarActions(): TopBarAction[] {
@@ -67,4 +72,46 @@ export function useTopBarAction(action: TopBarAction | null, deps: unknown[]) {
     // The caller owns the dependency list; `id` guards identity changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ctx?.register, ctx?.unregister, id, ...deps]);
+}
+
+/**
+ * Vista de la página como último crumb del breadcrumb (patrón "Dropdown" del
+ * Breadcrumb de shadcn). Para páginas cuyas pestañas son estado y no rutas
+ * —Equipo / Cuadrillas, Campos / Configuración del editor de procedimientos—:
+ * el GlobalTopBar dibuja el menú y cada opción llama de vuelta a la página.
+ * Las vistas que sí son rutas (Órdenes, Activos…) viven en pageTrail.
+ */
+export type TopBarVista = {
+  /** Etiqueta de la vista actual (el texto del crumb). */
+  label: string;
+  opciones: { label: string; icon?: ReactNode; onSelect: () => void }[];
+  /** true: reemplaza el último crumb del trail; false: se agrega al final. */
+  reemplazaUltimo?: boolean;
+};
+
+const TopBarVistaContext = createContext<{
+  vista: TopBarVista | null;
+  setVista: (v: TopBarVista | null) => void;
+} | null>(null);
+
+export function TopBarVistaProvider({ children }: { children: ReactNode }) {
+  const [vista, setVista] = useState<TopBarVista | null>(null);
+  const value = useMemo(() => ({ vista, setVista }), [vista]);
+  return <TopBarVistaContext.Provider value={value}>{children}</TopBarVistaContext.Provider>;
+}
+
+export function useTopBarVistaActual(): TopBarVista | null {
+  return useContext(TopBarVistaContext)?.vista ?? null;
+}
+
+/** Registra la vista de la página mientras esté montada. Igual que useTopBarAction con `deps`. */
+export function useTopBarVista(vista: TopBarVista | null, deps: unknown[]) {
+  const ctx = useContext(TopBarVistaContext);
+  const setVista = ctx?.setVista;
+  useEffect(() => {
+    if (!setVista) return;
+    setVista(vista);
+    return () => setVista(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [setVista, ...deps]);
 }

@@ -8,7 +8,7 @@ import {
   Info, AlertTriangle, Type, Hash, DollarSign,
   CheckSquare, List, ListChecks, ClipboardCheck,
   Camera, PenLine, ChevronDown, ChevronUp, X, GripVertical,
-  CirclePlus, Rows2, EllipsisVertical, Check, Eye, Calendar, Clock, CalendarClock, Paperclip, Gauge,
+  CirclePlus, Rows2, EllipsisVertical, Check, Eye, Pencil, Settings, Calendar, Clock, CalendarClock, Paperclip, Gauge,
 } from "lucide-react";
 import {
   createProcedimiento, updateProcedimiento, getProcedimiento,
@@ -20,6 +20,9 @@ import type { ProcedimientoForm, PasoFormItem, TipoPasoProc } from "@/types/proc
 import Link from "next/link";
 import { SearchSelect } from "@/components/ot/OTFormFields";
 import { fetchMedidores, type MedidorConUltima } from "@/lib/medidores-api";
+import { DatePicker, TimePicker, DateTimePicker } from "@/components/ui/date-time-picker";
+import { useTopBarVista } from "@/components/TopBarActions";
+import { Attachment, AttachmentDropzone, tipoArchivo, tamanoArchivo } from "@/components/ui/attachment";
 
 // ─── Tipo metadata ────────────────────────────────────────────────────────────
 
@@ -227,6 +230,21 @@ function ProcSettingCard({
   );
 }
 
+/** Tarjeta de ajuste con texto libre: ayuda arriba, campo a lo ancho debajo. */
+function TextoSettingCard({ hint, children }: { hint: string; children: React.ReactNode }) {
+  return (
+    <div style={{
+      display: "flex", flexDirection: "column", gap: 10,
+      background: "var(--surface-1)", border: "1px solid var(--border)",
+      borderRadius: 12, padding: "20px 24px",
+      boxShadow: "0 1px 3px rgba(15,23,42,0.06)",
+    }}>
+      <p style={{ fontSize: 14, color: "var(--fg-3)", margin: 0, lineHeight: 1.45 }}>{hint}</p>
+      {children}
+    </div>
+  );
+}
+
 /** Switch estilo iOS, igual que el panel de detalle. */
 function ProcSwitch({
   checked, onChange, label,
@@ -332,6 +350,16 @@ export default function ProcedimientoBuilder({ editId, initialNombre, initialDes
   const [dragTempId, setDragTempId] = useState<string | null>(null);
   const [dragOverTempId, setDragOverTempId] = useState<string | null>(null);
   const [medidores, setMedidores] = useState<MedidorConUltima[]>([]);
+
+  // Campos / Configuración como último crumb del breadcrumb (antes, control
+  // segmentado sobre el editor).
+  useTopBarVista({
+    label: tab === "campos" ? "Campos del procedimiento" : "Configuración",
+    opciones: [
+      { label: "Campos del procedimiento", icon: <ListChecks size={16} />, onSelect: () => setTab("campos") },
+      { label: "Configuración", icon: <Settings size={16} />, onSelect: () => setTab("configuracion") },
+    ],
+  }, [tab]);
 
   useEffect(() => {
     async function load() {
@@ -491,40 +519,13 @@ export default function ProcedimientoBuilder({ editId, initialNombre, initialDes
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "var(--surface-canvas)" }}>
 
-      {/* Segmented control + acción principal. Volver a la biblioteca vive en
-          el breadcrumb del GlobalTopBar (Procedimientos › Nuevo/Editar). */}
+      {/* Acción principal. La pestaña (Campos / Configuración) y volver a la
+          biblioteca viven en el breadcrumb del GlobalTopBar. */}
       <div style={{
         padding: "12px 24px", background: "var(--surface-canvas)", flexShrink: 0,
         borderBottom: "1px solid var(--border)",
-        display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16,
+        display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 16,
       }}>
-        <nav
-          aria-label="Secciones del procedimiento"
-          style={{ display: "inline-flex", overflow: "hidden", border: "1px solid var(--divider)", borderRadius: 9, background: "var(--color-kumo-recessed)" }}
-        >
-          {([["campos", "Campos del procedimiento"], ["configuracion", "Configuración"]] as const).map(([key, label]) => {
-            const selected = tab === key;
-            return (
-              <button
-                key={key}
-                onClick={() => setTab(key)}
-                aria-current={selected ? "page" : undefined}
-                style={{
-                  minHeight: 34, padding: "0 11px", display: "inline-flex", alignItems: "center",
-                  background: selected ? "var(--surface-1)" : "transparent",
-                  border: selected ? "1px solid var(--border)" : "1px solid transparent",
-                  borderRadius: selected ? 7 : 0,
-                  boxShadow: selected ? "var(--shadow-sm)" : "none",
-                  color: selected ? "var(--fg-1)" : "var(--fg-3)",
-                  fontSize: 14, fontWeight: 400,
-                  cursor: "pointer", fontFamily: "inherit",
-                }}
-              >
-                {label}
-              </button>
-            );
-          })}
-        </nav>
 
         {/* En Campos la acción es avanzar a Configuración; guardar es el paso
             final y vive en esa pestaña. */}
@@ -566,24 +567,28 @@ export default function ProcedimientoBuilder({ editId, initialNombre, initialDes
           {tab === "configuracion" && (
           <>
             {/* Una tarjeta por ajuste, igual que Mi cuenta y Espacio de trabajo. */}
-            <ProcSettingCard label="Nombre del procedimiento" hint="Cómo aparece en la biblioteca y en la OT">
+            {/* Nombre y descripción: el título va dentro del campo (placeholder)
+                y el campo, a lo ancho debajo de la ayuda; no al costado. */}
+            <TextoSettingCard hint="Cómo aparece en la biblioteca y en la OT.">
               <FocusInput
                 type="text"
                 value={form.nombre}
                 onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))}
-                placeholder="Ej: Revisión de tablero eléctrico"
-                style={{ width: 260, height: 38 }}
+                placeholder="Nombre del procedimiento"
+                aria-label="Nombre del procedimiento"
+                style={{ height: 38 }}
               />
-            </ProcSettingCard>
+            </TextoSettingCard>
 
-            <ProcSettingCard label="Descripción" hint="Qué hay que hacer y con qué objetivo" align="start">
+            <TextoSettingCard hint="Qué hay que hacer y con qué objetivo.">
               <FocusTextarea
                 value={form.descripcion}
                 onChange={e => setForm(f => ({ ...f, descripcion: e.target.value }))}
-                placeholder="Describe el objetivo de este procedimiento…"
-                style={{ width: 260, minHeight: 72 }}
+                placeholder="Descripción"
+                aria-label="Descripción del procedimiento"
+                style={{ minHeight: 88 }}
               />
-            </ProcSettingCard>
+            </TextoSettingCard>
 
             {/* Comportamiento — mismos textos que la hoja de Ajustes en móvil. */}
             {COMPORTAMIENTO_ROWS.map(row => (
@@ -720,6 +725,8 @@ function FieldPreview({ paso, interactivo = false }: { paso: PasoFormItem; inter
   const [marcados, setMarcados] = useState<string[]>([]);
   const [resultados, setResultados] = useState<Record<string, string>>({});
   const [leido, setLeido] = useState(false);
+  const [fechaPrev, setFechaPrev] = useState<Date | undefined>(undefined);
+  const [archivoPrev, setArchivoPrev] = useState<File | null>(null);
 
   const input: React.CSSProperties = {
     width: "100%", height: 40, padding: "0 12px",
@@ -775,19 +782,19 @@ function FieldPreview({ paso, interactivo = false }: { paso: PasoFormItem; inter
 
     case "instruccion":
     case "advertencia": {
+      // Mismo botón que PasoInput (y que móvil): a lo ancho, gris hasta
+      // confirmar, del color del tipo una vez confirmado.
       const esInstr = paso.tipo === "instruccion";
-      const bc = leido ? "var(--success)" : esInstr ? "var(--brand)" : "var(--warning)";
+      const color = TIPO_META[paso.tipo].color;
       contenido = (
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 8 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {!interactivo && paso.descripcion && <div style={{ fontSize: 14, color: "var(--fg-2)", lineHeight: 1.5 }}>{paso.descripcion}</div>}
           <button type="button" onClick={() => setLeido(v => !v)} style={{
-            ...boton, height: 28, padding: "0 12px", display: "flex", alignItems: "center", gap: 5,
-            background: leido ? "var(--success-bg)" : esInstr ? "var(--brand-tint)" : "var(--warning-bg)",
-            border: `1px solid ${bc}`, borderRadius: "var(--r-sm)", fontSize: 14,
-            color: leido ? "var(--success)" : esInstr ? "var(--brand-fg)" : "var(--warning)",
+            ...boton, width: "100%", minHeight: 42, padding: "0 16px", borderRadius: "var(--r-sm)",
+            border: `1px solid ${leido ? color : "var(--border)"}`, background: "var(--surface-1)",
+            fontSize: 14, letterSpacing: "0.02em", color: leido ? color : "var(--fg-3)",
           }}>
-            <Check size={11} />
-            {esInstr ? (leido ? "Confirmado" : "Confirmar lectura") : "Leído y entendido"}
+            {leido ? (esInstr ? "CONFIRMADO" : "LEÍDO") : (esInstr ? "CONFIRMAR LECTURA" : "LEÍDO Y ENTENDIDO")}
           </button>
         </div>
       );
@@ -831,15 +838,12 @@ function FieldPreview({ paso, interactivo = false }: { paso: PasoFormItem; inter
     case "fecha":
     case "hora":
     case "fecha_hora":
-      contenido = (
-        <input
-          type={paso.tipo === "fecha" ? "date" : paso.tipo === "hora" ? "time" : "datetime-local"}
-          value={texto}
-          onChange={e => setTexto(e.target.value)}
-          {...focoAzul}
-          style={{ ...input, width: 200 }}
-        />
-      );
+      // Mismos selectores shadcn que PasoInput en OTDetail.
+      contenido = paso.tipo === "fecha"
+        ? <DatePicker value={fechaPrev} onChange={setFechaPrev} />
+        : paso.tipo === "hora"
+          ? <TimePicker value={texto} onChange={setTexto} />
+          : <DateTimePicker value={fechaPrev} onChange={setFechaPrev} />;
       break;
 
     case "si_no_na":
@@ -902,22 +906,30 @@ function FieldPreview({ paso, interactivo = false }: { paso: PasoFormItem; inter
       break;
 
     case "archivo":
-      // El selector nativo abre y muestra el nombre, pero nada se sube.
-      contenido = <input type="file" style={{ fontSize: 14 }} />;
+      // Mismo adjunto que PasoArchivoField en OTDetail. En la vista previa el
+      // archivo elegido solo se muestra (tipo · tamaño); nada se sube.
+      contenido = (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {archivoPrev && (
+            <Attachment
+              nombre={archivoPrev.name}
+              mime={archivoPrev.type}
+              descripcion={[tipoArchivo(archivoPrev.name, archivoPrev.type), tamanoArchivo(archivoPrev.size)].filter(Boolean).join(" · ")}
+              onRemove={() => setArchivoPrev(null)}
+            />
+          )}
+          <AttachmentDropzone label={archivoPrev ? "Reemplazar archivo" : "Adjuntar archivo"} onFile={setArchivoPrev} />
+        </div>
+      );
       break;
 
     case "firma": {
       const externo = !!paso.rol_firmante && paso.rol_firmante !== "tecnico";
       contenido = (
         <div>
-          {paso.rol_firmante && (
-            <div style={{ fontSize: 14, color: "var(--fg-2)", marginBottom: 6 }}>
-              Firma de: <strong>{paso.rol_firmante}</strong>
-            </div>
-          )}
           {externo && (
             <input type="text" value={nombreFirmante} onChange={e => setNombreFirmante(e.target.value)}
-              placeholder="Nombre de quien firma" {...focoAzul} style={{ ...input, marginBottom: 8, maxWidth: 320 }} />
+              placeholder="Nombre de quien firma" {...focoAzul} style={{ ...input, marginBottom: 8 }} />
           )}
           <button type="button" style={{
             ...boton, width: "100%", minHeight: 96, display: "grid", placeItems: "center",
@@ -944,22 +956,31 @@ function FieldPreview({ paso, interactivo = false }: { paso: PasoFormItem; inter
  * Eliminarla borra solo el encabezado: sus campos pasan al grupo anterior.
  */
 /** Línea de tiempo vertical: ícono en círculo → línea → rombo. */
-function Riel({ icon, size = 32 }: { icon: React.ReactNode; size?: number }) {
+function Riel({ icon, size = 32, apagado = false }: { icon: React.ReactNode; size?: number; apagado?: boolean }) {
+  // `apagado`: gris claro (sección en reposo); oscuro al editarla.
+  const color = apagado ? "var(--border-strong)" : "var(--fg-3)";
   return (
     <div style={{ width: size, flexShrink: 0, display: "flex", flexDirection: "column", alignItems: "center" }}>
       <span style={{
         width: size, height: size, borderRadius: "50%", flexShrink: 0,
-        background: "var(--fg-3)", color: "var(--surface-1)",
+        background: color, color: apagado ? "var(--fg-3)" : "var(--surface-1)",
         display: "flex", alignItems: "center", justifyContent: "center",
+        transition: "background 0.12s",
       }}>
         {icon}
       </span>
-      <span style={{ flex: 1, width: 2, minHeight: 12, background: "var(--fg-3)" }} />
-      <span style={{ width: 8, height: 8, flexShrink: 0, background: "var(--fg-3)", transform: "rotate(45deg)", marginTop: -4 }} />
+      <span style={{ flex: 1, width: 2, minHeight: 12, background: color }} />
+      <span style={{ width: 8, height: 8, flexShrink: 0, background: color, transform: "rotate(45deg)", marginTop: -4 }} />
     </div>
   );
 }
 
+/**
+ * Sección (patrón MaintainX). En reposo: título en negrita y la descripción
+ * como texto; al pasar el mouse aparece un lápiz. Al hacer clic en el título o
+ * el lápiz se edita: título con línea debajo y descripción en un cuadro. Se
+ * sale de la edición cuando el foco deja la sección.
+ */
 function SeccionBloque({ titulo, descripcion, placeholder, onTitulo, onDescripcion, onRemove, children }: {
   titulo: string;
   descripcion: string;
@@ -969,50 +990,97 @@ function SeccionBloque({ titulo, descripcion, placeholder, onTitulo, onDescripci
   onRemove: () => void;
   children: React.ReactNode;
 }) {
+  const [editando, setEditando] = useState(false);
+  const [hover, setHover] = useState(false);
+
   return (
     <div style={{ display: "flex", gap: 14, marginTop: 10 }}>
-      <Riel icon={<Rows2 size={15} />} />
+      <Riel icon={<Rows2 size={15} />} apagado={!editando} />
 
       <div style={{ flex: 1, minWidth: 0, paddingBottom: 4 }}>
-        {/* Título con línea debajo + menú ⋮ (patrón MaintainX). */}
-        <div style={{ display: "flex", alignItems: "center", gap: 8, minHeight: 32 }}>
-          <input
-            value={titulo}
-            onChange={e => onTitulo(e.target.value)}
-            placeholder={placeholder}
-            aria-label="Título de la sección"
-            style={{
-              flex: 1, minWidth: 0, height: 38, padding: 0,
-              fontSize: 18, fontWeight: 500, color: "var(--fg-1)", fontFamily: "inherit",
-              background: "transparent", border: "none", borderBottom: "1px solid var(--border)",
-              borderRadius: 0, outline: "none",
-            }}
-            onFocus={e => { e.currentTarget.style.borderBottomColor = "var(--brand)"; }}
-            onBlur={e => { e.currentTarget.style.borderBottomColor = "var(--border)"; }}
-          />
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button type="button" style={{ ...footerBtn, color: "var(--fg-2)" }} aria-label="Opciones de la sección">
-                <EllipsisVertical size={16} />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onSelect={onRemove} style={{ fontSize: 14, color: "var(--danger)" }}>
-                Eliminar sección
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
+        <div
+          onMouseEnter={() => setHover(true)}
+          onMouseLeave={() => setHover(false)}
+          onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setEditando(false); }}
+          style={{ marginBottom: 12 }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 8, minHeight: 38 }}>
+            {editando ? (
+              <input
+                autoFocus
+                value={titulo}
+                onChange={e => onTitulo(e.target.value)}
+                onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); }}
+                placeholder={placeholder}
+                aria-label="Título de la sección"
+                style={{
+                  flex: 1, minWidth: 0, height: 38, padding: 0,
+                  fontSize: 18, fontWeight: 500, color: "var(--fg-1)", fontFamily: "inherit",
+                  background: "transparent", border: "none", borderBottom: "1px solid var(--brand)",
+                  borderRadius: 0, outline: "none",
+                }}
+              />
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setEditando(true)}
+                  style={{
+                    minWidth: 0, padding: 0, background: "none", border: "none", cursor: "text",
+                    fontFamily: "inherit", fontSize: 18, fontWeight: 600, textAlign: "left",
+                    color: titulo ? "var(--fg-1)" : "var(--fg-4)",
+                    overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                  }}
+                >
+                  {titulo || placeholder}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEditando(true)}
+                  aria-label="Editar sección"
+                  style={{
+                    ...footerBtn, width: 28, height: 28,
+                    // Visible al pasar el mouse; por teclado aparece al enfocarlo.
+                    opacity: hover ? 1 : 0,
+                  }}
+                  onFocus={e => { e.currentTarget.style.opacity = "1"; }}
+                  onBlur={e => { if (!hover) e.currentTarget.style.opacity = "0"; }}
+                >
+                  <Pencil size={15} />
+                </button>
+              </>
+            )}
+            {/* Espaciador solo en reposo: editando, el input (flex 1) ocupa
+                todo el ancho y su línea azul llega hasta el menú. */}
+            {!editando && <span style={{ flex: 1 }} />}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button type="button" style={{ ...footerBtn, color: "var(--fg-2)" }} aria-label="Opciones de la sección">
+                  <EllipsisVertical size={16} />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onSelect={onRemove} style={{ fontSize: 14, color: "var(--danger)" }}>
+                  Eliminar sección
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
 
-        {/* Descripción opcional: el técnico la ve bajo el título de la
-            sección (móvil y OTDetail ya la muestran). */}
-        <FocusTextarea
-          value={descripcion}
-          onChange={e => onDescripcion(e.target.value)}
-          placeholder="Agregar una descripción (opcional)"
-          aria-label="Descripción de la sección"
-          style={{ minHeight: 40, margin: "12px 0" }}
-        />
+          {/* Descripción opcional: el técnico la ve bajo el título de la
+              sección (móvil y OTDetail ya la muestran). */}
+          {editando ? (
+            <FocusTextarea
+              value={descripcion}
+              onChange={e => onDescripcion(e.target.value)}
+              placeholder="Agregar una descripción (opcional)"
+              aria-label="Descripción de la sección"
+              style={{ minHeight: 56, marginTop: 12 }}
+            />
+          ) : descripcion ? (
+            <p style={{ fontSize: 14, color: "var(--fg-2)", margin: "4px 0 0", lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{descripcion}</p>
+          ) : null}
+        </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {children}
@@ -1154,6 +1222,16 @@ function PasoEditor({
     function onDown(e: MouseEvent) {
       const t = e.target as Element;
       if (cardRef.current?.contains(t) || t.closest?.('[role="menu"]')) return;
+      // Un clic en la barra de scroll del contenedor también es un mousedown
+      // "afuera": cae más allá del área de contenido (clientWidth/Height) del
+      // elemento. Arrastrar el scroll no debe cerrar la tarjeta.
+      // Solo en elementos que de verdad scrollean: un <span> en línea tiene
+      // clientWidth 0 y si no, cualquier clic sobre texto contaría como barra.
+      if (
+        t instanceof HTMLElement && t.clientWidth > 0 &&
+        ((t.scrollHeight > t.clientHeight && e.offsetX >= t.clientWidth) ||
+         (t.scrollWidth > t.clientWidth && e.offsetY >= t.clientHeight))
+      ) return;
       onToggle();
     }
     document.addEventListener("mousedown", onDown);
@@ -1303,16 +1381,6 @@ function PasoEditor({
               />
             )}
 
-            {paso.tipo === "firma" && (
-              <div>
-                <FocusInput
-                  type="text"
-                  value={paso.rol_firmante}
-                  onChange={e => onChange({ rol_firmante: e.target.value })}
-                  placeholder="Rol del firmante (opcional): Cliente, Supervisor…"
-                />
-              </div>
-            )}
 
             {/* Medidor: se elige uno de /medidores, no se define aquí. La
                 unidad, los umbrales y las OTs que dispara viven en el medidor;

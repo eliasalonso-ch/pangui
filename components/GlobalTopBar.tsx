@@ -3,12 +3,18 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Check, ChevronRight, CircleUserRound, CreditCard, LogOut, Monitor, Moon, Sun } from "lucide-react";
+import {
+  BellRing, Box, Calendar, Check, ChevronDown, ChevronRight, CircleUserRound, CreditCard, Inbox, Kanban, Link2,
+  List, LogOut, MapPin, MapPinned, Monitor, Moon, SlidersHorizontal, Sun,
+} from "lucide-react";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { createClient } from "@/lib/supabase";
 import { getAuthUser } from "@/lib/auth-user";
 import { getPerfilUsuario } from "@/lib/perfil-usuario";
 import NotificationMenu from "@/components/NotificationMenu";
-import { useTopBarActions } from "@/components/TopBarActions";
+import { useTopBarActions, useTopBarVistaActual } from "@/components/TopBarActions";
 
 type ThemePref = "light" | "auto" | "dark";
 
@@ -33,7 +39,41 @@ const THEMES: { value: ThemePref; label: string; icon: typeof Sun }[] = [
 
 // A crumb is plain text unless it carries an href, in which case it links back
 // to that parent page (the last crumb is the current page and never links).
-type Crumb = string | { label: string; href: string };
+// A crumb with `menu` is a dropdown of sibling pages (shadcn Breadcrumb
+// "Dropdown" pattern): it replaces the Lista/Calendario/Kanban segmented
+// control that used to sit above Órdenes.
+// Cada opción navega (`href`, vistas que son rutas) o llama a la página
+// (`onSelect`, vistas que son estado; ver useTopBarVista).
+type MenuItem = { label: string; icon?: React.ReactNode; href?: string; onSelect?: () => void };
+type MenuCrumb = { label: string; menu: MenuItem[] };
+type Crumb = string | { label: string; href: string } | MenuCrumb;
+
+const VISTAS_ORDENES = [
+  { label: "Lista", href: "/ordenes/lista", icon: <List size={16} /> },
+  { label: "Calendario", href: "/ordenes/calendario", icon: <Calendar size={16} /> },
+  { label: "Kanban", href: "/ordenes/kanban", icon: <Kanban size={16} /> },
+];
+// Reemplazan los controles segmentados que había sobre cada sección.
+const VISTAS_ACTIVOS = [
+  { label: "Activos", href: "/activos/activos", icon: <Box size={16} /> },
+  { label: "Ubicaciones", href: "/activos/ubicaciones", icon: <MapPin size={16} /> },
+];
+const VISTAS_UBICACIONES = [
+  { label: "Ubicaciones", href: "/ubicaciones/ubicaciones", icon: <MapPin size={16} /> },
+  { label: "Lugares específicos", href: "/ubicaciones/lugares", icon: <MapPinned size={16} /> },
+  { label: "Asociaciones", href: "/ubicaciones/asociaciones", icon: <Link2 size={16} /> },
+];
+const VISTAS_NOTIFICACIONES = [
+  { label: "Bandeja", href: "/notificaciones/bandeja", icon: <Inbox size={16} /> },
+  { label: "Preferencias", href: "/notificaciones/preferencias", icon: <SlidersHorizontal size={16} /> },
+  { label: "Reglas de alerta", href: "/notificaciones/reglas-alerta", icon: <BellRing size={16} /> },
+];
+
+/** Crumb desplegable si `pathname` es una de las vistas; si no, null. */
+function vistaDe(pathname: string, vistas: { label: string; href: string; icon: React.ReactNode }[]): MenuCrumb | null {
+  const v = vistas.find(x => pathname === x.href);
+  return v ? { label: v.label, menu: vistas } : null;
+}
 
 function pageTrail(pathname: string): Crumb[] {
   if (pathname.startsWith("/suscripcion")) return ["Cuenta", "Suscripción"];
@@ -44,10 +84,14 @@ function pageTrail(pathname: string): Crumb[] {
   if (pathname.startsWith("/preferencias-notificaciones")) return ["Cuenta", "Notificaciones"];
   // These must precede `/ordenes`: a bare prefix would otherwise label
   // `/ordenes-compra` as work orders.
-  if (pathname.startsWith("/ordenes-compra")) return ["Operaciones", "Órdenes de compra"];
-  if (pathname.startsWith("/proveedores")) return ["Operaciones", "Proveedores"];
+  // El primer crumb es el grupo de la barra lateral donde vive la página.
+  if (pathname.startsWith("/ordenes-compra")) return ["Gestión", "Órdenes de compra"];
+  if (pathname.startsWith("/proveedores")) return ["Gestión", "Proveedores"];
   if (pathname.startsWith("/ordenes/crear")) return ["Operaciones", "Órdenes", "Nueva orden"];
-  if (/^\/ordenes\/[^/]+$/.test(pathname)) return ["Operaciones", "Órdenes", "Detalle de OT"];
+  // Las vistas van antes que el detalle: /ordenes/lista también calza con /ordenes/<id>.
+  const vista = VISTAS_ORDENES.find(v => pathname === v.href);
+  if (vista) return ["Operaciones", "Órdenes", { label: vista.label, menu: VISTAS_ORDENES }];
+  if (/^\/ordenes\/[^/]+$/.test(pathname)) return ["Operaciones", { label: "Órdenes", href: "/ordenes/lista" }, "Detalle de OT"];
   if (pathname.startsWith("/ordenes")) return ["Operaciones", "Órdenes"];
   // Las rutas más específicas primero: startsWith("/planes") atraparía también
   // a /planes/crear si fuera antes.
@@ -57,6 +101,9 @@ function pageTrail(pathname: string): Crumb[] {
   // sobre uno que se está editando.
   if (pathname.startsWith("/planes/crear")) return ["Operaciones", "Planes de mantención", "Formulario"];
   if (pathname.startsWith("/planes")) return ["Operaciones", "Planes de mantención"];
+  const vActivos = vistaDe(pathname, VISTAS_ACTIVOS);
+  if (vActivos) return ["Operaciones", vActivos];
+  if (pathname.startsWith("/activos/")) return ["Operaciones", { label: "Activos", href: "/activos/activos" }, "Detalle"];
   if (pathname.startsWith("/activos")) return ["Operaciones", "Activos"];
   if (pathname.startsWith("/partes")) return ["Operaciones", "Materiales"];
   if (pathname === "/procedimientos/nueva") return ["Operaciones", { label: "Procedimientos", href: "/procedimientos" }, "Nuevo"];
@@ -66,8 +113,17 @@ function pageTrail(pathname: string): Crumb[] {
   if (pathname.startsWith("/analitica/activos")) return ["Operaciones", "Analítica", "Activos"];
   if (pathname.startsWith("/analitica")) return ["Operaciones", "Analítica"];
   if (pathname.startsWith("/usuarios")) return ["Operaciones", "Equipo"];
+  const vUbic = vistaDe(pathname, VISTAS_UBICACIONES);
+  if (vUbic) return ["Gestión", vUbic];
+  if (pathname.startsWith("/ubicaciones/mapa")) return ["Gestión", { label: "Ubicaciones", href: "/ubicaciones/ubicaciones" }, "Mapa"];
   if (pathname.startsWith("/ubicaciones")) return ["Gestión", "Ubicaciones"];
-  if (pathname.startsWith("/notificaciones")) return ["Gestión", "Notificaciones"];
+  const vNotif = vistaDe(pathname, VISTAS_NOTIFICACIONES);
+  if (vNotif) return ["Operaciones", "Notificaciones", vNotif];
+  if (pathname.startsWith("/notificaciones")) return ["Operaciones", "Notificaciones"];
+  if (pathname.startsWith("/medidores")) return ["Condición", "Medidores"];
+  if (pathname.startsWith("/automatizaciones")) return ["Condición", "Automatizaciones"];
+  if (pathname.startsWith("/categorias")) return ["Gestión", "Categorías"];
+  if (pathname.startsWith("/itos")) return ["Gestión", "ITOs"];
   if (pathname.startsWith("/requisitos")) return ["Gestión", "Requisitos de OTs"];
   if (pathname.startsWith("/papelera")) return ["Gestión", "Papelera"];
   return ["Operaciones", "Inicio"];
@@ -82,7 +138,11 @@ export default function GlobalTopBar() {
   const [name, setName] = useState("");
   const [role, setRole] = useState("");
   const [theme, setTheme] = useState<ThemePref>("auto");
-  const trail = pageTrail(pathname);
+  const vistaPagina = useTopBarVistaActual();
+  const trailBase = pageTrail(pathname);
+  const trail: Crumb[] = vistaPagina
+    ? [...(vistaPagina.reemplazaUltimo ? trailBase.slice(0, -1) : trailBase), { label: vistaPagina.label, menu: vistaPagina.opciones }]
+    : trailBase;
   const topBarActions = useTopBarActions();
 
   useEffect(() => {
@@ -123,9 +183,48 @@ export default function GlobalTopBar() {
           return (
             <span key={`${label}-${index}`} style={{ minWidth: 0, display: "inline-flex", alignItems: "center", gap: 8 }}>
               {index > 0 && <ChevronRight size={14} color="var(--fg-4)" />}
-              {typeof crumb !== "string" && !last ? (
+              {typeof crumb !== "string" && "menu" in crumb ? (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      type="button"
+                      aria-label={`Vista: ${label}. Cambiar vista`}
+                      style={{
+                        ...textStyle, display: "inline-flex", alignItems: "center", gap: 4,
+                        height: 30, padding: "0 6px", margin: "0 -6px",
+                        border: "none", borderRadius: 6, background: "transparent", cursor: "pointer", fontFamily: "inherit",
+                      }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = "var(--surface-hover)"; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+                    >
+                      {label}
+                      <ChevronDown size={14} color="var(--fg-3)" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" style={{ minWidth: 200, padding: 6 }}>
+                    {crumb.menu.map(item => {
+                      const actual = item.label === label;
+                      const itemStyle = { fontSize: 14, padding: "9px 12px", gap: 10, borderRadius: 6, color: actual ? "var(--brand)" : "var(--fg-1)", cursor: "pointer" };
+                      const icono = <span style={{ display: "flex", color: actual ? "var(--brand)" : "var(--fg-3)" }}>{item.icon}</span>;
+                      return item.href ? (
+                        <DropdownMenuItem key={item.label} asChild style={itemStyle}>
+                          <Link href={item.href} scroll={false} aria-current={actual ? "page" : undefined} style={{ textDecoration: "none" }}>
+                            {icono}
+                            {item.label}
+                          </Link>
+                        </DropdownMenuItem>
+                      ) : (
+                        <DropdownMenuItem key={item.label} onSelect={item.onSelect} aria-current={actual ? "page" : undefined} style={itemStyle}>
+                          {icono}
+                          {item.label}
+                        </DropdownMenuItem>
+                      );
+                    })}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              ) : typeof crumb !== "string" && !last ? (
                 <Link
-                  href={crumb.href}
+                  href={"href" in crumb ? crumb.href : "#"}
                   prefetch={false}
                   style={{ ...textStyle, textDecoration: "none" }}
                   onMouseEnter={(e) => { e.currentTarget.style.color = "var(--fg-1)"; }}

@@ -73,6 +73,9 @@ import type {
 import { FotoOIniciales } from "@/components/FotoPerfil";
 import { AudioNota } from "@/components/ordenes/AudioNota";
 import { TransformWrapper, TransformComponent, useControls } from "react-zoom-pan-pinch";
+import { format } from "date-fns";
+import { DatePicker, TimePicker, DateTimePicker } from "@/components/ui/date-time-picker";
+import { Attachment, AttachmentDropzone } from "@/components/ui/attachment";
 
 type PendingResp = Omit<Partial<PasoRespuesta>, "firmado_nombre"> & { firmado_nombre?: string | null };
 type PauseReason = "acceso" | "materiales" | "reprogramar" | "otro";
@@ -5088,6 +5091,9 @@ function signatureImageSrc(value: string | null | undefined) {
  * firma como imagen. Espeja la vista de MaintainX y evita entrar a otra
  * pantalla solo para leer lo que se respondió.
  */
+/** Color de instrucción / advertencia: el mismo que su tipo en el editor (TIPO_META) y en móvil. */
+const COLOR_LECTURA = { instruccion: "#3B82F6", advertencia: "#F59E0B" } as const;
+
 /** Nombre por tipo, para pasos guardados sin título. */
 const TIPO_FALLBACK_LABEL: Partial<Record<ProcedimientoPaso["tipo"], string>> = {
   inspeccion: "Inspección",
@@ -5152,9 +5158,9 @@ function ProcedimientoEjecutado({
     if (r.paso_id) respByPaso.set(r.paso_id, r);
   }
 
-  const answerable = pasos.filter(
-    p => p.tipo !== "seccion" && p.tipo !== "instruccion" && p.tipo !== "advertencia",
-  );
+  // Instrucción y advertencia se confirman ("Confirmar lectura"), así que
+  // cuentan como campos a completar; solo la sección no pide nada.
+  const answerable = pasos.filter(p => p.tipo !== "seccion");
   const answered = answerable.filter(p => {
     const r = respByPaso.get(p.id);
     return r ? isAnsweredForType(p, r) : false;
@@ -5179,8 +5185,10 @@ function ProcedimientoEjecutado({
         {pasos.map(paso => {
           const resp = respByPaso.get(paso.id);
 
-          // Secciones/instrucciones: encabezado en negrita, sin tarjeta.
-          if (paso.tipo === "seccion" || paso.tipo === "instruccion" || paso.tipo === "advertencia") {
+          // Sección: encabezado, sin tarjeta. Instrucción y advertencia van
+          // como tarjeta con su botón de confirmar lectura: antes se dibujaban
+          // como texto y no había forma de completarlas en la web.
+          if (paso.tipo === "seccion") {
             return (
               <div key={paso.id} style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", lineHeight: 1.4, marginTop: 4 }}>
                 {paso.titulo}
@@ -5248,7 +5256,9 @@ function ProcedimientoEjecutado({
                   null;
                 const fecha = resp?.firmado_at ?? resp?.respondido_at ?? null;
                 if (!autor && !fecha) return null;
-                const verbo = paso.tipo === "firma" ? "Firmado" : "Rellenado";
+                const verbo = paso.tipo === "firma" ? "Firmado"
+                  : paso.tipo === "instruccion" || paso.tipo === "advertencia" ? "Confirmado"
+                  : "Rellenado";
                 return (
                   <div style={{ fontSize: 14, color: "var(--fg-3)", marginTop: 10 }}>
                     {verbo} por <strong style={{ color: "var(--fg-2)" }}>{autor ?? "—"}</strong>
@@ -5503,7 +5513,7 @@ function ReadonlyAnswer({ paso, resp, onPhotoClick }: { paso: ProcedimientoPaso;
       return <div style={{ fontSize: 14, color: "var(--fg-2)", marginTop: 4 }}>{resp.valor_fecha ? new Date(resp.valor_fecha).toLocaleString() : ""}</div>;
     case "archivo":
       return resp.archivo_url
-        ? <a href={resp.archivo_url} target="_blank" rel="noreferrer" style={{ fontSize: 14, color: "var(--brand)", marginTop: 4, display: "inline-block" }}>📎 {resp.archivo_nombre ?? "Archivo"}</a>
+        ? <div style={{ marginTop: 4 }}><Attachment nombre={resp.archivo_nombre ?? "Archivo"} mime={resp.archivo_mime} href={resp.archivo_url} /></div>
         : null;
     case "escaneo":
       return <div style={{ fontSize: 14, color: "var(--fg-2)", marginTop: 4, fontFamily: "var(--font-mono)" }}>{resp.escaneo_valor}</div>;
@@ -5514,6 +5524,13 @@ function ReadonlyAnswer({ paso, resp, onPhotoClick }: { paso: ProcedimientoPaso;
           {resp.iso14224_causa && <span><strong>Causa:</strong> {resp.iso14224_causa}</span>}
           {resp.iso14224_mecanismo && <span><strong>Mec:</strong> {resp.iso14224_mecanismo}</span>}
           {resp.iso14224_accion && <span><strong>Acc:</strong> {resp.iso14224_accion}</span>}
+        </div>
+      );
+    case "instruccion":
+    case "advertencia":
+      return (
+        <div style={{ fontSize: 14, color: COLOR_LECTURA[paso.tipo], marginTop: 4 }}>
+          {paso.tipo === "instruccion" ? "Lectura confirmada" : "Leído y entendido"}
         </div>
       );
     case "seccion":
@@ -5944,18 +5961,26 @@ function PasoInput({
   );
 
   if (paso.tipo === "instruccion" || paso.tipo === "advertencia") {
+    // Igual que la app móvil (ProcEjecucionScreen): botón a lo ancho, texto en
+    // mayúsculas, gris hasta confirmar y del color del tipo una vez confirmado.
     const isAck = !!existingResp;
-    const bg = paso.tipo === "instruccion" ? "var(--brand-tint)" : "var(--warning-bg)";
-    const bc = paso.tipo === "instruccion" ? "var(--brand)" : "var(--warning)";
-    const tc = paso.tipo === "instruccion" ? "var(--brand-fg)" : "var(--warning)";
+    const color = COLOR_LECTURA[paso.tipo];
+    const esInstr = paso.tipo === "instruccion";
     return (
       <button
         onClick={() => onSave({})}
         disabled={isAck || isSaving}
-        style={{ height: 28, padding: "0 12px", background: isAck ? "var(--success-bg)" : bg, border: `1px solid ${isAck ? "var(--success)" : bc}`, borderRadius: "var(--r-sm)", cursor: isAck ? "default" : "pointer", fontSize: 14, fontWeight: 400, color: isAck ? "var(--success)" : tc, fontFamily: "inherit", display: "flex", alignItems: "center", gap: 5 }}
+        style={{
+          width: "100%", minHeight: 42, padding: "0 16px", borderRadius: "var(--r-sm)",
+          border: `1px solid ${isAck ? color : "var(--border)"}`, background: "var(--surface-1)",
+          cursor: isAck ? "default" : "pointer", fontFamily: "inherit",
+          fontSize: 14, fontWeight: 400, letterSpacing: "0.02em",
+          color: isAck ? color : "var(--fg-3)",
+          display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+        }}
       >
-        {isSaving ? <Loader2 size={11} className="animate-spin" /> : <Check size={11} />}
-        {isAck ? (paso.tipo === "instruccion" ? "Confirmado" : "Leído y entendido") : (paso.tipo === "instruccion" ? "Confirmar lectura" : "Leído y entendido")}
+        {isSaving && <Loader2 size={13} className="animate-spin" />}
+        {isAck ? (esInstr ? "CONFIRMADO" : "LEÍDO") : (esInstr ? "CONFIRMAR LECTURA" : "LEÍDO Y ENTENDIDO")}
       </button>
     );
   }
@@ -6199,11 +6224,6 @@ function PasoInput({
 
     return (
       <div>
-        {paso.rol_firmante && (
-          <div style={{ fontSize: 14, color: "var(--fg-2)", marginBottom: 6 }}>
-            Firma de: <strong>{paso.rol_firmante}</strong>
-          </div>
-        )}
         {esFirmanteExterno && (
           <input
             type="text"
@@ -6211,7 +6231,7 @@ function PasoInput({
             onChange={e => onUpdate({ firmado_nombre: e.target.value })}
             onBlur={saveIfDirty}
             placeholder="Nombre de quien firma"
-            style={{ ...inputStyle, marginBottom: 8, maxWidth: 320 }}
+            style={{ ...inputStyle, marginBottom: 8 }}
           />
         )}
         <SignatureCanvas
@@ -6240,69 +6260,41 @@ function PasoInput({
   }
 
   if (paso.tipo === "fecha" || paso.tipo === "hora" || paso.tipo === "fecha_hora") {
-    const inputType = paso.tipo === "fecha" ? "date" : paso.tipo === "hora" ? "time" : "datetime-local";
+    // Selectores shadcn (components/ui/date-time-picker) en vez de los inputs
+    // nativos. Se guarda igual que antes en valor_fecha (timestamptz):
+    //  - fecha: medianoche UTC del día elegido ("yyyy-MM-dd" → ISO).
+    //  - hora: 1970-01-01T HH:mm UTC.
+    //  - fecha_hora: el instante local elegido, en ISO.
+    // Elegir guarda de inmediato: no hay un blur que esperar.
     const stored = (val("valor_fecha") as string | null | undefined) ?? "";
-    // For <input type="datetime-local"> we strip seconds + tz to render correctly.
-    const displayed = stored
-      ? (paso.tipo === "fecha"
-          ? new Date(stored).toISOString().slice(0, 10)
-          : paso.tipo === "hora"
-            ? new Date(stored).toISOString().slice(11, 16)
-            : new Date(stored).toISOString().slice(0, 16))
-      : "";
-    return (
-      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <input
-          type={inputType}
-          value={displayed}
-          onChange={e => {
-            // Convert back to a full ISO timestamp for the column (timestamptz).
-            const v = e.target.value;
-            // A date picker commits a whole value at once, so save immediately
-            // rather than waiting for a blur the user may never trigger.
-            if (!v) {
-              onUpdate({ valor_fecha: null });
-              onSave({ valor_fecha: null });
-              return;
-            }
-            const iso = paso.tipo === "hora"
-              ? `1970-01-01T${v}:00.000Z`
-              : new Date(v).toISOString();
-            onUpdate({ valor_fecha: iso });
-            onSave({ valor_fecha: iso });
-          }}
-          style={{ ...inputStyle, width: 200 }}
-          onFocus={e => { e.currentTarget.style.borderColor = "var(--brand)"; }}
-          onBlur={e => { e.currentTarget.style.borderColor = "var(--border)"; }}
+    const guardar = (iso: string) => { onUpdate({ valor_fecha: iso }); onSave({ valor_fecha: iso }); };
+    if (paso.tipo === "fecha") {
+      const ymd = stored ? new Date(stored).toISOString().slice(0, 10) : "";
+      const valor = ymd ? new Date(Number(ymd.slice(0, 4)), Number(ymd.slice(5, 7)) - 1, Number(ymd.slice(8, 10))) : undefined;
+      return <DatePicker value={valor} onChange={d => { if (d) guardar(new Date(format(d, "yyyy-MM-dd")).toISOString()); }} />;
+    }
+    if (paso.tipo === "hora") {
+      return (
+        <TimePicker
+          value={stored ? new Date(stored).toISOString().slice(11, 16) : ""}
+          onChange={hhmm => guardar(`1970-01-01T${hhmm}:00.000Z`)}
         />
-      </div>
-    );
+      );
+    }
+    return <DateTimePicker value={stored ? new Date(stored) : undefined} onChange={d => { if (d) guardar(d.toISOString()); }} />;
   }
 
   if (paso.tipo === "archivo") {
-    const url = (val("archivo_url") as string | null | undefined) ?? null;
-    const name = (val("archivo_nombre") as string | null | undefined) ?? null;
     return (
-      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        {url && <a href={url} target="_blank" rel="noreferrer" style={{ fontSize: 14, color: "var(--brand)" }}>📎 {name ?? "Archivo subido"}</a>}
-        <input
-          type="file"
-          onChange={async e => {
-            const f = e.target.files?.[0];
-            if (!f) return;
-            try {
-              const folder = `ordenes/${ordenId}/procedimientos/${ejecucionId}/${paso.id}`;
-              const u = await uploadToR2(f, folder);
-              onSave({ archivo_url: u, archivo_nombre: f.name, archivo_mime: f.type || null });
-            } catch (err: any) {
-              alert(err?.message ?? "Error al subir archivo");
-            } finally {
-              e.target.value = "";
-            }
-          }}
-          style={{ fontSize: 14 }}
-        />
-      </div>
+      <PasoArchivoField
+        folder={`ordenes/${ordenId}/procedimientos/${ejecucionId}/${paso.id}`}
+        url={(val("archivo_url") as string | null | undefined) ?? null}
+        nombre={(val("archivo_nombre") as string | null | undefined) ?? null}
+        mime={(val("archivo_mime") as string | null | undefined) ?? null}
+        isSaving={isSaving}
+        onUploaded={(f) => onSave({ archivo_url: f.url, archivo_nombre: f.nombre, archivo_mime: f.mime })}
+        onClear={() => onSave({ archivo_url: null, archivo_nombre: null, archivo_mime: null })}
+      />
     );
   }
 
@@ -6535,6 +6527,61 @@ function PasoExtras({
 // Real R2-backed photo upload for the "imagen" step type. Uses the existing
 // lib/r2.ts uploadToR2 helper — same path as OT/foto-grupo uploads on web.
 // `capture="environment"` opens the device camera on mobile browsers.
+
+/**
+ * Paso "archivo": tarjeta del adjunto (components/ui/attachment, diseño del
+ * Attachment de shadcn) + zona para subir o reemplazar. Mientras sube se ve la
+ * tarjeta en estado "subiendo"; si falla, en estado de error con el motivo.
+ */
+function PasoArchivoField({ folder, url, nombre, mime, isSaving, onUploaded, onClear }: {
+  folder: string;
+  url: string | null;
+  nombre: string | null;
+  mime: string | null;
+  isSaving: boolean;
+  onUploaded: (f: { url: string; nombre: string; mime: string | null }) => void;
+  onClear: () => void;
+}) {
+  const [subiendo, setSubiendo] = useState<File | null>(null);
+  const [error, setError] = useState<{ nombre: string; msg: string } | null>(null);
+
+  async function subir(f: File) {
+    setError(null);
+    setSubiendo(f);
+    try {
+      const u = await uploadToR2(f, folder);
+      onUploaded({ url: u, nombre: f.name, mime: f.type || null });
+    } catch (e) {
+      console.error("[paso-archivo] fallo la subida", e);
+      setError({ nombre: f.name, msg: "No se pudo subir. Inténtalo nuevamente." });
+    } finally {
+      setSubiendo(null);
+    }
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      {subiendo ? (
+        <Attachment nombre={subiendo.name} mime={subiendo.type} state="uploading" descripcion="Subiendo…" />
+      ) : url ? (
+        <Attachment
+          nombre={nombre ?? "Archivo"}
+          mime={mime}
+          href={url}
+          onRemove={() => { if (window.confirm("¿Quitar el archivo adjunto?")) onClear(); }}
+        />
+      ) : null}
+      {error && !subiendo && (
+        <Attachment nombre={error.nombre} state="error" descripcion={error.msg} onRemove={() => setError(null)} />
+      )}
+      <AttachmentDropzone
+        label={url ? "Reemplazar archivo" : "Adjuntar archivo"}
+        onFile={subir}
+        disabled={!!subiendo || isSaving}
+      />
+    </div>
+  );
+}
 
 function PasoImagenField({
   pasoId, ordenId, ejecucionId, fotoUrl, fotoUrls, isSaving, onUploaded, onClear, onPreview,

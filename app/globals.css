@@ -1367,3 +1367,39 @@ input, select, textarea { color-scheme: inherit; }
   box-shadow: var(--shadow-sm);
 
 }
+
+/* ── Calendario (react-day-picker v9, components/ui/date-time-picker) ──────
+   Su hoja propia (react-day-picker/style.css) tematizada con los colores de
+   la app: día elegido relleno en azul de marca, hoy en azul, hover suave. */
+.pangui-rdp {
+  --rdp-accent-color: var(--brand);
+  --rdp-accent-background-color: var(--brand-tint);
+  --rdp-day-height: 38px;
+  --rdp-day-width: 38px;
+  --rdp-day_button-height: 34px;
+  --rdp-day_button-width: 34px;
+  --rdp-day_button-border-radius: 8px;
+  --rdp-selected-border: none;
+  --rdp-nav_button-height: 32px;
+  --rdp-nav_button-width: 32px;
+  --rdp-nav-height: 40px;
+  margin: 0;
+  padding: 10px 12px 12px;
+  font-size: 14px;
+  color: var(--fg-1);
+}
+.pangui-rdp .rdp-month_caption { font-size: 14px; font-weight: 600; padding-left: 6px; }
+.pangui-rdp .rdp-weekday { font-size: 13px; font-weight: 400; color: var(--fg-3); opacity: 1; }
+.pangui-rdp .rdp-chevron { fill: var(--fg-2); width: 18px; height: 18px; }
+.pangui-rdp .rdp-button_previous,
+.pangui-rdp .rdp-button_next { border-radius: 8px; }
+.pangui-rdp .rdp-button_previous:hover,
+.pangui-rdp .rdp-button_next:hover { background: var(--surface-hover); }
+.pangui-rdp .rdp-day_button { font-size: 14px; color: var(--fg-1); transition: background 0.1s; }
+.pangui-rdp .rdp-day:not(.rdp-selected) .rdp-day_button:hover { background: var(--surface-hover); }
+.pangui-rdp .rdp-today:not(.rdp-selected) .rdp-day_button { color: var(--brand); font-weight: 600; }
+.pangui-rdp .rdp-selected { font-weight: 400; font-size: 14px; }
+.pangui-rdp .rdp-selected .rdp-day_button { background: var(--brand); color: var(--fg-on-brand); }
+.pangui-rdp .rdp-outside .rdp-day_button { color: var(--fg-4); }
+/* Desplegables de mes y año (captionLayout="dropdown"). */
+.pangui-rdp .rdp-dropdowns { gap: 6px; }

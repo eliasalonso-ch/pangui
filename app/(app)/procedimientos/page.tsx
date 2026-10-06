@@ -5,9 +5,11 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase";
 import { EmptyState, EmptyDetail } from "@/components/EmptyState";
 import {
-  ClipboardCheck, Plus, Search, Loader2, X, FileText,
-  ListFilter, Lock, PlayCircle, Zap, type LucideIcon,
+  ClipboardCheck, Plus, Search, Loader2, X, FileText, ShieldCheck, Tag,
 } from "lucide-react";
+import {
+  OptionRow, OptionList, FilterDropdown, AddFilterMenu, toggle,
+} from "@/components/filtros/primitivas";
 import { listProcedimientos, archiveProcedimiento } from "@/lib/procedimientos-api";
 import type { ProcedimientoListItem } from "@/types/procedimientos";
 import ProcedimientoDetalle from "./ProcedimientoDetalle";
@@ -16,14 +18,27 @@ import ProcedimientoDetalle from "./ProcedimientoDetalle";
 // la derecha. Reemplaza la grilla de tarjetas, que obligaba a navegar a otra
 // página para ver cada procedimiento.
 
-type Filtro = "todos" | "cierre" | "inicio" | "auto";
+// Filtros con las mismas piezas que /proveedores, /ordenes-compra y /ordenes
+// (FilterDropdown + AddFilterMenu). Salen de datos que la fila ya trae, así
+// que filtrar no cuesta una consulta.
+type Regla = "inicio" | "cierre" | "auto" | "avisa";
+interface FiltrosProc { reglas: Regla[]; categorias: string[] }
+type FilterKeyProc = keyof FiltrosProc;
 
-const FILTROS: { key: Filtro; label: string; icon: LucideIcon }[] = [
-  { key: "todos",  label: "Todos",           icon: ListFilter },
-  { key: "cierre", label: "Bloquean cierre", icon: Lock },
-  { key: "inicio", label: "Bloquean inicio", icon: PlayCircle },
-  { key: "auto",   label: "Auto-adjuntar",   icon: Zap },
+const EMPTY_FILTROS: FiltrosProc = { reglas: [], categorias: [] };
+const FILTER_ORDER: FilterKeyProc[] = ["reglas", "categorias"];
+const FILTER_LABEL: Record<FilterKeyProc, string> = { reglas: "Reglas", categorias: "Categoría" };
+const FILTER_ICONS: Record<FilterKeyProc, React.ReactNode> = {
+  reglas: <ShieldCheck size={16} />,
+  categorias: <Tag size={16} />,
+};
+const REGLAS: { value: Regla; label: string; cumple: (p: ProcedimientoListItem) => boolean }[] = [
+  { value: "inicio", label: "Bloquea inicio",     cumple: p => p.bloquea_inicio },
+  { value: "cierre", label: "Bloquea cierre",     cumple: p => p.bloquea_cierre_ot },
+  { value: "auto",   label: "Auto-adjuntar",      cumple: p => p.auto_adjuntar },
+  { value: "avisa",  label: "Avisa al completar", cumple: p => !!p.notificar_al_completar },
 ];
+const filterKeysStorageKey = (ws: string) => `procedimientos:filtros:${ws}`;
 
 export default function ProcedimientosPage() {
   const router = useRouter();
@@ -31,7 +46,9 @@ export default function ProcedimientosPage() {
   const [items, setItems] = useState<ProcedimientoListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-  const [filtro, setFiltro] = useState<Filtro>("todos");
+  const [wsId, setWsId] = useState<string | null>(null);
+  const [filtros, setFiltros] = useState<FiltrosProc>(EMPTY_FILTROS);
+  const [visibleKeys, setVisibleKeys] = useState<FilterKeyProc[]>(["reglas"]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [archiving, setArchiving] = useState<string | null>(null);
   const [confirmArchive, setConfirmArchive] = useState<ProcedimientoListItem | null>(null);
@@ -44,6 +61,7 @@ export default function ProcedimientosPage() {
       const { data } = await sb.from("usuarios").select("workspace_id, rol").eq("id", user.id).maybeSingle();
       if (!data?.workspace_id) return;
       setMyRol(data.rol);
+      setWsId(data.workspace_id);
       const list = await listProcedimientos(data.workspace_id);
       setItems(list);
       setLoading(false);
@@ -51,12 +69,41 @@ export default function ProcedimientosPage() {
     load();
   }, []);
 
+  // Chips visibles: preferencia por workspace, como en /proveedores. Se lee
+  // después de montar porque localStorage no existe en el servidor.
+  useEffect(() => {
+    if (!wsId) return;
+    try {
+      const raw = localStorage.getItem(filterKeysStorageKey(wsId));
+      const saved = raw ? (JSON.parse(raw) as string[]).filter((k): k is FilterKeyProc => k in FILTER_LABEL) : null;
+      if (saved?.length) setVisibleKeys(FILTER_ORDER.filter(k => saved.includes(k)));
+    } catch {
+      // Preferencia, no datos: si no se puede leer se usan los de siempre.
+    }
+  }, [wsId]);
+
+  function cambiarVisibleKeys(keys: FilterKeyProc[]) {
+    setVisibleKeys(keys);
+    if (!wsId) return;
+    try { localStorage.setItem(filterKeysStorageKey(wsId), JSON.stringify(keys)); } catch { /* ver arriba */ }
+  }
+
+  function quitarFiltro(key: FilterKeyProc) {
+    setFiltros(f => ({ ...f, [key]: [] }));
+    cambiarVisibleKeys(visibleKeys.filter(k => k !== key));
+  }
+
   const isAdmin = myRol === "jefe" || myRol === "admin" || myRol === "owner";
+  const categorias = useMemo(
+    () => [...new Set(items.map(p => p.categoria).filter((c): c is string => !!c))].sort((a, b) => a.localeCompare(b, "es")),
+    [items],
+  );
+  const hayFiltros = filtros.reglas.length > 0 || filtros.categorias.length > 0;
 
   const filtered = useMemo(() => items.filter(p => {
-    if (filtro === "cierre" && !p.bloquea_cierre_ot) return false;
-    if (filtro === "inicio" && !p.bloquea_inicio) return false;
-    if (filtro === "auto"   && !p.auto_adjuntar) return false;
+    // Reglas: el procedimiento tiene que cumplir todas las elegidas.
+    if (!filtros.reglas.every(r => REGLAS.find(x => x.value === r)!.cumple(p))) return false;
+    if (filtros.categorias.length && !filtros.categorias.includes(p.categoria ?? "")) return false;
     const q = search.trim().toLowerCase();
     if (!q) return true;
     return (
@@ -64,7 +111,7 @@ export default function ProcedimientosPage() {
       (p.descripcion?.toLowerCase().includes(q) ?? false) ||
       (p.categoria?.toLowerCase().includes(q) ?? false)
     );
-  }), [items, search, filtro]);
+  }), [items, search, filtros]);
 
   async function handleArchive(proc: ProcedimientoListItem) {
     setArchiving(proc.id);
@@ -84,11 +131,11 @@ export default function ProcedimientosPage() {
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "var(--surface-canvas)" }}>
 
-      {/* Toolbar en dos filas, igual que la bandeja de Órdenes: búsqueda y
-          acción principal arriba, filtros debajo. Sobre el lienzo, no blanco. */}
+      {/* Barra de herramientas igual que /proveedores y /medidores: al tono
+          canvas, controles de 38px, búsqueda y acción arriba, filtros debajo. */}
       <div style={{ flexShrink: 0, borderBottom: "1px solid var(--border)", background: "var(--surface-canvas)" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 16px 8px", justifyContent: "flex-end" }}>
-          <div style={{ position: "relative", width: 320 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr auto auto", gridTemplateRows: "38px 32px", alignItems: "start", padding: "9px 20px", minHeight: 96, columnGap: 12, rowGap: 8 }}>
+          <div style={{ position: "relative", width: 320, maxWidth: "100%", gridColumn: 2, gridRow: 1 }}>
             <Search size={14} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "var(--fg-4)", pointerEvents: "none" }} />
             <input
               type="text"
@@ -96,8 +143,9 @@ export default function ProcedimientosPage() {
               value={search}
               onChange={e => setSearch(e.target.value)}
               style={{
-                width: "100%", height: 36, paddingLeft: 32, paddingRight: search ? 32 : 12,
-                border: "1px solid var(--border)", borderRadius: "var(--r-md)", fontSize: 14,
+                width: "100%", height: 38, paddingLeft: 34, paddingRight: search ? 32 : 10,
+                border: "1px solid var(--border)", borderRadius: 8,
+                fontSize: 14, fontWeight: 400,
                 background: "var(--surface-1)", outline: "none", fontFamily: "inherit", color: "var(--fg-1)",
                 boxSizing: "border-box",
               }}
@@ -108,52 +156,82 @@ export default function ProcedimientosPage() {
               <button
                 onClick={() => setSearch("")}
                 aria-label="Limpiar búsqueda"
-                style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "var(--fg-4)", padding: 2 }}
+                style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "var(--fg-4)", padding: 2, display: "flex" }}
               >
                 <X size={13} />
               </button>
             )}
           </div>
 
+          <div style={{ gridColumn: 1, gridRow: 2, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            {visibleKeys.includes("reglas") && (
+              <FilterDropdown
+                label="Reglas"
+                icon={FILTER_ICONS.reglas}
+                active={filtros.reglas.length > 0}
+                count={filtros.reglas.length}
+                onClear={() => setFiltros(f => ({ ...f, reglas: [] }))}
+                onRemove={() => quitarFiltro("reglas")}
+              >
+                <OptionList>
+                  {REGLAS.map(r => (
+                    <OptionRow
+                      key={r.value}
+                      active={filtros.reglas.includes(r.value)}
+                      onClick={() => setFiltros(f => ({ ...f, reglas: toggle(f.reglas, r.value) }))}
+                    >
+                      <span style={{ flex: 1, minWidth: 0, fontSize: 14, color: "var(--fg-1)" }}>{r.label}</span>
+                    </OptionRow>
+                  ))}
+                </OptionList>
+              </FilterDropdown>
+            )}
+            {visibleKeys.includes("categorias") && (
+              <FilterDropdown
+                label="Categoría"
+                icon={FILTER_ICONS.categorias}
+                active={filtros.categorias.length > 0}
+                count={filtros.categorias.length}
+                onClear={() => setFiltros(f => ({ ...f, categorias: [] }))}
+                onRemove={() => quitarFiltro("categorias")}
+              >
+                <OptionList>
+                  {categorias.length === 0 ? (
+                    <div style={{ padding: "8px 12px", fontSize: 14, color: "var(--fg-3)" }}>Sin categorías</div>
+                  ) : categorias.map(c => (
+                    <OptionRow
+                      key={c}
+                      active={filtros.categorias.includes(c)}
+                      onClick={() => setFiltros(f => ({ ...f, categorias: toggle(f.categorias, c) }))}
+                    >
+                      <span style={{ flex: 1, minWidth: 0, fontSize: 14, color: "var(--fg-1)" }}>{c}</span>
+                    </OptionRow>
+                  ))}
+                </OptionList>
+              </FilterDropdown>
+            )}
+            <AddFilterMenu
+              available={FILTER_ORDER.filter(k => !visibleKeys.includes(k)).map(k => ({ key: k, label: FILTER_LABEL[k] }))}
+              icons={FILTER_ICONS}
+              onAdd={k => cambiarVisibleKeys([...visibleKeys, k])}
+            />
+          </div>
+
           {isAdmin && (
             <button
               onClick={() => router.push("/procedimientos/nueva")}
               style={{
-                display: "flex", alignItems: "center", gap: 6,
-                height: 36, padding: "0 14px",
-                background: "var(--brand)", border: "none", borderRadius: "var(--r-md)", cursor: "pointer",
-                fontSize: 14, fontWeight: 400, color: "var(--fg-on-brand)", fontFamily: "inherit",
-                whiteSpace: "nowrap",
+                display: "flex", alignItems: "center", gap: 6, height: 38, padding: "0 16px",
+                background: "var(--brand)", border: "none", borderRadius: 8, cursor: "pointer",
+                fontSize: 14, fontWeight: 400, color: "var(--fg-on-brand)", fontFamily: "inherit", whiteSpace: "nowrap", gridColumn: 3, gridRow: 1,
               }}
+              onMouseEnter={e => { e.currentTarget.style.background = "var(--brand-active)"; }}
+              onMouseLeave={e => { e.currentTarget.style.background = "var(--brand)"; }}
             >
-              <Plus size={14} />
+              <Plus size={16} strokeWidth={2} />
               Nuevo procedimiento
             </button>
           )}
-        </div>
-
-        <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "0 16px 10px", flexWrap: "wrap" }}>
-          {FILTROS.map(f => {
-            const active = filtro === f.key;
-            const Icon = f.icon;
-            return (
-              <button
-                key={f.key}
-                onClick={() => setFiltro(f.key)}
-                style={{
-                  height: 32, padding: "0 11px", borderRadius: "var(--r-md)", cursor: "pointer", fontFamily: "inherit",
-                  display: "inline-flex", alignItems: "center", gap: 6,
-                  fontSize: 14, fontWeight: 400,
-                  border: `1px solid ${active ? "var(--brand)" : "var(--border)"}`,
-                  background: active ? "var(--brand-tint)" : "var(--surface-1)",
-                  color: active ? "var(--brand-fg)" : "var(--fg-2)",
-                }}
-              >
-                <Icon size={13} />
-                {f.label}
-              </button>
-            );
-          })}
         </div>
       </div>
 
@@ -176,14 +254,14 @@ export default function ProcedimientosPage() {
             <EmptyState
               icon={<ClipboardCheck size={38} strokeWidth={1.4} />}
               title={
-                search || filtro !== "todos"
+                search || hayFiltros
                   ? "Ningún procedimiento coincide con la búsqueda"
                   : "Todavía no hay procedimientos"
               }
               description="Un procedimiento es la pauta que se sigue al ejecutar un trabajo: sus pasos quedan como checklist dentro de la orden."
               onCreate={isAdmin ? () => router.push("/procedimientos/nueva") : undefined}
               createLabel="Crear el primero"
-              hasSearch={!!search || filtro !== "todos"}
+              hasSearch={!!search || hayFiltros}
             />
           ) : (
             filtered.map(proc => (
@@ -246,7 +324,8 @@ export default function ProcedimientosPage() {
 }
 
 // Editar y archivar viven en el panel de detalle, no en la tarjeta: la fila
-// sólo selecciona.
+// sólo selecciona. Forma MaintainX: ícono, nombre y a la derecha la cantidad
+// de campos; el resto (categoría, reglas) está en el detalle.
 function ProcRow({
   proc, selected, onSelect,
 }: {
@@ -254,65 +333,36 @@ function ProcRow({
   selected: boolean;
   onSelect: () => void;
 }) {
-  const [hover, setHover] = useState(false);
   const pasos = proc.pasos_count ?? 0;
 
   return (
-    <div
+    <button
       onClick={onSelect}
-      onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => setHover(false)}
+      onMouseEnter={e => { if (!selected) e.currentTarget.style.background = "var(--surface-hover)"; }}
+      onMouseLeave={e => { if (!selected) e.currentTarget.style.background = "var(--surface-1)"; }}
       style={{
-        padding: "12px 14px", cursor: "pointer", flexShrink: 0,
+        display: "flex", alignItems: "center", gap: 14, width: "100%", textAlign: "left",
+        minHeight: 72, padding: "14px 16px", borderRadius: "var(--r-lg)", cursor: "pointer",
+        border: "1px solid " + (selected ? "var(--brand)" : "var(--border)"),
         background: selected ? "var(--row-selected)" : "var(--surface-1)",
-        border: `1px solid ${selected ? "var(--brand)" : hover ? "var(--border-strong)" : "var(--border)"}`,
-        // Barra de acento de 3px al seleccionar, igual que OTRow.
-        boxShadow: selected ? "inset 3px 0 0 0 var(--brand)" : "none",
-        borderRadius: "var(--r-lg)",
-        transition: "border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease)",
+        boxShadow: selected ? "inset 4px 0 0 0 var(--brand)" : "none",
+        fontFamily: "inherit", flexShrink: 0,
       }}
     >
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
-        <div style={{
-          width: 32, height: 32, flexShrink: 0, borderRadius: "var(--r-md)",
-          background: "var(--brand-tint)", color: "var(--brand)",
-          display: "flex", alignItems: "center", justifyContent: "center",
-        }}>
-          <ClipboardCheck size={16} />
-        </div>
-        <div style={{ minWidth: 0, flex: 1 }}>
-          <div style={{
-            fontSize: 14, fontWeight: 400, color: "var(--fg-1)",
-            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-          }}>
-            {proc.nombre}
-          </div>
-          <div style={{ fontSize: 14, color: "var(--fg-4)", marginTop: 2 }}>
-            {pasos} {pasos === 1 ? "campo" : "campos"}
-            {proc.categoria ? ` · ${proc.categoria}` : ""}
-          </div>
-        </div>
-      </div>
-
-      {(proc.bloquea_cierre_ot || proc.bloquea_inicio || proc.auto_adjuntar || proc.notificar_al_completar) && (
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 6 }}>
-          {proc.bloquea_inicio     && <Chip label="Bloquea inicio" color="var(--warning)" />}
-          {proc.bloquea_cierre_ot  && <Chip label="Bloquea cierre" color="var(--warning)" />}
-          {proc.auto_adjuntar      && <Chip label="Auto-adjuntar" color="var(--brand)" />}
-          {proc.notificar_al_completar && <Chip label="Avisa al completar" color="var(--fg-3)" />}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function Chip({ label, color }: { label: string; color: string }) {
-  return (
-    <span style={{
-      fontSize: 14, fontWeight: 400, color, border: `1px solid ${color}`,
-      borderRadius: 4, padding: "1px 5px", opacity: 0.9, whiteSpace: "nowrap",
-    }}>
-      {label}
-    </span>
+      <span style={{
+        width: 40, height: 40, borderRadius: "var(--r-md)", flexShrink: 0,
+        display: "flex", alignItems: "center", justifyContent: "center",
+        background: "var(--brand-tint)", color: "var(--brand)",
+        border: "1px solid color-mix(in srgb, var(--brand) 25%, transparent)",
+      }}>
+        <ClipboardCheck size={18} />
+      </span>
+      <span style={{ minWidth: 0, flex: 1, fontSize: 14, color: "var(--fg-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        {proc.nombre}
+      </span>
+      <span style={{ flexShrink: 0, alignSelf: "flex-end", fontSize: 14, color: "var(--fg-3)", whiteSpace: "nowrap" }}>
+        {pasos} {pasos === 1 ? "campo" : "campos"}
+      </span>
+    </button>
   );
 }
