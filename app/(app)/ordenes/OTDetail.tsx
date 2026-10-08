@@ -913,14 +913,22 @@ export default function OTDetail({
   // shared PDF service identically. `fotos_grupos` is web-only (hoja photo
   // groups); everything else mirrors mobile, including `activo`.
   type PdfField =
+    | "n_ot" | "estado" | "prioridad" | "tipo_trabajo" | "resumen"
     | "solicitante" | "hito" | "fechas"
     | "descripcion" | "asignados" | "imagenes" | "fotos_grupos" | "ubicacion" | "activo"
     | "materiales" | "tiempo" | "procedimientos" | "historial" | "firma";
 
+  // n_ot/estado/prioridad/tipo_trabajo/resumen: the PDF service always
+  // honored them (show(key) defaults to true), the web just never offered them.
   const PDF_FIELDS: { key: PdfField; label: string; group: string }[] = [
+    { key: "n_ot",          label: "N° OT",             group: "Información general" },
+    { key: "estado",        label: "Estado",            group: "Información general" },
+    { key: "prioridad",     label: "Prioridad",         group: "Información general" },
+    { key: "tipo_trabajo",  label: "Tipo de trabajo",   group: "Información general" },
     { key: "solicitante",   label: "Solicitante",       group: "Información general" },
     { key: "hito",          label: "ITO",               group: "Información general" },
     { key: "fechas",        label: "Fechas (inicio/límite)", group: "Información general" },
+    { key: "resumen",       label: "Resumen",           group: "Contenido" },
     { key: "descripcion",   label: "Descripción",       group: "Contenido" },
     { key: "asignados",     label: "Asignados",         group: "Contenido" },
     { key: "imagenes",      label: "Imágenes",          group: "Contenido" },
