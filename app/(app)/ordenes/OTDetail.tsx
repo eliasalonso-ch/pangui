@@ -910,12 +910,12 @@ export default function OTDetail({
   // ── PDF export field config ────────────────────────────────────────────────
   // Keep this field set aligned with the mobile generator's PDF_SECTION_FIELDS
   // (pangui-native-stable/hooks/useOrdenExport.ts) so both platforms drive the
-  // shared PDF service identically. `fotos_grupos` is web-only (hoja photo
-  // groups); everything else mirrors mobile, including `activo`.
+  // shared PDF service identically. `imagenes` covers both the loose photos and
+  // the photo groups (one toggle); everything else mirrors mobile, including `activo`.
   type PdfField =
     | "n_ot" | "estado" | "prioridad" | "tipo_trabajo" | "resumen"
     | "solicitante" | "hito" | "fechas"
-    | "descripcion" | "asignados" | "imagenes" | "fotos_grupos" | "ubicacion" | "activo"
+    | "descripcion" | "asignados" | "imagenes" | "ubicacion" | "activo"
     | "materiales" | "tiempo" | "procedimientos" | "historial" | "firma";
 
   // n_ot/estado/prioridad/tipo_trabajo/resumen: the PDF service always
@@ -932,7 +932,6 @@ export default function OTDetail({
     { key: "descripcion",   label: "Descripción",       group: "Contenido" },
     { key: "asignados",     label: "Asignados",         group: "Contenido" },
     { key: "imagenes",      label: "Imágenes",          group: "Contenido" },
-    { key: "fotos_grupos",  label: "Grupos de fotos",   group: "Contenido" },
     { key: "ubicacion",     label: "Ubicación",         group: "Contenido" },
     { key: "activo",        label: "Activo",            group: "Contenido" },
     { key: "materiales",    label: "Materiales",        group: "Seguimiento" },
@@ -2106,7 +2105,8 @@ export default function OTDetail({
         foto_grupo_items: [...(g.items ?? [])].sort((a, b) => a.orden_display - b.orden_display),
       }));
       const loadFotoGruposForPdf = async (ordenId: string) => (
-        pdfFields.fotos_grupos ? mapFotoGruposForPdf(await fetchFotoGrupos(ordenId)) : []
+        // "Imágenes" cubre fotos sueltas y grupos de fotos (un solo toggle).
+        pdfFields.imagenes ? mapFotoGruposForPdf(await fetchFotoGrupos(ordenId)) : []
       );
 
       const shouldIncludeSubOrdenes = includeSubOrdenes && !orden.parent_id;
