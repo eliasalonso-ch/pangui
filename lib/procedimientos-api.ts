@@ -31,17 +31,19 @@ const PASO_SELECT = `
 const PASOS_FK = "procedimiento_pasos!procedimiento_pasos_procedimiento_id_fkey";
 
 const PROCEDIMIENTO_SELECT = `
-  id, workspace_id, nombre, descripcion, categoria, activo,
+  id, workspace_id, nombre, descripcion, activo,
   bloquea_cierre_ot, auto_adjuntar, bloquea_inicio, notificar_al_completar,
   created_by, created_at, updated_at,
   version, iso_categoria, hereda_a_hijos,
+  categoria_ids, activo_ids, ubicacion_ids,
   pasos:${PASOS_FK}(${PASO_SELECT})
 `;
 
 const LIST_SELECT = `
-  id, nombre, descripcion, categoria, activo, bloquea_cierre_ot, auto_adjuntar,
+  id, nombre, descripcion, activo, bloquea_cierre_ot, auto_adjuntar,
   bloquea_inicio, notificar_al_completar, created_at,
   version, iso_categoria, hereda_a_hijos,
+  categoria_ids, activo_ids, ubicacion_ids,
   pasos_count:${PASOS_FK}(count)
 `;
 
@@ -142,13 +144,15 @@ export async function createProcedimiento(
       workspace_id: workspaceId,
       nombre: form.nombre.trim(),
       descripcion: form.descripcion.trim() || null,
-      categoria: form.categoria.trim() || null,
       iso_categoria: form.iso_categoria?.trim() || null,
       bloquea_cierre_ot: form.bloquea_cierre_ot,
       auto_adjuntar: form.auto_adjuntar,
       bloquea_inicio: form.bloquea_inicio,
       notificar_al_completar: form.notificar_al_completar,
       hereda_a_hijos: form.hereda_a_hijos ?? false,
+      categoria_ids: form.categoria_ids,
+      activo_ids: form.activo_ids,
+      ubicacion_ids: form.ubicacion_ids,
       created_by: userId,
     })
     .select("id")
@@ -169,13 +173,15 @@ export async function updateProcedimiento(
     .update({
       nombre: form.nombre.trim(),
       descripcion: form.descripcion.trim() || null,
-      categoria: form.categoria.trim() || null,
       iso_categoria: form.iso_categoria?.trim() || null,
       bloquea_cierre_ot: form.bloquea_cierre_ot,
       auto_adjuntar: form.auto_adjuntar,
       bloquea_inicio: form.bloquea_inicio,
       notificar_al_completar: form.notificar_al_completar,
       hereda_a_hijos: form.hereda_a_hijos ?? false,
+      categoria_ids: form.categoria_ids,
+      activo_ids: form.activo_ids,
+      ubicacion_ids: form.ubicacion_ids,
       updated_at: new Date().toISOString(),
     })
     .eq("id", id);

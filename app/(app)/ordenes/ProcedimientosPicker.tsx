@@ -16,7 +16,6 @@ export type ProcedimientoSeleccionado = {
   id: string;
   nombre: string;
   pasos_count?: number;
-  categoria?: string | null;
 };
 
 /** Procedures fetched per request. The list shows a handful at a time. */
@@ -93,7 +92,7 @@ export default function ProcedimientosPicker({
   function confirmAdd() {
     const additions = library
       .filter(p => picked.includes(p.id))
-      .map(p => ({ id: p.id, nombre: p.nombre, pasos_count: p.pasos_count, categoria: p.categoria }));
+      .map(p => ({ id: p.id, nombre: p.nombre, pasos_count: p.pasos_count }));
     onChange([...value, ...additions]);
     closePicker();
   }
@@ -240,7 +239,7 @@ export default function ProcedimientosPicker({
                             {p.nombre}
                           </span>
                           <span style={{ display: "block", fontSize: 14, color: "var(--fg-3)", marginTop: 1 }}>
-                            {p.pasos_count} campos{p.categoria ? ` · ${p.categoria}` : ""}
+                            {p.pasos_count} campos
                           </span>
                         </span>
                       </button>

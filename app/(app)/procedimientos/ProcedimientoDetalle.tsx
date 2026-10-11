@@ -56,11 +56,6 @@ export default function ProcedimientoDetalle({
         <div style={{ minWidth: 0 }}>
           <h1 style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", margin: 0 }}>{proc.nombre}</h1>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 3 }}>
-            {proc.categoria && (
-              <span style={{ fontSize: 14, fontWeight: 400, color: "var(--brand)", background: "var(--brand-tint)", borderRadius: 4, padding: "2px 6px" }}>
-                {proc.categoria}
-              </span>
-            )}
             <span style={{ fontSize: 14, color: "var(--fg-4)" }}>
               {pasos.length} {pasos.length === 1 ? "campo" : "campos"}
             </span>

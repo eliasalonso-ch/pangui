@@ -19,6 +19,7 @@ import {
 import type { ProcedimientoForm, PasoFormItem, TipoPasoProc } from "@/types/procedimientos";
 import Link from "next/link";
 import { SearchSelect } from "@/components/ot/OTFormFields";
+import CatalogoMultiSelect from "@/components/ordenes/CatalogoMultiSelect";
 import { fetchMedidores, type MedidorConUltima } from "@/lib/medidores-api";
 import { DatePicker, TimePicker, DateTimePicker } from "@/components/ui/date-time-picker";
 import { useTopBarVista } from "@/components/TopBarActions";
@@ -155,7 +156,6 @@ function emptyForm(): ProcedimientoForm {
   return {
     nombre: "",
     descripcion: "",
-    categoria: "",
     iso_categoria: "",
     bloquea_cierre_ot: false,
     auto_adjuntar: false,
@@ -163,6 +163,9 @@ function emptyForm(): ProcedimientoForm {
     notificar_al_completar: false,
     hereda_a_hijos: false,
     puntaje_minimo: null,
+    categoria_ids: [],
+    activo_ids: [],
+    ubicacion_ids: [],
     pasos: [],
   };
 }
@@ -382,7 +385,6 @@ export default function ProcedimientoBuilder({ editId, initialNombre, initialDes
         setForm({
           nombre: proc.nombre,
           descripcion: proc.descripcion ?? "",
-          categoria: proc.categoria ?? "",
           iso_categoria: proc.iso_categoria ?? "",
           bloquea_cierre_ot: proc.bloquea_cierre_ot,
           auto_adjuntar: proc.auto_adjuntar,
@@ -390,6 +392,9 @@ export default function ProcedimientoBuilder({ editId, initialNombre, initialDes
           notificar_al_completar: proc.notificar_al_completar ?? false,
           hereda_a_hijos: proc.hereda_a_hijos ?? false,
           puntaje_minimo: proc.puntaje_minimo ?? null,
+          categoria_ids: proc.categoria_ids ?? [],
+          activo_ids: proc.activo_ids ?? [],
+          ubicacion_ids: proc.ubicacion_ids ?? [],
           pasos: (proc.pasos ?? []).map(p => ({
             tempId: p.id,
             tipo: p.tipo,
@@ -588,6 +593,22 @@ export default function ProcedimientoBuilder({ editId, initialNombre, initialDes
                 aria-label="Descripción del procedimiento"
                 style={{ minHeight: 88 }}
               />
+            </TextoSettingCard>
+
+            {/* Vínculos: a qué categorías, activos y ubicaciones aplica. */}
+            <TextoSettingCard hint="Categorías de OT a las que aplica este procedimiento.">
+              <CatalogoMultiSelect fuente="categorias" wsId={wsId} value={form.categoria_ids}
+                onChange={ids => setForm(f => ({ ...f, categoria_ids: ids }))} />
+            </TextoSettingCard>
+
+            <TextoSettingCard hint="Activos en los que se realiza.">
+              <CatalogoMultiSelect fuente="activos" wsId={wsId} value={form.activo_ids}
+                onChange={ids => setForm(f => ({ ...f, activo_ids: ids }))} />
+            </TextoSettingCard>
+
+            <TextoSettingCard hint="Ubicaciones donde se realiza.">
+              <CatalogoMultiSelect fuente="ubicaciones" wsId={wsId} value={form.ubicacion_ids}
+                onChange={ids => setForm(f => ({ ...f, ubicacion_ids: ids }))} />
             </TextoSettingCard>
 
             {/* Comportamiento — mismos textos que la hoja de Ajustes en móvil. */}

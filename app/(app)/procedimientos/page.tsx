@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase";
 import { EmptyState, EmptyDetail } from "@/components/EmptyState";
 import {
-  ClipboardCheck, Plus, Search, Loader2, X, FileText, ShieldCheck, Tag,
+  ClipboardCheck, Plus, Search, Loader2, X, FileText, ShieldCheck, Tag, Box, MapPin,
 } from "lucide-react";
 import {
   OptionRow, OptionList, FilterDropdown, AddFilterMenu, toggle,
@@ -13,25 +13,36 @@ import {
 import { listProcedimientos, archiveProcedimiento } from "@/lib/procedimientos-api";
 import type { ProcedimientoListItem } from "@/types/procedimientos";
 import ProcedimientoDetalle from "./ProcedimientoDetalle";
+import { CatalogoFiltro } from "@/components/ordenes/CatalogoMultiSelect";
 
 // Master–detail, igual que Órdenes: lista filtrable a la izquierda, detalle a
 // la derecha. Reemplaza la grilla de tarjetas, que obligaba a navegar a otra
 // página para ver cada procedimiento.
 
 // Filtros con las mismas piezas que /proveedores, /ordenes-compra y /ordenes
-// (FilterDropdown + AddFilterMenu). Salen de datos que la fila ya trae, así
-// que filtrar no cuesta una consulta.
+// (FilterDropdown + AddFilterMenu). Filtran sobre datos que la fila ya trae
+// (reglas y vínculos), así que filtrar no cuesta una consulta; solo las
+// opciones de categoría/activo/ubicación se piden paginadas (CatalogoFiltro).
 type Regla = "inicio" | "cierre" | "auto" | "avisa";
-interface FiltrosProc { reglas: Regla[]; categorias: string[] }
+interface FiltrosProc { reglas: Regla[]; categorias: string[]; activos: string[]; ubicaciones: string[] }
 type FilterKeyProc = keyof FiltrosProc;
+type FiltroVinculo = Exclude<FilterKeyProc, "reglas">;
 
-const EMPTY_FILTROS: FiltrosProc = { reglas: [], categorias: [] };
-const FILTER_ORDER: FilterKeyProc[] = ["reglas", "categorias"];
-const FILTER_LABEL: Record<FilterKeyProc, string> = { reglas: "Reglas", categorias: "Categoría" };
+const EMPTY_FILTROS: FiltrosProc = { reglas: [], categorias: [], activos: [], ubicaciones: [] };
+const FILTER_ORDER: FilterKeyProc[] = ["reglas", "categorias", "activos", "ubicaciones"];
+const FILTER_LABEL: Record<FilterKeyProc, string> = { reglas: "Reglas", categorias: "Categoría", activos: "Activo", ubicaciones: "Ubicación" };
 const FILTER_ICONS: Record<FilterKeyProc, React.ReactNode> = {
   reglas: <ShieldCheck size={16} />,
   categorias: <Tag size={16} />,
+  activos: <Box size={16} />,
+  ubicaciones: <MapPin size={16} />,
 };
+// Cada filtro de vínculo: qué columna del procedimiento mira y qué catálogo ofrece.
+const VINCULOS: { key: FiltroVinculo; campo: "categoria_ids" | "activo_ids" | "ubicacion_ids"; placeholder: string }[] = [
+  { key: "categorias",  campo: "categoria_ids", placeholder: "Buscar categoría…" },
+  { key: "activos",     campo: "activo_ids",    placeholder: "Buscar activo…" },
+  { key: "ubicaciones", campo: "ubicacion_ids", placeholder: "Buscar ubicación…" },
+];
 const REGLAS: { value: Regla; label: string; cumple: (p: ProcedimientoListItem) => boolean }[] = [
   { value: "inicio", label: "Bloquea inicio",     cumple: p => p.bloquea_inicio },
   { value: "cierre", label: "Bloquea cierre",     cumple: p => p.bloquea_cierre_ot },
@@ -94,22 +105,21 @@ export default function ProcedimientosPage() {
   }
 
   const isAdmin = myRol === "jefe" || myRol === "admin" || myRol === "owner";
-  const categorias = useMemo(
-    () => [...new Set(items.map(p => p.categoria).filter((c): c is string => !!c))].sort((a, b) => a.localeCompare(b, "es")),
-    [items],
-  );
-  const hayFiltros = filtros.reglas.length > 0 || filtros.categorias.length > 0;
+  const hayFiltros = FILTER_ORDER.some(k => filtros[k].length > 0);
 
   const filtered = useMemo(() => items.filter(p => {
     // Reglas: el procedimiento tiene que cumplir todas las elegidas.
     if (!filtros.reglas.every(r => REGLAS.find(x => x.value === r)!.cumple(p))) return false;
-    if (filtros.categorias.length && !filtros.categorias.includes(p.categoria ?? "")) return false;
+    // Vínculos: basta con que el procedimiento tenga alguno de los elegidos.
+    for (const v of VINCULOS) {
+      const elegidos = filtros[v.key];
+      if (elegidos.length && !(p[v.campo] ?? []).some(id => elegidos.includes(id))) return false;
+    }
     const q = search.trim().toLowerCase();
     if (!q) return true;
     return (
       p.nombre.toLowerCase().includes(q) ||
-      (p.descripcion?.toLowerCase().includes(q) ?? false) ||
-      (p.categoria?.toLowerCase().includes(q) ?? false)
+      (p.descripcion?.toLowerCase().includes(q) ?? false)
     );
   }), [items, search, filtros]);
 
@@ -186,30 +196,25 @@ export default function ProcedimientosPage() {
                 </OptionList>
               </FilterDropdown>
             )}
-            {visibleKeys.includes("categorias") && (
+            {VINCULOS.filter(v => visibleKeys.includes(v.key)).map(v => (
               <FilterDropdown
-                label="Categoría"
-                icon={FILTER_ICONS.categorias}
-                active={filtros.categorias.length > 0}
-                count={filtros.categorias.length}
-                onClear={() => setFiltros(f => ({ ...f, categorias: [] }))}
-                onRemove={() => quitarFiltro("categorias")}
+                key={v.key}
+                label={FILTER_LABEL[v.key]}
+                icon={FILTER_ICONS[v.key]}
+                active={filtros[v.key].length > 0}
+                count={filtros[v.key].length}
+                onClear={() => setFiltros(f => ({ ...f, [v.key]: [] }))}
+                onRemove={() => quitarFiltro(v.key)}
               >
-                <OptionList>
-                  {categorias.length === 0 ? (
-                    <div style={{ padding: "8px 12px", fontSize: 14, color: "var(--fg-3)" }}>Sin categorías</div>
-                  ) : categorias.map(c => (
-                    <OptionRow
-                      key={c}
-                      active={filtros.categorias.includes(c)}
-                      onClick={() => setFiltros(f => ({ ...f, categorias: toggle(f.categorias, c) }))}
-                    >
-                      <span style={{ flex: 1, minWidth: 0, fontSize: 14, color: "var(--fg-1)" }}>{c}</span>
-                    </OptionRow>
-                  ))}
-                </OptionList>
+                <CatalogoFiltro
+                  fuente={v.key}
+                  wsId={wsId}
+                  value={filtros[v.key]}
+                  onChange={ids => setFiltros(f => ({ ...f, [v.key]: ids }))}
+                  placeholder={v.placeholder}
+                />
               </FilterDropdown>
-            )}
+            ))}
             <AddFilterMenu
               available={FILTER_ORDER.filter(k => !visibleKeys.includes(k)).map(k => ({ key: k, label: FILTER_LABEL[k] }))}
               icons={FILTER_ICONS}
