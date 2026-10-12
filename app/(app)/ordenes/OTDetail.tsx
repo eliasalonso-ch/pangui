@@ -1295,10 +1295,17 @@ export default function OTDetail({
   }, [tab, otProcs.length, loadingProcs]);
 
   // Poll procedimientos every 60s while Detalles is open
+  //
+  // Se salta la pestaña oculta, igual que el poll de sub-OTs. Sin esto una OT
+  // olvidada en otra pestaña bajaba el checklist entero (pasos + respuestas)
+  // 60 veces por hora: el 2026-10-09 una sola OT de Electrilam sumó 145
+  // requests en 2h45 sin nadie mirándola. El siguiente tick al volver se pone
+  // al día.
   useEffect(() => {
     if (tab !== "detalle") return;
 
     const pollId = setInterval(async () => {
+      if (document.visibilityState !== "visible") return;
       try {
         const updated = await getOTProcedimientos(orden.id);
         setOtProcs(updated);

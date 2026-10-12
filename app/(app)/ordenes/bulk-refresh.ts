@@ -42,6 +42,29 @@ export function shouldRefetchBulk(
   return nowMs - lastFetchMs >= minIntervalMs;
 }
 
+/**
+ * El set que leen los contadores y la lista: el snapshot con `ordenes` encima.
+ *
+ * Todos los parches (realtime, edición en el detalle, crear) caen en `ordenes`,
+ * la página visible. El snapshot solo cambia cuando se vuelve a bajar entero,
+ * así que leerlo crudo mostraba estados viejos — y lo único que lo arreglaba
+ * era la descarga completa que disparaba cada OT creada (~7 requests y ~1000
+ * filas por creación, en cada pestaña abierta del workspace). Superponer acá
+ * hace innecesaria esa descarga: `ordenes` siempre es la versión más fresca de
+ * las filas que tiene, y las que el snapshot aún no conoce son OTs nuevas.
+ */
+export function overlaySnapshot<S extends { id: string }, O extends S>(
+  snapshot: S[] | null,
+  ordenes: O[],
+): S[] {
+  if (!snapshot) return ordenes;
+  const frescas = new Map(ordenes.map(o => [o.id, o]));
+  const merged = snapshot.map(o => frescas.get(o.id) ?? o);
+  const conocidas = new Set(snapshot.map(o => o.id));
+  const nuevas = ordenes.filter(o => !conocidas.has(o.id));
+  return nuevas.length ? [...nuevas, ...merged] : merged;
+}
+
 /** Holds the in-flight snapshot walk so concurrent callers share one run. */
 export interface InFlightRef<T> {
   current: Promise<T> | null;

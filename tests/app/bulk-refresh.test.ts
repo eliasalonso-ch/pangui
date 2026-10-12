@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   needsBulkSnapshot,
+  overlaySnapshot,
   shouldRefetchBulk,
   coalesce,
   BULK_MIN_INTERVAL_MS,
@@ -96,5 +97,24 @@ describe("coalesce", () => {
     expect(ref.current).toBeNull();
 
     await expect(coalesce(ref, () => Promise.resolve(7))).resolves.toBe(7);
+  });
+});
+
+describe("overlaySnapshot", () => {
+  const snap = [{ id: "a", estado: "pendiente" }, { id: "b", estado: "pendiente" }];
+
+  it("sin snapshot usa la página visible tal cual", () => {
+    const ordenes = [{ id: "a", estado: "en_curso" }];
+    expect(overlaySnapshot(null, ordenes)).toBe(ordenes);
+  });
+
+  it("la versión de `ordenes` gana: un cambio de estado se ve sin rebajar el snapshot", () => {
+    const out = overlaySnapshot(snap, [{ id: "b", estado: "completada" }]);
+    expect(out).toEqual([{ id: "a", estado: "pendiente" }, { id: "b", estado: "completada" }]);
+  });
+
+  it("una OT recién creada (solo en `ordenes`) se suma arriba", () => {
+    const out = overlaySnapshot(snap, [{ id: "c", estado: "pendiente" }, { id: "a", estado: "pendiente" }]);
+    expect(out.map(o => o.id)).toEqual(["c", "a", "b"]);
   });
 });
