@@ -14,24 +14,28 @@
  * repair-or-replace calls.
  */
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
-  Activity, AlertTriangle, Building2, Check, MapPin, Package, User, Wrench,
+  Activity, AlertTriangle, Building2, MapPin, Package, User, Wrench,
 } from "lucide-react";
 import {
   Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, ComposedChart, Legend, Line, LineChart,
   Pie, PieChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
 import { useRouter } from "next/navigation";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase";
 import { esAdmin } from "@/lib/roles";
 import { useSuscripcion } from "@/hooks/useSuscripcion";
 import { UpgradePrompt } from "@/components/UpgradePrompt";
-import { computeActivoMetrics, buildMonthlySeries } from "@/lib/activo-metrics";
+import { DatePicker } from "@/components/ui/date-time-picker";
+import { Desplegable, FiltroFijo, FiltroRemoto, type Opcion } from "./FiltrosActivos";
 import {
-  construirSerieDisponibilidad, resumirDisponibilidad, resumirPorActivo,
+  derivarDisponibilidad, puntoDisponibilidad, resumirDisponibilidad, type SumasDisponibilidad,
 } from "@/lib/activo-disponibilidad";
-import type { ActivoOTHistoryRow } from "@/lib/activos-api";
+import {
+  aFecha, deFecha, etiquetaTramo, granoPara, minimoDesde, rangoDeAtajo, type Atajo, type Grano, type Rango,
+} from "@/lib/analitica-rango";
 import type { AssetCriticality } from "@/types/ordenes";
 
 // Same palette object as /analitica/ordenes so both reports stay in step.
@@ -53,47 +57,11 @@ const C = {
   surface: "var(--surface-1)",
 };
 
-/** Etiquetas cortas de mes, en el mismo orden que usa el resto de la analítica. */
-const MESES_ES = ["ene", "feb", "mar", "abr", "may", "jun",
-                  "jul", "ago", "sep", "oct", "nov", "dic"];
-
 const CRIT_LABEL: Record<AssetCriticality, string> = {
   critico: "Crítico",
   semi_critico: "Semi-crítico",
   no_critico: "No crítico",
 };
-
-interface AssetRow {
-  id: string;
-  nombre: string;
-  criticidad: AssetCriticality | null;
-  estado: string | null;
-  ubicacion_id: string | null;
-  modelo_id: string | null;
-  sociedad_id: string | null;
-  responsable_id: string | null;
-  /** Costo de una hora detenido. `null` = no informado. */
-  costo_hora_parada: number | null;
-  ubicacion: { id: string; edificio: string } | null;
-  modelo: { id: string; nombre: string } | null;
-  sociedad: { id: string; nombre: string } | null;
-  responsable: { id: string; nombre: string } | null;
-}
-
-interface OTRow extends ActivoOTHistoryRow {
-  activo_id: string | null;
-}
-
-/** Un intervalo de estado de un activo. `fin` null = el estado vigente. */
-interface PeriodoRow {
-  activo_id: string;
-  estado: string;
-  tipo_inactividad: "planeado" | "sin_planear" | null;
-  inicio: string;
-  fin: string | null;
-  motivo_id: string | null;
-  motivo: { id: string; nombre: string } | null;
-}
 
 // ── Shared primitives (kept byte-identical in spirit to /analitica/ordenes) ────
 
@@ -133,117 +101,6 @@ function ChartValue({ value, tone = C.text1 }: { value: string; tone?: string })
   );
 }
 
-// ── Filter chip ───────────────────────────────────────────────────────────────
-
-interface ChipOption { value: string; label: string }
-
-/**
- * Filter chip. Metrics are copied from the Órdenes FilterBar
- * (app/(app)/ordenes/OTFiltrosPanel.tsx) so both screens' filter rows are the
- * same control: 32px tall, 12.5px text, radius 7, 1.5px brand border when
- * active, and — the detail that identifies a filter at a glance — the icon
- * always rendered in brand blue, active or not.
- */
-function FilterChip({ icon: Icon, label, value, options, onChange }: {
-  icon: React.ElementType;
-  label: string;
-  value: string;
-  options: ChipOption[];
-  onChange: (v: string) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  const active = value !== "all";
-
-  useEffect(() => {
-    function handler(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    }
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, []);
-
-  return (
-    <div ref={ref} style={{ position: "relative" }}>
-      <button
-        type="button"
-        onClick={() => setOpen(v => !v)}
-        style={{
-          display: "flex", alignItems: "center", gap: 6,
-          height: 32, padding: "0 11px",
-          border: active ? "1.5px solid var(--brand)" : "1px solid var(--border)",
-          borderRadius: 7,
-          background: active ? "var(--brand-tint)" : "var(--surface-1)",
-          color: active ? "var(--brand)" : "var(--fg-2)",
-          fontSize: 14, fontWeight: 400,
-          cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap",
-        }}
-      >
-        <span style={{ display: "flex", color: "var(--brand)" }}><Icon size={15} /></span>
-        {label}
-        {active && (
-          <span style={{ fontSize: 14, fontWeight: 400, background: "var(--brand)", color: "var(--fg-on-brand)", borderRadius: "50%", width: 15, height: 15, display: "flex", alignItems: "center", justifyContent: "center" }}>1</span>
-        )}
-      </button>
-
-      {open && (
-        <div style={{
-          position: "absolute", top: "calc(100% + 4px)", left: 0, zIndex: 200,
-          minWidth: 280, maxWidth: 360, background: "var(--surface-1)",
-          border: "1px solid var(--border)", borderRadius: 8,
-          boxShadow: "var(--shadow-md)", overflow: "hidden",
-        }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "8px 12px 6px", borderBottom: "1px solid var(--border)" }}>
-            <span style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-3)", letterSpacing: "0.01em" }}>{label}</span>
-            {active && (
-              <button
-                type="button"
-                onClick={() => { onChange("all"); setOpen(false); }}
-                style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontSize: 14, fontWeight: 400, color: "var(--brand)", fontFamily: "inherit" }}
-              >
-                Limpiar
-              </button>
-            )}
-          </div>
-          <div style={{ maxHeight: 300, overflowY: "auto", padding: "2px 0 4px" }}>
-            {[{ value: "all", label: "Todos" }, ...options].map(o => {
-              const selected = o.value === value;
-              return (
-                <button
-                  key={o.value}
-                  type="button"
-                  onClick={() => { onChange(o.value); setOpen(false); }}
-                  style={{
-                    display: "flex", alignItems: "center", gap: 8, width: "100%",
-                    padding: "8px 12px", background: "transparent", border: "none",
-                    cursor: "pointer", fontFamily: "inherit", textAlign: "left",
-                  }}
-                  onMouseEnter={e => { e.currentTarget.style.background = "var(--surface-hover)"; }}
-                  onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}
-                >
-                  <span style={{ flex: 1, minWidth: 0, fontSize: 14, color: "var(--fg-1)", fontWeight: 400, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{o.label}</span>
-                  {selected && <Check size={13} style={{ color: "var(--brand)", flexShrink: 0 }} />}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-const selectStyle: React.CSSProperties = {
-  height: 36,
-  padding: "0 12px",
-  borderRadius: 8,
-  border: `1px solid ${C.border}`,
-  background: C.surface,
-  color: C.text1,
-  fontSize: 14,
-  cursor: "pointer",
-};
-
 // ── Formatting ────────────────────────────────────────────────────────────────
 
 /** Single wording for a metric that cannot be computed from the data. */
@@ -260,342 +117,155 @@ function fmtPct(p: number | null, d = 1): string {
   return p == null ? SIN_DATOS : `${p.toFixed(d)}%`;
 }
 
+// ── Data ──────────────────────────────────────────────────────────────────────
+
+/** Lo que devuelve la función SQL `analitica_activos` (ya agregado). */
+interface Informe {
+  activos_total: number;
+  estado: { operativo: number; mantencion: number; fuera_servicio: number; baja: number };
+  criticidad: Record<AssetCriticality, number>;
+  serie: (SumasDisponibilidad & { clave: string; preventivas: number; correctivas: number })[];
+  ranking: (SumasDisponibilidad & { id: string; nombre: string; criticidad: AssetCriticality | null; costo: number | null })[];
+  pareto: { motivo: string; eventos: number; horas: number }[];
+  costo_paradas: { imprevisto: number; planificado: number; horas_sin_tarifa: number; con_tarifa: number };
+}
+
+const ATAJOS: { value: Exclude<Atajo, "personalizado">; label: string; meses: number }[] = [
+  { value: "30d", label: "Últimos 30 días", meses: 1 },
+  { value: "3m", label: "Últimos 3 meses", meses: 3 },
+  { value: "6m", label: "Últimos 6 meses", meses: 6 },
+  { value: "12m", label: "Últimos 12 meses", meses: 12 },
+  { value: "anio", label: "Este año", meses: 12 },
+];
+
+const GRANO_TEXTO: Record<Grano, string> = { dia: "día", semana: "semana", mes: "mes" };
+
+/** Selección vacía = sin filtro en la función SQL. */
+const ids = (sel: Opcion[]) => (sel.length ? sel.map(o => o.value) : null);
+
+const CRIT_OPCIONES = (["critico", "semi_critico", "no_critico"] as AssetCriticality[])
+  .map(k => ({ value: k, label: CRIT_LABEL[k] }));
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function AnaliticaActivosPage() {
   const router = useRouter();
-  const [loading, setLoading] = useState(true);
   const [workspaceId, setWorkspaceId] = useState<string | null>(null);
-  const [assets, setAssets] = useState<AssetRow[]>([]);
-  const [ots, setOTs] = useState<OTRow[]>([]);
-  const [periodos, setPeriodos] = useState<PeriodoRow[]>([]);
-  /**
-   * "Ahora", fijado una sola vez al montar.
-   *
-   * Los períodos abiertos se cuentan hasta este instante. Leer el reloj dentro
-   * del cálculo haría que las barras cambiaran solas en cada re-render.
-   *
-   * Va en `useState` con inicializador perezoso y no en `useRef`: el valor se
-   * calcula una vez, fuera del render, y después es un dato común y corriente.
-   * Con `useRef` habría que leer `.current` en pleno render, que es
-   * justamente lo que no se debe hacer.
-   */
-  const [ahoraMs] = useState(() => Date.now());
-  const [rangeMonths, setRangeMonths] = useState(12);
+  const [perfilCargado, setPerfilCargado] = useState(false);
+  /** "Hoy", fijado al montar: los atajos no cambian solos si la pestaña queda abierta de noche. */
+  const [hoy] = useState(() => new Date());
+  const [tz] = useState(() => Intl.DateTimeFormat().resolvedOptions().timeZone || "America/Santiago");
 
-  const [critFilter, setCritFilter] = useState("all");
-  const [modeloFilter, setModeloFilter] = useState("all");
-  const [activoFilter, setActivoFilter] = useState("all");
-  const [ubicFilter, setUbicFilter] = useState("all");
-  const [sociedadFilter, setSociedadFilter] = useState("all");
-  const [responsableFilter, setResponsableFilter] = useState("all");
+  const [atajo, setAtajo] = useState<Atajo>("12m");
+  const [rango, setRango] = useState<Rango>(() => rangoDeAtajo("12m", new Date()));
+
+  // Selección múltiple, como en /ordenes. Las opciones remotas guardan su
+  // etiqueta para dibujar las fichas sin depender de la página cargada.
+  const [critFilter, setCritFilter] = useState<string[]>([]);
+  const [modeloFilter, setModeloFilter] = useState<Opcion[]>([]);
+  const [activoFilter, setActivoFilter] = useState<Opcion[]>([]);
+  const [ubicFilter, setUbicFilter] = useState<Opcion[]>([]);
+  const [sociedadFilter, setSociedadFilter] = useState<Opcion[]>([]);
+  const [responsableFilter, setResponsableFilter] = useState<Opcion[]>([]);
+  const hayFiltros = critFilter.length + modeloFilter.length + activoFilter.length
+    + ubicFilter.length + sociedadFilter.length + responsableFilter.length > 0;
+  const limpiarFiltros = () => {
+    setCritFilter([]); setModeloFilter([]); setActivoFilter([]);
+    setUbicFilter([]); setSociedadFilter([]); setResponsableFilter([]);
+  };
 
   const suscripcion = useSuscripcion();
   const maxRange = suscripcion.data?.plan_limits?.historial_meses ?? Infinity;
-  const setRangeSafe = (n: number) => setRangeMonths(Number.isFinite(maxRange) && n > maxRange ? maxRange : n);
+  const desdeMinimo = minimoDesde(hoy, maxRange);
+  const hoyFecha = aFecha(hoy);
+
+  const elegirAtajo = (a: Atajo) => {
+    setAtajo(a);
+    if (a !== "personalizado") setRango(rangoDeAtajo(a, hoy));
+  };
 
   useEffect(() => {
     async function load() {
       const sb = createClient();
       const { data: { user } } = await sb.auth.getUser();
-      if (!user) { setLoading(false); return; }
+      if (!user) { setPerfilCargado(true); return; }
 
       const { data: perfil } = await sb
         .from("usuarios").select("workspace_id, rol").eq("id", user.id).maybeSingle();
 
-      const wsId = perfil?.workspace_id;
-      if (!wsId) { setLoading(false); return; }
       // Same gate as the órdenes report: hiding the sidebar link is not enough,
       // the URL is still reachable and this reports across the whole workspace.
-      if (!esAdmin(perfil?.rol)) { router.replace("/inicio"); return; }
-      setWorkspaceId(wsId);
-
-      const [activosRes, otsRes, periodosRes] = await Promise.all([
-        sb.from("activos")
-          .select(`id, nombre, criticidad, estado, ubicacion_id, modelo_id,
-                   sociedad_id, responsable_id, costo_hora_parada,
-                   ubicacion:ubicaciones(id, edificio), modelo:modelos(id, nombre),
-                   sociedad:sociedades(id, nombre),
-                   responsable:usuarios!responsable_id(id, nombre)`)
-          .eq("workspace_id", wsId)
-          .eq("activo", true)
-          .order("nombre"),
-        sb.from("ordenes_trabajo")
-          .select(`id, activo_id, estado, tipo_trabajo, fecha_termino, iniciado_at,
-                   completado_en, tiempo_total_segundos, costo_total`)
-          .eq("workspace_id", wsId)
-          .is("deleted_at", null)
-          .not("activo_id", "is", null),
-        /**
-         * Períodos de estado: la fuente del corte planificado vs no
-         * planificado.
-         *
-         * El resto de la página mide desde las OTs, que solo conocen el tiempo
-         * de reparación. Estos períodos miden la parada REAL —incluida la
-         * espera de repuesto o de técnico— y además distinguen si fue
-         * programada. Es la misma fuente que usan las herramientas del rubro
-         * para disponibilidad y downtime.
-         */
-        sb.from("activo_estado_periodos")
-          .select("activo_id, estado, tipo_inactividad, inicio, fin, motivo_id, motivo:motivos_inactividad(id, nombre)")
-          .eq("workspace_id", wsId)
-          .gte("inicio", new Date(Date.now() - 400 * 86_400_000).toISOString())
-          .order("inicio"),
-      ]);
-
-      setAssets((activosRes.data ?? []) as unknown as AssetRow[]);
-      setOTs((otsRes.data ?? []) as unknown as OTRow[]);
-      setPeriodos((periodosRes.data ?? []) as unknown as PeriodoRow[]);
-      setLoading(false);
+      if (perfil?.workspace_id && !esAdmin(perfil?.rol)) { router.replace("/inicio"); return; }
+      setWorkspaceId(perfil?.workspace_id ?? null);
+      setPerfilCargado(true);
     }
     load();
   }, [router]);
 
-  // ── Filter options ──────────────────────────────────────────────────────────
-  const ubicOptions = useMemo(() => {
-    const m = new Map<string, string>();
-    for (const a of assets) if (a.ubicacion) m.set(a.ubicacion.id, a.ubicacion.edificio);
-    return [...m].map(([value, label]) => ({ value, label }));
-  }, [assets]);
-
-  const modeloOptions = useMemo(() => {
-    const m = new Map<string, string>();
-    for (const a of assets) if (a.modelo) m.set(a.modelo.id, a.modelo.nombre);
-    return [...m].map(([value, label]) => ({ value, label }));
-  }, [assets]);
-
   /**
-   * Cliente y responsable salen de los activos cargados, no de las tablas
-   * completas: ofrecer un cliente que no tiene ningún activo deja al usuario
-   * con un filtro que siempre devuelve vacío.
+   * Todo se agrega en la base (funciones `analitica_activos*`). Antes la página
+   * bajaba todos los activos, todas las OTs con activo y 400 días de períodos,
+   * y PostgREST corta en 1000 filas: con un cliente grande las métricas salían
+   * de una parte de los datos, sin aviso. Ahora la respuesta crece con los
+   * puntos del gráfico, no con la historia.
    *
-   * El embed de PostgREST puede llegar como objeto o como arreglo, de ahí el
-   * normalizado.
+   * Caché: TanStack, una entrada por rango + filtros (5 min frescos, 30 en
+   * memoria; ver QueryProvider). Volver a un filtro ya visto no consulta. Las
+   * opciones de cada filtro se cargan aparte, paginadas (FiltrosActivos.tsx).
    */
-  const sociedadOptions = useMemo(() => {
-    const m = new Map<string, string>();
-    for (const a of assets) {
-      const s = Array.isArray(a.sociedad) ? a.sociedad[0] : a.sociedad;
-      if (s?.id) m.set(s.id, s.nombre);
-    }
-    return [...m].map(([value, label]) => ({ value, label }));
-  }, [assets]);
+  const grano = granoPara(rango);
+  const filtros = {
+    p_criticidades: critFilter.length ? critFilter : null,
+    p_modelos: ids(modeloFilter),
+    p_activos: ids(activoFilter),
+    p_ubicaciones: ids(ubicFilter),
+    p_sociedades: ids(sociedadFilter),
+    p_responsables: ids(responsableFilter),
+  };
+  const informe = useQuery({
+    queryKey: ["analitica-activos", workspaceId, rango.desde, rango.hasta, grano, tz, filtros],
+    enabled: !!workspaceId,
+    // Al cambiar un filtro se queda el informe anterior en pantalla (atenuado)
+    // en vez de volver a "Cargando…".
+    placeholderData: keepPreviousData,
+    queryFn: async (): Promise<Informe> => {
+      const { data, error } = await createClient().rpc("analitica_activos", {
+        p_desde: rango.desde, p_hasta: rango.hasta, p_grano: grano, p_tz: tz, ...filtros,
+      });
+      if (error) throw error;
+      return data as Informe;
+    },
+  });
+  const d = informe.data;
 
-  const responsableOptions = useMemo(() => {
-    const m = new Map<string, string>();
-    for (const a of assets) {
-      const r = Array.isArray(a.responsable) ? a.responsable[0] : a.responsable;
-      if (r?.id) m.set(r.id, r.nombre);
-    }
-    return [...m].map(([value, label]) => ({ value, label }));
-  }, [assets]);
+  // ── Derived (cheap: the heavy lifting already happened in SQL) ──────────────
+  const cruzaAnio = rango.desde.slice(0, 4) !== rango.hasta.slice(0, 4);
 
-  const filteredAssets = useMemo(() => assets.filter(a => {
-    if (critFilter !== "all" && (a.criticidad ?? "no_critico") !== critFilter) return false;
-    if (modeloFilter !== "all" && a.modelo_id !== modeloFilter) return false;
-    if (ubicFilter !== "all" && a.ubicacion_id !== ubicFilter) return false;
-    if (activoFilter !== "all" && a.id !== activoFilter) return false;
-    if (sociedadFilter !== "all" && a.sociedad_id !== sociedadFilter) return false;
-    if (responsableFilter !== "all" && a.responsable_id !== responsableFilter) return false;
-    return true;
-  }), [assets, critFilter, modeloFilter, ubicFilter, activoFilter, sociedadFilter, responsableFilter]);
-
-  const activoOptions = useMemo(
-    () => assets.map(a => ({ value: a.id, label: a.nombre })),
-    [assets],
-  );
-
-  // ── Metrics ─────────────────────────────────────────────────────────────────
-  const assetIds = useMemo(() => new Set(filteredAssets.map(a => a.id)), [filteredAssets]);
-  const scopedOTs = useMemo(
-    () => ots.filter(o => o.activo_id && assetIds.has(o.activo_id)),
-    [ots, assetIds],
-  );
-
-  const windowDays = rangeMonths * 30;
-  const fleet = useMemo(
-    () => computeActivoMetrics(scopedOTs, { windowDays }),
-    [scopedOTs, windowDays],
-  );
-  const series = useMemo(
-    () => buildMonthlySeries(scopedOTs, Math.min(rangeMonths, 12)),
-    [scopedOTs, rangeMonths],
-  );
-
-  /**
-   * Disponibilidad, MTBF y MTTR desde el historial de estados.
-   *
-   * Antes salían de las OTs, y por eso este gráfico mostraba un solo punto al
-   * filtrar por un activo: `availabilityPct` era null en todo mes sin una OT
-   * correctiva cerrada, y el MTBF acumulado dibujaba una rampa recta en vez de
-   * una tendencia. La parada real —la que le importa a producción— es la que
-   * mide `activo_estado_periodos`, y es la misma fuente que usan las
-   * herramientas del rubro para estas tres métricas.
-   */
-  const periodosScoped = useMemo(
-    () => periodos.filter(p => assetIds.has(p.activo_id)),
-    [periodos, assetIds],
-  );
   const serieDisp = useMemo(
-    () => construirSerieDisponibilidad(periodosScoped, Math.min(rangeMonths, 12), ahoraMs),
-    [periodosScoped, rangeMonths, ahoraMs],
+    () => (d?.serie ?? []).map(t => puntoDisponibilidad(t.clave, etiquetaTramo(t.clave, grano, cruzaAnio), t)),
+    [d, grano, cruzaAnio],
   );
   const resumenDisp = useMemo(() => resumirDisponibilidad(serieDisp), [serieDisp]);
 
-  /**
-   * Peores actores, ordenados por HORAS DE PARADA IMPREVISTA.
-   *
-   * No por cantidad de fallas: diez microparadas de cinco minutos molestan
-   * menos que una sola detención de ocho horas, y el que decide dónde invertir
-   * mira las horas perdidas. El costo sale de las OTs —es el único lado que lo
-   * sabe—; el resto, del historial de estados.
-   */
-  const rankedDisp = useMemo(() => {
-    const desdeMs = ahoraMs - windowDays * 86_400_000;
-    const costoPorActivo = new Map<string, number>();
-    for (const o of scopedOTs) {
-      if (!o.activo_id || o.costo_total == null) continue;
-      costoPorActivo.set(o.activo_id,
-        (costoPorActivo.get(o.activo_id) ?? 0) + Number(o.costo_total));
-    }
-    return filteredAssets
-      .map(a => ({
-        asset: a,
-        m: resumirPorActivo(periodosScoped, a.id, desdeMs, ahoraMs),
-        costo: costoPorActivo.get(a.id) ?? null,
-      }))
-      .filter(r => r.m.fallas > 0 || r.m.imprevistaHoras > 0)
-      .sort((a, b) => b.m.imprevistaHoras - a.m.imprevistaHoras || b.m.fallas - a.m.fallas)
-      .slice(0, 10);
-  }, [filteredAssets, periodosScoped, scopedOTs, windowDays, ahoraMs]);
+  const series = useMemo(
+    () => (d?.serie ?? []).map((t, i) => ({
+      key: t.clave, label: serieDisp[i]?.label ?? t.clave,
+      preventives: Number(t.preventivas), failures: Number(t.correctivas),
+    })),
+    [d, serieDisp],
+  );
+  /** Share of completed maintenance that was planned. Null when there was none. */
+  const preventiveSharePct = useMemo(() => {
+    const prev = series.reduce((s, p) => s + p.preventives, 0);
+    const corr = series.reduce((s, p) => s + p.failures, 0);
+    return prev + corr > 0 ? (prev / (prev + corr)) * 100 : null;
+  }, [series]);
 
-  /**
-   * Horas detenidas por mes, separando parada programada de avería.
-   *
-   * Se calcula desde `activo_estado_periodos` y no desde las OTs: una OT solo
-   * sabe cuánto duró la reparación, mientras que el período mide la parada
-   * real, incluida la espera de repuesto o de técnico. Es la diferencia entre
-   * disponibilidad inherente y disponibilidad operacional.
-   *
-   * Cada período se RECORTA al mes que se está sumando. Sin el recorte, una
-   * parada que cruza de un mes a otro se contaría entera en los dos.
-   */
-  const downtimeSplit = useMemo(() => {
-    const meses: { key: string; label: string; planificada: number; imprevista: number }[] = [];
-    const ahora = new Date(ahoraMs);
-    const n = Math.min(rangeMonths, 12);
-
-    for (let i = n - 1; i >= 0; i--) {
-      const d = new Date(ahora.getFullYear(), ahora.getMonth() - i, 1);
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-      meses.push({ key, label: MESES_ES[d.getMonth()], planificada: 0, imprevista: 0 });
-    }
-
-    for (const p of periodos) {
-      if (p.estado === "operativo" || p.estado === "baja") continue;
-      if (!assetIds.has(p.activo_id)) continue;
-
-      const desde = new Date(p.inicio).getTime();
-      // Un período abierto se cuenta hasta "ahora", y ese "ahora" es el mismo
-      // para toda la pantalla: leer el reloj acá adentro haría que el gráfico
-      // cambiara solo porque React volvió a renderizar.
-      const hasta = p.fin ? new Date(p.fin).getTime() : ahoraMs;
-
-      for (const mes of meses) {
-        const [y, m] = mes.key.split("-").map(Number);
-        const iniMes = new Date(y, m - 1, 1).getTime();
-        const finMes = new Date(y, m, 1).getTime();
-        const solape = Math.min(hasta, finMes) - Math.max(desde, iniMes);
-        if (solape <= 0) continue;
-        const horas = solape / 3_600_000;
-        if (p.tipo_inactividad === "planeado") mes.planificada += horas;
-        else mes.imprevista += horas;
-      }
-    }
-
-    return meses.map(m => ({
-      ...m,
-      planificada: Number(m.planificada.toFixed(2)),
-      imprevista: Number(m.imprevista.toFixed(2)),
-    }));
-  }, [periodos, assetIds, rangeMonths, ahoraMs]);
-
-  /**
-   * Lo que costó la parada, en plata.
-   *
-   * Es la traducción que faltaba: un gráfico puede decir "47 horas detenido" y
-   * nadie mueve un peso; "47 horas costaron $40 millones" es lo que se lleva a
-   * una reunión de presupuesto.
-   *
-   * Cada activo aporta sus horas por SU tarifa —una línea completa no cuesta lo
-   * mismo que un ventilador redundante—, así que se suma activo por activo y no
-   * con un promedio. Los que no tienen tarifa cargada quedan fuera del monto y
-   * se cuentan aparte: mejor decir "de 5 activos, 3 tienen tarifa" que dar una
-   * cifra que parece completa y no lo es.
-   */
-  const costoParadas = useMemo(() => {
-    const tarifa = new Map<string, number>();
-    for (const a of filteredAssets) {
-      if (a.costo_hora_parada != null) tarifa.set(a.id, Number(a.costo_hora_parada));
-    }
-
-    let imprevisto = 0, planificado = 0, horasSinTarifa = 0;
-    const desdeMs = ahoraMs - windowDays * 86_400_000;
-
-    /**
-     * Una parada se cobra UNA vez, no una por activo.
-     *
-     * La jerarquía propaga la detención: si se quema el motor de la tornamesa,
-     * quedan tres períodos con el mismo horario —motor, CRP-180 y Finger 269—
-     * porque los tres estuvieron detenidos de verdad. Pero la plata perdida es
-     * una sola: la línea paró una vez. Sumar activo por activo cobraba esa
-     * parada tres veces y casi duplicaba el total ($38,7M contra $19,9M reales).
-     *
-     * Por eso los períodos que se solapan se agrupan en un evento y se cobran a
-     * la tarifa MÁS ALTA de los activos involucrados: la del equipo de nivel
-     * superior, que es el que realmente dejó de producir.
-     */
-    interface Evento { ini: number; fin: number; rate: number; planeado: boolean }
-    const eventos: Evento[] = [];
-
-    for (const p of periodosScoped) {
-      if (p.estado === "operativo" || p.estado === "baja") continue;
-      const ini = Math.max(new Date(p.inicio).getTime(), desdeMs);
-      const fin = Math.min(p.fin ? new Date(p.fin).getTime() : ahoraMs, ahoraMs);
-      if (fin <= ini) continue;
-
-      const rate = tarifa.get(p.activo_id);
-      if (rate == null) { horasSinTarifa += (fin - ini) / 3_600_000; continue; }
-      const planeado = p.tipo_inactividad === "planeado";
-
-      // Se funde con un evento que ya se solape y sea del mismo tipo; si no,
-      // es una parada nueva.
-      const previo = eventos.find(e =>
-        e.planeado === planeado && ini < e.fin && fin > e.ini);
-      if (previo) {
-        previo.ini = Math.min(previo.ini, ini);
-        previo.fin = Math.max(previo.fin, fin);
-        previo.rate = Math.max(previo.rate, rate);
-      } else {
-        eventos.push({ ini, fin, rate, planeado });
-      }
-    }
-
-    for (const e of eventos) {
-      const monto = ((e.fin - e.ini) / 3_600_000) * e.rate;
-      if (e.planeado) planificado += monto;
-      else imprevisto += monto;
-    }
-
-    return {
-      imprevisto, planificado, total: imprevisto + planificado,
-      horasSinTarifa,
-      conTarifa: tarifa.size,
-      totalActivos: filteredAssets.length,
-    };
-  }, [filteredAssets, periodosScoped, windowDays, ahoraMs]);
-
-  /** Totales del período, para el número grande de la tarjeta. */
+  /** Horas detenidas por tramo, separando parada programada de avería. */
+  const downtimeSplit = useMemo(
+    () => serieDisp.map(p => ({ key: p.key, label: p.label, planificada: p.planificadaHoras, imprevista: p.imprevistaHoras })),
+    [serieDisp],
+  );
   const downtimeTotales = useMemo(() => {
     const planificada = downtimeSplit.reduce((s, m) => s + m.planificada, 0);
     const imprevista = downtimeSplit.reduce((s, m) => s + m.imprevista, 0);
@@ -609,41 +279,33 @@ export default function AnaliticaActivosPage() {
   }, [downtimeSplit]);
 
   /**
-   * Pareto de motivos de parada imprevista.
-   *
-   * Las barras van por CANTIDAD de eventos y no por horas: lo que se busca es
-   * la causa que más veces detiene la línea, que es la que hay que atacar con
-   * el plan preventivo. Una sola parada larguísima no es un patrón; cinco
-   * paradas cortas por la misma razón sí.
-   *
-   * La línea acumulada es lo que convierte el gráfico en una decisión: dice qué
-   * porcentaje del total se resuelve atacando las primeras N causas.
+   * Lo que costó la parada, en plata. Las paradas solapadas (la jerarquía
+   * propaga la detención: motor, máquina y línea) se cobran una sola vez, a la
+   * tarifa más alta — eso lo resuelve la función SQL.
+   */
+  const costoParadas = useMemo(() => {
+    const c = d?.costo_paradas;
+    const imprevisto = Number(c?.imprevisto ?? 0);
+    const planificado = Number(c?.planificado ?? 0);
+    return {
+      imprevisto, planificado, total: imprevisto + planificado,
+      horasSinTarifa: Number(c?.horas_sin_tarifa ?? 0),
+      conTarifa: Number(c?.con_tarifa ?? 0),
+      totalActivos: d?.activos_total ?? 0,
+    };
+  }, [d]);
+
+  /**
+   * Pareto de motivos de parada imprevista, por CANTIDAD de eventos: lo que se
+   * busca es la causa que más veces detiene la línea. La línea acumulada dice
+   * qué porcentaje se resuelve atacando las primeras N causas.
    */
   const paretoMotivos = useMemo(() => {
-    const conteo = new Map<string, { motivo: string; eventos: number; horas: number }>();
-
-    for (const p of periodos) {
-      if (p.tipo_inactividad !== "sin_planear") continue;
-      if (!assetIds.has(p.activo_id)) continue;
-
-      // El embed de PostgREST puede llegar como objeto o como arreglo.
-      const m = Array.isArray(p.motivo) ? p.motivo[0] : p.motivo;
-      const nombre = m?.nombre ?? "Sin clasificar";
-      const horas = ((p.fin ? new Date(p.fin).getTime() : ahoraMs)
-                     - new Date(p.inicio).getTime()) / 3_600_000;
-
-      const actual = conteo.get(nombre);
-      if (actual) { actual.eventos++; actual.horas += horas; }
-      else conteo.set(nombre, { motivo: nombre, eventos: 1, horas });
-    }
-
-    const filas = [...conteo.values()].sort((a, b) => b.eventos - a.eventos || b.horas - a.horas);
+    const filas = (d?.pareto ?? []).map(f => ({ motivo: f.motivo, eventos: Number(f.eventos), horas: Number(f.horas) }));
     const total = filas.reduce((s, f) => s + f.eventos, 0);
-
     return filas.map((f, i) => {
       // El acumulado se suma sobre las filas ya ordenadas hasta esta, en vez de
-      // ir mutando un contador dentro del map: el callback deja de depender del
-      // orden en que se lo llame.
+      // ir mutando un contador dentro del map.
       const acumulado = filas.slice(0, i + 1).reduce((s, x) => s + x.eventos, 0);
       return {
         motivo: f.motivo,
@@ -652,41 +314,39 @@ export default function AnaliticaActivosPage() {
         acumuladoPct: total > 0 ? Number(((acumulado / total) * 100).toFixed(1)) : 0,
       };
     });
-  }, [periodos, assetIds, ahoraMs]);
+  }, [d]);
 
   const critSplit = useMemo(() => {
-    const counts: Record<string, number> = { critico: 0, semi_critico: 0, no_critico: 0 };
-    for (const a of filteredAssets) counts[a.criticidad ?? "no_critico"]++;
-    return (Object.keys(counts) as AssetCriticality[])
-      .filter(k => counts[k] > 0)
-      .map(k => ({ name: CRIT_LABEL[k], value: counts[k], key: k }));
-  }, [filteredAssets]);
+    const counts = d?.criticidad ?? { critico: 0, semi_critico: 0, no_critico: 0 };
+    return (["critico", "semi_critico", "no_critico"] as AssetCriticality[])
+      .filter(k => Number(counts[k]) > 0)
+      .map(k => ({ name: CRIT_LABEL[k], value: Number(counts[k]), key: k }));
+  }, [d]);
 
   const CRIT_FILL: Record<string, string> = {
     critico: C.danger, semi_critico: C.warning, no_critico: C.success,
   };
 
+  /** Peores actores, por HORAS DE PARADA IMPREVISTA (top 10, ordenado en SQL). */
+  const rankedDisp = useMemo(
+    () => (d?.ranking ?? []).map(r => ({
+      asset: { id: r.id, nombre: r.nombre, criticidad: r.criticidad },
+      m: derivarDisponibilidad(r),
+      costo: r.costo == null ? null : Number(r.costo),
+    })),
+    [d],
+  );
 
   /**
-   * Live asset states. Unlike everything else on this page these are current
-   * values, not period aggregates — `activos.estado` has no history table, so
-   * this is a snapshot of right now, which is exactly what a status bar should
-   * show. `baja` (retired) is excluded: a decommissioned asset is not "offline",
-   * it is gone, and counting it would drag availability down forever.
+   * Live asset states — a snapshot of right now, not a period aggregate.
+   * `baja` (retired) is excluded: a decommissioned asset is not "offline".
    */
-  const statusCounts = useMemo(() => {
-    const c = { operativo: 0, mantencion: 0, fuera_servicio: 0, baja: 0 };
-    for (const a of filteredAssets) {
-      const k = (a.estado ?? "operativo") as keyof typeof c;
-      if (k in c) c[k]++;
-    }
-    return c;
-  }, [filteredAssets]);
-
+  const statusCounts = d?.estado ?? { operativo: 0, mantencion: 0, fuera_servicio: 0, baja: 0 };
   const enServicio = statusCounts.operativo + statusCounts.mantencion + statusCounts.fuera_servicio;
   const disponibilidadActual = enServicio > 0
     ? (statusCounts.operativo / enServicio) * 100
     : null;
+  const totalActivos = d?.activos_total ?? 0;
 
   // Fail-open mientras carga la suscripcion (ver analitica/ordenes).
   if (suscripcion.data?.plan_features && !suscripcion.data.plan_features.analytics_pro) {
@@ -700,33 +360,88 @@ export default function AnaliticaActivosPage() {
     );
   }
 
-  if (loading) {
-    return <div style={{ padding: 40, color: C.text3, fontSize: 14 }}>Cargando analítica...</div>;
-  }
-  if (!workspaceId) {
+  if (perfilCargado && !workspaceId) {
     return <div style={{ padding: 40, color: C.text3, fontSize: 14 }}>No se pudo cargar el workspace.</div>;
+  }
+  if (informe.error && !d) {
+    return <div style={{ padding: 40, color: C.text3, fontSize: 14 }}>No se pudo cargar la analítica. Intenta de nuevo en un momento.</div>;
+  }
+  if (!d) {
+    return <div style={{ padding: 40, color: C.text3, fontSize: 14 }}>Cargando analítica...</div>;
   }
 
   return (
     <div style={{ padding: "28px 32px 64px", minHeight: "100vh", background: C.bg }}>
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, flexWrap: "wrap", marginBottom: 18 }}>
         <div />
-        <select value={rangeMonths} onChange={e => setRangeSafe(Number(e.target.value))} style={selectStyle}>
-          <option value={3} disabled={maxRange < 3}>Últimos 3 meses</option>
-          <option value={6} disabled={maxRange < 6}>Últimos 6 meses</option>
-          <option value={12} disabled={maxRange < 12}>Últimos 12 meses</option>
-        </select>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          {/* Personalizado: el mismo DatePicker de procedimientos. min/max
+              impiden un rango invertido y respetan el historial del plan. */}
+          {atajo === "personalizado" && (
+            <>
+              <div style={{ width: 150 }}>
+                <DatePicker
+                  value={deFecha(rango.desde)}
+                  min={desdeMinimo ? deFecha(desdeMinimo) : undefined}
+                  max={deFecha(rango.hasta)}
+                  onChange={d => { if (d) setRango(r => ({ ...r, desde: aFecha(d) })); }}
+                />
+              </div>
+              <span style={{ color: C.text3, fontSize: 14 }}>–</span>
+              <div style={{ width: 150 }}>
+                <DatePicker
+                  value={deFecha(rango.hasta)}
+                  min={deFecha(rango.desde)}
+                  max={deFecha(hoyFecha)}
+                  onChange={d => { if (d) setRango(r => ({ ...r, hasta: aFecha(d) })); }}
+                />
+              </div>
+            </>
+          )}
+          <Desplegable<Atajo>
+            ariaLabel="Período"
+            value={atajo}
+            onChange={elegirAtajo}
+            opciones={[
+              ...ATAJOS.map(a => ({ value: a.value, label: a.label, disabled: maxRange < a.meses })),
+              { value: "personalizado" as const, label: "Personalizado" },
+            ]}
+          />
+        </div>
       </div>
 
-      {/* Filter chips */}
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
-        <FilterChip icon={AlertTriangle} label="Criticidad" value={critFilter} onChange={setCritFilter}
-          options={(["critico", "semi_critico", "no_critico"] as AssetCriticality[]).map(k => ({ value: k, label: CRIT_LABEL[k] }))} />
-        <FilterChip icon={Package} label="Tipo de activo" value={modeloFilter} onChange={setModeloFilter} options={modeloOptions} />
-        <FilterChip icon={Wrench} label="Activo" value={activoFilter} onChange={setActivoFilter} options={activoOptions} />
-        <FilterChip icon={MapPin} label="Ubicación" value={ubicFilter} onChange={setUbicFilter} options={ubicOptions} />
-        <FilterChip icon={Building2} label="Cliente" value={sociedadFilter} onChange={setSociedadFilter} options={sociedadOptions} />
-        <FilterChip icon={User} label="Responsable" value={responsableFilter} onChange={setResponsableFilter} options={responsableOptions} />
+      {/* Filtros: las mismas piezas que /ordenes (components/filtros/primitivas). */}
+      <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginBottom: 16 }}>
+        <FiltroFijo label="Criticidad" icon={<AlertTriangle size={16} />}
+          opciones={CRIT_OPCIONES} seleccion={critFilter} onChange={setCritFilter} />
+        {workspaceId && (
+          <>
+            <FiltroRemoto label="Tipo de activo" icon={<Package size={16} />} tipo="modelo"
+              workspaceId={workspaceId} seleccion={modeloFilter} onChange={setModeloFilter} />
+            <FiltroRemoto label="Activo" icon={<Wrench size={16} />} tipo="activo"
+              workspaceId={workspaceId} seleccion={activoFilter} onChange={setActivoFilter} />
+            <FiltroRemoto label="Ubicación" icon={<MapPin size={16} />} tipo="ubicacion"
+              workspaceId={workspaceId} seleccion={ubicFilter} onChange={setUbicFilter} />
+            <FiltroRemoto label="Cliente" icon={<Building2 size={16} />} tipo="sociedad"
+              workspaceId={workspaceId} seleccion={sociedadFilter} onChange={setSociedadFilter} />
+            <FiltroRemoto label="Responsable" icon={<User size={16} />} tipo="responsable"
+              workspaceId={workspaceId} seleccion={responsableFilter} onChange={setResponsableFilter} />
+          </>
+        )}
+        {/* Igual que /ordenes: solo aparece cuando hay algo que limpiar. */}
+        {hayFiltros && (
+          <button
+            type="button"
+            onClick={limpiarFiltros}
+            style={{
+              display: "flex", alignItems: "center", height: 34, padding: 0, flexShrink: 0,
+              border: "none", background: "none", color: "var(--brand)",
+              fontSize: 14, fontWeight: 400, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap",
+            }}
+          >
+            Limpiar filtros
+          </button>
+        )}
       </div>
 
       {/* Estado actual: a live snapshot of asset states, not a period
@@ -747,7 +462,7 @@ export default function AnaliticaActivosPage() {
             <span style={{ fontSize: 14, fontWeight: 400, color: C.text1 }}>Estado actual</span>
           </div>
           <span style={{ fontSize: 14, color: C.text3 }}>
-            {filteredAssets.length} {filteredAssets.length === 1 ? "activo" : "activos"} en el filtro
+            {totalActivos} {totalActivos === 1 ? "activo" : "activos"} en el filtro
           </span>
         </div>
 
@@ -806,8 +521,12 @@ export default function AnaliticaActivosPage() {
         ))}
       </div>
 
-      {/* Every chart card below is the same 460px Card `fixed` height. */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginTop: 14 }}>
+      {/* Every chart card below is the same 460px Card `fixed` height.
+          Atenuado mientras llega el informe del nuevo rango o filtro. */}
+      <div style={{
+        display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginTop: 14,
+        opacity: informe.isPlaceholderData ? 0.55 : 1, transition: "opacity 120ms",
+      }}>
         <Card fixed>
           <CardHeader
             title="Disponibilidad en el tiempo"
@@ -855,8 +574,8 @@ export default function AnaliticaActivosPage() {
         <Card fixed>
           <CardHeader title="Preventivo vs correctivo" />
           <ChartValue
-            value={fmtPct(fleet.preventiveSharePct, 0)}
-            tone={fleet.preventiveSharePct == null ? C.text3 : C.text1}
+            value={fmtPct(preventiveSharePct, 0)}
+            tone={preventiveSharePct == null ? C.text3 : C.text1}
           />
           <div style={{ padding: "4px 8px 16px", flex: 1, minHeight: 0 }}>
             {series.some(p => p.failures || p.preventives) ? (
@@ -886,7 +605,7 @@ export default function AnaliticaActivosPage() {
         <Card fixed>
           <CardHeader
             title="MTBF vs MTTR"
-            subtitle="Horas, por mes · solo fallas imprevistas"
+            subtitle={`Horas, por ${GRANO_TEXTO[grano]} · solo fallas imprevistas`}
           />
           {/* En horas las dos, como el eje del gráfico. `fmtHours` pasa a días
               sobre 48 h, y el número grande decía "35.9 d" al lado de un eje
@@ -1073,7 +792,7 @@ export default function AnaliticaActivosPage() {
         <Card fixed>
           <CardHeader title="Activos por criticidad" />
           <ChartValue
-            value={String(filteredAssets.filter(a => a.criticidad === "critico").length)}
+            value={String(Number(d.criticidad.critico ?? 0))}
           />
           <div style={{ padding: "4px 8px 16px", flex: 1, minHeight: 0 }}>
             {critSplit.length ? (

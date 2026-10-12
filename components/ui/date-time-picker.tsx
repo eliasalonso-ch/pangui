@@ -59,7 +59,8 @@ const Disparador = React.forwardRef<HTMLButtonElement, {
       <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
         {texto ?? placeholder}
       </span>
-      <span style={{ display: "flex", flexShrink: 0, color: "var(--fg-3)" }}>{icon}</span>
+      {/* Ícono en azul de marca, como los íconos de los filtros. */}
+      <span style={{ display: "flex", flexShrink: 0, color: "var(--brand)" }}>{icon}</span>
     </button>
   )
 })
@@ -132,7 +133,7 @@ function DropdownCalendario({ options = [], value, onChange, "aria-label": ariaL
         onBlur={e => { if (!open) e.currentTarget.style.borderColor = "var(--border)" }}
       >
         {actual?.label}
-        <ChevronDown size={14} style={{ color: "var(--fg-3)" }} />
+        <ChevronDown size={14} style={{ color: "var(--brand)" }} />
       </button>
       {open && (
         <div
@@ -176,7 +177,13 @@ function DropdownCalendario({ options = [], value, onChange, "aria-label": ariaL
   )
 }
 
-function Calendario({ value, onSelect }: { value: Date | undefined; onSelect: (d: Date | undefined) => void }) {
+function Calendario({ value, onSelect, min, max }: {
+  value: Date | undefined
+  onSelect: (d: Date | undefined) => void
+  /** Días antes de `min` o después de `max` quedan deshabilitados. */
+  min?: Date
+  max?: Date
+}) {
   return (
     <DayPicker
       className="pangui-rdp"
@@ -190,8 +197,9 @@ function Calendario({ value, onSelect }: { value: Date | undefined; onSelect: (d
       // Mes y año con desplegables (ejemplo "Calendar · caption dropdown" de
       // shadcn): saltar a otro año sin pasar mes por mes.
       captionLayout="dropdown"
-      startMonth={DESDE}
-      endMonth={HASTA}
+      startMonth={min ?? DESDE}
+      endMonth={max ?? HASTA}
+      disabled={[...(min ? [{ before: min }] : []), ...(max ? [{ after: max }] : [])]}
       components={{ Dropdown: DropdownCalendario }}
     />
   )
@@ -244,12 +252,14 @@ function Columna({ valores, actual, onPick, etiqueta }: {
 
 const divisor: React.CSSProperties = { width: 1, alignSelf: "stretch", background: "var(--border)" }
 
-/** Fecha sola. */
-export function DatePicker({ value, onChange, placeholder = "Seleccionar fecha", disabled }: {
+/** Fecha sola. `min`/`max` limitan los días elegibles (opcionales). */
+export function DatePicker({ value, onChange, placeholder = "Seleccionar fecha", disabled, min, max }: {
   value: Date | undefined
   onChange: (d: Date | undefined) => void
   placeholder?: string
   disabled?: boolean
+  min?: Date
+  max?: Date
 }) {
   const [open, setOpen] = React.useState(false)
   return (
@@ -258,7 +268,7 @@ export function DatePicker({ value, onChange, placeholder = "Seleccionar fecha",
         <Disparador icon={<CalendarIcon size={16} />} texto={value ? format(value, "dd/MM/yyyy") : null} placeholder={placeholder} abierto={open} disabled={disabled} />
       </PopoverPrimitive.Trigger>
       <Panel>
-        <Calendario value={value} onSelect={d => { onChange(d); setOpen(false) }} />
+        <Calendario value={value} min={min} max={max} onSelect={d => { onChange(d); setOpen(false) }} />
       </Panel>
     </PopoverPrimitive.Root>
   )
