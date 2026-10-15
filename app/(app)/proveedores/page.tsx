@@ -5,14 +5,16 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useDeepLinkId } from "@/lib/use-deep-link-id";
 import { createClient } from "@/lib/supabase";
 import {
-  Plus, Search, X, Loader2, Truck, Pencil, Archive, Mail, Phone, Globe, FileText,
+  Plus, Search, X, Loader2, Truck, Pencil, ArchiveRestore, Trash2, Mail, Phone, Globe, FileText,
 } from "lucide-react";
 import {
   listProveedores, getProveedor, createProveedor, updateProveedor,
-  archivarProveedor, reactivarProveedor,
+  archivarProveedor, reactivarProveedor, eliminarProveedor,
 } from "@/lib/proveedores-api";
 import AuditFooter from "@/components/catalogo/AuditFooter";
-import ProveedorFormPanel from "./ProveedorForm";
+import ProveedorFormPanel, { type ExtrasProveedor } from "./ProveedorForm";
+import ProveedorVinculos, { aplicarVinculos, useVinculosProveedor } from "./ProveedorVinculos";
+import { ContactosLista, guardarContactos, useTodosContactos } from "./ProveedorContactos";
 import { ProveedorFiltrosBar } from "./ProveedorFiltrosBar";
 import { EmptyState, EmptyDetail } from "@/components/EmptyState";
 import { useSuscripcion } from "@/hooks/useSuscripcion";
@@ -21,8 +23,8 @@ import { btnSecundario, btnIcono, seccionDetalle } from "@/components/catalogo/P
 import {
   EMPTY_FILTROS_PROV, FILTER_ORDER_PROV, FILTER_META_PROV,
   contarFiltrosProv, initialFilterKeysProv, filterKeysStorageKeyProv,
-  incluyeInactivos, aplicarFiltrosProv,
-  type FiltrosProveedor, type FilterKeyProv,
+  aplicarFiltrosProv,
+  type FiltrosProveedor, type FilterKeyProv, type RelacionesProv,
 } from "./filter-registry";
 import type { Proveedor, ProveedorForm } from "@/types/proveedores";
 
@@ -115,13 +117,12 @@ function ProveedoresPageInner() {
    * el selector de la orden de compra los necesita todos para buscar. TanStack
    * entra solo por el cache — volver desde el detalle ya no los re-pide.
    *
-   * `incluyeInactivos` va en la clave porque cambia lo que pide el servidor:
-   * son dos listas distintas, no un filtro sobre la misma.
+   * Incluye los archivados (atenuados en la lista): ya no hay filtro de estado
+   * y sin esto un archivado no se podría abrir para reactivarlo.
    */
-  const verInactivos = incluyeInactivos(filtros);
   const query = useQuery({
-    queryKey: ["proveedores", "lista", verInactivos],
-    queryFn: () => listProveedores(verInactivos),
+    queryKey: ["proveedores", "lista", true],
+    queryFn: () => listProveedores(true),
     staleTime: 15 * 60 * 1000,
   });
 
@@ -141,16 +142,42 @@ function ProveedoresPageInner() {
 
   const isAdmin = rol === "admin" || rol === "owner";
 
+  // Vínculos y contactos: las mismas consultas que usa la ficha (en caché).
+  const { data: vinculos } = useVinculosProveedor();
+  const { data: contactos } = useTodosContactos();
+  const { relaciones, opcionesFiltro } = useMemo(() => {
+    const agregar = (m: Map<string, string[]>, prov: string, id: string) => m.set(prov, [...(m.get(prov) ?? []), id]);
+    const rel: RelacionesProv = { activos: new Map(), materiales: new Map(), contactos: new Map() };
+    for (const a of vinculos?.activos ?? []) if (a.proveedor_id) agregar(rel.activos, a.proveedor_id, a.id);
+    for (const m of vinculos?.materiales ?? []) for (const prov of m.proveedores) agregar(rel.materiales, prov, m.id);
+    for (const c of contactos ?? []) agregar(rel.contactos, c.proveedor_id, c.id);
+    const nombreProv = new Map(items.map(p => [p.id, p.nombre]));
+    // Sólo lo que está vinculado a algún proveedor: una opción sin resultados no sirve.
+    return {
+      relaciones: rel,
+      opcionesFiltro: {
+        activos: (vinculos?.activos ?? []).filter(a => a.proveedor_id).map(a => ({ id: a.id, label: a.nombre })),
+        materiales: (vinculos?.materiales ?? []).filter(m => m.proveedores.length).map(m => ({ id: m.id, label: m.nombre })),
+        contactos: (contactos ?? []).map(c => ({ id: c.id, label: `${c.nombre} · ${nombreProv.get(c.proveedor_id) ?? ""}` })),
+      },
+    };
+  }, [vinculos, contactos, items]);
+
   const filtered = useMemo(() => {
-    const porFiltros = aplicarFiltrosProv(items, filtros);
+    const porFiltros = aplicarFiltrosProv(items, filtros, relaciones);
     const q = search.trim().toLowerCase();
     if (!q) return porFiltros;
+    // El buscador también encuentra por nombre o correo de sus contactos.
+    const porContacto = new Set((contactos ?? [])
+      .filter(c => c.nombre.toLowerCase().includes(q) || (c.email ?? "").toLowerCase().includes(q))
+      .map(c => c.proveedor_id));
     return porFiltros.filter(p =>
       p.nombre.toLowerCase().includes(q) ||
       (p.rut ?? "").toLowerCase().includes(q) ||
       (p.contacto ?? "").toLowerCase().includes(q) ||
-      (p.email ?? "").toLowerCase().includes(q));
-  }, [items, filtros, search]);
+      (p.email ?? "").toLowerCase().includes(q) ||
+      porContacto.has(p.id));
+  }, [items, filtros, search, relaciones, contactos]);
 
   const hayFiltros = contarFiltrosProv(filtros) > 0;
   const hayBusqueda = search.trim().length > 0;
@@ -167,10 +194,18 @@ function ProveedoresPageInner() {
     await queryClient.invalidateQueries({ queryKey: ["proveedores", "lista"] });
   }
 
-  async function handleCreate(v: ProveedorForm) {
+  // Contactos y vínculos van después del proveedor: necesitan su id. Si fallan,
+  // el proveedor ya quedó guardado y el error se muestra en el pie.
+  async function guardarExtras(id: string, { vinculos, contactos }: ExtrasProveedor) {
+    if (contactos) await guardarContactos(queryClient, id, contactos);
+    if (vinculos) await aplicarVinculos(queryClient, id, vinculos);
+  }
+
+  async function handleCreate(v: ProveedorForm, extras: ExtrasProveedor) {
     setGuardando(true); setError(null);
     try {
       const nuevo = await createProveedor(v);
+      await guardarExtras(nuevo.id, extras);
       await recargar();
       open(nuevo.id);
       setModo("ver");
@@ -179,11 +214,12 @@ function ProveedoresPageInner() {
     } finally { setGuardando(false); }
   }
 
-  async function handleUpdate(v: ProveedorForm) {
+  async function handleUpdate(v: ProveedorForm, extras: ExtrasProveedor) {
     if (!detalle) return;
     setGuardando(true); setError(null);
     try {
       await updateProveedor(detalle.id, v);
+      await guardarExtras(detalle.id, extras);
       setDetalle(await getProveedor(detalle.id));
       await recargar();
       setModo("ver");
@@ -192,14 +228,32 @@ function ProveedoresPageInner() {
     } finally { setGuardando(false); }
   }
 
-  async function toggleArchivado(p: Proveedor) {
-    const activar = !p.activo;
-    if (!activar && !confirm(
-      `${p.nombre} dejará de aparecer al crear órdenes de compra, activos o materiales.\n\n` +
-      `Las órdenes de compra que ya le apuntan se conservan.`,
+  async function eliminar(p: Proveedor) {
+    if (!confirm(
+      `¿Eliminar ${p.nombre}? No se puede deshacer.\n\n` +
+      `Sus activos, materiales y planes quedan sin proveedor, y se borran sus personas de contacto.`,
     )) return;
     try {
-      if (activar) await reactivarProveedor(p.id); else await archivarProveedor(p.id);
+      if (await eliminarProveedor(p.id)) {
+        close();
+        setDetalle(null);
+        await queryClient.invalidateQueries({ queryKey: ["proveedor-vinculos"] });
+      } else if (p.activo && confirm(
+        `${p.nombre} tiene órdenes de compra, así que no se puede eliminar: esos documentos necesitan sus datos.\n\n` +
+        `¿Archivarlo? Dejará de aparecer al crear órdenes de compra, activos o materiales.`,
+      )) {
+        await archivarProveedor(p.id);
+        setDetalle(await getProveedor(p.id));
+      }
+      await recargar();
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }
+
+  async function reactivar(p: Proveedor) {
+    try {
+      await reactivarProveedor(p.id);
       setDetalle(await getProveedor(p.id));
       await recargar();
     } catch (e) {
@@ -255,6 +309,7 @@ function ProveedoresPageInner() {
             onChange={setFiltros}
             visibleKeys={visibleKeys}
             onVisibleKeysChange={cambiarVisibleKeys}
+            opciones={opcionesFiltro}
           />
           </div>
           </div>
@@ -368,7 +423,8 @@ function ProveedoresPageInner() {
               p={detalle}
               isAdmin={isAdmin}
               onEdit={() => setModo("editar")}
-              onToggleArchivado={() => toggleArchivado(detalle)}
+              onEliminar={() => eliminar(detalle)}
+              onReactivar={() => reactivar(detalle)}
             />
           ) : (
             <EmptyDetail
@@ -402,11 +458,12 @@ function Dato({ icon, label, valor }: { icon?: React.ReactNode; label: string; v
   );
 }
 
-function ProveedorDetalle({ p, isAdmin, onEdit, onToggleArchivado }: {
+function ProveedorDetalle({ p, isAdmin, onEdit, onEliminar, onReactivar }: {
   p: Proveedor;
   isAdmin: boolean;
   onEdit: () => void;
-  onToggleArchivado: () => void;
+  onEliminar: () => void;
+  onReactivar: () => void;
 }) {
   const ubicacion = [p.direccion, p.comuna, p.ciudad].filter(Boolean).join(", ") || null;
 
@@ -450,8 +507,15 @@ function ProveedorDetalle({ p, isAdmin, onEdit, onToggleArchivado }: {
             <button onClick={onEdit} title="Editar" style={{ ...btnSecundario, background: "var(--brand)", borderColor: "var(--brand)", color: "var(--fg-on-brand)" }}>
               <Pencil size={14} /> Editar
             </button>
-            <button onClick={onToggleArchivado} title={p.activo ? "Archivar" : "Reactivar"} style={btnIcono}>
-              <Archive size={14} />
+            {/* Archivar quedó sólo como salida cuando no se puede eliminar
+                (tiene OCs); a un archivado se le puede devolver a activo. */}
+            {!p.activo && (
+              <button onClick={onReactivar} title="Reactivar" aria-label="Reactivar" style={btnIcono}>
+                <ArchiveRestore size={14} />
+              </button>
+            )}
+            <button onClick={onEliminar} title="Eliminar" aria-label="Eliminar proveedor" style={{ ...btnIcono, color: "var(--danger)" }}>
+              <Trash2 size={14} />
             </button>
           </div>
         )}
@@ -468,8 +532,9 @@ function ProveedorDetalle({ p, isAdmin, onEdit, onToggleArchivado }: {
         <Dato icon={<Mail size={16} />} label="Correo" valor={p.email} />
         <Dato icon={<Phone size={16} />} label="Teléfono" valor={p.telefono} />
         <Dato icon={<Globe size={16} />} label="Sitio web" valor={p.sitio_web} />
-        <Dato icon={<Phone size={16} />} label="Contacto" valor={p.contacto} />
       </div>
+
+      <ContactosLista proveedorId={p.id} legado={p.contacto} editable={isAdmin} />
 
       {p.notas && (
         <div style={seccionDetalle}>
@@ -477,6 +542,8 @@ function ProveedorDetalle({ p, isAdmin, onEdit, onToggleArchivado }: {
           <p style={{ fontSize: 14, color: "var(--fg-2)", lineHeight: 1.75, margin: 0, whiteSpace: "pre-wrap" }}>{p.notas}</p>
         </div>
       )}
+
+      <ProveedorVinculos proveedorId={p.id} />
 
       {!p.email && (
         // Sin correo no se le puede mandar la OC, y es el error que mas cuesta

@@ -2,6 +2,7 @@
 
 import { Plus, X } from "lucide-react";
 import type { OrdenCompraCosto } from "@/types/ordenes-compra";
+import { inputStyle, focoInput } from "@/components/catalogo/PanelCatalogo";
 
 /**
  * Costos del documento aparte de las líneas: flete, despacho, instalación.
@@ -40,7 +41,8 @@ export default function CostosPicker({
                 value={c.nombre}
                 onChange={e => set(i, { nombre: e.target.value })}
                 placeholder="Flete, despacho…"
-                style={{ ...campo, flex: 1, minWidth: 0 }}
+                style={{ ...inputStyle, flex: 1, minWidth: 0 }}
+                {...focoInput}
                 aria-label="Nombre del costo"
               />
 
@@ -48,7 +50,8 @@ export default function CostosPicker({
                 type="number" min={0} step="any"
                 value={c.valor}
                 onChange={e => set(i, { valor: Math.max(Number(e.target.value) || 0, 0) })}
-                style={{ ...campo, width: 90 }}
+                style={{ ...inputStyle, width: 100 }}
+                {...focoInput}
                 aria-label="Valor"
               />
 
@@ -62,12 +65,12 @@ export default function CostosPicker({
                     onClick={() => set(i, { tipo: t })}
                     aria-pressed={c.tipo === t}
                     style={{
-                      width: 32, height: 32, fontSize: 14, cursor: "pointer",
+                      width: 40, height: 40, fontSize: 14, cursor: "pointer", fontFamily: "inherit",
                       border: "1px solid var(--border)",
-                      borderRadius: t === "monto" ? "var(--r-sm) 0 0 var(--r-sm)" : "0 var(--r-sm) var(--r-sm) 0",
+                      borderRadius: t === "monto" ? "8px 0 0 8px" : "0 8px 8px 0",
                       marginLeft: t === "porcentaje" ? -1 : 0,
                       background: c.tipo === t ? "var(--brand)" : "var(--surface-1)",
-                      color: c.tipo === t ? "#fff" : "var(--fg-3)",
+                      color: c.tipo === t ? "var(--fg-on-brand)" : "var(--fg-3)",
                     }}
                   >
                     {t === "monto" ? "$" : "%"}
@@ -115,9 +118,3 @@ export default function CostosPicker({
   );
 }
 
-const campo: React.CSSProperties = {
-  height: 32, padding: "0 8px", fontSize: 14,
-  border: "1px solid var(--border)", borderRadius: "var(--r-sm)",
-  background: "var(--surface-1)", color: "var(--fg-1)",
-  outline: "none", fontFamily: "inherit",
-};

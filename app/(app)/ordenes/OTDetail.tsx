@@ -10,20 +10,9 @@ import { createHoja } from "@/lib/hojas-api";
 import { notifySolicitudMateriales } from "@/lib/notificar";
 import { tieneItos } from "@/lib/itos-gate";
 import {
-  X, Pencil, Trash2, Check, Copy, MapPin, Settings2, User, Flag,
-  Calendar, Tag, Send, AlertTriangle, Loader2,
-  CircleDot, PauseCircle, PlayCircle, CheckCircle2, XCircle,
-  ChevronDown, ChevronLeft, ChevronRight, Plus, Image, Building2, Hash,
-  Play, Pause, Square, RotateCcw,
-  FileText, Sheet, FileDown, MoreVertical, Upload, Download,
-  Package, Search,
-  ClipboardCheck, Info, Hash as HashIcon, Camera, PenLine, Shield, CheckSquare,
-  Type, DollarSign, List, ListChecks, AlertCircle, ImagePlus, FolderOpen,
-  Lock, LockOpen, Mic, MicOff, GitBranch, Wrench, Link as LinkIcon, Paperclip,
-  Phone, Mail, Circle, MessageSquare,
-  Minus, ArrowUp, ArrowDown, RotateCw, UserRoundX, UserRoundCheck, Zap, Locate, Contact,
-  Box, Clock, SmilePlus,
+  X, Pencil, Trash2, Check, Copy, MapPin, Settings2, User, Flag, Calendar, Send, AlertTriangle, Loader2, CircleDot, PauseCircle, PlayCircle, CheckCircle2, XCircle, ChevronDown, ChevronLeft, ChevronRight, Plus, Image, Building2, Play, Pause, RotateCcw, FileText, Sheet, FileDown, MoreVertical, Upload, Download, Package, Search, ClipboardCheck, Info, Hash as HashIcon, Camera, PenLine, CheckSquare, Type, DollarSign, List, ListChecks, Mic, MicOff, GitBranch, Wrench, Link as LinkIcon, Paperclip, Phone, Mail, Circle, MessageSquare, Minus, ArrowUp, ArrowDown, RotateCw, UserRoundX, UserRoundCheck, Zap, Locate, Contact, Clock, SmilePlus,
 } from "lucide-react";
+import { Engine } from "@/components/icons/Engine";
 import { cn } from "@/lib/utils";
 import { LinksDisplay } from "@/components/LinksInput";
 import { Button } from "@/components/ui/button";
@@ -72,6 +61,10 @@ import type {
 } from "@/types/procedimientos";
 import { FotoOIniciales } from "@/components/FotoPerfil";
 import { AudioNota } from "@/components/ordenes/AudioNota";
+import { TransformWrapper, TransformComponent, useControls } from "react-zoom-pan-pinch";
+import { format } from "date-fns";
+import { DatePicker, TimePicker, DateTimePicker } from "@/components/ui/date-time-picker";
+import { Attachment, AttachmentDropzone } from "@/components/ui/attachment";
 
 type PendingResp = Omit<Partial<PasoRespuesta>, "firmado_nombre"> & { firmado_nombre?: string | null };
 type PauseReason = "acceso" | "materiales" | "reprogramar" | "otro";
@@ -264,9 +257,9 @@ function ActivoSection({ activo, onEstadoChanged }: {
             border: "1px solid var(--border)",
             display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
           }}>
-            {/* Box, no Boxes: es el mismo icono que Activos en la barra lateral
+            {/* Engine: es el mismo icono que Activos en la barra lateral
                 (Boxes es el de Materiales, y usarlo acá los confundía). */}
-            <Box size={16} />
+            <Engine size={16} />
           </span>
         )}
 
@@ -639,6 +632,8 @@ interface OrdenParte {
   parte_id: string;
   cantidad: number;
   cantidad_utilizada: number | null;
+  /** Viene de una reserva de la ubicación (retiro); sólo puede bajar. */
+  withdrawal_id: string | null;
   parte: {
     nombre: string;
     unidad: string;
@@ -906,21 +901,28 @@ export default function OTDetail({
   // ── PDF export field config ────────────────────────────────────────────────
   // Keep this field set aligned with the mobile generator's PDF_SECTION_FIELDS
   // (pangui-native-stable/hooks/useOrdenExport.ts) so both platforms drive the
-  // shared PDF service identically. `fotos_grupos` is web-only (hoja photo
-  // groups); everything else mirrors mobile, including `activo`.
+  // shared PDF service identically. `imagenes` covers both the loose photos and
+  // the photo groups (one toggle); everything else mirrors mobile, including `activo`.
   type PdfField =
+    | "n_ot" | "estado" | "prioridad" | "tipo_trabajo" | "resumen"
     | "solicitante" | "hito" | "fechas"
-    | "descripcion" | "asignados" | "imagenes" | "fotos_grupos" | "ubicacion" | "activo"
+    | "descripcion" | "asignados" | "imagenes" | "ubicacion" | "activo"
     | "materiales" | "tiempo" | "procedimientos" | "historial" | "firma";
 
+  // n_ot/estado/prioridad/tipo_trabajo/resumen: the PDF service always
+  // honored them (show(key) defaults to true), the web just never offered them.
   const PDF_FIELDS: { key: PdfField; label: string; group: string }[] = [
+    { key: "n_ot",          label: "N° OT",             group: "Información general" },
+    { key: "estado",        label: "Estado",            group: "Información general" },
+    { key: "prioridad",     label: "Prioridad",         group: "Información general" },
+    { key: "tipo_trabajo",  label: "Tipo de trabajo",   group: "Información general" },
     { key: "solicitante",   label: "Solicitante",       group: "Información general" },
     { key: "hito",          label: "ITO",               group: "Información general" },
     { key: "fechas",        label: "Fechas (inicio/límite)", group: "Información general" },
+    { key: "resumen",       label: "Resumen",           group: "Contenido" },
     { key: "descripcion",   label: "Descripción",       group: "Contenido" },
     { key: "asignados",     label: "Asignados",         group: "Contenido" },
     { key: "imagenes",      label: "Imágenes",          group: "Contenido" },
-    { key: "fotos_grupos",  label: "Grupos de fotos",   group: "Contenido" },
     { key: "ubicacion",     label: "Ubicación",         group: "Contenido" },
     { key: "activo",        label: "Activo",            group: "Contenido" },
     { key: "materiales",    label: "Materiales",        group: "Seguimiento" },
@@ -960,16 +962,10 @@ export default function OTDetail({
     enabled: tab === "materiales",
   });
 
-  /**
-   * Write a fresh stock value for one part back into the shared catalogue cache
-   * after `ajustar_stock_parte`. Replaces three `setCatalogo(...)` calls from
-   * when this list was local state: the RPC returns the authoritative stock, so
-   * we patch the cache instead of refetching all 500 rows.
-   */
-  const patchStockCatalogo = useCallback((parteId: string, stock: number) => {
-    queryClient.setQueryData<ParteCatalogo[]>(["partes-catalogo"], prev =>
-      (prev ?? []).map(p => (p.id === parteId ? { ...p, stock_actual: stock } : p)),
-    );
+  // El stock lo mueve la base (trg_orden_partes_stock): descuenta al completar
+  // la OT y devuelve al quitar. Tras un cambio sólo se refresca el catálogo.
+  const refrescarStock = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ["partes-catalogo"] });
   }, [queryClient]);
   const [addingParte, setAddingParte] = useState(false);
   const [deletingParteId, setDeletingParteId] = useState<string | null>(null);
@@ -1284,10 +1280,17 @@ export default function OTDetail({
   }, [tab, otProcs.length, loadingProcs]);
 
   // Poll procedimientos every 60s while Detalles is open
+  //
+  // Se salta la pestaña oculta, igual que el poll de sub-OTs. Sin esto una OT
+  // olvidada en otra pestaña bajaba el checklist entero (pasos + respuestas)
+  // 60 veces por hora: el 2026-10-09 una sola OT de Electrilam sumó 145
+  // requests en 2h45 sin nadie mirándola. El siguiente tick al volver se pone
+  // al día.
   useEffect(() => {
     if (tab !== "detalle") return;
 
     const pollId = setInterval(async () => {
+      if (document.visibilityState !== "visible") return;
       try {
         const updated = await getOTProcedimientos(orden.id);
         setOtProcs(updated);
@@ -1450,7 +1453,7 @@ export default function OTDetail({
     if (ordenPartes.length > 0) return;
     const sb = createClient();
     sb.from("orden_partes")
-      .select("id, parte_id, cantidad, cantidad_utilizada, parte:partes!parte_id(nombre, unidad, stock_actual)")
+      .select("id, parte_id, cantidad, cantidad_utilizada, withdrawal_id, parte:partes!parte_id(nombre, unidad, stock_actual)")
       .eq("orden_id", orden.id)
       .order("created_at", { ascending: true })
       .then(({ data }) => {
@@ -1584,7 +1587,7 @@ export default function OTDetail({
     setLoadingPartes(true);
     const sb = createClient();
     sb.from("orden_partes")
-      .select("id, parte_id, cantidad, cantidad_utilizada, parte:partes!parte_id(nombre, unidad, stock_actual)")
+      .select("id, parte_id, cantidad, cantidad_utilizada, withdrawal_id, parte:partes!parte_id(nombre, unidad, stock_actual)")
       .eq("orden_id", orden.id)
       .order("created_at", { ascending: true })
       .then(({ data }) => {
@@ -1603,16 +1606,15 @@ export default function OTDetail({
   }, [tab, reloadOrdenPartes]);
 
   async function handleAddParte(parte: ParteCatalogo) {
-    // Prevent duplicate
-    if (ordenPartes.some(op => op.parte_id === parte.id)) return;
-    const cantidad = 1;
+    // Prevent duplicate (las filas sacadas de una reserva van aparte)
+    if (ordenPartes.some(op => op.parte_id === parte.id && !op.withdrawal_id)) return;
     setAddingParte(true);
     const sb = createClient();
     const { data, error } = await sb.from("orden_partes").insert({
       orden_id: orden.id,
       parte_id: parte.id,
-      cantidad,
-    }).select("id, parte_id, cantidad, cantidad_utilizada").single();
+      cantidad: 1,
+    }).select("id, parte_id, cantidad, cantidad_utilizada, withdrawal_id").single();
 
     if (error || !data) {
       alert(error?.message ?? "No se pudo agregar el material.");
@@ -1621,25 +1623,12 @@ export default function OTDetail({
     }
     setOrdenPartes(prev => [...prev, { ...(data as any), parte }]);
     setCatalogSearch("");
-    // Deduct stock atomically in the DB (avoids the lost-update race between
-    // concurrent web/mobile edits). Use the returned value as the source of truth.
-    const { data: stockNuevo, error: stockErr } = await sb.rpc("ajustar_stock_parte", {
-      p_parte_id: parte.id,
-      p_delta: -cantidad,
-    });
-    if (stockErr) {
-      alert("El material se agregó, pero no se pudo descontar el stock: " + stockErr.message);
-    } else if (stockNuevo !== null && stockNuevo !== undefined) {
-      patchStockCatalogo(parte.id, stockNuevo as number);
-    }
+    refrescarStock();
     setAddingParte(false);
   }
 
   async function handleUpdateCantidad(id: string, newCantidad: number) {
     if (newCantidad <= 0) return;
-    const prev = ordenPartes.find(op => op.id === id);
-    if (!prev) return;
-    const diff = newCantidad - prev.cantidad;
     const sb = createClient();
     const { error: cantErr } = await sb.from("orden_partes").update({ cantidad: newCantidad }).eq("id", id);
     if (cantErr) {
@@ -1647,23 +1636,11 @@ export default function OTDetail({
       return;
     }
     setOrdenPartes(p => p.map(op => op.id === id ? { ...op, cantidad: newCantidad } : op));
-    // Adjust stock atomically by the difference (more consumed => stock down).
-    if (prev.parte_id && diff !== 0) {
-      const { data: stockNuevo, error: stockErr } = await sb.rpc("ajustar_stock_parte", {
-        p_parte_id: prev.parte_id,
-        p_delta: -diff,
-      });
-      if (stockErr) {
-        alert("La cantidad se actualizó, pero no se pudo ajustar el stock: " + stockErr.message);
-      } else if (stockNuevo !== null && stockNuevo !== undefined) {
-        patchStockCatalogo(prev.parte_id, stockNuevo as number);
-      }
-    }
+    refrescarStock();
   }
 
   async function handleDeleteParte(id: string) {
     setDeletingParteId(id);
-    const op = ordenPartes.find(p => p.id === id);
     const sb = createClient();
     const { error: delErr } = await sb.from("orden_partes").delete().eq("id", id);
     if (delErr) {
@@ -1672,18 +1649,7 @@ export default function OTDetail({
       return;
     }
     setOrdenPartes(prev => prev.filter(p => p.id !== id));
-    // Restore stock atomically (the consumed quantity goes back to inventory).
-    if (op?.parte_id) {
-      const { data: stockNuevo, error: stockErr } = await sb.rpc("ajustar_stock_parte", {
-        p_parte_id: op.parte_id,
-        p_delta: op.cantidad,
-      });
-      if (stockErr) {
-        alert("El material se eliminó, pero no se pudo restaurar el stock: " + stockErr.message);
-      } else if (stockNuevo !== null && stockNuevo !== undefined) {
-        patchStockCatalogo(op.parte_id, stockNuevo as number);
-      }
-    }
+    refrescarStock();
     setDeletingParteId(null);
   }
 
@@ -1732,7 +1698,7 @@ export default function OTDetail({
       necesitaPartes
         ? createClient()
             .from("orden_partes")
-            .select("id, parte_id, cantidad, cantidad_utilizada, parte:partes!parte_id(nombre, unidad, stock_actual)")
+            .select("id, parte_id, cantidad, cantidad_utilizada, withdrawal_id, parte:partes!parte_id(nombre, unidad, stock_actual)")
             .eq("orden_id", orden.id)
             .order("created_at", { ascending: true })
         : Promise.resolve(null),
@@ -2094,7 +2060,8 @@ export default function OTDetail({
         foto_grupo_items: [...(g.items ?? [])].sort((a, b) => a.orden_display - b.orden_display),
       }));
       const loadFotoGruposForPdf = async (ordenId: string) => (
-        pdfFields.fotos_grupos ? mapFotoGruposForPdf(await fetchFotoGrupos(ordenId)) : []
+        // "Imágenes" cubre fotos sueltas y grupos de fotos (un solo toggle).
+        pdfFields.imagenes ? mapFotoGruposForPdf(await fetchFotoGrupos(ordenId)) : []
       );
 
       const shouldIncludeSubOrdenes = includeSubOrdenes && !orden.parent_id;
@@ -2838,14 +2805,21 @@ export default function OTDetail({
             </button>
           )}
 
-          {/* Image */}
-          <div className="relative inline-block max-h-[82vh] max-w-[78vw]" onClick={e => e.stopPropagation()}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={lightboxGrupo.urls[lightboxGrupo.idx]}
-              alt=""
-              className="block max-h-[82vh] max-w-[78vw] select-none object-contain shadow-2xl"
-            />
+          {/* Image — rueda/pellizco/doble clic para zoom, arrastrar para mover.
+              `key` reinicia el zoom al cambiar de foto. */}
+          <div className="relative inline-block max-h-[82vh] max-w-[78vw] shadow-2xl" onClick={e => e.stopPropagation()}>
+            <TransformWrapper key={lightboxGrupo.urls[lightboxGrupo.idx]} maxScale={8} doubleClick={{ mode: "toggle" }}>
+              <ZoomControls iconSize={64} strokeWidth={1} buttonStyle={{ color: "var(--fg-1)", background: "transparent", border: "none" }} />
+              <TransformComponent>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={lightboxGrupo.urls[lightboxGrupo.idx]}
+                  alt=""
+                  className="block max-h-[82vh] max-w-[78vw] select-none object-contain"
+                  style={{ cursor: "grab" }}
+                />
+              </TransformComponent>
+            </TransformWrapper>
           </div>
 
           {/* Counter — only when there's more than one image */}
@@ -4486,7 +4460,7 @@ export default function OTDetail({
                   <div key={op.id} style={{ display: "grid", gridTemplateColumns: "1fr 90px 32px", gap: 8, alignItems: "center", padding: "8px 10px", borderBottom: "1px solid var(--divider)" }}>
                     <div>
                       <div style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)" }}>{op.parte?.nombre ?? "—"}</div>
-                      <div style={{ fontSize: 14, color: "var(--fg-4)" }}>{op.parte?.unidad}</div>
+                      <div style={{ fontSize: 14, color: "var(--fg-4)" }}>{op.withdrawal_id ? [op.parte?.unidad, "De reserva"].filter(Boolean).join(" · ") : op.parte?.unidad}</div>
                     </div>
                     {(isActive || canManage) ? (
                       <input
@@ -5080,10 +5054,13 @@ function signatureImageSrc(value: string | null | undefined) {
  * firma como imagen. Espeja la vista de MaintainX y evita entrar a otra
  * pantalla solo para leer lo que se respondió.
  */
+/** Color de instrucción / advertencia: el mismo que su tipo en el editor (TIPO_META) y en móvil. */
+const COLOR_LECTURA = { instruccion: "#3B82F6", advertencia: "#F59E0B" } as const;
+
 /** Nombre por tipo, para pasos guardados sin título. */
 const TIPO_FALLBACK_LABEL: Partial<Record<ProcedimientoPaso["tipo"], string>> = {
   inspeccion: "Inspección",
-  lista_verificacion: "Lista de verificación",
+  lista_verificacion: "Checklist",
   si_no_na: "Verificación",
   firma: "Firma",
   imagen: "Foto",
@@ -5144,9 +5121,9 @@ function ProcedimientoEjecutado({
     if (r.paso_id) respByPaso.set(r.paso_id, r);
   }
 
-  const answerable = pasos.filter(
-    p => p.tipo !== "seccion" && p.tipo !== "instruccion" && p.tipo !== "advertencia",
-  );
+  // Instrucción y advertencia se confirman ("Confirmar lectura"), así que
+  // cuentan como campos a completar; solo la sección no pide nada.
+  const answerable = pasos.filter(p => p.tipo !== "seccion");
   const answered = answerable.filter(p => {
     const r = respByPaso.get(p.id);
     return r ? isAnsweredForType(p, r) : false;
@@ -5171,8 +5148,10 @@ function ProcedimientoEjecutado({
         {pasos.map(paso => {
           const resp = respByPaso.get(paso.id);
 
-          // Secciones/instrucciones: encabezado en negrita, sin tarjeta.
-          if (paso.tipo === "seccion" || paso.tipo === "instruccion" || paso.tipo === "advertencia") {
+          // Sección: encabezado, sin tarjeta. Instrucción y advertencia van
+          // como tarjeta con su botón de confirmar lectura: antes se dibujaban
+          // como texto y no había forma de completarlas en la web.
+          if (paso.tipo === "seccion") {
             return (
               <div key={paso.id} style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", lineHeight: 1.4, marginTop: 4 }}>
                 {paso.titulo}
@@ -5240,7 +5219,9 @@ function ProcedimientoEjecutado({
                   null;
                 const fecha = resp?.firmado_at ?? resp?.respondido_at ?? null;
                 if (!autor && !fecha) return null;
-                const verbo = paso.tipo === "firma" ? "Firmado" : "Rellenado";
+                const verbo = paso.tipo === "firma" ? "Firmado"
+                  : paso.tipo === "instruccion" || paso.tipo === "advertencia" ? "Confirmado"
+                  : "Rellenado";
                 return (
                   <div style={{ fontSize: 14, color: "var(--fg-3)", marginTop: 10 }}>
                     {verbo} por <strong style={{ color: "var(--fg-2)" }}>{autor ?? "—"}</strong>
@@ -5495,7 +5476,7 @@ function ReadonlyAnswer({ paso, resp, onPhotoClick }: { paso: ProcedimientoPaso;
       return <div style={{ fontSize: 14, color: "var(--fg-2)", marginTop: 4 }}>{resp.valor_fecha ? new Date(resp.valor_fecha).toLocaleString() : ""}</div>;
     case "archivo":
       return resp.archivo_url
-        ? <a href={resp.archivo_url} target="_blank" rel="noreferrer" style={{ fontSize: 14, color: "var(--brand)", marginTop: 4, display: "inline-block" }}>📎 {resp.archivo_nombre ?? "Archivo"}</a>
+        ? <div style={{ marginTop: 4 }}><Attachment nombre={resp.archivo_nombre ?? "Archivo"} mime={resp.archivo_mime} href={resp.archivo_url} /></div>
         : null;
     case "escaneo":
       return <div style={{ fontSize: 14, color: "var(--fg-2)", marginTop: 4, fontFamily: "var(--font-mono)" }}>{resp.escaneo_valor}</div>;
@@ -5506,6 +5487,13 @@ function ReadonlyAnswer({ paso, resp, onPhotoClick }: { paso: ProcedimientoPaso;
           {resp.iso14224_causa && <span><strong>Causa:</strong> {resp.iso14224_causa}</span>}
           {resp.iso14224_mecanismo && <span><strong>Mec:</strong> {resp.iso14224_mecanismo}</span>}
           {resp.iso14224_accion && <span><strong>Acc:</strong> {resp.iso14224_accion}</span>}
+        </div>
+      );
+    case "instruccion":
+    case "advertencia":
+      return (
+        <div style={{ fontSize: 14, color: COLOR_LECTURA[paso.tipo], marginTop: 4 }}>
+          {paso.tipo === "instruccion" ? "Lectura confirmada" : "Leído y entendido"}
         </div>
       );
     case "seccion":
@@ -5936,18 +5924,26 @@ function PasoInput({
   );
 
   if (paso.tipo === "instruccion" || paso.tipo === "advertencia") {
+    // Igual que la app móvil (ProcEjecucionScreen): botón a lo ancho, texto en
+    // mayúsculas, gris hasta confirmar y del color del tipo una vez confirmado.
     const isAck = !!existingResp;
-    const bg = paso.tipo === "instruccion" ? "var(--brand-tint)" : "var(--warning-bg)";
-    const bc = paso.tipo === "instruccion" ? "var(--brand)" : "var(--warning)";
-    const tc = paso.tipo === "instruccion" ? "var(--brand-fg)" : "var(--warning)";
+    const color = COLOR_LECTURA[paso.tipo];
+    const esInstr = paso.tipo === "instruccion";
     return (
       <button
         onClick={() => onSave({})}
         disabled={isAck || isSaving}
-        style={{ height: 28, padding: "0 12px", background: isAck ? "var(--success-bg)" : bg, border: `1px solid ${isAck ? "var(--success)" : bc}`, borderRadius: "var(--r-sm)", cursor: isAck ? "default" : "pointer", fontSize: 14, fontWeight: 400, color: isAck ? "var(--success)" : tc, fontFamily: "inherit", display: "flex", alignItems: "center", gap: 5 }}
+        style={{
+          width: "100%", minHeight: 42, padding: "0 16px", borderRadius: "var(--r-sm)",
+          border: `1px solid ${isAck ? color : "var(--border)"}`, background: "var(--surface-1)",
+          cursor: isAck ? "default" : "pointer", fontFamily: "inherit",
+          fontSize: 14, fontWeight: 400, letterSpacing: "0.02em",
+          color: isAck ? color : "var(--fg-3)",
+          display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+        }}
       >
-        {isSaving ? <Loader2 size={11} className="animate-spin" /> : <Check size={11} />}
-        {isAck ? (paso.tipo === "instruccion" ? "Confirmado" : "Leído y entendido") : (paso.tipo === "instruccion" ? "Confirmar lectura" : "Leído y entendido")}
+        {isSaving && <Loader2 size={13} className="animate-spin" />}
+        {isAck ? (esInstr ? "CONFIRMADO" : "LEÍDO") : (esInstr ? "CONFIRMAR LECTURA" : "LEÍDO Y ENTENDIDO")}
       </button>
     );
   }
@@ -6191,11 +6187,6 @@ function PasoInput({
 
     return (
       <div>
-        {paso.rol_firmante && (
-          <div style={{ fontSize: 14, color: "var(--fg-2)", marginBottom: 6 }}>
-            Firma de: <strong>{paso.rol_firmante}</strong>
-          </div>
-        )}
         {esFirmanteExterno && (
           <input
             type="text"
@@ -6203,7 +6194,7 @@ function PasoInput({
             onChange={e => onUpdate({ firmado_nombre: e.target.value })}
             onBlur={saveIfDirty}
             placeholder="Nombre de quien firma"
-            style={{ ...inputStyle, marginBottom: 8, maxWidth: 320 }}
+            style={{ ...inputStyle, marginBottom: 8 }}
           />
         )}
         <SignatureCanvas
@@ -6232,69 +6223,41 @@ function PasoInput({
   }
 
   if (paso.tipo === "fecha" || paso.tipo === "hora" || paso.tipo === "fecha_hora") {
-    const inputType = paso.tipo === "fecha" ? "date" : paso.tipo === "hora" ? "time" : "datetime-local";
+    // Selectores shadcn (components/ui/date-time-picker) en vez de los inputs
+    // nativos. Se guarda igual que antes en valor_fecha (timestamptz):
+    //  - fecha: medianoche UTC del día elegido ("yyyy-MM-dd" → ISO).
+    //  - hora: 1970-01-01T HH:mm UTC.
+    //  - fecha_hora: el instante local elegido, en ISO.
+    // Elegir guarda de inmediato: no hay un blur que esperar.
     const stored = (val("valor_fecha") as string | null | undefined) ?? "";
-    // For <input type="datetime-local"> we strip seconds + tz to render correctly.
-    const displayed = stored
-      ? (paso.tipo === "fecha"
-          ? new Date(stored).toISOString().slice(0, 10)
-          : paso.tipo === "hora"
-            ? new Date(stored).toISOString().slice(11, 16)
-            : new Date(stored).toISOString().slice(0, 16))
-      : "";
-    return (
-      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <input
-          type={inputType}
-          value={displayed}
-          onChange={e => {
-            // Convert back to a full ISO timestamp for the column (timestamptz).
-            const v = e.target.value;
-            // A date picker commits a whole value at once, so save immediately
-            // rather than waiting for a blur the user may never trigger.
-            if (!v) {
-              onUpdate({ valor_fecha: null });
-              onSave({ valor_fecha: null });
-              return;
-            }
-            const iso = paso.tipo === "hora"
-              ? `1970-01-01T${v}:00.000Z`
-              : new Date(v).toISOString();
-            onUpdate({ valor_fecha: iso });
-            onSave({ valor_fecha: iso });
-          }}
-          style={{ ...inputStyle, width: 200 }}
-          onFocus={e => { e.currentTarget.style.borderColor = "var(--brand)"; }}
-          onBlur={e => { e.currentTarget.style.borderColor = "var(--border)"; }}
+    const guardar = (iso: string) => { onUpdate({ valor_fecha: iso }); onSave({ valor_fecha: iso }); };
+    if (paso.tipo === "fecha") {
+      const ymd = stored ? new Date(stored).toISOString().slice(0, 10) : "";
+      const valor = ymd ? new Date(Number(ymd.slice(0, 4)), Number(ymd.slice(5, 7)) - 1, Number(ymd.slice(8, 10))) : undefined;
+      return <DatePicker value={valor} onChange={d => { if (d) guardar(new Date(format(d, "yyyy-MM-dd")).toISOString()); }} />;
+    }
+    if (paso.tipo === "hora") {
+      return (
+        <TimePicker
+          value={stored ? new Date(stored).toISOString().slice(11, 16) : ""}
+          onChange={hhmm => guardar(`1970-01-01T${hhmm}:00.000Z`)}
         />
-      </div>
-    );
+      );
+    }
+    return <DateTimePicker value={stored ? new Date(stored) : undefined} onChange={d => { if (d) guardar(d.toISOString()); }} />;
   }
 
   if (paso.tipo === "archivo") {
-    const url = (val("archivo_url") as string | null | undefined) ?? null;
-    const name = (val("archivo_nombre") as string | null | undefined) ?? null;
     return (
-      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        {url && <a href={url} target="_blank" rel="noreferrer" style={{ fontSize: 14, color: "var(--brand)" }}>📎 {name ?? "Archivo subido"}</a>}
-        <input
-          type="file"
-          onChange={async e => {
-            const f = e.target.files?.[0];
-            if (!f) return;
-            try {
-              const folder = `ordenes/${ordenId}/procedimientos/${ejecucionId}/${paso.id}`;
-              const u = await uploadToR2(f, folder);
-              onSave({ archivo_url: u, archivo_nombre: f.name, archivo_mime: f.type || null });
-            } catch (err: any) {
-              alert(err?.message ?? "Error al subir archivo");
-            } finally {
-              e.target.value = "";
-            }
-          }}
-          style={{ fontSize: 14 }}
-        />
-      </div>
+      <PasoArchivoField
+        folder={`ordenes/${ordenId}/procedimientos/${ejecucionId}/${paso.id}`}
+        url={(val("archivo_url") as string | null | undefined) ?? null}
+        nombre={(val("archivo_nombre") as string | null | undefined) ?? null}
+        mime={(val("archivo_mime") as string | null | undefined) ?? null}
+        isSaving={isSaving}
+        onUploaded={(f) => onSave({ archivo_url: f.url, archivo_nombre: f.nombre, archivo_mime: f.mime })}
+        onClear={() => onSave({ archivo_url: null, archivo_nombre: null, archivo_mime: null })}
+      />
     );
   }
 
@@ -6528,6 +6491,61 @@ function PasoExtras({
 // lib/r2.ts uploadToR2 helper — same path as OT/foto-grupo uploads on web.
 // `capture="environment"` opens the device camera on mobile browsers.
 
+/**
+ * Paso "archivo": tarjeta del adjunto (components/ui/attachment, diseño del
+ * Attachment de shadcn) + zona para subir o reemplazar. Mientras sube se ve la
+ * tarjeta en estado "subiendo"; si falla, en estado de error con el motivo.
+ */
+function PasoArchivoField({ folder, url, nombre, mime, isSaving, onUploaded, onClear }: {
+  folder: string;
+  url: string | null;
+  nombre: string | null;
+  mime: string | null;
+  isSaving: boolean;
+  onUploaded: (f: { url: string; nombre: string; mime: string | null }) => void;
+  onClear: () => void;
+}) {
+  const [subiendo, setSubiendo] = useState<File | null>(null);
+  const [error, setError] = useState<{ nombre: string; msg: string } | null>(null);
+
+  async function subir(f: File) {
+    setError(null);
+    setSubiendo(f);
+    try {
+      const u = await uploadToR2(f, folder);
+      onUploaded({ url: u, nombre: f.name, mime: f.type || null });
+    } catch (e) {
+      console.error("[paso-archivo] fallo la subida", e);
+      setError({ nombre: f.name, msg: "No se pudo subir. Inténtalo nuevamente." });
+    } finally {
+      setSubiendo(null);
+    }
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      {subiendo ? (
+        <Attachment nombre={subiendo.name} mime={subiendo.type} state="uploading" descripcion="Subiendo…" />
+      ) : url ? (
+        <Attachment
+          nombre={nombre ?? "Archivo"}
+          mime={mime}
+          href={url}
+          onRemove={() => { if (window.confirm("¿Quitar el archivo adjunto?")) onClear(); }}
+        />
+      ) : null}
+      {error && !subiendo && (
+        <Attachment nombre={error.nombre} state="error" descripcion={error.msg} onRemove={() => setError(null)} />
+      )}
+      <AttachmentDropzone
+        label={url ? "Reemplazar archivo" : "Adjuntar archivo"}
+        onFile={subir}
+        disabled={!!subiendo || isSaving}
+      />
+    </div>
+  );
+}
+
 function PasoImagenField({
   pasoId, ordenId, ejecucionId, fotoUrl, fotoUrls, isSaving, onUploaded, onClear, onPreview,
 }: {
@@ -6697,7 +6715,8 @@ function ProcEjecucionModal({
   const savedResps: Record<string, PendingResp> = {};
   for (const r of ejec.respuestas ?? []) savedResps[r.paso_id] = r as PendingResp;
 
-  const allRequired = pasos.filter(p => p.requerido && p.tipo !== "instruccion" && p.tipo !== "advertencia");
+  // Instrucción y advertencia requeridas cuentan: requerido = confirmar lectura.
+  const allRequired = pasos.filter(p => p.requerido && p.tipo !== "seccion");
   const answeredRequired = allRequired.filter(p => isAnsweredForType(p, savedResps[p.id]));
 
   const canComplete = answeredRequired.length === allRequired.length;
@@ -6903,12 +6922,19 @@ function ProcEjecucionModal({
               <ChevronRight size={22} />
             </button>
           )}
-          <img
-            src={lightboxImages.urls[lightboxImages.idx]}
-            alt="Vista ampliada"
-            onClick={(e) => e.stopPropagation()}
-            style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain", borderRadius: "var(--r-md)", cursor: "default" }}
-          />
+          <div onClick={(e) => e.stopPropagation()} style={{ borderRadius: "var(--r-md)", overflow: "hidden" }}>
+            <TransformWrapper key={lightboxImages.urls[lightboxImages.idx]} maxScale={8} doubleClick={{ mode: "toggle" }}>
+              <ZoomControls iconSize={20} buttonStyle={{ width: 40, height: 40, borderRadius: 20, background: "rgba(255,255,255,0.15)", border: "none", color: "#fff" }} />
+              <TransformComponent>
+                <img
+                  src={lightboxImages.urls[lightboxImages.idx]}
+                  alt="Vista ampliada"
+                  // vw/vh, no %: el wrapper del zoom mide lo que mide la imagen.
+                  style={{ display: "block", maxWidth: "calc(100vw - 40px)", maxHeight: "calc(100vh - 40px)", objectFit: "contain", cursor: "grab" }}
+                />
+              </TransformComponent>
+            </TransformWrapper>
+          </div>
           <a
             href={lightboxImages.urls[lightboxImages.idx]}
             target="_blank"
@@ -6926,6 +6952,34 @@ function ProcEjecucionModal({
           </a>
         </div>
       )}
+    </div>
+  );
+}
+
+/** −, + y reiniciar para los visores de fotos. Va dentro de un TransformWrapper;
+ *  `fixed` lo saca del marco de la imagen hacia la esquina superior izquierda.
+ *  Tamaño y estilo los pone cada visor para que calcen con su X y sus flechas. */
+function ZoomControls({ iconSize, strokeWidth = 2, buttonStyle }: { iconSize: number; strokeWidth?: number; buttonStyle: React.CSSProperties }) {
+  const { zoomIn, zoomOut, resetTransform } = useControls();
+  const botones = [
+    { label: "Alejar", Icon: Minus, onClick: () => zoomOut() },
+    { label: "Acercar", Icon: Plus, onClick: () => zoomIn() },
+    { label: "Restablecer zoom", Icon: RotateCcw, onClick: () => resetTransform() },
+  ];
+  return (
+    <div style={{ position: "fixed", top: 20, left: 20, zIndex: 1, display: "flex", flexDirection: "column", gap: 8 }}>
+      {botones.map(({ label, Icon, onClick }) => (
+        <button
+          key={label}
+          type="button"
+          aria-label={label}
+          title={label}
+          onClick={e => { e.stopPropagation(); onClick(); }}
+          style={{ display: "grid", placeItems: "center", cursor: "pointer", padding: 0, ...buttonStyle }}
+        >
+          <Icon size={iconSize} strokeWidth={strokeWidth} />
+        </button>
+      ))}
     </div>
   );
 }

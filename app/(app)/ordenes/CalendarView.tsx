@@ -2,7 +2,10 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { ChevronLeft, ChevronRight, RotateCw, Lock, MapPin, Wrench, Clock, User, AlertCircle, X, CalendarClock } from "lucide-react";
+import {
+  ChevronLeft, ChevronRight, RotateCw, Lock, MapPin, Clock, User, AlertCircle, X, CalendarClock,
+} from "lucide-react";
+import { Engine } from "@/components/icons/Engine";
 import {
   startOfMonth, endOfMonth, startOfWeek, endOfWeek, addDays, addMonths, addWeeks,
   format, isSameMonth, isSameDay, parseISO, isWeekend, getWeek,
@@ -1119,7 +1122,7 @@ function HoverPopover({ orden, left, top, usuarios, onMouseEnter, onMouseLeave, 
           orden.activos?.nombre
             ? (
               <span style={{ display:"inline-flex", alignItems:"center", gap:5 }}>
-                <Wrench size={11} style={{ color:"var(--fg-3)" }} />
+                <Engine size={11} style={{ color:"var(--fg-3)" }} />
                 {orden.activos.nombre}
               </span>
             )

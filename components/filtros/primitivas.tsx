@@ -232,6 +232,63 @@ export function FilterDropdown({ label, icon, active, count, onClear, onRemove, 
   );
 }
 
+// ── Filtro de selección múltiple sobre una lista ya cargada ───────────────────
+
+export interface OpcionFiltro { id: string; label: string }
+
+/**
+ * Dropdown "uno de" listo para usar: buscador con fichas, casillas y papelera.
+ * Para las pantallas que ya tienen las opciones en memoria (/partes,
+ * /proveedores); los catálogos paginados usan CatalogoFiltro.
+ */
+export function FiltroMultiple({ label, icon, opciones, seleccion, onChange, onRemove, buscable = true }: {
+  label: string;
+  icon: React.ReactNode;
+  opciones: OpcionFiltro[];
+  seleccion: string[];
+  onChange: (v: string[]) => void;
+  onRemove?: () => void;
+  /** Listas fijas y cortas (3 estados) no necesitan buscador. */
+  buscable?: boolean;
+}) {
+  const [q, setQ] = useState("");
+  const term = q.trim().toLowerCase();
+  const visibles = term ? opciones.filter(o => o.label.toLowerCase().includes(term)) : opciones;
+  const porId = new Map(opciones.map(o => [o.id, o.label]));
+
+  return (
+    <FilterDropdown
+      label={label}
+      icon={icon}
+      active={seleccion.length > 0}
+      count={seleccion.length}
+      onClear={() => onChange([])}
+      onRemove={onRemove}
+    >
+      {buscable && (
+        <TokenSearch
+          placeholder="Buscar…"
+          value={q}
+          onChange={setQ}
+          tokens={seleccion.map(id => ({ key: id, label: porId.get(id) ?? id }))}
+          onRemove={id => onChange(seleccion.filter(x => x !== id))}
+          onClearAll={() => onChange([])}
+        />
+      )}
+      <OptionList>
+        {visibles.map(o => (
+          <OptionRow key={o.id} active={seleccion.includes(o.id)} onClick={() => onChange(toggle(seleccion, o.id))}>
+            <span style={{ flex: 1, minWidth: 0, fontSize: 14, color: "var(--fg-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {o.label}
+            </span>
+          </OptionRow>
+        ))}
+        {visibles.length === 0 && <SinResultados />}
+      </OptionList>
+    </FilterDropdown>
+  );
+}
+
 // ── Catálogo "+ Añadir filtro" ────────────────────────────────────────────────
 
 /** Popover buscable con los filtros que todavía no están en la barra. */

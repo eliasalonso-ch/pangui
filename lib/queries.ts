@@ -227,6 +227,7 @@ export interface OrdenParteRow {
   parte_id: string;
   cantidad: number;
   cantidad_utilizada: number | null;
+  withdrawal_id: string | null;
   parte: { nombre: string; unidad: string | null; stock_actual: number | null } | null;
 }
 
@@ -246,7 +247,7 @@ export function useOrdenPartes(ordenId: string | null | undefined, estado?: stri
       const sb = createClient();
       const { data, error } = await sb
         .from("orden_partes")
-        .select("id, parte_id, cantidad, cantidad_utilizada, parte:partes!parte_id(nombre, unidad, stock_actual)")
+        .select("id, parte_id, cantidad, cantidad_utilizada, withdrawal_id, parte:partes!parte_id(nombre, unidad, stock_actual)")
         .eq("orden_id", ordenId!)
         .order("created_at", { ascending: true });
       if (error) throw error;

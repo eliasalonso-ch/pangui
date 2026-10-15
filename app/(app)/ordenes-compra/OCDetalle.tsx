@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Pencil, Check, X, Send, PackageCheck, Loader2, FileDown, Truck,
-  AlertTriangle, CalendarDays, DollarSign, FileText,
+  AlertTriangle, CalendarDays, DollarSign, FileText, UserRound,
 } from "lucide-react";
 import { formatearCLP } from "@/lib/tributario";
 import {
@@ -182,9 +182,10 @@ export default function OCDetalle({ oc, isAdmin, onEdit, onCambio }: {
             {oc.estado === "aprobada" && (
               <button
                 onClick={() => {
-                  const dest = oc.proveedor?.email;
+                  // Mismo criterio que /api/email-oc: la persona de "Atención" y el proveedor.
+                  const dest = [...new Set([oc.contacto?.email, oc.proveedor?.email].filter(Boolean))].join(", ");
                   if (!dest) {
-                    setError("El proveedor no tiene correo registrado. Agrégalo en Proveedores.");
+                    setError("Ni el proveedor ni la persona de contacto tienen correo. Agrégalo en Proveedores.");
                     return;
                   }
                   if (!confirm(`Se enviará la orden de compra a ${dest} con el PDF adjunto.`)) return;
@@ -261,6 +262,11 @@ export default function OCDetalle({ oc, isAdmin, onEdit, onCambio }: {
         <Dato icon={<Truck size={16} />} label="Proveedor"
           valor={oc.proveedor?.nombre ?? "Sin proveedor"}
           sub={oc.proveedor?.rut ?? null} />
+        {oc.contacto && (
+          <Dato icon={<UserRound size={16} />} label="Atención"
+            valor={oc.contacto.nombre + (oc.contacto.cargo ? ` · ${oc.contacto.cargo}` : "")}
+            sub={[oc.contacto.email, oc.contacto.telefono].filter(Boolean).join(" · ") || null} />
+        )}
         <Dato icon={<CalendarDays size={16} />} label="Entrega esperada" valor={fechaCorta(oc.fecha_entrega_esperada)} />
         <Dato icon={<CalendarDays size={16} />} label="Emisión" valor={fechaCorta(oc.fecha_emision)} />
         <Dato icon={<DollarSign size={16} />} label="Condiciones de pago" valor={oc.condiciones_pago || "—"} />

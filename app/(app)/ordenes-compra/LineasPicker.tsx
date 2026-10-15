@@ -1,11 +1,12 @@
 "use client";
 
 import { useState, useEffect, useMemo, useRef } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase";
-import { Package, Trash2, Plus, Loader2 } from "lucide-react";
+import { ChevronDown, Package, Trash2, Plus, Loader2 } from "lucide-react";
 import { formatearCLP } from "@/lib/tributario";
 import { totalLinea } from "@/lib/ordenes-compra-api";
-import { inputStyle } from "@/components/catalogo/PanelCatalogo";
+import { inputStyle, focoInput } from "@/components/catalogo/PanelCatalogo";
 import type { OrdenCompraLineaForm } from "@/types/ordenes-compra";
 
 interface ParteOpt {
@@ -29,11 +30,22 @@ const RENDER_PAGE = 20;
  */
 const CATALOGO_MAX = 500;
 
-const numInput: React.CSSProperties = {
-  height: 32, padding: "0 8px", border: "1px solid var(--border)",
-  borderRadius: "var(--r-sm)", fontSize: 14, background: "var(--surface-1)",
-  color: "var(--fg-1)", outline: "none", fontFamily: "inherit", boxSizing: "border-box",
-};
+/** Foto de la parte, o el ícono de material en un cuadro teñido si no tiene. */
+function Miniatura({ url }: { url: string | null }) {
+  const caja: React.CSSProperties = {
+    width: 32, height: 32, borderRadius: 8, flexShrink: 0, overflow: "hidden",
+    display: "inline-flex", alignItems: "center", justifyContent: "center",
+  };
+  if (url) {
+    // eslint-disable-next-line @next/next/no-img-element -- miniatura de 32px desde R2
+    return <span style={caja}><img src={url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /></span>;
+  }
+  return <span style={{ ...caja, background: "var(--brand-tint)", color: "var(--brand)" }}><Package size={16} /></span>;
+}
+
+function Rotulo({ children }: { children: React.ReactNode }) {
+  return <div style={{ padding: "8px 12px 4px", fontSize: 13, color: "var(--fg-4)" }}>{children}</div>;
+}
 
 /**
  * Editor de líneas de la orden de compra.
@@ -47,12 +59,32 @@ const numInput: React.CSSProperties = {
  * a inventarlos como "parte" para poder cobrarlos ensucia el inventario.
  */
 export default function LineasPicker({
-  wsId, value, onChange,
+  wsId, proveedorId, value, onChange,
 }: {
   wsId: string | null;
+  /** Sus materiales (material_proveedores) salen primero en la lista. */
+  proveedorId: string | null;
   value: OrdenCompraLineaForm[];
   onChange: (v: OrdenCompraLineaForm[]) => void;
 }) {
+  // Materiales que se le compran a este proveedor: los vinculados más el campo
+  // viejo de un solo proveedor, igual que en /partes y /proveedores.
+  const { data: delProveedor = new Set<string>() } = useQuery({
+    queryKey: ["materiales-de-proveedor", proveedorId],
+    enabled: !!proveedorId,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const sb = createClient();
+      const [vinc, viejo] = await Promise.all([
+        sb.from("material_proveedores").select("parte_id").eq("proveedor_id", proveedorId!),
+        sb.from("partes").select("id").eq("proveedor_id", proveedorId!),
+      ]);
+      return new Set<string>([
+        ...(vinc.data ?? []).map((r: { parte_id: string }) => r.parte_id),
+        ...(viejo.data ?? []).map((r: { id: string }) => r.id),
+      ]);
+    },
+  });
   const [partes, setPartes] = useState<ParteOpt[]>([]);
   const [query, setQuery] = useState("");
   const [abierto, setAbierto] = useState(false);
@@ -112,8 +144,18 @@ export default function LineasPicker({
   const candidatos = useMemo(() => {
     const yaElegidos = new Set(value.map(v => v.parte_id).filter(Boolean));
     const fuente = encontrados ?? partes;
-    return fuente.filter(p => !yaElegidos.has(p.id));
-  }, [partes, encontrados, value]);
+    // sort es estable: dentro de cada grupo se mantiene el orden por nombre.
+    return fuente
+      .filter(p => !yaElegidos.has(p.id))
+      .sort((a, b) => Number(delProveedor.has(b.id)) - Number(delProveedor.has(a.id)));
+  }, [partes, encontrados, value, delProveedor]);
+  const cuantosDelProveedor = candidatos.filter(p => delProveedor.has(p.id)).length;
+
+  // Foto de cada parte ya cargada, para las líneas elegidas.
+  const imagenDe = useMemo(
+    () => new Map([...partes, ...(encontrados ?? [])].map(p => [p.id, p.imagen_url])),
+    [partes, encontrados],
+  );
 
   const pageKey = `${query}|${abierto}`;
   const page = paged.key === pageKey ? paged.n : 1;
@@ -168,19 +210,13 @@ export default function LineasPicker({
   return (
     <div>
       {value.length > 0 && (
-        <div style={{ border: "1px solid var(--border)", borderRadius: "var(--r-md)", overflow: "hidden", marginBottom: 12 }}>
+        <div style={{ border: "1px solid var(--border)", borderRadius: 8, overflow: "hidden", marginBottom: 12, background: "var(--surface-1)" }}>
           {value.map((l, i) => (
             <div key={i} style={{
               display: "flex", alignItems: "center", gap: 8, padding: "10px 12px",
               borderTop: i === 0 ? "none" : "1px solid var(--border)",
             }}>
-              <span style={{
-                width: 32, height: 32, borderRadius: "var(--r-sm)", flexShrink: 0,
-                background: "var(--brand-tint)", color: "var(--brand)",
-                display: "inline-flex", alignItems: "center", justifyContent: "center",
-              }}>
-                <Package size={16} />
-              </span>
+              <Miniatura url={l.parte_id ? imagenDe.get(l.parte_id) ?? null : null} />
 
               <span style={{ flex: 1, minWidth: 0 }}>
                 {l.parte_id ? (
@@ -194,8 +230,9 @@ export default function LineasPicker({
                   <input
                     value={l.descripcion}
                     onChange={e => set(i, { descripcion: e.target.value })}
-                    placeholder="Descripción del ítem o servicio"
-                    style={{ ...numInput, width: "100%" }}
+                    placeholder="Descripción del material o servicio"
+                    style={{ ...inputStyle, width: "100%" }}
+                    {...focoInput}
                   />
                 )}
               </span>
@@ -206,7 +243,8 @@ export default function LineasPicker({
                   const n = Number(e.target.value);
                   set(i, { cantidad: n > 0 ? n : 1 });
                 }}
-                style={{ ...numInput, width: 70 }}
+                style={{ ...inputStyle, width: 80 }}
+                {...focoInput}
                 aria-label="Cantidad"
               />
               <span style={{ fontSize: 14, color: "var(--fg-3)", width: 28 }}>{l.unidad ?? "un"}</span>
@@ -214,7 +252,8 @@ export default function LineasPicker({
               <input
                 type="number" min={0} step="any" value={l.precio_unitario}
                 onChange={e => set(i, { precio_unitario: Math.max(Number(e.target.value) || 0, 0) })}
-                style={{ ...numInput, width: 100 }}
+                style={{ ...inputStyle, width: 110 }}
+                {...focoInput}
                 aria-label="Precio unitario"
               />
 
@@ -251,40 +290,69 @@ export default function LineasPicker({
         </div>
       )}
 
+      {/* Mismo control que SearchSelect / CatalogoSelect: botón de 40px que
+          abre un panel con su buscador, la lista y la acción al pie. */}
       <div ref={boxRef} style={{ position: "relative" }}>
-        <input
-          value={query}
-          onChange={e => { setQuery(e.target.value); setAbierto(true); }}
-          onFocus={() => setAbierto(true)}
-          placeholder="Buscar material del inventario…"
-          style={inputStyle}
-        />
+        <button
+          type="button"
+          onClick={() => { setAbierto(v => !v); setQuery(""); }}
+          style={{
+            width: "100%", height: 40, display: "flex", alignItems: "center", gap: 8,
+            padding: "0 12px", border: `1px solid ${abierto ? "var(--brand)" : "var(--border)"}`, borderRadius: 8,
+            background: "var(--surface-1)", fontSize: 14, color: "var(--fg-4)",
+            cursor: "pointer", textAlign: "left", fontFamily: "inherit",
+          }}
+        >
+          <span style={{ flex: 1 }}>Agregar material…</span>
+          <ChevronDown size={13} style={{ flexShrink: 0, color: "var(--fg-4)" }} />
+        </button>
 
         {abierto && (
           /* El desplegable NO scrollea: scrollea solo la lista de adentro, para
              que el boton de abajo quede fijo y no haya que recorrer el catalogo
              entero para alcanzarlo. */
           <div style={{
-            position: "absolute", top: 40, left: 0, right: 0, zIndex: 20,
+            position: "absolute", top: "calc(100% + 3px)", left: 0, right: 0, zIndex: 200,
             background: "var(--surface-1)", border: "1px solid var(--border)",
-            borderRadius: "var(--r-md)", boxShadow: "var(--shadow-lg)",
-            display: "flex", flexDirection: "column", maxHeight: 320, overflow: "hidden",
+            borderRadius: 8, boxShadow: "var(--shadow-md)",
+            display: "flex", flexDirection: "column", maxHeight: 360, overflow: "hidden",
           }}>
+            <div style={{ padding: "8px 8px 4px", flexShrink: 0 }}>
+              <input
+                autoFocus
+                value={query}
+                onChange={e => setQuery(e.target.value)}
+                placeholder="Buscar por nombre o código…"
+                style={{
+                  width: "100%", height: 36, padding: "0 10px",
+                  border: "1px solid var(--border)", borderRadius: 8, fontSize: 14,
+                  outline: "none", color: "var(--fg-1)", fontFamily: "inherit",
+                  background: "var(--surface-1)", boxSizing: "border-box",
+                }}
+              />
+            </div>
             {buscando ? (
               <div style={{ padding: 12, display: "flex", alignItems: "center", gap: 8, color: "var(--fg-3)", fontSize: 14 }}>
                 <Loader2 size={14} className="animate-spin" /> Buscando…
               </div>
             ) : (
               <div ref={listaRef} style={{ flex: 1, minHeight: 0, overflowY: "auto" }}>
-                {visibles.map(p => (
+                {visibles.map((p, i) => (
+                  <div key={p.id}>
+                  {/* Rótulos sólo cuando hay de los dos grupos. */}
+                  {cuantosDelProveedor > 0 && i === 0 && <Rotulo>De este proveedor</Rotulo>}
+                  {cuantosDelProveedor > 0 && i === cuantosDelProveedor && <Rotulo>Resto del inventario</Rotulo>}
                   <button
-                    key={p.id}
+                    type="button"
                     onClick={() => agregarDelCatalogo(p)}
                     style={{
                       display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left",
-                      padding: "8px 12px", background: "none", border: "none", cursor: "pointer", fontFamily: "inherit",
+                      padding: "10px 12px", background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit",
                     }}
+                    onMouseEnter={e => { e.currentTarget.style.background = "var(--brand-tint)"; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}
                   >
+                    <Miniatura url={p.imagen_url} />
                     <span style={{ flex: 1, minWidth: 0 }}>
                       <span style={{ display: "block", fontSize: 14, color: "var(--fg-1)" }}>{p.nombre}</span>
                       <span style={{ display: "block", fontSize: 14, color: "var(--fg-3)" }}>
@@ -293,6 +361,7 @@ export default function LineasPicker({
                       </span>
                     </span>
                   </button>
+                  </div>
                 ))}
                 {hayMas && <div ref={sentinelRef} style={{ height: 1 }} />}
                 {candidatos.length === 0 && (
@@ -302,16 +371,18 @@ export default function LineasPicker({
                 )}
               </div>
             )}
+            {/* Mismo estilo que el "crear" al pie de CatalogoSelect. */}
             <button
+              type="button"
               onClick={agregarLibre}
               style={{
                 display: "flex", alignItems: "center", gap: 8, width: "100%", textAlign: "left",
-                padding: "10px 12px", background: "var(--surface-1)", border: "none",
+                padding: "10px 12px", background: "var(--brand-tint)", border: "none",
                 borderTop: "1px solid var(--border)", flexShrink: 0,
                 cursor: "pointer", fontFamily: "inherit", fontSize: 14, color: "var(--brand)",
               }}
             >
-              <Plus size={14} /> Agregar ítem fuera del inventario
+              <Plus size={14} /> Agregar material o servicio fuera del inventario
             </button>
           </div>
         )}

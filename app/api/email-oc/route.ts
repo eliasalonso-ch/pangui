@@ -1,10 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import { atencionOC } from "@/types/ordenes-compra";
 
 export const dynamic = "force-dynamic";
 
 const PDF_SERVICE_URL = "https://pdf.getpangui.com/generate-oc-pdf";
+
+/** El nombre del contacto va dentro del HTML del correo, que sale de la empresa. */
+function escapar(s: string): string {
+  return s.replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
+}
 
 /**
  * Envía la orden de compra al proveedor, con el PDF adjunto.
@@ -49,7 +55,7 @@ export async function POST(req: NextRequest) {
   // RLS ya acota al workspace del usuario; esto solo trae la fila.
   const { data: oc } = await supabase
     .from("ordenes_compra")
-    .select("id, numero, numero_manual, estado, fecha_emision, fecha_entrega_esperada, condiciones_pago, direccion_despacho, neto, descuento, otros_costos, iva, total, observaciones, cotizacion_numero, cotizacion_fecha, precios_confirmados, proveedor_id, workspace_id")
+    .select("id, numero, numero_manual, estado, fecha_emision, fecha_entrega_esperada, condiciones_pago, direccion_despacho, neto, descuento, otros_costos, iva, total, observaciones, cotizacion_numero, cotizacion_fecha, precios_confirmados, proveedor_id, workspace_id, contacto:proveedor_contactos!contacto_id(nombre, cargo, email)")
     .eq("id", ocId).maybeSingle();
   if (!oc) return NextResponse.json({ error: "No se encontró la orden de compra." }, { status: 404 });
 
@@ -81,13 +87,22 @@ export async function POST(req: NextRequest) {
       : Promise.resolve({ data: null }),
   ]);
 
-  const destino = proveedor?.email;
-  if (!destino) {
+  // Va a la persona de "Atención" y al correo del proveedor: la persona puede
+  // cambiar de puesto, el buzón de la empresa queda.
+  const contacto = (Array.isArray(oc.contacto) ? oc.contacto[0] : oc.contacto) as
+    { nombre: string; cargo: string | null; email: string | null } | null;
+  const destinatarios = [...new Set([contacto?.email, proveedor?.email]
+    .map(e => e?.trim().toLowerCase()).filter((e): e is string => !!e))];
+  if (destinatarios.length === 0) {
     return NextResponse.json(
-      { error: "El proveedor no tiene correo registrado. Agrégalo en Proveedores." },
+      { error: "Ni el proveedor ni la persona de contacto tienen correo. Agrégalo en Proveedores." },
       { status: 400 },
     );
   }
+  const destino = destinatarios.join(", ");
+  const proveedorPDF = proveedor
+    ? { ...proveedor, contacto: atencionOC(contacto) ?? proveedor.contacto }
+    : null;
 
   let pdfBase64: string;
   try {
@@ -95,7 +110,7 @@ export async function POST(req: NextRequest) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        oc, lineas: lineas ?? [], emisor, proveedor,
+        oc, lineas: lineas ?? [], emisor, proveedor: proveedorPDF,
         exportadoPor: perfil.nombre ?? "Sistema",
         logoUrl: emisor?.logo_url ?? null,
       }),
@@ -125,7 +140,9 @@ export async function POST(req: NextRequest) {
       <p style="color:#a5b4fc;font-size:13px;margin:4px 0 0;">Orden de compra ${numero}</p>
     </div>
     <div style="padding:28px 32px;">
-      <p style="color:#1a1a1a;font-size:16px;margin:0 0 8px;">Estimados${proveedor?.nombre ? ` <strong>${proveedor.nombre}</strong>` : ""},</p>
+      <p style="color:#1a1a1a;font-size:16px;margin:0 0 8px;">${contacto
+        ? `Estimado/a <strong>${escapar(contacto.nombre)}</strong>`
+        : `Estimados${proveedor?.nombre ? ` <strong>${proveedor.nombre}</strong>` : ""}`},</p>
       <p style="color:#374151;font-size:15px;line-height:1.6;margin:0 0 20px;">
         Adjuntamos la orden de compra ${numero}. El detalle completo está en el PDF adjunto.
       </p>
@@ -164,7 +181,7 @@ export async function POST(req: NextRequest) {
     },
     body: JSON.stringify({
       from: process.env.RESEND_FROM ?? "Pangui <noreply@getpangui.com>",
-      to: [destino],
+      to: destinatarios,
       // Las respuestas del proveedor van a la empresa, no al buzón de Pangui.
       ...(emisor?.email_contacto ? { reply_to: emisor.email_contacto } : {}),
       subject: `Orden de compra ${numero} — ${empresa}`,

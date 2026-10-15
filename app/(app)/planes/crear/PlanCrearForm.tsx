@@ -3,10 +3,9 @@
 import { useState, useEffect, useMemo, useRef, type CSSProperties } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
-  ChevronLeft, ChevronUp, ChevronDown, Search, X, Loader2, Box,
-  Plus, Pencil, User, Clock, Flag, Wrench, Tag,
-  ClipboardCheck, Package, Paperclip,
+  ChevronLeft, ChevronUp, ChevronDown, Search, X, Loader2, Plus, Pencil, User, Clock, Flag, Wrench, ClipboardCheck, Package, Paperclip,
 } from "lucide-react";
+import { Engine } from "@/components/icons/Engine";
 import { createClient } from "@/lib/supabase";
 import { createPlan, updatePlan, getPlan, listPlanMateriales } from "@/lib/planes-api";
 import { RECURRENCIA_PLAN_LABELS, type RecurrenciaPlan, type PlanForm } from "@/types/planes";
@@ -549,7 +548,7 @@ function PlanCrearFormInner() {
                     background: "var(--brand-tint)", color: "var(--brand)",
                     display: "inline-flex", alignItems: "center", justifyContent: "center",
                   }}>
-                    <Box size={18} />
+                    <Engine size={18} />
                   </span>
                 )}
 
@@ -642,7 +641,7 @@ function PlanCrearFormInner() {
                             background: "var(--brand-tint)", color: "var(--brand)",
                             display: "inline-flex", alignItems: "center", justifyContent: "center",
                           }}>
-                            <Box size={15} />
+                            <Engine size={15} />
                           </span>
                         )}
                         <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>

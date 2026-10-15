@@ -4,33 +4,9 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  Boxes,
-  Users,
-  Settings,
-  ClipboardList,
-  LogOut,
-  ChevronUp,
-  ChevronDown,
-  LayoutDashboard,
-  MapPin,
-  BarChart2,
-  ClipboardCheck,
-  Box,
-  ListChecks,
-  Bell,
-  BellDot,
-  Trash2,
-  CircleUserRound,
-  Building2,
-  CreditCard,
-  Tag,
-  Zap,
-  Wrench,
-  ShoppingCart,
-  Truck,
-  Gauge,
-  Workflow,
+  Boxes, Users, Settings, ClipboardList, LogOut, ChevronUp, ChevronDown, LayoutDashboard, MapPin, BarChart2, ClipboardCheck, ListChecks, Bell, BellDot, Trash2, CircleUserRound, Building2, CreditCard, Tag, Zap, Wrench, ShoppingCart, Truck, Gauge, Workflow,
 } from "lucide-react";
+import { Engine } from "@/components/icons/Engine";
 import { useRouter } from "next/navigation";
 
 import { createClient } from "@/lib/supabase";
@@ -223,7 +199,7 @@ function SidebarUserFooter({ user }: { user: UserData | null }) {
 const NAV_ITEMS = [
   { href: "/inicio",             icon: LayoutDashboard, label: "Inicio"                                    },
   { href: "/ordenes",            icon: ClipboardList,  label: "Órdenes"                                   },
-  { href: "/activos",            icon: Box,            label: "Activos"                                   },
+  { href: "/activos",            icon: Engine,         label: "Activos"                                   },
   { href: "/analitica/ordenes",  icon: BarChart2,      label: "Analítica de órdenes",    noMateriales: true},
   { href: "/analitica/activos",  icon: BarChart2,      label: "Analítica de activos",    noMateriales: true},
   { href: "/procedimientos",     icon: ClipboardCheck, label: "Procedimientos",          adminOnly: true   },
@@ -448,7 +424,7 @@ export default function AppSidebar() {
               <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={isActive("/activos")} tooltip="Activos">
                   <Link href="/activos" prefetch={false} style={{ display: "flex", alignItems: "center", gap: collapsed ? 0 : 10 }}>
-                    <Box size={16} style={{ flexShrink: 0 }} />
+                    <Engine size={16} style={{ flexShrink: 0 }} />
                     {!collapsed && <span>Activos</span>}
                   </Link>
                 </SidebarMenuButton>

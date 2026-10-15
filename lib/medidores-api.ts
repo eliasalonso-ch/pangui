@@ -581,7 +581,6 @@ export async function procedimientoDeMedidor(medidor: Pick<Medidor, "id" | "nomb
     .insert({
       workspace_id: medidor.workspace_id,
       nombre: `Lectura de Medidor ${medidor.nombre}`,
-      categoria: "Medidores",
       // Bloquea el cierre: una OT de lectura sin la lectura tomada no cumplió
       // su único propósito, y cerrarla igual deja el hoyo en la serie que esta
       // función existe para evitar.

@@ -39,6 +39,8 @@ export interface OrdenCompra {
   numero_manual: string | null;
 
   proveedor_id: string | null;
+  /** Persona del proveedor a quien va dirigida ("Atención:"). */
+  contacto_id: string | null;
   estado: EstadoOrdenCompra;
   origen: OrigenOrdenCompra;
 
@@ -98,8 +100,20 @@ export interface OrdenCompra {
   updated_at: string;
 
   proveedor?: Pick<Proveedor, "id" | "nombre" | "rut" | "email" | "contacto" | "telefono"> | null;
+  contacto?: OCContacto | null;
   creador?: { id: string; nombre: string } | null;
   actualizador?: { id: string; nombre: string } | null;
+}
+
+export interface OCContacto { id: string; nombre: string; cargo: string | null; email: string | null; telefono: string | null }
+
+/**
+ * Línea "Atención:" del PDF. Va en `proveedor.contacto` del payload porque es
+ * el campo que el template ya imprime: así no hubo que tocar el servicio de PDF.
+ */
+export function atencionOC(c: Pick<OCContacto, "nombre" | "cargo"> | null | undefined): string | null {
+  if (!c) return null;
+  return `Atención: ${c.nombre}${c.cargo ? ` · ${c.cargo}` : ""}`;
 }
 
 /** Fila de la lista. */
@@ -198,6 +212,7 @@ export interface OrdenCompraLinea extends OrdenCompraLineaForm {
 /** Lo que la pantalla de creacion envia. */
 export interface OrdenCompraForm {
   proveedor_id?: string | null;
+  contacto_id?: string | null;
   numero_manual?: string | null;
   fecha_emision?: string;
   fecha_entrega_esperada?: string | null;

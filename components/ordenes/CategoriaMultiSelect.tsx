@@ -10,9 +10,41 @@ import { CategoriaIcon } from "@/components/ordenes/categoria-icon";
 // filters the options, and each option toggles on click. Stores an array of
 // category ids. Purely a UI control — persistence is handled by the caller.
 export default function CategoriaMultiSelect({ categorias, value, onChange }: {
-  categorias: CategoriaOT[];
+  categorias: Pick<CategoriaOT, "id" | "nombre" | "icono" | "color">[];
   value: string[];
   onChange: (ids: string[]) => void;
+}) {
+  return (
+    <MultiSelect
+      options={categorias.map(c => ({ id: c.id, label: c.nombre, icono: c.icono, color: c.color }))}
+      value={value}
+      onChange={onChange}
+      vacio="Sin categorías"
+    />
+  );
+}
+
+export interface MultiSelectOption {
+  id: string;
+  label: string;
+  /** Solo categorías: ícono y color de la chapa. */
+  icono?: string | null;
+  color?: string | null;
+}
+
+/** Mismo control para cualquier catálogo (activos, ubicaciones…). */
+export function MultiSelect({ options, value, onChange, vacio = "Sin resultados", seleccionadas, onBuscar, onFinal, cargando }: {
+  options: MultiSelectOption[];
+  value: string[];
+  onChange: (ids: string[]) => void;
+  vacio?: string;
+  /** Catálogo paginado: etiquetas de lo elegido, que puede no estar en `options`. */
+  seleccionadas?: MultiSelectOption[];
+  /** Búsqueda en el servidor: `options` ya viene filtrado. */
+  onBuscar?: (texto: string) => void;
+  /** Llegó al final de la lista: pedir la página siguiente. */
+  onFinal?: () => void;
+  cargando?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -30,10 +62,11 @@ export default function CategoriaMultiSelect({ categorias, value, onChange }: {
     onChange(value.includes(id) ? value.filter(x => x !== id) : [...value, id]);
   }
 
+  // Un id que ya no está en el catálogo (borrado) no se dibuja.
   const selected = value
-    .map(id => categorias.find(c => c.id === id))
-    .filter(Boolean) as CategoriaOT[];
-  const filtered = categorias.filter(c => c.nombre.toLowerCase().includes(query.toLowerCase()));
+    .map(id => seleccionadas?.find(c => c.id === id) ?? options.find(c => c.id === id))
+    .filter(Boolean) as MultiSelectOption[];
+  const filtered = onBuscar ? options : options.filter(c => c.label.toLowerCase().includes(query.toLowerCase()));
 
   return (
     <div ref={ref} style={{ position: "relative" }}>
@@ -55,8 +88,8 @@ export default function CategoriaMultiSelect({ categorias, value, onChange }: {
             background: c.color ?? "var(--brand-tint)",
             color: c.color ? "var(--fg-on-brand)" : "var(--brand)",
           }}>
-            <CategoriaIcon icono={c.icono} size={13} />
-            {c.nombre}
+            {c.icono !== undefined && <CategoriaIcon icono={c.icono} size={13} />}
+            {c.label}
             <button
               type="button"
               onClick={e => { e.stopPropagation(); toggle(c.id); }}
@@ -68,7 +101,7 @@ export default function CategoriaMultiSelect({ categorias, value, onChange }: {
         ))}
         <input
           value={query}
-          onChange={e => { setQuery(e.target.value); if (!open) setOpen(true); }}
+          onChange={e => { setQuery(e.target.value); onBuscar?.(e.target.value); if (!open) setOpen(true); }}
           onFocus={() => setOpen(true)}
           placeholder={selected.length === 0 ? "Empiece a escribir…" : ""}
           style={{
@@ -81,7 +114,12 @@ export default function CategoriaMultiSelect({ categorias, value, onChange }: {
 
       {/* Dropdown */}
       {open && (
-        <div style={{
+        <div
+          onScroll={onFinal && (e => {
+            const el = e.currentTarget;
+            if (el.scrollHeight - el.scrollTop - el.clientHeight < 60) onFinal();
+          })}
+          style={{
           position: "absolute", top: "calc(100% + 3px)", left: 0, right: 0, zIndex: 200,
           background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: 8,
           boxShadow: "var(--shadow-md)", overflow: "hidden", maxHeight: 240, overflowY: "auto",
@@ -108,13 +146,16 @@ export default function CategoriaMultiSelect({ categorias, value, onChange }: {
                 }}>
                   {sel && <Check size={11} style={{ color: "var(--fg-on-brand)" }} />}
                 </span>
-                <CategoriaIcon icono={c.icono} size={14} color={c.color ?? undefined} />
-                <span style={{ flex: 1 }}>{c.nombre}</span>
+                {c.icono !== undefined && <CategoriaIcon icono={c.icono} size={14} color={c.color ?? undefined} />}
+                <span style={{ flex: 1 }}>{c.label}</span>
               </button>
             );
           })}
-          {filtered.length === 0 && (
-            <div style={{ padding: "10px 12px", fontSize: 14, color: "var(--fg-4)" }}>Sin categorías</div>
+          {cargando && (
+            <div style={{ padding: "10px 12px", fontSize: 14, color: "var(--fg-4)" }}>Cargando…</div>
+          )}
+          {filtered.length === 0 && !cargando && (
+            <div style={{ padding: "10px 12px", fontSize: 14, color: "var(--fg-4)" }}>{vacio}</div>
           )}
         </div>
       )}

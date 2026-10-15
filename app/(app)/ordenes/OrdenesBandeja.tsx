@@ -8,7 +8,7 @@ import { esAdmin } from "@/lib/roles";
 import { fetchOrdenesPage, fetchAllOrdenesForExport, fetchAllOrdenesBulk, fetchOrdenesCalendarExtras, fetchOrdenListItem, searchOrdenes, ORDENES_SEARCH_LIMIT, deleteOrden, ORDENES_PAGE_SIZE, parseDescMeta, fetchMarcadasIds, toggleMarcada, matchesSearch, ELECTRILAM_WORKSPACE_ID } from "@/lib/ordenes-api";
 import { ordenQueryOptions } from "@/lib/queries";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { needsBulkSnapshot, BULK_MIN_INTERVAL_MS } from "./bulk-refresh";
+import { needsBulkSnapshot, overlaySnapshot, BULK_MIN_INTERVAL_MS } from "./bulk-refresh";
 import { needsFullWorkspaceSet } from "./list-source";
 import { collectItos } from "./ito-filter";
 import { applyFiltros } from "./filter-predicate";
@@ -381,7 +381,10 @@ export default function OrdenesBandeja({
 
   // Keep left-panel visible when right panel is open (desktop only hides list on mobile)
   const sortRef = useRef<HTMLDivElement>(null);
-  const countOrdenes = allOrdenesForCounts ?? ordenes;
+  const countOrdenes = useMemo(
+    () => overlaySnapshot(allOrdenesForCounts, ordenes),
+    [allOrdenesForCounts, ordenes],
+  );
 
   const waitingOrderIds = useMemo(
     () => countOrdenes.filter(o => o.estado === "en_espera").map(o => o.id).sort().join(","),
@@ -709,12 +712,9 @@ export default function OrdenesBandeja({
   }, [wsId]);
 
   /**
-   * Refreshes the visible page AND the workspace-wide snapshot.
-   *
-   * For events that change which OTs exist: create, realtime INSERT, or a
-   * realtime UPDATE for a row outside the loaded page. The snapshot half is
-   * rate-limited so a burst of realtime events can't re-download the workspace
-   * repeatedly.
+   * Refreshes the visible page after an event that adds an OT: create or a
+   * realtime INSERT. The workspace snapshot is NOT re-fetched — the new row
+   * lands in `ordenes` and overlaySnapshot adds it to the set.
    */
   const refreshList = useCallback(async () => {
     if (refreshListPromiseRef.current) return refreshListPromiseRef.current;
@@ -736,12 +736,12 @@ export default function OrdenesBandeja({
         return;
       }
 
-      // Membership changed, so the snapshot is stale. Invalidating lets
-      // TanStack decide whether to refetch: within `staleTime` it serves the
-      // cached snapshot and issues no request, which is the rate limit the
-      // manual cooldown used to enforce — except now every caller shares one
-      // cache instead of each keeping its own timestamp.
-      await queryClient.invalidateQueries({ queryKey: ["ordenes-snapshot", wsId] });
+      // El snapshot NO se vuelve a bajar. Antes esto era un invalidateQueries,
+      // con la idea de que el staleTime lo frenara — pero invalidar refetchea
+      // la query activa al tiro, ignorando staleTime. Cada OT creada bajaba el
+      // workspace entero (7 requests en Electrilam), y con realtime lo hacía
+      // en cada pestaña abierta. La OT nueva ya viene en `data`, y
+      // `countOrdenes` (overlaySnapshot) la suma al set sin pedir nada más.
       // Cached calendar extras may be missing a new OT. Only cleared here —
       // never on the poll, or the workspace-wide fetch would return through
       // the calendar's back door.
@@ -935,17 +935,23 @@ export default function OrdenesBandeja({
           // the same refetch reveals it via a full refresh.
           if (!next.id) return;
           const idToRefresh = next.id;
-          setOrdenes(prev => {
-            if (!prev.some(o => o.id === idToRefresh)) {
-              refreshList().catch(() => { /* transient — next event/poll retries */ });
-              return prev;
-            }
-            return prev;
-          });
           fetchOrdenListItem(idToRefresh)
             .then(row => {
               if (!row) return; // became deleted/filtered-out server-side
               setOrdenes(prev => prev.map(o => o.id === idToRefresh ? row : o));
+              // Una OT fuera de la página cargada (una vieja que edita un
+              // técnico, o una restaurada de la papelera) solo vive en el
+              // snapshot. Antes esto disparaba refreshList y, con él, la
+              // descarga completa del workspace por UNA fila que ya tenemos.
+              if (row.parent_id) return;
+              const upsert = (prev: OrdenBulkItem[] | null | undefined) => {
+                if (!prev) return prev;
+                return prev.some(o => o.id === row.id)
+                  ? prev.map(o => o.id === row.id ? row : o)
+                  : [row, ...prev];
+              };
+              setAllOrdenesForCounts(prev => upsert(prev) ?? null);
+              queryClient.setQueryData<OrdenBulkItem[]>(["ordenes-snapshot", wsId], prev => upsert(prev) ?? undefined);
             })
             .catch(() => { /* transient — next event/poll retries */ });
           if (selectedId === next.id) {

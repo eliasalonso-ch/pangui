@@ -971,7 +971,7 @@ const segmentedStyle: React.CSSProperties = {
   background: "var(--color-kumo-recessed)",
 };
 
-// Matches components/OrderViewTabs.tsx (the Lista/Calendario/Kanban switcher):
+// Same look the Lista/Calendario/Kanban switcher had (now a breadcrumb dropdown):
 // a recessed track with the active item raised as a light "thumb". The solid
 // brand-blue fill this used before was the only segmented control in the app
 // styled that way.

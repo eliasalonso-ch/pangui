@@ -4,10 +4,9 @@ import { Children, useEffect, useRef, useState } from "react";
 import QRCode from "qrcode";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
-  MapPin, Building2, Plus, Pencil, Trash2, X, Check,
-  Loader2, Search, ChevronRight, QrCode, Package, Wrench, Printer, Share2,
-  Camera, Locate, Layers, Users, Minus, Maximize2,
+  MapPin, Building2, Plus, Trash2, X, Loader2, Search, ChevronRight, QrCode, Package, Printer, Share2, Camera, Locate, Layers, Users, Minus, Maximize2,
 } from "lucide-react";
+import { Engine } from "@/components/icons/Engine";
 import { useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase";
 import { EmptyState, EmptyDetail } from "@/components/EmptyState";
@@ -1244,7 +1243,7 @@ function EntityDetail({ type, item, ubicaciones, lugares, sociedades, activos, r
       )}
       {linkedLocations.length > 0 && <DetailGroup title={`Ubicaciones (${linkedLocations.length})`}>{linkedLocations.map((u, i) => <DetailLink key={u.id} first={i === 0} name={u.edificio} sub={u.direccion} img={u.imagen_url} icon={<MapPin size={15} />} onClick={() => onOpen("ubicaciones", u.id)} />)}</DetailGroup>}
       {linkedPlaces.length > 0 && <DetailGroup title={`Lugares específicos (${linkedPlaces.length})`}>{linkedPlaces.map((l, i) => <DetailLink key={l.id} first={i === 0} name={l.nombre} sub={l.descripcion} img={l.imagen_url} icon={<MapPin size={15} />} onClick={() => onOpen("lugares", l.id)} />)}</DetailGroup>}
-      {linkedAssets.length > 0 && <DetailGroup title={`Activos (${linkedAssets.length})`}>{linkedAssets.map((a, i) => <DetailLink key={a.id} first={i === 0} name={a.nombre} sub={a.numero_serie} img={a.imagen_url} icon={<Wrench size={15} />} />)}</DetailGroup>}
+      {linkedAssets.length > 0 && <DetailGroup title={`Activos (${linkedAssets.length})`}>{linkedAssets.map((a, i) => <DetailLink key={a.id} first={i === 0} name={a.nombre} sub={a.numero_serie} img={a.imagen_url} icon={<Engine size={15} />} />)}</DetailGroup>}
       {linkedReservations.length > 0 && <DetailGroup title={`Materiales reservados (${linkedReservations.length})`}>{linkedReservations.map((r, i) => <DetailLink key={r.id} first={i === 0} name={r.parte?.nombre ?? "Material"} sub={`${Number(r.cantidad).toLocaleString("es-CL")} ${r.parte?.unidad ?? ""}`} img={r.parte?.imagen_url} icon={<Package size={15} />} />)}</DetailGroup>}
     </div>
   );

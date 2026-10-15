@@ -30,7 +30,6 @@ export interface Procedimiento {
   workspace_id: string;
   nombre: string;
   descripcion: string | null;
-  categoria: string | null;
   activo: boolean;
   bloquea_cierre_ot: boolean;
   auto_adjuntar: boolean;
@@ -47,6 +46,11 @@ export interface Procedimiento {
   puntaje_minimo?: number | null;
   puntaje_maximo?: number | null;
   hereda_a_hijos?: boolean;
+  // Vínculos (20261011120000): categorías de OT, activos y ubicaciones que cubre.
+  // DB default '{}'; opcionales porque hay selects con columnas parciales.
+  categoria_ids?: string[];
+  activo_ids?: string[];
+  ubicacion_ids?: string[];
   created_by: string | null;
   created_at: string;
   updated_at: string;
@@ -57,8 +61,10 @@ export interface ProcedimientoListItem {
   id: string;
   nombre: string;
   descripcion: string | null;
-  categoria: string | null;
   iso_categoria?: string | null;
+  categoria_ids?: string[];
+  activo_ids?: string[];
+  ubicacion_ids?: string[];
   activo: boolean;
   bloquea_cierre_ot: boolean;
   auto_adjuntar: boolean;
@@ -270,7 +276,6 @@ export interface PasoFormItem {
 export interface ProcedimientoForm {
   nombre: string;
   descripcion: string;
-  categoria: string;
   iso_categoria?: string;
   bloquea_cierre_ot: boolean;
   auto_adjuntar: boolean;
@@ -278,6 +283,9 @@ export interface ProcedimientoForm {
   notificar_al_completar: boolean;
   hereda_a_hijos?: boolean;
   puntaje_minimo?: number | null;
+  categoria_ids: string[];
+  activo_ids: string[];
+  ubicacion_ids: string[];
   pasos: PasoFormItem[];
 }
 

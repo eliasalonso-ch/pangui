@@ -13,6 +13,7 @@ import {
   Lock, Check, MoreHorizontal, Plus,
 } from "lucide-react";
 import { FotoOIniciales } from "@/components/FotoPerfil";
+import { useTopBarVista } from "@/components/TopBarActions";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 interface Usuario {
@@ -413,6 +414,17 @@ export default function UsuariosPage() {
     setBusqueda("");
   }
 
+  // Equipo | Cuadrillas en el breadcrumb del GlobalTopBar (reemplaza el
+  // control segmentado que había bajo la barra superior).
+  useTopBarVista({
+    label: activeTab === "equipo" ? "Equipo" : "Cuadrillas",
+    reemplazaUltimo: true,
+    opciones: [
+      { label: "Equipo", icon: <Users size={16} />, onSelect: () => switchTab("equipo") },
+      { label: "Cuadrillas", icon: <HardHat size={16} />, onSelect: () => switchTab("cuadrillas") },
+    ],
+  }, [activeTab]);
+
   const filteredUsers = usuarios.filter(u =>
     !busqueda || u.nombre?.toLowerCase().includes(busqueda.toLowerCase()) ||
     u.oficio?.toLowerCase().includes(busqueda.toLowerCase()) ||
@@ -465,38 +477,6 @@ export default function UsuariosPage() {
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", minHeight: 0, background: "var(--surface-canvas)" }}>
 
-      {/* Equipo | Cuadrillas — control segmentado en su propia franja, a la
-          izquierda y bajo la barra superior, igual que las secciones de
-          /ubicaciones. */}
-      <div style={{ flexShrink: 0, padding: "9px 24px", borderBottom: "1px solid var(--border)", background: "var(--surface-canvas)" }}>
-        <nav
-          aria-label="Secciones de equipo"
-          style={{ display: "inline-flex", overflow: "hidden", border: "1px solid var(--divider)", borderRadius: 9, background: "var(--color-kumo-recessed)" }}
-        >
-          {([{ id: "equipo", label: "Equipo" }, { id: "cuadrillas", label: "Cuadrillas" }] as const).map(t => {
-            const selected = activeTab === t.id;
-            return (
-              <button
-                key={t.id}
-                type="button"
-                onClick={() => switchTab(t.id)}
-                aria-current={selected ? "page" : undefined}
-                style={{
-                  minHeight: 34, padding: "0 11px", display: "inline-flex", alignItems: "center",
-                  background: selected ? "var(--surface-1)" : "transparent",
-                  border: selected ? "1px solid var(--border)" : "1px solid transparent",
-                  borderRadius: selected ? 7 : 0,
-                  boxShadow: selected ? "var(--shadow-sm)" : "none",
-                  color: selected ? "var(--fg-1)" : "var(--fg-3)",
-                  fontSize: 14, fontWeight: 400, cursor: "pointer", fontFamily: "inherit",
-                }}
-              >
-                {t.label}
-              </button>
-            );
-          })}
-        </nav>
-      </div>
 
       {/* Toolbar: search and actions both right-aligned, matching the Órdenes
           bandeja. Control heights are 38px there, so they are 38px here too —
