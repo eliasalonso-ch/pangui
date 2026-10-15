@@ -7,10 +7,14 @@ import {
 } from "lucide-react";
 import { uploadToR2 } from "@/lib/r2";
 import {
-  PanelCatalogo, FieldRow, tituloInputStyle,
-  inputStyle, textareaStyle, focoInput,
+  PanelCatalogo, FieldRow, DescripcionCampo, tituloInputStyle,
+  inputStyle, focoInput,
 } from "@/components/catalogo/PanelCatalogo";
 import type { Proveedor, ProveedorForm as FormValues } from "@/types/proveedores";
+import { VinculosFormulario, seleccionActual, useVinculosProveedor, type Seleccion } from "./ProveedorVinculos";
+import { ContactosEditor, useContactos, type Contacto } from "./ProveedorContactos";
+
+export interface ExtrasProveedor { vinculos: Seleccion | null; contactos: Contacto[] | null }
 
 /**
  * Alta y edición de un proveedor.
@@ -27,8 +31,13 @@ export default function ProveedorFormPanel({
   guardando: boolean;
   error?: string | null;
   onCancel: () => void;
-  onSubmit: (v: FormValues) => void;
+  /** Cada extra es null si no se tocó: así no se reescribe nada sin querer. */
+  onSubmit: (v: FormValues, extras: ExtrasProveedor) => void;
 }) {
+  const { data: datosVinculos } = useVinculosProveedor();
+  const [vinculos, setVinculos] = useState<Seleccion | null>(null);
+  const { data: contactosGuardados = [] } = useContactos(inicial?.id ?? null);
+  const [contactos, setContactos] = useState<Contacto[] | null>(null);
   const [subiendo, setSubiendo] = useState(false);
   const [dragLogo, setDragLogo] = useState(false);
   const [errorLogo, setErrorLogo] = useState<string | null>(null);
@@ -87,17 +96,21 @@ export default function ProveedorFormPanel({
       error={error}
       textoGuardar={inicial ? "Guardar" : "Crear proveedor"}
       onCancel={onCancel}
-      onSubmit={() => onSubmit(v)}
+      onSubmit={() => onSubmit(v, { vinculos, contactos })}
     >
-      <div style={{ marginBottom: 10 }}>
+      {/* Mismo orden que "Nueva OT": título, descripción sin rótulo y luego un
+          campo por fila, sin grillas de dos columnas. */}
+      <div style={{ marginBottom: 24 }}>
         <input
           autoFocus
           value={v.nombre}
           onChange={e => set("nombre", e.target.value)}
-          placeholder="Ej: Maestranza Aconcagua Ltda."
+          placeholder="¿Cómo se llama el proveedor?"
           style={{ ...tituloInputStyle(v.nombre), fontSize: 20, fontWeight: 400, lineHeight: 1.35 }}
         />
       </div>
+
+      <DescripcionCampo value={v.notas ?? ""} onChange={val => set("notas", val)} placeholder="Agregue notas sobre el proveedor" />
 
       <FieldRow icon={<Camera size={16} />} label="Logo">
         <input ref={logoInputRef} type="file" accept="image/*" onChange={subirLogo} disabled={subiendo} style={{ display: "none" }} />
@@ -116,60 +129,45 @@ export default function ProveedorFormPanel({
         {errorLogo && <div style={{ fontSize: 14, color: "var(--danger)", marginTop: 6 }}>{errorLogo}</div>}
       </FieldRow>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-        <FieldRow icon={<FileText size={16} />} label="RUT">
-          <input value={v.rut ?? ""} onChange={e => set("rut", e.target.value)} placeholder="76.543.210-K" style={inputStyle} {...focoInput} />
-        </FieldRow>
-        <FieldRow icon={<Building2 size={16} />} label="Giro">
-          <input value={v.giro ?? ""} onChange={e => set("giro", e.target.value)} placeholder="Maestranza y mecanizado" style={inputStyle} {...focoInput} />
-        </FieldRow>
-      </div>
+      <FieldRow icon={<FileText size={16} />} label="RUT">
+        <input value={v.rut ?? ""} onChange={e => set("rut", e.target.value)} placeholder="76.543.210-K" style={inputStyle} {...focoInput} />
+      </FieldRow>
+      <FieldRow icon={<Building2 size={16} />} label="Giro">
+        <input value={v.giro ?? ""} onChange={e => set("giro", e.target.value)} placeholder="Maestranza y mecanizado" style={inputStyle} {...focoInput} />
+      </FieldRow>
+      <FieldRow icon={<DollarSign size={16} />} label="Condiciones de pago">
+        <input value={v.condiciones_pago ?? ""} onChange={e => set("condiciones_pago", e.target.value)} placeholder="30 días" style={inputStyle} {...focoInput} />
+      </FieldRow>
 
       <FieldRow icon={<MapPin size={16} />} label="Dirección">
-        <input value={v.direccion ?? ""} onChange={e => set("direccion", e.target.value)} style={inputStyle} {...focoInput} />
+        <input value={v.direccion ?? ""} onChange={e => set("direccion", e.target.value)} placeholder="Ingresa la dirección..." style={inputStyle} {...focoInput} />
+      </FieldRow>
+      <FieldRow icon={<MapPin size={16} />} label="Comuna">
+        <input value={v.comuna ?? ""} onChange={e => set("comuna", e.target.value)} style={inputStyle} {...focoInput} />
+      </FieldRow>
+      <FieldRow icon={<MapPin size={16} />} label="Ciudad">
+        <input value={v.ciudad ?? ""} onChange={e => set("ciudad", e.target.value)} style={inputStyle} {...focoInput} />
       </FieldRow>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-        <FieldRow icon={<MapPin size={16} />} label="Comuna">
-          <input value={v.comuna ?? ""} onChange={e => set("comuna", e.target.value)} style={inputStyle} {...focoInput} />
-        </FieldRow>
-        <FieldRow icon={<MapPin size={16} />} label="Ciudad">
-          <input value={v.ciudad ?? ""} onChange={e => set("ciudad", e.target.value)} style={inputStyle} {...focoInput} />
-        </FieldRow>
-      </div>
-
-      <FieldRow icon={<Contact size={16} />} label="Persona de contacto">
-        <input value={v.contacto ?? ""} onChange={e => set("contacto", e.target.value)} style={inputStyle} {...focoInput} />
+      <FieldRow icon={<Contact size={16} />} label="Personas de contacto">
+        <ContactosEditor contactos={contactos ?? contactosGuardados} onChange={setContactos} />
+      </FieldRow>
+      <FieldRow icon={<Mail size={16} />} label="Correo para órdenes de compra">
+        <input type="email" value={v.email ?? ""} onChange={e => set("email", e.target.value)} placeholder="ventas@proveedor.cl" style={inputStyle} {...focoInput} />
+      </FieldRow>
+      <FieldRow icon={<Phone size={16} />} label="Teléfono">
+        <input value={v.telefono ?? ""} onChange={e => set("telefono", e.target.value)} style={inputStyle} {...focoInput} />
+      </FieldRow>
+      <FieldRow icon={<Globe size={16} />} label="Sitio web">
+        <input value={v.sitio_web ?? ""} onChange={e => set("sitio_web", e.target.value)} style={inputStyle} {...focoInput} />
       </FieldRow>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-        <FieldRow icon={<Mail size={16} />} label="Correo">
-          {/* A esta dirección se envía la orden de compra. */}
-          <input type="email" value={v.email ?? ""} onChange={e => set("email", e.target.value)} placeholder="ventas@proveedor.cl" style={inputStyle} {...focoInput} />
-        </FieldRow>
-        <FieldRow icon={<Phone size={16} />} label="Teléfono">
-          <input value={v.telefono ?? ""} onChange={e => set("telefono", e.target.value)} style={inputStyle} {...focoInput} />
-        </FieldRow>
-      </div>
-
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-        <FieldRow icon={<Globe size={16} />} label="Sitio web">
-          <input value={v.sitio_web ?? ""} onChange={e => set("sitio_web", e.target.value)} style={inputStyle} {...focoInput} />
-        </FieldRow>
-        <FieldRow icon={<DollarSign size={16} />} label="Condiciones de pago">
-          <input value={v.condiciones_pago ?? ""} onChange={e => set("condiciones_pago", e.target.value)} placeholder="30 días" style={inputStyle} {...focoInput} />
-        </FieldRow>
-      </div>
-
-      <FieldRow icon={<FileText size={16} />} label="Notas">
-        <textarea
-          value={v.notas ?? ""}
-          onChange={e => set("notas", e.target.value)}
-          rows={3}
-          style={textareaStyle}
-          {...focoInput}
-        />
-      </FieldRow>
+      <VinculosFormulario
+        proveedorId={inicial?.id ?? null}
+        datos={datosVinculos}
+        seleccion={vinculos ?? seleccionActual(datosVinculos, inicial?.id ?? null)}
+        onChange={setVinculos}
+      />
     </PanelCatalogo>
   );
 }

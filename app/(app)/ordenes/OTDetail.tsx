@@ -10,21 +10,9 @@ import { createHoja } from "@/lib/hojas-api";
 import { notifySolicitudMateriales } from "@/lib/notificar";
 import { tieneItos } from "@/lib/itos-gate";
 import {
-  X, Pencil, Trash2, Check, Copy, MapPin, Settings2, User, Flag,
-  Calendar, Tag, Send, AlertTriangle, Loader2,
-  CircleDot, PauseCircle, PlayCircle, CheckCircle2, XCircle,
-  ChevronDown, ChevronLeft, ChevronRight, Plus, Image, Building2, Hash,
-  Play, Pause, Square, RotateCcw,
-  FileText, Sheet, FileDown, MoreVertical, Upload, Download,
-  Package, Search,
-  ClipboardCheck, Info, Hash as HashIcon, Camera, PenLine, Shield, CheckSquare,
-  Type, DollarSign, List, ListChecks, AlertCircle, ImagePlus, FolderOpen,
-  Lock, LockOpen, Mic, MicOff, GitBranch, Wrench, Link as LinkIcon, Paperclip,
-  Phone, Mail, Circle, MessageSquare,
-  Minus, ArrowUp, ArrowDown, RotateCw, UserRoundX, UserRoundCheck, Zap, Locate, Contact,
-  Box, Clock, SmilePlus,
-  Share2,
+  X, Pencil, Trash2, Check, Copy, MapPin, Settings2, User, Flag, Calendar, Send, AlertTriangle, Loader2, CircleDot, PauseCircle, PlayCircle, CheckCircle2, XCircle, ChevronDown, ChevronLeft, ChevronRight, Plus, Image, Building2, Play, Pause, RotateCcw, FileText, Sheet, FileDown, MoreVertical, Upload, Download, Package, Search, ClipboardCheck, Info, Hash as HashIcon, Camera, PenLine, CheckSquare, Type, DollarSign, List, ListChecks, Mic, MicOff, GitBranch, Wrench, Link as LinkIcon, Paperclip, Phone, Mail, Circle, MessageSquare, Minus, ArrowUp, ArrowDown, RotateCw, UserRoundX, UserRoundCheck, Zap, Locate, Contact, Clock, SmilePlus, Share2,
 } from "lucide-react";
+import { Engine } from "@/components/icons/Engine";
 import { cn } from "@/lib/utils";
 import { LinksDisplay } from "@/components/LinksInput";
 import { Button } from "@/components/ui/button";
@@ -273,9 +261,9 @@ function ActivoSection({ activo, onEstadoChanged }: {
             border: "1px solid var(--border)",
             display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
           }}>
-            {/* Box, no Boxes: es el mismo icono que Activos en la barra lateral
+            {/* Engine: es el mismo icono que Activos en la barra lateral
                 (Boxes es el de Materiales, y usarlo acá los confundía). */}
-            <Box size={16} />
+            <Engine size={16} />
           </span>
         )}
 
@@ -648,6 +636,8 @@ interface OrdenParte {
   parte_id: string;
   cantidad: number;
   cantidad_utilizada: number | null;
+  /** Viene de una reserva de la ubicación (retiro); sólo puede bajar. */
+  withdrawal_id: string | null;
   parte: {
     nombre: string;
     unidad: string;
@@ -976,16 +966,10 @@ export default function OTDetail({
     enabled: tab === "materiales",
   });
 
-  /**
-   * Write a fresh stock value for one part back into the shared catalogue cache
-   * after `ajustar_stock_parte`. Replaces three `setCatalogo(...)` calls from
-   * when this list was local state: the RPC returns the authoritative stock, so
-   * we patch the cache instead of refetching all 500 rows.
-   */
-  const patchStockCatalogo = useCallback((parteId: string, stock: number) => {
-    queryClient.setQueryData<ParteCatalogo[]>(["partes-catalogo"], prev =>
-      (prev ?? []).map(p => (p.id === parteId ? { ...p, stock_actual: stock } : p)),
-    );
+  // El stock lo mueve la base (trg_orden_partes_stock): descuenta al completar
+  // la OT y devuelve al quitar. Tras un cambio sólo se refresca el catálogo.
+  const refrescarStock = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ["partes-catalogo"] });
   }, [queryClient]);
   const [addingParte, setAddingParte] = useState(false);
   const [deletingParteId, setDeletingParteId] = useState<string | null>(null);
@@ -1479,7 +1463,7 @@ export default function OTDetail({
     if (ordenPartes.length > 0) return;
     const sb = createClient();
     sb.from("orden_partes")
-      .select("id, parte_id, cantidad, cantidad_utilizada, parte:partes!parte_id(nombre, unidad, stock_actual)")
+      .select("id, parte_id, cantidad, cantidad_utilizada, withdrawal_id, parte:partes!parte_id(nombre, unidad, stock_actual)")
       .eq("orden_id", orden.id)
       .order("created_at", { ascending: true })
       .then(({ data }) => {
@@ -1613,7 +1597,7 @@ export default function OTDetail({
     setLoadingPartes(true);
     const sb = createClient();
     sb.from("orden_partes")
-      .select("id, parte_id, cantidad, cantidad_utilizada, parte:partes!parte_id(nombre, unidad, stock_actual)")
+      .select("id, parte_id, cantidad, cantidad_utilizada, withdrawal_id, parte:partes!parte_id(nombre, unidad, stock_actual)")
       .eq("orden_id", orden.id)
       .order("created_at", { ascending: true })
       .then(({ data }) => {
@@ -1632,16 +1616,15 @@ export default function OTDetail({
   }, [tab, reloadOrdenPartes]);
 
   async function handleAddParte(parte: ParteCatalogo) {
-    // Prevent duplicate
-    if (ordenPartes.some(op => op.parte_id === parte.id)) return;
-    const cantidad = 1;
+    // Prevent duplicate (las filas sacadas de una reserva van aparte)
+    if (ordenPartes.some(op => op.parte_id === parte.id && !op.withdrawal_id)) return;
     setAddingParte(true);
     const sb = createClient();
     const { data, error } = await sb.from("orden_partes").insert({
       orden_id: orden.id,
       parte_id: parte.id,
-      cantidad,
-    }).select("id, parte_id, cantidad, cantidad_utilizada").single();
+      cantidad: 1,
+    }).select("id, parte_id, cantidad, cantidad_utilizada, withdrawal_id").single();
 
     if (error || !data) {
       alert(error?.message ?? "No se pudo agregar el material.");
@@ -1650,25 +1633,12 @@ export default function OTDetail({
     }
     setOrdenPartes(prev => [...prev, { ...(data as any), parte }]);
     setCatalogSearch("");
-    // Deduct stock atomically in the DB (avoids the lost-update race between
-    // concurrent web/mobile edits). Use the returned value as the source of truth.
-    const { data: stockNuevo, error: stockErr } = await sb.rpc("ajustar_stock_parte", {
-      p_parte_id: parte.id,
-      p_delta: -cantidad,
-    });
-    if (stockErr) {
-      alert("El material se agregó, pero no se pudo descontar el stock: " + stockErr.message);
-    } else if (stockNuevo !== null && stockNuevo !== undefined) {
-      patchStockCatalogo(parte.id, stockNuevo as number);
-    }
+    refrescarStock();
     setAddingParte(false);
   }
 
   async function handleUpdateCantidad(id: string, newCantidad: number) {
     if (newCantidad <= 0) return;
-    const prev = ordenPartes.find(op => op.id === id);
-    if (!prev) return;
-    const diff = newCantidad - prev.cantidad;
     const sb = createClient();
     const { error: cantErr } = await sb.from("orden_partes").update({ cantidad: newCantidad }).eq("id", id);
     if (cantErr) {
@@ -1676,23 +1646,11 @@ export default function OTDetail({
       return;
     }
     setOrdenPartes(p => p.map(op => op.id === id ? { ...op, cantidad: newCantidad } : op));
-    // Adjust stock atomically by the difference (more consumed => stock down).
-    if (prev.parte_id && diff !== 0) {
-      const { data: stockNuevo, error: stockErr } = await sb.rpc("ajustar_stock_parte", {
-        p_parte_id: prev.parte_id,
-        p_delta: -diff,
-      });
-      if (stockErr) {
-        alert("La cantidad se actualizó, pero no se pudo ajustar el stock: " + stockErr.message);
-      } else if (stockNuevo !== null && stockNuevo !== undefined) {
-        patchStockCatalogo(prev.parte_id, stockNuevo as number);
-      }
-    }
+    refrescarStock();
   }
 
   async function handleDeleteParte(id: string) {
     setDeletingParteId(id);
-    const op = ordenPartes.find(p => p.id === id);
     const sb = createClient();
     const { error: delErr } = await sb.from("orden_partes").delete().eq("id", id);
     if (delErr) {
@@ -1701,18 +1659,7 @@ export default function OTDetail({
       return;
     }
     setOrdenPartes(prev => prev.filter(p => p.id !== id));
-    // Restore stock atomically (the consumed quantity goes back to inventory).
-    if (op?.parte_id) {
-      const { data: stockNuevo, error: stockErr } = await sb.rpc("ajustar_stock_parte", {
-        p_parte_id: op.parte_id,
-        p_delta: op.cantidad,
-      });
-      if (stockErr) {
-        alert("El material se eliminó, pero no se pudo restaurar el stock: " + stockErr.message);
-      } else if (stockNuevo !== null && stockNuevo !== undefined) {
-        patchStockCatalogo(op.parte_id, stockNuevo as number);
-      }
-    }
+    refrescarStock();
     setDeletingParteId(null);
   }
 
@@ -1762,7 +1709,7 @@ export default function OTDetail({
       necesitaPartes
         ? createClient()
             .from("orden_partes")
-            .select("id, parte_id, cantidad, cantidad_utilizada, parte:partes!parte_id(nombre, unidad, stock_actual)")
+            .select("id, parte_id, cantidad, cantidad_utilizada, withdrawal_id, parte:partes!parte_id(nombre, unidad, stock_actual)")
             .eq("orden_id", orden.id)
             .order("created_at", { ascending: true })
         : Promise.resolve(null),
@@ -4559,7 +4506,7 @@ export default function OTDetail({
                   <div key={op.id} style={{ display: "grid", gridTemplateColumns: "1fr 90px 32px", gap: 8, alignItems: "center", padding: "8px 10px", borderBottom: "1px solid var(--divider)" }}>
                     <div>
                       <div style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)" }}>{op.parte?.nombre ?? "—"}</div>
-                      <div style={{ fontSize: 14, color: "var(--fg-4)" }}>{op.parte?.unidad}</div>
+                      <div style={{ fontSize: 14, color: "var(--fg-4)" }}>{op.withdrawal_id ? [op.parte?.unidad, "De reserva"].filter(Boolean).join(" · ") : op.parte?.unidad}</div>
                     </div>
                     {(isActive || canManage) ? (
                       <input

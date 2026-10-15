@@ -110,3 +110,16 @@ export async function archivarProveedor(id: string): Promise<void> {
 export async function reactivarProveedor(id: string): Promise<void> {
   await updateProveedor(id, { activo: true });
 }
+
+/**
+ * Borra el proveedor. Activos, materiales y planes quedan sin proveedor y sus
+ * contactos se borran (FKs). Si tiene órdenes de compra la base lo rechaza
+ * (FK RESTRICT): el documento emitido necesita sus datos. Devuelve false en
+ * ese caso, para ofrecer archivarlo.
+ */
+export async function eliminarProveedor(id: string): Promise<boolean> {
+  const { error } = await createClient().from("proveedores").delete().eq("id", id);
+  if (error?.code === "23503") return false;
+  if (error) throw new Error(error.message);
+  return true;
+}

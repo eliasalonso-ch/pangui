@@ -4,16 +4,16 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
-  AlertTriangle, Boxes, Check, ChevronDown, ChevronRight, CircleAlert, DollarSign, ExternalLink, FileText, Hash, ImagePlus,
-  Loader2, MapPin, Minus, Package, Paperclip, PackageCheck, PackagePlus, Pencil, Plus, RotateCcw, MoreVertical, Ruler, Search, Trash2, User, X,
+  AlertTriangle, Boxes, Check, ChevronDown, CircleAlert, DollarSign, ExternalLink, FileText, Hash, ImagePlus, Loader2, MapPin, Minus, Package, Paperclip, PackageCheck, PackagePlus, Pencil, Plus, RotateCcw, MoreVertical, Ruler, Search, Trash2, User, X,
 } from "lucide-react";
+import { Engine } from "@/components/icons/Engine";
 import { createClient } from "@/lib/supabase";
 import { EmptyState, EmptyDetail } from "@/components/EmptyState";
 import { uploadToR2 } from "@/lib/r2";
 import { useSuscripcion } from "@/hooks/useSuscripcion";
 import { UpgradePrompt } from "@/components/UpgradePrompt";
 import styles from "./partes.module.css";
-import { InventoryFilterDialog } from "./InventoryFilterDialog";
+import { MaterialFiltrosBar, FILTROS_VACIOS, type FiltrosMateriales, type Opcion } from "./MaterialFiltrosBar";
 import { FotoOIniciales } from "@/components/FotoPerfil";
 
 interface Material {
@@ -25,6 +25,8 @@ interface Material {
   archivo_url: string | null; archivo_nombre: string | null;
   fabricante: { id: string; nombre: string } | null;
   proveedor: { id: string; nombre: string } | null;
+  /** Proveedores múltiples; `proveedor` es el campo viejo de uno solo. */
+  material_proveedores: { proveedor: { id: string; nombre: string } | null }[] | null;
   adjuntos: Adjunto[];
   creador: { id: string; nombre: string } | null;
   actualizador: { id: string; nombre: string } | null;
@@ -65,7 +67,6 @@ interface Withdrawal {
   parte: Pick<Material, "id" | "nombre" | "codigo" | "unidad" | "imagen_url"> | null;
   lugar: Pick<Lugar, "id" | "nombre"> | null;
 }
-type StockFilter = "todos" | "agotado" | "bajo" | "ok";
 /** Orden de la lista. El valor codifica campo + dirección, como en /ordenes. */
 type SortOption =
   | "creacion_asc" | "creacion_desc"
@@ -116,6 +117,14 @@ function stockState(material: Material): "agotado" | "bajo" | "ok" {
   return "ok";
 }
 
+/** Proveedores del material: los de `material_proveedores` más el campo viejo de uno solo. */
+function proveedoresDe(m: Material): { id: string; nombre: string }[] {
+  return [
+    ...(m.material_proveedores ?? []).map(l => l.proveedor).filter((p): p is { id: string; nombre: string } => !!p),
+    ...(m.proveedor ? [m.proveedor] : []),
+  ];
+}
+
 function MaterialImage({ material, large = false }: { material: Pick<Material, "nombre" | "imagen_url">; large?: boolean }) {
   return (
     <div className={large ? styles.heroImage : styles.thumbnail}>
@@ -159,7 +168,7 @@ function MaterialesPageInner() {
   const [loading, setLoading] = useState(true);
   const [reservationWarning, setReservationWarning] = useState(false);
   const [search, setSearch] = useState("");
-  const [stockFilter, setStockFilter] = useState<StockFilter>("todos");
+  const [filtros, setFiltros] = useState<FiltrosMateriales>(FILTROS_VACIOS);
   const [sort, setSort] = useState<SortOption>("actualizacion_desc");
   const [sortOpen, setSortOpen] = useState(false);
   const [visibleCount, setVisibleCount] = useState(VISIBLE_CHUNK);
@@ -171,8 +180,6 @@ function MaterialesPageInner() {
   const [editor, setEditor] = useState<EditorState>(null);
   const [reserveOpen, setReserveOpen] = useState(false);
   const [restockOpen, setRestockOpen] = useState(false);
-  const [filterOpen, setFilterOpen] = useState(false);
-  const [locationFilterId, setLocationFilterId] = useState<string | null>(null);
 
   /**
    * Al cambiar busqueda, filtro u orden la lista es otra y hay que volver a la
@@ -181,11 +188,11 @@ function MaterialesPageInner() {
    * un efecto pintaria primero la lista nueva con el conteo viejo y recien
    * despues la recortaria, que es un render de mas y un parpadeo.
    */
-  const listKey = `${search}|${stockFilter}|${sort}|${locationFilterId ?? ""}`;
+  const listKey = `${search}|${sort}|${JSON.stringify(filtros)}`;
 
+  const hayFiltrosActivos = Object.values(filtros).some(v => v.length > 0);
   /** Si el vacío se debe a un filtro o a que todavía no hay inventario. */
-  const hayFiltrosMateriales =
-    search.trim().length > 0 || stockFilter !== "todos" || locationFilterId !== null;
+  const hayFiltrosMateriales = search.trim().length > 0 || hayFiltrosActivos;
   const [prevListKey, setPrevListKey] = useState(listKey);
   if (prevListKey !== listKey) {
     setPrevListKey(listKey);
@@ -218,7 +225,7 @@ function MaterialesPageInner() {
   const loadData = useCallback(async (wsId: string) => {
     const sb = createClient();
     const [materialRes, locationRes, placeRes, reservationRes, withdrawalRes, activoLinkRes, stockEntryRes, activoRes, compromisoRes] = await Promise.all([
-      sb.from("partes").select("id,nombre,descripcion,codigo,unidad,precio_unitario,ubicacion_bodega,stock_actual,stock_minimo,imagen_url,workspace_id,categoria,qr_code,created_at,updated_at,archivo_url,archivo_nombre,adjuntos,fabricante:fabricantes!fabricante_id(id,nombre),proveedor:proveedores!proveedor_id(id,nombre),creador:usuarios!creado_por(id,nombre),actualizador:usuarios!actualizado_por(id,nombre)").eq("workspace_id", wsId).eq("activo", true).order("nombre"),
+      sb.from("partes").select("id,nombre,descripcion,codigo,unidad,precio_unitario,ubicacion_bodega,stock_actual,stock_minimo,imagen_url,workspace_id,categoria,qr_code,created_at,updated_at,archivo_url,archivo_nombre,adjuntos,fabricante:fabricantes!fabricante_id(id,nombre),proveedor:proveedores!proveedor_id(id,nombre),material_proveedores(proveedor:proveedores(id,nombre)),creador:usuarios!creado_por(id,nombre),actualizador:usuarios!actualizado_por(id,nombre)").eq("workspace_id", wsId).eq("activo", true).order("nombre"),
       sb.from("ubicaciones").select("id,edificio,direccion").eq("workspace_id", wsId).eq("activa", true).order("edificio"),
       sb.from("lugares").select("id,nombre,ubicacion_id").eq("workspace_id", wsId).eq("activo", true).order("nombre"),
       sb.from("material_reservations").select("id,parte_id,ubicacion_id,lugar_id,cantidad,parte:partes!parte_id(id,nombre,codigo,unidad,imagen_url),lugar:lugares!lugar_id(id,nombre)").eq("workspace_id", wsId).order("created_at", { ascending: false }),
@@ -230,7 +237,8 @@ function MaterialesPageInner() {
       sb.from("activos").select("id,nombre,numero_serie,imagen_url,estado").eq("workspace_id", wsId).order("nombre"),
       // "Comprometidos": lo pedido por OTs que aún no se cierran. `cantidad`
       // menos lo ya utilizado es lo que sigue reservado contra el stock.
-      sb.from("orden_partes").select("parte_id,cantidad,cantidad_utilizada,orden_id,ordenes_trabajo!orden_id(estado,workspace_id)"),
+      // Sólo filas de bodega: las sacadas de una reserva ya salieron como retiro.
+      sb.from("orden_partes").select("parte_id,cantidad,cantidad_utilizada,orden_id,ordenes_trabajo!orden_id(estado,workspace_id)").is("withdrawal_id", null),
     ]);
     setMaterials((materialRes.data ?? []) as unknown as Material[]);
     setLocations((locationRes.data ?? []) as Ubicacion[]);
@@ -252,7 +260,7 @@ function MaterialesPageInner() {
     setCompromisos(compromisoRes.error ? [] : ((compromisoRes.data ?? []) as unknown as
       { parte_id: string; cantidad: number; cantidad_utilizada: number | null; orden_id: string; ordenes_trabajo: { estado: string; workspace_id: string } | null }[])
       .filter(row => row.ordenes_trabajo?.workspace_id === wsId && row.ordenes_trabajo?.estado !== "completado")
-      .map(row => ({ parte_id: row.parte_id, orden_id: row.orden_id, cantidad: Math.max(0, Number(row.cantidad) - Number(row.cantidad_utilizada ?? 0)) })));
+      .map(row => ({ parte_id: row.parte_id, orden_id: row.orden_id, cantidad: Number(row.cantidad_utilizada ?? row.cantidad) })));
   }, []);
 
   useEffect(() => {
@@ -275,11 +283,43 @@ function MaterialesPageInner() {
   const canManage = role === "admin" || role === "owner" || role === "supervisor";
   const lowCount = materials.filter(item => stockState(item) !== "ok").length;
 
+  // Cada material con los ids por los que se puede filtrar. Dentro de un filtro
+  // basta con que coincida uno ("uno de"); entre filtros tienen que cumplirse todos.
+  const relaciones = useMemo(() => {
+    const ubicaciones = new Map<string, Set<string>>();
+    for (const r of reservations) ubicaciones.set(r.parte_id, (ubicaciones.get(r.parte_id) ?? new Set()).add(r.ubicacion_id));
+    const activosPor = new Map<string, Set<string>>();
+    for (const l of activoLinks) activosPor.set(l.material_id, (activosPor.get(l.material_id) ?? new Set()).add(l.activo_id));
+    return { ubicaciones, activos: activosPor };
+  }, [reservations, activoLinks]);
+
+  const opcionesFiltro = useMemo(() => {
+    const unicos = (pares: (Opcion | null)[]) =>
+      [...new Map(pares.filter((o): o is Opcion => !!o).map(o => [o.id, o])).values()]
+        .sort((a, b) => a.label.localeCompare(b.label, "es"));
+    const conReserva = new Set(reservations.map(r => r.ubicacion_id));
+    const conMaterial = new Set(activoLinks.map(l => l.activo_id));
+    return {
+      ubicaciones: unicos(locations.filter(l => conReserva.has(l.id)).map(l => ({ id: l.id, label: l.edificio }))),
+      activos: unicos(activos.filter(a => conMaterial.has(a.id)).map(a => ({ id: a.id, label: a.nombre }))),
+      proveedores: unicos(materials.flatMap(m => proveedoresDe(m).map(p => ({ id: p.id, label: p.nombre })))),
+      fabricantes: unicos(materials.map(m => m.fabricante ? { id: m.fabricante.id, label: m.fabricante.nombre } : null)),
+      categorias: unicos(materials.map(m => m.categoria ? { id: m.categoria, label: m.categoria } : null)),
+    };
+  }, [materials, locations, activos, reservations, activoLinks]);
+
   const filteredMaterials = useMemo(() => materials.filter(material => {
     const q = search.trim().toLowerCase();
     const matches = !q || [material.nombre, material.codigo, material.ubicacion_bodega].filter(Boolean).some(v => String(v).toLowerCase().includes(q));
-    const reservedAtLocation = !locationFilterId || reservations.some(item => item.ubicacion_id === locationFilterId && item.parte_id === material.id);
-    return matches && reservedAtLocation && (stockFilter === "todos" || stockState(material) === stockFilter);
+    const algunoEn = (sel: string[], ids: Iterable<string> | undefined) =>
+      sel.length === 0 || [...(ids ?? [])].some(id => sel.includes(id));
+    return matches
+      && (filtros.stock.length === 0 || filtros.stock.includes(stockState(material)))
+      && algunoEn(filtros.ubicaciones, relaciones.ubicaciones.get(material.id))
+      && algunoEn(filtros.activos, relaciones.activos.get(material.id))
+      && algunoEn(filtros.proveedores, proveedoresDe(material).map(p => p.id))
+      && algunoEn(filtros.fabricantes, material.fabricante ? [material.fabricante.id] : [])
+      && algunoEn(filtros.categorias, material.categoria ? [material.categoria] : []);
   }).sort((a, b) => {
     switch (sort) {
       case "nombre_asc":         return a.nombre.localeCompare(b.nombre, "es");
@@ -289,7 +329,7 @@ function MaterialesPageInner() {
       case "actualizacion_asc":  return a.updated_at.localeCompare(b.updated_at);
       default:                   return b.updated_at.localeCompare(a.updated_at);
     }
-  }), [locationFilterId, materials, reservations, search, sort, stockFilter]);
+  }), [filtros, materials, relaciones, search, sort]);
 
   const refresh = async () => { if (workspaceId) await loadData(workspaceId); };
 
@@ -318,7 +358,6 @@ function MaterialesPageInner() {
   if (loading) return <Loading />;
 
   const showRight = !!(editor || selectedMaterial || selectedLocation);
-  const activeRelationFilter = locationFilterId;
   return (
     <div className={styles.page}>
       {/* Toolbar — mismo lenguaje que /ordenes: barra al tono del lienzo,
@@ -390,73 +429,16 @@ function MaterialesPageInner() {
         {/* Fila de filtros — chips con el mismo alto (34), radio e icono en azul
             de marca que la FilterBar de /ordenes. */}
         <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 20px", minHeight: 40, flexWrap: "wrap" }}>
-          {([
-            ["todos", "Todos", <Boxes size={16} key="i" />],
-            ["agotado", "Agotado", <CircleAlert size={16} key="i" />],
-            ["bajo", "Stock bajo", <AlertTriangle size={16} key="i" />],
-            ["ok", "En stock", <Check size={16} key="i" />],
-          ] as [StockFilter, string, React.ReactNode][]).map(([value, label, icon]) => {
-            const active = stockFilter === value;
-            return (
-              <button
-                key={value}
-                type="button"
-                onClick={() => setStockFilter(value)}
-                aria-pressed={active}
-                style={{
-                  display: "flex", alignItems: "center", gap: 6,
-                  height: 34, padding: "0 11px",
-                  border: active ? "1.5px solid var(--brand)" : "1px solid var(--border)",
-                  borderRadius: "var(--r-sm)",
-                  background: active ? "var(--brand-tint)" : "var(--surface-1)",
-                  color: active ? "var(--brand)" : "var(--fg-2)",
-                  fontSize: 14, fontWeight: 400,
-                  cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap",
-                }}
-              >
-                <span style={{ display: "flex", color: "var(--brand)" }}>{icon}</span>
-                {label}
-                {active && <Check size={11} />}
-              </button>
-            );
-          })}
-
-          {/* Filtro por relacion (ubicacion / material). Chip con contador,
-              igual que los FilterDropdown de /ordenes; el catalogo se elige en
-              el dialogo existente. */}
-          <button
-            type="button"
-            onClick={() => setFilterOpen(true)}
-            title="Filtrar por ubicación"
-            style={{
-              display: "flex", alignItems: "center", gap: 6,
-              height: 34, padding: "0 11px",
-              border: activeRelationFilter ? "1.5px solid var(--brand)" : "1px solid var(--border)",
-              borderRadius: "var(--r-sm)",
-              background: activeRelationFilter ? "var(--brand-tint)" : "var(--surface-1)",
-              color: activeRelationFilter ? "var(--brand)" : "var(--fg-2)",
-              fontSize: 14, fontWeight: 400,
-              cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap",
-            }}
-          >
-            <span style={{ display: "flex", color: "var(--brand)" }}>
-              <MapPin size={16} />
-            </span>
-            Ubicación
-            {activeRelationFilter && (
-              <span style={{ fontSize: 14, fontWeight: 400, background: "var(--brand)", color: "var(--fg-on-brand)", borderRadius: "50%", width: 15, height: 15, display: "flex", alignItems: "center", justifyContent: "center" }}>1</span>
-            )}
-          </button>
+          <MaterialFiltrosBar filtros={filtros} onChange={setFiltros} opciones={opcionesFiltro} />
 
           {/* Limpiar — solo aparece cuando hay algo que limpiar, como el
               "Limpiar" de los dropdowns de /ordenes. */}
-          {(activeRelationFilter || stockFilter !== "todos" || search) && (
+          {(hayFiltrosActivos || search) && (
             <button
               type="button"
               onClick={() => {
                 setSearch("");
-                setStockFilter("todos");
-                setLocationFilterId(null);
+                setFiltros(FILTROS_VACIOS);
               }}
               style={{
                 display: "flex", alignItems: "center", gap: 5, height: 34, padding: "0 11px",
@@ -607,7 +589,6 @@ function MaterialesPageInner() {
 
       {restockOpen && selectedMaterial && <RestockDialog material={selectedMaterial} onClose={() => setRestockOpen(false)} onSaved={async () => { await refresh(); setRestockOpen(false); }} />}
       {reserveOpen && selectedLocation && <ReservationDialog location={selectedLocation} materials={materials.filter(item => Number(item.stock_actual) > 0)} places={places.filter(item => item.ubicacion_id === selectedLocation.id)} onClose={() => setReserveOpen(false)} onSaved={async () => { await refresh(); setReserveOpen(false); }} />}
-      {filterOpen && <InventoryFilterDialog segment="materiales" locations={locations} materials={materials} selectedId={activeRelationFilter} onSelect={id => { setLocationFilterId(id); setFilterOpen(false); }} onClose={() => setFilterOpen(false)} />}
     </div>
   );
 }
@@ -929,8 +910,9 @@ function MaterialDetail({ material, reservations, locations, activoLinks, stockE
   const state = stockState(material);
   const badge = STOCK_BADGE[state];
   const reservado = reservations.reduce((sum, item) => sum + Number(item.cantidad), 0);
-  // Lo realmente libre: lo que hay menos lo apartado y lo ya comprometido.
-  const disponible = Number(material.stock_actual) - reservado - comprometido;
+  // Lo realmente libre: lo que hay en bodega menos lo que piden las OTs
+  // abiertas. Lo reservado NO se resta: reserve_material ya lo sacó de stock_actual.
+  const disponible = Number(material.stock_actual) - comprometido;
   /** Activos visibles. Se muestran de a 4 para que la sección no empuje al
    *  resto de la ficha fuera de pantalla cuando un repuesto sirve a decenas
    *  de equipos; "Ver más" agrega otra tanda de 4. */
@@ -1058,7 +1040,7 @@ function MaterialDetail({ material, reservations, locations, activoLinks, stockE
                         border: "1px solid var(--border)",
                         display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
                       }}>
-                        <Boxes size={16} />
+                        <Engine size={16} />
                       </span>
                     )}
 
@@ -1490,7 +1472,7 @@ function ActivoPicker({ activos, selected, onToggle }: {
                 background: "var(--brand-tint)", color: "var(--brand)", fontSize: 14,
               }}
             >
-              <Package size={13} style={{ flexShrink: 0 }} />
+              <Engine size={13} style={{ flexShrink: 0 }} />
               <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                 {activo?.nombre ?? "Activo"}
               </span>
@@ -1832,7 +1814,7 @@ function MaterialEditor({ state, workspaceId, activos, activoLinks, onClose, onS
           {/* Activos a los que sirve este material. Es lo que convierte el
               inventario en un catálogo de repuestos: la parte se declara acá,
               junto al resto de sus datos, y la ficha sólo la muestra. */}
-          <FieldRow icon={<Package size={16} />} label="Activos">
+          <FieldRow icon={<Engine size={16} />} label="Activos">
             <ActivoPicker
               activos={activos}
               selected={links}

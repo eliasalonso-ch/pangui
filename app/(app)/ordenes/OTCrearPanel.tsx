@@ -2,11 +2,9 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import {
-  X, Loader2, User, MapPin, Settings2,
-  CalendarDays, Tag, Check, ChevronDown, Building2, Hash, FileUp, Plus, AlertTriangle,
-  Camera, ImagePlus, Trash2, Upload, Paperclip, FileText, File, DollarSign, Sparkles,
-  FolderOpen, Image as ImageIcon, ImageUp, Pencil, Link2, Box, Repeat, Zap, Locate, Contact, Flag, Clock,
+  X, Loader2, User, MapPin, Settings2, CalendarDays, Tag, Check, ChevronDown, Building2, Hash, FileUp, Plus, AlertTriangle, Camera, Trash2, Upload, Paperclip, FileText, File, DollarSign, Sparkles, FolderOpen, Image as ImageIcon, ImageUp, Pencil, Link2, Repeat, Zap, Locate, Contact, Flag, Clock,
 } from "lucide-react";
+import { Engine } from "@/components/icons/Engine";
 import { AlbumModal } from "./AlbumModal";
 import { createClient } from "@/lib/supabase";
 import CuadrillaQuickAdd from "@/components/ordenes/CuadrillaQuickAdd";
@@ -2075,7 +2073,7 @@ export default function OTCrearPanel({
           </FieldRow>
 
           {/* Activo */}
-          <FieldRow icon={<Box size={16} />} label="Activo">
+          <FieldRow icon={<Engine size={16} />} label="Activo">
             <CatalogoSelect<Activo>
               value={form.activo_id}
               options={activoOptions}

@@ -3,11 +3,9 @@
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
-  ChevronLeft, Loader2, Upload, User, MapPin, Settings2,
-  Clock, CalendarDays, Tag, X, Check, ChevronDown,
-  Camera, Plus, Trash2, ImagePlus, GripVertical,
-  Paperclip, FileText, File, Link2, Sparkles,
+  ChevronLeft, Loader2, Upload, User, MapPin, Clock, CalendarDays, Tag, X, Camera, Plus, Trash2, ImagePlus, Paperclip, FileText, File, Link2, Sparkles,
 } from "lucide-react";
+import { Engine } from "@/components/icons/Engine";
 import { createClient } from "@/lib/supabase";
 import { callEdge } from "@/lib/edge";
 import { uploadAndAddFotoToGrupo, createFotoGrupo } from "@/lib/foto-grupos-api";
@@ -594,7 +592,7 @@ export default function OTCrearForm({ usuarios, ubicaciones, activos, categorias
           </FieldRow>
 
           {/* Asset */}
-          <FieldRow icon={<Settings2 size={16} />} label="Equipo / Activo">
+          <FieldRow icon={<Engine size={16} />} label="Equipo / Activo">
             <SearchSelect
               placeholder="Empiece a escribir…"
               value={form.activo_id}

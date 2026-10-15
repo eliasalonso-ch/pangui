@@ -21,11 +21,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
-  Box, Check, ChevronDown, ChevronRight, Clock, File, FileText, Flag, Gauge, GitBranch,
-  Image as ImageIcon, Inbox,
-  Lock, MapPin, Paperclip, Play, Plus, Settings, Settings2, SlidersHorizontal, Tag,
-  Trash2, User, X,
+  Check, ChevronDown, ChevronRight, Clock, File, FileText, Flag, Gauge, GitBranch, Image as ImageIcon, Inbox, Lock, MapPin, Paperclip, Play, Plus, Settings, Settings2, SlidersHorizontal, Tag, Trash2, User, X,
 } from "lucide-react";
+import { Engine } from "@/components/icons/Engine";
 import SearchSelect from "@/components/activos/SearchSelect";
 import AssigneeSelect from "@/components/ordenes/AssigneeSelect";
 import CategoriaMultiSelect from "@/components/ordenes/CategoriaMultiSelect";
@@ -1693,7 +1691,7 @@ export default function AutomatizacionCrearPanel({
                         Para cambiarlo se quita el medidor, que es justo lo que
                         dice el texto de abajo. */}
                     <SearchSelect
-                      icono={<Box size={15} />}
+                      icono={<Engine size={15} />}
                       placeholder="Busca un equipo…"
                       value={t.activo_id}
                       options={opcionesActivo}
@@ -2136,9 +2134,9 @@ export default function AutomatizacionCrearPanel({
                       />
                     </FieldRow>
 
-                    <FieldRow icon={<Box size={16} />} label="Activo">
+                    <FieldRow icon={<Engine size={16} />} label="Activo">
                       <SearchSelect
-                        icono={<Box size={15} />}
+                        icono={<Engine size={15} />}
                         placeholder="Elige un activo…"
                         value={a.activo_id}
                         options={activos}

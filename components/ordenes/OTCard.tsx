@@ -2,11 +2,9 @@
 
 import React from "react";
 import {
-  Settings2, MapPin, Clock, MessageSquare,
-  CircleDashed, PauseCircle, PlayCircle, CheckCircle2, UserCheck,
-  ArrowUpCircle, ArrowDownCircle, MinusCircle, AlertCircle, ClipboardCheck,
-  type LucideIcon,
+  MapPin, Clock, MessageSquare, CircleDashed, PauseCircle, PlayCircle, CheckCircle2, UserCheck, ArrowUpCircle, ArrowDownCircle, MinusCircle, AlertCircle, type LucideIcon, ClipboardCheck,
 } from "lucide-react";
+import { Engine } from "@/components/icons/Engine";
 import { Badge } from "@/components/ui/badge";
 import type { OrdenListItem, Usuario, Estado, Prioridad } from "@/types/ordenes";
 import { CategoriaIcon } from "@/components/ordenes/categoria-icon";
@@ -243,7 +241,7 @@ export function OTCard({
         {/* Asset */}
         {orden.activos?.nombre && (
           <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-            <Settings2 className="size-3 shrink-0" />
+            <Engine className="size-3 shrink-0" />
             {orden.activos.nombre}
           </span>
         )}

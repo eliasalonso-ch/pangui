@@ -4,9 +4,9 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
-  BellRing, Box, Calendar, Check, ChevronDown, ChevronRight, CircleUserRound, CreditCard, Inbox, Kanban, Link2,
-  List, LogOut, MapPin, MapPinned, Monitor, Moon, SlidersHorizontal, Sun,
+  BellRing, Calendar, Check, ChevronDown, ChevronRight, CircleUserRound, CreditCard, Inbox, Kanban, Link2, List, LogOut, MapPin, MapPinned, Monitor, Moon, SlidersHorizontal, Sun,
 } from "lucide-react";
+import { Engine } from "@/components/icons/Engine";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -55,7 +55,7 @@ const VISTAS_ORDENES = [
 ];
 // Reemplazan los controles segmentados que había sobre cada sección.
 const VISTAS_ACTIVOS = [
-  { label: "Activos", href: "/activos/activos", icon: <Box size={16} /> },
+  { label: "Activos", href: "/activos/activos", icon: <Engine size={16} /> },
   { label: "Ubicaciones", href: "/activos/ubicaciones", icon: <MapPin size={16} /> },
 ];
 const VISTAS_UBICACIONES = [

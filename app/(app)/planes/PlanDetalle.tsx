@@ -2,9 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import {
-  X, Wrench, Loader2, CalendarDays, Box, Flag, User, Clock, Tag, MapPin,
-  ChevronRight, Pencil, ClockFading, MoreVertical, Trash2,
+  X, Wrench, Loader2, CalendarDays, Flag, User, Clock, Tag, MapPin, ChevronRight, Pencil, ClockFading, MoreVertical, Trash2,
 } from "lucide-react";
+import { Engine } from "@/components/icons/Engine";
 import { getPlanDetalle } from "@/lib/planes-api";
 import { RECURRENCIA_PLAN_LABELS, type PlanMantencion, type PlanOcurrencia } from "@/types/planes";
 import AuditFooter from "@/components/catalogo/AuditFooter";
@@ -398,7 +398,7 @@ function Contenido({ d }: { d: Detalle }) {
               background: "var(--brand-tint)", color: "var(--brand)",
               display: "inline-flex", alignItems: "center", justifyContent: "center",
             }}>
-              <Box size={18} />
+              <Engine size={18} />
             </span>
           )}
 

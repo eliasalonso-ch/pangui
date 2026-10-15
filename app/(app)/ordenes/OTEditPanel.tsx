@@ -2,10 +2,9 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import {
-  X, ArrowLeft, Loader2, User, MapPin, Settings2,
-  CalendarDays, Tag, Check, ChevronDown, Building2, Hash, Plus, DollarSign,
-  Paperclip, FileText, File, Zap, Locate, Contact, Box,
+  X, ArrowLeft, Loader2, User, MapPin, CalendarDays, Tag, Check, ChevronDown, Building2, Hash, Plus, DollarSign, Paperclip, FileText, File, Zap, Locate, Contact,
 } from "lucide-react";
+import { Engine } from "@/components/icons/Engine";
 import { updateOrden, parseDescMeta, buildDescripcion, ELECTRILAM_WORKSPACE_ID } from "@/lib/ordenes-api";
 import { fetchSolicitantes as fetchSolicitantesCatalog, upsertSolicitante, type Solicitante } from "@/lib/solicitantes-api";
 import { uploadToR2 } from "@/lib/r2";
@@ -968,7 +967,7 @@ export default function OTEditPanel({
             />
           </FieldRow>
 
-          <FieldRow icon={<Box size={16} />} label="Activo">
+          <FieldRow icon={<Engine size={16} />} label="Activo">
             <CatalogoSelect<Activo>
               value={form.activo_id}
               options={activoOptions}

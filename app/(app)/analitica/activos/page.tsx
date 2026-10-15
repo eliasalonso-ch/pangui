@@ -16,8 +16,9 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
-  Activity, AlertTriangle, Building2, MapPin, Package, User, Wrench,
+  Activity, AlertTriangle, Building2, MapPin, Package, User,
 } from "lucide-react";
+import { Engine } from "@/components/icons/Engine";
 import {
   Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, ComposedChart, Legend, Line, LineChart,
   Pie, PieChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis,
@@ -418,7 +419,7 @@ export default function AnaliticaActivosPage() {
           <>
             <FiltroRemoto label="Tipo de activo" icon={<Package size={16} />} tipo="modelo"
               workspaceId={workspaceId} seleccion={modeloFilter} onChange={setModeloFilter} />
-            <FiltroRemoto label="Activo" icon={<Wrench size={16} />} tipo="activo"
+            <FiltroRemoto label="Activo" icon={<Engine size={16} />} tipo="activo"
               workspaceId={workspaceId} seleccion={activoFilter} onChange={setActivoFilter} />
             <FiltroRemoto label="Ubicación" icon={<MapPin size={16} />} tipo="ubicacion"
               workspaceId={workspaceId} seleccion={ubicFilter} onChange={setUbicFilter} />

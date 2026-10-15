@@ -20,8 +20,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  Box, Gauge, Inbox, Loader2, MapPin, MoreVertical, Pencil, Plus, Search, User, Wifi, X,
+  Gauge, Inbox, Loader2, MapPin, MoreVertical, Pencil, Plus, Search, User, Wifi, X,
 } from "lucide-react";
+import { Engine } from "@/components/icons/Engine";
 import { createClient } from "@/lib/supabase";
 import { useDeepLinkId } from "@/lib/use-deep-link-id";
 import {
@@ -514,9 +515,9 @@ function MedidorRow({ m, selected, onOpen }: {
         </span>
         {m.activo_nombre && (
           <span style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 3, fontSize: 14, color: "var(--fg-3)", overflow: "hidden" }}>
-            {/* Box (no Boxes) y en azul: mismo icono que Activos en la barra
+            {/* Engine y en azul: mismo icono que Activos en la barra
                 lateral. Boxes es el de Materiales. */}
-            <Box size={13} style={{ flexShrink: 0, color: "var(--brand)" }} />
+            <Engine size={13} style={{ flexShrink: 0, color: "var(--brand)" }} />
             <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m.activo_nombre}</span>
           </span>
         )}

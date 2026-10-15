@@ -3,9 +3,9 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
-  Wrench, Plus, Search, Loader2, Box, CalendarClock, RotateCw, FileText,
-  ClockFading, MoreVertical, Trash2,
+  Wrench, Plus, Search, Loader2, CalendarClock, RotateCw, FileText,
 } from "lucide-react";
+import { Engine } from "@/components/icons/Engine";
 import { listPlanes, archivePlan, deletePlan, PLANES_PAGE_SIZE } from "@/lib/planes-api";
 import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { RECURRENCIA_PLAN_LABELS, type PlanListItem } from "@/types/planes";
@@ -369,7 +369,7 @@ function PlanCard({ plan, seleccionado, onAbrir }: {
             display: "inline-flex", alignItems: "center", justifyContent: "center",
             flexShrink: 0,
           }}>
-            <Box size={15} />
+            <Engine size={15} />
           </span>
         )}
         <span style={{

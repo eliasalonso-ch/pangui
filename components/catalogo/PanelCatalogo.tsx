@@ -47,16 +47,41 @@ export function FieldRow({ icon, label, children }: {
  * campos no mostraban ningún indicador al recibir el teclado. Se aplica con
  * `onFocus`/`onBlur` — ver `focoInput`.
  */
+// Mismas medidas que los inputs de OTCrearPanel (40px, radio 8, 12px de
+// relleno): con 36/10 los catálogos se veían más apretados que la OT.
 export const inputStyle: React.CSSProperties = {
-  width: "100%", height: 36, padding: "0 10px",
-  border: "1px solid var(--border)", borderRadius: "var(--r-md)",
+  width: "100%", height: 40, padding: "0 12px",
+  border: "1px solid var(--border)", borderRadius: 8,
   fontSize: 14, background: "var(--surface-1)", color: "var(--fg-1)",
   outline: "none", fontFamily: "inherit", boxSizing: "border-box",
 };
 
 export const textareaStyle: React.CSSProperties = {
-  ...inputStyle, height: "auto", padding: 10, resize: "vertical", lineHeight: 1.7,
+  ...inputStyle, height: "auto", padding: "12px 14px", resize: "vertical", lineHeight: 1.7,
 };
+
+/**
+ * Descripción bajo el título, sin rótulo: la de "Nueva OT". La sangría de 22px
+ * la alinea con el texto de los FieldRow (canaleta de 16 + gap de 6).
+ */
+export function DescripcionCampo({ value, onChange, placeholder }: {
+  value: string;
+  onChange: (v: string) => void;
+  placeholder: string;
+}) {
+  return (
+    <div style={{ padding: "14px 0", paddingLeft: 22 }}>
+      <textarea
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        placeholder={placeholder}
+        rows={3}
+        style={{ ...textareaStyle, minHeight: 108 }}
+        {...focoInput}
+      />
+    </div>
+  );
+}
 
 /**
  * Handlers de foco para los inputs de arriba.
@@ -159,7 +184,7 @@ export function PanelCatalogo({
         onSubmit={e => { e.preventDefault(); if (puedeGuardar && !guardando) onSubmit(); }}
         style={{ flex: 1, overflowY: "auto", minHeight: 0 }}
       >
-        <div style={{ padding: "28px 28px 60px", width: "100%", boxSizing: "border-box" }}>
+        <div style={{ padding: "28px 28px 120px", maxWidth: 1180, width: "100%", boxSizing: "border-box" }}>
           {children}
         </div>
       </form>

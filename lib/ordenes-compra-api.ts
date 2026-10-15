@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase";
 import { desglosarNeto } from "@/lib/tributario";
+import { atencionOC } from "@/types/ordenes-compra";
 import type {
   OrdenCompra,
   OrdenCompraCosto,
@@ -11,7 +12,7 @@ import type {
 } from "@/types/ordenes-compra";
 
 const OC_SELECT = `
-  id, workspace_id, numero, numero_manual, proveedor_id, estado, origen,
+  id, workspace_id, numero, numero_manual, proveedor_id, contacto_id, estado, origen,
   plan_id, plan_ocurrencia_id, orden_trabajo_id,
   fecha_emision, fecha_entrega_esperada, direccion_despacho, condiciones_pago, moneda,
   neto, descuento, otros_costos, iva, total, costos,
@@ -20,6 +21,7 @@ const OC_SELECT = `
   enviada_at, enviada_por, enviada_a_email,
   creado_por, actualizado_por, created_at, updated_at,
   proveedor:proveedores!proveedor_id(id, nombre, rut, email, contacto, telefono),
+  contacto:proveedor_contactos!contacto_id(id, nombre, cargo, email, telefono),
   creador:usuarios!creado_por(id, nombre),
   actualizador:usuarios!actualizado_por(id, nombre)
 `;
@@ -276,6 +278,7 @@ export async function createOrdenCompra(form: OrdenCompraForm): Promise<OrdenCom
     .insert({
       workspace_id: perfil.workspace_id,
       proveedor_id: form.proveedor_id || null,
+      contacto_id: form.contacto_id || null,
       numero_manual: form.numero_manual?.trim() || null,
       estado: "borrador",
       origen: "manual",
@@ -322,7 +325,7 @@ export async function updateOrdenCompra(
   for (const k of ["numero_manual", "direccion_despacho", "condiciones_pago", "observaciones", "cotizacion_numero"]) {
     if (typeof limpio[k] === "string") limpio[k] = (limpio[k] as string).trim() || null;
   }
-  for (const k of ["proveedor_id", "fecha_entrega_esperada", "cotizacion_fecha"]) {
+  for (const k of ["proveedor_id", "contacto_id", "fecha_entrega_esperada", "cotizacion_fecha"]) {
     if (limpio[k] === "") limpio[k] = null;
   }
 
@@ -498,7 +501,10 @@ export async function descargarPDF(ocId: string): Promise<void> {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       oc, lineas, emisor,
-      proveedor: proveedorRes.data ?? null,
+      // El template imprime `proveedor.contacto`: ahí va la persona elegida.
+      proveedor: proveedorRes.data
+        ? { ...proveedorRes.data, contacto: atencionOC(oc.contacto) ?? proveedorRes.data.contacto }
+        : null,
       exportadoPor,
       logoUrl: emisor?.logo_url ?? null,
     }),

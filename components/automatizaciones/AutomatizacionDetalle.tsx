@@ -13,10 +13,9 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  AlertCircle, Box, Check, CheckCircle2, Clock, Flag, FileText, Gauge, GitBranch,
-  Inbox, Loader2, MapPin, MinusCircle, MoreVertical, Paperclip, Pencil, Play,
-  Settings2, SlidersHorizontal, Tag, User,
+  AlertCircle, Check, CheckCircle2, Clock, Flag, FileText, Gauge, GitBranch, Inbox, Loader2, MapPin, MinusCircle, MoreVertical, Paperclip, Pencil, Play, Settings2, SlidersHorizontal, Tag, User,
 } from "lucide-react";
+import { Engine } from "@/components/icons/Engine";
 import {
   fetchEjecuciones, toggleAutomatizacion, describirCondicion, describirTrigger, MODOS,
   type AutomatizacionCompleta, type ResultadoEjecucion,
@@ -303,7 +302,7 @@ export default function AutomatizacionDetalle({
                     titulo={`${medidor?.nombre ?? "Medidor eliminado"} ${describirTrigger(t, medidor?.unidad ?? "")}`}
                   >
                     <div>
-                      <FilaDato icono={<Box size={15} />} label="Activo" valor={medidor?.activo_nombre ?? "Todos los activos"} />
+                      <FilaDato icono={<Engine size={15} />} label="Activo" valor={medidor?.activo_nombre ?? "Todos los activos"} />
                       <FilaDato icono={<Gauge size={15} />} label="Medidor" valor={medidor?.nombre ?? "Medidor eliminado"} />
                       <FilaDato
                         icono={<Clock size={15} />}
@@ -361,7 +360,7 @@ export default function AutomatizacionDetalle({
                         : undefined}
                     >
                       <div>
-                        <FilaDato icono={<Box size={15} />} label="Activo" valor={activo} />
+                        <FilaDato icono={<Engine size={15} />} label="Activo" valor={activo} />
                         <FilaDato
                           icono={<Settings2 size={15} />}
                           label="Nuevo estado"
@@ -431,7 +430,7 @@ export default function AutomatizacionDetalle({
                         valor={c.ubicacion_id ? (ubicaciones?.find(u => u.id === c.ubicacion_id)?.label ?? "—") : null}
                       />
                       <FilaDato
-                        icono={<Box size={15} />}
+                        icono={<Engine size={15} />}
                         label="Activo"
                         valor={c.activo_id ? (activos?.find(x => x.id === c.activo_id)?.label ?? "—") : null}
                       />

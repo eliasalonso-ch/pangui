@@ -4,12 +4,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { usePathname, useRouter } from "next/navigation";
 import {
-  Box, Boxes, ChevronDown, ChevronRight, ExternalLink, Loader2, Plus, Search, Trash2, X,
-  Building2, User, MapPin, Calendar, Hash, GitBranch, FileText, Pencil,
-  Maximize2, Inbox, Clock, Link2, CheckCircle2, RefreshCw, PlusCircle, ArrowDown,
-  Check, Camera, Paperclip, File as FileIcon, Tag, Factory, Truck, AlertCircle, DollarSign,
-  MoreVertical, Locate, Users, Gauge, Wifi,
+  Boxes, ChevronDown, ChevronRight, ExternalLink, Loader2, Plus, Search, Trash2, X, Building2, User, MapPin, Calendar, Hash, GitBranch, FileText, Pencil, Maximize2, Inbox, Clock, Link2, CheckCircle2, RefreshCw, PlusCircle, ArrowDown, Check, Camera, Paperclip, File as FileIcon, Tag, Factory, Truck, AlertCircle, DollarSign, MoreVertical, Locate, Users, Gauge, Wifi,
 } from "lucide-react";
+import { Engine } from "@/components/icons/Engine";
 import {
   ACTIVO_SELECT, createActivo, deleteActivo, updateActivo, fetchActivo,
   fetchActivoOTHistoryPage, fetchActivoActividadPage,
@@ -114,7 +111,7 @@ type ActivoTab = "general" | "detalles" | "historial";
  * aria-label — sin eso la barra es inaccesible y no se puede leer al pasar.
  */
 const ACTIVO_NAV: { tab: ActivoTab; label: string; icon: React.ElementType }[] = [
-  { tab: "general",   label: "General",   icon: Box },
+  { tab: "general",   label: "General",   icon: Engine },
   { tab: "detalles",  label: "Detalles",  icon: FileText },
   { tab: "historial", label: "Historial", icon: Clock },
 ];
@@ -445,7 +442,7 @@ function ActivoRow({ activo, selected, onClick }: { activo: Activo; selected: bo
         <img src={activo.imagen_url} alt="" style={{ width: 32, height: 32, borderRadius: "var(--r-md)", objectFit: "cover", background: "var(--surface-hover)", flexShrink: 0 }} />
       ) : (
         <span style={{ width: 32, height: 32, borderRadius: "var(--r-md)", background: "var(--brand-tint)", display: "inline-flex", alignItems: "center", justifyContent: "center", color: "var(--brand)", flexShrink: 0 }}>
-          <Box size={16} />
+          <Engine size={16} />
         </span>
       )}
 
@@ -2391,7 +2388,7 @@ function HistorialTab({ activoId, onOpenOT }: { activoId: string; onOpenOT: (otI
     <div style={{ paddingTop: 16 }}>
       <Card>
         {rows.map((a, idx) => {
-          const cfg = ACTIVIDAD_META[a.tipo] ?? { icon: Box, color: "var(--fg-4)", label: a.tipo };
+          const cfg = ACTIVIDAD_META[a.tipo] ?? { icon: Engine, color: "var(--fg-4)", label: a.tipo };
           const Icon = cfg.icon;
           const isOT = a.tipo === "ot_vinculada" || a.tipo === "ot_completada";
           const otId = typeof a.meta?.orden_id === "string" ? (a.meta.orden_id as string) : null;
@@ -3249,7 +3246,7 @@ export default function ActivosBandeja({ initialActivos, usuarios, ubicaciones, 
               </button>
             )) : filtered.length === 0 ? (
               <EmptyState
-                icon={<Box size={38} strokeWidth={1.4} />}
+                icon={<Engine size={38} strokeWidth={1.4} />}
                 title={
                   search || filterCrit !== "all" || filterSociedadId !== "all"
                     ? "Ningún activo coincide con la búsqueda"
@@ -3304,7 +3301,7 @@ export default function ActivosBandeja({ initialActivos, usuarios, ubicaciones, 
                 onOpenActivo={id => { setEditing(null); setSelected(id); }}
               />
             ) : (
-              <EmptyDetail icon={<Box size={28} strokeWidth={1.5} />} title="Selecciona un activo" />
+              <EmptyDetail icon={<Engine size={28} strokeWidth={1.5} />} title="Selecciona un activo" />
             )}
           </div>
         )}

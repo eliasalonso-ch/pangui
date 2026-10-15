@@ -5,8 +5,9 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase";
 import { EmptyState, EmptyDetail } from "@/components/EmptyState";
 import {
-  ClipboardCheck, Plus, Search, Loader2, X, FileText, ShieldCheck, Tag, Box, MapPin,
+  ClipboardCheck, Plus, Search, Loader2, X, FileText, ShieldCheck, Tag, MapPin,
 } from "lucide-react";
+import { Engine } from "@/components/icons/Engine";
 import {
   OptionRow, OptionList, FilterDropdown, AddFilterMenu, toggle,
 } from "@/components/filtros/primitivas";
@@ -34,7 +35,7 @@ const FILTER_LABEL: Record<FilterKeyProc, string> = { reglas: "Reglas", categori
 const FILTER_ICONS: Record<FilterKeyProc, React.ReactNode> = {
   reglas: <ShieldCheck size={16} />,
   categorias: <Tag size={16} />,
-  activos: <Box size={16} />,
+  activos: <Engine size={16} />,
   ubicaciones: <MapPin size={16} />,
 };
 // Cada filtro de vínculo: qué columna del procedimiento mira y qué catálogo ofrece.
