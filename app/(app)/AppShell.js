@@ -10,6 +10,7 @@ import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { StoreBadges } from "@/components/StoreBadges";
 import PushActivationPrompt from "@/components/PushActivationPrompt";
 import { OnboardingObligatorio } from "@/components/OnboardingObligatorio";
+import InvitacionesContratista from "@/components/InvitacionesContratista";
 
 function applyStoredTheme() {
   const stored = localStorage.getItem("pangui_theme");
@@ -156,6 +157,7 @@ export default function AppShell({ children }) {
             {/* Renders nothing unless this browser can take push, has not been
                 asked before, and is not already subscribed. */}
             <PushActivationPrompt />
+            <InvitacionesContratista />
             <div
               style={{
                 flex: 1,

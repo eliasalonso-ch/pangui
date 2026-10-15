@@ -11,7 +11,6 @@ import { fetchSolicitantes as fetchSolicitantesCatalog, upsertSolicitante, type 
 import { uploadToR2 } from "@/lib/r2";
 import { createClient } from "@/lib/supabase";
 import CuadrillaQuickAdd from "@/components/ordenes/CuadrillaQuickAdd";
-import { ASIGNAR_BTN_WIDTH } from "@/components/ot/OTFormFields";
 import { getOTProcedimientos, attachProcedimiento, detachProcedimiento } from "@/lib/procedimientos-api";
 import ProcedimientosPicker, { type ProcedimientoSeleccionado } from "./ProcedimientosPicker";
 import { buildRecurrenciaConfig, RecurrenceControls } from "./RecurrenceControls";
@@ -20,7 +19,9 @@ import type {
   Prioridad, TipoTrabajo, Recurrencia, RecurrenciaConfig, OTLink,
 } from "@/types/ordenes";
 import LinksInput from "@/components/LinksInput";
-import CategoriaMultiSelect from "@/components/ordenes/CategoriaMultiSelect";
+import CategoriaMultiSelect, { MultiSelect } from "@/components/ordenes/CategoriaMultiSelect";
+import { Desplegable } from "@/components/Desplegable";
+import { DatePicker } from "@/components/ui/date-time-picker";
 import CatalogoSelect from "@/components/ordenes/CatalogoSelect";
 import { FotoOIniciales } from "@/components/FotoPerfil";
 
@@ -82,16 +83,20 @@ const TIPOS: { value: TipoTrabajo; label: string }[] = [
   { value: "levantamiento", label: "Levantamiento" },
 ];
 
+// "YYYY-MM-DD" <-> Date local a mediodía, para el DatePicker: así ningún huso
+// horario corre el día.
+const aDate = (ymd: string) => new Date(`${ymd.slice(0, 10)}T12:00:00`);
+const aYmd = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
 // ── Shared components (same as OTCrearPanel) ──────────────────────────────────
 
-function FieldRow({ icon, label, children }: {
-  icon: React.ReactNode; label: string; children: React.ReactNode;
+function FieldRow({ label, children }: {
+  /** Ya no se dibuja: el formulario va sin íconos (igual que OTCrearPanel). */
+  icon?: React.ReactNode; label: string; children: React.ReactNode;
 }) {
   return (
     <div style={{ display: "flex", alignItems: "flex-start", gap: 6, padding: "14px 0" }}>
-      <div style={{ width: 16, paddingTop: 3, display: "flex", justifyContent: "flex-start", flexShrink: 0, color: "var(--brand)" }}>
-        {icon}
-      </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", marginBottom: 10, letterSpacing: "0.01em" }}>
           {label}
@@ -132,7 +137,7 @@ function SearchSelect({ placeholder, value, options, onChange }: {
         onClick={() => { setOpen(!open); setQuery(""); }}
         style={{
           width: "100%", height: 40, display: "flex", alignItems: "center", gap: 8,
-          padding: "0 12px", border: "1px solid var(--border)", borderRadius: 8,
+          padding: "0 12px", border: "1px solid var(--border)", borderRadius: "var(--r-sm)",
           background: "var(--surface-1)", fontSize: 14, color: selected ? "var(--fg-1)" : "var(--fg-4)",
           cursor: "pointer", textAlign: "left",
         }}
@@ -140,7 +145,7 @@ function SearchSelect({ placeholder, value, options, onChange }: {
         <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
           {selected ? selected.label : placeholder}
         </span>
-        <ChevronDown size={13} style={{ flexShrink: 0, color: "var(--fg-4)" }} />
+        <ChevronDown size={16} style={{ flexShrink: 0, color: "var(--brand)" }} />
       </button>
       {open && (
         <div style={{
@@ -204,111 +209,6 @@ function SearchSelect({ placeholder, value, options, onChange }: {
   );
 }
 
-function AssigneeSelect({ usuarios, value, onChange }: {
-  usuarios: Usuario[]; value: string[]; onChange: (ids: string[]) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState("");
-  const ref = useRef<HTMLDivElement>(null);
-  // Solo se puede asignar trabajo a usuarios vigentes; la lista completa se
-  // conserva mas abajo para resolver el nombre de los ya asignados.
-  const filtered = usuarios.filter(u => !u.deleted_at && u.nombre.toLowerCase().includes(query.toLowerCase()));
-
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, []);
-
-  function initials(name: string) {
-    const p = name.trim().split(/\s+/);
-    return p.length === 1 ? p[0].slice(0, 2).toUpperCase() : (p[0][0] + p[p.length - 1][0]).toUpperCase();
-  }
-  function toggle(id: string) {
-    onChange(value.includes(id) ? value.filter(x => x !== id) : [...value, id]);
-    setOpen(false);
-  }
-  const selected = value.map(id => usuarios.find(u => u.id === id)).filter(Boolean) as Usuario[];
-
-  return (
-    <div ref={ref} style={{ position: "relative" }}>
-      {selected.length > 0 && (
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 10 }}>
-          {selected.map(u => (
-            <span key={u.id} style={{
-              display: "flex", alignItems: "center", gap: 4,
-              padding: "2px 7px 2px 4px", background: "var(--brand-tint)", borderRadius: 20,
-              fontSize: 14, color: "var(--brand)",
-            }}>
-              <span style={{
-                width: 18, height: 18, borderRadius: "50%", background: "var(--brand)", color: "var(--fg-on-brand)",
-                display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 400,
-              }}><FotoOIniciales id={u.id}>{initials(u.nombre)}</FotoOIniciales></span>
-              {u.nombre}
-              <button type="button" onClick={() => toggle(u.id)}
-                style={{ background: "none", border: "none", cursor: "pointer", color: "var(--brand)", display: "flex", padding: 0, lineHeight: 1 }}>
-                <X size={10} />
-              </button>
-            </span>
-          ))}
-        </div>
-      )}
-      <button
-        type="button"
-        onClick={() => { setOpen(!open); setQuery(""); }}
-        style={{
-          // Mismo ancho que "Asignar una cuadrilla", que va justo debajo.
-          width: ASIGNAR_BTN_WIDTH,
-          height: 40, display: "flex", alignItems: "center", gap: 8,
-          padding: "0 12px", border: "1px solid var(--border)", borderRadius: 8,
-          background: "var(--surface-1)", fontSize: 14, color: "var(--fg-4)", cursor: "pointer", fontFamily: "inherit",
-        }}
-      >
-        <User size={13} />
-        Asignar técnico
-        <ChevronDown size={12} style={{ color: "var(--fg-4)", marginLeft: "auto" }} />
-      </button>
-      {open && (
-        <div style={{
-          position: "absolute", top: "calc(100% + 3px)", left: 0, zIndex: 200,
-          minWidth: 220, background: "var(--surface-1)", border: "1px solid var(--border)",
-          borderRadius: 8, boxShadow: "var(--shadow-md)", overflow: "hidden",
-        }}>
-          <div style={{ padding: "8px 8px 4px" }}>
-            <input autoFocus placeholder="Buscar por nombre…" value={query}
-              onChange={e => setQuery(e.target.value)}
-              style={{ width: "100%", height: 36, padding: "0 10px", border: "1px solid var(--border)", borderRadius: 8, fontSize: 14, outline: "none", color: "var(--fg-1)", fontFamily: "inherit", background: "var(--surface-1)" }}
-            />
-          </div>
-          <div style={{ maxHeight: 200, overflowY: "auto" }}>
-            {filtered.map(u => {
-              const sel = value.includes(u.id);
-              return (
-                <button key={u.id} type="button" onClick={() => toggle(u.id)}
-                  style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "10px 12px", background: sel ? "var(--brand-tint)" : "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}>
-                  <span style={{ width: 26, height: 26, borderRadius: "50%", background: sel ? "var(--brand)" : "var(--surface-hover)", color: sel ? "var(--fg-on-brand)" : "var(--fg-3)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 400, flexShrink: 0 }}>
-                    <FotoOIniciales id={u.id}>{initials(u.nombre)}</FotoOIniciales>
-                  </span>
-                  <div style={{ flex: 1, textAlign: "left" }}>
-                    <div style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)" }}>{u.nombre}</div>
-                    <div style={{ fontSize: 14, color: "var(--fg-4)", textTransform: "capitalize" }}>{u.rol}</div>
-                  </div>
-                  {sel && <Check size={13} style={{ color: "var(--brand)", flexShrink: 0 }} />}
-                </button>
-              );
-            })}
-            {filtered.length === 0 && <div style={{ padding: "8px 10px", fontSize: 14, color: "var(--fg-4)" }}>Sin resultados</div>}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ── HitoSelect ───────────────────────────────────────────────────────────────
-
 function HitoSelect({ value, onChange, wsId }: {
   value: string;
   onChange: (v: string) => void;
@@ -371,7 +271,7 @@ function HitoSelect({ value, onChange, wsId }: {
         onClick={() => { setOpen(!open); setQuery(""); }}
         style={{
           width: "100%", height: 40, display: "flex", alignItems: "center", gap: 8,
-          padding: "0 12px", border: "1px solid var(--border)", borderRadius: 8,
+          padding: "0 12px", border: "1px solid var(--border)", borderRadius: "var(--r-sm)",
           background: "var(--surface-1)", fontSize: 14, color: value ? "var(--fg-1)" : "var(--fg-4)",
           cursor: "pointer", textAlign: "left", fontFamily: "inherit",
         }}
@@ -379,7 +279,7 @@ function HitoSelect({ value, onChange, wsId }: {
         <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
           {value || "Seleccionar o crear ITO…"}
         </span>
-        <ChevronDown size={13} style={{ flexShrink: 0, color: "var(--fg-4)" }} />
+        <ChevronDown size={16} style={{ flexShrink: 0, color: "var(--brand)" }} />
       </button>
       {open && (
         <div style={{
@@ -500,7 +400,7 @@ function SolicitanteSelect({ value, telefono, email, onChange, wsId }: {
           onClick={() => { setOpen(!open); setQuery(""); }}
           style={{
             width: "100%", height: 40, display: "flex", alignItems: "center", gap: 8,
-            padding: "0 12px", border: "1px solid var(--border)", borderRadius: 8,
+            padding: "0 12px", border: "1px solid var(--border)", borderRadius: "var(--r-sm)",
             background: "var(--surface-1)", fontSize: 14, color: value ? "var(--fg-1)" : "var(--fg-4)",
             cursor: "pointer", textAlign: "left", fontFamily: "inherit",
           }}
@@ -508,7 +408,7 @@ function SolicitanteSelect({ value, telefono, email, onChange, wsId }: {
           <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
             {value || "Seleccionar o crear solicitante…"}
           </span>
-          <ChevronDown size={13} style={{ flexShrink: 0, color: "var(--fg-4)" }} />
+          <ChevronDown size={16} style={{ flexShrink: 0, color: "var(--brand)" }} />
         </button>
         {open && (
           <div style={{
@@ -595,14 +495,14 @@ function SolicitanteSelect({ value, telefono, email, onChange, wsId }: {
             placeholder="Teléfono"
             value={telefono}
             onChange={e => onChange(value, e.target.value, email)}
-            style={{ height: 38, padding: "0 12px", border: "1px solid var(--border)", borderRadius: 8, fontSize: 14, color: "var(--fg-1)", outline: "none", fontFamily: "inherit", background: "var(--surface-1)" }}
+            style={{ height: 38, padding: "0 12px", border: "1px solid var(--border)", borderRadius: "var(--r-sm)", fontSize: 14, color: "var(--fg-1)", outline: "none", fontFamily: "inherit", background: "var(--surface-1)" }}
           />
           <input
             type="email"
             placeholder="Email"
             value={email}
             onChange={e => onChange(value, telefono, e.target.value)}
-            style={{ height: 38, padding: "0 12px", border: "1px solid var(--border)", borderRadius: 8, fontSize: 14, color: "var(--fg-1)", outline: "none", fontFamily: "inherit", background: "var(--surface-1)" }}
+            style={{ height: 38, padding: "0 12px", border: "1px solid var(--border)", borderRadius: "var(--r-sm)", fontSize: 14, color: "var(--fg-1)", outline: "none", fontFamily: "inherit", background: "var(--surface-1)" }}
           />
         </div>
       )}
@@ -816,7 +716,7 @@ export default function OTEditPanel({
 
       {/* Scrollable body */}
       <div style={{ flex: 1, overflowY: "auto", minHeight: 0 }}>
-        <div style={{ padding: "28px 28px 120px", maxWidth: 1180 }}>
+        <div style={{ padding: "28px", maxWidth: 1180 }}>
 
           {/* Title */}
           <div style={{ marginBottom: 24 }}>
@@ -836,7 +736,7 @@ export default function OTEditPanel({
           </div>
 
           {/* Description */}
-          <div style={{ padding: "14px 0", paddingLeft: 22 }}>
+          <div style={{ padding: "14px 0" }}>
             <textarea
               placeholder="Agregue una descripción"
               value={form.descripcion}
@@ -844,7 +744,7 @@ export default function OTEditPanel({
               rows={3}
               style={{
                 width: "100%", fontSize: 14, color: "var(--fg-1)",
-                border: "1px solid var(--border)", borderRadius: 8,
+                border: "1px solid var(--border)", borderRadius: "var(--r-sm)",
                 padding: "12px 14px", outline: "none", resize: "vertical",
                 fontFamily: "inherit", background: "var(--surface-1)", lineHeight: 1.7, minHeight: 108,
               }}
@@ -852,29 +752,32 @@ export default function OTEditPanel({
           </div>
 
           {/* Work type — promoted near the top so it's set before scrolling. */}
-          <div style={{ padding: "14px 0" }}>
-            <div style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-3)", marginBottom: 10, letterSpacing: "0.01em" }}>Tipo de trabajo</div>
-            <select value={form.tipo_trabajo} onChange={e => setF("tipo_trabajo", e.target.value as TipoTrabajo | "")}
-              style={{ width: "100%", height: 40, padding: "0 12px", border: "1px solid var(--border)", borderRadius: 8, fontSize: 14, color: "var(--fg-1)", outline: "none", background: "var(--surface-1)", fontFamily: "inherit" }}>
-              {TIPOS.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-            </select>
-          </div>
+          <FieldRow label="Tipo de trabajo">
+            <Desplegable<TipoTrabajo | "">
+              ariaLabel="Tipo de trabajo"
+              anchoCompleto
+              placeholder="Sin tipo"
+              value={form.tipo_trabajo}
+              onChange={v => setF("tipo_trabajo", v)}
+              opciones={TIPOS}
+            />
+          </FieldRow>
 
           {/* Procedimientos */}
-          <div style={{ padding: "24px 0", borderBottom: "1px solid var(--border)" }}>
+          <div style={{ padding: "14px 0" }}>
             <ProcedimientosPicker
               workspaceId={wsId}
               value={procedimientos}
               onChange={setProcedimientos}
+              sinIcono
             />
           </div>
 
           {/* Adjuntos */}
-          <div style={{ padding: "24px 0", borderBottom: "1px solid var(--border)" }}>
+          <div style={{ padding: "14px 0" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <Paperclip size={13} style={{ color: "var(--fg-4)" }} />
-                <span style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-3)", letterSpacing: "0.01em" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <span style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", letterSpacing: "0.01em" }}>
                   Adjuntos
                 </span>
               </div>
@@ -884,7 +787,13 @@ export default function OTEditPanel({
               <button
                 type="button"
                 onClick={() => adjuntoInputRef.current?.click()}
-                style={{ display: "flex", alignItems: "center", gap: 4, height: 32, padding: "0 12px", border: "1px solid var(--brand)", borderRadius: 5, background: "var(--brand-tint)", color: "var(--brand)", fontSize: 14, fontWeight: 400, cursor: "pointer", fontFamily: "inherit" }}
+                style={{
+                  display: "flex", alignItems: "center", gap: 4,
+                  height: 32, padding: "0 12px",
+                  border: "1px solid var(--border)", borderRadius: 8,
+                  background: "var(--surface-1)", color: "var(--brand)",
+                  fontSize: 14, fontWeight: 400, cursor: "pointer", fontFamily: "inherit",
+                }}
               >
                 <Plus size={11} />
                 Adjuntar archivo
@@ -959,13 +868,12 @@ export default function OTEditPanel({
               // Mismo vacío que Procedimiento (borde tenue + botón sólido).
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, padding: "18px 12px", border: "1px dashed var(--border-strong)", borderRadius: "var(--r-md)", background: "var(--surface-canvas)" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 14, color: "var(--fg-3)" }}>
-                  <Paperclip size={15} style={{ color: "var(--brand)" }} />
                   PDF, Word, Excel, TXT, CSV, DWG, MP3, M4A…
                 </div>
                 <button
                   type="button"
                   onClick={() => adjuntoInputRef.current?.click()}
-                  style={{ height: 38, padding: "0 18px", display: "flex", alignItems: "center", gap: 7, border: "1px solid var(--brand)", borderRadius: "var(--r-sm)", background: "var(--surface-1)", color: "var(--brand)", fontSize: 14, fontWeight: 400, fontFamily: "inherit", cursor: "pointer" }}
+                  style={{ height: 38, padding: "0 18px", display: "flex", alignItems: "center", gap: 7, border: "1px solid var(--border)", borderRadius: "var(--r-sm)", background: "var(--surface-1)", color: "var(--brand)", fontSize: 14, fontWeight: 400, fontFamily: "inherit", cursor: "pointer" }}
                 >
                   <Plus size={15} /> Adjuntar archivo
                 </button>
@@ -974,15 +882,12 @@ export default function OTEditPanel({
           </div>
 
           {/* Links */}
-          <div style={{ padding: "24px 0", borderBottom: "1px solid var(--border)" }}>
-            <label style={{ display: "block", fontSize: 14, fontWeight: 400, color: "var(--fg-3)", letterSpacing: "0.01em", marginBottom: 10 }}>
-              Links
-            </label>
+          <FieldRow label="Links">
             <LinksInput
               links={form.links.filter(l => l.tipo !== "archivo")}
               onChange={newLinks => setF("links", [...form.links.filter(l => l.tipo === "archivo"), ...newLinks])}
             />
-          </div>
+          </FieldRow>
 
           <FieldRow icon={<Hash size={16} />} label="N° de OT">
             <input
@@ -990,7 +895,7 @@ export default function OTEditPanel({
               placeholder="Ej: SF920260325921"
               value={form.n_ot}
               onChange={e => setF("n_ot", e.target.value)}
-              style={{ width:"100%", height:40, padding:"0 12px", border:"1px solid var(--border)", borderRadius:8, fontSize: 14, color:"var(--fg-1)", outline:"none", fontFamily:"var(--font-mono)", background:"var(--surface-1)" }}
+              style={{ width:"100%", height:40, padding:"0 12px", border:"1px solid var(--border)", borderRadius: "var(--r-sm)", fontSize: 14, color:"var(--fg-1)", outline:"none", fontFamily:"var(--font-mono)", background:"var(--surface-1)" }}
             />
           </FieldRow>
 
@@ -1017,7 +922,7 @@ export default function OTEditPanel({
               placeholder="Ej: PRE-2025-001"
               value={form.presupuesto}
               onChange={e => setF("presupuesto", e.target.value)}
-              style={{ width:"100%", height:40, padding:"0 12px", border:"1px solid var(--border)", borderRadius:8, fontSize: 14, color:"var(--fg-1)", outline:"none", fontFamily:"inherit", background:"var(--surface-1)" }}
+              style={{ width:"100%", height:40, padding:"0 12px", border:"1px solid var(--border)", borderRadius: "var(--r-sm)", fontSize: 14, color:"var(--fg-1)", outline:"none", fontFamily:"inherit", background:"var(--surface-1)" }}
             />
           </FieldRow>
 
@@ -1078,55 +983,77 @@ export default function OTEditPanel({
           </FieldRow>
 
           <FieldRow icon={<User size={16} />} label="Asignar a">
-            <AssigneeSelect usuarios={usuarios} value={form.asignados_ids} onChange={v => setF("asignados_ids", v)} />
+            {/* Mismo selector múltiple con búsqueda que en crear. Los dados de
+                baja no reciben trabajo nuevo, pero los ya asignados se muestran. */}
+            <MultiSelect
+              options={usuarios.filter(u => !u.deleted_at).map(u => ({ id: u.id, label: u.nombre }))}
+              seleccionadas={usuarios.filter(u => form.asignados_ids.includes(u.id)).map(u => ({ id: u.id, label: u.nombre }))}
+              value={form.asignados_ids}
+              onChange={v => setF("asignados_ids", v)}
+              vacio="Sin técnicos"
+            />
             <CuadrillaQuickAdd
               wsId={wsId}
+              ancho="100%"
               onAdd={ids => setF("asignados_ids", Array.from(new Set([...(form.asignados_ids ?? []), ...ids])))}
             />
           </FieldRow>
 
           <FieldRow icon={<CalendarDays size={16} />} label="Fecha de inicio">
-            <input type="date" value={form.fecha_inicio} onChange={e => setF("fecha_inicio", e.target.value)}
-              style={{ height: 40, padding: "0 12px", border: "1px solid var(--border)", borderRadius: 8, fontSize: 14, color: form.fecha_inicio ? "var(--fg-1)" : "var(--fg-4)", outline: "none", fontFamily: "inherit", background: "var(--surface-1)" }}
+            <DatePicker
+              value={form.fecha_inicio ? aDate(form.fecha_inicio) : undefined}
+              onChange={d => setF("fecha_inicio", d ? aYmd(d) : "")}
             />
           </FieldRow>
 
           <FieldRow icon={<CalendarDays size={16} />} label="Fecha de vencimiento">
-            <input type="date" value={form.fecha_termino} onChange={e => setF("fecha_termino", e.target.value)}
-              style={{ height: 40, padding: "0 12px", border: "1px solid var(--border)", borderRadius: 8, fontSize: 14, color: form.fecha_termino ? "var(--fg-1)" : "var(--fg-4)", outline: "none", fontFamily: "inherit", background: "var(--surface-1)" }}
+            <DatePicker
+              value={form.fecha_termino ? aDate(form.fecha_termino) : undefined}
+              min={form.fecha_inicio ? aDate(form.fecha_inicio) : undefined}
+              onChange={d => setF("fecha_termino", d ? aYmd(d) : "")}
             />
           </FieldRow>
 
-          {/* Recurrence */}
           {/* Recurrence — Repetir + Terminar repetición (mirrors the mobile app) */}
-          <div style={{ padding: "24px 0", borderBottom: "1px solid var(--border)" }}>
-            <div style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-3)", marginBottom: 10, letterSpacing: "0.01em" }}>Recurrencia</div>
+          <FieldRow label="Recurrencia">
             <RecurrenceControls
               value={form}
               onChange={next => setForm(prev => ({ ...prev, ...next }))}
             />
-          </div>
+          </FieldRow>
 
-          {/* Priority */}
-          <div style={{ padding: "24px 0", borderBottom: "1px solid var(--border)" }}>
-            <div style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-3)", marginBottom: 12, letterSpacing: "0.01em" }}>Prioridad</div>
-            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-              {PRIORIDADES.map((p) => {
+{/* Priority — connected segmented control (MaintainX style) */}
+          <FieldRow label="Prioridad">
+            <div style={{ display: "inline-flex", border: "1px solid var(--border)", borderRadius: "var(--r-sm)", overflow: "hidden" }}>
+              {PRIORIDADES.map((p, i) => {
                 const active = form.prioridad === p.value;
                 return (
-                  <button key={p.value} type="button" onClick={() => setF("prioridad", p.value)}
-                    style={{ height: 40, padding: "0 16px", border: active ? "none" : "1px solid var(--border)", borderRadius: 8, background: active ? "var(--surface-hover)" : "var(--surface-1)", fontSize: 14, fontWeight: 400, color: active ? p.activeColor : "var(--fg-2)", cursor: "pointer", transition: "all 0.12s", fontFamily: "inherit" }}>
+                  <button
+                    key={p.value}
+                    type="button"
+                    onClick={() => setF("prioridad", p.value)}
+                    style={{
+                      height: 38, padding: "0 16px",
+                      border: "none",
+                      borderLeft: i === 0 ? "none" : "1px solid var(--border)",
+                      background: active ? "var(--surface-hover)" : "var(--surface-1)",
+                      fontSize: 14, fontWeight: 400,
+                      color: active ? p.activeColor : "var(--fg-2)",
+                      cursor: "pointer", transition: "all 0.12s",
+                      fontFamily: "inherit",
+                    }}
+                  >
                     {p.label}
                   </button>
                 );
               })}
             </div>
-          </div>
+          </FieldRow>
 
           {/* Categories */}
           {categorias.length > 0 && (
             <FieldRow icon={<Tag size={16} />} label="Categorías">
-              <CategoriaMultiSelect categorias={categorias} value={categoriaIds} onChange={setCategoriaIds} />
+              <CategoriaMultiSelect categorias={categorias} value={categoriaIds} onChange={setCategoriaIds} abrirArriba />
             </FieldRow>
           )}
 

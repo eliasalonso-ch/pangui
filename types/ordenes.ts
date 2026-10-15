@@ -12,6 +12,7 @@ export type Estado =
   | "pendiente"
   | "en_espera"
   | "en_curso"
+  | "en_revision"
   | "completado";
 
 export type Prioridad = "ninguna" | "baja" | "media" | "alta" | "urgente";

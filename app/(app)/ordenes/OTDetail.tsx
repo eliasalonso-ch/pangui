@@ -23,6 +23,7 @@ import {
   Phone, Mail, Circle, MessageSquare,
   Minus, ArrowUp, ArrowDown, RotateCw, UserRoundX, UserRoundCheck, Zap, Locate, Contact,
   Box, Clock, SmilePlus,
+  Share2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { LinksDisplay } from "@/components/LinksInput";
@@ -64,6 +65,7 @@ import type {
 import CambiarEstadoDialog from "@/components/activos/CambiarEstadoDialog";
 import { notifyClasificacionCambiada } from "@/lib/notificar";
 import { esElevado, esAdmin } from "@/lib/roles";
+import EnvioContratista from "./EnvioContratista";
 import { CategoriaIcon } from "@/components/ordenes/categoria-icon";
 import ConfirmDeleteModal, { type ConfirmDelete } from "@/components/ConfirmDeleteModal";
 import type {
@@ -88,6 +90,9 @@ const ESTADOS: { value: Estado; label: string; icon: React.ComponentType<{ class
   { value: "en_curso",    label: "En curso",    icon: RotateCw,   className: "text-purple-600" },
   { value: "completado",  label: "Completada",  icon: Check,      className: "text-green-600" },
 ];
+
+// No es un botón del selector: a revisión se llega desde el panel de envío.
+const ESTADO_REVISION: (typeof ESTADOS)[number] = { value: "en_revision", label: "En revisión", icon: ClipboardCheck, className: "text-cyan-600" };
 
 const PRIORIDADES: { value: Prioridad; label: string; color: string }[] = [
   { value: "ninguna", label: "Sin prioridad", color: "text-zinc-400" },
@@ -1063,6 +1068,12 @@ export default function OTDetail({
   const elapsed = useTimer(orden);
   // Edit / content-management access mirrors the RLS UPDATE policy (owner/admin/member).
   const canManage = esElevado(myRol);
+  // Enviada por un cliente desde su workspace: se ejecuta acá, la cierra el cliente.
+  const otRecibida = Boolean(orden.workspace_id && wsId && orden.workspace_id !== wsId);
+  // "Compartir externamente" vive en la fila del N° de OT; el modal lo abre
+  // EnvioContratista, que también recarga los envíos al cerrarse.
+  const [compartiendo, setCompartiendo] = useState(false);
+  const puedeCompartir = !otRecibida && canManage && orden.estado !== "completado";
   // Delete is restricted further than edit: the RLS DELETE policy only allows
   // owner/admin, so gate the delete affordance with esAdmin to avoid showing a
   // button that the database will reject.
@@ -1713,7 +1724,8 @@ export default function OTDetail({
     : [];
 
 
-  const estadoCfg = ESTADOS.find(e => e.value === orden.estado) ?? ESTADOS[0];
+  const estadoCfg = ESTADOS.find(e => e.value === orden.estado)
+    ?? (orden.estado === "en_revision" ? ESTADO_REVISION : ESTADOS[0]);
   const StatusIcon = estadoCfg.icon;
 
   const assigned = (orden.asignados_ids ?? [])
@@ -2982,7 +2994,8 @@ export default function OTDetail({
           {/* Editar y el menú de acciones viven en la misma fila que las
               secciones: así no tapan el contenido ni dependen de Detalles, y
               quedan disponibles desde cualquier pestaña. */}
-          {(canManage || orden.creado_por === myId) && (
+          {/* Una OT recibida la edita solo el cliente (lo exige la base). */}
+          {(canManage || orden.creado_por === myId) && !otRecibida && (
             <button
               type="button" onClick={onEdit}
               style={{ flexShrink: 0, height: 34, padding: "0 13px", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, background: "var(--brand)", border: "1px solid var(--brand)", borderRadius: "var(--r-sm)", cursor: "pointer", color: "var(--fg-on-brand)", fontSize: 14, fontWeight: 400, fontFamily: "inherit" }}
@@ -3137,9 +3150,22 @@ export default function OTDetail({
               paddingTop: 16, paddingBottom: 16,
               borderBottom: "1px solid var(--border)",
             }}>
-              {orden.numero != null && (
-                <div style={{ display: "inline-flex", alignItems: "center", minHeight: 24, padding: "0 9px", border: "1px solid var(--border)", borderRadius: "var(--r-sm)", background: "var(--surface-1)", color: "var(--fg-1)", fontSize: 14, fontWeight: 400, marginBottom: 8 }}>
-                  OT #{orden.numero}
+              {(orden.numero != null || puedeCompartir) && (
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 8 }}>
+                  {orden.numero != null ? (
+                    <div style={{ display: "inline-flex", alignItems: "center", minHeight: 24, padding: "0 9px", border: "1px solid var(--border)", borderRadius: "var(--r-sm)", background: "var(--surface-1)", color: "var(--fg-1)", fontSize: 14, fontWeight: 400 }}>
+                      OT #{orden.numero}
+                    </div>
+                  ) : <span />}
+                  {puedeCompartir && (
+                    <button
+                      type="button"
+                      onClick={() => setCompartiendo(true)}
+                      style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: 0, border: "none", background: "none", color: "var(--brand)", fontSize: 14, fontWeight: 500, cursor: "pointer", fontFamily: "inherit", flexShrink: 0 }}
+                    >
+                      <Share2 size={16} /> Compartir externamente
+                    </button>
+                  )}
                 </div>
               )}
               <h1
@@ -3178,7 +3204,7 @@ export default function OTDetail({
                 <div style={{ marginTop: 16 }}>
                   <p style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", letterSpacing: "0.01em", margin: "0 0 12px" }}>Estado</p>
                   <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-                    {ESTADOS.map(e => {
+                    {(otRecibida ? ESTADOS.filter(e => e.value !== "completado") : ESTADOS).map(e => {
                       // "pendiente" flips to "Asignada" once someone is assigned,
                       // mirroring the OT list badge so the two views never disagree.
                       // El icono acompana a la etiqueta: usuario con X sin
@@ -3309,6 +3335,27 @@ export default function OTDetail({
                 </div>
               );
             })()}
+            <EnvioContratista
+              orden={orden}
+              wsId={wsId}
+              myId={myId}
+              myRol={myRol}
+              compartiendo={compartiendo}
+              onCompartir={setCompartiendo}
+              onAprobar={() => closeWithRequirements(async (forceClose) => {
+                if (!await changeStatus("completado", forceClose, Boolean(forceClose))) {
+                  throw new Error("No se pudo cambiar el estado de la OT.");
+                }
+              })}
+              onEnviarRevision={() => closeWithRequirements(async () => {
+                if (orden.en_ejecucion) {
+                  await pausarOrden(orden.id, myId, "", elapsed);
+                  onOrdenUpdated({ en_ejecucion: false, pausado_at: new Date().toISOString(), estado: "en_espera" });
+                }
+                await changeStatus("en_revision", undefined, true);
+              })}
+              onOrdenUpdated={onOrdenUpdated}
+            />
             </div>
             {orden.parent_id && (
               <button
@@ -3419,7 +3466,7 @@ export default function OTDetail({
                   <p style={{ fontSize: 14, color: "var(--brand-fg)", margin: "2px 0 0", lineHeight: 1.5 }}>
                     Esta orden está marcada como levantamiento. El temporizador no corre hasta cambiarla a ejecución.
                   </p>
-                  {canManage && (
+                  {canManage && !otRecibida && (
                     <button
                       type="button"
                       onClick={handleApproveClasificacion}

@@ -6,11 +6,12 @@ import {
   Clock, MapPin, Copy, Check as CheckIcon, AlertCircle, UserPlus, X as XIcon,
   CheckCircle2, Circle,
   Minus, Pause, Check, RotateCw, UserRoundX, UserRoundCheck,
-  ArrowUp, ArrowDown, AlertTriangle, FlagTriangleRight,
+  ArrowUp, ArrowDown, AlertTriangle, FlagTriangleRight, ClipboardCheck,
   type LucideIcon,
 } from "lucide-react";
 import { COLORES_BANDERA, type OTBandera } from "@/lib/ot-banderas";
 import { parseDescMeta, updateOrden } from "@/lib/ordenes-api";
+import { clienteDeOT } from "@/lib/envios-api";
 import type { OrdenListItem, OrdenBulkItem, Usuario, Estado, Prioridad } from "@/types/ordenes";
 import { chileDateKey, dateKey, daysBetweenKeys } from "./date-utils";
 import { iniciales } from "@/lib/avatar";
@@ -22,6 +23,7 @@ const ESTADO: Record<Estado, { label: string; icon: LucideIcon; color: string }>
   pendiente:   { label: "Sin asignar", icon: UserRoundX,  color: "var(--st-open-dot)"     },
   en_espera:   { label: "En espera",   icon: Pause,       color: "var(--st-wait-dot)"     },
   en_curso:    { label: "En curso",    icon: RotateCw,    color: "var(--st-progress-dot)" },
+  en_revision: { label: "En revisión", icon: ClipboardCheck, color: "var(--st-review-dot)" },
   completado:  { label: "Completada",  icon: Check,       color: "var(--st-done-dot)"     },
 };
 
@@ -540,6 +542,7 @@ function OTRow({ orden, usuarios, isSelected, onClick, onPrefetch, myId, onAssig
     ? (hasAssignees ? ESTADO_ASIGNADA : ESTADO["pendiente"])
     : ESTADO[orden.estado];
   const prio      = PRIORIDAD[orden.prioridad];
+  const cliente   = clienteDeOT(orden.id);
   // Parsing the description is non-trivial; memoize so it only re-runs when the
   // description text actually changes, not on every parent re-render.
   const meta      = useMemo(() => parseDescMeta(orden.descripcion ?? null), [orden.descripcion]);
@@ -705,6 +708,13 @@ function OTRow({ orden, usuarios, isSelected, onClick, onPrefetch, myId, onAssig
           ) : (
             <RowBadge icon={estado.icon} iconColor={estado.color}>
               {estado.label}
+            </RowBadge>
+          )}
+
+          {/* OT recibida: la envió un cliente desde su propio workspace. */}
+          {cliente && (
+            <RowBadge>
+              {cliente}
             </RowBadge>
           )}
 

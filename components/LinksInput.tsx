@@ -61,7 +61,7 @@ export default function LinksInput({ links, onChange, disabled }: Props) {
                 style={{
                   width: "100%", height: 36, padding: "0 10px",
                   border: `1px solid ${!urlValid && link.url ? "#EF4444" : "#E2E8F0"}`,
-                  borderRadius: 7, fontSize: 14, color: "#0F172A",
+                  borderRadius: "var(--r-sm)", fontSize: 14, color: "#0F172A",
                   background: disabled ? "#F8FAFC" : "#fff",
                   outline: "none", fontFamily: "inherit", boxSizing: "border-box",
                 }}
@@ -80,7 +80,7 @@ export default function LinksInput({ links, onChange, disabled }: Props) {
                 onChange={e => update(i, "label", e.target.value)}
                 style={{
                   width: "100%", height: 36, padding: "0 10px",
-                  border: "1px solid #E2E8F0", borderRadius: 7,
+                  border: "1px solid #E2E8F0", borderRadius: "var(--r-sm)",
                   fontSize: 14, color: "#0F172A",
                   background: disabled ? "#F8FAFC" : "#fff",
                   outline: "none", fontFamily: "inherit", boxSizing: "border-box",
@@ -99,7 +99,7 @@ export default function LinksInput({ links, onChange, disabled }: Props) {
                   width: 36, height: 36, flexShrink: 0,
                   display: "flex", alignItems: "center", justifyContent: "center",
                   background: "none", border: "1px solid #E2E8F0",
-                  borderRadius: 7, cursor: "pointer", color: "#94A3B8",
+                  borderRadius: "var(--r-sm)", cursor: "pointer", color: "#94A3B8",
                 }}
                 onMouseEnter={e => { e.currentTarget.style.borderColor = "#EF4444"; e.currentTarget.style.color = "#EF4444"; e.currentTarget.style.background = "#FEF2F2"; }}
                 onMouseLeave={e => { e.currentTarget.style.borderColor = "#E2E8F0"; e.currentTarget.style.color = "#94A3B8"; e.currentTarget.style.background = "none"; }}
@@ -119,7 +119,7 @@ export default function LinksInput({ links, onChange, disabled }: Props) {
             display: "flex", alignItems: "center", gap: 6,
             height: 32, padding: "0 10px", alignSelf: "flex-start",
             background: "none", border: "1px dashed #CBD5E1",
-            borderRadius: 7, cursor: "pointer",
+            borderRadius: "var(--r-sm)", cursor: "pointer",
             fontSize: 14, fontWeight: 400, color: "#64748B",
             fontFamily: "inherit", transition: "all 0.12s",
           }}

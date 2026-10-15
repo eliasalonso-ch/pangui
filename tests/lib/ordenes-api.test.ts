@@ -34,6 +34,7 @@ const mockEq        = vi.fn();
 const mockIs        = vi.fn();
 const mockOrder     = vi.fn();
 const mockLimit     = vi.fn();
+const mockIn        = vi.fn();
 
 function chain(final: () => any) {
   const obj: any = {};
@@ -45,6 +46,7 @@ function chain(final: () => any) {
   obj.is          = (..._: any[]) => { mockIs(..._);      return obj; };
   obj.order       = (..._: any[]) => { mockOrder(..._);   return obj; };
   obj.limit       = (..._: any[]) => { mockLimit(..._);   return obj; };
+  obj.in          = (..._: any[]) => { mockIn(..._);      return obj; };
   obj.single      = ()           => { mockSingle();       return final(); };
   obj.maybeSingle = ()           => { mockMaybeSingle();  return final(); };
   // allow await on the chain itself (for delete, update without .single())
@@ -184,6 +186,20 @@ describe("fetchOrdenes", () => {
     mockFrom.mockReturnValue(chain(() => ({ data: null, error: null })));
     const result = await fetchOrdenes("ws-1");
     expect(result).toEqual([]);
+  });
+
+  it("suma a la bandeja los workspaces de los clientes que enviaron OTs", async () => {
+    mockFrom.mockImplementation((tabla: string) => chain(() => (
+      tabla === "ot_envios"
+        ? { data: [
+            { orden_id: "ot-a", workspace_origen: "ws-udec", nombre_origen: "UdeC" },
+            { orden_id: "ot-b", workspace_origen: "ws-udec", nombre_origen: "UdeC" },
+          ], error: null }
+        : { data: [], error: null }
+    )));
+    await fetchOrdenes("ws-contratista");
+    expect(mockIn).toHaveBeenCalledWith("workspace_id", ["ws-contratista", "ws-udec"]);
+    mockFrom.mockReset();
   });
 });
 

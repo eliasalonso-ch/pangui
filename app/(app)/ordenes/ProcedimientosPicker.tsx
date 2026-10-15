@@ -22,14 +22,17 @@ export type ProcedimientoSeleccionado = {
 const PICKER_PAGE_SIZE = 20;
 
 export default function ProcedimientosPicker({
-  workspaceId, value, onChange, onPreview,
+  workspaceId, value, onChange, onPreview, sinIcono = false,
 }: {
   workspaceId: string | null | undefined;
   value: ProcedimientoSeleccionado[];
   onChange: (next: ProcedimientoSeleccionado[]) => void;
   /** Opens the read-only step preview. Omit to hide the "Vista previa" link. */
   onPreview?: (procedimientoId: string) => void;
+  /** Formularios sin columna de íconos: sin ícono y sin la sangría que lo alineaba. */
+  sinIcono?: boolean;
 }) {
+  const sangria = sinIcono ? 0 : 22;
   const [open, setOpen] = useState(false);
   const [library, setLibrary] = useState<ProcedimientoListItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -105,12 +108,12 @@ export default function ProcedimientosPicker({
   return (
     <div>
       <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 14, fontWeight: 400, color: "var(--fg-1)", letterSpacing: "0.01em", marginBottom: 10 }}>
-        <span style={{ width: 16, display: "flex", justifyContent: "flex-start", flexShrink: 0, color: "var(--brand)" }}><ClipboardCheck size={16} /></span>
+        {!sinIcono && <span style={{ width: 16, display: "flex", justifyContent: "flex-start", flexShrink: 0, color: "var(--brand)" }}><ClipboardCheck size={16} /></span>}
         Procedimiento
       </div>
 
       {value.length === 0 ? (
-        <div style={{ marginLeft: 22, display: "flex", flexDirection: "column", alignItems: "center", gap: 10, padding: "18px 12px", border: "1px dashed var(--border-strong)", borderRadius: "var(--r-md)", background: "var(--surface-canvas)" }}>
+        <div style={{ marginLeft: sangria, display: "flex", flexDirection: "column", alignItems: "center", gap: 10, padding: "18px 12px", border: "1px dashed var(--border-strong)", borderRadius: "var(--r-md)", background: "var(--surface-canvas)" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 14, color: "var(--fg-3)" }}>
             Crear o adjuntar nuevo Procedimiento
           </div>
@@ -123,7 +126,7 @@ export default function ProcedimientosPicker({
           </button>
         </div>
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 10, paddingLeft: 22 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10, paddingLeft: sangria }}>
           {value.map(proc => (
             <div key={proc.id} style={{ display: "flex", alignItems: "center", gap: 14, padding: "12px 14px", borderRadius: "var(--r-md)", background: "var(--brand-tint)" }}>
               <span style={{ width: 34, height: 34, flexShrink: 0, borderRadius: "50%", background: "var(--surface-1)", display: "grid", placeItems: "center", color: "var(--brand)" }}>

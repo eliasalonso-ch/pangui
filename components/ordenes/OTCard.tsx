@@ -4,7 +4,7 @@ import React from "react";
 import {
   Settings2, MapPin, Clock, MessageSquare,
   CircleDashed, PauseCircle, PlayCircle, CheckCircle2, UserCheck,
-  ArrowUpCircle, ArrowDownCircle, MinusCircle, AlertCircle,
+  ArrowUpCircle, ArrowDownCircle, MinusCircle, AlertCircle, ClipboardCheck,
   type LucideIcon,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -58,6 +58,7 @@ const ESTADO_CONFIG: Record<
   pendiente:   { label: "Sin asignar", icon: CircleDashed, color: "var(--st-open-dot)" },
   en_espera:   { label: "En espera",   icon: PauseCircle,  color: "var(--st-wait-dot)" },
   en_curso:    { label: "En curso",    icon: PlayCircle,   color: "var(--st-progress-dot)" },
+  en_revision: { label: "En revisión", icon: ClipboardCheck, color: "var(--st-review-dot)" },
   completado:  { label: "Completada",  icon: CheckCircle2, color: "var(--st-done-dot)" },
 };
 

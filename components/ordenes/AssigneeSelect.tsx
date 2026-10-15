@@ -13,10 +13,12 @@ import { FotoOIniciales } from "@/components/FotoPerfil";
  * igual que el formulario de OT, y la alternativa era una segunda copia que se
  * separa de esta en cuanto alguien toca una.
  */
-export default function AssigneeSelect({ usuarios, value, onChange }: {
+export default function AssigneeSelect({ usuarios, value, onChange, ancho = ASIGNAR_BTN_WIDTH }: {
   usuarios: Usuario[];
   value: string[];
   onChange: (ids: string[]) => void;
+  /** "100%" en formularios donde todos los campos ocupan el ancho completo. */
+  ancho?: number | string;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -84,7 +86,7 @@ export default function AssigneeSelect({ usuarios, value, onChange }: {
           // su texto (~160px) contra los 210px del de cuadrilla, así que
           // quedaban escalonados. Es la misma razón que ya estaba escrita en la
           // otra copia de este botón, en components/ot/OTFormFields.tsx.
-          width: ASIGNAR_BTN_WIDTH,
+          width: ancho,
           height: 40, display: "flex", alignItems: "center", gap: 8,
           padding: "0 12px", border: "1px solid var(--border)", borderRadius: 8,
           background: "var(--surface-1)", fontSize: 14, color: "var(--fg-4)",
@@ -93,7 +95,7 @@ export default function AssigneeSelect({ usuarios, value, onChange }: {
       >
         <User size={13} />
         Asignar técnico
-        <ChevronDown size={12} style={{ color: "var(--fg-4)", marginLeft: "auto" }} />
+        <ChevronDown size={16} style={{ color: "var(--brand)", marginLeft: "auto" }} />
       </button>
 
       {open && (

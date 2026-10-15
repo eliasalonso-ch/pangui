@@ -49,11 +49,20 @@ export default async function OrdenesPage({ searchParams }: PageProps) {
   const soloAsignadasId =
     perfil.rol === "member" && perfil.solo_asignadas === true ? user.id : null;
 
+  // Un contratista también ve las OTs que sus clientes le enviaron; viven en el
+  // workspace del cliente y RLS deja pasar solo esas (ver lib/envios-api.ts).
+  const { data: envios } = await sb
+    .from("ot_envios")
+    .select("workspace_origen")
+    .eq("workspace_destino", wsId)
+    .eq("activo", true);
+  const alcance = [wsId, ...new Set((envios ?? []).map(e => e.workspace_origen as string))];
+
   const [ordenes, usuarios, ubicaciones, lugares, sociedades, activos, categorias] = await Promise.all([
     (() => {
       const q = sb.from("ordenes_trabajo")
         .select(LIST_SELECT)
-        .eq("workspace_id", wsId)
+        .in("workspace_id", alcance)
         .is("parent_id", null)
         .is("deleted_at", null);
       const scoped = soloAsignadasId ? q.contains("asignados_ids", [soloAsignadasId]) : q;

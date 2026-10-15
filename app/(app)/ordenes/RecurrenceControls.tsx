@@ -1,6 +1,13 @@
 "use client";
 
 import type { Recurrencia, RecurrenciaConfig } from "@/types/ordenes";
+import { Desplegable } from "@/components/Desplegable";
+import { DatePicker } from "@/components/ui/date-time-picker";
+
+// "YYYY-MM-DD" ↔ Date local a mediodía: así ningún huso horario corre el día.
+const aDate = (ymd: string) => new Date(`${ymd.slice(0, 10)}T12:00:00`);
+const aYmd = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
 // Web recurrence UI, mirrored from the mobile app (RecurrenceRows.tsx):
 //   • "Repetir"  → a preset list (Nunca, Cada día, Entre semana, … Cada año).
@@ -124,8 +131,7 @@ export function RecurrenceControls({
   const repeats = currentPreset !== "nunca";
   const endDate = value.recurrencia_config?.end_date ?? "";
   const gap = compact ? 10 : 12;
-  const ctrl = controlStyle(compact);
-  const lbl = labelStyle(compact);
+  const lbl = labelStyle();
 
   function selectPreset(key: PresetKey) {
     const base = presetToValue(key);
@@ -174,65 +180,70 @@ export function RecurrenceControls({
   return (
     <div style={{ display: "grid", gap }}>
       {/* Repetir — sin rótulo: la sección ya se titula "Recurrencia". */}
-      <div style={{ display: "grid", gap: 6 }}>
-        <select
+      <div style={{ display: "grid", gap: 10 }}>
+        <Desplegable<PresetKey>
+          ariaLabel="Repetir"
+          anchoCompleto
           value={currentPreset}
-          onChange={e => selectPreset(e.target.value as PresetKey)}
-          style={ctrl}
-        >
-          {PRESETS.map(p => <option key={p.key} value={p.key}>{p.label}</option>)}
-        </select>
+          onChange={selectPreset}
+          opciones={PRESETS.map(p => ({ value: p.key, label: p.label }))}
+        />
       </div>
 
       {weekdayPresets.includes(currentPreset) && (
-        <div style={{ display: "grid", gap: 6 }}>
+        <div style={{ display: "grid", gap: 10 }}>
           <span style={lbl}>Día de la semana</span>
-          <select value={selectedWeekday} onChange={e => {
-            const interval = currentPreset === "dos_semanas" ? 2 : 1;
-            const preset = currentPreset === "semanal" ? null : currentPreset as RecurrenciaConfig["preset"];
-            onChange({ recurrencia: currentPreset === "semanal" ? "semanal" : "personalizada", recurrencia_config: { ...value.recurrencia_config, interval, unit: "week", weekdays: [Number(e.target.value)], preset } });
-          }} style={ctrl}>
-            {selectableWeekdays.map(day => <option key={day} value={day}>{weekdayNames[day]}</option>)}
-          </select>
+          <Desplegable
+            ariaLabel="Día de la semana"
+            anchoCompleto
+            value={String(selectedWeekday)}
+            onChange={v => {
+              const interval = currentPreset === "dos_semanas" ? 2 : 1;
+              const preset = currentPreset === "semanal" ? null : currentPreset as RecurrenciaConfig["preset"];
+              onChange({ recurrencia: currentPreset === "semanal" ? "semanal" : "personalizada", recurrencia_config: { ...value.recurrencia_config, interval, unit: "week", weekdays: [Number(v)], preset } });
+            }}
+            opciones={selectableWeekdays.map(day => ({ value: String(day), label: weekdayNames[day] }))}
+          />
         </div>
       )}
 
       {monthPresets.includes(currentPreset) && (
-        <div style={{ display: "grid", gap: 6 }}>
+        <div style={{ display: "grid", gap: 10 }}>
           <span style={lbl}>Día del mes</span>
-          <select value={selectedMonthDay} onChange={e => {
-            const interval = currentPreset === "tres_meses" ? 3 : currentPreset === "seis_meses" ? 6 : 1;
-            const preset = currentPreset === "mensual" ? null : currentPreset as RecurrenciaConfig["preset"];
-            onChange({ recurrencia: currentPreset === "mensual" ? "mensual_fecha" : "personalizada", recurrencia_config: { ...value.recurrencia_config, interval, unit: "month", day_of_month: Number(e.target.value), preset } });
-          }} style={ctrl}>
-            {Array.from({ length: 31 }, (_, index) => <option key={index + 1} value={index + 1}>Día {index + 1}</option>)}
-          </select>
+          <Desplegable
+            ariaLabel="Día del mes"
+            anchoCompleto
+            value={String(selectedMonthDay)}
+            onChange={v => {
+              const interval = currentPreset === "tres_meses" ? 3 : currentPreset === "seis_meses" ? 6 : 1;
+              const preset = currentPreset === "mensual" ? null : currentPreset as RecurrenciaConfig["preset"];
+              onChange({ recurrencia: currentPreset === "mensual" ? "mensual_fecha" : "personalizada", recurrencia_config: { ...value.recurrencia_config, interval, unit: "month", day_of_month: Number(v), preset } });
+            }}
+            opciones={Array.from({ length: 31 }, (_, index) => ({ value: String(index + 1), label: `Día ${index + 1}` }))}
+          />
         </div>
       )}
 
       {/* Terminar repetición + Fecha de fin (only when it repeats) */}
       {repeats && (
         <>
-          <div style={{ display: "grid", gap: 6 }}>
+          <div style={{ display: "grid", gap: 10 }}>
             <span style={lbl}>Terminar repetición</span>
-            <select
+            <Desplegable<"nunca" | "fecha">
+              ariaLabel="Terminar repetición"
+              anchoCompleto
               value={endDate ? "fecha" : "nunca"}
-              onChange={e => setEndMode(e.target.value as "nunca" | "fecha")}
-              style={ctrl}
-            >
-              <option value="nunca">Nunca</option>
-              <option value="fecha">En una fecha</option>
-            </select>
+              onChange={setEndMode}
+              opciones={[{ value: "nunca", label: "Nunca" }, { value: "fecha", label: "En una fecha" }]}
+            />
           </div>
 
           {endDate && (
-            <div style={{ display: "grid", gap: 6, maxWidth: 240 }}>
+            <div style={{ display: "grid", gap: 10 }}>
               <span style={lbl}>Fecha de fin</span>
-              <input
-                type="date"
-                value={endDate}
-                onChange={e => setEndDate(e.target.value)}
-                style={ctrl}
+              <DatePicker
+                value={aDate(endDate)}
+                onChange={d => { if (d) setEndDate(aYmd(d)); }}
               />
             </div>
           )}
@@ -242,28 +253,12 @@ export function RecurrenceControls({
   );
 }
 
-// Label matches the form's sub-labels (e.g. "Tipo de trabajo").
-function labelStyle(compact: boolean): React.CSSProperties {
+// Igual que los rótulos de campo del formulario (FieldRow): mismo color y espaciado.
+function labelStyle(): React.CSSProperties {
   return {
     fontSize: 14,
     fontWeight: 400,
-    color: "var(--fg-3)",
-    letterSpacing: "0.06em",
-  };
-}
-
-// Mirrors the app's sibling native <select>s exactly so the chevron and box
-// line up: compact (create forms) = 36/radius 6/13.5; full (edit panel) = 40/8/13.
-function controlStyle(compact: boolean): React.CSSProperties {
-  return {
-    height: compact ? 36 : 40,
-    padding: compact ? "0 8px" : "0 12px",
-    border: "1px solid var(--border)",
-    borderRadius: compact ? 6 : 8,
-    fontSize: 14,
     color: "var(--fg-1)",
-    outline: "none",
-    background: "var(--surface-1)",
-    fontFamily: "inherit",
+    letterSpacing: "0.01em",
   };
 }

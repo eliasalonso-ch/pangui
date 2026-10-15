@@ -18,6 +18,7 @@ import {
 } from "@/lib/work-orders/commands-v1";
 import { getWorkOrderRolloutV1 } from "@/lib/work-orders/rollout-v1";
 import { getPerfilUsuario } from "@/lib/perfil-usuario";
+import { workspacesDeBandeja } from "@/lib/envios-api";
 
 // ITOs (inspector milestones) is an Electrilam-exclusive feature — the ITO field
 // is shown only for this workspace. Mirrors the mobile gate in constants/index.ts.
@@ -330,13 +331,13 @@ function aplicarVisibilidad<T extends { contains: (col: string, val: unknown[]) 
 }
 
 export async function fetchOrdenesPage(wsId: string, beforeCreatedAt?: string | null): Promise<OrdenListItem[]> {
-  const soloAsignadas = await getSoloAsignadasUserId();
+  const [soloAsignadas, alcance] = await Promise.all([getSoloAsignadasUserId(), workspacesDeBandeja(wsId)]);
   const runQuery = () => {
     const sb = createClient();
     let query = sb
       .from("ordenes_trabajo")
       .select(LIST_SELECT)
-      .eq("workspace_id", wsId)
+      .in("workspace_id", alcance)
       .is("parent_id", null)
       .is("deleted_at", null)
       .order("created_at", { ascending: false })
@@ -445,7 +446,7 @@ export async function searchOrdenes(wsId: string, rawQuery: string): Promise<Ord
     const numQuery = sbNum
       .from("ordenes_trabajo")
       .select(LIST_SELECT)
-      .eq("workspace_id", wsId)
+      .in("workspace_id", await workspacesDeBandeja(wsId))
       .eq("numero", numero)
       .is("parent_id", null)
       .is("deleted_at", null);
@@ -558,13 +559,13 @@ async function fetchOrdenesBulkPage(
   wsId: string,
   beforeCreatedAt?: string | null,
 ): Promise<OrdenBulkItem[]> {
-  const soloAsignadas = await getSoloAsignadasUserId();
+  const [soloAsignadas, alcance] = await Promise.all([getSoloAsignadasUserId(), workspacesDeBandeja(wsId)]);
   const runQuery = () => {
     const sb = createClient();
     let query = sb
       .from("ordenes_trabajo")
       .select(ORDEN_BULK_SELECT)
-      .eq("workspace_id", wsId)
+      .in("workspace_id", alcance)
       .is("parent_id", null)
       .is("deleted_at", null)
       .order("created_at", { ascending: false })
@@ -615,13 +616,13 @@ export async function fetchAllOrdenesBulk(
 export async function fetchOrdenesCalendarExtras(
   wsId: string,
 ): Promise<Map<string, OrdenCalendarExtra>> {
-  const soloAsignadas = await getSoloAsignadasUserId();
+  const [soloAsignadas, alcance] = await Promise.all([getSoloAsignadasUserId(), workspacesDeBandeja(wsId)]);
   const runQuery = () => {
     const sb = createClient();
     const query = sb
       .from("ordenes_trabajo")
       .select(ORDEN_CALENDAR_EXTRA_SELECT)
-      .eq("workspace_id", wsId)
+      .in("workspace_id", alcance)
       .is("parent_id", null)
       .is("deleted_at", null)
       .or("recurrencia.neq.ninguna,activo_id.not.is.null");
@@ -1110,6 +1111,7 @@ export async function updateOrdenEstado(
     pendiente:   "Abierta",
     en_espera:   "En espera",
     en_curso:    "En curso",
+    en_revision: "En revisión",
     completado:  "Completada",
   };
   const sb = createClient();
@@ -1127,6 +1129,7 @@ export async function updateOrdenEstado(
       if (estado === "en_curso") {
         action = current.estado === "en_espera" && current.iniciado_at ? "resume" : "start";
       }
+      if (estado === "en_revision") action = "request_review";
       if (estado === "completado") action = "complete";
       if (estado === "pendiente") action = "reopen";
       if (action) {

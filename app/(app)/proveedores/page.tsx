@@ -18,6 +18,7 @@ import { EmptyState, EmptyDetail } from "@/components/EmptyState";
 import { useSuscripcion } from "@/hooks/useSuscripcion";
 import { UpgradePrompt } from "@/components/UpgradePrompt";
 import { btnSecundario, btnIcono, seccionDetalle } from "@/components/catalogo/PanelCatalogo";
+import ConexionPangui from "./ConexionPangui";
 import {
   EMPTY_FILTROS_PROV, FILTER_ORDER_PROV, FILTER_META_PROV,
   contarFiltrosProv, initialFilterKeysProv, filterKeysStorageKeyProv,
@@ -470,6 +471,8 @@ function ProveedorDetalle({ p, isAdmin, onEdit, onToggleArchivado }: {
         <Dato icon={<Globe size={16} />} label="Sitio web" valor={p.sitio_web} />
         <Dato icon={<Phone size={16} />} label="Contacto" valor={p.contacto} />
       </div>
+
+      <ConexionPangui proveedorId={p.id} emailSugerido={p.email} isAdmin={isAdmin} />
 
       {p.notas && (
         <div style={seccionDetalle}>

@@ -11,6 +11,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useAvatares } from "@/lib/queries";
 import { guardarFotoPerfil } from "@/lib/foto-perfil";
 import { FotoOIniciales } from "@/components/FotoPerfil";
+import ClientesConectados from "@/components/ClientesConectados";
 import {
   LogOut, KeyRound, Bell, User, Loader2, Check, Eye, EyeOff, ChevronRight,
   Pencil, MonitorSmartphone, X, ImagePlus, Trash2, UserRoundX, AlertTriangle, UserRoundCog,
@@ -930,6 +931,7 @@ export default function ConfiguracionPage({ section }: { section?: Configuracion
                   {logoError && <p style={{ fontSize: 14, color: "var(--danger)", margin: "10px 0 0" }}>{logoError}</p>}
                 </div>
 
+                <ClientesConectados />
               </>
             )}
           </div>

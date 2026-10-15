@@ -31,8 +31,10 @@ interface CuadrillaConMiembros {
  *  - Si alguien entra o sale de la cuadrilla despues, la OT ya emitida no
  *    cambia sola, que es lo correcto: quien quedo a cargo quedo a cargo.
  */
-export default function CuadrillaQuickAdd({ wsId, onAdd }: {
+export default function CuadrillaQuickAdd({ wsId, onAdd, ancho = ASIGNAR_BTN_WIDTH }: {
   wsId: string | null | undefined;
+  /** "100%" en formularios donde todos los campos ocupan el ancho completo. */
+  ancho?: number | string;
   /** Recibe los ids de los miembros; el padre los une a los ya asignados. */
   onAdd: (usuarioIds: string[]) => void;
 }) {
@@ -110,16 +112,16 @@ export default function CuadrillaQuickAdd({ wsId, onAdd }: {
         onClick={() => { setOpen(v => !v); setQuery(""); }}
         style={{
           // Mismo ancho que "Asignar técnico" — ver ASIGNAR_BTN_WIDTH.
-          width: ASIGNAR_BTN_WIDTH,
+          width: ancho,
           height: 40, display: "flex", alignItems: "center", gap: 8,
-          padding: "0 12px", border: "1px solid var(--border)", borderRadius: 8,
+          padding: "0 12px", border: "1px solid var(--border)", borderRadius: "var(--r-sm)",
           background: "var(--surface-1)", fontSize: 14, color: "var(--fg-4)",
           cursor: "pointer", fontFamily: "inherit",
         }}
       >
         <Users size={13} />
         Asignar una cuadrilla
-        <ChevronDown size={12} style={{ color: "var(--fg-4)", marginLeft: "auto" }} />
+        <ChevronDown size={16} style={{ color: "var(--brand)", marginLeft: "auto" }} />
       </button>
 
       {open && (

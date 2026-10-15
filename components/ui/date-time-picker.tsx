@@ -133,7 +133,7 @@ function DropdownCalendario({ options = [], value, onChange, "aria-label": ariaL
         onBlur={e => { if (!open) e.currentTarget.style.borderColor = "var(--border)" }}
       >
         {actual?.label}
-        <ChevronDown size={14} style={{ color: "var(--brand)" }} />
+        <ChevronDown size={16} style={{ color: "var(--brand)" }} />
       </button>
       {open && (
         <div

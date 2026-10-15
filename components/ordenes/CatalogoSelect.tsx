@@ -118,12 +118,12 @@ export default function CatalogoSelect<T>({
           setQuery("");
           setError(null);
         }}
-        style={{ width: "100%", height: 40, display: "flex", alignItems: "center", gap: 8, padding: "0 12px", border: "1px solid var(--border)", borderRadius: 8, background: "var(--surface-1)", fontSize: 14, color: selected ? "var(--fg-1)" : "var(--fg-4)", cursor: "pointer", textAlign: "left" }}
+        style={{ width: "100%", height: 40, display: "flex", alignItems: "center", gap: 8, padding: "0 12px", border: "1px solid var(--border)", borderRadius: "var(--r-sm)", background: "var(--surface-1)", fontSize: 14, color: selected ? "var(--fg-1)" : "var(--fg-4)", cursor: "pointer", textAlign: "left" }}
       >
         <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
           {selected ? selected.label : emptyLabel}
         </span>
-        <ChevronDown size={13} style={{ flexShrink: 0, color: "var(--fg-4)" }} />
+        <ChevronDown size={16} style={{ flexShrink: 0, color: "var(--brand)" }} />
       </button>
       {open && (
         <div style={{ position: "absolute", top: "calc(100% + 3px)", left: 0, right: 0, zIndex: 200, background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: 8, boxShadow: "var(--shadow-md)", overflow: "hidden" }}>

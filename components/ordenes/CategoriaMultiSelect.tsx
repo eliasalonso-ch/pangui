@@ -9,10 +9,11 @@ import { CategoriaIcon } from "@/components/ordenes/categoria-icon";
 // selected items render as removable chips inside the control, a search box
 // filters the options, and each option toggles on click. Stores an array of
 // category ids. Purely a UI control — persistence is handled by the caller.
-export default function CategoriaMultiSelect({ categorias, value, onChange }: {
+export default function CategoriaMultiSelect({ categorias, value, onChange, abrirArriba }: {
   categorias: Pick<CategoriaOT, "id" | "nombre" | "icono" | "color">[];
   value: string[];
   onChange: (ids: string[]) => void;
+  abrirArriba?: boolean;
 }) {
   return (
     <MultiSelect
@@ -20,6 +21,7 @@ export default function CategoriaMultiSelect({ categorias, value, onChange }: {
       value={value}
       onChange={onChange}
       vacio="Sin categorías"
+      abrirArriba={abrirArriba}
     />
   );
 }
@@ -33,7 +35,7 @@ export interface MultiSelectOption {
 }
 
 /** Mismo control para cualquier catálogo (activos, ubicaciones…). */
-export function MultiSelect({ options, value, onChange, vacio = "Sin resultados", seleccionadas, onBuscar, onFinal, cargando }: {
+export function MultiSelect({ options, value, onChange, vacio = "Sin resultados", seleccionadas, onBuscar, onFinal, cargando, abrirArriba = false }: {
   options: MultiSelectOption[];
   value: string[];
   onChange: (ids: string[]) => void;
@@ -45,6 +47,8 @@ export function MultiSelect({ options, value, onChange, vacio = "Sin resultados"
   /** Llegó al final de la lista: pedir la página siguiente. */
   onFinal?: () => void;
   cargando?: boolean;
+  /** Último campo de un formulario: la lista se abre hacia arriba para no quedar cortada. */
+  abrirArriba?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -75,8 +79,8 @@ export function MultiSelect({ options, value, onChange, vacio = "Sin resultados"
         onClick={() => setOpen(true)}
         style={{
           display: "flex", alignItems: "center", flexWrap: "wrap", gap: 6,
-          minHeight: 40, padding: "5px 10px",
-          border: `1px solid ${open ? "var(--brand)" : "var(--border)"}`, borderRadius: 8,
+          minHeight: 40, padding: "5px 12px",
+          border: `1px solid ${open ? "var(--brand)" : "var(--border)"}`, borderRadius: "var(--r-sm)",
           background: "var(--surface-1)", cursor: "text",
         }}
       >
@@ -109,7 +113,7 @@ export function MultiSelect({ options, value, onChange, vacio = "Sin resultados"
             background: "transparent", fontSize: 14, color: "var(--fg-1)", fontFamily: "inherit",
           }}
         />
-        <ChevronDown size={14} style={{ color: "var(--fg-4)", flexShrink: 0 }} />
+        <ChevronDown size={16} style={{ color: "var(--brand)", flexShrink: 0 }} />
       </div>
 
       {/* Dropdown */}
@@ -120,7 +124,8 @@ export function MultiSelect({ options, value, onChange, vacio = "Sin resultados"
             if (el.scrollHeight - el.scrollTop - el.clientHeight < 60) onFinal();
           })}
           style={{
-          position: "absolute", top: "calc(100% + 3px)", left: 0, right: 0, zIndex: 200,
+          position: "absolute", left: 0, right: 0, zIndex: 200,
+          ...(abrirArriba ? { bottom: "calc(100% + 3px)" } : { top: "calc(100% + 3px)" }),
           background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: 8,
           boxShadow: "var(--shadow-md)", overflow: "hidden", maxHeight: 240, overflowY: "auto",
         }}>

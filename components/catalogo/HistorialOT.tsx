@@ -7,7 +7,7 @@ import {
 import {
   Settings, Filter, Inbox, Loader2, Plus,
   Minus, Pause, Check, RotateCw, UserRoundX,
-  ArrowUp, ArrowDown, AlertTriangle,
+  ArrowUp, ArrowDown, AlertTriangle, ClipboardCheck,
   type LucideIcon,
 } from "lucide-react";
 import type { Estado, Prioridad } from "@/types/ordenes";
@@ -51,6 +51,7 @@ const ESTADO: Record<Estado, { label: string; icon: LucideIcon; color: string }>
   pendiente:  { label: "Sin asignar", icon: UserRoundX, color: "var(--st-open-dot)" },
   en_espera:  { label: "En espera",   icon: Pause,      color: "var(--st-wait-dot)" },
   en_curso:   { label: "En curso",    icon: RotateCw,   color: "var(--st-progress-dot)" },
+  en_revision: { label: "En revisión", icon: ClipboardCheck, color: "var(--st-review-dot)" },
   completado: { label: "Completada",  icon: Check,      color: "var(--st-done-dot)" },
 };
 

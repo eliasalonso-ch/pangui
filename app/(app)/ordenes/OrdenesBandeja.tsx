@@ -42,7 +42,7 @@ import { COLORES_BANDERA, useOTBanderaActions, useOTBanderas } from "@/lib/ot-ba
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const ACTIVE_ESTADOS  = new Set<Estado>(["pendiente","en_espera","en_curso"]);
+const ACTIVE_ESTADOS  = new Set<Estado>(["pendiente","en_espera","en_curso","en_revision"]);
 const CLOSED_ESTADOS  = new Set<Estado>(["completado"]);
 const PRIORIDAD_ORDER: Record<string, number> = { urgente:4, alta:3, media:2, baja:1, ninguna:0 };
 
