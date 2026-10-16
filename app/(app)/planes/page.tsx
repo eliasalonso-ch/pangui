@@ -3,11 +3,15 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
-  Wrench, Plus, Search, Loader2, CalendarClock, RotateCw, FileText,
+  Wrench, Plus, Search, Loader2, CalendarClock, RotateCw, FileText, MapPin, Pause, User,
 } from "lucide-react";
 import { Engine } from "@/components/icons/Engine";
-import { listPlanes, archivePlan, deletePlan, PLANES_PAGE_SIZE } from "@/lib/planes-api";
-import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  listPlanes, archivePlan, deletePlan, fetchOpcionesFiltroPlanes,
+  PLANES_PAGE_SIZE, FILTROS_PLANES_VACIOS, type FiltrosPlanes,
+} from "@/lib/planes-api";
+import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
+import { FiltroMultiple } from "@/components/filtros/primitivas";
 import { RECURRENCIA_PLAN_LABELS, type PlanListItem } from "@/types/planes";
 import { useSuscripcion } from "@/hooks/useSuscripcion";
 import { UpgradePrompt } from "@/components/UpgradePrompt";
@@ -53,6 +57,14 @@ function PlanesPageInner() {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [archivando, setArchivando] = useState<string | null>(null);
+  const [filtros, setFiltros] = useState<FiltrosPlanes>(FILTROS_PLANES_VACIOS);
+  const hayFiltros = Object.values(filtros).some(v => v.length > 0);
+
+  const { data: opciones } = useQuery({
+    queryKey: ["planes", "filtros-opciones"],
+    queryFn: fetchOpcionesFiltroPlanes,
+    staleTime: 5 * 60 * 1000,
+  });
 
   // `?id=` abre el panel directo: es a donde vuelve el formulario después de
   // crear, así que el plan recién hecho se muestra sin buscarlo en la lista.
@@ -95,8 +107,9 @@ function PlanesPageInner() {
    * scrollear re-pide TODAS las páginas una por una.
    */
   const query = useInfiniteQuery({
-    queryKey: ["planes", "lista"],
-    queryFn: ({ pageParam }) => listPlanes(false, pageParam as number),
+    // Los filtros van en la clave: cada combinación es su propia lista paginada.
+    queryKey: ["planes", "lista", filtros],
+    queryFn: ({ pageParam }) => listPlanes(filtros, pageParam as number),
     initialPageParam: 0,
     // Una página incompleta significa que no hay más: no hace falta un count().
     getNextPageParam: (ultima, todas) =>
@@ -110,8 +123,10 @@ function PlanesPageInner() {
 
   /** Quita un plan del cache sin volver a pedir la lista. */
   function quitarDelCache(id: string) {
-    queryClient.setQueryData<{ pages: PlanListItem[][]; pageParams: unknown[] }>(
-      ["planes", "lista"],
+    // setQueriesData y no setQueryData: hay una lista cacheada por cada
+    // combinación de filtros, y el plan puede estar en cualquiera.
+    queryClient.setQueriesData<{ pages: PlanListItem[][]; pageParams: unknown[] }>(
+      { queryKey: ["planes", "lista"] },
       prev => prev && {
         ...prev,
         // Se recorren las páginas en vez del array plano: el cache guarda
@@ -238,6 +253,40 @@ function PlanesPageInner() {
             Nuevo plan
           </button>
         </div>
+
+          {/* Filtros: mismas piezas que /medidores y /proveedores. */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", padding: "0 20px 9px" }}>
+            <FiltroMultiple
+              label="Estado" icon={<Pause size={16} />} buscable={false}
+              opciones={[{ id: "vigente", label: "Vigentes" }, { id: "pausado", label: "Pausados" }]}
+              seleccion={filtros.estados}
+              onChange={v => setFiltros(f => ({ ...f, estados: v as FiltrosPlanes["estados"] }))}
+            />
+            <FiltroMultiple
+              label="Recurrencia" icon={<RotateCw size={16} />} buscable={false}
+              opciones={opciones?.recurrencias ?? []}
+              seleccion={filtros.recurrencias}
+              onChange={v => setFiltros(f => ({ ...f, recurrencias: v }))}
+            />
+            <FiltroMultiple
+              label="Activo" icon={<Engine size={16} />}
+              opciones={opciones?.activos ?? []}
+              seleccion={filtros.activos}
+              onChange={v => setFiltros(f => ({ ...f, activos: v }))}
+            />
+            <FiltroMultiple
+              label="Ubicación" icon={<MapPin size={16} />}
+              opciones={opciones?.ubicaciones ?? []}
+              seleccion={filtros.ubicaciones}
+              onChange={v => setFiltros(f => ({ ...f, ubicaciones: v }))}
+            />
+            <FiltroMultiple
+              label="Asignado a" icon={<User size={16} />}
+              opciones={opciones?.asignados ?? []}
+              seleccion={filtros.asignados}
+              onChange={v => setFiltros(f => ({ ...f, asignados: v }))}
+            />
+        </div>
       </div>
 
       {/* Cuerpo */}
@@ -253,7 +302,7 @@ function PlanesPageInner() {
         ) : error ? (
           <p style={{ fontSize: 14, color: "var(--danger, #b42318)" }}>{error}</p>
         ) : filtrados.length === 0 ? (
-          <EmptyState hayBusqueda={search.trim().length > 0} onCrear={() => router.push("/planes/crear")} />
+          <EmptyState hayBusqueda={search.trim().length > 0 || hayFiltros} onCrear={() => router.push("/planes/crear")} />
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 10, maxWidth: 1100 }}>
             {filtrados.map(p => (
@@ -347,6 +396,11 @@ function PlanCard({ plan, seleccionado, onAbrir }: {
         }}>
           {plan.nombre}
         </span>
+        {!plan.activo && (
+          <span style={{ fontSize: 14, color: "var(--warning)", background: "var(--warning-bg)", padding: "0 8px", borderRadius: "var(--r-sm)", flexShrink: 0 }}>
+            Pausado
+          </span>
+        )}
       </div>
 
       {/* El activo: es de lo que trata el plan, y con la miniatura se reconoce
@@ -459,7 +513,7 @@ function EmptyState({ hayBusqueda, onCrear }: { hayBusqueda: boolean; onCrear: (
         <Wrench size={38} strokeWidth={1.4} />
       </span>
       <p style={{ fontSize: 14, color: "var(--fg-1)", fontWeight: 500, margin: 0 }}>
-        {hayBusqueda ? "Ningún plan coincide con la búsqueda" : "Todavía no hay planes de mantención"}
+        {hayBusqueda ? "Ningún plan coincide con la búsqueda o los filtros" : "Todavía no hay planes de mantención"}
       </p>
       {!hayBusqueda && (
         <>

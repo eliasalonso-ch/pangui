@@ -117,6 +117,14 @@ interface Ctx {
   editandoId: string | null;
   /** Vuelca un plan existente al borrador para editarlo con el mismo formulario. */
   cargarDesde: (id: string, draft: PlanDraft, plantilla: PlantillaOT) => void;
+  /**
+   * Sube cada vez que el borrador se reemplaza entero (cargarDesde, reset).
+   *
+   * PlantillaForm queda montada aunque no se vea (ver layout.tsx) y copia la
+   * plantilla a su estado local al montarse: sin remontarla con esta `key`, al
+   * editar un plan mostraba la plantilla vacía de antes de que el plan cargara.
+   */
+  version: number;
 }
 
 const PlanDraftContext = createContext<Ctx | null>(null);
@@ -125,6 +133,7 @@ export function PlanDraftProvider({ children }: { children: ReactNode }) {
   const [draft, setDraftState] = useState<PlanDraft>(DRAFT_VACIO);
   const [plantilla, setPlantilla] = useState<PlantillaOT>(PLANTILLA_VACIA);
   const [editandoId, setEditandoId] = useState<string | null>(null);
+  const [version, setVersion] = useState(0);
 
   function setDraft(patch: Partial<PlanDraft>) {
     setDraftState(prev => ({ ...prev, ...patch }));
@@ -134,17 +143,19 @@ export function PlanDraftProvider({ children }: { children: ReactNode }) {
     setDraftState(DRAFT_VACIO);
     setPlantilla(PLANTILLA_VACIA);
     setEditandoId(null);
+    setVersion(v => v + 1);
   }
 
   function cargarDesde(id: string, d: PlanDraft, p: PlantillaOT) {
     setDraftState(d);
     setPlantilla(p);
     setEditandoId(id);
+    setVersion(v => v + 1);
   }
 
   return (
     <PlanDraftContext.Provider value={{
-      draft, setDraft, plantilla, setPlantilla, reset, editandoId, cargarDesde,
+      draft, setDraft, plantilla, setPlantilla, reset, editandoId, cargarDesde, version,
     }}>
       {children}
     </PlanDraftContext.Provider>

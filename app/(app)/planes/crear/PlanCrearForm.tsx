@@ -3,9 +3,11 @@
 import { useState, useEffect, useMemo, useRef, type CSSProperties } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
-  ChevronLeft, ChevronUp, ChevronDown, Search, X, Loader2, Plus, Pencil, User, Clock, Flag, Wrench, ClipboardCheck, Package, Paperclip,
+  ChevronUp, ChevronDown, Search, X, Loader2, Plus, Pencil, User, Clock, Flag, Wrench, ClipboardCheck, Package, Paperclip,
 } from "lucide-react";
 import { Engine } from "@/components/icons/Engine";
+import { Desplegable } from "@/components/Desplegable";
+import { DatePicker, TimePicker } from "@/components/ui/date-time-picker";
 import { createClient } from "@/lib/supabase";
 import { createPlan, updatePlan, getPlan, listPlanMateriales } from "@/lib/planes-api";
 import { RECURRENCIA_PLAN_LABELS, type RecurrenciaPlan, type PlanForm } from "@/types/planes";
@@ -474,28 +476,8 @@ function PlanCrearFormInner() {
 
   return (
     <div style={{ height: "100%", display: "flex", flexDirection: "column", background: "var(--surface-canvas)" }}>
-      {/* Encabezado */}
-      <div style={{
-        display: "flex", alignItems: "center", gap: 12,
-        padding: "14px 20px", borderBottom: "1px solid var(--border)",
-        background: "var(--surface-canvas)", flexShrink: 0,
-      }}>
-        <button
-          onClick={() => router.push("/planes")}
-          aria-label="Volver"
-          style={{
-            display: "flex", alignItems: "center", justifyContent: "center",
-            width: 28, height: 28, borderRadius: 6, border: "none",
-            background: "transparent", color: "var(--fg-3)", cursor: "pointer",
-          }}
-        >
-          <ChevronLeft size={18} />
-        </button>
-        <h1 style={{ fontSize: 14, fontWeight: 500, color: "var(--fg-1)", margin: 0 }}>
-          {editandoId ? "Editar plan de mantención" : "Nuevo plan de mantención"}
-        </h1>
-      </div>
-
+      {/* Sin encabezado propio: los breadcrumbs de la barra superior
+          (GlobalTopBar) ya dicen dónde se está y llevan de vuelta a /planes. */}
       {/* Cuerpo */}
       <div style={{ flex: 1, overflowY: "auto", padding: "28px 20px 90px" }}>
         <div style={{ maxWidth: 820, margin: "0 auto" }}>
@@ -529,7 +511,7 @@ function PlanCrearFormInner() {
             {activoSel ? (
               <div style={{
                 display: "flex", alignItems: "center", gap: 10,
-                border: "1px solid var(--border)", borderRadius: 8,
+                border: "1px solid var(--border)", borderRadius: "var(--r-sm)",
                 padding: "9px 12px", background: "var(--surface-1)", maxWidth: 420,
               }}>
                 {/* Miniatura del equipo: se reconoce sin leer, igual que en la
@@ -587,9 +569,9 @@ function PlanCrearFormInner() {
             ) : (
               <div ref={activoBoxRef} style={{ position: "relative", maxWidth: 420 }}>
                 <div style={{
-                  display: "flex", alignItems: "center", gap: 8,
-                  border: "1px solid var(--border)", borderRadius: 8,
-                  padding: "9px 12px", background: "var(--surface-1)",
+                  display: "flex", alignItems: "center", gap: 8, height: 40, boxSizing: "border-box",
+                  border: "1px solid var(--border)", borderRadius: "var(--r-sm)",
+                  padding: "0 12px", background: "var(--surface-1)",
                 }}>
                   <Search size={15} style={{ color: "var(--fg-4)", flexShrink: 0 }} />
                   <input
@@ -672,18 +654,21 @@ function PlanCrearFormInner() {
             descripcion="Especifique con qué frecuencia se crearán las órdenes de trabajo."
             open={openSec.programa}
             onToggle={() => setOpenSec(s => ({ ...s, programa: !s.programa }))}
+            // Los Desplegable no van en portal: sin esto la tarjeta los recorta.
+            // Cede el paso mientras el buscador de activo de arriba está abierto.
+            elevada={!(activoOpen && !activoSel)}
           >
             <label style={labelStyle}>Recurrencia</label>
-            <select
-              value={recurrencia}
-              onChange={e => setRecurrencia(e.target.value as RecurrenciaPlan | "")}
-              style={{ ...inputStyle, maxWidth: 420 }}
-            >
-              <option value="">Seleccionar recurrencia</option>
-              {RECURRENCIAS.map(([val, label]) => (
-                <option key={val} value={val}>{label}</option>
-              ))}
-            </select>
+            <div style={{ maxWidth: 420 }}>
+              <Desplegable<RecurrenciaPlan | "">
+                ariaLabel="Recurrencia"
+                anchoCompleto
+                placeholder="Seleccionar recurrencia"
+                value={recurrencia}
+                onChange={setRecurrencia}
+                opciones={RECURRENCIAS.map(([value, label]) => ({ value, label }))}
+              />
+            </div>
 
             {/* Cada recurrencia pide lo suyo: un plan diario y uno mensual por
                 día de la semana no se configuran con los mismos campos. */}
@@ -713,13 +698,12 @@ function PlanCrearFormInner() {
               <div style={{ marginTop: 16 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
                   <span style={{ fontSize: 14, color: "var(--fg-2)" }}>Cada</span>
-                  <select
-                    value={intervalo}
-                    onChange={e => setIntervalo(Number(e.target.value))}
-                    style={{ ...inputStyle, width: 74 }}
-                  >
-                    {NUMEROS.map(n => <option key={n} value={n}>{n}</option>)}
-                  </select>
+                  <Desplegable
+                    ariaLabel="Intervalo"
+                    value={String(intervalo)}
+                    onChange={v => setIntervalo(Number(v))}
+                    opciones={OPCIONES_NUMEROS}
+                  />
                   <span style={{ fontSize: 14, color: "var(--fg-2)" }}>
                     {intervalo === 1 ? "semana el" : "semanas el"}
                   </span>
@@ -734,25 +718,21 @@ function PlanCrearFormInner() {
             {(recurrencia === "mensual" || recurrencia === "mensual_fecha") && (
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 16, flexWrap: "wrap" }}>
                 <span style={{ fontSize: 14, color: "var(--fg-2)" }}>Cada</span>
-                <select
-                  value={intervalo}
-                  onChange={e => setIntervalo(Number(e.target.value))}
-                  style={{ ...inputStyle, width: 74 }}
-                >
-                  {NUMEROS.map(n => <option key={n} value={n}>{n}</option>)}
-                </select>
+                <Desplegable
+                  ariaLabel="Intervalo"
+                  value={String(intervalo)}
+                  onChange={v => setIntervalo(Number(v))}
+                  opciones={OPCIONES_NUMEROS}
+                />
                 <span style={{ fontSize: 14, color: "var(--fg-2)" }}>
                   {intervalo === 1 ? "mes en el" : "meses en el"}
                 </span>
-                <select
-                  value={diaDelMes}
-                  onChange={e => setDiaDelMes(Number(e.target.value))}
-                  style={{ ...inputStyle, width: 84 }}
-                >
-                  {Array.from({ length: 31 }, (_, i) => i + 1).map(d => (
-                    <option key={d} value={d}>{d}º</option>
-                  ))}
-                </select>
+                <Desplegable
+                  ariaLabel="Día del mes"
+                  value={String(diaDelMes)}
+                  onChange={v => setDiaDelMes(Number(v))}
+                  opciones={OPCIONES_DIA_MES}
+                />
               </div>
             )}
 
@@ -760,36 +740,27 @@ function PlanCrearFormInner() {
               <div style={{ marginTop: 16 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                   <span style={{ fontSize: 14, color: "var(--fg-2)" }}>Cada</span>
-                  <select
-                    value={intervalo}
-                    onChange={e => setIntervalo(Number(e.target.value))}
-                    style={{ ...inputStyle, width: 74 }}
-                  >
-                    {NUMEROS.map(n => <option key={n} value={n}>{n}</option>)}
-                  </select>
+                  <Desplegable
+                    ariaLabel="Intervalo"
+                    value={String(intervalo)}
+                    onChange={v => setIntervalo(Number(v))}
+                    opciones={OPCIONES_NUMEROS}
+                  />
                   <span style={{ fontSize: 14, color: "var(--fg-2)" }}>
                     {intervalo === 1 ? "mes en el" : "meses en el"}
                   </span>
-                  <select
-                    value={ordinalSemana}
-                    onChange={e => setOrdinalSemana(Number(e.target.value))}
-                    style={{ ...inputStyle, width: 94 }}
-                  >
-                    <option value={1}>1º</option>
-                    <option value={2}>2º</option>
-                    <option value={3}>3º</option>
-                    <option value={4}>4º</option>
-                    <option value={-1}>último</option>
-                  </select>
-                  <select
-                    value={diaOrdinal}
-                    onChange={e => setDiaOrdinal(Number(e.target.value))}
-                    style={{ ...inputStyle, width: 124 }}
-                  >
-                    {DIAS_LARGOS.map((nombre, i) => (
-                      <option key={i} value={i}>{nombre}</option>
-                    ))}
-                  </select>
+                  <Desplegable
+                    ariaLabel="Semana del mes"
+                    value={String(ordinalSemana)}
+                    onChange={v => setOrdinalSemana(Number(v))}
+                    opciones={OPCIONES_ORDINAL}
+                  />
+                  <Desplegable
+                    ariaLabel="Día de la semana"
+                    value={String(diaOrdinal)}
+                    onChange={v => setDiaOrdinal(Number(v))}
+                    opciones={DIAS_LARGOS.map((label, i) => ({ value: String(i), label }))}
+                  />
                 </div>
               </div>
             )}
@@ -797,13 +768,12 @@ function PlanCrearFormInner() {
             {recurrencia === "anual" && (
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 16 }}>
                 <span style={{ fontSize: 14, color: "var(--fg-2)" }}>Cada</span>
-                <select
-                  value={intervalo}
-                  onChange={e => setIntervalo(Number(e.target.value))}
-                  style={{ ...inputStyle, width: 74 }}
-                >
-                  {NUMEROS.map(n => <option key={n} value={n}>{n}</option>)}
-                </select>
+                <Desplegable
+                  ariaLabel="Intervalo"
+                  value={String(intervalo)}
+                  onChange={v => setIntervalo(Number(v))}
+                  opciones={OPCIONES_NUMEROS}
+                />
                 <span style={{ fontSize: 14, color: "var(--fg-2)" }}>
                   {intervalo === 1 ? "año" : "años"}
                 </span>
@@ -821,20 +791,31 @@ function PlanCrearFormInner() {
             <label style={labelStyle}>
               Primer vencimiento <span style={{ color: "var(--fg-4)", fontWeight: 400 }}>(Necesario)</span>
             </label>
-            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-              <input
-                type="date"
-                value={fechaInicio}
-                onChange={e => setFechaInicio(e.target.value)}
-                style={{ ...inputStyle, maxWidth: 220 }}
-              />
-              <input
-                type="time"
-                value={horaVencimiento}
-                onChange={e => setHoraVencimiento(e.target.value)}
-                aria-label="Hora de vencimiento (opcional)"
-                style={{ ...inputStyle, maxWidth: 150 }}
-              />
+            <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+              <div style={{ width: 220 }}>
+                <DatePicker
+                  value={fechaInicio ? aDate(fechaInicio) : undefined}
+                  onChange={d => setFechaInicio(d ? aYmd(d) : "")}
+                />
+              </div>
+              <div style={{ width: 150 }}>
+                <TimePicker
+                  placeholder="Hora (opcional)"
+                  value={horaVencimiento}
+                  onChange={setHoraVencimiento}
+                />
+              </div>
+              {/* El TimePicker no tiene "sin hora", y la hora es opcional. */}
+              {horaVencimiento && (
+                <button
+                  type="button"
+                  onClick={() => setHoraVencimiento("")}
+                  aria-label="Quitar hora"
+                  style={{ border: "none", background: "transparent", cursor: "pointer", color: "var(--fg-4)", display: "flex", padding: 4 }}
+                >
+                  <X size={15} />
+                </button>
+              )}
             </div>
             <p style={hintStyle}>
               Cuándo debe estar hecha la primera mantención. Desde esta fecha se
@@ -843,13 +824,14 @@ function PlanCrearFormInner() {
             </p>
 
             <label style={{ ...labelStyle, marginTop: 18 }}>Hasta (opcional)</label>
-            <input
-              type="date"
-              value={fechaFin}
-              min={fechaInicio || undefined}
-              onChange={e => setFechaFin(e.target.value)}
-              style={{ ...inputStyle, maxWidth: 220 }}
-            />
+            <div style={{ width: 220 }}>
+              <DatePicker
+                placeholder="Sin fecha de término"
+                value={fechaFin ? aDate(fechaFin) : undefined}
+                min={fechaInicio ? aDate(fechaInicio) : undefined}
+                onChange={d => setFechaFin(d ? aYmd(d) : "")}
+              />
+            </div>
             <p style={hintStyle}>Déjelo vacío para que el plan siga indefinidamente.</p>
 
             <div style={{ height: 1, background: "var(--border)", margin: "20px 0" }} />
@@ -892,15 +874,16 @@ function PlanCrearFormInner() {
                 onChange={e => setHorizonteNum(Math.max(1, Number(e.target.value) || 1))}
                 style={{ ...inputStyle, width: 84 }}
               />
-              <select
+              <Desplegable<"dias" | "semanas" | "meses">
+                ariaLabel="Unidad del horizonte"
                 value={horizonteUnidad}
-                onChange={e => setHorizonteUnidad(e.target.value as "dias" | "semanas" | "meses")}
-                style={{ ...inputStyle, width: 130 }}
-              >
-                <option value="dias">Días</option>
-                <option value="semanas">Semanas</option>
-                <option value="meses">Meses</option>
-              </select>
+                onChange={setHorizonteUnidad}
+                opciones={[
+                  { value: "dias", label: "Días" },
+                  { value: "semanas", label: "Semanas" },
+                  { value: "meses", label: "Meses" },
+                ]}
+              />
               <span style={{ fontSize: 14, color: "var(--fg-2)" }}>por adelantado</span>
             </div>
             <p style={hintStyle}>
@@ -964,7 +947,7 @@ function PlanCrearFormInner() {
         <button
           onClick={() => router.push("/planes")}
           style={{
-            padding: "8px 16px", borderRadius: 8, border: "1px solid var(--border)",
+            height: 40, padding: "0 18px", borderRadius: 8, border: "1px solid var(--border)",
             background: "var(--surface-1)", color: "var(--fg-2)",
             fontSize: 14, fontFamily: "inherit", cursor: "pointer",
           }}
@@ -976,10 +959,11 @@ function PlanCrearFormInner() {
           disabled={!puedeCrear || saving}
           style={{
             display: "flex", alignItems: "center", gap: 7,
-            padding: "8px 18px", borderRadius: 8, border: "none",
-            background: puedeCrear ? "var(--brand)" : "var(--surface-3, #e5e7eb)",
-            color: puedeCrear ? "#fff" : "var(--fg-4)",
-            fontSize: 14, fontWeight: 500, fontFamily: "inherit",
+            height: 40, padding: "0 24px", borderRadius: 8, border: "none",
+            background: puedeCrear ? "linear-gradient(135deg, var(--brand-active), var(--brand))" : "var(--surface-3, #e5e7eb)",
+            color: puedeCrear ? "var(--fg-on-brand)" : "var(--fg-4)",
+            boxShadow: puedeCrear ? "0 2px 6px rgba(37,99,235,0.25)" : "none",
+            fontSize: 14, fontWeight: 400, fontFamily: "inherit",
             cursor: puedeCrear && !saving ? "pointer" : "not-allowed",
           }}
         >
@@ -1045,8 +1029,8 @@ function Section({
           <div style={{ fontSize: 14, color: "var(--fg-3)", marginTop: 3 }}>{descripcion}</div>
         </div>
         {open
-          ? <ChevronUp size={16} style={{ color: "var(--fg-4)", flexShrink: 0, marginTop: 2 }} />
-          : <ChevronDown size={16} style={{ color: "var(--fg-4)", flexShrink: 0, marginTop: 2 }} />}
+          ? <ChevronUp size={16} style={{ color: "var(--brand)", flexShrink: 0, marginTop: 2 }} />
+          : <ChevronDown size={16} style={{ color: "var(--brand)", flexShrink: 0, marginTop: 2 }} />}
       </button>
       {open && (
         <div style={{ padding: "18px", borderTop: "1px solid var(--border)" }}>
@@ -1188,7 +1172,7 @@ function DiasSemana({
             onClick={() => onToggle(i)}
             aria-pressed={activo}
             style={{
-              minWidth: 56, padding: "9px 12px", borderRadius: 8,
+              minWidth: 56, height: 40, padding: "0 12px", borderRadius: "var(--r-sm)",
               border: `1px solid ${activo ? "var(--brand)" : "var(--border)"}`,
               background: activo ? "var(--brand-tint)" : "var(--surface-1)",
               color: activo ? "var(--brand)" : "var(--fg-2)",
@@ -1207,16 +1191,30 @@ function DiasSemana({
 
 const DIAS_CORTOS = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
 const DIAS_LARGOS = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
-const NUMEROS = Array.from({ length: 12 }, (_, i) => i + 1);
+// Opciones de los Desplegable: trabajan con strings, el estado guarda números.
+const OPCIONES_NUMEROS = Array.from({ length: 12 }, (_, i) => ({ value: String(i + 1), label: String(i + 1) }));
+const OPCIONES_DIA_MES = Array.from({ length: 31 }, (_, i) => ({ value: String(i + 1), label: `${i + 1}º` }));
+const OPCIONES_ORDINAL = [
+  { value: "1", label: "1º" }, { value: "2", label: "2º" }, { value: "3", label: "3º" },
+  { value: "4", label: "4º" }, { value: "-1", label: "último" },
+];
 
+// "YYYY-MM-DD" <-> Date local a mediodía, igual que OTCrearPanel: así ningún
+// huso horario corre el día.
+const aDate = (ymd: string) => new Date(`${ymd.slice(0, 10)}T12:00:00`);
+const aYmd = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+// Rótulo y caja de los campos de OTCrearPanel (su `FieldRow`).
 const labelStyle: CSSProperties = {
-  display: "block", fontSize: 14, fontWeight: 500,
-  color: "var(--fg-2)", marginBottom: 7,
+  display: "block", fontSize: 14, fontWeight: 400,
+  color: "var(--fg-1)", marginBottom: 10, letterSpacing: "0.01em",
 };
 
 const inputStyle: CSSProperties = {
-  border: "1px solid var(--border)", borderRadius: 8,
-  padding: "9px 12px", fontSize: 14, color: "var(--fg-1)",
+  border: "1px solid var(--border)", borderRadius: "var(--r-sm)",
+  height: 40, boxSizing: "border-box",
+  padding: "0 12px", fontSize: 14, color: "var(--fg-1)",
   background: "var(--surface-1)", fontFamily: "inherit", outline: "none",
   width: "100%",
 };

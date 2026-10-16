@@ -3,8 +3,8 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
-  ChevronLeft, FileText, Loader2,
-  Paperclip, Package, X, Plus, Search, ImagePlus, Trash2,
+  FileText, Loader2,
+  Package, X, Plus, Search, ImagePlus, Trash2, ShoppingCart,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase";
 import { uploadToR2 } from "@/lib/r2";
@@ -15,6 +15,7 @@ import { fetchVinculosActivos, type VinculoContratista } from "@/lib/envios-api"
 import CuadrillaQuickAdd from "@/components/ordenes/CuadrillaQuickAdd";
 import type { Usuario, CategoriaOT } from "@/types/ordenes";
 import { usePlanDraft, type PlantillaOT } from "../PlanDraftContext";
+import { generarOrdenCompraPlan, listPlanMateriales } from "@/lib/planes-api";
 
 /**
  * Plantilla de la OT del plan, en su propia pantalla.
@@ -56,7 +57,7 @@ type ParteOpt = {
 
 export default function PlantillaForm() {
   const router = useRouter();
-  const { draft, plantilla, setPlantilla } = usePlanDraft();
+  const { draft, plantilla, setPlantilla, editandoId } = usePlanDraft();
 
   // Copia local: lo escrito solo llega al borrador al guardar, así "cancelar"
   // descarta de verdad en vez de dejar cambios a medias aplicados.
@@ -78,6 +79,18 @@ export default function PlantillaForm() {
   const [procs, setProcs] = useState<ProcedimientoSeleccionado[]>([]);
 
   const fileRef = useRef<HTMLInputElement | null>(null);
+
+  /**
+   * Cuadrilla elegida, si los asignados salieron de una.
+   *
+   * Técnicos y cuadrilla son excluyentes: o se asigna gente a mano o se manda a
+   * un grupo. Mezclarlos deja una lista donde no se sabe quién vino por qué. La
+   * cuadrilla no se guarda (CuadrillaQuickAdd solo vuelca sus miembros en
+   * `asignados_ids`), así que esto vive solo mientras se edita: al volver a
+   * abrir la plantilla, los asignados se ven como técnicos sueltos.
+   */
+  const [cuadrilla, setCuadrilla] = useState<string | null>(null);
+  const [generandoOC, setGenerandoOC] = useState(false);
 
   function set<K extends keyof PlantillaOT>(k: K, v: PlantillaOT[K]) {
     setForm(prev => ({ ...prev, [k]: v }));
@@ -161,6 +174,39 @@ export default function PlantillaForm() {
     }
   }
 
+  /**
+   * La OC se arma a pedido: tener materiales en la plantilla no obliga a
+   * comprarlos. El RPC lee los materiales GUARDADOS del plan, así que con
+   * cambios sin guardar se pide guardar primero en vez de comprar otra cosa.
+   */
+  async function generarOC() {
+    if (!editandoId) return;
+    setGenerandoOC(true);
+    try {
+      const guardados = await listPlanMateriales(editandoId);
+      const clave = (ms: { parte_id: string; cantidad: number }[]) =>
+        ms.map(m => `${m.parte_id}:${m.cantidad}`).sort().join("|");
+      if (clave(guardados) !== clave(form.materiales)) {
+        alert("Guarda la plantilla y el plan antes de generar la orden de compra: se arma con los materiales guardados.");
+        return;
+      }
+      if (!confirm(
+        "Se generará una orden de compra en borrador con los materiales que faltan en bodega " +
+        "(una por proveedor), para la próxima mantención.",
+      )) return;
+      const ids = await generarOrdenCompraPlan(editandoId);
+      if (ids.length === 0) {
+        alert("Hay stock suficiente de todos los materiales: no hace falta comprar.");
+      } else {
+        router.push(ids.length === 1 ? `/ordenes-compra?id=${ids[0]}` : "/ordenes-compra");
+      }
+    } catch (e) {
+      alert((e as Error).message || "No se pudo generar la orden de compra.");
+    } finally {
+      setGenerandoOC(false);
+    }
+  }
+
   function guardar() {
     setPlantilla({
       ...form,
@@ -172,30 +218,8 @@ export default function PlantillaForm() {
 
   return (
     <div style={{ height: "100%", display: "flex", flexDirection: "column", background: "var(--surface-canvas)" }}>
-      {/* Encabezado: misma construcción que el formulario del plan
-          (PlanCrearForm), para que pasar de una pantalla a la otra no cambie la
-          barra bajo los pies. */}
-      <div style={{
-        display: "flex", alignItems: "center", gap: 12,
-        padding: "14px 20px", borderBottom: "1px solid var(--border)",
-        background: "var(--surface-canvas)", flexShrink: 0,
-      }}>
-        <button
-          onClick={() => router.push("/planes/crear")}
-          aria-label="Volver al plan"
-          style={{
-            display: "flex", alignItems: "center", justifyContent: "center",
-            width: 28, height: 28, borderRadius: 6, border: "none",
-            background: "transparent", color: "var(--fg-3)", cursor: "pointer",
-          }}
-        >
-          <ChevronLeft size={18} />
-        </button>
-        <h1 style={{ fontSize: 14, fontWeight: 500, color: "var(--fg-1)", margin: 0 }}>
-          Plantilla de la orden de trabajo
-        </h1>
-      </div>
-
+      {/* Sin encabezado propio: la ruta ya la dicen los breadcrumbs de la
+          barra superior (GlobalTopBar), que además llevan de vuelta al plan. */}
       {/* Cuerpo */}
       <div style={{ flex: 1, overflowY: "auto", padding: "28px 20px 120px" }}>
         <div style={{ maxWidth: 820, margin: "0 auto" }}>
@@ -242,20 +266,47 @@ export default function PlantillaForm() {
                 </div>
 
                 <FieldRow label="Asignar a">
-                  {/* Mismo selector múltiple con búsqueda que OTCrearPanel. */}
-                  <MultiSelect
-                    options={usuarios.map(u => ({ id: u.id, label: u.nombre }))}
-                    value={form.asignados_ids}
-                    onChange={v => set("asignados_ids", v)}
-                    vacio="Sin técnicos"
-                  />
-                  {/* La cuadrilla expande sus miembros sobre los ya asignados:
-                      no es un campo aparte, es un atajo para llenar este. */}
-                  <CuadrillaQuickAdd
-                    wsId={wsId}
-                    ancho="100%"
-                    onAdd={ids => set("asignados_ids", Array.from(new Set([...form.asignados_ids, ...ids])))}
-                  />
+                  {/* Técnicos O cuadrilla, no los dos (ver `cuadrilla`). El que
+                      no se usa queda inerte y atenuado. */}
+                  <div inert={!!cuadrilla} style={{ opacity: cuadrilla ? 0.5 : 1 }}>
+                    <MultiSelect
+                      options={usuarios.map(u => ({ id: u.id, label: u.nombre }))}
+                      value={form.asignados_ids}
+                      onChange={v => set("asignados_ids", v)}
+                      vacio="Sin técnicos"
+                    />
+                  </div>
+                  {cuadrilla ? (
+                    <div style={{
+                      marginTop: 8, height: 40, boxSizing: "border-box",
+                      display: "flex", alignItems: "center", gap: 8, padding: "0 12px",
+                      border: "1px solid var(--border)", borderRadius: "var(--r-sm)",
+                      background: "var(--surface-1)", fontSize: 14, color: "var(--fg-1)",
+                    }}>
+                      <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        Cuadrilla {cuadrilla}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => { setCuadrilla(null); set("asignados_ids", []); }}
+                        aria-label="Quitar cuadrilla"
+                        style={{ border: "none", background: "transparent", cursor: "pointer", color: "var(--fg-4)", display: "flex", padding: 2 }}
+                      >
+                        <X size={15} />
+                      </button>
+                    </div>
+                  ) : (
+                    <div
+                      inert={form.asignados_ids.length > 0}
+                      style={{ opacity: form.asignados_ids.length > 0 ? 0.5 : 1 }}
+                    >
+                      <CuadrillaQuickAdd
+                        wsId={wsId}
+                        ancho="100%"
+                        onAdd={(ids, nombre) => { setCuadrilla(nombre); set("asignados_ids", ids); }}
+                      />
+                    </div>
+                  )}
                 </FieldRow>
 
                 {/* Proveedores conectados: cada OT del plan les llega a su
@@ -351,14 +402,14 @@ export default function PlantillaForm() {
                   workspaceId={wsId}
                   value={procs}
                   onChange={setProcs}
+                  sinIcono
                 />
               </div>
 
               {/* ── Materiales ─────────────────────────────────────────── */}
               <Seccion
-                icono={<Package size={16} />}
                 titulo="Materiales"
-                descripcion="Insumos que consume cada mantención. Con esto se calcula qué hay que comprar antes de la fecha."
+                descripcion="Insumos que consume cada mantención. La orden de compra se genera solo si la pides."
               >
                 <MaterialesPicker
                   partes={partes}
@@ -366,11 +417,38 @@ export default function PlantillaForm() {
                   value={form.materiales}
                   onChange={v => set("materiales", v)}
                 />
+                {/* A pedido, no al guardar: ver generarOC. Un plan nuevo
+                    todavía no existe en la base y no hay a qué colgarle la OC. */}
+                {form.materiales.length > 0 && (
+                  <div style={{ marginTop: 14, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+                    <button
+                      type="button"
+                      onClick={generarOC}
+                      disabled={!editandoId || generandoOC}
+                      style={{
+                        height: 40, padding: "0 16px",
+                        display: "flex", alignItems: "center", gap: 7,
+                        border: "1px solid var(--border)", borderRadius: "var(--r-sm)",
+                        background: "var(--surface-1)", color: "var(--brand)",
+                        fontSize: 14, fontWeight: 400, fontFamily: "inherit",
+                        cursor: !editandoId || generandoOC ? "default" : "pointer",
+                        opacity: editandoId ? 1 : 0.5,
+                      }}
+                    >
+                      {generandoOC ? <Loader2 size={15} className="animate-spin" /> : <ShoppingCart size={15} />}
+                      Generar orden de compra
+                    </button>
+                    {!editandoId && (
+                      <span style={{ fontSize: 14, color: "var(--fg-3)" }}>
+                        Crea el plan primero para poder generar la orden de compra.
+                      </span>
+                    )}
+                  </div>
+                )}
               </Seccion>
 
               {/* ── Adjuntos ───────────────────────────────────────────── */}
               <Seccion
-                icono={<Paperclip size={16} />}
                 titulo="Imágenes y archivos"
                 descripcion="Planos, manuales o fotos de referencia que hereda cada orden."
               >
@@ -387,8 +465,10 @@ export default function PlantillaForm() {
                   onClick={() => fileRef.current?.click()}
                   disabled={subiendo}
                   style={{
-                    display: "flex", alignItems: "center", gap: 7,
-                    padding: "9px 15px", borderRadius: 8,
+                    // Ancho completo y 40px, como el resto de los campos.
+                    width: "100%", height: 40, boxSizing: "border-box",
+                    display: "flex", alignItems: "center", justifyContent: "center", gap: 7,
+                    padding: "0 15px", borderRadius: "var(--r-sm)",
                     border: "1px dashed var(--border-strong)", background: "var(--surface-1)",
                     color: "var(--brand)", fontSize: 14, fontWeight: 500,
                     fontFamily: "inherit", cursor: subiendo ? "default" : "pointer",
@@ -458,7 +538,7 @@ export default function PlantillaForm() {
         <button
           onClick={() => router.push("/planes/crear")}
           style={{
-            padding: "8px 16px", borderRadius: 8, border: "1px solid var(--border)",
+            height: 40, padding: "0 18px", borderRadius: 8, border: "1px solid var(--border)",
             background: "var(--surface-1)", color: "var(--fg-2)",
             fontSize: 14, fontFamily: "inherit", cursor: "pointer",
           }}
@@ -468,9 +548,10 @@ export default function PlantillaForm() {
         <button
           onClick={guardar}
           style={{
-            padding: "8px 18px", borderRadius: 8, border: "none",
-            background: "var(--brand)", color: "var(--fg-on-brand)",
-            fontSize: 14, fontWeight: 500, fontFamily: "inherit", cursor: "pointer",
+            height: 40, padding: "0 24px", borderRadius: 8, border: "none",
+            background: "linear-gradient(135deg, var(--brand-active), var(--brand))", color: "var(--fg-on-brand)",
+            boxShadow: "0 2px 6px rgba(37,99,235,0.25)",
+            fontSize: 14, fontWeight: 400, fontFamily: "inherit", cursor: "pointer",
           }}
         >
           Guardar plantilla
@@ -629,11 +710,11 @@ function MaterialesPicker({
         </div>
       )}
 
-      <div ref={boxRef} style={{ position: "relative", maxWidth: 420 }}>
+      <div ref={boxRef} style={{ position: "relative" }}>
         <div style={{
-          display: "flex", alignItems: "center", gap: 8,
-          border: "1px solid var(--border)", borderRadius: 8,
-          padding: "9px 12px", background: "var(--surface-1)",
+          display: "flex", alignItems: "center", gap: 8, height: 40, boxSizing: "border-box",
+          border: "1px solid var(--border)", borderRadius: "var(--r-sm)",
+          padding: "0 12px", background: "var(--surface-1)",
         }}>
           <Search size={15} style={{ color: "var(--fg-4)", flexShrink: 0 }} />
           <input
@@ -734,9 +815,8 @@ function Tarjeta({ children }: { children: React.ReactNode }) {
 }
 
 function Seccion({
-  icono, titulo, descripcion, children,
+  titulo, descripcion, children,
 }: {
-  icono: React.ReactNode;
   titulo: string;
   descripcion: string;
   children: React.ReactNode;
@@ -746,8 +826,7 @@ function Seccion({
       border: "1px solid var(--border)", borderRadius: 8,
       background: "var(--surface-canvas)", padding: 18, marginBottom: 18,
     }}>
-      <div style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 14 }}>
-        <span style={{ color: "var(--brand)", display: "flex", paddingTop: 1 }}>{icono}</span>
+      <div style={{ marginBottom: 14 }}>
         <div>
           <div style={{ fontSize: 14, fontWeight: 500, color: "var(--fg-1)" }}>{titulo}</div>
           <div style={{ fontSize: 14, color: "var(--fg-3)", marginTop: 2 }}>{descripcion}</div>
@@ -759,8 +838,8 @@ function Seccion({
 }
 
 const inputChico = {
-  width: 72, height: 36,
-  border: "1px solid var(--border)", borderRadius: 6,
+  width: 72, height: 40, boxSizing: "border-box",
+  border: "1px solid var(--border)", borderRadius: "var(--r-sm)",
   padding: "0 10px", fontSize: 14, color: "var(--fg-1)",
   background: "var(--surface-1)", fontFamily: "inherit", outline: "none",
 } as const;

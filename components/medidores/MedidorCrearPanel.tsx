@@ -122,12 +122,15 @@ interface OpcionActivo {
   ubicacion_id: string | null;
 }
 
+// Rótulo, alto y radio de los campos de OTCrearPanel (su `FieldRow`): los dos
+// paneles se abren en el mismo lugar y tienen que verse como el mismo formulario.
 const labelStyle: React.CSSProperties = {
-  fontSize: 14, fontWeight: 400, color: "var(--fg-2)", marginBottom: 5, display: "block",
+  fontSize: 14, fontWeight: 400, color: "var(--fg-1)", marginBottom: 10, display: "block",
+  letterSpacing: "0.01em",
 };
 const inputStyle: React.CSSProperties = {
-  width: "100%", height: 38, padding: "0 12px",
-  border: "1px solid var(--border)", borderRadius: 8,
+  width: "100%", height: 40, padding: "0 12px",
+  border: "1px solid var(--border)", borderRadius: "var(--r-sm)",
   fontSize: 14, fontFamily: "inherit", color: "var(--fg-1)",
   background: "var(--surface-1)", outline: "none", boxSizing: "border-box",
 };
@@ -404,10 +407,10 @@ export default function MedidorCrearPanel({
         </h2>
       </div>
 
-      <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "24px 28px" }}>
+      <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: 28 }}>
         {creado ? (
           /* ── Paso 2: el token ──────────────────────────────────────────── */
-          <div style={{ display: "grid", gap: 18, maxWidth: 620 }}>
+          <div style={{ display: "grid", gap: 28, maxWidth: 1180 }}>
             <p style={{ margin: 0, fontSize: 14, color: "var(--fg-2)", lineHeight: 1.6 }}>
               <strong style={{ fontWeight: 500 }}>{creado.nombre}</strong> ya está listo para recibir
               lecturas. Configura el equipo con este token:
@@ -442,13 +445,32 @@ export default function MedidorCrearPanel({
           </div>
         ) : (
           /* ── Paso 1: el formulario ─────────────────────────────────────── */
-          <div style={{ display: "grid", gap: 18, maxWidth: 620 }}>
-            <div>
-              <label style={labelStyle}>Nombre</label>
-              <input type="text" value={nombre} disabled={busy} style={inputStyle} autoFocus
-                placeholder="Ej. Vibración descanso lado acople"
-                onChange={e => setNombre(e.target.value)} />
-            </div>
+          <div style={{ display: "grid", gap: 28, maxWidth: 1180 }}>
+            {/* Nombre como el título de OTCrearPanel: grande, sin caja, con
+                el filete azul cuando ya tiene texto. Y la descripción justo
+                debajo, como allá. */}
+            <input type="text" value={nombre} disabled={busy} autoFocus
+              aria-label="Nombre"
+              placeholder="Nombre del medidor, ej. Vibración descanso lado acople"
+              onChange={e => setNombre(e.target.value)}
+              style={{
+                width: "100%", fontSize: 20, fontWeight: 400,
+                color: "var(--fg-1)", border: "none", outline: "none",
+                background: "transparent", padding: "8px 0",
+                borderBottom: "2px solid " + (nombre ? "var(--brand)" : "var(--border)"),
+                fontFamily: "inherit", transition: "border-color 0.15s",
+              }} />
+
+            <textarea value={descripcion} disabled={busy} rows={3}
+              aria-label="Descripción"
+              placeholder="Agregue una descripción: dónde está montado, qué mide"
+              onChange={e => setDescripcion(e.target.value)}
+              style={{
+                width: "100%", fontSize: 14, color: "var(--fg-1)",
+                border: "1px solid var(--border)", borderRadius: "var(--r-sm)",
+                padding: "12px 14px", outline: "none", resize: "vertical", boxSizing: "border-box",
+                fontFamily: "inherit", background: "var(--surface-1)", lineHeight: 1.7, minHeight: 108,
+              }} />
 
             {!activoId && (
               <div>
@@ -533,13 +555,6 @@ export default function MedidorCrearPanel({
             */}
 
             <div>
-              <label style={labelStyle}>Descripción (opcional)</label>
-              <input type="text" value={descripcion} disabled={busy} style={inputStyle}
-                placeholder="Dónde está montado, qué mide"
-                onChange={e => setDescripcion(e.target.value)} />
-            </div>
-
-            <div>
               <label style={labelStyle}>Unidad de medida</label>
               <SearchSelect
                 placeholder="Busca o escribe la unidad…"
@@ -574,6 +589,7 @@ export default function MedidorCrearPanel({
                   options={OPCIONES_FRECUENCIA}
                   onChange={setFrecuencia}
                   disabled={busy}
+                  haciaArriba
                 />
                 <p style={{ margin: "6px 0 0", fontSize: 14, color: "var(--fg-4)", lineHeight: 1.5 }}>
                   Cada cuánto toca leerlo. Si se pasa, el medidor aparece como

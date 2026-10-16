@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { PlanDraftProvider } from "./PlanDraftContext";
+import { PlanDraftProvider, usePlanDraft } from "./PlanDraftContext";
 import PlanCrearForm from "./PlanCrearForm";
 import PlantillaForm from "./plantilla/PlantillaForm";
 
@@ -35,10 +35,23 @@ export default function CrearPlanLayout({ children }: { children: React.ReactNod
     <PlanDraftProvider>
       <div style={{ height: "100%", position: "relative" }}>
         <Hoja visible={!enPlantilla}><PlanCrearForm /></Hoja>
-        <Hoja visible={enPlantilla}><PlantillaForm /></Hoja>
+        <Hoja visible={enPlantilla}><PlantillaVigente /></Hoja>
       </div>
     </PlanDraftProvider>
   );
+}
+
+/**
+ * La plantilla, remontada cada vez que el borrador se reemplaza entero.
+ *
+ * Montada desde el inicio, PlantillaForm copiaba la plantilla vacía antes de
+ * que cargara el plan a editar y no se enteraba del cambio. Ver `version` en
+ * PlanDraftContext. El ida y vuelta entre pasos no cambia la versión, así que
+ * lo escrito sin guardar se conserva igual que antes.
+ */
+function PlantillaVigente() {
+  const { version } = usePlanDraft();
+  return <PlantillaForm key={version} />;
 }
 
 function Hoja({ visible, children }: { visible: boolean; children: React.ReactNode }) {

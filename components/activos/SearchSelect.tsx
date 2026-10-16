@@ -26,7 +26,7 @@ export interface SearchSelectOption {
 
 export default function SearchSelect({
   placeholder, value, options, onChange, disabled,
-  emptyLabel = "Sin asignar", onCreate, createLabel, icono,
+  emptyLabel = "Sin asignar", onCreate, createLabel, icono, haciaArriba,
 }: {
   placeholder: string;
   value: string;
@@ -44,6 +44,8 @@ export default function SearchSelect({
   emptyLabel?: string;
   onCreate?: (nombre: string) => Promise<string>;
   createLabel?: string;
+  /** Abre el panel sobre el control: para el último campo de un formulario, pegado al footer. */
+  haciaArriba?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -101,7 +103,7 @@ export default function SearchSelect({
         onClick={() => { if (disabled) return; setOpen(!open); setQuery(""); }}
         style={{
           width: "100%", height: 40, display: "flex", alignItems: "center", gap: 8,
-          padding: "0 12px", border: "1px solid var(--border)", borderRadius: 8,
+          padding: "0 12px", border: "1px solid var(--border)", borderRadius: "var(--r-sm)",
           background: "var(--surface-1)", fontSize: 14, color: selected ? "var(--fg-1)" : "var(--fg-4)",
           cursor: disabled ? "not-allowed" : "pointer", textAlign: "left", opacity: disabled ? 0.6 : 1,
           fontFamily: "inherit",
@@ -115,11 +117,11 @@ export default function SearchSelect({
         <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
           {selected ? selected.label : placeholder}
         </span>
-        <ChevronDown size={13} style={{ flexShrink: 0, color: "var(--fg-4)" }} />
+        <ChevronDown size={16} style={{ flexShrink: 0, color: "var(--brand)" }} />
       </button>
       {open && (
         <div ref={panelRef} style={{
-          position: "absolute", top: "calc(100% + 3px)", left: 0, right: 0, zIndex: 600,
+          position: "absolute", [haciaArriba ? "bottom" : "top"]: "calc(100% + 3px)", left: 0, right: 0, zIndex: 600,
           background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: 8,
           boxShadow: "var(--shadow-md)", overflow: "hidden",
         }}>

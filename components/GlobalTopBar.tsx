@@ -95,11 +95,13 @@ function pageTrail(pathname: string): Crumb[] {
   if (pathname.startsWith("/ordenes")) return ["Operaciones", "Órdenes"];
   // Las rutas más específicas primero: startsWith("/planes") atraparía también
   // a /planes/crear si fuera antes.
-  if (pathname.startsWith("/planes/crear/plantilla")) return ["Operaciones", "Planes de mantención", "Plantilla"];
+  // Con enlace: la plantilla no tiene otra salida que estos crumbs. Volver a
+  // /planes/crear con Link no pierde el borrador, que vive en el layout.
+  if (pathname.startsWith("/planes/crear/plantilla")) return ["Operaciones", { label: "Planes de mantención", href: "/planes" }, { label: "Formulario", href: "/planes/crear" }, "Plantilla"];
   // "Editar" y "Nuevo" comparten ruta y solo los distingue `?editar=`, que
   // aquí no llega: una etiqueta neutra es preferible a afirmar "Nuevo plan"
   // sobre uno que se está editando.
-  if (pathname.startsWith("/planes/crear")) return ["Operaciones", "Planes de mantención", "Formulario"];
+  if (pathname.startsWith("/planes/crear")) return ["Operaciones", { label: "Planes de mantención", href: "/planes" }, "Formulario"];
   if (pathname.startsWith("/planes")) return ["Operaciones", "Planes de mantención"];
   const vActivos = vistaDe(pathname, VISTAS_ACTIVOS);
   if (vActivos) return ["Operaciones", vActivos];

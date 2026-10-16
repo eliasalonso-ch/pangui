@@ -100,8 +100,22 @@ export interface MedidorAnaliticaProps {
   onVerTodas?: () => void;
 }
 
+/**
+ * El rango con que abre el gráfico: el más chico que muestre la última lectura
+ * y unas 8 rondas.
+ *
+ * Fijo en "1D", un medidor semanal abría siempre vacío aunque tuviera meses de
+ * historia: había que adivinar que el dato estaba detrás de "3M".
+ */
+function rangoInicial(m: MedidorConUltima): (typeof RANGOS)[number]["key"] {
+  const desdeUltima = m.ultima ? (Date.now() - new Date(m.ultima.ts).getTime()) / MS_POR_HORA : 0;
+  const minutos = m.frecuencia_minutos ?? (m.frecuencia_dias != null ? m.frecuencia_dias * 1440 : null);
+  const necesarias = Math.max(desdeUltima, minutos != null ? (8 * minutos) / 60 : 0, 24);
+  return (RANGOS.find(r => r.horas >= necesarias) ?? RANGOS[RANGOS.length - 1]).key;
+}
+
 export default function MedidorAnalitica({ medidor, refrescar = 0, onVerTodas }: MedidorAnaliticaProps) {
-  const [rango, setRango] = useState<(typeof RANGOS)[number]["key"]>("1d");
+  const [rango, setRango] = useState<(typeof RANGOS)[number]["key"]>(() => rangoInicial(medidor));
   const [ahora, setAhora] = useState(() => Date.now());
   const [lecturas, setLecturas] = useState<Lectura[]>([]);
   const [cargando, setCargando] = useState(true);

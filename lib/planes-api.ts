@@ -6,7 +6,9 @@ import type {
   PlanForm,
   PlanMaterial,
   PlanMaterialForm,
+  RecurrenciaPlan,
 } from "@/types/planes";
+import { RECURRENCIA_PLAN_LABELS } from "@/types/planes";
 
 const PLAN_SELECT = `
   id, workspace_id, numero, nombre, descripcion, activo_id,
@@ -41,24 +43,52 @@ export const PLANES_PAGE_SIZE = 20;
  * la lista casi no cambia mientras se navega; un cursor solo agregaría estado
  * a cambio de robustez que aquí no hace falta.
  */
+/**
+ * Filtros de la lista. Todos "uno de"; vacío = sin filtrar.
+ *
+ * Se aplican en el servidor y no sobre lo ya cargado: la lista viene de a 20,
+ * y filtrar en el cliente solo miraría las páginas que alguien alcanzó a bajar.
+ */
+export interface FiltrosPlanes {
+  /** Vacío = solo los vigentes, que es lo que la lista mostró siempre. */
+  estados: ("vigente" | "pausado")[];
+  recurrencias: string[];
+  activos: string[];
+  ubicaciones: string[];
+  asignados: string[];
+}
+
+export const FILTROS_PLANES_VACIOS: FiltrosPlanes = {
+  estados: [], recurrencias: [], activos: [], ubicaciones: [], asignados: [],
+};
+
 export async function listPlanes(
-  incluirInactivos = false,
+  filtros: FiltrosPlanes = FILTROS_PLANES_VACIOS,
   desde = 0,
   limite = PLANES_PAGE_SIZE,
 ): Promise<PlanListItem[]> {
   const sb = createClient();
+  // !inner solo cuando se filtra por ubicación: es lo que hace que el filtro
+  // sobre la relación embebida descarte el plan y no solo vacíe `activos`.
+  const porUbicacion = filtros.ubicaciones.length > 0;
 
   let q = sb
     .from("planes_mantencion")
     .select(`
       id, numero, nombre, descripcion, activo_id, recurrencia, recurrencia_config,
       fecha_inicio, fecha_fin, activo, dias_aviso_previo, created_at,
-      activos ( nombre, imagen_url, numero_serie )
+      activos${porUbicacion ? "!inner" : ""} ( nombre, imagen_url, numero_serie, ubicacion_id )
     `)
     .order("created_at", { ascending: false })
     .range(desde, desde + limite - 1);
 
-  if (!incluirInactivos) q = q.eq("activo", true);
+  const pausados = filtros.estados.includes("pausado");
+  if (!pausados) q = q.eq("activo", true);
+  else if (!filtros.estados.includes("vigente")) q = q.eq("activo", false);
+  if (filtros.recurrencias.length) q = q.in("recurrencia", filtros.recurrencias);
+  if (filtros.activos.length) q = q.in("activo_id", filtros.activos);
+  if (filtros.asignados.length) q = q.overlaps("asignados_ids", filtros.asignados);
+  if (porUbicacion) q = q.in("activos.ubicacion_id", filtros.ubicaciones);
 
   const { data, error } = await q;
   if (error) throw error;
@@ -100,6 +130,52 @@ export async function listPlanes(
     activo_serie: f.activos?.numero_serie ?? null,
     proxima_fecha: proxima.get(f.id) ?? null,
   }));
+}
+
+type Opcion = { id: string; label: string };
+
+/**
+ * Opciones de los filtros: solo lo que algún plan usa (una opción sin
+ * resultados no sirve). Una consulta liviana sobre todos los planes, aparte de
+ * la lista paginada, porque las opciones tienen que estar completas aunque la
+ * lista no.
+ */
+export async function fetchOpcionesFiltroPlanes(): Promise<{
+  recurrencias: Opcion[]; activos: Opcion[]; ubicaciones: Opcion[]; asignados: Opcion[];
+}> {
+  const sb = createClient();
+  const { data, error } = await sb
+    .from("planes_mantencion")
+    .select("recurrencia, asignados_ids, activo_id, activos ( nombre, ubicacion_id, ubicaciones ( edificio, detalle ) )");
+  if (error) throw error;
+
+  const recurrencias = new Map<string, string>();
+  const activos = new Map<string, string>();
+  const ubicaciones = new Map<string, string>();
+  const asignados = new Set<string>();
+  for (const p of (data ?? []) as any[]) {
+    recurrencias.set(p.recurrencia, RECURRENCIA_PLAN_LABELS[p.recurrencia as RecurrenciaPlan] ?? p.recurrencia);
+    if (p.activo_id) activos.set(p.activo_id, p.activos?.nombre ?? "Sin nombre");
+    const u = p.activos?.ubicaciones;
+    // Mismo rótulo "edificio · detalle" que el resto de la app.
+    if (p.activos?.ubicacion_id) {
+      ubicaciones.set(p.activos.ubicacion_id, [u?.edificio, u?.detalle].filter(Boolean).join(" · ") || "Sin nombre");
+    }
+    for (const id of p.asignados_ids ?? []) asignados.add(id);
+  }
+
+  const nombres = asignados.size
+    ? ((await sb.from("usuarios").select("id, nombre").in("id", [...asignados])).data ?? [])
+    : [];
+
+  const ordenar = (m: Map<string, string>) =>
+    [...m].map(([id, label]) => ({ id, label })).sort((a, b) => a.label.localeCompare(b.label, "es"));
+  return {
+    recurrencias: [...recurrencias].map(([id, label]) => ({ id, label })),
+    activos: ordenar(activos),
+    ubicaciones: ordenar(ubicaciones),
+    asignados: ordenar(new Map(nombres.map((u: any) => [u.id as string, (u.nombre as string) ?? "—"]))),
+  };
 }
 
 export async function getPlan(id: string): Promise<PlanMantencion | null> {
@@ -437,6 +513,19 @@ export async function updatePlan(
 async function generarOrdenesYa(planId: string): Promise<void> {
   const { error } = await createClient().rpc("plan_generar_ordenes_ya", { p_plan_id: planId });
   if (error) console.error("[planes] no se pudo generar la OT de hoy", error);
+}
+
+/**
+ * Arma la orden de compra del plan a pedido (botón del detalle), en vez de que
+ * nazca sola en el cron: tener materiales en el plan no obliga a comprarlos.
+ *
+ * Una OC por proveedor, en borrador, solo con lo que falta en bodega. Vacío =
+ * había stock de todo. Ver 20261016120000_plan_orden_compra_a_pedido.sql.
+ */
+export async function generarOrdenCompraPlan(planId: string): Promise<string[]> {
+  const { data, error } = await createClient().rpc("plan_generar_orden_compra", { p_plan_id: planId });
+  if (error) throw error;
+  return (data ?? []) as string[];
 }
 
 /**

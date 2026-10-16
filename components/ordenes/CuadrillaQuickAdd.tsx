@@ -35,8 +35,8 @@ export default function CuadrillaQuickAdd({ wsId, onAdd, ancho = ASIGNAR_BTN_WID
   wsId: string | null | undefined;
   /** "100%" en formularios donde todos los campos ocupan el ancho completo. */
   ancho?: number | string;
-  /** Recibe los ids de los miembros; el padre los une a los ya asignados. */
-  onAdd: (usuarioIds: string[]) => void;
+  /** Recibe los ids de los miembros (y el nombre, por si el padre lo muestra). */
+  onAdd: (usuarioIds: string[], nombre: string) => void;
 }) {
   const PAGINA = 20;
   const [open, setOpen] = useState(false);
@@ -160,7 +160,7 @@ export default function CuadrillaQuickAdd({ wsId, onAdd, ancho = ASIGNAR_BTN_WID
                 key={c.id}
                 type="button"
                 disabled={c.miembros.length === 0}
-                onClick={() => { onAdd(c.miembros); setOpen(false); }}
+                onClick={() => { onAdd(c.miembros, c.nombre); setOpen(false); }}
                 style={{
                   display: "flex", alignItems: "center", gap: 10, width: "100%",
                   padding: "8px 12px", background: "transparent", border: "none",

@@ -20,8 +20,13 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  Gauge, Inbox, Loader2, MapPin, MoreVertical, Pencil, Plus, Search, User, Wifi, X,
+  AlertCircle, CalendarClock, Clock, Gauge, Inbox, Loader2, MapPin, MoreVertical, Pencil, Plus, Ruler, Search, User, Wifi, X,
 } from "lucide-react";
+import { FilterDropdown, FiltroMultiple, OptionList, OptionRow } from "@/components/filtros/primitivas";
+import {
+  CLAVES_FILTRO, ETIQUETA_FILTRO, FILTROS_VACIOS, aplicarFiltros, contarFiltros, opcionesFiltro,
+  type ClaveFiltro, type FiltrosMedidor,
+} from "./filtros";
 import { Engine } from "@/components/icons/Engine";
 import { createClient } from "@/lib/supabase";
 import { useDeepLinkId } from "@/lib/use-deep-link-id";
@@ -57,6 +62,15 @@ const NIVEL_LABEL: Record<NivelLectura, string> = {
   normal: "Normal",
   advertencia: "Advertencia",
   critico: "Crítico",
+};
+
+const ICONO_FILTRO: Record<ClaveFiltro, React.ReactNode> = {
+  activos: <Engine size={16} />,
+  ubicaciones: <MapPin size={16} />,
+  unidades: <Ruler size={16} />,
+  frecuencias: <Clock size={16} />,
+  tipos: <Wifi size={16} />,
+  estados: <AlertCircle size={16} />,
 };
 
 /**
@@ -108,6 +122,9 @@ function MedidoresPageInner() {
   const [wsId, setWsId] = useState<string | null>(null);
   const [rol, setRol] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [filtros, setFiltros] = useState<FiltrosMedidor>(FILTROS_VACIOS);
+  /** Solo los manuales con la ronda vencida: es la ronda que hay que salir a hacer. */
+  const [soloPendientes, setSoloPendientes] = useState(false);
   const { selectedId, open, close } = useDeepLinkId("/medidores");
   const [creando, setCreando] = useState(false);
   /** Medidor en edición: reusa el panel de alta con los valores cargados. */
@@ -217,9 +234,12 @@ function MedidoresPageInner() {
    * final: la ronda es el motivo por el que se entra acá. Dentro de cada grupo,
    * alfabético.
    */
+  const opciones = useMemo(() => opcionesFiltro(items), [items]);
+
   const filtered = useMemo(() => {
+    const porFiltros = aplicarFiltros(soloPendientes ? items.filter(m => lecturaVencida(m)) : items, filtros);
     const q = search.trim().toLowerCase();
-    const porBusqueda = !q ? items : items.filter(m =>
+    const porBusqueda = !q ? porFiltros : porFiltros.filter(m =>
       m.nombre.toLowerCase().includes(q) ||
       m.unidad.toLowerCase().includes(q) ||
       (m.descripcion ?? "").toLowerCase().includes(q));
@@ -228,9 +248,9 @@ function MedidoresPageInner() {
       m.tipo !== "manual" ? 2 : lecturaVencida(m) ? 0 : 1;
 
     return [...porBusqueda].sort((a, b) => peso(a) - peso(b) || a.nombre.localeCompare(b.nombre));
-  }, [items, search]);
+  }, [items, filtros, soloPendientes, search]);
 
-  const hayBusqueda = search.trim().length > 0;
+  const hayBusqueda = search.trim().length > 0 || soloPendientes || contarFiltros(filtros) > 0;
   const pendientes = useMemo(
     () => items.filter(m => m.tipo === "manual" && lecturaVencida(m)).length,
     [items],
@@ -315,16 +335,36 @@ function MedidoresPageInner() {
               )}
             </div>
 
-            {/* Fila inferior: el recuento de la ronda ocupa el lugar donde
-                /proveedores pone su barra de filtros. */}
-            <div style={{ gridColumn: 1, gridRow: 2, display: "flex", alignItems: "center" }}>
-              {pendientes > 0 && (
-                <span style={{ fontSize: 14, color: "var(--warning)" }}>
-                  {pendientes === 1
-                    ? "1 medidor pendiente de lectura"
-                    : `${pendientes} medidores pendientes de lectura`}
-                </span>
-              )}
+            {/* Fila inferior: los filtros, mismas piezas que /proveedores. Sin
+                "+ Añadir filtro": son siete y caben todos a la vista. La ronda
+                va primero porque es el motivo por el que se entra acá. */}
+            <div style={{ gridColumn: "1 / -1", gridRow: 2, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+              <FilterDropdown
+                label="Lectura pendiente"
+                icon={<CalendarClock size={16} />}
+                active={soloPendientes}
+                count={soloPendientes ? 1 : 0}
+                onClear={() => setSoloPendientes(false)}
+              >
+                <OptionList>
+                  <OptionRow active={soloPendientes} onClick={() => setSoloPendientes(v => !v)}>
+                    <span style={{ flex: 1, minWidth: 0, fontSize: 14, color: "var(--fg-1)" }}>
+                      Solo con lectura pendiente ({pendientes})
+                    </span>
+                  </OptionRow>
+                </OptionList>
+              </FilterDropdown>
+              {CLAVES_FILTRO.map(k => (
+                <FiltroMultiple
+                  key={k}
+                  label={ETIQUETA_FILTRO[k]}
+                  icon={ICONO_FILTRO[k]}
+                  opciones={opciones[k]}
+                  seleccion={filtros[k]}
+                  onChange={v => setFiltros(f => ({ ...f, [k]: v }))}
+                  buscable={k !== "tipos" && k !== "estados"}
+                />
+              ))}
             </div>
           </div>
 
