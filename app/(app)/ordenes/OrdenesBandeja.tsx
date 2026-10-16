@@ -12,6 +12,7 @@ import { needsBulkSnapshot, overlaySnapshot, BULK_MIN_INTERVAL_MS } from "./bulk
 import { needsFullWorkspaceSet } from "./list-source";
 import { collectItos } from "./ito-filter";
 import { applyFiltros } from "./filter-predicate";
+import { origenDeOT, hayEnvios } from "@/lib/envios-api";
 import { initialFilterKeys, activeFilterKeys, filterKeysStorageKey, type FilterKey } from "./filter-registry";
 import { mergeCalendarExtras } from "@/lib/orden-merge";
 import { buildOrdenesWorkbook, type ExportCols as SharedExportCols, type OrdenInput, type HojaInput, type FilaInput, type FotoItemInput, type MaterialUsadoInput } from "@/lib/excel-export-shared";
@@ -1166,7 +1167,7 @@ export default function OrdenesBandeja({
 
     // Filtros + búsqueda — cadena compartida con los contadores de pestaña.
     list = applyFiltros(list, filtros, {
-      ubicaciones, dadosDeBajaIds, todayKey, search, matchesSearch, banderaColorPorOrden,
+      ubicaciones, dadosDeBajaIds, todayKey, search, matchesSearch, banderaColorPorOrden, origenDe: origenDeOT,
     });
 
     // Hide the current user's marked ("leídas") OTs when the toggle is on.
@@ -1321,7 +1322,7 @@ export default function OrdenesBandeja({
     // every field read below exists on both.
     const applyFilters = (list: OrdenBulkItem[]) =>
       applyFiltros(list, filtros, {
-        ubicaciones, dadosDeBajaIds, todayKey, search, matchesSearch, banderaColorPorOrden,
+        ubicaciones, dadosDeBajaIds, todayKey, search, matchesSearch, banderaColorPorOrden, origenDe: origenDeOT,
       });
     // Per tab × per scope. Drives the dropdown labels, the red-dot indicators,
     // and the tab pill counts. All respect search + filtros so the count
@@ -1465,7 +1466,7 @@ export default function OrdenesBandeja({
         // contadores. Antes esta era una tercera copia a mano y ya se habia
         // quedado sin los filtros de sociedad y de ITO.
         list = applyFiltros(list, filtros, {
-          ubicaciones, dadosDeBajaIds, todayKey, search, matchesSearch, banderaColorPorOrden,
+          ubicaciones, dadosDeBajaIds, todayKey, search, matchesSearch, banderaColorPorOrden, origenDe: origenDeOT,
         });
         list.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
         return list;
@@ -1757,6 +1758,7 @@ export default function OrdenesBandeja({
             visibleKeys={visibleFilterKeys}
             onVisibleKeysChange={changeVisibleFilterKeys}
             coloresBandera={coloresBandera}
+            mostrarOrigen={hayEnvios()}
           />
         </div>
       </div>}

@@ -47,6 +47,7 @@ function chain(final: () => any) {
   obj.order       = (..._: any[]) => { mockOrder(..._);   return obj; };
   obj.limit       = (..._: any[]) => { mockLimit(..._);   return obj; };
   obj.in          = (..._: any[]) => { mockIn(..._);      return obj; };
+  obj.or          = (..._: any[]) => obj;
   obj.single      = ()           => { mockSingle();       return final(); };
   obj.maybeSingle = ()           => { mockMaybeSingle();  return final(); };
   // allow await on the chain itself (for delete, update without .single())
@@ -192,8 +193,8 @@ describe("fetchOrdenes", () => {
     mockFrom.mockImplementation((tabla: string) => chain(() => (
       tabla === "ot_envios"
         ? { data: [
-            { orden_id: "ot-a", workspace_origen: "ws-udec", nombre_origen: "UdeC" },
-            { orden_id: "ot-b", workspace_origen: "ws-udec", nombre_origen: "UdeC" },
+            { orden_id: "ot-a", workspace_origen: "ws-udec", workspace_destino: "ws-contratista", nombre_origen: "UdeC" },
+            { orden_id: "ot-b", workspace_origen: "ws-udec", workspace_destino: "ws-contratista", nombre_origen: "UdeC" },
           ], error: null }
         : { data: [], error: null }
     )));

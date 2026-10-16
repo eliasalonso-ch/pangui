@@ -436,6 +436,11 @@ export interface FiltrosState {
    * los filtros guardados de antes no lo traen, y `?? []` evita romperlos.
    */
   banderaColores?: string[];
+  /**
+   * De dónde viene la OT: propia, recibida de un cliente o enviada a un
+   * proveedor (ot_envios). Opcional por la misma razón que banderaColores.
+   */
+  origenes?: ("propia" | "recibida" | "enviada")[];
 }
 
 export type SortOption =

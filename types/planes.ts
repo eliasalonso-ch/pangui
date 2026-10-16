@@ -69,6 +69,8 @@ export interface PlanMantencion {
   prioridad: string | null;
   /** Proveedor preferido para la orden de compra. */
   proveedor_id: string | null;
+  /** Vínculos (vinculos_contratista) a los que se envía cada OT del plan. */
+  envio_vinculo_ids: string[];
   imagen_url: string | null;
   adjuntos: PlanAdjunto[];
   asignados_ids: string[];
@@ -158,6 +160,7 @@ export interface PlanForm {
   tipo_trabajo?: string | null;
   prioridad?: string | null;
   proveedor_id?: string | null;
+  envio_vinculo_ids?: string[];
   imagen_url?: string | null;
   adjuntos?: PlanAdjunto[];
   /** Materiales del plan. Se guardan aparte, en plan_materiales. */

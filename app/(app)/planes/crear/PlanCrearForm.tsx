@@ -134,6 +134,7 @@ function planAPlantilla(p: PlanMantencion): PlantillaOT {
     // Los materiales viven en su propia tabla; el gate los carga aparte.
     materiales: [],
     proveedor_id: p.proveedor_id ?? "",
+    envio_vinculo_ids: p.envio_vinculo_ids ?? [],
     // Un plan guardado siempre tiene plantilla, aunque sea la de por defecto:
     // el panel debe mostrarla resumida, no el botón de "añadir".
     definida: true,
@@ -445,6 +446,7 @@ function PlanCrearFormInner() {
         adjuntos: plantilla.adjuntos,
         materiales: plantilla.materiales,
         proveedor_id: plantilla.proveedor_id || null,
+        envio_vinculo_ids: plantilla.envio_vinculo_ids,
         duracion_estimada_horas: horasEstimadas(),
         dias_apertura_previa: diasApertura,
         dias_aviso_previo: diasAviso,

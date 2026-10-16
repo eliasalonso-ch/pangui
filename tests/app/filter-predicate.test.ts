@@ -53,6 +53,15 @@ describe("applyFiltros", () => {
     expect(run(list, {}, d)).toHaveLength(3);
   });
 
+  it("origen: propias, recibidas de clientes y enviadas a proveedores", () => {
+    const list = [ot({ id: "p" }), ot({ id: "r" }), ot({ id: "e" })];
+    const origen: Record<string, string> = { p: "propia", r: "recibida", e: "enviada" };
+    const d = { ...deps, origenDe: (id: string) => origen[id] };
+    expect(run(list, { origenes: ["recibida"] }, d).map(o => o.id)).toEqual(["r"]);
+    expect(run(list, { origenes: ["propia", "enviada"] }, d).map(o => o.id)).toEqual(["p", "e"]);
+    expect(run(list, {}, d)).toHaveLength(3);
+  });
+
   it("sin filtros no descarta nada", () => {
     const list = [ot(), ot({ estado: "completado" })];
     expect(run(list)).toHaveLength(2);

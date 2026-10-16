@@ -48,6 +48,8 @@ export interface FilterDeps {
   todayKey: string;
   /** orden_id → color de su bandera (solo dueño/admin), para banderaColores. */
   banderaColorPorOrden?: Map<string, string>;
+  /** Origen de cada OT (origenDeOT de lib/envios-api), para el filtro "Origen". */
+  origenDe?: (ordenId: string) => string;
   /** Free-text search. Applied last, via `matchesSearch`, when non-empty. */
   search?: string;
   /**
@@ -97,6 +99,10 @@ export function applyFiltros<T extends FilterableOrden>(
       const color = deps.banderaColorPorOrden?.get(o.id);
       return color != null && banderaColores.includes(color);
     });
+  }
+  const origenes = filtros.origenes ?? [];
+  if (origenes.length && deps.origenDe) {
+    list = list.filter(o => (origenes as string[]).includes(deps.origenDe!(o.id)));
   }
   if (filtros.sociedadIds.length) {
     // Match via ubicacion.sociedad_id (joined in list select)

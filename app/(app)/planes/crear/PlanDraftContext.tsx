@@ -38,6 +38,8 @@ export interface PlantillaOT {
   materiales: { parte_id: string; cantidad: number }[];
   /** Proveedor preferido para la orden de compra. */
   proveedor_id: string;
+  /** Proveedores conectados (vínculos) a los que se envía cada OT del plan. */
+  envio_vinculo_ids: string[];
   /** Marca si el usuario llegó a guardar la plantilla, para el resumen. */
   definida: boolean;
 }
@@ -55,6 +57,7 @@ export const PLANTILLA_VACIA: PlantillaOT = {
   adjuntos: [],
   materiales: [],
   proveedor_id: "",
+  envio_vinculo_ids: [],
   definida: false,
 };
 

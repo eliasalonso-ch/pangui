@@ -3,15 +3,15 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
-  ChevronLeft, FileText, Tag, User, Clock, Flag, Loader2,
+  ChevronLeft, FileText, Loader2,
   Paperclip, Package, X, Plus, Search, ImagePlus, Trash2,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase";
 import { uploadToR2 } from "@/lib/r2";
 import { listCategorias } from "@/lib/categorias-api";
-import { FieldRow, SearchSelect, AssigneeSelect } from "@/components/ot/OTFormFields";
 import ProcedimientosPicker, { type ProcedimientoSeleccionado } from "@/app/(app)/ordenes/ProcedimientosPicker";
-import CategoriaMultiSelect from "@/components/ordenes/CategoriaMultiSelect";
+import CategoriaMultiSelect, { MultiSelect } from "@/components/ordenes/CategoriaMultiSelect";
+import { fetchVinculosActivos, type VinculoContratista } from "@/lib/envios-api";
 import CuadrillaQuickAdd from "@/components/ordenes/CuadrillaQuickAdd";
 import type { Usuario, CategoriaOT } from "@/types/ordenes";
 import { usePlanDraft, type PlantillaOT } from "../PlanDraftContext";
@@ -66,8 +66,9 @@ export default function PlantillaForm() {
   // Categorías completas (con icono y color) porque el selector las pinta como
   // chips; `{id,label}` no alcanzaba para eso.
   const [categorias, setCategorias] = useState<CategoriaOT[]>([]);
-  const [proveedores, setProveedores] = useState<{ id: string; label: string }[]>([]);
   const [partes, setPartes] = useState<ParteOpt[]>([]);
+  // Proveedores conectados a Pangui: sin ninguno, el campo no aparece.
+  const [proveedoresConectados, setProveedoresConectados] = useState<VinculoContratista[]>([]);
   const [wsId, setWsId] = useState<string | null>(null);
   const [cargando, setCargando] = useState(true);
   const [subiendo, setSubiendo] = useState(false);
@@ -94,19 +95,18 @@ export default function PlantillaForm() {
       const ws = perfil?.workspace_id;
       if (!ws) { setCargando(false); return; }
       setWsId(ws);
+      fetchVinculosActivos(ws).then(setProveedoresConectados).catch(() => { /* sin proveedores: el campo no aparece */ });
 
       // Todas las listas se piden acotadas: ninguna carga el catálogo completo.
       // Los selectores con búsqueda (materiales) consultan al servidor a medida
       // que se escribe, así que la primera página es solo lo que se ve al abrir.
-      const [usr, cat, prov, part, elegidas, proc] = await Promise.all([
+      const [usr, cat, part, elegidas, proc] = await Promise.all([
         sb.from("usuarios").select("id, nombre, rol, deleted_at")
           .eq("workspace_id", ws).order("nombre").limit(LISTA_PAGE_SIZE),
         // listCategorias resuelve el criterio real: propias MÁS las globales
         // (workspace_id NULL, que son la mayoría) y descontando las que el
         // espacio ocultó. Un .eq("workspace_id", …) a secas deja la lista vacía.
         listCategorias(ws),
-        sb.from("proveedores").select("id, nombre")
-          .eq("workspace_id", ws).order("nombre").limit(LISTA_PAGE_SIZE),
         sb.from("partes").select("id, nombre, unidad, stock_actual, imagen_url")
           .eq("workspace_id", ws).eq("activo", true).order("nombre").limit(LISTA_PAGE_SIZE),
         // Los materiales YA elegidos, pedidos por id: al editar un plan pueden
@@ -124,7 +124,6 @@ export default function PlantillaForm() {
 
       setUsuarios(((usr.data ?? []) as Usuario[]).filter(u => !(u as any).deleted_at));
       setCategorias((cat ?? []) as CategoriaOT[]);
-      setProveedores(((prov.data ?? []) as any[]).map(p => ({ id: p.id, label: p.nombre })));
       // Las elegidas van primero y sin duplicar: son las que el usuario ya
       // tiene en la tabla y deben poder pintarse siempre.
       const base = (part.data ?? []) as ParteOpt[];
@@ -226,71 +225,81 @@ export default function PlantillaForm() {
                   Si lo dejas vacío, cada orden toma el nombre del plan.
                 </p>
 
-                <FieldRow icon={<FileText size={16} />} label="Descripción">
+                {/* Descripción sin rótulo, igual que en OTCrearPanel. */}
+                <div style={{ padding: "14px 0" }}>
                   <textarea
                     value={form.descripcion}
                     onChange={e => set("descripcion", e.target.value)}
                     placeholder="Qué hay que hacer en cada mantención"
                     rows={3}
                     style={{
-                      width: "100%", border: "1px solid var(--border)", borderRadius: 8,
-                      padding: "12px 14px", fontSize: 14, color: "var(--fg-1)",
-                      background: "var(--surface-1)", fontFamily: "inherit",
-                      outline: "none", resize: "vertical", lineHeight: 1.7, minHeight: 108,
+                      width: "100%", fontSize: 14, color: "var(--fg-1)",
+                      border: "1px solid var(--border)", borderRadius: "var(--r-sm)",
+                      padding: "12px 14px", outline: "none", resize: "vertical",
+                      fontFamily: "inherit", background: "var(--surface-1)", lineHeight: 1.7, minHeight: 108,
                     }}
                   />
-                </FieldRow>
+                </div>
 
-                <FieldRow icon={<Tag size={16} />} label="Categorías">
-                  {/* Mismo selector que la OT: chips con icono, buscador y
-                      selección múltiple. `categoria_id` sigue el primero, que
-                      es lo único que guarda el plan. */}
-                  <CategoriaMultiSelect
-                    categorias={categorias}
-                    value={form.categoria_ids}
-                    onChange={ids => setForm(prev => ({
-                      ...prev, categoria_ids: ids, categoria_id: ids[0] ?? "",
-                    }))}
-                  />
-                </FieldRow>
-
-                <FieldRow icon={<User size={16} />} label="Asignados">
-                  <AssigneeSelect
-                    usuarios={usuarios}
+                <FieldRow label="Asignar a">
+                  {/* Mismo selector múltiple con búsqueda que OTCrearPanel. */}
+                  <MultiSelect
+                    options={usuarios.map(u => ({ id: u.id, label: u.nombre }))}
                     value={form.asignados_ids}
                     onChange={v => set("asignados_ids", v)}
+                    vacio="Sin técnicos"
                   />
                   {/* La cuadrilla expande sus miembros sobre los ya asignados:
                       no es un campo aparte, es un atajo para llenar este. */}
                   <CuadrillaQuickAdd
                     wsId={wsId}
+                    ancho="100%"
                     onAdd={ids => set("asignados_ids", Array.from(new Set([...form.asignados_ids, ...ids])))}
                   />
                 </FieldRow>
 
-                <FieldRow icon={<Clock size={16} />} label="Tiempo estimado">
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <input
-                      type="number" min={0} placeholder="0"
-                      value={form.tiempo_h}
-                      onChange={e => set("tiempo_h", e.target.value)}
-                      style={inputChico}
+                {/* Proveedores conectados: cada OT del plan les llega a su
+                    propio Pangui (lo hace la base, ver
+                    20261015160000_planes_envio_proveedores.sql). */}
+                {proveedoresConectados.length > 0 && (
+                  <FieldRow label="Enviar a proveedores">
+                    <MultiSelect
+                      options={proveedoresConectados.map(v => ({ id: v.id, label: v.proveedor?.nombre ?? v.email_invitado }))}
+                      value={form.envio_vinculo_ids}
+                      onChange={v => set("envio_vinculo_ids", v)}
+                      vacio="Sin proveedores"
                     />
-                    <span style={{ fontSize: 14, color: "var(--fg-3)" }}>h</span>
-                    <input
-                      type="number" min={0} max={59} placeholder="0"
-                      value={form.tiempo_m}
-                      onChange={e => set("tiempo_m", e.target.value)}
-                      style={inputChico}
-                    />
-                    <span style={{ fontSize: 14, color: "var(--fg-3)" }}>min</span>
+                  </FieldRow>
+                )}
+
+                <FieldRow label="Tiempo estimado">
+                  {/* Dos columnas iguales, rótulo arriba de cada una, como en OTCrearPanel. */}
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                    <label style={{ display: "grid", gap: 10 }}>
+                      <span style={subRotulo}>Hora</span>
+                      <input
+                        type="number" min={0} placeholder="0"
+                        value={form.tiempo_h}
+                        onChange={e => set("tiempo_h", e.target.value)}
+                        style={tiempoInput}
+                      />
+                    </label>
+                    <label style={{ display: "grid", gap: 10 }}>
+                      <span style={subRotulo}>Minuto</span>
+                      <input
+                        type="number" min={0} max={59} placeholder="0"
+                        value={form.tiempo_m}
+                        onChange={e => set("tiempo_m", e.target.value)}
+                        style={tiempoInput}
+                      />
+                    </label>
                   </div>
                 </FieldRow>
 
-                <FieldRow icon={<Flag size={16} />} label="Prioridad">
+                <FieldRow label="Prioridad">
                   {/* Control segmentado unido, igual que OTCrearPanel: un solo
                       marco y las cajas separadas solo por su borde izquierdo. */}
-                  <div style={{ display: "inline-flex", border: "1px solid var(--border)", borderRadius: 8, overflow: "hidden" }}>
+                  <div style={{ display: "inline-flex", border: "1px solid var(--border)", borderRadius: "var(--r-sm)", overflow: "hidden" }}>
                     {PRIORIDADES.map((o, i) => {
                       const active = form.prioridad === o.value;
                       return (
@@ -315,6 +324,20 @@ export default function PlantillaForm() {
                     })}
                   </div>
                 </FieldRow>
+
+                {categorias.length > 0 && (
+                  <FieldRow label="Categorías">
+                    {/* Mismo selector que la OT. `categoria_id` sigue el
+                        primero, que es lo único que guarda el plan. */}
+                    <CategoriaMultiSelect
+                      categorias={categorias}
+                      value={form.categoria_ids}
+                      onChange={ids => setForm(prev => ({
+                        ...prev, categoria_ids: ids, categoria_id: ids[0] ?? "",
+                      }))}
+                    />
+                  </FieldRow>
+                )}
               </Tarjeta>
 
               {/* ── Procedimientos ─────────────────────────────────────── */}
@@ -343,23 +366,6 @@ export default function PlantillaForm() {
                   value={form.materiales}
                   onChange={v => set("materiales", v)}
                 />
-
-                <div style={{ marginTop: 18 }}>
-                  <label style={{ display: "block", fontSize: 14, color: "var(--fg-3)", marginBottom: 6 }}>
-                    Proveedor preferido
-                  </label>
-                  <div style={{ maxWidth: 380 }}>
-                    <SearchSelect
-                      placeholder="Sin proveedor definido"
-                      value={form.proveedor_id}
-                      options={proveedores}
-                      onChange={v => set("proveedor_id", v)}
-                    />
-                  </div>
-                  <p style={{ fontSize: 14, color: "var(--fg-3)", margin: "7px 0 0" }}>
-                    Opcional. Si no lo defines, se usa el proveedor de cada material.
-                  </p>
-                </div>
               </Seccion>
 
               {/* ── Adjuntos ───────────────────────────────────────────── */}
@@ -689,6 +695,29 @@ function MaterialesPicker({
 }
 
 /* ── piezas ────────────────────────────────────────────────────────────── */
+
+// Campo como en OTCrearPanel: rótulo arriba del control y sin ícono.
+function FieldRow({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div style={{ padding: "14px 0" }}>
+      <label style={{ display: "block", fontSize: 14, fontWeight: 400, color: "var(--fg-1)", marginBottom: 10, letterSpacing: "0.01em" }}>
+        {label}
+      </label>
+      {children}
+    </div>
+  );
+}
+
+// Mismo alto y ancho que los demás campos del formulario.
+const tiempoInput = {
+  width: "100%", height: 40, boxSizing: "border-box",
+  border: "1px solid var(--border)", borderRadius: "var(--r-sm)",
+  padding: "0 12px", fontSize: 14, color: "var(--fg-1)",
+  background: "var(--surface-1)", fontFamily: "inherit", outline: "none",
+} as const;
+
+// Sub-rótulo dentro de un campo (Hora / Minuto).
+const subRotulo = { fontSize: 14, fontWeight: 400, color: "var(--fg-1)", letterSpacing: "0.01em" } as const;
 
 function Tarjeta({ children }: { children: React.ReactNode }) {
   return (

@@ -13,7 +13,7 @@ const PLAN_SELECT = `
   recurrencia, recurrencia_config, fecha_inicio, fecha_fin, hora_vencimiento,
   dias_apertura_previa, dias_aviso_previo, horizonte_dias,
   titulo_ot, descripcion_ot, categoria_id, ubicacion_id,
-  tipo_trabajo, prioridad, proveedor_id, imagen_url, adjuntos,
+  tipo_trabajo, prioridad, proveedor_id, envio_vinculo_ids, imagen_url, adjuntos,
   asignados_ids, procedimiento_ids,
   duracion_estimada_horas, activo, creado_por, actualizado_por, created_at, updated_at,
   creador:usuarios!creado_por(id, nombre),
@@ -342,6 +342,7 @@ export async function createPlan(form: PlanForm): Promise<PlanMantencion> {
       // Siempre preventiva: la base lo exige y los KPIs dependen de ello.
       tipo_trabajo: "preventiva",
       proveedor_id: form.proveedor_id || null,
+      envio_vinculo_ids: form.envio_vinculo_ids ?? [],
       imagen_url: form.imagen_url || null,
       adjuntos: form.adjuntos ?? [],
       prioridad: form.prioridad ?? null,
@@ -369,6 +370,7 @@ export async function createPlan(form: PlanForm): Promise<PlanMantencion> {
     // fechas quedaron pendientes de generar.
     console.error("[planes] no se pudieron materializar las ocurrencias", rpcErr);
   }
+  await generarOrdenesYa(plan.id);
 
   return plan;
 }
@@ -423,6 +425,18 @@ export async function updatePlan(
     p_horizonte_dias: null,
   });
   if (rpcErr) throw rpcErr;
+  await generarOrdenesYa(id);
+}
+
+/**
+ * Abre ya la OT cuya apertura es hoy o antes, en vez de esperar al cron de las
+ * 6:00: así un plan recién creado con proveedores se les envía al tiro (el
+ * envío lo hace la base al generar la OT). No se relanza: el plan quedó bien y
+ * el cron la genera igual.
+ */
+async function generarOrdenesYa(planId: string): Promise<void> {
+  const { error } = await createClient().rpc("plan_generar_ordenes_ya", { p_plan_id: planId });
+  if (error) console.error("[planes] no se pudo generar la OT de hoy", error);
 }
 
 /**

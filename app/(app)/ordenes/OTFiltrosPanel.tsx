@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Check, User, UserRoundX, Clock, MapPin, Flag, Zap, Wrench, Building2, Tag, FlagTriangleRight, Pause, RotateCw, ArrowUp, ArrowDown, AlertTriangle, Minus, type LucideIcon } from "lucide-react";
+import { Check, User, UserRoundX, Clock, MapPin, Flag, Zap, Wrench, Building2, Tag, FlagTriangleRight, Share2, Pause, RotateCw, ArrowUp, ArrowDown, AlertTriangle, Minus, type LucideIcon } from "lucide-react";
 
 import type { FiltrosState, Estado, Prioridad, TipoTrabajo, Usuario, Ubicacion, Sociedad, CategoriaOT } from "@/types/ordenes";
 import { CategoriaIcon } from "@/components/ordenes/categoria-icon";
@@ -38,6 +38,13 @@ const PRIORIDADES: { value: Prioridad; label: string; icon: LucideIcon; color: s
   { value: "ninguna", label: "Sin prioridad", icon: Minus,         color: "var(--fg-4)"      },
 ];
 
+// Filtro "Origen": una OT es propia, la mandó un cliente o salió a un proveedor.
+const ORIGENES: { value: NonNullable<FiltrosState["origenes"]>[number]; label: string }[] = [
+  { value: "propia",   label: "Propias" },
+  { value: "recibida", label: "Recibidas de clientes" },
+  { value: "enviada",  label: "Enviadas a proveedores" },
+];
+
 const TIPOS: { value: TipoTrabajo; label: string }[] = [
   { value: "reactiva",   label: "Reactiva" },
   { value: "preventiva", label: "Preventiva" },
@@ -71,6 +78,7 @@ const FILTER_ICONS: Record<FilterKey, React.ReactNode> = {
   categoriaIds:     <Tag size={16} />,
   sociedadIds:      <Building2 size={16} />,
   banderaColores:   <FlagTriangleRight size={16} />,
+  origenes:         <Share2 size={16} />,
 };
 
 // ── FilterBar (inline toolbar) ────────────────────────────────────────────────
@@ -89,9 +97,11 @@ interface FilterBarProps {
   onVisibleKeysChange: (keys: FilterKey[]) => void;
   /** Colores de bandera en uso (solo dueño/admin). Vacío = el filtro no se ofrece. */
   coloresBandera?: string[];
+  /** Hay OTs enviadas o recibidas: solo entonces se ofrece "Origen". */
+  mostrarOrigen?: boolean;
 }
 
-export function FilterBar({ filtros, onChange, usuarios, ubicaciones, sociedades, categorias, itos, visibleKeys, onVisibleKeysChange, coloresBandera = [] }: FilterBarProps) {
+export function FilterBar({ filtros, onChange, usuarios, ubicaciones, sociedades, categorias, itos, visibleKeys, onVisibleKeysChange, coloresBandera = [], mostrarOrigen = false }: FilterBarProps) {
   const [userSearch, setUserSearch]  = useState("");
   const [ubicSearch, setUbicSearch]  = useState("");
   const [socSearch,  setSocSearch]   = useState("");
@@ -118,16 +128,17 @@ export function FilterBar({ filtros, onChange, usuarios, ubicaciones, sociedades
   };
   // Bandera solo se ofrece si hay OTs con bandera (y solo dueño/admin las ve).
   const available = FILTER_ORDER
-    .filter(k => !shown.has(k) && (k !== "banderaColores" || coloresBandera.length > 0))
+    .filter(k => !shown.has(k) && (k !== "banderaColores" || coloresBandera.length > 0) && (k !== "origenes" || mostrarOrigen))
     .map(k => FILTER_META[k]);
   const banderaColores = filtros.banderaColores ?? [];
+  const origenes = filtros.origenes ?? [];
 
   const totalActive =
     filtros.asignadoIds.length + filtros.ubicacionIds.length +
     filtros.prioridades.length + filtros.estados.length +
     filtros.tipos.length + filtros.sociedadIds.length +
     filtros.itos.length + filtros.categoriaIds.length +
-    (filtros.fechaVencimiento ? 1 : 0) + (filtros.sinAsignar ? 1 : 0);
+    (filtros.fechaVencimiento ? 1 : 0) + (filtros.sinAsignar ? 1 : 0) + origenes.length;
 
   const filteredUsers = usuarios.filter(u => u.nombre.toLowerCase().includes(userSearch.toLowerCase()));
   const filteredUbic  = ubicaciones.filter(u => (u.edificio + (u.detalle ?? "")).toLowerCase().includes(ubicSearch.toLowerCase()));
@@ -479,6 +490,26 @@ export function FilterBar({ filtros, onChange, usuarios, ubicaciones, sociedades
                 </button>
               );
             })}
+          </div>
+        </FilterDropdown>
+      )}
+
+      {/* ── Origen (OTs compartidas con clientes/proveedores) ── */}
+      {shown.has("origenes") && mostrarOrigen && (
+        <FilterDropdown
+          label="Origen"
+          icon={FILTER_ICONS.origenes}
+          active={origenes.length > 0}
+          count={origenes.length}
+          onClear={() => set({ origenes: [] })}
+          onRemove={() => removeFilter("origenes")}
+        >
+          <div style={{ padding: "6px 0 8px" }}>
+            {ORIGENES.map(o => (
+              <OptionRow key={o.value} active={origenes.includes(o.value)} onClick={() => set({ origenes: toggle(origenes, o.value) })}>
+                <span style={{ flex: 1, minWidth: 0, fontSize: 14, color: "var(--fg-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{o.label}</span>
+              </OptionRow>
+            ))}
           </div>
         </FilterDropdown>
       )}
