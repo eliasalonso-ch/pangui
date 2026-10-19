@@ -32,6 +32,7 @@ import {
   Menu,
   Minus,
   Plus,
+  Smartphone,
   Wrench,
   X,
 } from "lucide-react";
@@ -48,6 +49,10 @@ const fadeUp = {
     transition: { duration: 0.65, ease: [0.2, 0.7, 0.3, 1] },
   },
 };
+
+// Todos los títulos de sección (h2) usan exactamente este estilo; el h1 del
+// hero es más grande a propósito. Cambiarlo acá, no en cada sección.
+const TITULO = "font-display text-[34px] font-bold leading-[1.04] tracking-[-0.03em] text-balance md:text-[56px]";
 
 const stagger = {
   hidden: {},
@@ -171,17 +176,50 @@ export function LandingNav({ mobileOnly = false }) {
   );
 }
 
+// Fondo azul del hero y del CTA final: la página abre y cierra igual.
+function FondoAscii() {
+  return (
+    // Más alto que la sección (se recorta): deja el fundido a blanco del
+    // "horizon" fuera de la sección, así el azul llega hasta abajo.
+    <div className="pointer-events-none absolute inset-x-0 top-0 h-[230%]" aria-hidden="true">
+      {/* --accent (#273D88) + tintes del mismo tono, en vez del azul/cian por
+          defecto. Sin tonos claros: el más claro (#4a63c4) mantiene ~5:1 con
+          el texto blanco; uno casi blanco tapaba el título en móvil. */}
+      <GradientASCII colors={["#273D88", "#4a63c4", "#3a52a8", "#34499a"]} />
+    </div>
+  );
+}
+
+// Los dos CTA del hero, repetidos en el CTA final.
+function CtaBotones({ className = "" }) {
+  return (
+    <div className={`flex flex-col gap-3 sm:flex-row sm:flex-wrap md:gap-4 ${className}`}>
+      <SpecularButton
+        href={REGISTRO_URL}
+        size="md"
+        radius={0}
+        tint="#273D88"
+        tintOpacity={1}
+        textColor="#ffffff"
+        baseColor="#5b72c2"
+        className="h-12 w-full !gap-3 !px-6 !text-[16px] !font-semibold sm:w-auto md:h-14 md:!px-7 md:!text-[18px]"
+      >
+        Empieza ahora
+      </SpecularButton>
+      <Link
+        href="/demo"
+        className="inline-flex h-12 w-full items-center justify-center border-2 border-[var(--accent)] bg-white px-6 text-[16px] font-semibold text-[var(--accent)] transition-colors hover:bg-[var(--accent)] hover:text-white sm:w-auto md:h-14 md:px-7 md:text-[18px]"
+      >
+        Agendar demo
+      </Link>
+    </div>
+  );
+}
+
 function Hero() {
   return (
     <section className="landing-hero relative overflow-hidden pt-16 text-white md:pt-[68px]">
-      {/* Más alto que la sección (se recorta): deja el fundido a blanco del
-          "horizon" fuera de la sección, así el azul llega hasta abajo. */}
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-[230%]" aria-hidden="true">
-        {/* --accent (#273D88) + tintes del mismo tono, en vez del azul/cian por
-            defecto. Sin tonos claros: el más claro (#4a63c4) mantiene ~5:1 con
-            el texto blanco; uno casi blanco tapaba el título en móvil. */}
-        <GradientASCII colors={["#273D88", "#4a63c4", "#3a52a8", "#34499a"]} />
-      </div>
+      <FondoAscii />
       <div className="relative z-[1] mx-auto grid max-w-[1440px] gap-9 px-4 py-14 sm:px-5 md:gap-12 md:px-10 md:py-24 lg:min-h-[calc(100svh-68px)] lg:grid-cols-12 lg:items-center lg:py-16 xl:px-12">
         <motion.div
           variants={stagger}
@@ -204,25 +242,8 @@ function Hero() {
             informe listo sin armarlo a mano.
           </p>
 
-          <motion.div variants={fadeUp} className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap md:mt-10 md:gap-4">
-            <SpecularButton
-              href={REGISTRO_URL}
-              size="md"
-              radius={0}
-              tint="#273D88"
-              tintOpacity={1}
-              textColor="#ffffff"
-              baseColor="#5b72c2"
-              className="h-12 w-full !gap-3 !px-6 !text-[16px] !font-semibold sm:w-auto md:h-14 md:!px-7 md:!text-[18px]"
-            >
-              Empieza ahora
-            </SpecularButton>
-            <Link
-              href="/demo"
-              className="inline-flex h-12 w-full items-center justify-center border-2 border-[var(--accent)] bg-white px-6 text-[16px] font-semibold text-[var(--accent)] transition-colors hover:bg-[var(--accent)] hover:text-white sm:w-auto md:h-14 md:px-7 md:text-[18px]"
-            >
-              Agendar demo
-            </Link>
+          <motion.div variants={fadeUp} className="mt-8 md:mt-10">
+            <CtaBotones />
           </motion.div>
         </motion.div>
 
@@ -315,23 +336,24 @@ const FEATURE_TABS = [
 
 function FeatureShowcase({ onOpenDetail }) {
   return (
-    <section id="funcionalidades" className="border-y border-[var(--hairline)] bg-white text-[var(--ink)]">
+    <section id="funcionalidades" className="border-t border-[var(--hairline)] bg-white text-[var(--ink)]">
       <div className="mx-auto max-w-[1440px] px-4 py-16 sm:px-5 md:px-10 md:py-24 lg:py-28 xl:px-12">
         <motion.div
           variants={fadeUp}
           initial="hidden"
           whileInView="visible"
-          viewport={{ once: true, amount: 0.25 }}
-          className="grid gap-6 border-t border-[var(--hairline-strong)] pt-8 lg:grid-cols-12 lg:items-end"
+          viewport={{ once: true, amount: 0.3 }}
+          className="grid gap-6 lg:grid-cols-12 lg:items-end lg:gap-10"
         >
-          <div className="lg:col-span-7">
-            <p className="font-mono text-[10px] font-medium uppercase tracking-[0.18em] text-[var(--accent)] md:text-[11px]">
-              Funcionalidades
-            </p>
-            <h2 className="mt-5 max-w-[860px] font-display text-[34px] font-bold leading-[1.04] tracking-[-0.03em] text-balance md:mt-7 md:text-[56px]">
-              Capacidades para resolver problemas reales de mantención.
-            </h2>
-          </div>
+          <h2 className={`${TITULO} lg:col-span-7`}>
+            Hecho para empresas que hacen mantención para otras empresas.
+          </h2>
+          <p className="max-w-[520px] text-[16px] leading-[1.65] text-[var(--ink-2)] md:text-[18px] lg:col-span-5">
+            No es un CMMS genérico de planta industrial: está pensado para el
+            contratista de mantención — eléctrica, climatización, sanitaria,
+            infraestructura — que trabaja en las instalaciones del cliente y
+            debe demostrar qué se hizo.
+          </p>
         </motion.div>
 
         <motion.div
@@ -339,96 +361,39 @@ function FeatureShowcase({ onOpenDetail }) {
           initial="hidden"
           whileInView="visible"
           viewport={{ once: true, amount: 0.12 }}
-          className="mt-12 grid gap-x-12 gap-y-14 sm:grid-cols-2 md:mt-16 lg:grid-cols-3 xl:grid-cols-4"
+          className="mt-10 grid gap-px border border-[var(--hairline)] bg-[var(--hairline)] sm:grid-cols-2 md:mt-14 lg:grid-cols-4"
         >
           {FEATURE_TABS.map((item) => {
             const Icon = item.icon;
             return (
-              <motion.article key={item.key} variants={fadeUp} className="group flex h-full flex-col">
-                <div className="mb-8 flex h-16 w-16 items-center justify-center text-[var(--accent)] md:mb-10 md:h-20 md:w-20">
-                  <Icon size={58} strokeWidth={1.15} className="h-full w-full" />
-                </div>
-                <h3 className="font-display text-[18px] font-semibold leading-[1.25] tracking-[-0.01em] text-[var(--ink)]">
+              <motion.article key={item.key} variants={fadeUp} className="group flex flex-col bg-white p-6 md:p-8">
+                <Icon size={28} strokeWidth={1.6} className="text-[var(--accent)]" />
+                <h3 className="mt-8 font-display text-[20px] font-semibold leading-[1.2] tracking-[-0.02em]">
                   {item.label}
                 </h3>
-                <p className="mt-3 text-[15px] leading-[1.65] text-[var(--ink)]">
-                  {item.body}
-                </p>
-                <p className="mt-4 text-[14px] font-semibold leading-[1.55] text-[var(--ink-2)]">
-                  {item.outcome}
-                </p>
+                <p className="mt-4 text-[15px] leading-[1.65] text-[var(--ink-2)]">{item.body}</p>
                 <button
                   type="button"
                   onClick={() => onOpenDetail(item.key)}
-                  className="mt-auto flex w-full items-center justify-between gap-4 pt-8 text-left text-[15px] font-medium leading-[1.35] text-[var(--accent)] transition-colors group-hover:text-[var(--accent-hover)]"
+                  className="mt-auto flex items-center gap-2 pt-8 text-left text-[15px] font-medium text-[var(--accent)] transition-colors hover:text-[var(--accent-hover)]"
                 >
-                  <span>Explorar {item.label.toLowerCase()}</span>
-                  <ArrowRight size={18} className="shrink-0 transition-transform group-hover:translate-x-1" />
+                  Ver detalle
+                  <ArrowRight size={16} className="shrink-0 transition-transform group-hover:translate-x-1" />
                 </button>
               </motion.article>
             );
           })}
-        </motion.div>
-      </div>
-    </section>
-  );
-}
-
-function Audience() {
-  const roles = [
-    {
-      title: "Contratistas y jefes de operaciones",
-      body: "Empresas que reciben órdenes de trabajo de sus clientes y responden por el resultado. Vea backlog, trabajos detenidos y carga por técnico sin llamar a nadie, y respalde cada cobro con evidencia.",
-    },
-    {
-      title: "Planificadores y administradores",
-      body: "Cree y asigne OTs, programe mantenimiento preventivo recurrente, controle materiales y prepare reportes PDF o Excel para el cliente sin reconstruir la historia a mano.",
-    },
-    {
-      title: "Técnicos en terreno",
-      body: "Todo el trabajo del día en el celular: procedimientos paso a paso, fotos, firmas y comentarios.",
-    },
-  ];
-
-  return (
-    <section id="para-quien" className="border-y border-[var(--hairline)] bg-[#F6F8FB] text-[var(--ink)]">
-      <div className="mx-auto max-w-[1440px] px-4 py-16 sm:px-5 md:px-10 md:py-24 lg:py-28 xl:px-12">
-        <motion.div
-          variants={fadeUp}
-          initial="hidden"
-          whileInView="visible"
-          viewport={{ once: true, amount: 0.3 }}
-        >
-          <p className="font-mono text-[10px] font-medium uppercase tracking-[0.18em] text-[var(--accent)] md:text-[11px]">
-            Para quién es Pangui
-          </p>
-          <h2 className="mt-5 max-w-[900px] font-display text-[34px] font-bold leading-[1.04] tracking-[-0.03em] text-balance md:mt-7 md:text-[56px]">
-            Hecho para empresas que hacen mantención para otras empresas.
-          </h2>
-          <p className="mt-6 max-w-[720px] text-[16px] leading-[1.65] text-[var(--ink-2)] md:text-[18px]">
-            Pangui no es un CMMS genérico de planta industrial: está pensado
-            para el contratista de servicios de mantención — eléctrica,
-            climatización, sanitaria, infraestructura — que planifica trabajo,
-            lo ejecuta en las instalaciones del cliente y debe demostrar qué se
-            hizo.
-          </p>
-        </motion.div>
-
-        <motion.div
-          variants={stagger}
-          initial="hidden"
-          whileInView="visible"
-          viewport={{ once: true, amount: 0.2 }}
-          className="mt-10 grid gap-px border border-[var(--hairline)] bg-[var(--hairline)] md:mt-14 lg:grid-cols-3"
-        >
-          {roles.map((role) => (
-            <motion.article key={role.title} variants={fadeUp} className="bg-white p-6 md:p-9">
-              <h3 className="font-display text-[22px] font-semibold leading-[1.14] tracking-[-0.02em] md:text-[24px]">
-                {role.title}
-              </h3>
-              <p className="mt-5 text-[15px] leading-[1.65] text-[var(--ink-2)]">{role.body}</p>
-            </motion.article>
-          ))}
+          <motion.article variants={fadeUp} className="flex flex-col bg-[var(--accent)] p-6 text-white md:p-8">
+            <Smartphone size={28} strokeWidth={1.6} />
+            <h3 className="mt-8 font-display text-[20px] font-semibold leading-[1.2] tracking-[-0.02em]">
+              App para terreno
+            </h3>
+            <p className="mt-4 text-[15px] leading-[1.65] text-white/80">
+              Sus técnicos tienen todo el trabajo del día en el celular:
+              procedimientos paso a paso, fotos, firmas y comentarios.
+            </p>
+            <StoreBadges height={36} style={{ marginTop: "auto", paddingTop: 32, gap: 8 }} />
+          </motion.article>
         </motion.div>
       </div>
     </section>
@@ -448,7 +413,7 @@ const CASO_DESTACADA = { valor: "593 firmas", label: "de conformidad recogidas e
 
 function CaseStudy() {
   return (
-    <section id="caso-electrilam" className="border-y border-[var(--hairline)] bg-white text-[var(--ink)]">
+    <section id="caso-electrilam" className="border-t border-[var(--hairline)] bg-white text-[var(--ink)]">
       <div className="mx-auto max-w-[1440px] px-4 py-16 sm:px-5 md:px-10 md:py-24 lg:py-28 xl:px-12">
         <div className="grid gap-10 lg:grid-cols-12 lg:gap-12">
           <motion.div
@@ -458,10 +423,7 @@ function CaseStudy() {
             viewport={{ once: true, amount: 0.25 }}
             className="lg:col-span-5"
           >
-            <p className="font-mono text-[10px] font-medium uppercase tracking-[0.18em] text-[var(--accent)] md:text-[11px]">
-              Caso de éxito
-            </p>
-            <h2 className="mt-5 font-display text-[34px] font-bold leading-[1.04] tracking-[-0.03em] text-balance md:mt-7 md:text-[52px]">
+            <h2 className={TITULO}>
               9 de cada 10 trabajos, firmados por el cliente.
             </h2>
             <p className="mt-6 text-[16px] leading-[1.65] text-[var(--ink-2)] md:text-[18px]">
@@ -492,7 +454,7 @@ function CaseStudy() {
             <Link
               href="/casos-de-exito/electrilam"
               aria-label="Ver el caso completo de Electrilam en la Universidad de Concepción"
-              className="group relative block aspect-[4/5] w-full overflow-hidden rounded-[18px] bg-[var(--ink)] text-white sm:aspect-[16/11] md:rounded-[22px] lg:aspect-auto lg:h-full lg:min-h-[560px]"
+              className="group relative block aspect-[4/5] w-full overflow-hidden rounded-[14px] bg-[var(--ink)] text-white sm:aspect-[16/11] lg:aspect-auto lg:h-full lg:min-h-[560px]"
             >
               <Image
                 src="/caso-electrilam-udec.jpg"
@@ -553,87 +515,21 @@ function CaseStudy() {
   );
 }
 
-function Implementation() {
-  const pillars = [
-    {
-      title: "Configuración en minutos, no meses",
-      body: "Cree su espacio de trabajo, invite al equipo y cargue sus primeras OTs el mismo día. Sin proyectos de implementación eternos ni consultores obligatorios.",
-    },
-    {
-      title: "Acompañamiento durante la puesta en marcha",
-      body: "Le ayudamos a ordenar activos, rutinas preventivas y flujos de trabajo para que la plataforma refleje cómo opera su empresa realmente.",
-    },
-    {
-      title: "Soporte en español, desde Chile",
-      body: "Hablamos el idioma de la operación local: OTs, mantención, terreno. Sin tickets en inglés ni husos horarios imposibles.",
-    },
-    {
-      title: "Pruebe antes de pagar",
-      body: "30 días de Pro gratis para todo el equipo, sin tarjeta. Después elige entre un plan gratis y planes con usuarios incluidos. Sin contratos anuales forzados.",
-    },
-  ];
-
-  return (
-    <section id="implementacion" className="border-t border-[var(--hairline)] bg-white text-[var(--ink)]">
-      <div className="mx-auto max-w-[1440px] px-4 py-16 sm:px-5 md:px-10 md:py-24 lg:py-28 xl:px-12">
-        <div className="grid gap-8 md:gap-12 lg:grid-cols-12">
-          <motion.div
-            variants={fadeUp}
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true, amount: 0.3 }}
-            className="lg:col-span-5"
-          >
-            <p className="font-mono text-[10px] font-medium uppercase tracking-[0.18em] text-[var(--accent)] md:text-[11px]">
-              Implementación y soporte
-            </p>
-            <h2 className="mt-5 font-display text-[34px] font-bold leading-[1.04] tracking-[-0.03em] text-balance md:mt-7 md:text-[56px]">
-              Empezar no debería ser otro proyecto más.
-            </h2>
-            <Link
-              href="/precios"
-              className="mt-8 inline-flex items-center gap-3 text-[15px] font-semibold text-[var(--accent)] transition-colors hover:text-[var(--accent-hover)]"
-            >
-              Ver precios
-              <ArrowRight size={17} />
-            </Link>
-          </motion.div>
-          <motion.div
-            variants={stagger}
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true, amount: 0.2 }}
-            className="grid gap-7 sm:grid-cols-2 md:gap-8 lg:col-span-7"
-          >
-            {pillars.map((pillar) => (
-              <motion.article key={pillar.title} variants={fadeUp} className="border-t border-[var(--hairline-strong)] pt-7">
-                <h3 className="font-display text-[20px] font-semibold leading-[1.2] tracking-[-0.02em] md:text-[22px]">
-                  {pillar.title}
-                </h3>
-                <p className="mt-4 text-[15px] leading-[1.65] text-[var(--ink-2)]">{pillar.body}</p>
-              </motion.article>
-            ))}
-          </motion.div>
-        </div>
-      </div>
-    </section>
-  );
-}
-
 function FinalCta() {
   return (
-    <section className="landing-hero-grid text-white">
-      <div className="mx-auto max-w-[1440px] px-4 py-16 text-center sm:px-5 md:px-10 md:py-24 xl:px-12">
+    <section className="landing-hero relative overflow-hidden text-white">
+      <FondoAscii />
+      <div className="relative z-[1] mx-auto max-w-[1440px] px-4 py-20 sm:px-5 md:px-10 md:py-32 xl:px-12">
         <motion.div
           variants={stagger}
           initial="hidden"
           whileInView="visible"
           viewport={{ once: true, amount: 0.4 }}
-          className="mx-auto flex max-w-[760px] flex-col items-center"
+          className="mx-auto flex max-w-[760px] flex-col items-center text-center"
         >
           <motion.h2
             variants={fadeUp}
-            className="font-display text-[32px] font-bold leading-[1.06] tracking-[-0.03em] text-balance md:text-[52px]"
+            className={TITULO}
           >
             Empiece a respaldar cada trabajo esta semana.
           </motion.h2>
@@ -641,20 +537,8 @@ function FinalCta() {
             Pruebe Pangui gratis por 30 días con todo su equipo, o agende una
             demo y le mostramos la plataforma con casos reales de mantención.
           </motion.p>
-          <motion.div variants={fadeUp} className="mt-9 flex w-full flex-col justify-center gap-3 sm:w-auto sm:flex-row md:gap-4">
-            <a
-              href={REGISTRO_URL}
-              className="inline-flex h-12 items-center justify-center gap-3 bg-white px-6 text-[16px] font-semibold text-[var(--accent)] transition-colors hover:bg-white/90 md:h-14 md:px-7 md:text-[18px]"
-            >
-              Prueba gratis 30 días
-              <ArrowRight size={17} />
-            </a>
-            <Link
-              href="/demo"
-              className="inline-flex h-12 items-center justify-center border-2 border-white px-6 text-[16px] font-semibold text-white transition-colors hover:bg-white hover:text-[var(--accent)] md:h-14 md:px-7 md:text-[18px]"
-            >
-              Agendar demo
-            </Link>
+          <motion.div variants={fadeUp} className="mt-9 w-full sm:w-auto">
+            <CtaBotones className="sm:justify-center" />
           </motion.div>
         </motion.div>
       </div>
@@ -679,8 +563,8 @@ function SampleReport() {
   ];
 
   return (
-    <section id="ejemplo-informe" className="overflow-hidden border-y border-[var(--hairline)] bg-[#F6F8FB] text-[var(--ink)]">
-      <div className="mx-auto grid max-w-[1440px] gap-10 px-4 pt-16 sm:px-5 md:px-10 md:pt-24 lg:grid-cols-12 lg:gap-12 lg:pt-0 xl:px-12">
+    <section id="ejemplo-informe" className="overflow-hidden border-t border-[var(--hairline)] bg-white text-[var(--ink)]">
+      <div className="mx-auto grid max-w-[1440px] gap-10 px-4 pt-16 sm:px-5 md:px-10 md:pt-24 lg:min-h-[860px] lg:grid-cols-12 lg:gap-12 lg:pt-0 xl:px-12">
         <motion.div
           variants={fadeUp}
           initial="hidden"
@@ -688,10 +572,7 @@ function SampleReport() {
           viewport={{ once: true, amount: 0.3 }}
           className="lg:col-span-6 lg:py-28"
         >
-          <p className="font-mono text-[10px] font-medium uppercase tracking-[0.18em] text-[var(--accent)] md:text-[11px]">
-            Ejemplo real
-          </p>
-          <h2 className="mt-5 font-display text-[34px] font-bold leading-[1.04] tracking-[-0.03em] text-balance md:mt-7 md:text-[56px]">
+          <h2 className={TITULO}>
             Así queda cada trabajo.
           </h2>
           <p className="mt-6 max-w-[560px] text-[16px] leading-[1.65] text-[var(--ink-2)] md:text-[18px]">
@@ -710,7 +591,7 @@ function SampleReport() {
           <a
             href={SAMPLE_REPORT_URL}
             download
-            className="mt-9 inline-flex h-12 w-full items-center justify-center gap-3 bg-[var(--accent)] lg:mt-[213px] px-6 text-[16px] font-semibold text-white transition-colors hover:bg-[var(--accent-hover)] sm:w-auto md:h-14 md:px-7 md:text-[18px]"
+            className="mt-9 inline-flex h-12 w-full items-center justify-center gap-3 bg-[var(--accent)] px-6 text-[16px] font-semibold text-white transition-colors hover:bg-[var(--accent-hover)] sm:w-auto md:h-14 md:px-7 md:text-[18px]"
           >
             <Download size={18} />
             Descargar informe de ejemplo (PDF)
@@ -731,7 +612,7 @@ function SampleReport() {
           {/* The page rises from the section's bottom edge and is cut off by it:
               on desktop it fills the column width at 90% of the section's
               height, so the lower part of the page is cropped away. */}
-          <div className="relative mx-auto aspect-[1190/1300] w-[88%] max-w-[440px] overflow-hidden border border-b-0 border-black/10 bg-white shadow-2xl shadow-black/20 lg:absolute lg:inset-x-0 lg:bottom-0 lg:h-[90%] lg:w-full lg:max-w-none lg:aspect-auto">
+          <div className="relative mx-auto aspect-[1190/1300] w-[88%] max-w-[440px] overflow-hidden rounded-t-[14px] border border-b-0 border-black/10 bg-white shadow-2xl shadow-black/20 lg:absolute lg:inset-x-0 lg:bottom-0 lg:h-[90%] lg:w-full lg:max-w-none lg:aspect-auto">
             <Image
               src={SAMPLE_REPORT_PREVIEW}
               alt="Primera página del informe de ejemplo de la OT N° 566"
@@ -761,7 +642,7 @@ function PlatformSection() {
         viewport={{ once: true, amount: 0.4 }}
         className="relative z-[2] mx-auto max-w-[1440px] px-4 pt-16 sm:px-5 md:px-10 md:pt-24 xl:px-12"
       >
-        <h2 className="max-w-[460px] font-display text-[34px] font-bold leading-[1.04] tracking-[-0.03em] text-balance md:text-[52px]">
+        <h2 className={`${TITULO} max-w-[580px]`}>
           Toda la operación en una sola pantalla.
         </h2>
         <p className="mt-6 max-w-[440px] text-[16px] leading-[1.65] text-white/80 md:text-[18px]">
@@ -826,10 +707,7 @@ function ProblemSection() {
             viewport={{ once: true, amount: 0.3 }}
             className="lg:col-span-5"
           >
-            <p className="font-mono text-[10px] font-medium uppercase tracking-[0.18em] text-[var(--accent)] md:text-[11px]">
-              Problemas que resuelve
-            </p>
-            <h2 className="mt-5 font-display text-[34px] font-bold leading-[1.04] tracking-[-0.03em] text-balance md:mt-7 md:text-[56px]">
+            <h2 className={TITULO}>
               Lo que se pierde cuando el trabajo no queda registrado.
             </h2>
           </motion.div>
@@ -865,77 +743,26 @@ function ProblemSection() {
   );
 }
 
-function OperatingModel() {
-  const lanes = [
-    {
-      title: "Planificar",
-      body: "Administradores crean OTs, programan trabajo recurrente, asignan responsables y vinculan activos.",
-    },
-    {
-      title: "Ejecutar",
-      body: "Técnicos trabajan desde la app móvil nativa con fotos, comentarios, procedimientos y firmas.",
-    },
-    {
-      title: "Controlar",
-      body: "La operación consolida tiempos, stock, activos, evidencia y reportes para decisiones de mantención.",
-    },
-  ];
-
-  return (
-    <section id="operacion" className="border-y border-black/10 bg-[#F6F8FB] text-[var(--ink)]">
-      <div className="mx-auto max-w-[1440px] px-4 py-16 sm:px-5 md:px-10 md:py-24 lg:py-28 xl:px-12">
-        <div className="grid gap-8 md:gap-12 lg:grid-cols-12 lg:items-end">
-          <div className="lg:col-span-7">
-            <p className="font-mono text-[10px] font-medium uppercase tracking-[0.18em] text-[var(--accent)] md:text-[11px]">
-              Modelo operativo
-            </p>
-            <h2 className="mt-5 font-display text-[34px] font-bold leading-[1.04] tracking-[-0.03em] text-balance md:mt-7 md:text-[58px]">
-              Una plataforma para cerrar la distancia entre oficina y terreno.
-            </h2>
-          </div>
-          <p className="max-w-[480px] text-[16px] leading-[1.65] text-[var(--ink-2)] lg:col-span-5">
-            Pangui no intenta reemplazar el criterio del equipo. Ordena el
-            flujo para que las decisiones ocurran con contexto: qué equipo falló,
-            qué se hizo, qué falta, quién quedó responsable y qué evidencia existe.
-          </p>
-        </div>
-
-        <div className="mt-10 grid gap-px border border-black/10 bg-black/10 md:mt-14 lg:grid-cols-3">
-          {lanes.map((lane, index) => {
-            return (
-              <article key={lane.title} className="bg-white p-6 md:p-10">
-                <div className="flex items-center justify-between">
-                  <span className="font-display text-[48px] font-semibold leading-none tracking-[-0.04em] text-[var(--accent)]/20 md:text-[58px]">
-                    0{index + 1}
-                  </span>
-                  <span className="h-px w-16 bg-[var(--accent)]/30" />
-                </div>
-                <h3 className="mt-9 font-display text-[26px] font-semibold tracking-[-0.025em] md:mt-12 md:text-[30px]">
-                  {lane.title}
-                </h3>
-                <p className="mt-4 text-[15px] leading-[1.65] text-[var(--ink-2)]">
-                  {lane.body}
-                </p>
-              </article>
-            );
-          })}
-        </div>
-      </div>
-    </section>
-  );
-}
-
 function FAQ() {
   const [open, setOpen] = useState(0);
   const faqs = FAQS;
 
   return (
     <section id="faq" className="border-t border-[var(--hairline)] bg-white text-[var(--ink)]">
-      <div className="mx-auto max-w-[1440px] px-4 py-16 sm:px-5 md:px-10 md:py-24 lg:py-28 xl:px-12">
-        <h2 className="font-display text-[34px] font-bold leading-[1.04] tracking-[-0.03em] md:text-[56px]">
-          Preguntas frecuentes sobre Pangui
-        </h2>
-        <div className="mt-12 border-t border-[var(--hairline)] md:mt-16">
+      <div className="mx-auto grid max-w-[1440px] gap-10 px-4 py-16 sm:px-5 md:px-10 md:py-24 lg:grid-cols-12 lg:gap-12 lg:py-28 xl:px-12">
+        <div className="lg:col-span-4">
+          <h2 className={TITULO}>
+            Preguntas frecuentes sobre Pangui
+          </h2>
+          <p className="mt-6 max-w-[420px] text-[16px] leading-[1.65] text-[var(--ink-2)] md:text-[17px]">
+            Soporte en español, desde Chile. Si su duda no está aquí, escríbanos a{" "}
+            <a href="mailto:contacto@getpangui.com" className="text-[var(--accent)] underline-offset-4 hover:underline">
+              contacto@getpangui.com
+            </a>
+            .
+          </p>
+        </div>
+        <div className="border-t border-[var(--hairline)] lg:col-span-8">
           {faqs.map((faq, index) => (
             <div key={faq.q} className="border-b border-[var(--hairline)]">
               <button
@@ -957,7 +784,7 @@ function FAQ() {
                     initial={{ height: 0, opacity: 0 }}
                     animate={{ height: "auto", opacity: 1 }}
                     exit={{ height: 0, opacity: 0 }}
-                    className="max-w-[1200px] overflow-hidden pb-7 pr-4 text-[15px] leading-[1.65] text-[var(--ink-2)] md:pb-8 md:pr-12 md:text-[16px]"
+                    className="overflow-hidden pb-7 pr-4 text-[15px] leading-[1.65] text-[var(--ink-2)] md:pb-8 md:pr-12 md:text-[16px]"
                   >
                     {faq.a}
                   </motion.p>
@@ -1029,10 +856,7 @@ export default function Landing() {
       <PlatformSection />
       <SampleReport />
       <CaseStudy />
-      <OperatingModel />
       <FeatureShowcase onOpenDetail={detail.open} />
-      <Audience />
-      <Implementation />
       <FAQ />
       <FinalCta />
       <LandingFooter />
