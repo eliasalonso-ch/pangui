@@ -1403,3 +1403,48 @@ input, select, textarea { color-scheme: inherit; }
 .pangui-rdp .rdp-outside .rdp-day_button { color: var(--fg-4); }
 /* Desplegables de mes y año (captionLayout="dropdown"). */
 .pangui-rdp .rdp-dropdowns { gap: 6px; }
+
+/* ── Sonner ──────────────────────────────────────────────────────────────────
+   Un atributo más de especificidad que las reglas de Sonner, que fijan la
+   descripción en gris claro/oscuro según SU tema y no según data-theme. */
+[data-sonner-toaster] [data-sonner-toast][data-styled=true] [data-description] {
+  color: var(--fg-3);
+}
+[data-sonner-toaster] [data-sonner-toast][data-styled=true] [data-button] {
+  height: 28px;
+  padding: 0 10px;
+  font-size: 14px;
+  font-weight: 400;
+  font-family: inherit;
+  border-radius: var(--r-md);
+  background: var(--brand);
+  color: var(--fg-on-brand);
+}
+[data-sonner-toaster] [data-sonner-toast][data-styled=true] [data-cancel] {
+  background: var(--surface-hover);
+  color: var(--fg-2);
+}
+
+/* Toast vertical (push, invitación de proveedor): ícono arriba, texto al
+   medio, botones abajo y del mismo ancho. Sonner dibuja todo en una fila; el
+   wrap con flex-basis 100% parte el ícono y el texto en filas propias. */
+[data-sonner-toaster] [data-sonner-toast][data-styled=true].toast-vertical {
+  flex-wrap: wrap;
+  align-items: flex-start;
+  row-gap: 12px;
+}
+[data-sonner-toaster] [data-sonner-toast][data-styled=true].toast-vertical [data-icon] {
+  flex-basis: 100%;
+  width: auto;
+  height: auto;
+  margin: 0;
+}
+[data-sonner-toaster] [data-sonner-toast][data-styled=true].toast-vertical [data-content] {
+  flex-basis: 100%;
+}
+[data-sonner-toaster] [data-sonner-toast][data-styled=true].toast-vertical [data-button] {
+  flex: 1;
+  height: 32px;
+  justify-content: center;
+  margin: 0;
+}

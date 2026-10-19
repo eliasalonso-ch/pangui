@@ -8,7 +8,7 @@
  * /notificaciones/preferencias, a page nobody visits, so in practice no web
  * user had push at all. Alerts reached phones and never browsers.
  *
- * WHY A BANNER AND NOT THE BROWSER PROMPT DIRECTLY: Chrome only shows the
+ * WHY OUR OWN TOAST AND NOT THE BROWSER PROMPT DIRECTLY: Chrome only shows the
  * permission dialog in response to a user gesture, and a prompt fired on page
  * load is both dismissed by reflex and counted against the origin — after a few
  * dismissals Chrome silently suppresses it ("quieter messaging") and the user
@@ -19,8 +19,10 @@
  * browser once dismissed or once push is on.
  */
 
-import { useCallback, useEffect, useState } from "react";
-import { Bell, Loader2, X } from "lucide-react";
+import { useEffect } from "react";
+import { toast } from "sonner";
+import { Bell } from "lucide-react";
+import { IconoToast } from "@/components/ui/sonner";
 import {
   enablePush,
   isSubscribedOnThisDevice,
@@ -37,12 +39,29 @@ import { getAuthUser } from "@/lib/auth-user";
  */
 const DISMISSED_KEY = "pangui_push_prompt_dismissed";
 
-export default function PushActivationPrompt() {
-  const [visible, setVisible] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [userId, setUserId] = useState<string | null>(null);
+function marcarDescartado() {
+  try {
+    localStorage.setItem(DISMISSED_KEY, "1");
+  } catch {
+    // Nothing to do — it reappears next session, which is acceptable.
+  }
+}
 
+/** "Activar" is a click, so the browser permission dialog is allowed to open. */
+async function activar(userId: string) {
+  const result = await enablePush(userId);
+  if (result.ok) {
+    // Don't ask again on this browser even if the subscription is later
+    // dropped: they have answered the question.
+    marcarDescartado();
+    return;
+  }
+  toast.error(result.message);
+  // A hard "no" from the browser cannot be undone from here; stop asking.
+  if (result.reason === "denied") marcarDescartado();
+}
+
+export default function PushActivationPrompt() {
   useEffect(() => {
     let active = true;
 
@@ -51,7 +70,7 @@ export default function PushActivationPrompt() {
       if (!pushSupported()) return;
 
       // "denied" means the browser is blocking us; only the user can undo that
-      // in site settings, so a banner offering to enable it would be a lie.
+      // in site settings, so a prompt offering to enable it would be a lie.
       // "granted" without a subscription is handled below — that is the case
       // after the move to app.getpangui.com, where permission carried over but
       // the subscription (origin-scoped) did not.
@@ -69,8 +88,18 @@ export default function PushActivationPrompt() {
       const user = await getAuthUser();
       if (!active || !user) return;
 
-      setUserId(user.id);
-      setVisible(true);
+      // Toast info sin vencimiento. "Ahora no" y deslizarlo para cerrar
+      // cuentan como respuesta: no se vuelve a preguntar en este navegador.
+      toast.info("Activa las notificaciones", {
+        id: "activar-push",
+        description: "Recibe avisos de tus OTs aunque tengas Pangui en otra pestaña.",
+        duration: Infinity,
+        className: "toast-vertical",
+        icon: <IconoToast><Bell size={16} /></IconoToast>,
+        action: { label: "Activar", onClick: () => void activar(user.id) },
+        cancel: { label: "Ahora no", onClick: marcarDescartado },
+        onDismiss: marcarDescartado,
+      });
     })();
 
     return () => {
@@ -78,128 +107,5 @@ export default function PushActivationPrompt() {
     };
   }, []);
 
-  const dismiss = useCallback(() => {
-    try {
-      localStorage.setItem(DISMISSED_KEY, "1");
-    } catch {
-      // Nothing to do — it reappears next session, which is acceptable.
-    }
-    setVisible(false);
-  }, []);
-
-  const activate = useCallback(async () => {
-    if (!userId || busy) return;
-    setBusy(true);
-    setError(null);
-
-    const result = await enablePush(userId);
-
-    if (result.ok) {
-      // Don't ask again on this browser even if the subscription is later
-      // dropped: they have answered the question.
-      try {
-        localStorage.setItem(DISMISSED_KEY, "1");
-      } catch {}
-      setVisible(false);
-      return;
-    }
-
-    setBusy(false);
-    setError(result.message);
-    // A hard "no" from the browser cannot be undone from here; stop asking.
-    if (result.reason === "denied") {
-      try {
-        localStorage.setItem(DISMISSED_KEY, "1");
-      } catch {}
-    }
-  }, [busy, userId]);
-
-  if (!visible) return null;
-
-  return (
-    <div
-      role="region"
-      aria-label="Activar notificaciones"
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 12,
-        padding: "10px 16px",
-        borderBottom: "1px solid var(--border)",
-        background: "var(--brand-tint)",
-        color: "var(--fg-1)",
-        fontSize: 14,
-      }}
-    >
-      <span
-        style={{
-          width: 28,
-          height: 28,
-          flexShrink: 0,
-          display: "grid",
-          placeItems: "center",
-          borderRadius: "50%",
-          background: "var(--surface-1)",
-          color: "var(--brand)",
-        }}
-      >
-        <Bell size={15} />
-      </span>
-
-      <div style={{ minWidth: 0, flex: 1 }}>
-        <strong style={{ fontWeight: 400 }}>Activa las notificaciones</strong>{" "}
-        <span style={{ color: "var(--fg-3)" }}>
-          {error
-            ? error
-            : "Recibe avisos de tus OTs aunque tengas Pangui en otra pestaña."}
-        </span>
-      </div>
-
-      <button
-        type="button"
-        onClick={() => void activate()}
-        disabled={busy}
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 6,
-          flexShrink: 0,
-          height: 32,
-          padding: "0 14px",
-          border: "none",
-          borderRadius: 7,
-          background: "var(--brand)",
-          color: "var(--fg-on-brand)",
-          fontSize: 14,
-          fontWeight: 400,
-          fontFamily: "inherit",
-          cursor: busy ? "default" : "pointer",
-          whiteSpace: "nowrap",
-        }}
-      >
-        {busy && <Loader2 size={13} className="animate-spin" />}
-        Activar
-      </button>
-
-      <button
-        type="button"
-        onClick={dismiss}
-        aria-label="Ahora no"
-        style={{
-          flexShrink: 0,
-          display: "grid",
-          placeItems: "center",
-          width: 28,
-          height: 28,
-          border: "none",
-          borderRadius: 6,
-          background: "transparent",
-          color: "var(--fg-4)",
-          cursor: "pointer",
-        }}
-      >
-        <X size={15} />
-      </button>
-    </div>
-  );
+  return null;
 }

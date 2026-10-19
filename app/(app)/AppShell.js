@@ -11,6 +11,7 @@ import { StoreBadges } from "@/components/StoreBadges";
 import PushActivationPrompt from "@/components/PushActivationPrompt";
 import { OnboardingObligatorio } from "@/components/OnboardingObligatorio";
 import InvitacionesContratista from "@/components/InvitacionesContratista";
+import { Toaster } from "@/components/ui/sonner";
 
 function applyStoredTheme() {
   const stored = localStorage.getItem("pangui_theme");
@@ -154,8 +155,9 @@ export default function AppShell({ children }) {
               icon buttons (e.g. Órdenes' Excel export) into the bar above them. */}
           <TopBarActionsProvider>
             <GlobalTopBar />
-            {/* Renders nothing unless this browser can take push, has not been
-                asked before, and is not already subscribed. */}
+            {/* Toasts info: no renderizan nada propio. El de push solo aparece si
+                este navegador acepta push, no se le preguntó antes y no está
+                suscrito. */}
             <PushActivationPrompt />
             <InvitacionesContratista />
             <div
@@ -177,6 +179,7 @@ export default function AppShell({ children }) {
           </TopBarActionsProvider>
         </SidebarInset>
       </SidebarProvider>
+      <Toaster />
     </>
   );
 }

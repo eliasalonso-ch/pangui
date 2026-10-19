@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, forwardRef, Fragment, useId } from "react";
+import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase";
 import {
@@ -505,6 +506,8 @@ export default function ProcedimientoBuilder({ editId, initialNombre, initialDes
     try {
       if (editId) await updateProcedimiento(editId, form);
       else await createProcedimiento(wsId, myId, form);
+      // El Toaster vive en AppShell, así que el aviso sobrevive a la navegación.
+      toast.success(editId ? "Cambios guardados" : "Procedimiento creado");
       router.push("/procedimientos");
     } catch (e: any) {
       alert(e.message);
