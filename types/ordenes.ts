@@ -441,6 +441,8 @@ export interface FiltrosState {
    * proveedor (ot_envios). Opcional por la misma razón que banderaColores.
    */
   origenes?: ("propia" | "recibida" | "enviada")[];
+  /** Quién creó la OT (ordenes_trabajo.creado_por). Opcional, igual que banderaColores. */
+  creadoPorIds?: string[];
 }
 
 export type SortOption =

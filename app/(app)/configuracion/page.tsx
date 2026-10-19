@@ -544,7 +544,9 @@ export default function ConfiguracionPage({ section }: { section?: Configuracion
 
             <SettingCard
               label="Foto de perfil"
-              hint="Aparece en las órdenes, la actividad y el equipo. Sin foto se muestran tus iniciales."
+              hint={esAdmin(myRol)
+                ? "Aparece en las órdenes, la actividad y el equipo. Sin foto se muestran tus iniciales."
+                : "Aparece en las órdenes, la actividad y el equipo. Solo un administrador puede cambiarla."}
             >
               {fotoError && <span style={{ fontSize: 14, color: "var(--danger)", maxWidth: 220 }}>{fotoError}</span>}
               <span style={{
@@ -557,6 +559,9 @@ export default function ConfiguracionPage({ section }: { section?: Configuracion
                   ? <Loader2 size={20} className="animate-spin" />
                   : <FotoOIniciales id={myId}>{initials ?? <User size={24} />}</FotoOIniciales>}
               </span>
+              {/* Solo owner/admin suben fotos (la DB también lo exige): así nadie
+                  se pone una foto inapropiada para el trabajo. */}
+              {esAdmin(myRol) && <>
               <input
                 ref={fotoInputRef}
                 type="file"
@@ -588,6 +593,7 @@ export default function ConfiguracionPage({ section }: { section?: Configuracion
                   </button>
                 )}
               </div>
+              </>}
             </SettingCard>
 
             {/* One card per setting. Each control saves on change, so there is

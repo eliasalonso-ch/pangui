@@ -1031,6 +1031,11 @@ export default function OrdenesBandeja({
     const usados = new Set(banderaColorPorOrden?.values() ?? []);
     return COLORES_BANDERA.filter(c => usados.has(c));
   }, [banderaColorPorOrden]);
+  // Quienes crearon alguna OT: las opciones de "Creada por" (suelen ser 2-3).
+  const creadores = useMemo(() => {
+    const ids = new Set(countOrdenes.map(o => o.creado_por));
+    return usuarios.filter(u => ids.has(u.id));
+  }, [countOrdenes, usuarios]);
   const banderaActions = useOTBanderaActions(wsId);
   // Estables para no romper el memo de cada fila.
   const guardarBandera = useCallback(
@@ -1391,6 +1396,9 @@ export default function OrdenesBandeja({
 
     if (filtros.asignadoIds.length) {
       labels.push(named(filtros.asignadoIds, id => usuarios.find(user => user.id === id)?.nombre, "usuarios"));
+    }
+    if (filtros.creadoPorIds?.length) {
+      labels.push("Creada por " + named(filtros.creadoPorIds, id => usuarios.find(user => user.id === id)?.nombre, "usuarios"));
     }
     if (filtros.ubicacionIds.length) {
       labels.push(named(filtros.ubicacionIds, id => ubicaciones.find(location => location.id === id)?.edificio, "ubicaciones"));
@@ -1759,6 +1767,7 @@ export default function OrdenesBandeja({
             onVisibleKeysChange={changeVisibleFilterKeys}
             coloresBandera={coloresBandera}
             mostrarOrigen={hayEnvios()}
+            creadores={creadores}
           />
         </div>
       </div>}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Check, User, UserRoundX, Clock, MapPin, Flag, Zap, Wrench, Building2, Tag, FlagTriangleRight, Share2, Pause, RotateCw, ArrowUp, ArrowDown, AlertTriangle, Minus, type LucideIcon } from "lucide-react";
+import { Check, User, UserRoundX, PenLine, Clock, MapPin, Flag, Zap, Wrench, Building2, Tag, FlagTriangleRight, Share2, Pause, RotateCw, ArrowUp, ArrowDown, AlertTriangle, Minus, type LucideIcon } from "lucide-react";
 
 import type { FiltrosState, Estado, Prioridad, TipoTrabajo, Usuario, Ubicacion, Sociedad, CategoriaOT } from "@/types/ordenes";
 import { CategoriaIcon } from "@/components/ordenes/categoria-icon";
@@ -68,6 +68,7 @@ const EMPTY: FiltrosState = {
 
 const FILTER_ICONS: Record<FilterKey, React.ReactNode> = {
   asignadoIds:      <User size={16} />,
+  creadoPorIds:     <PenLine size={16} />,
   sinAsignar:       <UserRoundX size={16} />,
   fechaVencimiento: <Clock size={16} />,
   ubicacionIds:     <MapPin size={16} />,
@@ -99,9 +100,11 @@ interface FilterBarProps {
   coloresBandera?: string[];
   /** Hay OTs enviadas o recibidas: solo entonces se ofrece "Origen". */
   mostrarOrigen?: boolean;
+  /** Usuarios que crearon alguna OT del workspace: las opciones de "Creada por". */
+  creadores?: Usuario[];
 }
 
-export function FilterBar({ filtros, onChange, usuarios, ubicaciones, sociedades, categorias, itos, visibleKeys, onVisibleKeysChange, coloresBandera = [], mostrarOrigen = false }: FilterBarProps) {
+export function FilterBar({ filtros, onChange, usuarios, ubicaciones, sociedades, categorias, itos, visibleKeys, onVisibleKeysChange, coloresBandera = [], mostrarOrigen = false, creadores = [] }: FilterBarProps) {
   const [userSearch, setUserSearch]  = useState("");
   const [ubicSearch, setUbicSearch]  = useState("");
   const [socSearch,  setSocSearch]   = useState("");
@@ -128,17 +131,18 @@ export function FilterBar({ filtros, onChange, usuarios, ubicaciones, sociedades
   };
   // Bandera solo se ofrece si hay OTs con bandera (y solo dueño/admin las ve).
   const available = FILTER_ORDER
-    .filter(k => !shown.has(k) && (k !== "banderaColores" || coloresBandera.length > 0) && (k !== "origenes" || mostrarOrigen))
+    .filter(k => !shown.has(k) && (k !== "banderaColores" || coloresBandera.length > 0) && (k !== "origenes" || mostrarOrigen) && (k !== "creadoPorIds" || creadores.length > 0))
     .map(k => FILTER_META[k]);
   const banderaColores = filtros.banderaColores ?? [];
   const origenes = filtros.origenes ?? [];
+  const creadoPorIds = filtros.creadoPorIds ?? [];
 
   const totalActive =
     filtros.asignadoIds.length + filtros.ubicacionIds.length +
     filtros.prioridades.length + filtros.estados.length +
     filtros.tipos.length + filtros.sociedadIds.length +
     filtros.itos.length + filtros.categoriaIds.length +
-    (filtros.fechaVencimiento ? 1 : 0) + (filtros.sinAsignar ? 1 : 0) + origenes.length;
+    (filtros.fechaVencimiento ? 1 : 0) + (filtros.sinAsignar ? 1 : 0) + origenes.length + creadoPorIds.length;
 
   const filteredUsers = usuarios.filter(u => u.nombre.toLowerCase().includes(userSearch.toLowerCase()));
   const filteredUbic  = ubicaciones.filter(u => (u.edificio + (u.detalle ?? "")).toLowerCase().includes(ubicSearch.toLowerCase()));
@@ -205,6 +209,32 @@ export function FilterBar({ filtros, onChange, usuarios, ubicaciones, sociedades
             );
           })}
           {filteredUsers.length === 0 && <SinResultados />}
+        </div>
+      </FilterDropdown>
+      )}
+
+      {/* ── Creada por ── Pocos creadores por workspace: sin buscador. */}
+      {shown.has("creadoPorIds") && creadores.length > 0 && (
+      <FilterDropdown
+        label="Creada por"
+        icon={FILTER_ICONS.creadoPorIds}
+        active={creadoPorIds.length > 0}
+        count={creadoPorIds.length}
+        onClear={() => set({ creadoPorIds: [] })}
+        onRemove={() => removeFilter("creadoPorIds")}
+      >
+        <div style={{ maxHeight: 320, overflowY: "auto", padding: "6px 0" }}>
+          {creadores.map(u => {
+            const active = creadoPorIds.includes(u.id);
+            return (
+              <OptionRow key={u.id} active={active} onClick={() => set({ creadoPorIds: toggle(creadoPorIds, u.id) })}>
+                <span style={{ width: 22, height: 22, borderRadius: "50%", background: active ? "var(--brand)" : "var(--surface-hover)", color: active ? "var(--fg-on-brand)" : "var(--fg-2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 400, flexShrink: 0 }}>
+                  <FotoOIniciales id={u.id}>{initials(u.nombre)}</FotoOIniciales>
+                </span>
+                <span style={{ flex: 1, minWidth: 0, fontSize: 14, color: "var(--fg-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{u.nombre}</span>
+              </OptionRow>
+            );
+          })}
         </div>
       </FilterDropdown>
       )}

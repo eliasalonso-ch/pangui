@@ -32,6 +32,7 @@ export interface FilterableOrden {
   prioridad: string;
   tipo_trabajo: string | null;
   asignados_ids: string[] | null;
+  creado_por?: string | null;
   ubicacion_id: string | null;
   fecha_termino: string | null;
   descripcion: string | null;
@@ -78,6 +79,10 @@ export function applyFiltros<T extends FilterableOrden>(
   }
   if (filtros.asignadoIds.length) {
     list = list.filter(o => filtros.asignadoIds.some(id => o.asignados_ids?.includes(id)));
+  }
+  const creadoPorIds = filtros.creadoPorIds ?? [];
+  if (creadoPorIds.length) {
+    list = list.filter(o => o.creado_por != null && creadoPorIds.includes(o.creado_por));
   }
   if (filtros.ubicacionIds.length) {
     list = list.filter(o => o.ubicacion_id != null && filtros.ubicacionIds.includes(o.ubicacion_id));

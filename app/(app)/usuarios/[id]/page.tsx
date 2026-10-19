@@ -18,15 +18,19 @@
  * member edited on either platform stays consistent.
  */
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
-  AlertTriangle, ArrowLeft, Check, ChevronRight, Eye, Loader2, Shield, UserCog, Wrench,
+  AlertTriangle, ArrowLeft, Check, ChevronRight, Eye, ImagePlus, Loader2, Shield, Trash2, UserCog, Wrench,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase";
 import { ROL_LABEL } from "@/lib/roles";
 import { puedeGestionarUsuario } from "@/lib/usuarios-baja";
+import { useAvatares } from "@/lib/queries";
+import { guardarFotoPerfil } from "@/lib/foto-perfil";
+import { FotoOIniciales } from "@/components/FotoPerfil";
 
 type TabKey = "perfil" | "acceso";
 
@@ -131,6 +135,28 @@ export default function MiembroDetallePage() {
     () => Boolean(miembro) && puedeGestionarUsuario({ id: myId, rol: myRol }, { id: miembro!.id, rol: miembro!.rol }),
     [miembro, myId, myRol],
   );
+  // Foto de perfil: la pone un admin (los miembros ya no pueden subir la suya).
+  // Se guarda al elegirla, como en Mi cuenta, sin pasar por "Guardar".
+  const queryClient = useQueryClient();
+  const { data: avatares } = useAvatares();
+  const fotoActual = (miembro && avatares?.get(miembro.id)) || null;
+  const fotoInputRef = useRef<HTMLInputElement>(null);
+  const [subiendoFoto, setSubiendoFoto] = useState(false);
+  async function cambiarFoto(file: File | null) {
+    if (!miembro) return;
+    setError(null);
+    setSubiendoFoto(true);
+    try {
+      await guardarFotoPerfil(miembro.id, file, fotoActual);
+      await queryClient.invalidateQueries({ queryKey: ["avatares"] });
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "No se pudo guardar la foto.");
+    } finally {
+      setSubiendoFoto(false);
+      if (fotoInputRef.current) fotoInputRef.current.value = "";
+    }
+  }
+
   // The owner's role is never editable here, mirroring the mobile guard.
   const canChangeRole = canManage && !isMe && miembro?.rol !== "owner";
 
@@ -266,6 +292,51 @@ export default function MiembroDetallePage() {
               </div>
             </div>
 
+            {canManage && (
+              <Row label="Foto de perfil" hint="Solo los administradores pueden cambiarla">
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{
+                    width: 44, height: 44, borderRadius: "50%", flexShrink: 0,
+                    background: "linear-gradient(135deg, var(--brand-active), var(--brand))",
+                    color: "var(--fg-on-brand)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14,
+                  }}>
+                    {subiendoFoto
+                      ? <Loader2 size={16} className="animate-spin" />
+                      : <FotoOIniciales id={miembro.id}>{(miembro.nombre || "?").trim().charAt(0).toUpperCase()}</FotoOIniciales>}
+                  </span>
+                  <input
+                    ref={fotoInputRef}
+                    type="file"
+                    accept="image/*"
+                    style={{ display: "none" }}
+                    onChange={e => { const f = e.target.files?.[0]; if (f) void cambiarFoto(f); }}
+                  />
+                  <button
+                    type="button"
+                    aria-label={fotoActual ? "Cambiar foto" : "Subir foto"}
+                    title={fotoActual ? "Cambiar foto" : "Subir foto"}
+                    onClick={() => fotoInputRef.current?.click()}
+                    disabled={subiendoFoto}
+                    style={{ ...fotoBtnStyle, color: "var(--fg-1)", cursor: subiendoFoto ? "default" : "pointer" }}
+                  >
+                    <ImagePlus size={14} />
+                  </button>
+                  {fotoActual && (
+                    <button
+                      type="button"
+                      aria-label="Quitar foto"
+                      title="Quitar foto"
+                      onClick={() => void cambiarFoto(null)}
+                      disabled={subiendoFoto}
+                      style={{ ...fotoBtnStyle, color: "var(--danger)", cursor: subiendoFoto ? "default" : "pointer" }}
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  )}
+                </div>
+              </Row>
+            )}
+
             <Row label="Nombre" hint="Cómo aparece esta persona en las órdenes">
               <input
                 value={nombre}
@@ -393,6 +464,11 @@ export default function MiembroDetallePage() {
     </div>
   );
 }
+
+const fotoBtnStyle: React.CSSProperties = {
+  width: 30, height: 30, border: "1px solid var(--border)", borderRadius: "var(--r-md)",
+  background: "var(--surface-1)", display: "flex", alignItems: "center", justifyContent: "center",
+};
 
 function fieldStyle(disabled: boolean): React.CSSProperties {
   return {

@@ -62,6 +62,13 @@ describe("applyFiltros", () => {
     expect(run(list, {}, d)).toHaveLength(3);
   });
 
+  it("creada por: solo las OTs de esos creadores", () => {
+    const list = [ot({ id: "a", creado_por: "u1" }), ot({ id: "b", creado_por: "u2" }), ot({ id: "c", creado_por: null })];
+    expect(run(list, { creadoPorIds: ["u2"] }).map(o => o.id)).toEqual(["b"]);
+    expect(run(list, { creadoPorIds: ["u1", "u2"] }).map(o => o.id)).toEqual(["a", "b"]);
+    expect(run(list)).toHaveLength(3);
+  });
+
   it("sin filtros no descarta nada", () => {
     const list = [ot(), ot({ estado: "completado" })];
     expect(run(list)).toHaveLength(2);
