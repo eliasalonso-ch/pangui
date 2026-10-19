@@ -21,7 +21,6 @@ import MeconectaCheck from "./MeconectaCheck";
 import OTRow, { type HojaSolicitudResumen } from "./OTRow";
 import { EmptyState, EmptyDetail } from "@/components/EmptyState";
 import CalendarView from "./CalendarView";
-import KanbanView from "./KanbanView";
 import OTDetail from "./OTDetail";
 import OTCrearPanel from "./OTCrearPanel";
 import OTEditPanel from "./OTEditPanel";
@@ -80,7 +79,6 @@ const EMPTY_FILTROS: FiltrosState = {
   fechaVencimiento: null,
   sinAsignar: false,
   soloAsignados: false,
-  deUsuariosDadosDeBaja: false,
 };
 
 
@@ -198,12 +196,8 @@ export default function OrdenesBandeja({
   // Mostrar/Ordenar dropdown. "Sin asignar" is intentionally not a bucket there:
   // it is a universal filter in the top filter bar, so unassigned overdue/sin
   // progreso OTs still appear when that filter is active.
-  type ViewKey = "lista" | "calendario" | "kanban";
-  const view: ViewKey = pathname.endsWith("/calendario")
-    ? "calendario"
-    : pathname.endsWith("/kanban")
-      ? "kanban"
-      : "lista";
+  type ViewKey = "lista" | "calendario";
+  const view: ViewKey = pathname.endsWith("/calendario") ? "calendario" : "lista";
   const viewPath = `/ordenes/${view}`;
 
   type TabKey = "pendientes" | "completas";
@@ -998,13 +992,6 @@ export default function OrdenesBandeja({
     }
   };
 
-  // Ids de usuarios dados de baja: su trabajo asignado quedo sin duenio real
-  // cuando dejaron el equipo, y es lo que busca el filtro homonimo.
-  const dadosDeBajaIds = useMemo(
-    () => new Set(usuarios.filter(u => u.deleted_at).map(u => u.id)),
-    [usuarios],
-  );
-
   // Cache the set of OT ids whose latest pausado reason is "reprogramar",
   // so the "Solo reprogramadas" toggle is O(1) per OT.
   const reprogramadaIds = useMemo(
@@ -1144,7 +1131,7 @@ export default function OrdenesBandeja({
 
   // Apply filters + search + sort
   const filtered = useMemo(() => {
-    // Calendar and Kanban are independent views. List-only search, filters,
+    // Calendar is an independent view. List-only search, filters,
     // scopes and read-state toggles must not leak into them when navigating.
     if (view !== "lista") return ordenes.slice();
 
@@ -1160,8 +1147,7 @@ export default function OrdenesBandeja({
     // pestaña — que sí usa el set completo — mostraba "2". El dato ya estaba
     // en memoria; solo la lista no lo miraba.
     const baseSource = searchResults ?? (usarSetCompleto ? countOrdenes : ordenes);
-    // Tab decides active vs. completed; scope narrows further. Kanban shows
-    // all states side-by-side, so the tab gate is bypassed in that view.
+    // Tab decides active vs. completed; scope narrows further.
     let list = baseSource.filter(o =>
       tab === "pendientes" ? ACTIVE_ESTADOS.has(o.estado) : CLOSED_ESTADOS.has(o.estado)
     );
@@ -1172,7 +1158,7 @@ export default function OrdenesBandeja({
 
     // Filtros + búsqueda — cadena compartida con los contadores de pestaña.
     list = applyFiltros(list, filtros, {
-      ubicaciones, dadosDeBajaIds, todayKey, search, matchesSearch, banderaColorPorOrden, origenDe: origenDeOT,
+      ubicaciones, todayKey, search, matchesSearch, banderaColorPorOrden, origenDe: origenDeOT,
     });
 
     // Hide the current user's marked ("leídas") OTs when the toggle is on.
@@ -1217,7 +1203,7 @@ export default function OrdenesBandeja({
       });
     }
     return list;
-  }, [ordenes, countOrdenes, usarSetCompleto, searchResults, view, tab, scope, search, sort, filtros, ubicaciones, dadosDeBajaIds, reprogramadaIds, faltanMaterialesIds, ocultarMarcadas, marcadas, todayKey, banderaColorPorOrden]);
+  }, [ordenes, countOrdenes, usarSetCompleto, searchResults, view, tab, scope, search, sort, filtros, ubicaciones, reprogramadaIds, faltanMaterialesIds, ocultarMarcadas, marcadas, todayKey, banderaColorPorOrden]);
 
   // The calendar needs recurrencia_config + activos, which the lean bulk select
   // omits. Fetch them the first time the calendar opens, not on every list load.
@@ -1327,7 +1313,7 @@ export default function OrdenesBandeja({
     // every field read below exists on both.
     const applyFilters = (list: OrdenBulkItem[]) =>
       applyFiltros(list, filtros, {
-        ubicaciones, dadosDeBajaIds, todayKey, search, matchesSearch, banderaColorPorOrden, origenDe: origenDeOT,
+        ubicaciones, todayKey, search, matchesSearch, banderaColorPorOrden, origenDe: origenDeOT,
       });
     // Per tab × per scope. Drives the dropdown labels, the red-dot indicators,
     // and the tab pill counts. All respect search + filtros so the count
@@ -1370,7 +1356,7 @@ export default function OrdenesBandeja({
         presupuestos:   applyFilters(closed.filter(esPresupuesto)).length,
       },
     };
-  }, [countOrdenes, searchResults, filtros, search, ubicaciones, dadosDeBajaIds, reprogramadaIds, faltanMaterialesIds, todayKey, banderaColorPorOrden]);
+  }, [countOrdenes, searchResults, filtros, search, ubicaciones, reprogramadaIds, faltanMaterialesIds, todayKey, banderaColorPorOrden]);
   const currentSortLabel = SORT_OPTIONS.find(o => o.value === sort)?.label ?? "";
   const scopeLabel: Record<ScopeKey, string> = {
     todas: "Todas",
@@ -1387,7 +1373,6 @@ export default function OrdenesBandeja({
   const activeFilterLabels = useMemo(() => {
     const labels: string[] = [];
     if (filtros.sinAsignar) labels.push("Sin asignar");
-    if (filtros.deUsuariosDadosDeBaja) labels.push("De usuarios dados de baja");
     if (filtros.soloAsignados) labels.push("Asignadas");
     const named = <T,>(values: T[], lookup: (v: T) => string | undefined, plural: string) => {
       const names = values.map(lookup).filter((n): n is string => Boolean(n));
@@ -1396,6 +1381,9 @@ export default function OrdenesBandeja({
 
     if (filtros.asignadoIds.length) {
       labels.push(named(filtros.asignadoIds, id => usuarios.find(user => user.id === id)?.nombre, "usuarios"));
+    }
+    if (filtros.bajaIds?.length) {
+      labels.push("Dados de baja: " + named(filtros.bajaIds, id => usuarios.find(user => user.id === id)?.nombre, "usuarios"));
     }
     if (filtros.creadoPorIds?.length) {
       labels.push("Creada por " + named(filtros.creadoPorIds, id => usuarios.find(user => user.id === id)?.nombre, "usuarios"));
@@ -1474,7 +1462,7 @@ export default function OrdenesBandeja({
         // contadores. Antes esta era una tercera copia a mano y ya se habia
         // quedado sin los filtros de sociedad y de ITO.
         list = applyFiltros(list, filtros, {
-          ubicaciones, dadosDeBajaIds, todayKey, search, matchesSearch, banderaColorPorOrden, origenDe: origenDeOT,
+          ubicaciones, todayKey, search, matchesSearch, banderaColorPorOrden, origenDe: origenDeOT,
         });
         list.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
         return list;
@@ -1587,8 +1575,8 @@ export default function OrdenesBandeja({
   }
 
   // Desktop list view shows the list + detail side by side with a draggable
-  // divider; other views (calendar/kanban) or mobile don't get the resizer.
-  const isResizableSplit = isDesktop && view !== "calendario" && view !== "kanban";
+  // divider; the calendar view or mobile don't get the resizer.
+  const isResizableSplit = isDesktop && view !== "calendario";
 
   return (
     <div style={{ display:"flex", flexDirection:"column", height:"100%", minHeight:0, overflow:"hidden", background:"var(--c-bg, var(--surface-canvas))" }}>
@@ -1659,7 +1647,7 @@ export default function OrdenesBandeja({
               >
                 {exporting
                   ? <Loader2 size={16} className="animate-spin" />
-                  : <DatabaseArrowDown size={16} />}
+                  : <DatabaseArrowDown size={16} style={{ color: ordenes.length === 0 ? undefined : "var(--brand)" }} />}
                 Exportar
               </button>
             )}
@@ -1731,31 +1719,36 @@ export default function OrdenesBandeja({
           display:"flex", alignItems:"center",
           padding:"6px 20px", minHeight:40,
         }}>
-          {/* Ocultar leídas — plain icon toggle at the start of the filter row.
-              Eye = leídas visible, EyeOff = leídas ocultas. */}
-          <button
-            type="button"
-            onClick={() => setOcultarMarcadas(v => !v)}
-            title={ocultarMarcadas ? "Mostrar las OTs que marcaste" : "Ocultar las OTs que marcaste"}
-            aria-label={ocultarMarcadas ? "Mostrar las OTs leídas" : "Ocultar las OTs leídas"}
-            aria-pressed={ocultarMarcadas}
-            style={{
-              display:"flex", alignItems:"center", justifyContent:"center",
-              // Misma altura y radio que los chips de FilterBar para que la
-              // fila quede pareja.
-              width:34, height:32, marginRight:8, flexShrink:0,
-              border: ocultarMarcadas ? "1.5px solid var(--brand)" : "1px solid var(--border)",
-              borderRadius:7,
-              background: ocultarMarcadas ? "var(--brand-tint)" : "var(--surface-1)",
-              // Ícono siempre en azul de marca, igual que los chips de filtro.
-              color: "var(--brand)",
-              cursor:"pointer", fontFamily:"inherit",
-            }}
-          >
-            {ocultarMarcadas ? <EyeOff size={16} /> : <Eye size={16} />}
-          </button>
-
           <FilterBar
+            // Ocultar leídas: primer elemento de la fila que se parte, así lo que
+            // baja queda debajo de este chip y no con sangría. Mismo formato que
+            // el chip "Sin asignar". Eye = leídas visibles, EyeOff = ocultas.
+            inicio={
+              <button
+                type="button"
+                onClick={() => setOcultarMarcadas(v => !v)}
+                title={ocultarMarcadas ? "Mostrar las OTs que marcaste" : "Ocultar las OTs que marcaste"}
+                aria-pressed={ocultarMarcadas}
+                style={{
+                  display:"flex", alignItems:"center", gap:6,
+                  // Misma altura y radio que los chips de FilterBar para que la
+                  // fila quede pareja.
+                  height:34, padding:"0 11px", flexShrink:0,
+                  border: ocultarMarcadas ? "1.5px solid var(--brand)" : "1px solid var(--border)",
+                  borderRadius:"var(--r-sm)",
+                  background: ocultarMarcadas ? "var(--brand-tint)" : "var(--surface-1)",
+                  color: ocultarMarcadas ? "var(--brand)" : "var(--fg-2)",
+                  fontSize:14, fontWeight:400, whiteSpace:"nowrap",
+                  cursor:"pointer", fontFamily:"inherit",
+                }}
+              >
+                {/* Ícono siempre en azul de marca, igual que los chips de filtro. */}
+                <span style={{ display:"flex", color:"var(--brand)" }}>
+                  {ocultarMarcadas ? <EyeOff size={16} /> : <Eye size={16} />}
+                </span>
+                Ocultar leídas
+              </button>
+            }
             filtros={filtros}
             onChange={setFiltros}
             usuarios={usuarios}
@@ -1768,6 +1761,7 @@ export default function OrdenesBandeja({
             coloresBandera={coloresBandera}
             mostrarOrigen={hayEnvios()}
             creadores={creadores}
+            wsId={wsId}
           />
         </div>
       </div>}
@@ -1776,12 +1770,12 @@ export default function OrdenesBandeja({
       <div ref={splitContainerRef} style={{ display:"flex", flexGrow:1, flexShrink:1, flexBasis:0, minHeight:0, minWidth:0, overflow:"hidden" }}>
 
         {/* LEFT: list column OR calendar. In desktop list view the width is
-            user-resizable (fixed px, draggable handle on the right). Calendar/
-            kanban take the full remaining width; mobile stays full-width. */}
+            user-resizable (fixed px, draggable handle on the right). Calendar
+            takes the full remaining width; mobile stays full-width. */}
         <div style={{
           display: (!isDesktop && (selected || rightPanel === "create" || rightPanel === "edit")) ? "none" : "flex",
           flexDirection:"column",
-          width: isResizableSplit ? listWidth : ((view === "calendario" || view === "kanban") ? undefined : (isDesktop ? undefined : "100%")),
+          width: isResizableSplit ? listWidth : (view === "calendario" ? undefined : (isDesktop ? undefined : "100%")),
           minWidth: 0,
           flexGrow:   isResizableSplit ? 0 : 1,
           flexShrink: isResizableSplit ? 0 : 1,
@@ -1797,16 +1791,6 @@ export default function OrdenesBandeja({
             <CalendarView
               ordenes={ordenesConExtras}
               loadingExtras={loadingCalendarExtras}
-              reprogramadaIds={reprogramadaIds}
-              selectedId={selected}
-              myId={myId}
-              usuarios={usuarios}
-              onOpenOT={(id) => openOT(id, true)}
-              onPatchOrden={(id, patch) => setOrdenes(prev => prev.map(x => x.id === id ? { ...x, ...patch } : x))}
-            />
-          ) : view === "kanban" ? (
-            <KanbanView
-              ordenes={filtered}
               reprogramadaIds={reprogramadaIds}
               selectedId={selected}
               myId={myId}
@@ -2146,7 +2130,7 @@ export default function OrdenesBandeja({
 
         {/* RIGHT: create panel or detail. Hidden in canvas views because the
             detail opens in a modal there. */}
-        {isDesktop && view !== "calendario" && view !== "kanban" && (
+        {isDesktop && view !== "calendario" && (
           <div style={{ flex:1, minWidth:0, overflow:"hidden", background:"var(--c-bg, var(--surface-canvas))" }}>
             {rightPanel === "create" ? (
               <OTCrearPanel
@@ -2224,12 +2208,12 @@ export default function OrdenesBandeja({
         )}
       </div>
 
-      {/* ── OT detail modal (calendar & kanban views) ──
-          In these views the right pane is hidden so the canvas can use
+      {/* ── OT detail modal (calendar view) ──
+          In this view the right pane is hidden so the canvas can use
           full width. When the user clicks an event/card, the detail opens
           here as a centered modal. Clicking the backdrop or pressing the
           OTDetail close button dismisses it. */}
-      {(view === "calendario" || view === "kanban") && (selected || rightPanel === "create" || (rightPanel === "edit" && detail)) && (
+      {view === "calendario" && (selected || rightPanel === "create" || (rightPanel === "edit" && detail)) && (
         <div
           style={{ position:"fixed", inset:0, zIndex:300, background:"rgba(15,23,42,0.45)", display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}
           onClick={() => { setSelected(null); setDetail(null); setRightPanel("none"); router.push(viewPath, { scroll: false }); }}

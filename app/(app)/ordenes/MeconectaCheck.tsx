@@ -217,7 +217,7 @@ export default function MeconectaCheck({ onOpenOrden }: Props) {
       >
         {loading
           ? <Loader2 size={15} className="animate-spin" />
-          : <RefreshCw size={15} />}
+          : <RefreshCw size={15} style={{ color: disabled ? undefined : "var(--brand)" }} />}
         {loading ? "Revisando…" : cooldown > 0 ? `Revisar MeConecta (${cooldown}s)` : "Revisar MeConecta"}
       </button>
 

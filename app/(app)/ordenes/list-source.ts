@@ -51,9 +51,11 @@ export function needsFullWorkspaceSet(args: {
     filtros.itos.length > 0 ||
     filtros.categoriaIds.length > 0 ||
     (filtros.banderaColores?.length ?? 0) > 0 ||
+    (filtros.origenes?.length ?? 0) > 0 ||
+    (filtros.creadoPorIds?.length ?? 0) > 0 ||
+    (filtros.bajaIds?.length ?? 0) > 0 ||
     filtros.fechaVencimiento != null ||
     filtros.sinAsignar ||
-    filtros.deUsuariosDadosDeBaja ||
     filtros.soloAsignados
   );
 }

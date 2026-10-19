@@ -143,6 +143,15 @@ export function OptionList({ children }: { children: React.ReactNode }) {
 
 // ── Dropdown wrapper ──────────────────────────────────────────────────────────
 
+/**
+ * ¿Un popover de `ancho` px abierto hacia la derecha desde `el` cabe en la
+ * ventana? Si no (chip al final de la fila en una pantalla angosta), se ancla
+ * al borde derecho del chip en vez de quedar cortado.
+ */
+function cabeALaDerecha(el: HTMLElement | null, ancho: number) {
+  return !el || el.getBoundingClientRect().left + ancho <= window.innerWidth - 8;
+}
+
 export function FilterDropdown({ label, icon, active, count, onClear, onRemove, children }: {
   label: string;
   icon: React.ReactNode;
@@ -154,6 +163,7 @@ export function FilterDropdown({ label, icon, active, count, onClear, onRemove, 
   children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
+  const [aLaDerecha, setALaDerecha] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -168,7 +178,7 @@ export function FilterDropdown({ label, icon, active, count, onClear, onRemove, 
     <div ref={ref} style={{ position: "relative" }}>
       <button
         type="button"
-        onClick={() => setOpen(v => !v)}
+        onClick={() => { setALaDerecha(!cabeALaDerecha(ref.current, 360)); setOpen(v => !v); }}
         style={{
           display: "flex", alignItems: "center", gap: 6,
           height: 34, padding: "0 11px",
@@ -192,7 +202,8 @@ export function FilterDropdown({ label, icon, active, count, onClear, onRemove, 
 
       {open && (
         <div style={{
-          position: "absolute", top: "calc(100% + 4px)", left: 0, zIndex: 200,
+          position: "absolute", top: "calc(100% + 4px)", zIndex: 200,
+          ...(aLaDerecha ? { right: 0 } : { left: 0 }),
           minWidth: 280, maxWidth: 360, background: "var(--surface-1)",
           border: "1px solid var(--border)", borderRadius: 8,
           boxShadow: "var(--shadow-md)", overflow: "hidden",
@@ -298,6 +309,7 @@ export function AddFilterMenu<K extends string>({ available, icons, onAdd }: {
   onAdd: (key: K) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [aLaDerecha, setALaDerecha] = useState(false);
   const [q, setQ] = useState("");
   const ref = useRef<HTMLDivElement>(null);
 
@@ -316,7 +328,7 @@ export function AddFilterMenu<K extends string>({ available, icons, onAdd }: {
     <div ref={ref} style={{ position: "relative" }}>
       <button
         type="button"
-        onClick={() => setOpen(v => !v)}
+        onClick={() => { setALaDerecha(!cabeALaDerecha(ref.current, 240)); setOpen(v => !v); }}
         style={{
           display: "flex", alignItems: "center", gap: 5, height: 34, padding: "0 11px",
           border: "1px dashed var(--border)", borderRadius: "var(--r-sm)",
@@ -330,7 +342,8 @@ export function AddFilterMenu<K extends string>({ available, icons, onAdd }: {
 
       {open && (
         <div style={{
-          position: "absolute", top: "calc(100% + 4px)", left: 0, zIndex: 200,
+          position: "absolute", top: "calc(100% + 4px)", zIndex: 200,
+          ...(aLaDerecha ? { right: 0 } : { left: 0 }),
           minWidth: 240, background: "var(--surface-1)",
           border: "1px solid var(--border)", borderRadius: 8,
           boxShadow: "var(--shadow-md)", overflow: "hidden",

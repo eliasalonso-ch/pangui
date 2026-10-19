@@ -14,7 +14,7 @@ import { OptionRow, TokenSearch, SinResultados, toggle } from "@/components/filt
 const POR_PAGINA = 25;
 const STALE = 15 * 60 * 1000;
 
-export type FuenteCatalogo = "categorias" | "activos" | "ubicaciones";
+export type FuenteCatalogo = "categorias" | "activos" | "ubicaciones" | "usuarios_baja";
 
 type Fila = Record<string, any>;
 
@@ -46,6 +46,13 @@ const FUENTES: Record<FuenteCatalogo, {
     delWorkspace: (q, ws) => q.eq("workspace_id", ws),
     opcion: r => ({ id: r.id, label: r.edificio + (r.detalle ? ` · ${r.detalle}` : "") }),
     vacio: "Sin ubicaciones",
+  },
+  // Visibles por usuarios_select desde 20261019120000 (antes la RLS los ocultaba).
+  usuarios_baja: {
+    tabla: "usuarios", columnas: "id, nombre", orden: "nombre", buscar: ["nombre"],
+    delWorkspace: (q, ws) => q.eq("workspace_id", ws).not("deleted_at", "is", null),
+    opcion: r => ({ id: r.id, label: r.nombre }),
+    vacio: "Sin usuarios dados de baja",
   },
 };
 

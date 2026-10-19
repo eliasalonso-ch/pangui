@@ -10,7 +10,6 @@ const SIN_FILTROS: FiltrosState = {
   fechaVencimiento: null,
   sinAsignar: false,
   soloAsignados: false,
-  deUsuariosDadosDeBaja: false,
 };
 
 const TODAY = "2026-08-14";
@@ -21,7 +20,6 @@ const deps: FilterDeps = {
     { id: "ub2", sociedad_id: "s2" },
     { id: "ub3", sociedad_id: null },
   ],
-  dadosDeBajaIds: new Set(["baja1"]),
   todayKey: TODAY,
 };
 
@@ -152,9 +150,10 @@ describe("applyFiltros", () => {
     expect(run(list, { soloAsignados: true })).toHaveLength(1);
   });
 
-  it("filtra por usuarios dados de baja", () => {
-    const list = [ot({ asignados_ids: ["baja1"] }), ot({ asignados_ids: ["u1"] })];
-    expect(run(list, { deUsuariosDadosDeBaja: true })).toHaveLength(1);
+  it("filtra por los usuarios dados de baja elegidos", () => {
+    const list = [ot({ id: "a", asignados_ids: ["baja1"] }), ot({ id: "b", asignados_ids: ["baja2", "u1"] }), ot({ id: "c", asignados_ids: ["u1"] })];
+    expect(run(list, { bajaIds: ["baja1"] }).map(o => o.id)).toEqual(["a"]);
+    expect(run(list, { bajaIds: ["baja1", "baja2"] }).map(o => o.id)).toEqual(["a", "b"]);
   });
 
   describe("fechaVencimiento", () => {

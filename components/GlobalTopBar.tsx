@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
-  BellRing, Calendar, Check, ChevronDown, ChevronRight, CircleUserRound, CreditCard, Inbox, Kanban, Link2, List, LogOut, MapPin, MapPinned, Monitor, Moon, SlidersHorizontal, Sun,
+  BellRing, Calendar, Check, ChevronDown, ChevronRight, CircleUserRound, CreditCard, Inbox, Link2, List, LogOut, MapPin, MapPinned, Monitor, Moon, SlidersHorizontal, Sun,
 } from "lucide-react";
 import { Engine } from "@/components/icons/Engine";
 import {
@@ -40,7 +40,7 @@ const THEMES: { value: ThemePref; label: string; icon: typeof Sun }[] = [
 // A crumb is plain text unless it carries an href, in which case it links back
 // to that parent page (the last crumb is the current page and never links).
 // A crumb with `menu` is a dropdown of sibling pages (shadcn Breadcrumb
-// "Dropdown" pattern): it replaces the Lista/Calendario/Kanban segmented
+// "Dropdown" pattern): it replaces the Lista/Calendario segmented
 // control that used to sit above Órdenes.
 // Cada opción navega (`href`, vistas que son rutas) o llama a la página
 // (`onSelect`, vistas que son estado; ver useTopBarVista).
@@ -51,7 +51,6 @@ type Crumb = string | { label: string; href: string } | MenuCrumb;
 const VISTAS_ORDENES = [
   { label: "Lista", href: "/ordenes/lista", icon: <List size={16} /> },
   { label: "Calendario", href: "/ordenes/calendario", icon: <Calendar size={16} /> },
-  { label: "Kanban", href: "/ordenes/kanban", icon: <Kanban size={16} /> },
 ];
 // Reemplazan los controles segmentados que había sobre cada sección.
 const VISTAS_ACTIVOS = [

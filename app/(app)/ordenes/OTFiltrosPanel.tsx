@@ -14,6 +14,7 @@ import {
   FilterDropdown, AddFilterMenu, toggle,
 } from "@/components/filtros/primitivas";
 import { FotoOIniciales } from "@/components/FotoPerfil";
+import { CatalogoFiltro } from "@/components/ordenes/CatalogoMultiSelect";
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
@@ -63,12 +64,12 @@ const EMPTY: FiltrosState = {
   asignadoIds: [], ubicacionIds: [], sociedadIds: [],
   itos: [], categoriaIds: [],
   fechaVencimiento: null, sinAsignar: false, soloAsignados: false,
-  deUsuariosDadosDeBaja: false,
 };
 
 const FILTER_ICONS: Record<FilterKey, React.ReactNode> = {
   asignadoIds:      <User size={16} />,
   creadoPorIds:     <PenLine size={16} />,
+  bajaIds:          <UserRoundX size={16} />,
   sinAsignar:       <UserRoundX size={16} />,
   fechaVencimiento: <Clock size={16} />,
   ubicacionIds:     <MapPin size={16} />,
@@ -102,9 +103,13 @@ interface FilterBarProps {
   mostrarOrigen?: boolean;
   /** Usuarios que crearon alguna OT del workspace: las opciones de "Creada por". */
   creadores?: Usuario[];
+  /** Para el catálogo paginado de usuarios dados de baja. */
+  wsId: string | null;
+  /** Primer elemento de la fila (el toggle de leídas), dentro del mismo wrap. */
+  inicio?: React.ReactNode;
 }
 
-export function FilterBar({ filtros, onChange, usuarios, ubicaciones, sociedades, categorias, itos, visibleKeys, onVisibleKeysChange, coloresBandera = [], mostrarOrigen = false, creadores = [] }: FilterBarProps) {
+export function FilterBar({ filtros, onChange, usuarios, ubicaciones, sociedades, categorias, itos, visibleKeys, onVisibleKeysChange, coloresBandera = [], mostrarOrigen = false, creadores = [], wsId, inicio }: FilterBarProps) {
   const [userSearch, setUserSearch]  = useState("");
   const [ubicSearch, setUbicSearch]  = useState("");
   const [socSearch,  setSocSearch]   = useState("");
@@ -129,20 +134,20 @@ export function FilterBar({ filtros, onChange, usuarios, ubicaciones, sociedades
     onChange({ ...filtros, ...FILTER_META[key].clear(filtros) });
     onVisibleKeysChange(visibleKeys.filter(k => k !== key));
   };
+  // "Dados de baja" solo se ofrece si el workspace tiene alguno.
+  const hayBajas = usuarios.some(u => u.deleted_at);
   // Bandera solo se ofrece si hay OTs con bandera (y solo dueño/admin las ve).
   const available = FILTER_ORDER
-    .filter(k => !shown.has(k) && (k !== "banderaColores" || coloresBandera.length > 0) && (k !== "origenes" || mostrarOrigen) && (k !== "creadoPorIds" || creadores.length > 0))
+    .filter(k => !shown.has(k) && (k !== "banderaColores" || coloresBandera.length > 0) && (k !== "origenes" || mostrarOrigen) && (k !== "creadoPorIds" || creadores.length > 0) && (k !== "bajaIds" || hayBajas))
     .map(k => FILTER_META[k]);
   const banderaColores = filtros.banderaColores ?? [];
   const origenes = filtros.origenes ?? [];
   const creadoPorIds = filtros.creadoPorIds ?? [];
+  const bajaIds = filtros.bajaIds ?? [];
 
-  const totalActive =
-    filtros.asignadoIds.length + filtros.ubicacionIds.length +
-    filtros.prioridades.length + filtros.estados.length +
-    filtros.tipos.length + filtros.sociedadIds.length +
-    filtros.itos.length + filtros.categoriaIds.length +
-    (filtros.fechaVencimiento ? 1 : 0) + (filtros.sinAsignar ? 1 : 0) + origenes.length + creadoPorIds.length;
+  // Desde el registro: la suma a mano se olvidaba de Bandera, y cada filtro
+  // nuevo tenía que acordarse de agregarse acá.
+  const totalActive = FILTER_ORDER.reduce((n, k) => n + FILTER_META[k].count(filtros), 0);
 
   const filteredUsers = usuarios.filter(u => u.nombre.toLowerCase().includes(userSearch.toLowerCase()));
   const filteredUbic  = ubicaciones.filter(u => (u.edificio + (u.detalle ?? "")).toLowerCase().includes(ubicSearch.toLowerCase()));
@@ -153,6 +158,7 @@ export function FilterBar({ filtros, onChange, usuarios, ubicaciones, sociedades
   return (
     <div style={{ display: "flex", alignItems: "flex-start", gap: 8, width: "100%" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", flex: "1 1 auto", minWidth: 0 }}>
+      {inicio}
 
       {/* ── Sin asignar ── */}
       {shown.has("sinAsignar") && (
@@ -239,32 +245,21 @@ export function FilterBar({ filtros, onChange, usuarios, ubicaciones, sociedades
       </FilterDropdown>
       )}
 
-      {/* ── De usuarios dados de baja ──
-          Solo aparece si el workspace tiene alguno: en la mayoria el boton
-          seria ruido permanente. Sirve para encontrar de una vez el trabajo
-          que quedo asignado a alguien que ya no esta. */}
-      {usuarios.some(u => u.deleted_at) && (
-        <button
-          type="button"
-          onClick={() => set({ deUsuariosDadosDeBaja: !filtros.deUsuariosDadosDeBaja })}
-          aria-pressed={filtros.deUsuariosDadosDeBaja}
-          title="OTs asignadas a usuarios que fueron dados de baja"
-          style={{
-            display: "flex", alignItems: "center", gap: 6,
-            height: 34, padding: "0 11px",
-            border: filtros.deUsuariosDadosDeBaja ? "1.5px solid var(--brand)" : "1px solid var(--border)",
-            borderRadius: "var(--r-sm)",
-            background: filtros.deUsuariosDadosDeBaja ? "var(--brand-tint)" : "var(--surface-1)",
-            color: filtros.deUsuariosDadosDeBaja ? "var(--brand)" : "var(--fg-2)",
-            fontSize: 14, fontWeight: 400,
-            cursor: "pointer", fontFamily: "inherit",
-            whiteSpace: "nowrap",
-          }}
-        >
-          <UserRoundX size={16} style={{ color: "var(--brand)" }} />
-          Dados de baja
-          {filtros.deUsuariosDadosDeBaja && <Check size={11} />}
-        </button>
+      {/* ── Dados de baja ──
+          Catálogo paginado (búsqueda en el servidor, scroll infinito, caché):
+          sirve para encontrar el trabajo que quedó a nombre de alguien que ya
+          no está. */}
+      {shown.has("bajaIds") && hayBajas && (
+      <FilterDropdown
+        label="Dados de baja"
+        icon={FILTER_ICONS.bajaIds}
+        active={bajaIds.length > 0}
+        count={bajaIds.length}
+        onClear={() => set({ bajaIds: [] })}
+        onRemove={() => removeFilter("bajaIds")}
+      >
+        <CatalogoFiltro fuente="usuarios_baja" wsId={wsId} value={bajaIds} onChange={ids => set({ bajaIds: ids })} placeholder="Buscar usuario…" />
+      </FilterDropdown>
       )}
 
       {/* ── Fecha de vencimiento ── */}

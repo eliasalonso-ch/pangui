@@ -13,6 +13,7 @@ import type { FiltrosState } from "@/types/ordenes";
 export type FilterKey =
   | "asignadoIds"
   | "creadoPorIds"
+  | "bajaIds"
   | "sinAsignar"
   | "fechaVencimiento"
   | "ubicacionIds"
@@ -49,6 +50,11 @@ export const FILTER_META: Record<FilterKey, FilterMeta> = {
     key: "creadoPorIds", label: "Creada por",
     clear: () => ({ creadoPorIds: [] }),
     count: f => f.creadoPorIds?.length ?? 0,
+  },
+  bajaIds: {
+    key: "bajaIds", label: "Dados de baja",
+    clear: () => ({ bajaIds: [] }),
+    count: f => f.bajaIds?.length ?? 0,
   },
   sinAsignar: {
     key: "sinAsignar", label: "Sin asignar",
@@ -113,7 +119,7 @@ export const FILTER_META: Record<FilterKey, FilterMeta> = {
  * leídas/no leídas, que vive a la izquierda de esta barra.
  */
 export const FILTER_ORDER: FilterKey[] = [
-  "sinAsignar", "asignadoIds", "creadoPorIds", "fechaVencimiento", "ubicacionIds",
+  "sinAsignar", "asignadoIds", "creadoPorIds", "bajaIds", "fechaVencimiento", "ubicacionIds",
   "itos", "prioridades", "estados", "tipos", "categoriaIds", "sociedadIds", "banderaColores", "origenes",
 ];
 

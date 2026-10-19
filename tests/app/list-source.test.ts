@@ -15,7 +15,6 @@ const SIN_FILTROS: FiltrosState = {
   fechaVencimiento: null,
   sinAsignar: false,
   soloAsignados: false,
-  deUsuariosDadosDeBaja: false,
 };
 
 const base = { scope: "todas", ocultarMarcadas: false, filtros: SIN_FILTROS };
@@ -50,7 +49,9 @@ describe("needsFullWorkspaceSet", () => {
     ["fechaVencimiento", { fechaVencimiento: "hoy" }],
     ["sinAsignar", { sinAsignar: true }],
     ["soloAsignados", { soloAsignados: true }],
-    ["deUsuariosDadosDeBaja", { deUsuariosDadosDeBaja: true }],
+    ["bajaIds", { bajaIds: ["b1"] }],
+    ["creadoPorIds", { creadoPorIds: ["u1"] }],
+    ["origenes", { origenes: ["recibida"] }],
   ])("el filtro %s exige el set completo", (_name, over) => {
     expect(
       needsFullWorkspaceSet({ ...base, filtros: { ...SIN_FILTROS, ...over } as FiltrosState }),

@@ -428,9 +428,6 @@ export interface FiltrosState {
   fechaVencimiento: "hoy" | "manana" | "7dias" | "30dias" | "este_mes" | "vencidas" | null;
   sinAsignar: boolean;
   soloAsignados: boolean;
-  /** OTs cuyo responsable fue dado de baja: trabajo que quedo sin duenio real
-   *  cuando alguien dejo el equipo. */
-  deUsuariosDadosDeBaja: boolean;
   /**
    * Colores de bandera (ot_banderas), solo dueño/admin. Opcional a propósito:
    * los filtros guardados de antes no lo traen, y `?? []` evita romperlos.
@@ -443,6 +440,8 @@ export interface FiltrosState {
   origenes?: ("propia" | "recibida" | "enviada")[];
   /** Quién creó la OT (ordenes_trabajo.creado_por). Opcional, igual que banderaColores. */
   creadoPorIds?: string[];
+  /** OTs asignadas a estos usuarios dados de baja. Opcional, igual que banderaColores. */
+  bajaIds?: string[];
 }
 
 export type SortOption =

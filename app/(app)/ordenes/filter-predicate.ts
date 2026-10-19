@@ -43,8 +43,6 @@ export interface FilterableOrden {
 export interface FilterDeps {
   /** Used to resolve sociedadIds → the ubicaciones belonging to those sociedades. */
   ubicaciones: Pick<Ubicacion, "id" | "sociedad_id">[];
-  /** Ids of deactivated users, for the "de usuarios dados de baja" filter. */
-  dadosDeBajaIds: Set<string>;
   /** Today as a Chile-local YYYY-MM-DD key, for the fechaVencimiento presets. */
   todayKey: string;
   /** orden_id → color de su bandera (solo dueño/admin), para banderaColores. */
@@ -65,7 +63,7 @@ export function applyFiltros<T extends FilterableOrden>(
   filtros: FiltrosState,
   deps: FilterDeps,
 ): T[] {
-  const { ubicaciones, dadosDeBajaIds, todayKey, search, matchesSearch } = deps;
+  const { ubicaciones, todayKey, search, matchesSearch } = deps;
   let list = input;
 
   if (filtros.estados.length) {
@@ -146,8 +144,9 @@ export function applyFiltros<T extends FilterableOrden>(
   if (filtros.sinAsignar) {
     list = list.filter(o => !o.asignados_ids || o.asignados_ids.length === 0);
   }
-  if (filtros.deUsuariosDadosDeBaja) {
-    list = list.filter(o => (o.asignados_ids ?? []).some(id => dadosDeBajaIds.has(id)));
+  const bajaIds = filtros.bajaIds ?? [];
+  if (bajaIds.length) {
+    list = list.filter(o => bajaIds.some(id => o.asignados_ids?.includes(id)));
   }
   if (filtros.soloAsignados) {
     list = list.filter(o => o.asignados_ids && o.asignados_ids.length > 0);
