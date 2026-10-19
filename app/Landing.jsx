@@ -3,13 +3,21 @@
 import { LOGIN_URL, MARKETING_URL, REGISTRO_URL } from "@/lib/app-urls";
 import { FAQS } from "./structured-data";
 import "./landing.css";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import Link from "next/link";
 import Image from "next/image";
+import dynamic from "next/dynamic";
 import PublicPageTheme from "@/components/PublicPageTheme";
 import { StoreBadges } from "@/components/StoreBadges";
 import FeatureDetailPanel, { useFeatureDetail } from "@/components/landing/FeatureDetailPanel";
+import SpecularButton from "@/components/landing/SpecularButton";
+import DashboardMock from "@/components/landing/DashboardMock";
+
+// Fondo WebGL del hero (React Bits). Va en su propio chunk y sin SSR para no
+// sumar ~40KB de JS al LCP; el fondo oscuro de .landing-hero pinta mientras carga.
+const GradientASCII = dynamic(() => import("@/components/landing/GradientASCII"), { ssr: false });
+const LaserFlow = dynamic(() => import("@/components/landing/LaserFlow"), { ssr: false });
 import {
   ArrowRight,
   ArrowUpRight,
@@ -23,10 +31,7 @@ import {
   FileSignature,
   Menu,
   Minus,
-  PauseCircle,
   Plus,
-  RefreshCw,
-  UserPlus,
   Wrench,
   X,
 } from "lucide-react";
@@ -168,23 +173,28 @@ export function LandingNav({ mobileOnly = false }) {
 
 function Hero() {
   return (
-    <section className="landing-hero-grid relative overflow-hidden pt-16 text-white md:pt-[68px]">
-      <div className="mx-auto grid max-w-[1440px] gap-9 px-4 py-14 sm:px-5 md:gap-12 md:px-10 md:py-24 lg:min-h-[calc(100svh-68px)] lg:grid-cols-12 lg:items-center lg:py-16 xl:px-12">
+    <section className="landing-hero relative overflow-hidden pt-16 text-white md:pt-[68px]">
+      {/* Más alto que la sección (se recorta): deja el fundido a blanco del
+          "horizon" fuera de la sección, así el azul llega hasta abajo. */}
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-[230%]" aria-hidden="true">
+        {/* --accent (#273D88) + tintes del mismo tono, en vez del azul/cian por
+            defecto. Sin tonos claros: el más claro (#4a63c4) mantiene ~5:1 con
+            el texto blanco; uno casi blanco tapaba el título en móvil. */}
+        <GradientASCII colors={["#273D88", "#4a63c4", "#3a52a8", "#34499a"]} />
+      </div>
+      <div className="relative z-[1] mx-auto grid max-w-[1440px] gap-9 px-4 py-14 sm:px-5 md:gap-12 md:px-10 md:py-24 lg:min-h-[calc(100svh-68px)] lg:grid-cols-12 lg:items-center lg:py-16 xl:px-12">
         <motion.div
           variants={stagger}
           initial="hidden"
           animate="visible"
           className="lg:col-span-6"
         >
-          <motion.p variants={fadeUp} className="max-w-[280px] font-mono text-[10px] font-medium uppercase tracking-[0.18em] text-white/75 sm:max-w-none sm:text-[11px]">
-            Software de órdenes de trabajo (CMMS) · Hecho en Chile
-          </motion.p>
           {/* h1 and the lead <p> below are deliberately NOT motion components.
               They are the LCP element, and framer-motion's initial="hidden"
               held them at opacity:0 until hydration — which sits behind ~3s of
               JS execution, giving a 9.9s element render delay. Plain elements
               paint with the HTML. Everything else in the hero still animates. */}
-          <h1 className="mt-6 max-w-[720px] font-display text-[36px] font-bold leading-[1.04] tracking-[-0.035em] text-balance sm:text-[50px] md:mt-8 md:text-[62px] lg:text-[72px]">
+          <h1 className="max-w-[720px] font-display text-[36px] font-bold leading-[1.04] tracking-[-0.035em] text-balance sm:text-[50px] md:text-[62px] lg:text-[72px]">
             Cada trabajo respaldado. Cada trabajo cobrado.
           </h1>
           <p className="mt-6 max-w-[620px] text-[16px] leading-[1.6] text-white/82 md:mt-8 md:text-[19px]">
@@ -195,23 +205,25 @@ function Hero() {
           </p>
 
           <motion.div variants={fadeUp} className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap md:mt-10 md:gap-4">
-            <a
+            <SpecularButton
               href={REGISTRO_URL}
-              className="inline-flex h-12 w-full items-center justify-center gap-3 bg-white px-6 text-[16px] font-semibold text-[var(--accent)] transition-colors hover:bg-white/90 sm:w-auto md:h-14 md:px-7 md:text-[18px]"
+              size="md"
+              radius={0}
+              tint="#273D88"
+              tintOpacity={1}
+              textColor="#ffffff"
+              baseColor="#5b72c2"
+              className="h-12 w-full !gap-3 !px-6 !text-[16px] !font-semibold sm:w-auto md:h-14 md:!px-7 md:!text-[18px]"
             >
-              Prueba gratis 30 días
-              <ArrowRight size={17} />
-            </a>
+              Empieza ahora
+            </SpecularButton>
             <Link
               href="/demo"
-              className="inline-flex h-12 w-full items-center justify-center border-2 border-white px-6 text-[16px] font-semibold text-white transition-colors hover:bg-white hover:text-[var(--accent)] sm:w-auto md:h-14 md:px-7 md:text-[18px]"
+              className="inline-flex h-12 w-full items-center justify-center border-2 border-[var(--accent)] bg-white px-6 text-[16px] font-semibold text-[var(--accent)] transition-colors hover:bg-[var(--accent)] hover:text-white sm:w-auto md:h-14 md:px-7 md:text-[18px]"
             >
               Agendar demo
             </Link>
           </motion.div>
-          <motion.p variants={fadeUp} className="mt-4 text-[13px] text-white/65">
-            Acceso completo durante la prueba · Configuración en minutos
-          </motion.p>
         </motion.div>
 
         <motion.div
@@ -227,52 +239,13 @@ function Hero() {
                 the image's natural 4:3 height instead of cropping into it. */}
             <div className="relative aspect-[5/4] w-full overflow-hidden rounded-[18px] shadow-2xl shadow-black/25 sm:aspect-[4/3] md:rounded-[22px]">
               <Image
-                src="/hero-ot-motor.jpg"
-                alt="Sala de bombas y motores atendida por una empresa de mantención"
+                src="/hero-tecnico-equipo.webp"
+                alt="Técnico de mantención con casco revisando un equipo en sala de máquinas, con el celular en la mano"
                 fill
                 sizes="(min-width: 1024px) 50vw, 100vw"
-                className="object-cover"
+                className="object-cover object-[75%_50%]"
                 priority
               />
-            </div>
-            {/* Estado card from the real OT detail UI (EstadoSection), sitting
-                flush under the image at the same width. Static, non-interactive. */}
-            <div className="mt-4 rounded-[20px] border border-black/10 bg-white p-4 text-[var(--ink)] shadow-2xl shadow-black/25 md:mt-5">
-              <p className="text-[14px] font-bold leading-[1.3]">
-                Mantención motor trifásico M-12
-              </p>
-              <div className="mt-3 flex gap-2">
-                {[
-                  { label: "Asignada", icon: UserPlus, selected: false },
-                  { label: "En espera", icon: PauseCircle, selected: false },
-                  { label: "En curso", icon: RefreshCw, selected: false },
-                  { label: "Completada", icon: Check, selected: true },
-                ].map(({ label, icon: Icon, selected }) => (
-                  <div
-                    key={label}
-                    className={`relative flex flex-1 flex-col items-center justify-center gap-1.5 overflow-hidden rounded-[12px] px-1 py-3 ${
-                      selected
-                        ? "bg-[#34C759] text-white"
-                        : "border-[1.5px] border-black/[0.12] bg-white text-[var(--ink-3)]"
-                    }`}
-                  >
-                    {selected && (
-                      <span
-                        aria-hidden
-                        className="pointer-events-none absolute inset-0"
-                        style={{
-                          background:
-                            "linear-gradient(180deg, rgba(255,255,255,0.45) 0%, rgba(255,255,255,0) 55%, rgba(0,0,0,0.12) 100%)",
-                        }}
-                      />
-                    )}
-                    <Icon size={22} strokeWidth={selected ? 2.4 : 1.8} className="relative" />
-                    <span className={`relative text-[11px] leading-none ${selected ? "font-bold" : "font-medium"}`}>
-                      {label}
-                    </span>
-                  </div>
-                ))}
-              </div>
             </div>
           </div>
         </motion.div>
@@ -774,6 +747,54 @@ function SampleReport() {
   );
 }
 
+function PlatformSection() {
+  // El láser cae sobre el borde superior del dashboard: LaserFlow lee la
+  // posición y el radio de este elemento.
+  const tablero = useRef(null);
+
+  return (
+    <section id="plataforma" className="relative overflow-hidden border-t border-white/20 bg-[var(--accent-hover)] text-white">
+      <motion.div
+        variants={fadeUp}
+        initial="hidden"
+        whileInView="visible"
+        viewport={{ once: true, amount: 0.4 }}
+        className="relative z-[2] mx-auto max-w-[1440px] px-4 pt-16 sm:px-5 md:px-10 md:pt-24 xl:px-12"
+      >
+        <h2 className="max-w-[460px] font-display text-[34px] font-bold leading-[1.04] tracking-[-0.03em] text-balance md:text-[52px]">
+          Toda la operación en una sola pantalla.
+        </h2>
+        <p className="mt-6 max-w-[440px] text-[16px] leading-[1.65] text-white/80 md:text-[18px]">
+          Lo que su equipo registra en terreno llega al panel: qué está en
+          curso, qué quedó en espera y qué necesita una decisión suya antes de
+          que se atrase.
+        </p>
+      </motion.div>
+
+      {/* El láser cubre la sección entera (absolute contra <section>), así
+          el haz siempre nace en su borde superior. En móvil pasa por detrás
+          del texto (que va en z-[2]). */}
+      <div className="pointer-events-none absolute inset-0" aria-hidden="true">
+        <LaserFlow surfaceRef={tablero} beamPosition={0.62} />
+      </div>
+      {/* Alto fijo + overflow: el tablero queda cortado por el borde de la
+          sección, como si saliera desde abajo. */}
+      <div className="relative z-[1] mx-auto h-[384px] max-w-[1440px] overflow-hidden px-4 pt-12 sm:h-[420px] sm:px-5 md:h-[480px] md:px-10 lg:h-[620px] xl:px-12">
+          <motion.div
+            ref={tablero}
+            initial={{ y: 80, opacity: 0 }}
+            whileInView={{ y: 0, opacity: 1 }}
+            viewport={{ once: true, amount: 0.2 }}
+            transition={{ duration: 0.9, ease: [0.2, 0.7, 0.3, 1] }}
+            className="w-[85%] rounded-[14px] sm:w-auto"
+          >
+            <DashboardMock />
+          </motion.div>
+      </div>
+    </section>
+  );
+}
+
 function ProblemSection() {
   const problems = [
     {
@@ -1005,6 +1026,7 @@ export default function Landing() {
       <LandingNav />
       <Hero />
       <ProblemSection />
+      <PlatformSection />
       <SampleReport />
       <CaseStudy />
       <OperatingModel />

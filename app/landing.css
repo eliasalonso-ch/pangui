@@ -101,6 +101,13 @@ html.pangui-public body {
 }
 
 /* ---------- Landing hero background ---------- */
+/* Base bajo el canvas de GradientASCII (transparente): se ve mientras carga
+   el JS y durante la animación de entrada, así el texto blanco nunca queda
+   sobre blanco. --accent-hover y no --accent: el CTA principal es --accent. */
+.landing-hero {
+  background: var(--accent-hover);
+}
+
 .landing-hero-grid {
   position: relative;
   background:
