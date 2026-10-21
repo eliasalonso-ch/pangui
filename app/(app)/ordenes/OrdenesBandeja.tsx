@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Plus, Search, X, ChevronDown, Loader2, FileText, ClipboardCheck, ArrowUp, ArrowUpDown, Download, AlertTriangle, Calendar, Check, Copy, DatabaseArrowDown, Eye, EyeOff } from "lucide-react";
+import { Plus, Search, X, ChevronDown, Loader2, ClipboardCheck, ArrowUp, ArrowUpDown, Download, AlertTriangle, Calendar, Check, Copy, DatabaseArrowDown, Eye, EyeOff } from "lucide-react";
 import { createClient, logRealtimeChannel } from "@/lib/supabase";
 import { esAdmin } from "@/lib/roles";
 import { fetchOrdenesPage, fetchAllOrdenesForExport, fetchAllOrdenesBulk, fetchOrdenesCalendarExtras, fetchOrdenListItem, searchOrdenes, ORDENES_SEARCH_LIMIT, deleteOrden, ORDENES_PAGE_SIZE, parseDescMeta, fetchMarcadasIds, toggleMarcada, matchesSearch, ELECTRILAM_WORKSPACE_ID } from "@/lib/ordenes-api";
@@ -25,6 +25,12 @@ import OTDetail from "./OTDetail";
 import OTCrearPanel from "./OTCrearPanel";
 import OTEditPanel from "./OTEditPanel";
 import { FilterBar } from "./OTFiltrosPanel";
+import {
+  DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem,
+  DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuGroup,
+  DropdownMenuRadioGroup, DropdownMenuRadioItem,
+  menuLabelStyle, menuSeparatorStyle, menuItemStyle, menuTriggerStyle, menuTriggerHover,
+} from "@/components/ui/dropdown-menu";
 import {
   pendingScopeFor, esLevantamiento, esPresupuesto, estaVencida, sinProgreso,
   type PendingScopeKey,
@@ -57,6 +63,7 @@ const SORT_OPTIONS: { value: SortOption; label: string; soloCompletas?: true }[]
   { value: "prioridad_asc",      label: "Prioridad: Más bajo primero" },
   { value: "ubicacion",          label: "Ubicación" },
 ];
+
 
 
 type WaitingAlert = {
@@ -294,6 +301,7 @@ export default function OrdenesBandeja({
   });
   const [resizing, setResizing] = useState(false);
   const splitContainerRef = useRef<HTMLDivElement>(null);
+  const [scopeOpen, setScopeOpen] = useState(false);
   const [sortOpen, setSortOpen]  = useState(false);
   const [exporting, setExporting] = useState(false);
   const [exportConfigOpen, setExportConfigOpen] = useState(false);
@@ -375,7 +383,6 @@ export default function OrdenesBandeja({
   const [rightPanel, setRightPanel] = useState<"none" | "create" | "edit">(initialPanel === "create" ? "create" : "none");
 
   // Keep left-panel visible when right panel is open (desktop only hides list on mobile)
-  const sortRef = useRef<HTMLDivElement>(null);
   const countOrdenes = useMemo(
     () => overlaySnapshot(allOrdenesForCounts, ordenes),
     [allOrdenesForCounts, ordenes],
@@ -402,16 +409,6 @@ export default function OrdenesBandeja({
     mq.addEventListener("change", h);
     return () => mq.removeEventListener("change", h);
   }, []);
-
-  // Close sort dropdown on outside click
-  useEffect(() => {
-    if (!sortOpen) return;
-    const handler = (e: MouseEvent) => {
-      if (sortRef.current && !sortRef.current.contains(e.target as Node)) setSortOpen(false);
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [sortOpen]);
 
   useEffect(() => {
     const waiting = countOrdenes.filter(o => o.estado === "en_espera");
@@ -1018,11 +1015,6 @@ export default function OrdenesBandeja({
     const usados = new Set(banderaColorPorOrden?.values() ?? []);
     return COLORES_BANDERA.filter(c => usados.has(c));
   }, [banderaColorPorOrden]);
-  // Quienes crearon alguna OT: las opciones de "Creada por" (suelen ser 2-3).
-  const creadores = useMemo(() => {
-    const ids = new Set(countOrdenes.map(o => o.creado_por));
-    return usuarios.filter(u => ids.has(u.id));
-  }, [countOrdenes, usuarios]);
   const banderaActions = useOTBanderaActions(wsId);
   // Estables para no romper el memo de cada fila.
   const guardarBandera = useCallback(
@@ -1752,7 +1744,6 @@ export default function OrdenesBandeja({
             filtros={filtros}
             onChange={setFiltros}
             usuarios={usuarios}
-            ubicaciones={ubicaciones}
             sociedades={sociedades}
             categorias={categorias}
             itos={itoOptions}
@@ -1760,7 +1751,6 @@ export default function OrdenesBandeja({
             onVisibleKeysChange={changeVisibleFilterKeys}
             coloresBandera={coloresBandera}
             mostrarOrigen={hayEnvios()}
-            creadores={creadores}
             wsId={wsId}
           />
         </div>
@@ -1887,122 +1877,77 @@ export default function OrdenesBandeja({
             // attention, so we only ever surface dots on the Pendientes tab.
             const triggerHasAttention = tab === "pendientes" && scopeOptions.some(s => s.value !== "todas" && s.count > 0);
             return (
-              <div ref={sortRef} style={{ position:"relative", borderBottom:"1px solid var(--border)", flexShrink:0 }}>
-                <button
-                  type="button"
-                  onClick={() => setSortOpen(v => !v)}
-                  style={{
-                    display:"flex", alignItems:"center", gap:6,
-                    // Mismo padding horizontal (20px) que la barra de filtros de
-                    // arriba, para que "Mostrando:" arranque en la misma
-                    // vertical que el primer chip.
-                    width:"100%", padding:"10px 20px",
-                    background:"var(--surface-canvas)", border:"none",
-                    fontSize: 14, color:"var(--fg-2)",
-                    cursor:"pointer", fontFamily:"inherit", textAlign:"left",
-                  }}
-                  onMouseEnter={e => { e.currentTarget.style.background = "var(--surface-hover)"; }}
-                  onMouseLeave={e => { e.currentTarget.style.background = "var(--surface-canvas)"; }}
-                >
-                  <span style={{ color:"var(--fg-3)" }}>Mostrando:</span>
-                  <span style={{ maxWidth:220, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", fontWeight: 400, color:"var(--brand-fg)" }} title={currentViewLabel}>{currentViewLabel}</span>
-                  <span aria-hidden="true" style={{ color:"var(--border-strong)", margin:"0 2px" }}>·</span>
-                  <span style={{ color:"var(--fg-3)" }}>Orden:</span>
-                  <span style={{ maxWidth:180, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", fontWeight: 400, color:"var(--fg-2)" }} title={currentSortLabel}>{currentSortLabel}</span>
-                  <ChevronDown size={14} style={{ color:"var(--brand-fg)", transform: sortOpen ? "rotate(180deg)" : "none", transition:"transform 0.15s" }} />
-                  {triggerHasAttention && (
-                    <span aria-label="Hay órdenes que requieren atención"
-                          style={{
-                            // `flexShrink: 0` + `display: block`: sin esto el
-                            // punto es un flex item que se comprime contra el
-                            // `marginLeft: auto` de al lado y sale ovalado/cortado.
-                            display:"block", flexShrink:0,
-                            width:8, height:8, borderRadius:"50%",
-                            background:"var(--danger)", marginLeft:4,
-                          }} />
-                  )}
-                  <span style={{ marginLeft:"auto" }} />
-                </button>
-                {sortOpen && (
-                  <div style={{
-                    position:"absolute", left:8, right:8, top:"calc(100% + 4px)", zIndex:50,
-                    background:"var(--surface-1)", border:"1px solid var(--border)",
-                    borderRadius:8, boxShadow:"0 8px 24px rgba(15,23,42,0.12)",
-                    maxHeight:"min(480px, calc(100vh - 260px))",
-                    overflowX:"hidden", overflowY:"auto",
-                    // El scrollbar se come el inset derecho y deja el resaltado
-                    // de la fila activa descentrado. Reservar el canal en los
-                    // dos bordes lo mantiene simétrico haya scroll o no.
-                    scrollbarGutter:"stable both-edges",
-                  }}>
-                    {/* Mostrar — scope filter */}
-                    <div style={{ padding:"8px 14px 6px", fontSize: 14, fontWeight: 400, color:"var(--fg-4)", letterSpacing:0, borderBottom:"1px solid var(--border)", marginBottom:4 }}>
-                      Mostrar
-                    </div>
-                    {scopeOptions.map(o => {
-                      const isActive = scope === o.value;
-                      const hasAttention = tab === "pendientes" && o.value !== "todas" && o.count > 0;
-                      return (
-                        <button
-                          key={o.value}
-                          type="button"
-                          onClick={() => { setScope(o.value); setSortOpen(false); }}
-                          style={{
-                            display:"flex", alignItems:"center", gap:8,
-                            width:"100%", textAlign:"left",
-                            padding:"9px 14px", background: isActive ? "var(--brand-tint)" : "transparent",
-                            border:"none", fontSize: 14,
-                            color: isActive ? "var(--brand-fg)" : "var(--fg-1)",
-                            fontWeight: 400,
-                            cursor:"pointer", fontFamily:"inherit",
-                          }}
-                          onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = "var(--surface-hover)"; }}
-                          onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = "transparent"; }}
-                        >
-                          <span style={{ flex:1 }}>{o.label}</span>
-                          {hasAttention && (
-                            <span style={{
-                              width:8, height:8, borderRadius:"50%",
-                              background:"var(--danger)", flexShrink:0,
-                            }} />
-                          )}
-                          <span style={{
-                            fontSize: 14, fontWeight: 400, minWidth:18, textAlign:"right",
-                            color: isActive ? "var(--brand-fg)" : "var(--fg-4)",
-                          }}>
-                            {o.count}
-                          </span>
-                        </button>
-                      );
-                    })}
+              // Dos menús y no uno: "Mostrar" es un filtro que se cambia seguido
+              // (con conteos y alertas), "Ordenar por" una preferencia que casi
+              // no se toca. Juntos, cambiar de vista obligaba a pasar por las
+              // opciones de orden. DropdownMenu de shadcn, variante básica.
+              <div style={{
+                display:"flex", alignItems:"center", gap:8, minWidth:0,
+                // 10 + 6 de padding del botón = 16: el texto queda en la misma
+                // vertical que "Pendientes" (pestañas con padding 16), y el
+                // fondo del hover en el borde de las tarjetas (lista con padding 10).
+                padding:"6px 10px", background:"var(--surface-canvas)",
+                borderBottom:"1px solid var(--border)", flexShrink:0,
+              }}>
+                <DropdownMenu open={scopeOpen} onOpenChange={setScopeOpen}>
+                  <DropdownMenuTrigger asChild>
+                    <button type="button" style={menuTriggerStyle} {...menuTriggerHover}>
+                      <span style={{ color:"var(--fg-3)", flexShrink:0 }}>Mostrando:</span>
+                      <span style={{ maxWidth:220, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", color:"var(--brand-fg)" }} title={currentViewLabel}>{currentViewLabel}</span>
+                      <ChevronDown size={14} style={{ flexShrink:0, color:"var(--brand-fg)", transform: scopeOpen ? "rotate(180deg)" : "none", transition:"transform 0.15s" }} />
+                      {triggerHasAttention && (
+                        // `flexShrink: 0` + `display: block`: si no, el punto se
+                        // comprime contra el texto y sale ovalado/cortado.
+                        <span aria-label="Hay órdenes que requieren atención"
+                              style={{ display:"block", flexShrink:0, width:8, height:8, borderRadius:"50%", background:"var(--danger)" }} />
+                      )}
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" style={{ minWidth:280, padding:6 }}>
+                    <DropdownMenuLabel style={menuLabelStyle}>Mostrar</DropdownMenuLabel>
+                    <DropdownMenuSeparator style={menuSeparatorStyle} />
+                    <DropdownMenuGroup>
+                      {scopeOptions.map(o => {
+                        const isActive = scope === o.value;
+                        const hasAttention = tab === "pendientes" && o.value !== "todas" && o.count > 0;
+                        return (
+                          <DropdownMenuItem key={o.value} onSelect={() => setScope(o.value)} style={menuItemStyle(isActive)}>
+                            <span style={{ flex:1 }}>{o.label}</span>
+                            {hasAttention && (
+                              <span style={{ width:8, height:8, borderRadius:"50%", background:"var(--danger)", flexShrink:0 }} />
+                            )}
+                            <span style={{ minWidth:18, textAlign:"right", color: isActive ? "var(--brand-fg)" : "var(--fg-4)" }}>
+                              {o.count}
+                            </span>
+                          </DropdownMenuItem>
+                        );
+                      })}
+                    </DropdownMenuGroup>
+                  </DropdownMenuContent>
+                </DropdownMenu>
 
-                    {/* Ordenar por. Sin la línea separadora, el título necesita
-                        aire arriba para no pegarse a la última fila de arriba;
-                        16px es el mismo margen que usa SidebarGroupLabel. */}
-                    <div style={{ padding:"8px 14px 6px", marginTop:12, fontSize: 14, fontWeight: 400, color:"var(--fg-4)", letterSpacing:0, borderBottom:"1px solid var(--border)", marginBottom:4 }}>
-                      Ordenar por
-                    </div>
-                    {SORT_OPTIONS.filter(o => !o.soloCompletas || tab === "completas").map(o => (
-                      <button
-                        key={o.value}
-                        type="button"
-                        onClick={() => { setSort(o.value); setSortOpen(false); }}
-                        style={{
-                          display:"block", width:"100%", textAlign:"left",
-                          padding:"9px 14px", background: sort === o.value ? "var(--brand-tint)" : "transparent",
-                          border:"none", fontSize: 14,
-                          color: sort === o.value ? "var(--brand-fg)" : "var(--fg-1)",
-                          fontWeight: 400,
-                          cursor:"pointer", fontFamily:"inherit",
-                        }}
-                        onMouseEnter={e => { if (sort !== o.value) e.currentTarget.style.background = "var(--surface-hover)"; }}
-                        onMouseLeave={e => { if (sort !== o.value) e.currentTarget.style.background = "transparent"; }}
-                      >
-                        {o.label}
-                      </button>
-                    ))}
-                  </div>
-                )}
+                {/* Pegado al de la izquierda: los dos se leen como una frase. */}
+                <DropdownMenu open={sortOpen} onOpenChange={setSortOpen}>
+                  <DropdownMenuTrigger asChild>
+                    <button type="button" style={menuTriggerStyle} {...menuTriggerHover}>
+                      <span style={{ color:"var(--fg-3)", flexShrink:0 }}>Orden:</span>
+                      <span style={{ minWidth:0, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", color:"var(--brand-fg)" }} title={currentSortLabel}>{currentSortLabel}</span>
+                      <ChevronDown size={14} style={{ flexShrink:0, color:"var(--brand-fg)", transform: sortOpen ? "rotate(180deg)" : "none", transition:"transform 0.15s" }} />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" style={{ minWidth:220, padding:6 }}>
+                    <DropdownMenuLabel style={menuLabelStyle}>Ordenar por</DropdownMenuLabel>
+                    <DropdownMenuSeparator style={menuSeparatorStyle} />
+                    <DropdownMenuRadioGroup value={sort} onValueChange={v => setSort(v as SortOption)}>
+                      {SORT_OPTIONS.filter(o => !o.soloCompletas || tab === "completas").map(o => (
+                        // padding izquierdo de 32: ahí va el indicador de la opción elegida.
+                        <DropdownMenuRadioItem key={o.value} value={o.value} style={{ ...menuItemStyle(sort === o.value), paddingLeft:32 }}>
+                          {o.label}
+                        </DropdownMenuRadioItem>
+                      ))}
+                    </DropdownMenuRadioGroup>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
             );
           })()}
@@ -2202,7 +2147,7 @@ export default function OrdenesBandeja({
                 />
               ) : null
             ) : (
-              <EmptyDetail icon={<FileText size={28} strokeWidth={1.5} />} title="Selecciona una orden" />
+              <EmptyDetail />
             )}
           </div>
         )}

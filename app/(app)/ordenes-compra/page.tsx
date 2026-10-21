@@ -428,10 +428,7 @@ function OrdenesCompraPageInner() {
               onCambio={refrescarDetalle}
             />
           ) : (
-            <EmptyDetail
-              icon={<ShoppingCart size={28} strokeWidth={1.5} />}
-              title="Selecciona una orden de compra"
-            />
+            <EmptyDetail />
           )}
         </div>
       </div>

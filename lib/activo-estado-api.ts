@@ -26,11 +26,15 @@ export interface EstadoPeriodo {
   creado_por: string | null;
   created_at: string;
   creador?: { id: string; nombre: string } | null;
+  /** Motivo de la falla (solo paradas imprevistas). Sigue viniendo aunque el motivo se haya borrado del catálogo. */
+  motivo_id?: string | null;
+  motivo?: { id: string; nombre: string } | null;
 }
 
 const PERIODO_SELECT = `
-  id, activo_id, estado, tipo_inactividad, inicio, fin, notas, creado_por, created_at,
-  creador:usuarios!creado_por(id, nombre)
+  id, activo_id, estado, tipo_inactividad, inicio, fin, notas, creado_por, created_at, motivo_id,
+  creador:usuarios!creado_por(id, nombre),
+  motivo:motivos_inactividad(id, nombre)
 `;
 
 /**
@@ -160,8 +164,35 @@ export async function createMotivoInactividad(
     .insert({ nombre: limpio, slug, workspace_id: workspaceId })
     .select("id, nombre, slug")
     .single();
+  // 23505: ya existe con ese slug, y si no aparecía en el selector es porque se
+  // borró (`activo = false`; el índice único incluye los borrados). Crearlo de
+  // nuevo lo reactiva, con el nombre tal como se escribió ahora.
+  if (error?.code === "23505") {
+    const { data: previo, error: errReactivar } = await sb
+      .from("motivos_inactividad")
+      .update({ activo: true, nombre: limpio })
+      .eq("workspace_id", workspaceId)
+      .eq("slug", slug)
+      .select("id, nombre, slug")
+      .single();
+    if (errReactivar) throw errReactivar;
+    return previo as MotivoInactividad;
+  }
   if (error) throw error;
   return data as MotivoInactividad;
+}
+
+/**
+ * Borra un motivo del catálogo. Lógico (`activo = false`), no DELETE: las
+ * paradas que ya lo usan conservan su nombre y el Pareto de analítica no se
+ * descuadra; solo deja de ofrecerse al registrar una parada nueva.
+ */
+export async function borrarMotivoInactividad(id: string): Promise<void> {
+  const { error } = await createClient()
+    .from("motivos_inactividad")
+    .update({ activo: false })
+    .eq("id", id);
+  if (error) throw error;
 }
 
 /**

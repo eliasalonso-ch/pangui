@@ -256,10 +256,7 @@ export default function CategoriasPage() {
               onNuevaOT={() => router.push(`/ordenes/crear?categoria=${selected.id}`)}
             />
           ) : (
-            <EmptyDetail
-              icon={<Tag size={28} strokeWidth={1.5} />}
-              title="Selecciona una categoría"
-            />
+            <EmptyDetail />
           )}
         </div>
       </div>

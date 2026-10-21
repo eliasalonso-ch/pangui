@@ -5,10 +5,10 @@ import {
 } from "lucide-react";
 import { Engine } from "@/components/icons/Engine";
 import {
-  OptionRow, OptionList, FilterDropdown, AddFilterMenu, FiltroMultiple, type OpcionFiltro,
+  OptionRow, OptionList, FilterDropdown, AddFilterMenu, BarraFiltros, FiltroMultiple, type OpcionFiltro,
 } from "@/components/filtros/primitivas";
 import {
-  FILTER_META_PROV, FILTER_ORDER_PROV,
+  FILTER_META_PROV, FILTER_ORDER_PROV, EMPTY_FILTROS_PROV, contarFiltrosProv,
   type FiltrosProveedor, type FilterKeyProv,
 } from "./filter-registry";
 
@@ -48,7 +48,7 @@ export function ProveedorFiltrosBar({
     .map(k => ({ key: k, label: FILTER_META_PROV[k].label }));
 
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+    <BarraFiltros hayFiltros={contarFiltrosProv(filtros) > 0} onLimpiar={() => onChange({ ...EMPTY_FILTROS_PROV })}>
       {visible("conContacto") && (
         <FilterDropdown
           label="Con contacto"
@@ -84,6 +84,6 @@ export function ProveedorFiltrosBar({
       ))}
 
       <AddFilterMenu available={available} icons={FILTER_ICONS_PROV} onAdd={k => onVisibleKeysChange([...visibleKeys, k])} />
-    </div>
+    </BarraFiltros>
   );
 }

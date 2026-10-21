@@ -32,7 +32,7 @@ describe("granoPara", () => {
 
 describe("etiquetaTramo", () => {
   it("meses con año solo si el rango cruza de año", () => {
-    expect(etiquetaTramo("2025-11-01", "mes", true)).toBe("nov 25");
+    expect(etiquetaTramo("2025-11-01", "mes", true)).toBe("nov '25");
     expect(etiquetaTramo("2026-03-01", "mes", false)).toBe("mar");
   });
   it("días y semanas con número de día", () => {
@@ -76,5 +76,53 @@ describe("derivarDisponibilidad", () => {
       puntoDisponibilidad("b", "b", { operativo_h: 300, imprevista_h: 30, planificada_h: 0, fallas: 3 }),
     ];
     expect(resumirDisponibilidad(serie).mttrHoras).toBe(10);
+  });
+});
+
+// Generador Arco (UdeC), últimos 6 meses al 21 oct 2026: tres fallas, la última
+// del domingo 27 sep 19:20 al lunes 28 10:15 (14,9 h), que cruza el corte de
+// semana. Cifras verificadas contra activo_estado_periodos.
+describe("MTBF/MTTR con fallas como eventos", () => {
+  it("el MTTR del tramo usa la duración completa de la falla, no lo que cayó en el tramo", () => {
+    const semana21sep = puntoDisponibilidad("2026-09-21", "21 sep", {
+      operativo_h: 163, imprevista_h: 4.7, planificada_h: 0.4, fallas: 1,
+      reparadas: 1, restauracion_h: 14.9,
+    });
+    expect(semana21sep.mttrHoras).toBe(14.9);
+  });
+
+  it("una falla todavía abierta cuenta para el MTBF pero no para el MTTR", () => {
+    const r = derivarDisponibilidad({
+      operativo_h: 500, imprevista_h: 20, planificada_h: 0, fallas: 2, reparadas: 1, restauracion_h: 12,
+    });
+    expect(r.mtbfHoras).toBe(250);
+    expect(r.mttrHoras).toBe(12);
+    const abierta = derivarDisponibilidad({
+      operativo_h: 500, imprevista_h: 20, planificada_h: 0, fallas: 1, reparadas: 0, restauracion_h: 0,
+    });
+    expect(abierta.mtbfHoras).toBe(500);
+    expect(abierta.mttrHoras).toBeNull();
+  });
+
+  it("la media móvil sigue existiendo en semanas sin fallas nuevas", () => {
+    const semana12oct = puntoDisponibilidad("2026-10-12", "12 oct", {
+      operativo_h: 168, imprevista_h: 0, planificada_h: 0, fallas: 0, reparadas: 0, restauracion_h: 0,
+      op_movil_h: 2112, fallas_movil: 2, reparadas_movil: 2, restauracion_movil_h: 43.4,
+    });
+    expect(semana12oct.mtbfHoras).toBeNull();
+    expect(semana12oct.mtbfMovilHoras).toBe(1056);
+    expect(semana12oct.mttrMovilHoras).toBe(21.7);
+    expect(semana12oct.fallasMovil).toBe(2);
+  });
+
+  it("el total del rango cuadra con la base (1.234 h / 17,3 h)", () => {
+    const serie = [
+      puntoDisponibilidad("a", "a", { operativo_h: 1500, imprevista_h: 8.5, planificada_h: 2, fallas: 1, reparadas: 1, restauracion_h: 8.5 }),
+      puntoDisponibilidad("b", "b", { operativo_h: 1200, imprevista_h: 28.5, planificada_h: 2, fallas: 1, reparadas: 1, restauracion_h: 28.5 }),
+      puntoDisponibilidad("c", "c", { operativo_h: 1001.6, imprevista_h: 14.9, planificada_h: 2.6, fallas: 1, reparadas: 1, restauracion_h: 14.9 }),
+    ];
+    const r = resumirDisponibilidad(serie);
+    expect(Math.round(r.mtbfHoras!)).toBe(1234);
+    expect(r.mttrHoras!.toFixed(1)).toBe("17.3");
   });
 });

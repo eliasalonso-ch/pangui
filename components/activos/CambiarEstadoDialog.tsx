@@ -21,10 +21,13 @@ import { useEffect, useState } from "react";
 import { AlertCircle, Loader2, X } from "lucide-react";
 import {
   cambiarEstadoActivo, cambiarEstadoActivos, fetchJerarquiaActivo,
-  fetchMotivosInactividad, createMotivoInactividad,
+  fetchMotivosInactividad, createMotivoInactividad, borrarMotivoInactividad,
   type ActivoJerarquia, type MotivoInactividad, type TipoInactividad,
 } from "@/lib/activo-estado-api";
 import SearchSelect from "@/components/activos/SearchSelect";
+import { Desplegable } from "@/components/Desplegable";
+import { DateTimePicker } from "@/components/ui/date-time-picker";
+import { Checkbox } from "@/components/filtros/primitivas";
 import { createClient } from "@/lib/supabase";
 import type { AssetStatus } from "@/types/ordenes";
 
@@ -48,9 +51,10 @@ const ESTADO_OPCIONES: AssetStatus[] = ["operativo", "mantencion", "fuera_servic
 const labelStyle: React.CSSProperties = {
   fontSize: 14, fontWeight: 400, color: "var(--fg-2)", marginBottom: 5, display: "block",
 };
+// Mismo alto (40) y radio que Desplegable, DateTimePicker y SearchSelect.
 const inputStyle: React.CSSProperties = {
-  width: "100%", height: 38, padding: "0 12px",
-  border: "1px solid var(--border)", borderRadius: 8,
+  width: "100%", height: 40, padding: "0 12px",
+  border: "1px solid var(--border)", borderRadius: "var(--r-sm)",
   fontSize: 14, fontFamily: "inherit", color: "var(--fg-1)",
   background: "var(--surface-1)", outline: "none", boxSizing: "border-box",
 };
@@ -84,7 +88,7 @@ export default function CambiarEstadoDialog({
   );
   const [tipo, setTipo] = useState<TipoInactividad | "">("");
   const [desde, setDesde] = useState<"ahora" | "1h" | "ayer" | "custom">("ahora");
-  const [custom, setCustom] = useState("");
+  const [custom, setCustom] = useState<Date | undefined>(undefined);
   const [notas, setNotas] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -167,7 +171,7 @@ export default function CambiarEstadoDialog({
     if (desde === "ahora") return null;
     if (desde === "1h") return new Date(Date.now() - MS_POR_HORA);
     if (desde === "ayer") return new Date(Date.now() - 24 * MS_POR_HORA);
-    return custom ? new Date(custom) : null;
+    return custom ?? null;
   }
 
   async function guardar() {
@@ -178,6 +182,13 @@ export default function CambiarEstadoDialog({
     }
     if (desde === "custom" && !custom) {
       setErr("Elige la fecha y hora de inicio.");
+      return;
+    }
+    // Una parada no puede haber empezado en el futuro: la RPC contaría horas
+    // negativas de inactividad. (El selector no tiene tope como el
+    // datetime-local, así que se valida acá.)
+    if (desde === "custom" && custom && custom.getTime() > Date.now()) {
+      setErr("La fecha de inicio no puede ser futura.");
       return;
     }
     // La RPC también lo exige, pero llegar hasta allá significa mostrarle al
@@ -211,17 +222,6 @@ export default function CambiarEstadoDialog({
     }
   }
 
-  // Tope del `datetime-local`: una parada no puede haber empezado en el futuro
-  // —la RPC contaría horas negativas de inactividad—. El offset se resta porque
-  // el input trabaja en hora local y toISOString devuelve UTC.
-  //
-  // El reloj se lee una sola vez al abrir el diálogo, no en cada render: leerlo
-  // en pleno render es una función impura y además haría que el tope se moviera
-  // solo mientras el usuario escribe.
-  const [ahora] = useState(() => Date.now());
-  const maxLocal = new Date(ahora - new Date(ahora).getTimezoneOffset() * 60000)
-    .toISOString().slice(0, 16);
-
   return (
     <div
       style={{
@@ -236,7 +236,9 @@ export default function CambiarEstadoDialog({
       <div style={{
         width: "100%", maxWidth: 460, background: "var(--surface-1)",
         border: "1px solid var(--border)", borderRadius: 12,
-        boxShadow: "var(--shadow-lg)", overflow: "hidden",
+        // Sin `overflow: hidden`: las listas de Desplegable y SearchSelect son
+        // absolutas y la tarjeta las recortaba.
+        boxShadow: "var(--shadow-lg)",
       }}>
         <div style={{ padding: "18px 20px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
           <h2 style={{ margin: 0, fontSize: 14, fontWeight: 400, color: "var(--fg-1)" }}>Actualizar estado del activo</h2>
@@ -249,30 +251,33 @@ export default function CambiarEstadoDialog({
         <div style={{ padding: 20, display: "grid", gap: 16 }}>
           <div>
             <label style={labelStyle}>Estado</label>
-            <select value={estado} disabled={busy} style={inputStyle}
-              onChange={e => {
-                const v = e.target.value as AssetStatus;
+            <Desplegable
+              ariaLabel="Estado" anchoCompleto disabled={busy}
+              value={estado}
+              opciones={opciones.map(e => ({ value: e, label: ESTADO_LABEL[e] }))}
+              onChange={v => {
                 setEstado(v);
                 // Operativo no lleva tipo: dejarlo cargado mandaría un valor
                 // que la función rechaza.
                 if (v === "operativo") setTipo("");
-              }}>
-              {opciones.map(e => (
-                <option key={e} value={e}>{ESTADO_LABEL[e]}</option>
-              ))}
-            </select>
+              }}
+            />
           </div>
 
           {/* Solo tiene sentido clasificar una parada. */}
           {estado !== "operativo" && (
             <div>
               <label style={labelStyle}>Tipo de parada</label>
-              <select value={tipo} disabled={busy} style={inputStyle}
-                onChange={e => setTipo(e.target.value as TipoInactividad | "")}>
-                <option value="">Elige el tipo de parada</option>
-                <option value="planeado">Planeado — mantención o inspección prevista</option>
-                <option value="sin_planear">Sin planear — avería o falla inesperada</option>
-              </select>
+              <Desplegable<TipoInactividad | "">
+                ariaLabel="Tipo de parada" anchoCompleto disabled={busy}
+                placeholder="Elige el tipo de parada"
+                value={tipo}
+                opciones={[
+                  { value: "planeado", label: "Planeado — mantención o inspección prevista" },
+                  { value: "sin_planear", label: "Sin planear — avería o falla inesperada" },
+                ]}
+                onChange={setTipo}
+              />
             </div>
           )}
 
@@ -294,9 +299,14 @@ export default function CambiarEstadoDialog({
                 createLabel="Crear motivo"
                 onCreate={wsId ? (async nombre => {
                   const nuevo = await createMotivoInactividad(wsId, nombre);
-                  setMotivos(prev => [...prev, nuevo].sort((a, b) => a.nombre.localeCompare(b.nombre)));
+                  // Puede ser uno borrado que se reactivó: sin duplicarlo.
+                  setMotivos(prev => [...prev.filter(m => m.id !== nuevo.id), nuevo].sort((a, b) => a.nombre.localeCompare(b.nombre)));
                   return nuevo.id;
                 }) : undefined}
+                onDelete={async id => {
+                  await borrarMotivoInactividad(id);
+                  setMotivos(prev => prev.filter(m => m.id !== id));
+                }}
               />
             </div>
           )}
@@ -305,21 +315,24 @@ export default function CambiarEstadoDialog({
             <label style={labelStyle}>
               {estado === "operativo" ? "Operativo desde" : "Fuera de línea desde"}
             </label>
-            <select value={desde} disabled={busy} style={inputStyle}
-              onChange={e => setDesde(e.target.value as typeof desde)}>
-              <option value="ahora">Ahora</option>
-              <option value="1h">Hace una hora</option>
-              <option value="ayer">Ayer</option>
-              <option value="custom">Elige fecha y hora</option>
-            </select>
+            <Desplegable
+              ariaLabel={estado === "operativo" ? "Operativo desde" : "Fuera de línea desde"}
+              anchoCompleto disabled={busy}
+              value={desde}
+              opciones={[
+                { value: "ahora", label: "Ahora" },
+                { value: "1h", label: "Hace una hora" },
+                { value: "ayer", label: "Ayer" },
+                { value: "custom", label: "Elige fecha y hora" },
+              ]}
+              onChange={setDesde}
+            />
           </div>
 
           {desde === "custom" && (
             <div>
               <label style={labelStyle}>Fecha y hora de inicio</label>
-              <input type="datetime-local" value={custom} disabled={busy} style={inputStyle}
-                max={maxLocal}
-                onChange={e => setCustom(e.target.value)} />
+              <DateTimePicker value={custom} onChange={setCustom} disabled={busy} />
             </div>
           )}
 
@@ -347,6 +360,8 @@ export default function CambiarEstadoDialog({
                       background: "var(--surface-1)",
                     }}
                   >
+                    {/* Casilla de la app (la de los filtros); el input nativo
+                        queda invisible pero sigue dando teclado y lector. */}
                     <input
                       type="checkbox"
                       disabled={busy}
@@ -356,8 +371,9 @@ export default function CambiarEstadoDialog({
                         if (e.target.checked) next.add(rel.id); else next.delete(rel.id);
                         return next;
                       })}
-                      style={{ marginTop: 2, flexShrink: 0 }}
+                      style={{ position: "absolute", opacity: 0, width: 1, height: 1, margin: 0 }}
                     />
+                    <span style={{ marginTop: 2, display: "flex" }}><Checkbox checked={tambien.has(rel.id)} /></span>
                     <span style={{ flex: 1, minWidth: 0 }}>
                       <span style={{ display: "block", fontSize: 14, color: "var(--fg-1)" }}>
                         {rel.nombre}

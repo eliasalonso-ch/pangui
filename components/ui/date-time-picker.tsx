@@ -18,10 +18,10 @@
 
 import * as React from "react"
 import * as PopoverPrimitive from "@radix-ui/react-popover"
-import { DayPicker, type DropdownProps } from "react-day-picker"
+import { DayPicker, type DateRange, type DropdownProps } from "react-day-picker"
 import "react-day-picker/style.css"
 import { CalendarClock, CalendarIcon, ChevronDown, Clock } from "lucide-react"
-import { format } from "date-fns"
+import { format, subMonths } from "date-fns"
 import { es } from "date-fns/locale"
 
 const HORAS = Array.from({ length: 24 }, (_, i) => i)
@@ -37,9 +37,10 @@ const Disparador = React.forwardRef<HTMLButtonElement, {
   texto: string | null
   placeholder: string
   abierto: boolean
+  alto?: number
   disabled?: boolean
 } & React.ButtonHTMLAttributes<HTMLButtonElement>>(function Disparador(
-  { icon, texto, placeholder, abierto, disabled, ...props }, ref,
+  { icon, texto, placeholder, abierto, disabled, alto = 40, ...props }, ref,
 ) {
   return (
     <button
@@ -48,7 +49,7 @@ const Disparador = React.forwardRef<HTMLButtonElement, {
       disabled={disabled}
       {...props}
       style={{
-        width: "100%", height: 40, padding: "0 12px", boxSizing: "border-box",
+        width: "100%", height: alto, padding: "0 12px", boxSizing: "border-box",
         display: "flex", alignItems: "center", gap: 8,
         border: `1px solid ${abierto ? "var(--brand)" : "var(--border)"}`, borderRadius: "var(--r-sm)",
         background: "var(--surface-1)", cursor: disabled ? "default" : "pointer", textAlign: "left",
@@ -253,19 +254,21 @@ function Columna({ valores, actual, onPick, etiqueta }: {
 const divisor: React.CSSProperties = { width: 1, alignSelf: "stretch", background: "var(--border)" }
 
 /** Fecha sola. `min`/`max` limitan los días elegibles (opcionales). */
-export function DatePicker({ value, onChange, placeholder = "Seleccionar fecha", disabled, min, max }: {
+export function DatePicker({ value, onChange, placeholder = "Seleccionar fecha", disabled, min, max, alto }: {
   value: Date | undefined
   onChange: (d: Date | undefined) => void
   placeholder?: string
   disabled?: boolean
   min?: Date
   max?: Date
+  /** 34 para ir en una barra de filtros, junto a los chips. */
+  alto?: number
 }) {
   const [open, setOpen] = React.useState(false)
   return (
     <PopoverPrimitive.Root open={open} onOpenChange={setOpen}>
       <PopoverPrimitive.Trigger asChild>
-        <Disparador icon={<CalendarIcon size={16} />} texto={value ? format(value, "dd/MM/yyyy") : null} placeholder={placeholder} abierto={open} disabled={disabled} />
+        <Disparador icon={<CalendarIcon size={16} />} texto={value ? format(value, "dd/MM/yyyy") : null} placeholder={placeholder} abierto={open} disabled={disabled} alto={alto} />
       </PopoverPrimitive.Trigger>
       <Panel>
         <Calendario value={value} min={min} max={max} onSelect={d => { onChange(d); setOpen(false) }} />
@@ -334,6 +337,52 @@ export function DateTimePicker({ value, onChange, placeholder = "Seleccionar fec
           <span style={divisor} />
           <Columna etiqueta="Minutos" valores={MINUTOS} actual={value ? value.getMinutes() : null} onPick={v => elegirHora("m", v)} />
         </div>
+      </Panel>
+    </PopoverPrimitive.Root>
+  )
+}
+
+export type { DateRange }
+
+/**
+ * Rango de fechas (ejemplo "Date Range Picker" de shadcn): dos meses lado a
+ * lado, el primer clic marca el inicio y el segundo el fin. No se cierra solo
+ * al elegir: así se puede corregir el rango sin volver a abrirlo.
+ * `defaultOpen`: abre al montarse (p. ej. al elegir "Personalizado").
+ */
+export function DateRangePicker({ value, onChange, placeholder = "Seleccionar rango", disabled, min, max, defaultOpen = false }: {
+  value: DateRange | undefined
+  onChange: (r: DateRange | undefined) => void
+  placeholder?: string
+  disabled?: boolean
+  min?: Date
+  max?: Date
+  defaultOpen?: boolean
+}) {
+  const [open, setOpen] = React.useState(defaultOpen)
+  const texto = value?.from
+    ? value.to ? `${format(value.from, "dd/MM/yyyy")} – ${format(value.to, "dd/MM/yyyy")}` : format(value.from, "dd/MM/yyyy")
+    : null
+  return (
+    <PopoverPrimitive.Root open={open} onOpenChange={setOpen}>
+      <PopoverPrimitive.Trigger asChild>
+        <Disparador icon={<CalendarIcon size={16} />} texto={texto} placeholder={placeholder} abierto={open} disabled={disabled} />
+      </PopoverPrimitive.Trigger>
+      <Panel>
+        <DayPicker
+          className="pangui-rdp"
+          mode="range"
+          locale={es}
+          numberOfMonths={2}
+          selected={value}
+          onSelect={onChange}
+          // Sin rango elegido, el mes pasado y el actual: casi siempre se mira hacia atrás.
+          defaultMonth={value?.from ?? subMonths(max ?? new Date(), 1)}
+          autoFocus
+          startMonth={min ?? DESDE}
+          endMonth={max ?? HASTA}
+          disabled={[...(min ? [{ before: min }] : []), ...(max ? [{ after: max }] : [])]}
+        />
       </Panel>
     </PopoverPrimitive.Root>
   )

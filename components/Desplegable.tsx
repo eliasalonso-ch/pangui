@@ -12,13 +12,16 @@ import { ChevronDown, Check } from "lucide-react";
 // Alto máximo de la lista: con más opciones, scroll en vez de crecer sin fin.
 const LISTA_MAX = 280;
 
-export function Desplegable<T extends string>({ value, opciones, onChange, ariaLabel, anchoCompleto = false, placeholder = "Seleccionar" }: {
+export function Desplegable<T extends string>({ value, opciones, onChange, ariaLabel, anchoCompleto = false, placeholder = "Seleccionar", disabled = false, alto = 40 }: {
   value: T;
   opciones: { value: T; label: string; disabled?: boolean }[];
   onChange: (v: T) => void;
   ariaLabel: string;
   anchoCompleto?: boolean;
   placeholder?: string;
+  disabled?: boolean;
+  /** 34 para ir en una barra de filtros, junto a los chips. */
+  alto?: number;
 }) {
   const [open, setOpen] = useState(false);
   // Cerca del borde inferior (p. ej. sobre el pie de un formulario) la lista
@@ -43,6 +46,7 @@ export function Desplegable<T extends string>({ value, opciones, onChange, ariaL
         aria-label={ariaLabel}
         aria-haspopup="listbox"
         aria-expanded={open}
+        disabled={disabled}
         onClick={() => {
           if (!open && ref.current) {
             const r = ref.current.getBoundingClientRect();
@@ -52,11 +56,12 @@ export function Desplegable<T extends string>({ value, opciones, onChange, ariaL
           setOpen(o => !o);
         }}
         style={{
-          display: "flex", alignItems: "center", gap: 8, height: 40, padding: "0 12px",
+          display: "flex", alignItems: "center", gap: 8, height: alto, padding: "0 12px",
           width: anchoCompleto ? "100%" : undefined, justifyContent: "space-between", textAlign: "left",
           border: `1px solid ${open ? "var(--brand)" : "var(--border)"}`, borderRadius: "var(--r-sm)",
           background: "var(--surface-1)", color: "var(--fg-1)",
-          fontSize: 14, fontWeight: 400, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap",
+          fontSize: 14, fontWeight: 400, cursor: disabled ? "default" : "pointer", fontFamily: "inherit", whiteSpace: "nowrap",
+          opacity: disabled ? 0.6 : 1,
         }}
       >
         {actual ? actual.label : <span style={{ color: "var(--fg-4)" }}>{placeholder}</span>}

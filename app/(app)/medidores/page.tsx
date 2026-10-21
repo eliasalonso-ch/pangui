@@ -22,7 +22,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertCircle, CalendarClock, Clock, Gauge, Inbox, Loader2, MapPin, MoreVertical, Pencil, Plus, Ruler, Search, User, Wifi, X,
 } from "lucide-react";
-import { FilterDropdown, FiltroMultiple, OptionList, OptionRow } from "@/components/filtros/primitivas";
+import { BarraFiltros, FilterDropdown, FiltroMultiple, OptionList, OptionRow } from "@/components/filtros/primitivas";
 import {
   CLAVES_FILTRO, ETIQUETA_FILTRO, FILTROS_VACIOS, aplicarFiltros, contarFiltros, opcionesFiltro,
   type ClaveFiltro, type FiltrosMedidor,
@@ -338,7 +338,11 @@ function MedidoresPageInner() {
             {/* Fila inferior: los filtros, mismas piezas que /proveedores. Sin
                 "+ Añadir filtro": son siete y caben todos a la vista. La ronda
                 va primero porque es el motivo por el que se entra acá. */}
-            <div style={{ gridColumn: "1 / -1", gridRow: 2, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <BarraFiltros
+              style={{ gridColumn: "1 / -1", gridRow: 2 }}
+              hayFiltros={soloPendientes || contarFiltros(filtros) > 0}
+              onLimpiar={() => { setSoloPendientes(false); setFiltros(FILTROS_VACIOS); }}
+            >
               <FilterDropdown
                 label="Lectura pendiente"
                 icon={<CalendarClock size={16} />}
@@ -365,7 +369,7 @@ function MedidoresPageInner() {
                   buscable={k !== "tipos" && k !== "estados"}
                 />
               ))}
-            </div>
+            </BarraFiltros>
           </div>
 
           {isAdmin && (
@@ -491,10 +495,7 @@ function MedidoresPageInner() {
               />
             </div>
           ) : (
-            <EmptyDetail
-              icon={<Gauge size={28} strokeWidth={1.5} />}
-              title="Selecciona un medidor"
-            />
+            <EmptyDetail />
           )}
         </div>
       </div>

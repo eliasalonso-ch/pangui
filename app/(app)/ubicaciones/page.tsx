@@ -691,14 +691,7 @@ export default function UbicacionesPage() {
 
       {/* Detalle — siempre presente; con placeholder si no hay seleccion. */}
       {!panel ? (
-        <EmptyDetail
-          icon={section === "lugares" ? <MapPin size={28} strokeWidth={1.5} /> : <Building2 size={28} strokeWidth={1.5} />}
-          title={
-            section === "ubicaciones" ? "Selecciona una ubicación"
-            : section === "lugares"   ? "Selecciona un lugar"
-            : "Selecciona una asociación"
-          }
-        />
+        <EmptyDetail />
       ) : (
         // Misma estructura que OTDetail: una columna sobre el lienzo
         // (--surface-canvas, el blanco crema) con la cabecera fija arriba y UN

@@ -1,5 +1,4 @@
-// Vista de detalle. El selector "Activos | Ubicaciones" (breadcrumb del
-// GlobalTopBar) es de las vistas de lista y no aparece en la ficha de un activo.
+// Vista de detalle: el GlobalTopBar muestra Operaciones › Activos › Estado.
 export const metadata = { title: "Estado del activo" };
 
 export default function EstadoActivoLayout({ children }: { children: React.ReactNode }) {

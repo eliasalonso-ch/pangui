@@ -16,7 +16,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
-  Activity, AlertTriangle, Building2, MapPin, Package, User,
+  Activity, AlertTriangle, Annoyed, Building2, Frown, MapPin, Meh, Package, RefreshCw, Settings, Smile, User,
+  type LucideIcon,
 } from "lucide-react";
 import { Engine } from "@/components/icons/Engine";
 import {
@@ -28,11 +29,23 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase";
 import { esAdmin } from "@/lib/roles";
 import { useSuscripcion } from "@/hooks/useSuscripcion";
+import {
+  KPI_META, NIVEL_LABEL, evaluar, fetchObjetivosKpi, metaVigente,
+  type KpiObjetivo, type NivelObjetivo, type ObjetivoKpi,
+} from "@/lib/objetivos-kpi";
+import ObjetivosKpiDialog from "@/components/analitica/ObjetivosKpiDialog";
+import {
+  flexRender, getCoreRowModel, getFilteredRowModel, getPaginationRowModel, getSortedRowModel, useReactTable,
+  type ColumnDef, type PaginationState, type SortingState,
+} from "@tanstack/react-table";
+import { BuscadorTabla, EncabezadoTabla, PaginacionTabla } from "@/components/tabla/DataTable";
+import { ESTADO_COLOR } from "@/lib/activo-estado-ui";
 import { UpgradePrompt } from "@/components/UpgradePrompt";
 import { DatePicker } from "@/components/ui/date-time-picker";
 import { Desplegable, FiltroFijo, FiltroRemoto, type Opcion } from "./FiltrosActivos";
+import { BarraFiltros } from "@/components/filtros/primitivas";
 import {
-  derivarDisponibilidad, puntoDisponibilidad, resumirDisponibilidad, type SumasDisponibilidad,
+  derivarDisponibilidad, puntoDisponibilidad, resumirDisponibilidad, type PuntoDisponibilidad, type SumasDisponibilidad,
 } from "@/lib/activo-disponibilidad";
 import {
   aFecha, deFecha, etiquetaTramo, granoPara, minimoDesde, rangoDeAtajo, type Atajo, type Grano, type Rango,
@@ -56,6 +69,10 @@ const C = {
   border: "var(--border)",
   bg: "var(--surface-canvas)",
   surface: "var(--surface-1)",
+};
+
+const CRIT_FILL: Record<string, string> = {
+  critico: C.danger, semi_critico: C.warning, no_critico: C.success,
 };
 
 const CRIT_LABEL: Record<AssetCriticality, string> = {
@@ -83,7 +100,10 @@ function Card({ children, style, fixed }: { children: React.ReactNode; style?: R
 
 function CardHeader({ title, subtitle, action }: { title: string; subtitle?: string; action?: React.ReactNode }) {
   return (
-    <div style={{ padding: "15px 18px", borderBottom: `1px solid ${C.border}`, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexShrink: 0 }}>
+    // Alto fijo (el de título + subtítulo): con y sin subtítulo, y con o sin
+    // engranaje, los encabezados de una misma fila quedan parejos y los
+    // gráficos arrancan a la misma altura.
+    <div style={{ padding: "15px 18px", minHeight: 72, boxSizing: "border-box", borderBottom: `1px solid ${C.border}`, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexShrink: 0 }}>
       <div>
         <div style={{ fontSize: 14, fontWeight: 400, color: C.text1 }}>{title}</div>
         {subtitle && <div style={{ fontSize: 14, color: C.text3, marginTop: 2 }}>{subtitle}</div>}
@@ -99,6 +119,115 @@ function ChartValue({ value, tone = C.text1 }: { value: string; tone?: string })
     <div style={{ padding: "12px 18px 4px" }}>
       <div style={{ fontSize: 14, fontWeight: 400, color: tone, lineHeight: 1.1 }}>{value}</div>
     </div>
+  );
+}
+
+/**
+ * Metas: carita por nivel (como MaintainX, con un nivel más: "en riesgo", la
+ * alerta antes de llegar a malo) y siempre con palabra al lado o en el tooltip:
+ * un color o un gesto solos no se leen.
+ */
+const NIVEL_UI: Record<NivelObjetivo, { icono: LucideIcon; fg: string; bg: string }> = {
+  bueno: { icono: Smile, fg: C.success, bg: C.successBg },
+  aceptable: { icono: Meh, fg: C.text3, bg: "var(--surface-hover)" },
+  riesgo: { icono: Annoyed, fg: C.warning, bg: C.warningBg },
+  malo: { icono: Frown, fg: C.danger, bg: C.dangerBg },
+};
+
+function CaraNivel({ nivel, size = 16 }: { nivel: NivelObjetivo; size?: number }) {
+  const { icono: Icono, fg } = NIVEL_UI[nivel];
+  return <Icono size={size} style={{ color: fg, flexShrink: 0 }} aria-label={NIVEL_LABEL[nivel]} />;
+}
+
+const unidadDe = (kpi: KpiObjetivo) => (KPI_META[kpi].unidad === "%" ? "%" : " h");
+
+/** "MTBF: bueno ≥ 2000 h · en riesgo bajo 1500 h · malo ≤ 1000 h". */
+function textoMeta(kpi: KpiObjetivo, o: ObjetivoKpi) {
+  const m = KPI_META[kpi];
+  const u = unidadDe(kpi);
+  const partes = [`bueno ${m.menosEsMejor ? "≤" : "≥"} ${o.bueno}${u}`];
+  if (o.alerta != null) partes.push(`en riesgo ${m.menosEsMejor ? "sobre" : "bajo"} ${o.alerta}${u}`);
+  partes.push(`malo ${m.menosEsMejor ? "≥" : "≤"} ${o.malo}${u}`);
+  return `${m.label}: ${partes.join(" · ")}`;
+}
+
+/** Nivel del período completo, bajo el número grande de una tarjeta. */
+function IndicadorMeta({ kpi, valor, objetivo }: {
+  kpi: KpiObjetivo;
+  valor: number | null;
+  objetivo: ObjetivoKpi | null;
+}) {
+  const nivel = evaluar(kpi, valor, objetivo);
+  if (!objetivo || !nivel) return null;
+  return (
+    <span title={textoMeta(kpi, objetivo)}
+      style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 14, color: C.text3 }}>
+      {(kpi === "mtbf" || kpi === "mttr") && `${KPI_META[kpi].label}:`}
+      <span style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "1px 8px 1px 6px", borderRadius: 999, background: NIVEL_UI[nivel].bg, color: NIVEL_UI[nivel].fg }}>
+        <CaraNivel nivel={nivel} size={14} />
+        {NIVEL_LABEL[nivel]}
+      </span>
+    </span>
+  );
+}
+
+/**
+ * Pie del tooltip con las metas, como el "Your organization aims for" de
+ * MaintainX: el valor del punto se lee contra el número al que se apunta.
+ */
+function PieMetas({ items, alcance }: { items: { kpi: KpiObjetivo; objetivo: ObjetivoKpi | null }[]; alcance: string }) {
+  const con = items.filter(i => i.objetivo);
+  if (con.length === 0) return null;
+  return (
+    <div style={{ marginTop: 8, paddingTop: 8, borderTop: `1px solid ${C.border}`, color: C.text3 }}>
+      <div>Meta {alcance}:</div>
+      {con.map(i => <div key={i.kpi}>· {textoMeta(i.kpi, i.objetivo!)}</div>)}
+    </div>
+  );
+}
+
+/** Valor de una métrica en el tooltip, con su carita contra la meta. */
+function FilaTooltip({ kpi, nombre, valor, color, objetivo, sufijo = "" }: {
+  kpi: KpiObjetivo; nombre: string; valor: number | null; color: string; objetivo: ObjetivoKpi | null; sufijo?: string;
+}) {
+  const nivel = evaluar(kpi, valor, objetivo);
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 2 }}>
+      {nivel && <CaraNivel nivel={nivel} />}
+      <span style={{ color }}>{nombre}:</span>
+      <strong style={{ color: C.text1, fontWeight: 500 }}>{valor == null ? "Sin datos" : `${valor}${unidadDe(kpi)}`}</strong>
+      {sufijo && <span style={{ color: C.text3 }}>{sufijo}</span>}
+      {nivel && <span style={{ color: NIVEL_UI[nivel].fg }}>· {NIVEL_LABEL[nivel]}</span>}
+    </div>
+  );
+}
+
+const cajaTooltip: React.CSSProperties = {
+  background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, padding: "8px 10px",
+  fontSize: 14, boxShadow: "0 4px 12px rgba(15,23,42,0.08)", maxWidth: 360,
+};
+
+/** Líneas de meta: bueno verde, alerta ámbar, malo rojo, punteadas. */
+function lineasMeta(objetivo: ObjetivoKpi | null) {
+  if (!objetivo) return null;
+  return [
+    <ReferenceLine key="bueno" y={objetivo.bueno} stroke={C.success} strokeDasharray="6 4" ifOverflow="extendDomain" />,
+    objetivo.alerta != null
+      ? <ReferenceLine key="alerta" y={objetivo.alerta} stroke={C.warning} strokeDasharray="6 4" ifOverflow="extendDomain" />
+      : null,
+    <ReferenceLine key="malo" y={objetivo.malo} stroke={C.danger} strokeDasharray="6 4" strokeOpacity={0.7} ifOverflow="extendDomain" />,
+  ];
+}
+
+/** Engranaje para configurar las metas de un gráfico. */
+function BotonMetas({ onClick }: { onClick: () => void }) {
+  return (
+    <button type="button" onClick={onClick} title="Metas de este gráfico" aria-label="Configurar metas"
+      style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 32, height: 32, flexShrink: 0, border: "none", borderRadius: "var(--r-sm)", background: "transparent", color: C.text3, cursor: "pointer" }}
+      onMouseEnter={e => { e.currentTarget.style.background = "var(--surface-hover)"; e.currentTarget.style.color = C.brand; }}
+      onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = C.text3; }}>
+      <Settings size={16} />
+    </button>
   );
 }
 
@@ -120,6 +249,18 @@ function fmtPct(p: number | null, d = 1): string {
 
 // ── Data ──────────────────────────────────────────────────────────────────────
 
+interface EventoFalla {
+  inicio: string;
+  /** null = sigue detenido. */
+  fin: string | null;
+  activo: string;
+  motivo: string | null;
+  horas: number | null;
+}
+
+/** Fecha local (Chile) "YYYY-MM-DD" de un instante: así se compara con las claves de los tramos. */
+const fechaLocal = (iso: string) => new Date(iso).toLocaleDateString("sv-SE", { timeZone: "America/Santiago" });
+
 /** Lo que devuelve la función SQL `analitica_activos` (ya agregado). */
 interface Informe {
   activos_total: number;
@@ -128,6 +269,8 @@ interface Informe {
   serie: (SumasDisponibilidad & { clave: string; preventivas: number; correctivas: number })[];
   ranking: (SumasDisponibilidad & { id: string; nombre: string; criticidad: AssetCriticality | null; costo: number | null })[];
   pareto: { motivo: string; eventos: number; horas: number }[];
+  /** Fallas del rango (eventos: de la detención a la vuelta a operar), para marcarlas. */
+  eventos_falla?: EventoFalla[];
   costo_paradas: { imprevisto: number; planificado: number; horas_sin_tarifa: number; con_tarifa: number };
 }
 
@@ -139,7 +282,6 @@ const ATAJOS: { value: Exclude<Atajo, "personalizado">; label: string; meses: nu
   { value: "anio", label: "Este año", meses: 12 },
 ];
 
-const GRANO_TEXTO: Record<Grano, string> = { dia: "día", semana: "semana", mes: "mes" };
 
 /** Selección vacía = sin filtro en la función SQL. */
 const ids = (sel: Opcion[]) => (sel.length ? sel.map(o => o.value) : null);
@@ -176,6 +318,11 @@ export default function AnaliticaActivosPage() {
   };
 
   const suscripcion = useSuscripcion();
+  // Objetivos de KPI: solo plan Empresa. Los edita owner/admin (la RLS exige lo mismo).
+  const esEmpresa = suscripcion.data?.effective_plan === "enterprise";
+  const puedeEditarObjetivos = esEmpresa && esAdmin(suscripcion.data?.rol);
+  // Metas de qué gráfico se están editando (cada gráfico tiene su engranaje).
+  const [metasDe, setMetasDe] = useState<KpiObjetivo[] | null>(null);
   const maxRange = suscripcion.data?.plan_limits?.historial_meses ?? Infinity;
   const desdeMinimo = minimoDesde(hoy, maxRange);
   const hoyFecha = aFecha(hoy);
@@ -247,6 +394,41 @@ export default function AnaliticaActivosPage() {
     [d, grano, cruzaAnio],
   );
   const resumenDisp = useMemo(() => resumirDisponibilidad(serieDisp), [serieDisp]);
+
+  const objetivosQ = useQuery({
+    queryKey: ["objetivos-kpi", workspaceId],
+    queryFn: fetchObjetivosKpi,
+    enabled: esEmpresa && !!workspaceId,
+    staleTime: 5 * 60_000,
+    // Si la tabla no existe todavía (migración 20261021180000 sin aplicar), no
+    // insistir: se usan las metas de referencia y el engranaje se esconde.
+    retry: false,
+  });
+  const objetivos = objetivosQ.data ?? [];
+  // Una meta por KPI para todo el workspace (como MaintainX); si no hay, la de referencia.
+  const meta = (kpi: KpiObjetivo) => (esEmpresa ? metaVigente(kpi, objetivos) : null);
+  const alcanceMeta = (kpi: KpiObjetivo) =>
+    meta(kpi)?.fuente === "referencia" ? "de referencia de la industria (ajústala con el engranaje)" : "del workspace";
+  const engranaje = (kpis: KpiObjetivo[]) =>
+    puedeEditarObjetivos && workspaceId && !objetivosQ.isError ? <BotonMetas onClick={() => setMetasDe(kpis)} /> : undefined;
+
+  /**
+   * Fallas por tramo (clave), para marcarlas en la tendencia de MTBF/MTTR: un
+   * salto en la media móvil solo se entiende viendo qué falla lo causó. Cada
+   * falla va al último tramo que empieza en o antes de su fecha local.
+   */
+  const fallasPorTramo = useMemo(() => {
+    const m = new Map<string, EventoFalla[]>();
+    const claves = serieDisp.map(p => p.key);
+    for (const f of d?.eventos_falla ?? []) {
+      const dia = fechaLocal(f.inicio);
+      const clave = claves.filter(c => c <= dia).at(-1);
+      if (clave) m.set(clave, [...(m.get(clave) ?? []), f]);
+    }
+    return m;
+  }, [d, serieDisp]);
+  // Con más de un activo en las fallas, el tooltip dice de cuál es cada una.
+  const variosActivosConFallas = new Set((d?.eventos_falla ?? []).map(f => f.activo)).size > 1;
 
   const series = useMemo(
     () => (d?.serie ?? []).map((t, i) => ({
@@ -324,11 +506,7 @@ export default function AnaliticaActivosPage() {
       .map(k => ({ name: CRIT_LABEL[k], value: Number(counts[k]), key: k }));
   }, [d]);
 
-  const CRIT_FILL: Record<string, string> = {
-    critico: C.danger, semi_critico: C.warning, no_critico: C.success,
-  };
-
-  /** Peores actores, por HORAS DE PARADA IMPREVISTA (top 10, ordenado en SQL). */
+  /** Todos los activos del filtro con sus métricas (la tabla los ordena y pagina). */
   const rankedDisp = useMemo(
     () => (d?.ranking ?? []).map(r => ({
       asset: { id: r.id, nombre: r.nombre, criticidad: r.criticidad },
@@ -373,46 +551,45 @@ export default function AnaliticaActivosPage() {
 
   return (
     <div style={{ padding: "28px 32px 64px", minHeight: "100vh", background: C.bg }}>
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, flexWrap: "wrap", marginBottom: 18 }}>
-        <div />
-        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-          {/* Personalizado: el mismo DatePicker de procedimientos. min/max
-              impiden un rango invertido y respetan el historial del plan. */}
-          {atajo === "personalizado" && (
-            <>
-              <div style={{ width: 150 }}>
-                <DatePicker
-                  value={deFecha(rango.desde)}
-                  min={desdeMinimo ? deFecha(desdeMinimo) : undefined}
-                  max={deFecha(rango.hasta)}
-                  onChange={d => { if (d) setRango(r => ({ ...r, desde: aFecha(d) })); }}
-                />
-              </div>
-              <span style={{ color: C.text3, fontSize: 14 }}>–</span>
-              <div style={{ width: 150 }}>
-                <DatePicker
-                  value={deFecha(rango.hasta)}
-                  min={deFecha(rango.desde)}
-                  max={deFecha(hoyFecha)}
-                  onChange={d => { if (d) setRango(r => ({ ...r, hasta: aFecha(d) })); }}
-                />
-              </div>
-            </>
-          )}
-          <Desplegable<Atajo>
-            ariaLabel="Período"
-            value={atajo}
-            onChange={elegirAtajo}
-            opciones={[
-              ...ATAJOS.map(a => ({ value: a.value, label: a.label, disabled: maxRange < a.meses })),
-              { value: "personalizado" as const, label: "Personalizado" },
-            ]}
-          />
-        </div>
-      </div>
-
-      {/* Filtros: las mismas piezas que /ordenes (components/filtros/primitivas). */}
-      <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginBottom: 16 }}>
+      {/* Filtros: las mismas piezas que /ordenes (components/filtros/primitivas).
+          El período va primero, del mismo alto que los chips: antes vivía solo
+          en una fila de arriba, más grande y con un hueco vacío a su izquierda. */}
+      <BarraFiltros hayFiltros={hayFiltros} onLimpiar={limpiarFiltros} style={{ marginBottom: 16 }}>
+        <Desplegable<Atajo>
+          ariaLabel="Período"
+          alto={34}
+          value={atajo}
+          onChange={elegirAtajo}
+          opciones={[
+            ...ATAJOS.map(a => ({ value: a.value, label: a.label, disabled: maxRange < a.meses })),
+            { value: "personalizado" as const, label: "Personalizado" },
+          ]}
+        />
+        {/* Personalizado: el mismo DatePicker de procedimientos. min/max
+            impiden un rango invertido y respetan el historial del plan. */}
+        {atajo === "personalizado" && (
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <div style={{ width: 150 }}>
+              <DatePicker
+                alto={34}
+                value={deFecha(rango.desde)}
+                min={desdeMinimo ? deFecha(desdeMinimo) : undefined}
+                max={deFecha(rango.hasta)}
+                onChange={d => { if (d) setRango(r => ({ ...r, desde: aFecha(d) })); }}
+              />
+            </div>
+            <span style={{ color: C.text3, fontSize: 14 }}>–</span>
+            <div style={{ width: 150 }}>
+              <DatePicker
+                alto={34}
+                value={deFecha(rango.hasta)}
+                min={deFecha(rango.desde)}
+                max={deFecha(hoyFecha)}
+                onChange={d => { if (d) setRango(r => ({ ...r, hasta: aFecha(d) })); }}
+              />
+            </div>
+          </div>
+        )}
         <FiltroFijo label="Criticidad" icon={<AlertTriangle size={16} />}
           opciones={CRIT_OPCIONES} seleccion={critFilter} onChange={setCritFilter} />
         {workspaceId && (
@@ -429,21 +606,7 @@ export default function AnaliticaActivosPage() {
               workspaceId={workspaceId} seleccion={responsableFilter} onChange={setResponsableFilter} />
           </>
         )}
-        {/* Igual que /ordenes: solo aparece cuando hay algo que limpiar. */}
-        {hayFiltros && (
-          <button
-            type="button"
-            onClick={limpiarFiltros}
-            style={{
-              display: "flex", alignItems: "center", height: 34, padding: 0, flexShrink: 0,
-              border: "none", background: "none", color: "var(--brand)",
-              fontSize: 14, fontWeight: 400, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap",
-            }}
-          >
-            Limpiar filtros
-          </button>
-        )}
-      </div>
+      </BarraFiltros>
 
       {/* Estado actual: a live snapshot of asset states, not a period
           aggregate like the charts below. Each cell is its own card, with the
@@ -452,18 +615,25 @@ export default function AnaliticaActivosPage() {
       <div style={{
         display: "grid", gridTemplateColumns: "minmax(190px, 1.1fr) repeat(4, minmax(0, 1fr))",
         gap: 10, marginTop: 14, alignItems: "stretch",
+        padding: 10, borderRadius: 12, background: C.infoBg, border: `1px solid ${C.border}`,
       }}>
-        <div style={{
-          background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10,
-          boxShadow: "0 1px 3px rgba(15,23,42,0.06)", padding: "14px 16px",
-          display: "flex", flexDirection: "column", justifyContent: "center", gap: 4,
-        }}>
+        {/* Qué tan recientes son los datos de la pantalla: cuándo se calcularon
+            (dataUpdatedAt de la consulta), no la hora del reloj. */}
+        <div style={{ padding: "6px 8px", display: "flex", flexDirection: "column", justifyContent: "center", gap: 2 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
             <Activity size={15} style={{ color: C.brand, flexShrink: 0 }} />
-            <span style={{ fontSize: 14, fontWeight: 400, color: C.text1 }}>Estado actual</span>
+            <span style={{ fontSize: 14, fontWeight: 500, color: C.text1 }}>Estado actual</span>
+            <button type="button" onClick={() => void informe.refetch()} disabled={informe.isFetching}
+              title="Actualizar ahora" aria-label="Actualizar ahora"
+              style={{ display: "flex", marginLeft: "auto", padding: 0, border: "none", background: "none", cursor: informe.isFetching ? "wait" : "pointer", color: C.text3 }}>
+              <RefreshCw size={14} className={informe.isFetching ? "animate-spin" : undefined} />
+            </button>
           </div>
-          <span style={{ fontSize: 14, color: C.text3 }}>
-            {totalActivos} {totalActivos === 1 ? "activo" : "activos"} en el filtro
+          <span style={{ fontSize: 14, color: C.text2 }}>Última actualización:</span>
+          <span style={{ fontSize: 14, color: C.text1 }}>
+            {informe.dataUpdatedAt
+              ? new Date(informe.dataUpdatedAt).toLocaleString("es-CL", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })
+              : SIN_DATOS}
           </span>
         </div>
 
@@ -493,7 +663,8 @@ export default function AnaliticaActivosPage() {
             label: "En mantención",
             qualifier: "planificado",
             value: String(statusCounts.mantencion),
-            dot: C.brand,
+            // El mismo naranjo de "En mantención" en el cambio de estado del activo.
+            dot: ESTADO_COLOR.mantencion,
             muted: false,
           },
         ].map(cell => (
@@ -532,11 +703,17 @@ export default function AnaliticaActivosPage() {
           <CardHeader
             title="Disponibilidad en el tiempo"
             subtitle="Desde el historial de estados · la parada planificada también descuenta"
+            action={engranaje(["disponibilidad"])}
           />
           <ChartValue
             value={fmtPct(resumenDisp.disponibilidadPct, 2)}
             tone={resumenDisp.disponibilidadPct == null ? C.text3 : C.text1}
           />
+          {meta("disponibilidad") && (
+            <div style={{ padding: "2px 18px 0" }}>
+              <IndicadorMeta kpi="disponibilidad" valor={resumenDisp.disponibilidadPct} objetivo={meta("disponibilidad")} />
+            </div>
+          )}
           <div style={{ padding: "4px 8px 16px", flex: 1, minHeight: 0 }}>
             {serieDisp.some(p => p.disponibilidadPct != null) ? (
               <ResponsiveContainer width="100%" height="100%">
@@ -551,8 +728,18 @@ export default function AnaliticaActivosPage() {
                   <XAxis dataKey="label" tick={{ fontSize: 14, fill: C.text3 }} axisLine={false} tickLine={false} />
                   <YAxis tick={{ fontSize: 14, fill: C.text3 }} axisLine={false} tickLine={false}
                          domain={["dataMin - 1", 100]} tickFormatter={(v) => `${Number(v).toFixed(0)}%`} />
-                  <Tooltip contentStyle={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 14 }}
-                           formatter={(v) => [v == null ? "Sin datos" : `${Number(v)}%`, "Disponibilidad"]} />
+                  <Tooltip content={({ active, payload, label }) => {
+                    const p = payload?.[0]?.payload as PuntoDisponibilidad | undefined;
+                    if (!active || !p) return null;
+                    return (
+                      <div style={cajaTooltip}>
+                        <div style={{ color: C.text1 }}>{label}</div>
+                        <FilaTooltip kpi="disponibilidad" nombre="Disponibilidad" valor={p.disponibilidadPct} color={C.success} objetivo={meta("disponibilidad")} />
+                        <PieMetas items={[{ kpi: "disponibilidad", objetivo: meta("disponibilidad") }]} alcance={alcanceMeta("disponibilidad")} />
+                      </div>
+                    );
+                  }} />
+                  {lineasMeta(meta("disponibilidad"))}
                   <Area type="monotone" dataKey="disponibilidadPct" name="Disponibilidad"
                         stroke={C.success} strokeWidth={2} fill="url(#availFill)"
                         dot={{ r: 3 }} connectNulls />
@@ -595,63 +782,110 @@ export default function AnaliticaActivosPage() {
           </div>
         </Card>
 
-        {/* MTBF y MTTR comparten gráfico a propósito: se leen juntos. El patrón
-            sano es MTBF subiendo mientras MTTR se mantiene plano o baja —fallar
-            menos seguido y recuperarse más rápido cuando pasa—. En gráficos
-            separados esa relación no se ve.
-            Dos ejes en Y, los dos en horas: las unidades coinciden pero las
-            magnitudes no —cientos de horas entre fallas contra unas pocas de
-            reparación—, y con un eje compartido el MTTR queda aplastado contra
-            el piso, que es justo la serie donde interesa ver la tendencia. */}
+        {/* MTBF y MTTR se leen juntos —el patrón sano es MTBF subiendo y MTTR
+            plano o bajando—, pero en dos gráficos apilados con el mismo eje de
+            fechas y tooltip sincronizado, no en uno con doble eje: ahí el cruce
+            de las líneas parecía un evento y solo dependía de las escalas.
+
+            Escalonados (stepAfter) y no curvas: la media móvil cambia SOLO
+            cuando entra o sale una falla de la ventana; una curva suave dibujaba
+            subidas graduales que no ocurrieron. Las líneas rojas punteadas son
+            las fallas, con motivo y duración en el tooltip: explican cada salto. */}
         <Card fixed>
           <CardHeader
-            title="MTBF vs MTTR"
-            subtitle={`Horas, por ${GRANO_TEXTO[grano]} · solo fallas imprevistas`}
+            title="MTBF y MTTR"
+            subtitle="Media móvil de 90 días · solo fallas imprevistas · línea punteada = falla"
+            action={engranaje(["mtbf", "mttr"])}
           />
-          {/* En horas las dos, como el eje del gráfico. `fmtHours` pasa a días
-              sobre 48 h, y el número grande decía "35.9 d" al lado de un eje
-              rotulado 380: el mismo dato en dos unidades distintas. */}
+          {/* En horas, como los ejes; el MTBF además en días, que es como se
+              piensa ("una falla cada 40 días", no "cada 956 h"). */}
           <ChartValue
             value={resumenDisp.mtbfHoras == null
               ? SIN_DATOS
-              : `${Math.round(resumenDisp.mtbfHoras)} h entre fallas · ${resumenDisp.mttrHoras!.toFixed(1)} h para reparar`}
+              // El MTTR puede faltar aunque haya MTBF: fallas todavía abiertas.
+              : `${Math.round(resumenDisp.mtbfHoras)} h entre fallas (~${Math.round(resumenDisp.mtbfHoras / 24)} días) · ${resumenDisp.mttrHoras == null ? "en reparación" : `${resumenDisp.mttrHoras.toFixed(1)} h para restaurar`}`}
             tone={resumenDisp.mtbfHoras == null ? C.text3 : C.text1}
           />
-          <div style={{ padding: "4px 8px 16px", flex: 1, minHeight: 0 }}>
-            {serieDisp.some(p => p.mtbfHoras != null) ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={serieDisp} margin={{ left: -10, right: 8 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke={C.border} vertical={false} />
-                  <XAxis dataKey="label" tick={{ fontSize: 14, fill: C.text3 }} axisLine={false} tickLine={false} />
-                  {/* Dos ejes, los dos en horas. Compartir uno solo aplasta el
-                      MTTR contra el piso —cientos de horas entre fallas contra
-                      unas pocas de reparación— y justo lo que hay que mirar es
-                      si el MTTR baja mes a mes. Cada eje va del color de su
-                      línea para saber cuál es cuál sin adivinar. */}
-                  <YAxis yAxisId="mtbf" tick={{ fontSize: 14, fill: C.brand }} axisLine={false} tickLine={false}
-                         tickFormatter={(v) => `${v} h`}
-                         label={{ value: "MTBF", angle: -90, position: "insideLeft", fontSize: 14, fill: C.brand }} />
-                  <YAxis yAxisId="mttr" orientation="right" tick={{ fontSize: 14, fill: C.danger }} axisLine={false} tickLine={false}
-                         tickFormatter={(v) => `${v} h`}
-                         label={{ value: "MTTR", angle: 90, position: "insideRight", fontSize: 14, fill: C.danger }} />
-                  <Tooltip
-                    contentStyle={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 14 }}
-                    formatter={(v, name) => [v == null ? "Sin datos" : `${Number(v)} h`, name]}
-                  />
-                  <Legend wrapperStyle={{ fontSize: 14 }} iconType="circle" iconSize={8} />
-                  {/* Con un solo mes con fallas no hay segmento que dibujar
-                      —Recharts necesita dos puntos—, así que el punto tiene que
-                      verse solo. De ahí el radio grande y el relleno: antes
-                      quedaba un manchón gris que no se leía como un dato. */}
-                  <Line yAxisId="mtbf" type="monotone" dataKey="mtbfHoras" name="MTBF"
-                        stroke={C.brand} strokeWidth={2} connectNulls
-                        dot={{ r: 5, fill: C.brand, stroke: C.surface, strokeWidth: 2 }} />
-                  <Line yAxisId="mttr" type="monotone" dataKey="mttrHoras" name="MTTR"
-                        stroke={C.danger} strokeWidth={2} connectNulls
-                        dot={{ r: 5, fill: C.danger, stroke: C.surface, strokeWidth: 2 }} />
-                </LineChart>
-              </ResponsiveContainer>
-            ) : <EmptyChart text="Se necesita al menos una falla registrada para calcular la tendencia." />}
+          {/* Cuántas fallas sostienen el número: con pocas, un MTBF es frágil y
+              no alcanza para hablar de tendencia. Siempre a la vista, no solo
+              en el tooltip. */}
+          {resumenDisp.fallas > 0 && (
+            <div style={{ padding: "2px 18px 0", fontSize: 14, color: resumenDisp.fallas < 3 ? C.warning : C.text3 }}>
+              Basado en {resumenDisp.fallas} {resumenDisp.fallas === 1 ? "falla" : "fallas"} del período
+              {resumenDisp.fallas < 3 && " · muestra chica: tómalo como referencia, no como tendencia"}
+            </div>
+          )}
+          {(meta("mtbf") || meta("mttr")) && (
+            <div style={{ padding: "4px 18px 0", display: "flex", gap: 14, flexWrap: "wrap" }}>
+              <IndicadorMeta kpi="mtbf" valor={resumenDisp.mtbfHoras == null ? null : Math.round(resumenDisp.mtbfHoras)} objetivo={meta("mtbf")} />
+              <IndicadorMeta kpi="mttr" valor={resumenDisp.mttrHoras} objetivo={meta("mttr")} />
+            </div>
+          )}
+          <div style={{ padding: "8px 8px 12px", flex: 1, minHeight: 0, display: "flex", flexDirection: "column", gap: 4 }}>
+            {serieDisp.some(p => p.mtbfMovilHoras != null) ? (
+              <>
+                {([
+                  { key: "mtbfMovilHoras", nombre: "MTBF", color: C.brand, ultimo: false },
+                  { key: "mttrMovilHoras", nombre: "MTTR", color: C.danger, ultimo: true },
+                ] as const).map(g => (
+                  <div key={g.key} style={{ flex: 1, minHeight: 0 }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={serieDisp} syncId="mtbf-mttr" margin={{ left: 0, right: 12, top: 6, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke={C.border} vertical={false} />
+                        {/* Fechas solo abajo: arriba repetirían lo mismo. */}
+                        <XAxis dataKey="label" hide={!g.ultimo} tick={{ fontSize: 14, fill: C.text3 }} axisLine={false} tickLine={false} />
+                        {/* Ancho fijo: con el automático, "2200 h" se cortaba. */}
+                        <YAxis width={78} tick={{ fontSize: 14, fill: g.color }} axisLine={false} tickLine={false}
+                               tickFormatter={(v) => `${v} h`}
+                               label={{ value: g.nombre, angle: -90, position: "insideLeft", fontSize: 14, fill: g.color, dx: -2 }} />
+                        {lineasMeta(meta(g.key === "mtbfMovilHoras" ? "mtbf" : "mttr"))}
+                        {serieDisp.filter(p => fallasPorTramo.has(p.key)).map(p => (
+                          <ReferenceLine key={p.key} x={p.label} stroke={C.danger} strokeDasharray="4 3" strokeOpacity={0.6} />
+                        ))}
+                        <Tooltip
+                          content={({ active, payload, label }) => {
+                            const p = payload?.[0]?.payload as PuntoDisponibilidad | undefined;
+                            if (!active || !p) return null;
+                            // Con el tooltip sincronizado sale en los dos gráficos:
+                            // el de abajo muestra solo su métrica, sin repetir el resto.
+                            if (g.ultimo) {
+                              return (
+                                <div style={cajaTooltip}>
+                                  <FilaTooltip kpi="mttr" nombre="MTTR" valor={p.mttrMovilHoras} color={C.danger} objetivo={meta("mttr")} />
+                                </div>
+                              );
+                            }
+                            const fallas = fallasPorTramo.get(p.key) ?? [];
+                            return (
+                              <div style={cajaTooltip}>
+                                <div style={{ color: C.text1 }}>{label} · {p.fallasMovil} {p.fallasMovil === 1 ? "falla" : "fallas"} en 90 días</div>
+                                <FilaTooltip kpi="mtbf" nombre="MTBF" valor={p.mtbfMovilHoras} color={C.brand} objetivo={meta("mtbf")}
+                                  sufijo={p.mtbfMovilHoras == null ? "" : `(~${Math.round(p.mtbfMovilHoras / 24)} días)`} />
+                                <FilaTooltip kpi="mttr" nombre="MTTR" valor={p.mttrMovilHoras} color={C.danger} objetivo={meta("mttr")} />
+                                {fallas.slice(0, 3).map(f => (
+                                  <div key={f.inicio + f.activo} style={{ color: C.text2, marginTop: 4 }}>
+                                    <span style={{ color: C.danger }}>● </span>
+                                    {new Date(f.inicio).toLocaleDateString("es-CL", { day: "numeric", month: "short", timeZone: "America/Santiago" })}
+                                    {" · "}{f.motivo ?? "Sin motivo"}
+                                    {" · "}{f.horas == null ? "sigue detenido" : `${Number(f.horas).toFixed(1)} h`}
+                                    {variosActivosConFallas && <span style={{ color: C.text3 }}> · {f.activo}</span>}
+                                  </div>
+                                ))}
+                                {fallas.length > 3 && <div style={{ color: C.text3, marginTop: 4 }}>y {fallas.length - 3} más</div>}
+                                <PieMetas items={[{ kpi: "mtbf", objetivo: meta("mtbf") }, { kpi: "mttr", objetivo: meta("mttr") }]} alcance={alcanceMeta("mtbf")} />
+                              </div>
+                            );
+                          }}
+                        />
+                        <Line type="stepAfter" dataKey={g.key} name={g.nombre}
+                              stroke={g.color} strokeWidth={2} connectNulls={false} isAnimationActive={false}
+                              dot={{ r: 3, fill: g.color, stroke: C.surface, strokeWidth: 1.5 }} />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                ))}
+              </>
+            ) : <EmptyChart text="Sin fallas imprevistas en los 90 días previos a ningún punto del rango." />}
           </div>
         </Card>
 
@@ -713,6 +947,7 @@ export default function AnaliticaActivosPage() {
           <CardHeader
             title="Parada planificada vs imprevista"
             subtitle="Desde el historial de estados del activo"
+            action={engranaje(["planificada"])}
           />
           <ChartValue
             value={downtimeTotales.total === 0
@@ -720,6 +955,11 @@ export default function AnaliticaActivosPage() {
               : `${downtimeTotales.planificadaPct!.toFixed(0)}% planificada`}
             tone={downtimeTotales.total === 0 ? C.text3 : C.text1}
           />
+          {meta("planificada") && (
+            <div style={{ padding: "2px 18px 0" }}>
+              <IndicadorMeta kpi="planificada" valor={downtimeTotales.planificadaPct} objetivo={meta("planificada")} />
+            </div>
+          )}
           <div style={{ padding: "4px 8px 16px", flex: 1, minHeight: 0 }}>
             {downtimeTotales.total > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
@@ -727,10 +967,21 @@ export default function AnaliticaActivosPage() {
                   <CartesianGrid strokeDasharray="3 3" stroke={C.border} vertical={false} />
                   <XAxis dataKey="label" tick={{ fontSize: 14, fill: C.text3 }} axisLine={false} tickLine={false} />
                   <YAxis tick={{ fontSize: 14, fill: C.text3 }} axisLine={false} tickLine={false} />
-                  <Tooltip
-                    contentStyle={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 14 }}
-                    formatter={(v, name) => [`${Number(v ?? 0).toFixed(1)} h`, name]}
-                  />
+                  <Tooltip content={({ active, payload, label }) => {
+                    const p = payload?.[0]?.payload as { planificada: number; imprevista: number } | undefined;
+                    if (!active || !p) return null;
+                    const total = p.planificada + p.imprevista;
+                    const pct = total > 0 ? Number(((p.planificada / total) * 100).toFixed(0)) : null;
+                    return (
+                      <div style={cajaTooltip}>
+                        <div style={{ color: C.text1 }}>{label}</div>
+                        <div style={{ color: C.brand, marginTop: 2 }}>Planificada: {p.planificada.toFixed(1)} h</div>
+                        <div style={{ color: C.danger }}>Imprevista: {p.imprevista.toFixed(1)} h</div>
+                        {pct != null && <FilaTooltip kpi="planificada" nombre="Planificada" valor={pct} color={C.text2} objetivo={meta("planificada")} />}
+                        <PieMetas items={[{ kpi: "planificada", objetivo: meta("planificada") }]} alcance={alcanceMeta("planificada")} />
+                      </div>
+                    );
+                  }} />
                   <Legend wrapperStyle={{ fontSize: 14 }} iconType="circle" iconSize={8} />
                   <Bar dataKey="planificada" name="Planificada" stackId="d" fill={C.brand} />
                   <Bar dataKey="imprevista" name="Imprevista" stackId="d" fill={C.danger} radius={[4, 4, 0, 0]} />
@@ -811,58 +1062,148 @@ export default function AnaliticaActivosPage() {
         </Card>
       </div>
 
-      {/* Worst offenders — the actionable table */}
+      {/* Activos del filtro con sus métricas: Data Table (buscar, ordenar,
+          paginar) en vez del top 10 fijo. Sale del mismo informe en caché. */}
       <Card style={{ marginTop: 14 }}>
         <CardHeader
           title="Activos más problemáticos"
           subtitle="Por horas de parada imprevista"
         />
-        {rankedDisp.length === 0 ? (
-          <div style={{ padding: 28, color: C.text3, fontSize: 14, textAlign: "center" }}>
-            Sin fallas registradas en el período para los activos filtrados.
-          </div>
-        ) : (
-          <div style={{ overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
-              <thead>
-                <tr style={{ background: "var(--surface-hover)" }}>
-                  {["Activo", "Criticidad", "Fallas", "MTBF", "MTTR", "Detenido", "Costo", "Disponibilidad"].map((h, i) => (
-                    <th key={h} style={{ padding: "10px 14px", textAlign: i === 0 || i === 1 ? "left" : "right", fontWeight: 400, color: C.text3, whiteSpace: "nowrap" }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {rankedDisp.map(({ asset, m, costo }) => (
-                  <tr key={asset.id}
-                      onClick={() => router.push(`/activos?id=${encodeURIComponent(asset.id)}`)}
-                      style={{ borderTop: `1px solid ${C.border}`, cursor: "pointer" }}>
-                    <td style={{ padding: "10px 14px", color: C.text1, fontWeight: 400 }}>{asset.nombre}</td>
-                    <td style={{ padding: "10px 14px" }}>
-                      <span style={{ fontSize: 14, fontWeight: 400, padding: "2px 8px", borderRadius: 6,
-                        background: asset.criticidad === "critico" ? C.dangerBg : asset.criticidad === "semi_critico" ? C.warningBg : C.successBg,
-                        color: CRIT_FILL[asset.criticidad ?? "no_critico"] }}>
-                        {CRIT_LABEL[asset.criticidad ?? "no_critico"]}
-                      </span>
-                    </td>
-                    <td style={{ padding: "10px 14px", textAlign: "right", color: C.text1 }}>{m.fallas}</td>
-                    <td style={{ padding: "10px 14px", textAlign: "right", color: C.text2 }}>{fmtHours(m.mtbfHoras)}</td>
-                    <td style={{ padding: "10px 14px", textAlign: "right", color: C.text2 }}>{fmtHours(m.mttrHoras)}</td>
-                    <td style={{ padding: "10px 14px", textAlign: "right", color: C.text2 }}>{m.imprevistaHoras.toFixed(1)} h</td>
-                    <td style={{ padding: "10px 14px", textAlign: "right", color: C.text2 }}>
-                      {costo == null ? "—" : `$${Math.round(costo).toLocaleString("es-CL")}`}
-                    </td>
-                    <td style={{ padding: "10px 14px", textAlign: "right", fontWeight: 400,
-                      color: m.disponibilidadPct == null ? C.text3 : m.disponibilidadPct >= 99 ? C.success : m.disponibilidadPct >= 95 ? C.warning : C.danger }}>
-                      {fmtPct(m.disponibilidadPct, 2)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+        <TablaActivos filas={rankedDisp} onAbrir={id => router.push(`/activos?id=${encodeURIComponent(id)}`)} />
       </Card>
+
+      {metasDe && workspaceId && (
+        <ObjetivosKpiDialog kpis={metasDe} workspaceId={workspaceId}
+          objetivos={objetivos} onClose={() => setMetasDe(null)} />
+      )}
     </div>
+  );
+}
+
+type FilaActivo = {
+  asset: { id: string; nombre: string; criticidad: AssetCriticality | null };
+  m: ReturnType<typeof derivarDisponibilidad>;
+  costo: number | null;
+};
+
+const CRIT_ORDEN: Record<AssetCriticality, number> = { critico: 3, semi_critico: 2, no_critico: 1 };
+const celdaActivo: React.CSSProperties = { padding: "10px 16px", fontSize: 14, color: C.text2, whiteSpace: "nowrap" };
+const COLUMNAS_NUMERICAS = ["fallas", "mtbf", "mttr", "detenido", "costo", "disponibilidad"];
+
+/**
+ * Activos del filtro con sus métricas, como el "Reporting Details" de
+ * MaintainX: buscar por nombre, ordenar por cualquier columna (por defecto,
+ * más horas detenido primero) y paginar de a 10. Todo en el cliente: las filas
+ * ya vienen del informe en caché, así que ordenar o cambiar de página no
+ * consulta.
+ */
+function TablaActivos({ filas, onAbrir }: { filas: FilaActivo[]; onAbrir: (id: string) => void }) {
+  const [busqueda, setBusqueda] = useState("");
+  const [orden, setOrden] = useState<SortingState>([{ id: "detenido", desc: true }]);
+  const [pagina, setPagina] = useState<PaginationState>({ pageIndex: 0, pageSize: 10 });
+
+  const columnas = useMemo<ColumnDef<FilaActivo>[]>(() => [
+    {
+      id: "activo", header: "Activo", accessorFn: f => f.asset.nombre,
+      cell: ({ getValue }) => <span style={{ color: C.text1 }}>{getValue<string>()}</span>,
+    },
+    {
+      id: "criticidad", header: "Criticidad",
+      accessorFn: f => CRIT_ORDEN[f.asset.criticidad ?? "no_critico"],
+      cell: ({ row }) => {
+        const c = row.original.asset.criticidad ?? "no_critico";
+        return (
+          <span style={{ fontSize: 14, padding: "2px 8px", borderRadius: 6,
+            background: c === "critico" ? C.dangerBg : c === "semi_critico" ? C.warningBg : C.successBg,
+            color: CRIT_FILL[c] }}>
+            {CRIT_LABEL[c]}
+          </span>
+        );
+      },
+    },
+    { id: "fallas", header: "Fallas", accessorFn: f => f.m.fallas, cell: ({ getValue }) => <span style={{ color: C.text1 }}>{getValue<number>()}</span> },
+    // Sin dato (sin fallas) va al final al ordenar, no como 0.
+    { id: "mtbf", header: "MTBF", accessorFn: f => f.m.mtbfHoras ?? undefined, sortUndefined: "last", cell: ({ row }) => fmtHours(row.original.m.mtbfHoras) },
+    { id: "mttr", header: "MTTR", accessorFn: f => f.m.mttrHoras ?? undefined, sortUndefined: "last", cell: ({ row }) => fmtHours(row.original.m.mttrHoras) },
+    { id: "detenido", header: "Detenido", accessorFn: f => f.m.imprevistaHoras, cell: ({ getValue }) => `${getValue<number>().toFixed(1)} h` },
+    {
+      id: "costo", header: "Costo", accessorFn: f => f.costo ?? undefined, sortUndefined: "last",
+      cell: ({ row }) => (row.original.costo == null ? "—" : `$${Math.round(row.original.costo).toLocaleString("es-CL")}`),
+    },
+    {
+      id: "disponibilidad", header: "Disponibilidad", accessorFn: f => f.m.disponibilidadPct ?? undefined, sortUndefined: "last",
+      cell: ({ row }) => {
+        const v = row.original.m.disponibilidadPct;
+        return <span style={{ color: v == null ? C.text3 : v >= 99 ? C.success : v >= 95 ? C.warning : C.danger }}>{fmtPct(v, 2)}</span>;
+      },
+    },
+  ], []);
+
+  const tabla = useReactTable({
+    data: filas,
+    columns: columnas,
+    state: { globalFilter: busqueda, sorting: orden, pagination: pagina },
+    onGlobalFilterChange: (u: unknown) => {
+      setBusqueda(typeof u === "function" ? (u as (v: string) => string)(busqueda) : String(u ?? ""));
+      setPagina(p => ({ ...p, pageIndex: 0 }));
+    },
+    onSortingChange: u => { setOrden(u); setPagina(p => ({ ...p, pageIndex: 0 })); },
+    onPaginationChange: setPagina,
+    // A mano (arriba): el reinicio automático también salta al refrescarse el informe.
+    autoResetPageIndex: false,
+    globalFilterFn: (row, _id, texto: string) => row.original.asset.nombre.toLowerCase().includes(texto.trim().toLowerCase()),
+    getCoreRowModel: getCoreRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+  });
+
+  // Si el informe se achica (otro filtro) y la página actual ya no existe, a la última.
+  const totalPaginas = tabla.getPageCount();
+  if (pagina.pageIndex > 0 && pagina.pageIndex >= totalPaginas) {
+    setPagina(p => ({ ...p, pageIndex: Math.max(0, totalPaginas - 1) }));
+  }
+
+  if (filas.length === 0) {
+    return (
+      <div style={{ padding: 28, color: C.text3, fontSize: 14, textAlign: "center" }}>
+        Sin historial de estados en el período para los activos filtrados.
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <div style={{ padding: "12px 16px", borderBottom: `1px solid ${C.border}` }}>
+        <BuscadorTabla value={busqueda} onChange={v => tabla.setGlobalFilter(v)} placeholder="Buscar activo…" />
+      </div>
+      <div style={{ overflowX: "auto" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 860 }}>
+          <EncabezadoTabla tabla={tabla} derecha={COLUMNAS_NUMERICAS} />
+          <tbody>
+            {tabla.getRowModel().rows.length === 0 ? (
+              <tr>
+                <td colSpan={columnas.length} style={{ padding: 28, textAlign: "center", color: C.text3, fontSize: 14 }}>
+                  Ningún activo coincide con la búsqueda.
+                </td>
+              </tr>
+            ) : tabla.getRowModel().rows.map(r => (
+              <tr key={r.id} onClick={() => onAbrir(r.original.asset.id)}
+                style={{ borderTop: `1px solid ${C.border}`, cursor: "pointer" }}
+                onMouseEnter={e => { e.currentTarget.style.background = "var(--surface-hover)"; }}
+                onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}>
+                {r.getVisibleCells().map(c => (
+                  <td key={c.id} style={{ ...celdaActivo, textAlign: COLUMNAS_NUMERICAS.includes(c.column.id) ? "right" : "left" }}>
+                    {flexRender(c.column.columnDef.cell, c.getContext())}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <PaginacionTabla tabla={tabla} />
+    </>
   );
 }
 

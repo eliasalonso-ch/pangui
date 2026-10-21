@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Check, User, UserRoundX, PenLine, Clock, MapPin, Flag, Zap, Wrench, Building2, Tag, FlagTriangleRight, Share2, Pause, RotateCw, ArrowUp, ArrowDown, AlertTriangle, Minus, type LucideIcon } from "lucide-react";
 
-import type { FiltrosState, Estado, Prioridad, TipoTrabajo, Usuario, Ubicacion, Sociedad, CategoriaOT } from "@/types/ordenes";
+import type { FiltrosState, Estado, Prioridad, TipoTrabajo, Usuario, Sociedad, CategoriaOT } from "@/types/ordenes";
 import { CategoriaIcon } from "@/components/ordenes/categoria-icon";
 import { FILTER_META, FILTER_ORDER, type FilterKey, type FilterMeta } from "./filter-registry";
 // Las piezas del dropdown viven en components/filtros: /ordenes-compra y
@@ -11,7 +11,7 @@ import { FILTER_META, FILTER_ORDER, type FilterKey, type FilterMeta } from "./fi
 // no puede quedar aplicado en una barra y no en la otra.
 import {
   Checkbox, OptionRow, TokenSearch, SinResultados, OptionList,
-  FilterDropdown, AddFilterMenu, toggle,
+  FilterDropdown, AddFilterMenu, BarraFiltros, toggle,
 } from "@/components/filtros/primitivas";
 import { FotoOIniciales } from "@/components/FotoPerfil";
 import { CatalogoFiltro } from "@/components/ordenes/CatalogoMultiSelect";
@@ -89,7 +89,7 @@ interface FilterBarProps {
   filtros: FiltrosState;
   onChange: (f: FiltrosState) => void;
   usuarios: Usuario[];
-  ubicaciones: Ubicacion[];
+  /** Solo para saber si el workspace tiene sociedades: las opciones se piden paginadas. */
   sociedades: Sociedad[];
   categorias: CategoriaOT[];
   /** Valores de ITO presentes en el workspace, ya deduplicados y ordenados. */
@@ -101,18 +101,14 @@ interface FilterBarProps {
   coloresBandera?: string[];
   /** Hay OTs enviadas o recibidas: solo entonces se ofrece "Origen". */
   mostrarOrigen?: boolean;
-  /** Usuarios que crearon alguna OT del workspace: las opciones de "Creada por". */
-  creadores?: Usuario[];
-  /** Para el catálogo paginado de usuarios dados de baja. */
+  /** Para los catálogos paginados (Creada por, Dados de baja, Ubicación, Sociedad). */
   wsId: string | null;
   /** Primer elemento de la fila (el toggle de leídas), dentro del mismo wrap. */
   inicio?: React.ReactNode;
 }
 
-export function FilterBar({ filtros, onChange, usuarios, ubicaciones, sociedades, categorias, itos, visibleKeys, onVisibleKeysChange, coloresBandera = [], mostrarOrigen = false, creadores = [], wsId, inicio }: FilterBarProps) {
+export function FilterBar({ filtros, onChange, usuarios, sociedades, categorias, itos, visibleKeys, onVisibleKeysChange, coloresBandera = [], mostrarOrigen = false, wsId, inicio }: FilterBarProps) {
   const [userSearch, setUserSearch]  = useState("");
-  const [ubicSearch, setUbicSearch]  = useState("");
-  const [socSearch,  setSocSearch]   = useState("");
   const [itoSearch,  setItoSearch]   = useState("");
   const [catSearch,  setCatSearch]   = useState("");
 
@@ -138,7 +134,7 @@ export function FilterBar({ filtros, onChange, usuarios, ubicaciones, sociedades
   const hayBajas = usuarios.some(u => u.deleted_at);
   // Bandera solo se ofrece si hay OTs con bandera (y solo dueño/admin las ve).
   const available = FILTER_ORDER
-    .filter(k => !shown.has(k) && (k !== "banderaColores" || coloresBandera.length > 0) && (k !== "origenes" || mostrarOrigen) && (k !== "creadoPorIds" || creadores.length > 0) && (k !== "bajaIds" || hayBajas))
+    .filter(k => !shown.has(k) && (k !== "banderaColores" || coloresBandera.length > 0) && (k !== "origenes" || mostrarOrigen) && (k !== "bajaIds" || hayBajas))
     .map(k => FILTER_META[k]);
   const banderaColores = filtros.banderaColores ?? [];
   const origenes = filtros.origenes ?? [];
@@ -150,14 +146,11 @@ export function FilterBar({ filtros, onChange, usuarios, ubicaciones, sociedades
   const totalActive = FILTER_ORDER.reduce((n, k) => n + FILTER_META[k].count(filtros), 0);
 
   const filteredUsers = usuarios.filter(u => u.nombre.toLowerCase().includes(userSearch.toLowerCase()));
-  const filteredUbic  = ubicaciones.filter(u => (u.edificio + (u.detalle ?? "")).toLowerCase().includes(ubicSearch.toLowerCase()));
-  const filteredSoc   = sociedades.filter(s => s.nombre.toLowerCase().includes(socSearch.toLowerCase()));
   const filteredItos  = itos.filter(i => i.toLowerCase().includes(itoSearch.toLowerCase()));
   const filteredCats  = categorias.filter(c => c.nombre.toLowerCase().includes(catSearch.toLowerCase()));
 
   return (
-    <div style={{ display: "flex", alignItems: "flex-start", gap: 8, width: "100%" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", flex: "1 1 auto", minWidth: 0 }}>
+    <BarraFiltros hayFiltros={totalActive > 0} onLimpiar={() => onChange({ ...EMPTY })}>
       {inicio}
 
       {/* ── Sin asignar ── */}
@@ -219,8 +212,8 @@ export function FilterBar({ filtros, onChange, usuarios, ubicaciones, sociedades
       </FilterDropdown>
       )}
 
-      {/* ── Creada por ── Pocos creadores por workspace: sin buscador. */}
-      {shown.has("creadoPorIds") && creadores.length > 0 && (
+      {/* ── Creada por ── Catálogo paginado de quienes crearon alguna OT. */}
+      {shown.has("creadoPorIds") && (
       <FilterDropdown
         label="Creada por"
         icon={FILTER_ICONS.creadoPorIds}
@@ -229,19 +222,15 @@ export function FilterBar({ filtros, onChange, usuarios, ubicaciones, sociedades
         onClear={() => set({ creadoPorIds: [] })}
         onRemove={() => removeFilter("creadoPorIds")}
       >
-        <div style={{ maxHeight: 320, overflowY: "auto", padding: "6px 0" }}>
-          {creadores.map(u => {
-            const active = creadoPorIds.includes(u.id);
-            return (
-              <OptionRow key={u.id} active={active} onClick={() => set({ creadoPorIds: toggle(creadoPorIds, u.id) })}>
-                <span style={{ width: 22, height: 22, borderRadius: "50%", background: active ? "var(--brand)" : "var(--surface-hover)", color: active ? "var(--fg-on-brand)" : "var(--fg-2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 400, flexShrink: 0 }}>
-                  <FotoOIniciales id={u.id}>{initials(u.nombre)}</FotoOIniciales>
-                </span>
-                <span style={{ flex: 1, minWidth: 0, fontSize: 14, color: "var(--fg-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{u.nombre}</span>
-              </OptionRow>
-            );
-          })}
-        </div>
+        <CatalogoFiltro
+          fuente="creadores" wsId={wsId} value={creadoPorIds}
+          onChange={ids => set({ creadoPorIds: ids })} placeholder="Buscar usuario…"
+          inicio={(o, active) => (
+            <span style={{ width: 22, height: 22, borderRadius: "50%", background: active ? "var(--brand)" : "var(--surface-hover)", color: active ? "var(--fg-on-brand)" : "var(--fg-2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 400, flexShrink: 0 }}>
+              <FotoOIniciales id={o.id}>{initials(o.label)}</FotoOIniciales>
+            </span>
+          )}
+        />
       </FilterDropdown>
       )}
 
@@ -308,25 +297,7 @@ export function FilterBar({ filtros, onChange, usuarios, ubicaciones, sociedades
         onClear={() => set({ ubicacionIds: [] })}
         onRemove={() => removeFilter("ubicacionIds")}
       >
-        <TokenSearch
-          placeholder="Buscar ubicación…"
-          value={ubicSearch}
-          onChange={setUbicSearch}
-          tokens={filtros.ubicacionIds.map(id => {
-            const u = ubicaciones.find(x => x.id === id);
-            return { key: id, label: u ? u.edificio + (u.detalle ? ` · ${u.detalle}` : "") : id };
-          })}
-          onRemove={id => set({ ubicacionIds: filtros.ubicacionIds.filter(x => x !== id) })}
-          onClearAll={() => set({ ubicacionIds: [] })}
-        />
-        <div style={{ maxHeight: 320, overflowY: "auto", padding: "2px 0 6px" }}>
-          {filteredUbic.map(u => (
-            <OptionRow key={u.id} active={filtros.ubicacionIds.includes(u.id)} onClick={() => set({ ubicacionIds: toggle(filtros.ubicacionIds, u.id) })}>
-              <span style={{ flex: 1, minWidth: 0, fontSize: 14, color: "var(--fg-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{u.edificio + (u.detalle ? ` · ${u.detalle}` : "")}</span>
-            </OptionRow>
-          ))}
-          {filteredUbic.length === 0 && <SinResultados />}
-        </div>
+        <CatalogoFiltro fuente="ubicaciones" wsId={wsId} value={filtros.ubicacionIds} onChange={ids => set({ ubicacionIds: ids })} placeholder="Buscar ubicación…" />
       </FilterDropdown>
       )}
 
@@ -465,22 +436,7 @@ export function FilterBar({ filtros, onChange, usuarios, ubicaciones, sociedades
           onClear={() => set({ sociedadIds: [] })}
           onRemove={() => removeFilter("sociedadIds")}
         >
-          <TokenSearch
-            placeholder="Buscar sociedad…"
-            value={socSearch}
-            onChange={setSocSearch}
-            tokens={filtros.sociedadIds.map(id => ({ key: id, label: sociedades.find(x => x.id === id)?.nombre ?? id }))}
-            onRemove={id => set({ sociedadIds: filtros.sociedadIds.filter(x => x !== id) })}
-            onClearAll={() => set({ sociedadIds: [] })}
-          />
-          <div style={{ maxHeight: 320, overflowY: "auto", padding: "2px 0 6px" }}>
-            {filteredSoc.map(s => (
-              <OptionRow key={s.id} active={filtros.sociedadIds.includes(s.id)} onClick={() => set({ sociedadIds: toggle(filtros.sociedadIds, s.id) })}>
-                <span style={{ flex: 1, minWidth: 0, fontSize: 14, color: "var(--fg-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.nombre}</span>
-              </OptionRow>
-            ))}
-            {filteredSoc.length === 0 && <SinResultados />}
-          </div>
+          <CatalogoFiltro fuente="sociedades" wsId={wsId} value={filtros.sociedadIds} onChange={ids => set({ sociedadIds: ids })} placeholder="Buscar sociedad…" />
         </FilterDropdown>
       )}
 
@@ -542,31 +498,7 @@ export function FilterBar({ filtros, onChange, usuarios, ubicaciones, sociedades
       {/* ── + Añadir filtro ── */}
       <AddFilterMenu available={available} icons={FILTER_ICONS} onAdd={addFilter} />
 
-      {/* ── Limpiar todo ──
-          Al final de la fila de chips. Solo aparece cuando hay algo que
-          limpiar: un botón de "borrar" siempre visible pero inerte no comunica
-          nada. */}
-      {totalActive > 0 && (
-        <button
-          type="button"
-          onClick={() => onChange({ ...EMPTY })}
-          style={{
-            // Sin padding horizontal: el contenedor ya aporta `gap: 6`, y un
-            // padding propio se sumaba a ese gap, dejando este botón más
-            // separado del último chip que los chips entre sí.
-            display: "flex", alignItems: "center", justifyContent: "center",
-            height: 34, padding: 0, flexShrink: 0,
-            border: "none", background: "none", color: "var(--brand)",
-            fontSize: 14, fontWeight: 400, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap",
-          }}
-        >
-          Limpiar filtros
-        </button>
-      )}
-
-      </div>
-
-    </div>
+    </BarraFiltros>
   );
 }
 

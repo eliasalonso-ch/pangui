@@ -15,6 +15,7 @@ import { UpgradePrompt } from "@/components/UpgradePrompt";
 import styles from "./partes.module.css";
 import { MaterialFiltrosBar, FILTROS_VACIOS, type FiltrosMateriales, type Opcion } from "./MaterialFiltrosBar";
 import { FotoOIniciales } from "@/components/FotoPerfil";
+import { MenuOrden } from "@/components/MenuOrden";
 
 interface Material {
   id: string; nombre: string; descripcion: string | null; codigo: string;
@@ -97,13 +98,6 @@ const VISIBLE_CHUNK = 20;
 /** Activos que se muestran de una vez en la ficha del material. */
 const ACTIVOS_CHUNK = 4;
 
-function sortLabel(value: SortOption): string {
-  for (const group of SORT_GROUPS) {
-    const found = group.options.find(o => o.value === value);
-    if (found) return `${group.label}: ${found.label}`;
-  }
-  return "";
-}
 type EditorState = { mode: "create" | "edit"; material: Material | null } | null;
 
 const emptyForm = {
@@ -170,11 +164,8 @@ function MaterialesPageInner() {
   const [search, setSearch] = useState("");
   const [filtros, setFiltros] = useState<FiltrosMateriales>(FILTROS_VACIOS);
   const [sort, setSort] = useState<SortOption>("actualizacion_desc");
-  const [sortOpen, setSortOpen] = useState(false);
   const [visibleCount, setVisibleCount] = useState(VISIBLE_CHUNK);
   const sentinelRef = useRef<HTMLDivElement>(null);
-  const [openSortGroup, setOpenSortGroup] = useState<string | null>(null);
-  const sortRef = useRef<HTMLDivElement>(null);
   const [selectedMaterialId, setSelectedMaterialId] = useState<string | null>(null);
   const [selectedLocationId, setSelectedLocationId] = useState<string | null>(null);
   const [editor, setEditor] = useState<EditorState>(null);
@@ -198,15 +189,6 @@ function MaterialesPageInner() {
     setPrevListKey(listKey);
     setVisibleCount(VISIBLE_CHUNK);
   }
-
-  useEffect(() => {
-    if (!sortOpen) return;
-    function onDown(e: MouseEvent) {
-      if (sortRef.current && !sortRef.current.contains(e.target as Node)) setSortOpen(false);
-    }
-    document.addEventListener("mousedown", onDown);
-    return () => document.removeEventListener("mousedown", onDown);
-  }, [sortOpen]);
 
   useEffect(() => {
     if (!requestedMaterialId || !materials.some((material) => material.id === requestedMaterialId)) return;
@@ -428,120 +410,19 @@ function MaterialesPageInner() {
 
         {/* Fila de filtros — chips con el mismo alto (34), radio e icono en azul
             de marca que la FilterBar de /ordenes. */}
-        <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 20px", minHeight: 40, flexWrap: "wrap" }}>
-          <MaterialFiltrosBar filtros={filtros} onChange={setFiltros} opciones={opcionesFiltro} />
-
-          {/* Limpiar — solo aparece cuando hay algo que limpiar, como el
-              "Limpiar" de los dropdowns de /ordenes. */}
-          {(hayFiltrosActivos || search) && (
-            <button
-              type="button"
-              onClick={() => {
-                setSearch("");
-                setFiltros(FILTROS_VACIOS);
-              }}
-              style={{
-                display: "flex", alignItems: "center", gap: 5, height: 34, padding: "0 11px",
-                border: "1px dashed var(--border)", borderRadius: "var(--r-sm)",
-                background: "transparent", color: "var(--fg-3)",
-                fontSize: 14, fontWeight: 400, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap",
-              }}
-            >
-              <X size={14} />
-              Limpiar
-            </button>
-          )}
-        </div>
+        <MaterialFiltrosBar
+          filtros={filtros} onChange={setFiltros} opciones={opcionesFiltro}
+          hayFiltros={hayFiltrosActivos || !!search}
+          onLimpiar={() => { setSearch(""); setFiltros(FILTROS_VACIOS); }}
+          style={{ padding: "6px 20px", minHeight: 40 }}
+        />
       </div>
 
       {reservationWarning && <div className={styles.warning}><CircleAlert size={15} />Las reservas todavía no están habilitadas en la base de datos. Aplica la migración para usar esta sección.</div>}
 
       <main className={styles.main}>
         <section className={`${styles.listPane} ${showRight ? styles.mobileHidden : ""}`}>
-              {/* Linea de conteo + orden — mismo patron que el trigger
-                  "Mostrando: … · Orden: …" de /ordenes. */}
-              <div ref={sortRef} style={{ position: "relative", flexShrink: 0, borderBottom: "1px solid var(--border)" }}>
-                <button
-                  type="button"
-                  onClick={() => setSortOpen(v => !v)}
-                  style={{
-                    display: "flex", alignItems: "center", gap: 6,
-                    width: "100%", padding: "10px 20px",
-                    background: "var(--surface-canvas)", border: "none",
-                    fontSize: 14, color: "var(--fg-2)",
-                    cursor: "pointer", fontFamily: "inherit", textAlign: "left",
-                  }}
-                  onMouseEnter={e => { e.currentTarget.style.background = "var(--surface-hover)"; }}
-                  onMouseLeave={e => { e.currentTarget.style.background = "var(--surface-canvas)"; }}
-                >
-                  <span style={{ color: "var(--fg-3)" }}>Ordenar por:</span>
-                  <span style={{ maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "var(--brand-fg)" }} title={sortLabel(sort)}>
-                    {sortLabel(sort)}
-                  </span>
-                  <ChevronDown size={14} color="var(--brand-fg)" style={{ flexShrink: 0, transform: sortOpen ? "rotate(180deg)" : "none", transition: "transform 0.15s" }} />
-                  <span style={{ marginLeft: "auto" }} />
-                </button>
-
-                {sortOpen && (
-                  <div style={{
-                    position: "absolute", left: 8, right: 8, top: "calc(100% + 4px)", zIndex: 50,
-                    background: "var(--surface-1)", border: "1px solid var(--border)",
-                    borderRadius: 8, boxShadow: "var(--shadow-md)",
-                    maxHeight: "min(480px, calc(100vh - 260px))", overflowX: "hidden", overflowY: "auto",
-                    scrollbarGutter: "stable both-edges",
-                  }}>
-                    {/* Grupo por campo: se despliega y muestra las dos
-                        direcciones, en vez de una lista plana de seis. */}
-                    {SORT_GROUPS.map(group => {
-                      const isOpen = openSortGroup === group.label || group.options.some(o => o.value === sort && openSortGroup === null);
-                      return (
-                        <div key={group.label}>
-                          <button
-                            type="button"
-                            onClick={() => setOpenSortGroup(isOpen ? "" : group.label)}
-                            style={{
-                              display: "flex", alignItems: "center", gap: 8,
-                              width: "100%", padding: "9px 14px", textAlign: "left",
-                              background: "transparent", border: "none",
-                              fontSize: 14, fontWeight: 400, color: "var(--fg-1)",
-                              cursor: "pointer", fontFamily: "inherit",
-                            }}
-                            onMouseEnter={e => { e.currentTarget.style.background = "var(--surface-hover)"; }}
-                            onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}
-                          >
-                            <ChevronDown size={14} color="var(--brand-fg)" style={{ flexShrink: 0, transform: isOpen ? "none" : "rotate(-90deg)", transition: "transform 0.15s" }} />
-                            <span style={{ flex: 1 }}>{group.label}</span>
-                          </button>
-
-                          {isOpen && group.options.map(opt => {
-                            const isActive = sort === opt.value;
-                            return (
-                              <button
-                                key={opt.value}
-                                type="button"
-                                onClick={() => { setSort(opt.value); setSortOpen(false); }}
-                                style={{
-                                  display: "flex", alignItems: "center", gap: 8,
-                                  width: "100%", padding: "9px 14px 9px 36px", textAlign: "left",
-                                  background: isActive ? "var(--brand-tint)" : "transparent",
-                                  border: "none", fontSize: 14, fontWeight: 400,
-                                  color: isActive ? "var(--brand-fg)" : "var(--fg-1)",
-                                  cursor: "pointer", fontFamily: "inherit",
-                                }}
-                                onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = "var(--surface-hover)"; }}
-                                onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = "transparent"; }}
-                              >
-                                <span style={{ flex: 1 }}>{opt.label}</span>
-                                {isActive && <Check size={12} style={{ color: "var(--brand)" }} />}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
+              <MenuOrden grupos={SORT_GROUPS} value={sort} onChange={setSort} />
               <div className={styles.list}>
                 {filteredMaterials.length ? (
                   <>
@@ -578,7 +459,7 @@ function MaterialesPageInner() {
           {editor ? <MaterialEditor state={editor} workspaceId={workspaceId!} activos={activos} activoLinks={editor.material ? activoLinks.filter(link => link.material_id === editor.material!.id) : []} onClose={() => setEditor(null)} onSaved={async () => { await refresh(); setEditor(null); }} />
             : selectedMaterial ? <MaterialDetail material={selectedMaterial} reservations={reservations.filter(item => item.parte_id === selectedMaterial.id)} locations={locations} canManage={canManage} onClose={() => setSelectedMaterialId(null)} onEdit={() => setEditor({ mode: "edit", material: selectedMaterial })} onDelete={() => removeMaterial(selectedMaterial)} onOpenLocation={id => { setSelectedMaterialId(null); setSelectedLocationId(id); }} activoLinks={activoLinks.filter(link => link.material_id === selectedMaterial.id)} stockEntries={stockEntries.filter(entry => entry.parte_id === selectedMaterial.id)} onOpenActivo={id => router.push(`/activos/activos?id=${encodeURIComponent(id)}`)} onOpenActivoEstado={id => router.push(`/activos/${id}/estado`)} onRestock={() => setRestockOpen(true)} comprometido={compromisos.filter(c => c.parte_id === selectedMaterial.id).reduce((sum, c) => sum + c.cantidad, 0)} places={places} />
             : selectedLocation ? <LocationDetail location={selectedLocation} reservations={reservations.filter(item => item.ubicacion_id === selectedLocation.id)} withdrawals={withdrawals.filter(item => item.ubicacion_id === selectedLocation.id)} canManage={canManage} onClose={() => setSelectedLocationId(null)} onReserve={() => setReserveOpen(true)} onRefresh={refresh} onOpenMaterial={id => { setSelectedLocationId(null); setSelectedMaterialId(id); }} />
-            : <EmptyDetail icon={<Package size={28} strokeWidth={1.5} />} title="Selecciona un material" />}
+            : <EmptyDetail />}
         </section>
       </main>
 

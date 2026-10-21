@@ -12,11 +12,17 @@
  * un eje que ya está escrito en `lib/eje-tiempo`. Meter Recharts (~100 kB) para
  * esto agregaría peso al bundle y una API que aprender, a cambio de nada que no
  * sean treinta líneas de path.
+ *
+ * Los datos vienen ya reducidos de la base (`medidor_serie`): a lo más ~400
+ * puntos por ventana, sea una hora o un año. Si un tramo agrupa varias
+ * lecturas, se dibuja su promedio como línea y su mínimo/máximo como banda,
+ * para que un pico que cruza el umbral no desaparezca en el promedio.
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
-import { fetchLecturas, type Lectura, type Medidor } from "@/lib/medidores-api";
+import { fetchSerie, type Medidor, type PuntoSerie } from "@/lib/medidores-api";
 import { marcasDeTiempo } from "@/lib/eje-tiempo";
 
 /** Alto del área de trazado. El eje de abajo va aparte. */
@@ -33,6 +39,8 @@ function fmtHora(iso: string) {
   });
 }
 
+const fmtValor = (v: number) => v.toLocaleString("es-CL", { maximumFractionDigits: 3 });
+
 /**
  * Escala vertical del gráfico.
  *
@@ -41,12 +49,11 @@ function fmtHora(iso: string) {
  * y parecería al borde del colapso. Viendo la línea roja arriba y la serie
  * abajo, el estado se lee de un vistazo.
  *
- * El 8% de aire evita que la serie toque el techo y que un valor quede pegado
- * al borde donde no se distingue del marco.
+ * Usa el mínimo y el máximo de cada tramo, no el promedio: la banda tiene que
+ * caber entera en el alto.
  */
-function escala(lecturas: Lectura[], medidor: Pick<Medidor, "advertencia" | "critico">) {
-  const valores = lecturas.map(l => Number(l.valor));
-  const candidatos = [...valores];
+function escala(serie: PuntoSerie[], medidor: Pick<Medidor, "advertencia" | "critico">) {
+  const candidatos = serie.flatMap(p => [p.valor_min, p.valor_max]);
   if (medidor.advertencia != null) candidatos.push(Number(medidor.advertencia));
   if (medidor.critico != null) candidatos.push(Number(medidor.critico));
 
@@ -62,66 +69,78 @@ function escala(lecturas: Lectura[], medidor: Pick<Medidor, "advertencia" | "cri
   return { min: min - aire, max: max + aire };
 }
 
-export default function LecturasChart({
-  medidor, desde, hasta, refrescar,
-}: {
+export default function LecturasChart({ medidor, desde, hasta }: {
   medidor: Medidor;
+  /**
+   * La ventana. Quien la arma la redondea a un paso fijo (ver la página de
+   * estado): así la clave de caché es estable, volver a la pantalla no consulta
+   * y la serie se renueva sola cada vez que la ventana avanza un paso.
+   */
   desde: Date;
   hasta: Date;
-  /** Cambiar este valor fuerza una recarga (lo usa el realtime del panel). */
-  refrescar?: number;
 }) {
-  const [lecturas, setLecturas] = useState<Lectura[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [hover, setHover] = useState<{ l: Lectura; xPct: number; yPct: number } | null>(null);
+  const [hover, setHover] = useState<{ p: PuntoSerie; x: number; y: number } | null>(null);
 
   const t0 = desde.getTime();
   const t1 = hasta.getTime();
   const span = Math.max(t1 - t0, 1);
 
-  // Se depende de los milisegundos y NO de los objetos `Date`: React compara las
-  // dependencias por identidad, y la ventana crea un `Date` nuevo en cada
-  // render. Con los objetos, el efecto se redispara aunque la ventana sea la
-  // misma —una consulta por render— y el `setLoading(true)` de cada pasada deja
-  // el gráfico parpadeando en vez de dibujar.
-  useEffect(() => {
-    let cancelado = false;
-    setLoading(true);
-    fetchLecturas(medidor.id, new Date(t0), new Date(t1))
-      .then(l => { if (!cancelado) setLecturas(l); })
-      .catch(() => { if (!cancelado) setLecturas([]); })
-      .finally(() => { if (!cancelado) setLoading(false); });
-    return () => { cancelado = true; };
-  }, [medidor.id, t0, t1, refrescar]);
+  // La clave lleva los milisegundos y no los `Date`: la ventana crea objetos
+  // nuevos en cada render, pero mientras no avance un paso es la misma.
+  const { data: serie = [], isPending, isPlaceholderData } = useQuery({
+    queryKey: ["medidor-serie", medidor.id, t0, t1],
+    queryFn: () => fetchSerie(medidor.id, new Date(t0), new Date(t1)),
+    // No `Infinity`: un gateway que estuvo sin red manda su buffer con el `ts`
+    // de cada medición, así que una ventana ya cargada (sobre todo un rango
+    // personalizado del pasado, cuya clave no cambia) puede recibir lecturas
+    // tarde. Con 2 min se vuelven a pedir al volver a la pestaña; mientras se
+    // mira, la ventana igual avanza de clave a su propio paso.
+    staleTime: 2 * 60_000,
+    // Al avanzar la ventana se sigue viendo la serie anterior mientras llega la
+    // nueva, en vez de un spinner cada pocos minutos.
+    placeholderData: keepPreviousData,
+  });
 
   const marcas = useMemo(() => marcasDeTiempo(t0, t1), [t0, t1]);
-  const { min, max } = useMemo(() => escala(lecturas, medidor), [lecturas, medidor]);
+  const { min, max } = useMemo(() => escala(serie, medidor), [serie, medidor]);
 
   /** Valor → % desde arriba (el SVG crece hacia abajo). */
   const yPct = (v: number) => ((max - v) / (max - min)) * 100;
-  const xPct = (iso: string) => ((new Date(iso).getTime() - t0) / span) * 100;
 
   const puntos = useMemo(
-    () => lecturas.map(l => ({ l, x: xPct(l.ts), y: yPct(Number(l.valor)) })),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [lecturas, min, max, t0, span],
+    () => serie
+      .map(p => ({
+        p,
+        x: ((new Date(p.ts).getTime() - t0) / span) * 100,
+        y: ((max - p.valor) / (max - min)) * 100,
+        yMin: ((max - p.valor_min) / (max - min)) * 100,
+        yMax: ((max - p.valor_max) / (max - min)) * 100,
+      }))
+      // Con la serie anterior en pantalla (placeholder) puede haber puntos que
+      // ya quedaron fuera de la ventana nueva.
+      .filter(q => q.x >= 0 && q.x <= 100),
+    [serie, min, max, t0, span],
   );
 
-  const path = useMemo(() => {
-    if (puntos.length === 0) return "";
-    return puntos.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ");
+  const path = useMemo(
+    () => puntos.map((q, i) => `${i === 0 ? "M" : "L"} ${q.x} ${q.y}`).join(" "),
+    [puntos],
+  );
+
+  /** Banda mín–máx: solo si algún tramo agrupa más de una lectura. */
+  const banda = useMemo(() => {
+    if (!puntos.some(q => q.p.n > 1)) return "";
+    const ida = puntos.map((q, i) => `${i === 0 ? "M" : "L"} ${q.x} ${q.yMax}`).join(" ");
+    const vuelta = [...puntos].reverse().map(q => `L ${q.x} ${q.yMin}`).join(" ");
+    return `${ida} ${vuelta} Z`;
   }, [puntos]);
 
   /** Etiquetas del eje vertical: mínimo, medio y máximo bastan para leer escala. */
   const marcasY = useMemo(() => {
     const medio = (min + max) / 2;
-    // `yPct` se recalcula acá en vez de usar el de arriba: depende solo de
-    // min/max, así que incluirlo como dependencia del memo lo invalidaría en
-    // cada render sin que cambie nada.
     const pctDe = (v: number) => ((max - v) / (max - min)) * 100;
     return [max, medio, min].map(v => ({
       v,
-      // Sin decimales cuando el rango es grande: "1.234,567 rpm" no se lee.
       // Decimales según lo fino que sea el rango: con el eje ajustado a los datos
       // un tramo de 0,1 necesita más de un decimal o las tres etiquetas salen
       // iguales; uno de miles no necesita ninguno ("1.234,567 rpm" no se lee).
@@ -129,6 +148,24 @@ export default function LecturasChart({
       pct: pctDe(v),
     }));
   }, [min, max]);
+
+  /**
+   * Hover con una sola capa: busca el punto más cercano en X (los puntos vienen
+   * ordenados por tiempo). Antes era una franja por punto, un nodo del DOM por
+   * lectura.
+   */
+  function alMover(e: React.MouseEvent<HTMLDivElement>) {
+    if (puntos.length === 0) return;
+    const r = e.currentTarget.getBoundingClientRect();
+    const x = ((e.clientX - r.left) / r.width) * 100;
+    let lo = 0, hi = puntos.length - 1;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (puntos[mid].x < x) lo = mid + 1; else hi = mid;
+    }
+    const cerca = lo > 0 && Math.abs(puntos[lo - 1].x - x) < Math.abs(puntos[lo].x - x) ? puntos[lo - 1] : puntos[lo];
+    setHover({ p: cerca.p, x: cerca.x, y: cerca.y });
+  }
 
   return (
     <div>
@@ -145,7 +182,8 @@ export default function LecturasChart({
         </div>
 
         <div
-          style={{ position: "relative", flex: 1, minWidth: 0, height: ALTO, borderLeft: "1px solid var(--border)", borderBottom: "1px solid var(--border)" }}
+          style={{ position: "relative", flex: 1, minWidth: 0, height: ALTO, borderLeft: "1px solid var(--border)", borderBottom: "1px solid var(--border)", cursor: puntos.length ? "crosshair" : undefined }}
+          onMouseMove={alMover}
           onMouseLeave={() => setHover(null)}
         >
           {/* Verticales del eje de tiempo */}
@@ -181,65 +219,62 @@ export default function LecturasChart({
           {/* La serie. `preserveAspectRatio=none` deja que el viewBox 100×100 se
               estire al tamaño real: así el path se escribe en porcentajes y no
               hay que medir el contenedor. `vectorEffect` mantiene el grosor de
-              la línea constante pese a ese estirado. */}
+              la línea constante pese a ese estirado. Atenuada mientras se
+              muestra la serie anterior y llega la de la ventana nueva. */}
           {puntos.length > 0 && (
             <svg viewBox="0 0 100 100" preserveAspectRatio="none"
-              style={{ position: "absolute", inset: 0, width: "100%", height: "100%", overflow: "visible" }}>
+              style={{ position: "absolute", inset: 0, width: "100%", height: "100%", overflow: "visible", opacity: isPlaceholderData ? 0.4 : 1, transition: "opacity 0.15s" }}>
+              {banda && <path d={banda} fill="var(--brand)" fillOpacity={0.12} stroke="none" />}
               <path d={path} fill="none" stroke="var(--brand)" strokeWidth={1.5}
                 vectorEffect="non-scaling-stroke" strokeLinejoin="round" strokeLinecap="round" />
             </svg>
           )}
 
-          {/* Puntos: solo si son pocos. Con cientos de lecturas se convierten en
+          {/* Puntos: solo si son pocos y crudos. Con cientos se convierten en
               una mancha y además cuestan un nodo del DOM cada uno. */}
-          {puntos.length <= 60 && puntos.map(p => (
-            <span key={p.l.id} aria-hidden="true" style={{
-              position: "absolute", left: `${p.x}%`, top: `${p.y}%`,
+          {puntos.length <= 60 && puntos.filter(q => q.p.n === 1).map(q => (
+            <span key={q.p.ts} aria-hidden="true" style={{
+              position: "absolute", left: `${q.x}%`, top: `${q.y}%`,
               width: 5, height: 5, marginLeft: -2.5, marginTop: -2.5,
               borderRadius: 999, background: "var(--brand)",
             }} />
           ))}
 
-          {/* Capa de hover: una franja por lectura, para que el tooltip salga
-              sin tener que apuntar al punto exacto de 5 px. */}
-          {puntos.map(p => (
-            <span
-              key={`h-${p.l.id}`}
-              onMouseEnter={() => setHover({ l: p.l, xPct: p.x, yPct: p.y })}
-              style={{
-                position: "absolute", top: 0, bottom: 0,
-                left: `${p.x}%`, width: 14, marginLeft: -7, cursor: "crosshair",
-              }}
-            />
-          ))}
-
           {hover && (
-            <div style={{
-              position: "absolute", left: `${hover.xPct}%`, top: `${hover.yPct}%`,
-              transform: `translate(${hover.xPct > 70 ? "-105%" : "8px"}, -120%)`,
-              background: "var(--surface-1)", border: "1px solid var(--border)",
-              borderRadius: 8, padding: "6px 9px", boxShadow: "var(--shadow-md)",
-              pointerEvents: "none", whiteSpace: "nowrap", zIndex: 2,
-            }}>
-              <span style={{ display: "block", fontSize: 14, color: "var(--fg-1)" }}>
-                {Number(hover.l.valor)} {medidor.unidad}
-              </span>
-              <span style={{ display: "block", fontSize: 14, color: "var(--fg-4)" }}>
-                {fmtHora(hover.l.ts)}
-              </span>
-              <span style={{ display: "block", fontSize: 14, color: "var(--fg-4)" }}>
-                {hover.l.creado_por ? "Carga manual" : "Dispositivo"}
-              </span>
-            </div>
+            <>
+              <span aria-hidden="true" style={{ position: "absolute", left: `${hover.x}%`, top: 0, bottom: 0, width: 1, background: "var(--border-strong)" }} />
+              <div style={{
+                position: "absolute", left: `${hover.x}%`, top: `${hover.y}%`,
+                transform: `translate(${hover.x > 70 ? "-105%" : "8px"}, -120%)`,
+                background: "var(--surface-1)", border: "1px solid var(--border)",
+                borderRadius: 8, padding: "6px 9px", boxShadow: "var(--shadow-md)",
+                pointerEvents: "none", whiteSpace: "nowrap", zIndex: 2,
+              }}>
+                <span style={{ display: "block", fontSize: 14, color: "var(--fg-1)" }}>
+                  {fmtValor(hover.p.valor)} {medidor.unidad}{hover.p.n > 1 && " promedio"}
+                </span>
+                {hover.p.n > 1 && (
+                  <span style={{ display: "block", fontSize: 14, color: "var(--fg-3)" }}>
+                    mín {fmtValor(hover.p.valor_min)} · máx {fmtValor(hover.p.valor_max)}
+                  </span>
+                )}
+                <span style={{ display: "block", fontSize: 14, color: "var(--fg-4)" }}>
+                  {fmtHora(hover.p.ts)}
+                </span>
+                <span style={{ display: "block", fontSize: 14, color: "var(--fg-4)" }}>
+                  {hover.p.n > 1 ? `${hover.p.n} lecturas` : hover.p.creado_por ? "Carga manual" : "Dispositivo"}
+                </span>
+              </div>
+            </>
           )}
 
-          {loading && (
+          {isPending && (
             <div style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center" }}>
               <Loader2 size={16} className="animate-spin" style={{ color: "var(--fg-4)" }} />
             </div>
           )}
 
-          {!loading && puntos.length === 0 && (
+          {!isPending && puntos.length === 0 && (
             <div style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center" }}>
               <span style={{ fontSize: 14, color: "var(--fg-4)" }}>Sin lecturas en este rango.</span>
             </div>

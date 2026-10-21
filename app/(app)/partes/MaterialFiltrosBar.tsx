@@ -5,7 +5,7 @@ import {
   CircleAlert, Factory, MapPin, Tag, Truck,
 } from "lucide-react";
 import { Engine } from "@/components/icons/Engine";
-import { AddFilterMenu, FiltroMultiple, type OpcionFiltro } from "@/components/filtros/primitivas";
+import { AddFilterMenu, BarraFiltros, FiltroMultiple, type OpcionFiltro } from "@/components/filtros/primitivas";
 
 /** Barra de filtros del inventario. Mismas piezas que /ordenes y /proveedores. */
 
@@ -45,9 +45,13 @@ const STOCK: Opcion[] = [
   { id: "ok", label: "En stock" },
 ];
 
-export function MaterialFiltrosBar({ filtros, onChange, opciones }: {
+export function MaterialFiltrosBar({ filtros, onChange, opciones, hayFiltros, onLimpiar, style }: {
   filtros: FiltrosMateriales;
   onChange: (f: FiltrosMateriales) => void;
+  /** La página decide qué cuenta: también limpia la búsqueda. */
+  hayFiltros: boolean;
+  onLimpiar: () => void;
+  style?: React.CSSProperties;
   /** Sólo valores que tiene algún material: un filtro sin resultados no sirve. */
   opciones: Record<Exclude<Clave, "stock">, Opcion[]>;
 }) {
@@ -61,7 +65,7 @@ export function MaterialFiltrosBar({ filtros, onChange, opciones }: {
   const iconos = Object.fromEntries(ORDEN.map(k => [k, META[k].icon])) as Record<Clave, React.ReactNode>;
 
   return (
-    <>
+    <BarraFiltros hayFiltros={hayFiltros} onLimpiar={onLimpiar} style={style}>
       {ORDEN.filter(k => visibles.includes(k)).map(k => (
         <FiltroMultiple
           key={k}
@@ -75,6 +79,6 @@ export function MaterialFiltrosBar({ filtros, onChange, opciones }: {
         />
       ))}
       <AddFilterMenu available={disponibles} icons={iconos} onAdd={k => setVisibles(prev => [...prev, k])} />
-    </>
+    </BarraFiltros>
   );
 }

@@ -428,10 +428,7 @@ function ProveedoresPageInner() {
               onReactivar={() => reactivar(detalle)}
             />
           ) : (
-            <EmptyDetail
-              icon={<Truck size={28} strokeWidth={1.5} />}
-              title="Selecciona un proveedor"
-            />
+            <EmptyDetail />
           )}
         </div>
       </div>

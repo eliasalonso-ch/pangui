@@ -61,13 +61,14 @@ export function granoPara(rango: Rango): Grano {
 
 /**
  * Etiqueta de un tramo a partir de su inicio ("2026-03-01").
- * Si el rango cruza de año, los meses llevan el año: "oct 25" y "oct 26" no
+ * Si el rango cruza de año, los meses llevan el año: "oct '25" y "oct '26" no
  * pueden quedar los dos como "oct".
  */
 export function etiquetaTramo(clave: string, grano: Grano, cruzaAnio: boolean): string {
   const d = deFecha(clave);
   const mes = MESES_ES[d.getMonth()];
-  if (grano === "mes") return cruzaAnio ? `${mes} ${String(d.getFullYear()).slice(2)}` : mes;
+  // Año con apóstrofo ("oct '26"): sin él, "oct 26" se leía como el día 26.
+  if (grano === "mes") return cruzaAnio ? `${mes} '${String(d.getFullYear()).slice(2)}` : mes;
   return `${d.getDate()} ${mes}`;
 }
 

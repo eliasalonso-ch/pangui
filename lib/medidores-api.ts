@@ -198,10 +198,13 @@ export function nivelDeLectura(valor: number, medidor: Pick<Medidor, "advertenci
   return "normal";
 }
 
-/** Los medidores vigentes de un activo, con su última lectura. */
-export async function fetchMedidoresDeActivo(activoId: string): Promise<MedidorConUltima[]> {
-  const sb = createClient();
-  const { data, error } = await sb
+/**
+ * Los medidores vigentes de un activo, sin lecturas. Para quien solo necesita
+ * nombre, unidad y umbrales (los gráficos de la página de estado piden su
+ * propia serie); la última lectura es una consulta más que ahí no se usa.
+ */
+export async function fetchMedidoresBase(activoId: string): Promise<Medidor[]> {
+  const { data, error } = await createClient()
     .from("medidores")
     .select(MEDIDOR_SELECT)
     .eq("activo_id", activoId)
@@ -209,7 +212,13 @@ export async function fetchMedidoresDeActivo(activoId: string): Promise<MedidorC
     .order("created_at", { ascending: true });
 
   if (error) throw error;
-  const medidores = (data ?? []) as unknown as Medidor[];
+  return (data ?? []) as unknown as Medidor[];
+}
+
+/** Los medidores vigentes de un activo, con su última lectura. */
+export async function fetchMedidoresDeActivo(activoId: string): Promise<MedidorConUltima[]> {
+  const sb = createClient();
+  const medidores = await fetchMedidoresBase(activoId);
   if (medidores.length === 0) return [];
 
   // Una consulta para todas las últimas lecturas en vez de una por medidor: un
@@ -217,7 +226,42 @@ export async function fetchMedidoresDeActivo(activoId: string): Promise<MedidorC
   return conUltimaLectura(sb, medidores);
 }
 
-/** La serie de un medidor dentro de una ventana, para el gráfico. */
+/**
+ * Punto de un gráfico de medidor: una lectura cruda (`n` = 1) o, si la ventana
+ * trae muchas, un tramo agregado con su promedio, mínimo y máximo (`n` > 1).
+ */
+export interface PuntoSerie {
+  ts: string;
+  valor: number;
+  valor_min: number;
+  valor_max: number;
+  n: number;
+  /** Solo en lecturas crudas. */
+  id: string | null;
+  /** Solo en lecturas crudas; `null` = la publicó un equipo. */
+  creado_por: string | null;
+}
+
+/**
+ * La serie lista para graficar: a lo más `puntos` puntos, agregados en la base
+ * (RPC `medidor_serie`). Para gráficos; quien necesite cada lectura (estadística,
+ * tabla) usa `fetchLecturas`.
+ */
+export async function fetchSerie(medidorId: string, desde: Date, hasta: Date, puntos = 400): Promise<PuntoSerie[]> {
+  const { data, error } = await createClient().rpc("medidor_serie", {
+    p_medidor_id: medidorId,
+    p_desde: desde.toISOString(),
+    p_hasta: hasta.toISOString(),
+    p_puntos: puntos,
+  });
+  if (error) throw error;
+  // numeric llega como string desde PostgREST.
+  return ((data ?? []) as PuntoSerie[]).map(p => ({
+    ...p, valor: Number(p.valor), valor_min: Number(p.valor_min), valor_max: Number(p.valor_max),
+  }));
+}
+
+/** Todas las lecturas de un medidor dentro de una ventana. */
 export async function fetchLecturas(medidorId: string, desde: Date, hasta: Date): Promise<Lectura[]> {
   const sb = createClient();
   const { data, error } = await sb

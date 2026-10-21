@@ -6,7 +6,6 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   BellRing, Calendar, Check, ChevronDown, ChevronRight, CircleUserRound, CreditCard, Inbox, Link2, List, LogOut, MapPin, MapPinned, Monitor, Moon, SlidersHorizontal, Sun,
 } from "lucide-react";
-import { Engine } from "@/components/icons/Engine";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -53,10 +52,6 @@ const VISTAS_ORDENES = [
   { label: "Calendario", href: "/ordenes/calendario", icon: <Calendar size={16} /> },
 ];
 // Reemplazan los controles segmentados que había sobre cada sección.
-const VISTAS_ACTIVOS = [
-  { label: "Activos", href: "/activos/activos", icon: <Engine size={16} /> },
-  { label: "Ubicaciones", href: "/activos/ubicaciones", icon: <MapPin size={16} /> },
-];
 const VISTAS_UBICACIONES = [
   { label: "Ubicaciones", href: "/ubicaciones/ubicaciones", icon: <MapPin size={16} /> },
   { label: "Lugares específicos", href: "/ubicaciones/lugares", icon: <MapPinned size={16} /> },
@@ -102,8 +97,8 @@ function pageTrail(pathname: string): Crumb[] {
   // sobre uno que se está editando.
   if (pathname.startsWith("/planes/crear")) return ["Operaciones", { label: "Planes de mantención", href: "/planes" }, "Formulario"];
   if (pathname.startsWith("/planes")) return ["Operaciones", "Planes de mantención"];
-  const vActivos = vistaDe(pathname, VISTAS_ACTIVOS);
-  if (vActivos) return ["Operaciones", vActivos];
+  if (pathname === "/activos/activos") return ["Operaciones", "Activos"];
+  if (/^\/activos\/[^/]+\/estado$/.test(pathname)) return ["Operaciones", { label: "Activos", href: "/activos/activos" }, "Estado"];
   if (pathname.startsWith("/activos/")) return ["Operaciones", { label: "Activos", href: "/activos/activos" }, "Detalle"];
   if (pathname.startsWith("/activos")) return ["Operaciones", "Activos"];
   if (pathname.startsWith("/partes")) return ["Operaciones", "Materiales"];

@@ -70,42 +70,7 @@ export function EmptyState({
   );
 }
 
-/**
- * Vacio del panel derecho: nada seleccionado todavia.
- *
- * Gris y no azul a proposito: el azul del vacio de la izquierda acompana una
- * accion que hay que tomar, y aca no hay ninguna — solo falta abrir una
- * tarjeta. Pintarlo de marca competiria con la lista, que es donde tiene que
- * ir el ojo.
- *
- * Alineado arriba y no centrado: centrado verticalmente quedaba a distinta
- * altura que la primera tarjeta de la izquierda, y las dos columnas se leian
- * desfasadas. El padding lo deja a la altura de esa primera tarjeta.
- */
-export function EmptyDetail({ icon, title, hint }: {
-  icon: React.ReactNode;
-  title: string;
-  hint?: string;
-}) {
-  return (
-    <div style={{
-      flex: 1, minWidth: 0, height: "100%",
-      display: "flex", flexDirection: "column", alignItems: "center",
-      // 70px, el mismo padding que EmptyState: así los dos vacíos arrancan a
-      // la misma altura y las dos columnas no se leen desfasadas.
-      paddingTop: 70, background: "var(--surface-canvas)",
-    }}>
-      <span style={{
-        width: 64, height: 64, borderRadius: "var(--r-lg)",
-        background: "var(--brand-tint)", color: "var(--brand)",
-        display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 14,
-      }}>
-        {icon}
-      </span>
-      <p style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", margin: 0 }}>{title}</p>
-      <p style={{ fontSize: 14, color: "var(--fg-3)", margin: "4px 0 0" }}>
-        {hint ?? "El detalle aparecerá aquí"}
-      </p>
-    </div>
-  );
+/** Panel de detalle sin nada abierto: solo el fondo, sin ícono ni texto. */
+export function EmptyDetail() {
+  return <div style={{ flex: 1, minWidth: 0, height: "100%", background: "var(--surface-canvas)" }} />;
 }

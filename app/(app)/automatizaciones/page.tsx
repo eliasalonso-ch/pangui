@@ -390,10 +390,7 @@ function AutomatizacionesPageInner() {
               />
             </div>
           ) : (
-            <EmptyDetail
-              icon={<Workflow size={28} strokeWidth={1.5} />}
-              title="Selecciona una automatización"
-            />
+            <EmptyDetail />
           )}
         </div>
       </div>

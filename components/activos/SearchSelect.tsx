@@ -13,10 +13,14 @@
  * salida: hay que irse a otra pantalla a crearlo y volver.
  *
  * `onCreate` devuelve el id de la fila nueva para poder seleccionarla al toque.
+ *
+ * Si recibe `onDelete`, cada opción muestra una papelera. Crear y borrar viven
+ * en el mismo lugar: un catálogo que se arma escribiendo también junta errores
+ * de tipeo, y sin esto no hay dónde sacarlos.
  */
 
 import { useEffect, useRef, useState } from "react";
-import { Check, ChevronDown, Loader2, Plus } from "lucide-react";
+import { Check, ChevronDown, Loader2, Plus, Trash2 } from "lucide-react";
 
 export interface SearchSelectOption {
   id: string;
@@ -26,7 +30,7 @@ export interface SearchSelectOption {
 
 export default function SearchSelect({
   placeholder, value, options, onChange, disabled,
-  emptyLabel = "Sin asignar", onCreate, createLabel, icono, haciaArriba,
+  emptyLabel = "Sin asignar", onCreate, createLabel, icono, haciaArriba, onDelete,
 }: {
   placeholder: string;
   value: string;
@@ -46,11 +50,32 @@ export default function SearchSelect({
   createLabel?: string;
   /** Abre el panel sobre el control: para el último campo de un formulario, pegado al footer. */
   haciaArriba?: boolean;
+  /** Borra una opción del catálogo. Pide confirmar en la misma fila. */
+  onDelete?: (id: string) => Promise<void>;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
+  // Opción con el "¿Borrar?" a la vista (primer clic en la papelera) y la que
+  // se está borrando.
+  const [confirmando, setConfirmando] = useState<string | null>(null);
+  const [borrando, setBorrando] = useState<string | null>(null);
+
+  async function handleDelete(id: string) {
+    if (!onDelete || borrando) return;
+    setBorrando(id);
+    setCreateError(null);
+    try {
+      await onDelete(id);
+      if (value === id) onChange("");
+      setConfirmando(null);
+    } catch (err) {
+      setCreateError(err instanceof Error ? err.message : "No se pudo borrar.");
+    } finally {
+      setBorrando(null);
+    }
+  }
   const ref = useRef<HTMLDivElement>(null);
 
   // Abierto al final de un formulario con scroll, el panel quedaba bajo el
@@ -160,23 +185,43 @@ export default function SearchSelect({
               {emptyLabel}
             </button>
             {filtered.map(o => (
-              <button
-                key={o.id}
-                type="button"
-                onClick={() => { onChange(o.id); setOpen(false); }}
-                style={{
-                  display: "flex", alignItems: "center", gap: 6,
-                  width: "100%", padding: "10px 12px", fontSize: 14,
-                  background: value === o.id ? "var(--brand-tint)" : "transparent",
-                  border: "none", cursor: "pointer", fontFamily: "inherit",
-                }}
-              >
-                {value === o.id && <Check size={11} style={{ color: "var(--brand)", flexShrink: 0 }} />}
-                <div style={{ flex: 1, minWidth: 0, textAlign: "left" }}>
-                  <div style={{ color: "var(--fg-1)" }}>{o.label}</div>
-                  {o.sub && <div style={{ fontSize: 14, color: "var(--fg-4)" }}>{o.sub}</div>}
-                </div>
-              </button>
+              <div key={o.id} style={{ display: "flex", alignItems: "center", background: value === o.id ? "var(--brand-tint)" : "transparent" }}>
+                <button
+                  type="button"
+                  onClick={() => { onChange(o.id); setOpen(false); }}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 6, flex: 1, minWidth: 0,
+                    padding: "10px 12px", fontSize: 14,
+                    background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit",
+                  }}
+                >
+                  {value === o.id && <Check size={11} style={{ color: "var(--brand)", flexShrink: 0 }} />}
+                  <div style={{ flex: 1, minWidth: 0, textAlign: "left" }}>
+                    <div style={{ color: "var(--fg-1)" }}>{o.label}</div>
+                    {o.sub && <div style={{ fontSize: 14, color: "var(--fg-4)" }}>{o.sub}</div>}
+                  </div>
+                </button>
+                {onDelete && (confirmando === o.id ? (
+                  <span style={{ display: "flex", alignItems: "center", gap: 8, paddingRight: 12, flexShrink: 0 }}>
+                    <button type="button" onClick={() => void handleDelete(o.id)} disabled={borrando === o.id}
+                      style={{ border: "none", background: "none", padding: 0, cursor: "pointer", fontFamily: "inherit", fontSize: 14, color: "var(--danger)" }}>
+                      {borrando === o.id ? "Borrando…" : "Borrar"}
+                    </button>
+                    <button type="button" onClick={() => setConfirmando(null)}
+                      style={{ border: "none", background: "none", padding: 0, cursor: "pointer", fontFamily: "inherit", fontSize: 14, color: "var(--fg-4)" }}>
+                      Cancelar
+                    </button>
+                  </span>
+                ) : (
+                  <button type="button" aria-label={`Borrar ${o.label}`} title="Borrar"
+                    onClick={() => setConfirmando(o.id)}
+                    style={{ display: "flex", flexShrink: 0, padding: "0 12px", height: 36, alignItems: "center", border: "none", background: "none", cursor: "pointer", color: "var(--fg-4)" }}
+                    onMouseEnter={e => { e.currentTarget.style.color = "var(--danger)"; }}
+                    onMouseLeave={e => { e.currentTarget.style.color = "var(--fg-4)"; }}>
+                    <Trash2 size={14} />
+                  </button>
+                ))}
+              </div>
             ))}
             {filtered.length === 0 && !canCreate && (
               <div style={{ padding: "8px 10px", fontSize: 14, color: "var(--fg-4)" }}>Sin resultados</div>

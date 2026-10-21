@@ -4,11 +4,11 @@ import { useState } from "react";
 import { Check, Truck, Clock, Package } from "lucide-react";
 import {
   OptionRow, TokenSearch, SinResultados, OptionList,
-  FilterDropdown, AddFilterMenu, toggle,
+  FilterDropdown, AddFilterMenu, BarraFiltros, toggle,
 } from "@/components/filtros/primitivas";
 import { ESTADO_OC_LABELS, ESTADO_OC_COLOR, type EstadoOrdenCompra } from "@/types/ordenes-compra";
 import {
-  FILTER_META_OC, FILTER_ORDER_OC,
+  FILTER_META_OC, FILTER_ORDER_OC, EMPTY_FILTROS_OC, contarFiltrosOC,
   type FiltrosOC, type FilterKeyOC, type FechaOCPreset,
 } from "./filter-registry";
 
@@ -72,7 +72,7 @@ export function OCFiltrosBar({
   const nombreMat = (id: string) => materiales.find(m => m.id === id)?.nombre ?? id;
 
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+    <BarraFiltros hayFiltros={contarFiltrosOC(filtros) > 0} onLimpiar={() => onChange({ ...EMPTY_FILTROS_OC })}>
       {visible("estados") && (
         <FilterDropdown
           label="Estado"
@@ -198,6 +198,6 @@ export function OCFiltrosBar({
       )}
 
       <AddFilterMenu available={available} icons={FILTER_ICONS_OC} onAdd={k => onVisibleKeysChange([...visibleKeys, k])} />
-    </div>
+    </BarraFiltros>
   );
 }

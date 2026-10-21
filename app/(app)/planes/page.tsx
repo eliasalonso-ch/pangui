@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
-  Wrench, Plus, Search, Loader2, CalendarClock, RotateCw, FileText, MapPin, Pause, User,
+  Wrench, Plus, Search, Loader2, CalendarClock, RotateCw, MapPin, Pause, User,
 } from "lucide-react";
 import { Engine } from "@/components/icons/Engine";
 import {
@@ -11,11 +11,12 @@ import {
   PLANES_PAGE_SIZE, FILTROS_PLANES_VACIOS, type FiltrosPlanes,
 } from "@/lib/planes-api";
 import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
-import { FiltroMultiple } from "@/components/filtros/primitivas";
+import { BarraFiltros, FiltroMultiple } from "@/components/filtros/primitivas";
 import { RECURRENCIA_PLAN_LABELS, type PlanListItem } from "@/types/planes";
 import { useSuscripcion } from "@/hooks/useSuscripcion";
 import { UpgradePrompt } from "@/components/UpgradePrompt";
 import PlanDetalle from "./PlanDetalle";
+import { EmptyDetail } from "@/components/EmptyState";
 
 /**
  * Listado de planes de mantención.
@@ -255,7 +256,7 @@ function PlanesPageInner() {
         </div>
 
           {/* Filtros: mismas piezas que /medidores y /proveedores. */}
-          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", padding: "0 20px 9px" }}>
+          <BarraFiltros hayFiltros={hayFiltros} onLimpiar={() => setFiltros(FILTROS_PLANES_VACIOS)} style={{ padding: "0 20px 9px" }}>
             <FiltroMultiple
               label="Estado" icon={<Pause size={16} />} buscable={false}
               opciones={[{ id: "vigente", label: "Vigentes" }, { id: "pausado", label: "Pausados" }]}
@@ -286,7 +287,7 @@ function PlanesPageInner() {
               seleccion={filtros.asignados}
               onChange={v => setFiltros(f => ({ ...f, asignados: v }))}
             />
-        </div>
+          </BarraFiltros>
       </div>
 
       {/* Cuerpo */}
@@ -344,13 +345,7 @@ function PlanesPageInner() {
             }}
           />
         ) : (
-          <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: "var(--surface-canvas)" }}>
-            <span style={{ width: 64, height: 64, borderRadius: 14, background: "var(--surface-hover)", color: "var(--fg-4)", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 14 }}>
-              <FileText size={28} strokeWidth={1.5} />
-            </span>
-            <p style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)", margin: 0 }}>Selecciona un plan</p>
-            <p style={{ fontSize: 14, color: "var(--fg-3)", margin: "4px 0 0" }}>El detalle aparecerá aquí</p>
-          </div>
+          <EmptyDetail />
         )}
       </div>
     </div>

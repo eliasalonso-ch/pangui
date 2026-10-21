@@ -14,6 +14,9 @@ import {
   type ActivoOTHistoryRow, type ActivoActividadRow,
 } from "@/lib/activos-api";
 import AuditFooter from "@/components/catalogo/AuditFooter";
+import { BarraFiltros, FilterDropdown, OptionRow, OptionList, toggle } from "@/components/filtros/primitivas";
+import { MenuOrden } from "@/components/MenuOrden";
+import { CatalogoFiltro } from "@/components/ordenes/CatalogoMultiSelect";
 import SearchSelect from "@/components/activos/SearchSelect";
 import { EmptyState, EmptyDetail } from "@/components/EmptyState";
 import { cambiarEstadoActivo, fetchPeriodoVigente, type EstadoPeriodo } from "@/lib/activo-estado-api";
@@ -118,8 +121,6 @@ const ACTIVO_NAV: { tab: ActivoTab; label: string; icon: React.ElementType }[] =
 const ACTIVIDAD_PAGE_SIZE = 20;
 const OT_PAGE_SIZE = 20;
 
-type CritFilter = AssetCriticality | "all";
-
 type ActivoSortOption =
   | "nombre_asc" | "nombre_desc"
   | "creacion_asc" | "creacion_desc"
@@ -147,14 +148,6 @@ const ACTIVO_SORT_GROUPS: { label: string; options: { value: ActivoSortOption; l
     { value: "criticidad_asc",  label: "Más baja primero" },
   ] },
 ];
-
-function activoSortLabel(value: ActivoSortOption): string {
-  for (const group of ACTIVO_SORT_GROUPS) {
-    const found = group.options.find(o => o.value === value);
-    if (found) return `${group.label}: ${found.label}`;
-  }
-  return "";
-}
 
 // Criticidad weight for sorting (higher = more critical, floats to top).
 const CRIT_ORDER: Record<string, number> = { critico: 3, semi_critico: 2, no_critico: 1 };
@@ -187,176 +180,16 @@ function ubicacionLabel(activo: Activo) {
   return activo.ubicacion ? [activo.ubicacion.edificio, activo.ubicacion.detalle].filter(Boolean).join(" · ") : null;
 }
 
-function AssetFilterDropdown({ label, icon, active, children }: { label: string; icon: React.ReactNode; active: boolean; children: React.ReactNode }) {
-  const [open, setOpen] = useState(false);
-  const buttonRef = useRef<HTMLButtonElement>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
-  const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
-  useEffect(() => {
-    const close = (event: MouseEvent) => {
-      const target = event.target as Node;
-      if (!buttonRef.current?.contains(target) && !menuRef.current?.contains(target)) setOpen(false);
-    };
-    document.addEventListener("mousedown", close);
-    return () => document.removeEventListener("mousedown", close);
-  }, []);
-  useEffect(() => {
-    if (!open) return;
-    const reposition = () => {
-      const rect = buttonRef.current?.getBoundingClientRect();
-      if (rect) setMenuPosition({ top: rect.bottom + 4, left: rect.left });
-    };
-    window.addEventListener("resize", reposition);
-    window.addEventListener("scroll", reposition, true);
-    return () => { window.removeEventListener("resize", reposition); window.removeEventListener("scroll", reposition, true); };
-  }, [open]);
-  const toggleMenu = () => {
-    if (!open) {
-      const rect = buttonRef.current?.getBoundingClientRect();
-      if (rect) setMenuPosition({ top: rect.bottom + 4, left: rect.left });
-    }
-    setOpen(value => !value);
-  };
-  return <div style={{ position: "relative" }}>
-    {/* Mismas medidas que los chips de FilterBar en /ordenes: 34 de alto,
-        radio --r-sm y 14px normal. Antes medía 28 y se veía como otro
-        componente al lado de la misma barra en la pantalla vecina. */}
-    <button ref={buttonRef} type="button" onClick={toggleMenu} style={{ display: "flex", alignItems: "center", gap: 6, height: 34, padding: "0 11px", border: active ? "1.5px solid var(--brand)" : "1px solid var(--border)", borderRadius: "var(--r-sm)", background: active ? "var(--brand-tint)" : "var(--surface-1)", color: active ? "var(--brand)" : "var(--fg-2)", fontSize: 14, fontWeight: 400, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" }}>
-      {/* El ícono va siempre en azul de marca, también con el chip inactivo:
-          es lo que identifica al filtro de un vistazo. */}
-      <span style={{ display: "flex", color: "var(--brand)" }}>{icon}</span>
-      {label}
-    </button>
-    {open && createPortal(<div ref={menuRef} style={{ position: "fixed", top: menuPosition.top, left: menuPosition.left, zIndex: 10000, minWidth: 220, padding: 6, background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: 8, boxShadow: "var(--shadow-md)" }}>{children}</div>, document.body)}
-  </div>;
+const CRITICIDADES: [AssetCriticality, string][] = [["critico", "Crítico"], ["semi_critico", "Semi-crítico"], ["no_critico", "No crítico"]];
+const etiquetaOpcion: React.CSSProperties = { flex: 1, minWidth: 0, fontSize: 14, color: "var(--fg-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
+
+/** Cuántos activos usan la opción, a la derecha de la fila. */
+function Conteo({ n }: { n: number | undefined }) {
+  return n ? <span style={{ fontSize: 14, color: "var(--fg-4)" }}>{n}</span> : null;
 }
 
-// 14px en peso normal, como el resto de la app: el `500 12px` de antes era el
-// único texto de ese tamaño en toda la pantalla.
-/**
- * Chip de filtro sobre un catalogo: "Todas" mas una opcion por fila. Existe
- * para no repetir el mismo bloque en cada filtro — con seis chips el markup
- * inline se volvia imposible de leer.
- */
-/** Cuantas opciones se pintan de entrada y cuantas suma cada tanda al bajar. */
-const CATALOGO_TANDA = 30;
-
-/**
- * Chip de filtro sobre un catalogo: buscador arriba y la lista debajo.
- *
- * Dos cosas que no son decorativas:
- *
- * 1. **Buscador.** Con decenas de ubicaciones o responsables, encontrar uno
- *    desplazando es peor que escribir tres letras. Mismo comportamiento que los
- *    filtros de /ordenes.
- *
- * 2. **Carga incremental.** Se pintan `CATALOGO_TANDA` filas y se agregan mas al
- *    llegar al final del scroll. Antes se montaban TODAS de una: con un catalogo
- *    grande son cientos de nodos por menu, y se pagan aunque el usuario escriba
- *    dos letras y elija la primera opcion.
- */
-function CatalogFilter({ label, icon, value, onChange, options, allLabel = "Todas", searchPlaceholder }: {
-  label: string;
-  icon: React.ReactNode;
-  value: string;
-  onChange: (v: string) => void;
-  options: { id: string; nombre: string; count?: number }[];
-  allLabel?: string;
-  searchPlaceholder?: string;
-}) {
-  const [q, setQ] = useState("");
-  const [visibles, setVisibles] = useState(CATALOGO_TANDA);
-
-  const filtradas = useMemo(() => {
-    const t = q.trim().toLowerCase();
-    return t ? options.filter(o => o.nombre.toLowerCase().includes(t)) : options;
-  }, [options, q]);
-
-  /**
-   * Buscar tambien reinicia el paginado, y se hace en el mismo set: escribir es
-   * volver a la primera tanda. Con un efecto aparte seria un render en cascada,
-   * y ademas un termino con pocos resultados heredaria el "ya mostre 90" de la
-   * busqueda anterior.
-   */
-  function buscar(texto: string) {
-    setQ(texto);
-    setVisibles(CATALOGO_TANDA);
-  }
-
-  const mostradas = filtradas.slice(0, visibles);
-  const hayMas = filtradas.length > mostradas.length;
-
-  return (
-    <AssetFilterDropdown label={label} icon={icon} active={value !== "all"}>
-      {/* El buscador solo aparece cuando hay suficientes opciones para que
-          desplazarse moleste; con cuatro filas es ruido. */}
-      {options.length > 8 && (
-        <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "2px 8px 8px", borderBottom: "1px solid var(--border)", marginBottom: 4 }}>
-          <Search size={14} style={{ color: "var(--fg-4)", flexShrink: 0 }} />
-          <input
-            autoFocus
-            value={q}
-            onChange={e => buscar(e.target.value)}
-            placeholder={searchPlaceholder ?? `Buscar ${label.toLowerCase()}…`}
-            style={{ flex: 1, minWidth: 0, height: 28, border: "none", outline: "none", background: "transparent", color: "var(--fg-1)", fontSize: 14, fontFamily: "inherit" }}
-          />
-          {q && (
-            <button type="button" onClick={() => buscar("")} aria-label="Limpiar búsqueda"
-              style={{ background: "none", border: "none", cursor: "pointer", color: "var(--fg-4)", display: "flex", padding: 0 }}>
-              <X size={13} />
-            </button>
-          )}
-        </div>
-      )}
-
-      <div
-        style={{ maxHeight: 320, overflowY: "auto" }}
-        onScroll={e => {
-          if (!hayMas) return;
-          const el = e.currentTarget;
-          // 48px de margen: la tanda siguiente se pide justo antes de tocar el
-          // fondo, para que no se vea el salto.
-          if (el.scrollTop + el.clientHeight >= el.scrollHeight - 48) {
-            setVisibles(v => v + CATALOGO_TANDA);
-          }
-        }}
-      >
-        {/* "Todas" solo con la busqueda vacia: con un termino escrito es una
-            fila que no coincide con lo buscado. */}
-        {!q && (
-          <button
-            type="button"
-            onClick={() => onChange("all")}
-            style={{ ...assetFilterOptionStyle, background: value === "all" ? "var(--brand-tint)" : "transparent", color: value === "all" ? "var(--brand-fg)" : "var(--fg-2)" }}
-          >
-            {allLabel}
-          </button>
-        )}
-        {mostradas.map(o => (
-          <button
-            key={o.id}
-            type="button"
-            onClick={() => onChange(o.id)}
-            style={{ ...assetFilterOptionStyle, background: value === o.id ? "var(--brand-tint)" : "transparent", color: value === o.id ? "var(--brand-fg)" : "var(--fg-2)" }}
-          >
-            <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{o.nombre}</span>
-            {o.count !== undefined && <span style={{ color: "var(--fg-4)", marginLeft: 8 }}>{o.count}</span>}
-          </button>
-        ))}
-        {filtradas.length === 0 && (
-          <div style={{ padding: "10px 12px", fontSize: 14, color: "var(--fg-4)" }}>Sin resultados</div>
-        )}
-        {hayMas && (
-          <div style={{ padding: "8px 12px", fontSize: 14, color: "var(--fg-4)" }}>
-            {filtradas.length - mostradas.length} más…
-          </div>
-        )}
-      </div>
-    </AssetFilterDropdown>
-  );
-}
-
-const assetFilterOptionStyle: React.CSSProperties = { display: "flex", alignItems: "center", width: "100%", minHeight: 34, padding: "0 10px", border: 0, borderRadius: 6, background: "transparent", color: "var(--fg-2)", fontSize: 14, fontWeight: 400, fontFamily: "inherit", textAlign: "left", cursor: "pointer" };
+/** Filtro de selección múltiple: vacío = sin filtrar. */
+const fuera = (ids: readonly string[], v: string | null | undefined) => ids.length > 0 && !ids.includes(v ?? "");
 
 /**
  * Icono solido: el color va en el trazo del icono, no en el texto ni en el
@@ -2704,7 +2537,6 @@ function ActivoDetail({
 }
 
 export default function ActivosBandeja({ initialActivos, usuarios, ubicaciones, lugares, sociedades, fabricantes: fabricantesIniciales, modelos: modelosIniciales, proveedores: proveedoresIniciales, materiales, cuadrillas, myRol, wsId, initialSelectedId }: Props) {
-  const router = useRouter();
   const pathname = usePathname();
   const [activos, setActivos] = useState<Activo[]>(initialActivos);
   /**
@@ -2731,22 +2563,18 @@ export default function ActivosBandeja({ initialActivos, usuarios, ubicaciones, 
    */
   const [editing, setEditing] = useState<Activo | null | "new" | { bajo: string }>(null);
   const [search, setSearch] = useState("");
-  const locationsView = pathname.endsWith("/ubicaciones");
-  const [filterCrit, setFilterCrit] = useState<CritFilter>("all");
-  const [filterSociedadId, setFilterSociedadId] = useState<string | "all">("all");
-  const [filterEstado, setFilterEstado] = useState<AssetStatus | "all">("all");
-  const [filterUbicacionId, setFilterUbicacionId] = useState<string | "all">("all");
-  const [filterLugarId, setFilterLugarId] = useState<string | "all">("all");
+  const [filterCrit, setFilterCrit] = useState<AssetCriticality[]>([]);
+  const [filterSociedadIds, setFilterSociedadIds] = useState<string[]>([]);
+  const [filterEstado, setFilterEstado] = useState<AssetStatus[]>([]);
+  const [filterUbicacionIds, setFilterUbicacionIds] = useState<string[]>([]);
+  const [filterLugarIds, setFilterLugarIds] = useState<string[]>([]);
   // "sin" = activos sin responsable asignado, que es una pregunta real: son los
   // que no tienen a nadie a cargo.
-  const [filterResponsableId, setFilterResponsableId] = useState<string | "all" | "sin">("all");
-  const [filterFabricanteId, setFilterFabricanteId] = useState<string | "all">("all");
-  const [filterModeloId, setFilterModeloId] = useState<string | "all">("all");
+  const [filterResponsableIds, setFilterResponsableIds] = useState<string[]>([]);
+  const [filterFabricanteIds, setFilterFabricanteIds] = useState<string[]>([]);
+  const [filterModeloIds, setFilterModeloIds] = useState<string[]>([]);
   const [sort, setSort] = useState<ActivoSortOption>("nombre_asc");
-  const [sortOpen, setSortOpen] = useState(false);
-  const [openSortGroup, setOpenSortGroup] = useState<string | null>(null);
   const [isDesktop, setIsDesktop] = useState(false);
-  const sortRef = useRef<HTMLDivElement>(null);
 
   const canCreate = myRol !== "requester";
   const selectedActivo = selected ? activos.find(a => a.id === selected) ?? null : null;
@@ -2763,16 +2591,6 @@ export default function ActivosBandeja({ initialActivos, usuarios, ubicaciones, 
     mq.addEventListener("change", h);
     return () => mq.removeEventListener("change", h);
   }, []);
-
-  // Close sort dropdown on outside click.
-  useEffect(() => {
-    if (!sortOpen) return;
-    const handler = (e: MouseEvent) => {
-      if (sortRef.current && !sortRef.current.contains(e.target as Node)) setSortOpen(false);
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [sortOpen]);
 
   useEffect(() => {
     const currentQuery = window.location.search.slice(1);
@@ -2838,13 +2656,11 @@ export default function ActivosBandeja({ initialActivos, usuarios, ubicaciones, 
     };
   }, [wsId]);
 
+  const hayFiltros = [filterCrit, filterSociedadIds, filterEstado, filterUbicacionIds, filterLugarIds,
+    filterResponsableIds, filterFabricanteIds, filterModeloIds].some(f => f.length > 0);
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    // Se calcula acá y no se toma de `hayFiltros`: esa constante se declara más
-    // abajo, así que usarla dentro del memo la leería antes de existir.
-    const filtrando = filterCrit !== "all" || filterSociedadId !== "all"
-      || filterEstado !== "all" || filterUbicacionId !== "all" || filterLugarId !== "all"
-      || filterResponsableId !== "all" || filterFabricanteId !== "all" || filterModeloId !== "all";
     const list = activos.filter(a => {
       /**
        * Los sub-activos no aparecen sueltos en el listado: viven dentro de la
@@ -2856,19 +2672,18 @@ export default function ActivosBandeja({ initialActivos, usuarios, ubicaciones, 
        * sin explicación. El padre puede no estar en `activos` si quedó fuera de
        * este workspace, así que solo se oculta cuando el padre está a la vista.
        */
-      if (!q && !filtrando && a.activo_padre_id
+      if (!q && !hayFiltros && a.activo_padre_id
           && activos.some(p => p.id === a.activo_padre_id)) return false;
-      if (filterCrit !== "all" && a.criticidad !== filterCrit) return false;
-      if (filterSociedadId !== "all" && a.sociedad_id !== filterSociedadId) return false;
+      if (fuera(filterCrit, a.criticidad)) return false;
+      if (fuera(filterSociedadIds, a.sociedad_id)) return false;
       // `operativo` es el valor por defecto: un activo sin estado cargado
       // cuenta como operativo, igual que en el resto de la pantalla.
-      if (filterEstado !== "all" && (a.estado ?? "operativo") !== filterEstado) return false;
-      if (filterUbicacionId !== "all" && a.ubicacion_id !== filterUbicacionId) return false;
-      if (filterLugarId !== "all" && a.lugar_id !== filterLugarId) return false;
-      if (filterResponsableId === "sin" && a.responsable_id) return false;
-      if (filterResponsableId !== "all" && filterResponsableId !== "sin" && a.responsable_id !== filterResponsableId) return false;
-      if (filterFabricanteId !== "all" && a.fabricante_id !== filterFabricanteId) return false;
-      if (filterModeloId !== "all" && a.modelo_id !== filterModeloId) return false;
+      if (fuera(filterEstado, a.estado ?? "operativo")) return false;
+      if (fuera(filterUbicacionIds, a.ubicacion_id)) return false;
+      if (fuera(filterLugarIds, a.lugar_id)) return false;
+      if (fuera(filterResponsableIds, a.responsable_id ?? "sin")) return false;
+      if (fuera(filterFabricanteIds, a.fabricante_id)) return false;
+      if (fuera(filterModeloIds, a.modelo_id)) return false;
       if (!q) return true;
       return [a.nombre, a.numero_serie, a.fabricante?.nombre, a.modelo?.nombre, a.sociedad?.nombre, ubicacionLabel(a)]
         .filter(Boolean)
@@ -2895,8 +2710,8 @@ export default function ActivosBandeja({ initialActivos, usuarios, ubicaciones, 
       }
     });
     return list;
-  }, [activos, search, filterCrit, filterSociedadId, filterEstado, filterUbicacionId,
-      filterLugarId, filterResponsableId, filterFabricanteId, filterModeloId, sort]);
+  }, [activos, search, hayFiltros, filterCrit, filterSociedadIds, filterEstado, filterUbicacionIds,
+      filterLugarIds, filterResponsableIds, filterFabricanteIds, filterModeloIds, sort]);
 
   // Cuantos activos hay en cada estado, para que el menu diga de entrada si
   // vale la pena filtrar por "Fuera de servicio".
@@ -2909,74 +2724,35 @@ export default function ActivosBandeja({ initialActivos, usuarios, ubicaciones, 
     return m;
   }, [activos]);
 
-  const hayFiltros = filterCrit !== "all" || filterSociedadId !== "all"
-    || filterEstado !== "all" || filterUbicacionId !== "all" || filterLugarId !== "all"
-    || filterResponsableId !== "all" || filterFabricanteId !== "all" || filterModeloId !== "all";
-
   function limpiarFiltros() {
-    setFilterCrit("all");
-    setFilterSociedadId("all");
-    setFilterEstado("all");
-    setFilterUbicacionId("all");
-    setFilterLugarId("all");
-    setFilterResponsableId("all");
-    setFilterFabricanteId("all");
-    setFilterModeloId("all");
+    setFilterCrit([]);
+    setFilterSociedadIds([]);
+    setFilterEstado([]);
+    setFilterUbicacionIds([]);
+    setFilterLugarIds([]);
+    setFilterResponsableIds([]);
+    setFilterFabricanteIds([]);
+    setFilterModeloIds([]);
   }
 
   /**
-   * Opciones de un filtro de catalogo, derivadas de los activos que HAY.
-   *
-   * Los catalogos (fabricantes, modelos, ubicaciones...) son globales del
-   * workspace y pueden tener cientos de filas; la mayoria sin un solo activo
-   * asociado. Ofrecerlas todas llena el menu de opciones que no filtran nada:
-   * al elegirlas la lista queda vacia. Solo se listan los valores realmente en
-   * uso, con cuantos activos tiene cada uno.
-   *
-   * Se calcula sobre `activos` —que ya esta en memoria— asi que no agrega
-   * ninguna consulta.
+   * Cuántos activos usan cada valor, para el número de cada opción. Las
+   * opciones se piden paginadas al servidor (solo las que algún activo usa),
+   * pero los activos ya están en memoria: contar acá no cuesta una consulta.
    */
-  function useOpcionesEnUso<T extends { id: string }>(
-    catalogo: T[],
-    campo: (a: Activo) => string | null | undefined,
-    nombre: (t: T) => string,
-  ) {
-    return useMemo(() => {
-      const counts = new Map<string, number>();
-      for (const a of activos) {
-        const id = campo(a);
-        if (id) counts.set(id, (counts.get(id) ?? 0) + 1);
+  const conteos = useMemo(() => {
+    const campos = ["sociedad_id", "ubicacion_id", "lugar_id", "responsable_id", "fabricante_id", "modelo_id"] as const;
+    const m = Object.fromEntries(campos.map(c => [c, new Map<string, number>()])) as Record<typeof campos[number], Map<string, number>>;
+    for (const a of activos) {
+      for (const c of campos) {
+        const id = a[c];
+        if (id) m[c].set(id, (m[c].get(id) ?? 0) + 1);
       }
-      return catalogo
-        .filter(t => counts.has(t.id))
-        .map(t => ({ id: t.id, nombre: nombre(t), count: counts.get(t.id) ?? 0 }))
-        .sort((x, y) => x.nombre.localeCompare(y.nombre, "es"));
-      // `campo` y `nombre` se redefinen en cada render (son lambdas en el punto
-      // de uso); dependen solo de `activos` y del catalogo, que son los que
-      // realmente cambian el resultado.
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [activos, catalogo]);
-  }
-
-  const opcionesUbicacion   = useOpcionesEnUso(ubicaciones, a => a.ubicacion_id,   u => u.edificio ?? "Sin nombre");
-  const opcionesLugar       = useOpcionesEnUso(lugares,     a => a.lugar_id,       l => l.nombre);
-  const opcionesResponsable = useOpcionesEnUso(usuarios,    a => a.responsable_id, u => u.nombre);
-  const opcionesFabricante  = useOpcionesEnUso(fabricantes, a => a.fabricante_id,  f => f.nombre);
-  const opcionesModelo      = useOpcionesEnUso(modelos,     a => a.modelo_id,      m => m.nombre);
-  const opcionesSociedad    = useOpcionesEnUso(sociedades,  a => a.sociedad_id,    s => s.nombre);
-
-  const assetLocations = useMemo(() => ubicaciones
-    .map(location => ({
-      ...location,
-      count: activos.filter(asset => asset.ubicacion_id === location.id).length,
-    }))
-    .filter(location => location.count > 0)
-    .filter(location => {
-      const q = search.trim().toLowerCase();
-      const matchesSociedad = filterSociedadId === "all" || location.sociedad_id === filterSociedadId;
-      return matchesSociedad && (!q || [location.edificio, location.detalle].filter(Boolean).some(value => String(value).toLowerCase().includes(q)));
-    })
-    .sort((a, b) => a.edificio.localeCompare(b.edificio)), [activos, filterSociedadId, search, ubicaciones]);
+    }
+    return m;
+  }, [activos]);
+  const cuenta = (campo: keyof typeof conteos) => function ConteoOpcion(o: { id: string }) { return <Conteo n={conteos[campo].get(o.id)} />; };
+  const sinResponsable = useMemo(() => activos.filter(a => !a.responsable_id).length, [activos]);
 
   const openCreate = useCallback(() => { setEditing("new"); setSelected(null); }, []);
 
@@ -3010,7 +2786,7 @@ export default function ActivosBandeja({ initialActivos, usuarios, ubicaciones, 
               <Search size={14} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "var(--fg-4)", pointerEvents: "none" }} />
               <input
                 type="text"
-                placeholder={locationsView ? "Buscar ubicaciones" : "Buscar por nombre, código, modelo…"}
+                placeholder="Buscar por nombre, código, modelo…"
                 value={search}
                 onChange={e => setSearch(e.target.value)}
                 style={{
@@ -3034,7 +2810,7 @@ export default function ActivosBandeja({ initialActivos, usuarios, ubicaciones, 
             {canCreate && (
               <button
                 type="button"
-                onClick={() => locationsView ? router.push("/ubicaciones/ubicaciones?nueva=1") : openCreate()}
+                onClick={openCreate}
                 style={{
                   display: "flex", alignItems: "center", gap: 6,
                   padding: "0 16px", height: 38,
@@ -3048,93 +2824,72 @@ export default function ActivosBandeja({ initialActivos, usuarios, ubicaciones, 
                 onMouseLeave={e => { e.currentTarget.style.background = "var(--brand)"; }}
               >
                 <Plus size={16} strokeWidth={2} />
-                {locationsView ? "Nueva ubicación" : "Nuevo Activo"}
+                Nuevo Activo
               </button>
             )}
           </div>
         </div>
 
-        {/* Filters use the same compact toolbar language as Órdenes. */}
-        <div style={{ display: "flex", alignItems: "center", padding: "6px 20px", minHeight: 40, gap: 8, overflowX: "auto" }}>
-          {!locationsView && <AssetFilterDropdown label="Criticidad" icon={<AlertCircle size={16} />} active={filterCrit !== "all"}>{([['all','Todas'],['critico','Crítico'],['semi_critico','Semi-crítico'],['no_critico','No crítico']] as [CritFilter,string][]).map(([value, label]) => <button key={value} type="button" onClick={() => setFilterCrit(value)} style={{ ...assetFilterOptionStyle, background: filterCrit === value ? "var(--brand-tint)" : "transparent", color: filterCrit === value ? "var(--brand-fg)" : "var(--fg-2)" }}>{label}</button>)}</AssetFilterDropdown>}
-          <CatalogFilter
-            label="Sociedad" icon={<Building2 size={16} />}
-            value={filterSociedadId} onChange={setFilterSociedadId}
-            options={opcionesSociedad}
-          />
-          {!locationsView && (
-            <AssetFilterDropdown label="Estado" icon={<RefreshCw size={16} />} active={filterEstado !== "all"}>
-              <button type="button" onClick={() => setFilterEstado("all")} style={{ ...assetFilterOptionStyle, background: filterEstado === "all" ? "var(--brand-tint)" : "transparent", color: filterEstado === "all" ? "var(--brand-fg)" : "var(--fg-2)" }}>Todos</button>
-              {ESTADO_OPCIONES.map(e => (
-                <button key={e} type="button" onClick={() => setFilterEstado(e)} style={{ ...assetFilterOptionStyle, background: filterEstado === e ? "var(--brand-tint)" : "transparent", color: filterEstado === e ? "var(--brand-fg)" : "var(--fg-2)" }}>
-                  <span style={{ width: 8, height: 8, borderRadius: "50%", background: ESTADO_COLOR[e], flexShrink: 0, marginRight: 8 }} />
-                  <span style={{ flex: 1, minWidth: 0 }}>{ESTADO_LABEL[e]}</span>
-                  <span style={{ color: "var(--fg-4)", marginLeft: 8 }}>{estadoCounts.get(e) ?? 0}</span>
-                </button>
+        {/* Mismas piezas que la barra de /ordenes (components/filtros). Se
+            parte en varias filas en vez de hacer scroll horizontal: con
+            overflow el desplegable quedaba recortado. */}
+        <BarraFiltros hayFiltros={hayFiltros} onLimpiar={limpiarFiltros} style={{ padding: "6px 20px", minHeight: 40 }}>
+          <FilterDropdown label="Criticidad" icon={<AlertCircle size={16} />} active={filterCrit.length > 0} count={filterCrit.length} onClear={() => setFilterCrit([])}>
+            <OptionList>
+              {CRITICIDADES.map(([value, label]) => (
+                <OptionRow key={value} active={filterCrit.includes(value)} onClick={() => setFilterCrit(toggle(filterCrit, value))}>
+                  <span style={etiquetaOpcion}>{label}</span>
+                </OptionRow>
               ))}
-            </AssetFilterDropdown>
-          )}
-          {!locationsView && (
-            <CatalogFilter
-              label="Ubicación" icon={<MapPin size={16} />}
-              value={filterUbicacionId} onChange={setFilterUbicacionId}
-              options={opcionesUbicacion}
+            </OptionList>
+          </FilterDropdown>
+          <FilterDropdown label="Sociedad" icon={<Building2 size={16} />} active={filterSociedadIds.length > 0} count={filterSociedadIds.length} onClear={() => setFilterSociedadIds([])}>
+            <CatalogoFiltro fuente="activos_sociedades" wsId={wsId} value={filterSociedadIds} onChange={setFilterSociedadIds} placeholder="Buscar sociedad…" fin={cuenta("sociedad_id")} />
+          </FilterDropdown>
+          <FilterDropdown label="Estado" icon={<RefreshCw size={16} />} active={filterEstado.length > 0} count={filterEstado.length} onClear={() => setFilterEstado([])}>
+            <OptionList>
+              {ESTADO_OPCIONES.map(e => (
+                <OptionRow key={e} active={filterEstado.includes(e)} onClick={() => setFilterEstado(toggle(filterEstado, e))}>
+                  <span style={{ width: 8, height: 8, borderRadius: "50%", background: ESTADO_COLOR[e], flexShrink: 0 }} />
+                  <span style={etiquetaOpcion}>{ESTADO_LABEL[e]}</span>
+                  <Conteo n={estadoCounts.get(e)} />
+                </OptionRow>
+              ))}
+            </OptionList>
+          </FilterDropdown>
+          <FilterDropdown label="Ubicación" icon={<MapPin size={16} />} active={filterUbicacionIds.length > 0} count={filterUbicacionIds.length} onClear={() => setFilterUbicacionIds([])}>
+            <CatalogoFiltro fuente="activos_ubicaciones" wsId={wsId} value={filterUbicacionIds} onChange={setFilterUbicacionIds} placeholder="Buscar ubicación…" fin={cuenta("ubicacion_id")} />
+          </FilterDropdown>
+          <FilterDropdown label="Lugar" icon={<MapPin size={16} />} active={filterLugarIds.length > 0} count={filterLugarIds.length} onClear={() => setFilterLugarIds([])}>
+            <CatalogoFiltro fuente="activos_lugares" wsId={wsId} value={filterLugarIds} onChange={setFilterLugarIds} placeholder="Buscar lugar…" fin={cuenta("lugar_id")} />
+          </FilterDropdown>
+          <FilterDropdown label="Responsable" icon={<User size={16} />} active={filterResponsableIds.length > 0} count={filterResponsableIds.length} onClear={() => setFilterResponsableIds([])}>
+            {/* "sin" no es una fila del catálogo: va fija bajo el buscador y
+                se mezcla con lo que se elija en la lista. */}
+            <CatalogoFiltro
+              fuente="activos_responsables" wsId={wsId} placeholder="Buscar usuario…" fin={cuenta("responsable_id")}
+              encabezado={
+                <OptionRow active={filterResponsableIds.includes("sin")} onClick={() => setFilterResponsableIds(toggle(filterResponsableIds, "sin"))}>
+                  <span style={etiquetaOpcion}>Sin responsable</span>
+                  <Conteo n={sinResponsable} />
+                </OptionRow>
+              }
+              value={filterResponsableIds.filter(id => id !== "sin")}
+              onChange={ids => setFilterResponsableIds(filterResponsableIds.includes("sin") ? ["sin", ...ids] : ids)}
             />
-          )}
-          {!locationsView && (
-            <CatalogFilter
-              label="Lugar" icon={<MapPin size={16} />}
-              value={filterLugarId} onChange={setFilterLugarId}
-              options={opcionesLugar}
+          </FilterDropdown>
+          <FilterDropdown label="Fabricante" icon={<Factory size={16} />} active={filterFabricanteIds.length > 0} count={filterFabricanteIds.length} onClear={() => setFilterFabricanteIds([])}>
+            <CatalogoFiltro fuente="activos_fabricantes" wsId={wsId} value={filterFabricanteIds} onChange={setFilterFabricanteIds} placeholder="Buscar fabricante…" fin={cuenta("fabricante_id")} />
+          </FilterDropdown>
+          <FilterDropdown label="Modelo" icon={<Tag size={16} />} active={filterModeloIds.length > 0} count={filterModeloIds.length} onClear={() => setFilterModeloIds([])}>
+            {/* Con fabricantes elegidos, solo sus modelos: la lista completa
+                mezcla modelos de marcas que ya quedaron fuera del filtro. */}
+            <CatalogoFiltro
+              fuente="activos_modelos" wsId={wsId} value={filterModeloIds} onChange={setFilterModeloIds} placeholder="Buscar modelo…" fin={cuenta("modelo_id")}
+              restringir={filterFabricanteIds.length ? { columna: "fabricante_id", valores: filterFabricanteIds } : undefined}
             />
-          )}
-          {!locationsView && (
-            <CatalogFilter
-              label="Responsable" icon={<User size={16} />}
-              value={filterResponsableId} onChange={setFilterResponsableId}
-              options={[
-                { id: "sin", nombre: "Sin responsable" },
-                ...opcionesResponsable,
-              ]}
-              allLabel="Todos"
-            />
-          )}
-          {!locationsView && (
-            <CatalogFilter
-              label="Fabricante" icon={<Factory size={16} />}
-              value={filterFabricanteId} onChange={setFilterFabricanteId}
-              options={opcionesFabricante}
-            />
-          )}
-          {!locationsView && (
-            <CatalogFilter
-              label="Modelo" icon={<Tag size={16} />}
-              value={filterModeloId} onChange={setFilterModeloId}
-              // Si hay un fabricante elegido, solo sus modelos: la lista
-              // completa mezcla modelos de marcas que ya quedaron fuera.
-              // Con un fabricante elegido, solo sus modelos: la lista completa
-              // mezcla modelos de marcas que ya quedaron fuera del filtro.
-              options={filterFabricanteId === "all"
-                ? opcionesModelo
-                : opcionesModelo.filter(o => modelos.find(m => m.id === o.id)?.fabricante_id === filterFabricanteId)}
-            />
-          )}
-          {hayFiltros && (
-            <button
-              type="button"
-              onClick={limpiarFiltros}
-              style={{
-                display: "flex", alignItems: "center", gap: 5, height: 34, padding: "0 11px",
-                border: "1px dashed var(--border)", borderRadius: "var(--r-sm)",
-                background: "transparent", color: "var(--fg-3)",
-                fontSize: 14, fontWeight: 400, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap",
-              }}
-            >
-              <X size={14} />
-              Limpiar
-            </button>
-          )}
-        </div>
+          </FilterDropdown>
+        </BarraFiltros>
       </div>
 
       {/* ── Main split pane ── */}
@@ -3153,123 +2908,33 @@ export default function ActivosBandeja({ initialActivos, usuarios, ubicaciones, 
           position: "relative",
         }}>
 
-          {/* Sort dropdown row */}
-          {!locationsView && <div ref={sortRef} style={{ position: "relative", borderBottom: "1px solid var(--border)", flexShrink: 0 }}>
-            <button
-              type="button"
-              onClick={() => setSortOpen(v => !v)}
-              style={{
-                display: "flex", alignItems: "center", gap: 6,
-                width: "100%", padding: "10px 16px",
-                background: "var(--surface-canvas)", border: "none",
-                fontSize: 14, color: "var(--fg-2)",
-                cursor: "pointer", fontFamily: "inherit", textAlign: "left",
-              }}
-              onMouseEnter={e => { e.currentTarget.style.background = "var(--surface-hover)"; }}
-              onMouseLeave={e => { e.currentTarget.style.background = "var(--surface-canvas)"; }}
-            >
-              <span style={{ color: "var(--fg-3)" }}>Ordenar por:</span>
-              <span style={{ maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: 400, color: "var(--brand-fg)" }} title={activoSortLabel(sort)}>
-                {activoSortLabel(sort)}
-              </span>
-              <ChevronDown size={14} color="var(--brand-fg)" style={{ flexShrink: 0, transform: sortOpen ? "rotate(180deg)" : "none", transition: "transform 0.15s" }} />
-              <span style={{ marginLeft: "auto" }} />
-            </button>
-            {sortOpen && (
-              <div style={{
-                position: "absolute", left: 8, right: 8, top: "calc(100% + 4px)", zIndex: 50,
-                background: "var(--surface-1)", border: "1px solid var(--border)",
-                borderRadius: 8, boxShadow: "var(--shadow-md)",
-                maxHeight: "min(480px, calc(100vh - 260px))", overflowX: "hidden", overflowY: "auto",
-                scrollbarGutter: "stable both-edges",
-              }}>
-                {/* Grupo por campo: se despliega y muestra las dos direcciones,
-                    en vez de una lista plana. */}
-                {ACTIVO_SORT_GROUPS.map(group => {
-                  const isOpen = openSortGroup === group.label || group.options.some(o => o.value === sort && openSortGroup === null);
-                  return (
-                    <div key={group.label}>
-                      <button
-                        type="button"
-                        onClick={() => setOpenSortGroup(isOpen ? "" : group.label)}
-                        style={{
-                          display: "flex", alignItems: "center", gap: 8,
-                          width: "100%", padding: "9px 14px", textAlign: "left",
-                          background: "transparent", border: "none",
-                          fontSize: 14, fontWeight: 400, color: "var(--fg-1)",
-                          cursor: "pointer", fontFamily: "inherit",
-                        }}
-                        onMouseEnter={e => { e.currentTarget.style.background = "var(--surface-hover)"; }}
-                        onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}
-                      >
-                        <ChevronDown size={14} color="var(--brand-fg)" style={{ flexShrink: 0, transform: isOpen ? "none" : "rotate(-90deg)", transition: "transform 0.15s" }} />
-                        <span style={{ flex: 1 }}>{group.label}</span>
-                      </button>
-
-                      {isOpen && group.options.map(opt => {
-                        const isActive = sort === opt.value;
-                        return (
-                          <button
-                            key={opt.value}
-                            type="button"
-                            onClick={() => { setSort(opt.value); setSortOpen(false); }}
-                            style={{
-                              display: "flex", alignItems: "center", gap: 8,
-                              width: "100%", padding: "9px 14px 9px 36px", textAlign: "left",
-                              background: isActive ? "var(--brand-tint)" : "transparent",
-                              border: "none", fontSize: 14, fontWeight: 400,
-                              color: isActive ? "var(--brand-fg)" : "var(--fg-1)",
-                              cursor: "pointer", fontFamily: "inherit",
-                            }}
-                            onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = "var(--surface-hover)"; }}
-                            onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = "transparent"; }}
-                          >
-                            <span style={{ flex: 1 }}>{opt.label}</span>
-                            {isActive && <Check size={12} style={{ color: "var(--brand)" }} />}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>}
+          <MenuOrden grupos={ACTIVO_SORT_GROUPS} value={sort} onChange={setSort} />
 
           {/* List */}
           <div style={{ flex: 1, minHeight: 0, overflowY: "auto", display: "flex", flexDirection: "column", gap: 8, padding: 10 }}>
-            {locationsView ? assetLocations.map(location => (
-              <button key={location.id} type="button" onClick={() => router.push(`/ubicaciones/ubicaciones?id=${encodeURIComponent(location.id)}`)} style={{ width: "100%", minHeight: 76, padding: "12px 14px", display: "flex", alignItems: "center", gap: 12, border: "1px solid var(--border)", borderRadius: 9, background: "var(--surface-1)", boxShadow: "var(--shadow-xs)", color: "var(--fg-1)", textAlign: "left", cursor: "pointer", fontFamily: "inherit" }}>
-                <span style={{ width: 44, height: 44, borderRadius: 9, background: "var(--brand-tint)", color: "var(--brand-fg)", display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><MapPin size={21} /></span>
-                <span style={{ flex: 1, minWidth: 0 }}><strong style={{ display: "block", fontSize: 14, fontWeight: 400, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{location.edificio}</strong><span style={{ display: "block", marginTop: 4, fontSize: 14, color: "var(--fg-3)" }}>{location.count} {location.count === 1 ? "activo" : "activos"}</span></span>
-                <ChevronRight size={17} style={{ color: "var(--fg-4)" }} />
-              </button>
-            )) : filtered.length === 0 ? (
+            {filtered.length === 0 ? (
               <EmptyState
                 icon={<Engine size={38} strokeWidth={1.4} />}
                 title={
-                  search || filterCrit !== "all" || filterSociedadId !== "all"
+                  search || hayFiltros
                     ? "Ningún activo coincide con la búsqueda"
                     : "Todavía no hay activos"
                 }
                 description="Un activo es el equipo o instalación que se mantiene. Con él cargado, sus órdenes, planes e historial quedan colgando del mismo lugar."
                 onCreate={canCreate ? openCreate : undefined}
                 createLabel="Crear el primero"
-                hasSearch={!!search || filterCrit !== "all" || filterSociedadId !== "all"}
+                hasSearch={!!search || hayFiltros}
               />
             ) : filtered.map(activo => (
               <ActivoRow key={activo.id} activo={activo} selected={selected === activo.id} onClick={() => { setEditing(null); setSelected(prev => prev === activo.id ? null : activo.id); }} />
             ))}
-            {locationsView && assetLocations.length === 0 && <EmptyState icon={<MapPin size={38} strokeWidth={1.4} />} title={search ? "Ninguna ubicación coincide con la búsqueda" : "Sin ubicaciones con activos"} description="Cuando un activo quede asignado a una ubicación, esa ubicación aparecerá acá con su total." hasSearch={!!search} />}
           </div>
         </div>
 
         {/* RIGHT: detail or form */}
         {(isDesktop || showRight) && (
           <div style={{ flex: 1, minWidth: 0, overflow: "hidden", background: "var(--c-bg, var(--surface-canvas))" }}>
-            {locationsView ? (
-              <EmptyDetail icon={<MapPin size={28} strokeWidth={1.5} />} title="Selecciona una ubicación" hint="Abre una ubicación para ver sus activos" />
-            ) : editing ? (
+            {editing ? (
               <ActivoForm
                 activo={typeof editing === "object" && editing !== null && "bajo" in editing ? null : (editing === "new" ? null : editing)}
                 padreInicial={typeof editing === "object" && editing !== null && "bajo" in editing ? editing.bajo : null}
@@ -3301,7 +2966,7 @@ export default function ActivosBandeja({ initialActivos, usuarios, ubicaciones, 
                 onOpenActivo={id => { setEditing(null); setSelected(id); }}
               />
             ) : (
-              <EmptyDetail icon={<Engine size={28} strokeWidth={1.5} />} title="Selecciona un activo" />
+              <EmptyDetail />
             )}
           </div>
         )}

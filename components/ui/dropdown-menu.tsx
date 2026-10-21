@@ -35,15 +35,24 @@ DropdownMenuSubTrigger.displayName = DropdownMenuPrimitive.SubTrigger.displayNam
 const DropdownMenuSubContent = React.forwardRef<
   React.ElementRef<typeof DropdownMenuPrimitive.SubContent>,
   React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.SubContent>
->(({ className, ...props }, ref) => (
+>(({ className, style, ...props }, ref) => (
+  // En Portal, como el Content: adentro del menú quedaba recortado por su
+  // `overflow-hidden`. Mismos estilos explícitos que el Content (ver abajo).
+  <DropdownMenuPrimitive.Portal>
   <DropdownMenuPrimitive.SubContent
     ref={ref}
+    style={{
+      background: "var(--surface-1)", border: "1px solid var(--border)",
+      borderRadius: 8, boxShadow: "var(--shadow-md)", zIndex: 1000,
+      ...style,
+    }}
     className={cn(
       "z-50 min-w-[8rem] overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-lg data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
       className
     )}
     {...props}
   />
+  </DropdownMenuPrimitive.Portal>
 ))
 DropdownMenuSubContent.displayName = DropdownMenuPrimitive.SubContent.displayName
 
@@ -165,7 +174,29 @@ const DropdownMenuShortcut = ({ className, ...props }: React.HTMLAttributes<HTML
 )
 DropdownMenuShortcut.displayName = "DropdownMenuShortcut"
 
+// Estilos de los menús de la app (orden/vista en /ordenes y /activos). Inline
+// con las variables de la app: las clases de shadcn (text-sm, font-semibold,
+// bg-muted) no calzan con los tokens de acá.
+const menuLabelStyle: React.CSSProperties = { padding: "8px 12px 6px", fontSize: 14, fontWeight: 400, color: "var(--fg-4)" }
+const menuSeparatorStyle: React.CSSProperties = { height: 1, margin: "4px -6px", background: "var(--border)" }
+const menuItemStyle = (activo: boolean): React.CSSProperties => ({
+  fontSize: 14, padding: "9px 12px", gap: 8, borderRadius: 6, cursor: "pointer",
+  color: activo ? "var(--brand-fg)" : "var(--fg-1)",
+  background: activo ? "var(--brand-tint)" : undefined,
+})
+/** Botón que abre un menú desde una fila de texto ("Mostrando: …", "Ordenar por: …"). */
+const menuTriggerStyle: React.CSSProperties = {
+  display: "flex", alignItems: "center", gap: 6, minWidth: 0, padding: "4px 6px",
+  border: "none", borderRadius: 6, background: "transparent",
+  fontSize: 14, color: "var(--fg-2)", cursor: "pointer", fontFamily: "inherit",
+}
+const menuTriggerHover = {
+  onMouseEnter: (e: React.MouseEvent<HTMLButtonElement>) => { e.currentTarget.style.background = "var(--surface-hover)" },
+  onMouseLeave: (e: React.MouseEvent<HTMLButtonElement>) => { e.currentTarget.style.background = "transparent" },
+}
+
 export {
+  menuLabelStyle, menuSeparatorStyle, menuItemStyle, menuTriggerStyle, menuTriggerHover,
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem,
   DropdownMenuCheckboxItem, DropdownMenuRadioItem, DropdownMenuLabel,
   DropdownMenuSeparator, DropdownMenuShortcut, DropdownMenuGroup,

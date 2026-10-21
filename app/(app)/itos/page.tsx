@@ -330,10 +330,7 @@ export default function ItosPage() {
               onNuevaOT={() => router.push(`/ordenes/crear?hito=${encodeURIComponent(selected.nombre)}`)}
             />
           ) : (
-            <EmptyDetail
-              icon={<Zap size={28} strokeWidth={1.5} />}
-              title="Selecciona un ITO"
-            />
+            <EmptyDetail />
           )}
         </div>
       </div>

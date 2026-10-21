@@ -5,11 +5,11 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase";
 import { EmptyState, EmptyDetail } from "@/components/EmptyState";
 import {
-  ClipboardCheck, Plus, Search, Loader2, X, FileText, ShieldCheck, Tag, MapPin,
+  ClipboardCheck, Plus, Search, Loader2, X, ShieldCheck, Tag, MapPin,
 } from "lucide-react";
 import { Engine } from "@/components/icons/Engine";
 import {
-  OptionRow, OptionList, FilterDropdown, AddFilterMenu, toggle,
+  OptionRow, OptionList, FilterDropdown, AddFilterMenu, BarraFiltros, toggle,
 } from "@/components/filtros/primitivas";
 import { listProcedimientos, archiveProcedimiento } from "@/lib/procedimientos-api";
 import type { ProcedimientoListItem } from "@/types/procedimientos";
@@ -174,7 +174,7 @@ export default function ProcedimientosPage() {
             )}
           </div>
 
-          <div style={{ gridColumn: 1, gridRow: 2, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <BarraFiltros style={{ gridColumn: 1, gridRow: 2 }} hayFiltros={hayFiltros} onLimpiar={() => setFiltros(EMPTY_FILTROS)}>
             {visibleKeys.includes("reglas") && (
               <FilterDropdown
                 label="Reglas"
@@ -221,7 +221,7 @@ export default function ProcedimientosPage() {
               icons={FILTER_ICONS}
               onAdd={k => cambiarVisibleKeys([...visibleKeys, k])}
             />
-          </div>
+          </BarraFiltros>
 
           {isAdmin && (
             <button
@@ -290,10 +290,7 @@ export default function ProcedimientosPage() {
               onEdit={() => router.push(`/procedimientos/${selectedId}/editar`)}
             />
           ) : (
-            <EmptyDetail
-              icon={<FileText size={28} strokeWidth={1.5} />}
-              title="Selecciona un procedimiento"
-            />
+            <EmptyDetail />
           )}
         </div>
       </div>

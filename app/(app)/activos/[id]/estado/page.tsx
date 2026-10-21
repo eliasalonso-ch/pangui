@@ -10,34 +10,26 @@
  * distingue la parada planificada de la avería.
  */
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { AlertCircle, ArrowLeft, ChevronRight, Loader2, X } from "lucide-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { endOfDay, startOfDay } from "date-fns";
+import { AlertCircle, ChevronRight, Loader2, X } from "lucide-react";
 import { createClient } from "@/lib/supabase";
 import {
-  cambiarEstadoActivo, fetchEstadoPeriodos, fetchEstadoPeriodosTodos, formatDuracion, resumirInactividad,
-  type EstadoPeriodo, type TipoInactividad,
+  fetchEstadoPeriodosTodos, formatDuracion, resumirInactividad,
+  type EstadoPeriodo,
 } from "@/lib/activo-estado-api";
 import type { AssetStatus } from "@/types/ordenes";
 import CambiarEstadoDialog from "@/components/activos/CambiarEstadoDialog";
 import { MS_POR_HORA, RANGOS, marcasDeTiempo } from "@/lib/eje-tiempo";
 import LecturasChart from "@/components/activos/LecturasChart";
-import { fetchMedidoresDeActivo, type Medidor } from "@/lib/medidores-api";
-
-const ESTADO_LABEL: Record<AssetStatus, string> = {
-  operativo: "Operativo",
-  fuera_servicio: "Fuera de servicio",
-  mantencion: "En mantención",
-  baja: "De baja",
-};
-
-const ESTADO_COLOR: Record<AssetStatus, string> = {
-  operativo: "#10B981",
-  fuera_servicio: "#EF4444",
-  mantencion: "#F59E0B",
-  baja: "#6B7280",
-};
+import HistorialEstadoTabla from "@/components/activos/HistorialEstadoTabla";
+import { ESTADO_COLOR, ESTADO_LABEL, fmtFecha } from "@/lib/activo-estado-ui";
+import { fetchMedidoresBase } from "@/lib/medidores-api";
+import { Desplegable } from "@/components/Desplegable";
+import { DateRangePicker, type DateRange } from "@/components/ui/date-time-picker";
 
 /**
  * Las filas del gráfico, de arriba hacia abajo: una por estado, en el mismo
@@ -54,118 +46,127 @@ const FILAS: { estados: AssetStatus[]; label: string }[] = [
   { estados: ["fuera_servicio"], label: "Fuera de servicio" },
 ];
 
+type RangoKey = (typeof RANGOS)[number]["key"] | "personalizado";
 
+const RANGO_LABEL: Record<(typeof RANGOS)[number]["key"], string> = {
+  "1h": "Última hora",
+  "1d": "Últimas 24 horas",
+  "1s": "Últimos 7 días",
+  "1m": "Últimos 30 días",
+  "3m": "Últimos 3 meses",
+  "6m": "Últimos 6 meses",
+  "1a": "Último año",
+};
 
-function fmtFecha(iso: string) {
-  return new Date(iso).toLocaleString("es-CL", {
-    day: "2-digit", month: "2-digit", year: "numeric",
-    hour: "2-digit", minute: "2-digit",
-  });
+/**
+ * Cada cuánto avanza la ventana, según su largo.
+ *
+ * El borde derecho se redondea hacia arriba a este paso. Dos efectos, los dos
+ * buscados: la ventana (y con ella la clave de caché de cada gráfico) es la
+ * misma durante todo el paso, así que volver a la pantalla o re-renderizar no
+ * consulta; y al cumplirse el paso la clave cambia sola, que es el refresco.
+ * Una ventana de una hora se renueva cada minuto; una de un año, cada 6 h.
+ */
+function pasoPara(spanMs: number) {
+  if (spanMs <= MS_POR_HORA) return 60_000;
+  if (spanMs <= 24 * MS_POR_HORA) return 5 * 60_000;
+  if (spanMs <= 7 * 24 * MS_POR_HORA) return 15 * 60_000;
+  if (spanMs <= 31 * 24 * MS_POR_HORA) return MS_POR_HORA;
+  return 6 * MS_POR_HORA;
 }
+const redondearArriba = (t: number, paso: number) => Math.ceil(t / paso) * paso;
 
-const labelStyle: React.CSSProperties = {
-  fontSize: 14, fontWeight: 400, color: "var(--fg-2)", marginBottom: 5, display: "block",
-};
-const inputStyle: React.CSSProperties = {
-  width: "100%", height: 38, padding: "0 12px",
-  border: "1px solid var(--border)", borderRadius: 8,
-  fontSize: 14, fontFamily: "inherit", color: "var(--fg-1)",
-  background: "var(--surface-1)", outline: "none", boxSizing: "border-box",
-};
+/** Referencia estable para "sin datos todavía" (los memos dependen de ella). */
+const SIN_PERIODOS: EstadoPeriodo[] = [];
 
 export default function EstadoActivoPage() {
   const params = useParams<{ id: string }>();
   const activoId = params?.id;
 
-  const [nombre, setNombre] = useState("");
-  const [estadoActual, setEstadoActual] = useState<AssetStatus | null>(null);
-  const [periodos, setPeriodos] = useState<EstadoPeriodo[]>([]);
-  // Historial completo, para los totales de por vida (los de arriba).
-  const [todosPeriodos, setTodosPeriodos] = useState<EstadoPeriodo[]>([]);
-  const [rango, setRango] = useState<(typeof RANGOS)[number]["key"]>("1s");
-  const [medidores, setMedidores] = useState<Medidor[]>([]);
+  const qc = useQueryClient();
+  const [rango, setRango] = useState<RangoKey>("1s");
+  // Lo que muestra el selector de fechas, y el último rango COMPLETO: entre el
+  // primer y el segundo clic el rango está a medias y la ventana no se mueve.
+  const [personalizado, setPersonalizado] = useState<DateRange | undefined>();
+  const [rangoAplicado, setRangoAplicado] = useState<{ from: Date; to: Date } | null>(null);
+
   /**
-   * Tic de refresco de los gráficos de medidores.
-   *
-   * Esta pantalla no tiene realtime —se carga una vez y se queda—, así que sin
-   * esto un gráfico abierto durante una ronda o una demo nunca incorpora las
-   * lecturas que van llegando. Avanza un contador y `LecturasChart` lo usa
-   * como dependencia para volver a pedir su serie.
+   * Reloj de la pantalla. Avanzarlo solo re-renderiza: no consulta nada. Las
+   * consultas salen cuando la ventana redondea a otro paso (ver `pasoPara`).
+   * Con la pestaña oculta no avanza; al volver, al tiro.
    */
-  const [ticLecturas, setTicLecturas] = useState(0);
-
+  const [reloj, setReloj] = useState(() => Date.now());
   useEffect(() => {
-    const avanzar = () => {
-      setTicLecturas(t => t + 1);
-      // El borde derecho del gráfico sale de `ahora`; sin moverlo, una lectura
-      // recién llegada cae fuera de la ventana y no se dibuja.
-      setAhora(Date.now());
-    };
-
-    // Con la pestaña oculta no se consulta: nadie está mirando el gráfico y
-    // cada tic son tantas consultas como medidores tenga el activo.
-    const id = setInterval(() => {
-      if (typeof document !== "undefined" && document.hidden) return;
-      avanzar();
-    }, 10_000);
-
-    // Al volver a la pestaña, al tiro: el gráfico tiene que estar al día en el
-    // momento en que se mira, no diez segundos después.
-    const alVolver = () => { if (!document.hidden) avanzar(); };
-    document.addEventListener("visibilitychange", alVolver);
-
-    return () => {
-      clearInterval(id);
-      document.removeEventListener("visibilitychange", alVolver);
-    };
+    const tic = () => { if (!document.hidden) setReloj(Date.now()); };
+    const id = setInterval(tic, 30_000);
+    document.addEventListener("visibilitychange", tic);
+    return () => { clearInterval(id); document.removeEventListener("visibilitychange", tic); };
   }, []);
-  const [loading, setLoading] = useState(true);
-  const [err, setErr] = useState<string | null>(null);
+
+  // La ventana en milisegundos: los memos y las claves de caché dependen de
+  // números, que no cambian mientras la ventana sea la misma.
+  let t0: number, t1: number;
+  if (rango === "personalizado" && rangoAplicado) {
+    t0 = startOfDay(rangoAplicado.from).getTime();
+    const fin = endOfDay(rangoAplicado.to).getTime();
+    // Si el rango llega hasta hoy, el borde derecho avanza como en los otros.
+    t1 = fin > reloj ? Math.min(fin, redondearArriba(reloj, pasoPara(fin - t0))) : fin;
+  } else {
+    const span = (RANGOS.find(r => r.key === rango)?.horas ?? 24 * 7) * MS_POR_HORA;
+    t1 = redondearArriba(reloj, pasoPara(span));
+    t0 = t1 - span;
+  }
+  const ventana = useMemo(() => ({ desde: new Date(t0), hasta: new Date(t1) }), [t0, t1]);
+
+  function elegirRango(v: RangoKey) {
+    if (v === "personalizado") {
+      // Arranca con la ventana que se estaba mirando: el gráfico no salta.
+      const inicial = { from: new Date(t0), to: new Date(Math.min(t1, reloj)) };
+      setPersonalizado(inicial);
+      setRangoAplicado(inicial);
+    }
+    setRango(v);
+  }
+
+  /**
+   * Activo + historial completo de estados, en caché por activo. Una sola
+   * consulta de períodos: la ventana del gráfico se recorta acá abajo, así que
+   * cambiar de rango no pide nada (un activo tiene decenas de períodos, no miles).
+   */
+  const estadoQ = useQuery({
+    queryKey: ["activo-estado", activoId],
+    enabled: !!activoId,
+    staleTime: 30_000,
+    queryFn: async () => {
+      const [{ data: activo, error }, periodos] = await Promise.all([
+        createClient().from("activos").select("nombre, estado").eq("id", activoId!).maybeSingle(),
+        fetchEstadoPeriodosTodos(activoId!),
+      ]);
+      if (error) throw error;
+      return { activo, periodos };
+    },
+  });
+  const medidoresQ = useQuery({
+    queryKey: ["medidores-activo", activoId],
+    enabled: !!activoId,
+    staleTime: 5 * 60_000,
+    queryFn: () => fetchMedidoresBase(activoId!),
+  });
+
+  const activo = estadoQ.data?.activo;
+  const nombre = activo?.nombre ?? "";
+  const estadoActual = activo ? ((activo.estado ?? "operativo") as AssetStatus) : null;
+  const todosPeriodos = estadoQ.data?.periodos ?? SIN_PERIODOS;
+  const medidores = medidoresQ.data ?? [];
+  // Los que tocan la ventana (mismo criterio que hacía la consulta aparte).
+  const periodos = useMemo(
+    () => todosPeriodos.filter(p =>
+      new Date(p.inicio).getTime() <= t1 && (!p.fin || new Date(p.fin).getTime() >= t0)),
+    [todosPeriodos, t0, t1],
+  );
 
   // Diálogo de cambio de estado (el formulario vive en CambiarEstadoDialog).
   const [dlgOpen, setDlgOpen] = useState(false);
-
-  // `ahora` se fija una vez por carga en vez de leerse en cada render: si no,
-  // los totales y el borde derecho del grafico se calcularian con instantes
-  // distintos dentro del mismo pintado. Se refresca al cambiar de rango y
-  // despues de guardar un cambio de estado.
-  const [ahora, setAhora] = useState(() => Date.now());
-
-  const ventana = useMemo(() => {
-    const horas = RANGOS.find(r => r.key === rango)?.horas ?? 24 * 7;
-    const hasta = new Date(ahora);
-    return { desde: new Date(ahora - horas * MS_POR_HORA), hasta };
-  }, [rango, ahora]);
-
-  const cargar = useCallback(async () => {
-    if (!activoId) return;
-    setErr(null);
-    try {
-      const sb = createClient();
-      const [{ data: activo }, filas, todas] = await Promise.all([
-        sb.from("activos").select("nombre, estado").eq("id", activoId).maybeSingle(),
-        fetchEstadoPeriodos(activoId, ventana.desde, ventana.hasta),
-        fetchEstadoPeriodosTodos(activoId),
-      ]);
-      if (!activo) { setErr("No se encontró este activo."); setLoading(false); return; }
-      setNombre(activo.nombre ?? "");
-      setEstadoActual((activo.estado ?? "operativo") as AssetStatus);
-      setPeriodos(filas);
-      setTodosPeriodos(todas);
-      // Los medidores no dependen de la ventana —sus gráficos sí— así que se
-      // traen junto al resto y el rango solo cambia lo que pide cada gráfico.
-      setMedidores(await fetchMedidoresDeActivo(activoId));
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : "No se pudo cargar el historial.");
-    }
-    setLoading(false);
-  }, [activoId, ventana.desde, ventana.hasta]);
-
-  useEffect(() => {
-    let vivo = true;
-    void (async () => { if (vivo) await cargar(); })();
-    return () => { vivo = false; };
-  }, [cargar]);
 
   // Los totales son de por vida y NO siguen al selector de rango: ver "tiempo
   // de funcionamiento" cambiar al mover el zoom del gráfico confunde, porque
@@ -176,14 +177,13 @@ export default function EstadoActivoPage() {
     if (todosPeriodos.length === 0) {
       return resumirInactividad([], ventana.desde, ventana.hasta);
     }
-    // `ahora` en vez de Date.now(): el memo tiene que ser puro, y esta pagina
-    // ya mantiene el reloj en estado por la misma razon.
+    // `reloj` en vez de Date.now(): el memo tiene que ser puro.
     const inicio = todosPeriodos.reduce(
       (min, p) => Math.min(min, new Date(p.inicio).getTime()),
-      ahora,
+      reloj,
     );
-    return resumirInactividad(todosPeriodos, new Date(inicio), new Date(ahora));
-  }, [todosPeriodos, ventana.desde, ventana.hasta, ahora]);
+    return resumirInactividad(todosPeriodos, new Date(inicio), new Date(reloj));
+  }, [todosPeriodos, ventana.desde, ventana.hasta, reloj]);
 
   // El diálogo se monta desde cero cada vez (va tras `dlgOpen`), así que
   // arranca con los campos limpios sin resetear nada acá.
@@ -191,7 +191,7 @@ export default function EstadoActivoPage() {
     setDlgOpen(true);
   }
 
-  if (loading) {
+  if (estadoQ.isPending) {
     return (
       <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: 64, color: "var(--fg-3)" }}>
         <Loader2 size={16} className="animate-spin" />
@@ -200,10 +200,12 @@ export default function EstadoActivoPage() {
     );
   }
 
-  if (err) {
+  if (estadoQ.isError || !activo) {
     return (
       <div style={{ padding: "28px 28px", display: "grid", gap: 10 }}>
-        <p style={{ fontSize: 14, color: "var(--danger)", margin: 0 }}>{err}</p>
+        <p style={{ fontSize: 14, color: "var(--danger)", margin: 0 }}>
+          {estadoQ.error instanceof Error ? estadoQ.error.message : "No se encontró este activo."}
+        </p>
         <Link href="/activos/activos" style={{ fontSize: 14, color: "var(--brand)" }}>Volver a Activos</Link>
       </div>
     );
@@ -212,16 +214,9 @@ export default function EstadoActivoPage() {
   return (
     <div style={{ padding: "28px 28px 64px" }}>
 
-      {/* Breadcrumb */}
-      <div style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 14, color: "var(--fg-3)", marginBottom: 14 }}>
-        <Link href="/activos/activos" style={{ display: "inline-flex", alignItems: "center", gap: 5, color: "var(--brand)", textDecoration: "none" }}>
-          <ArrowLeft size={14} /> Activos
-        </Link>
-        <ChevronRight size={13} style={{ color: "var(--fg-4)" }} />
-        <span style={{ color: "var(--fg-1)", fontWeight: 400 }}>{nombre || "Activo"}</span>
-        <ChevronRight size={13} style={{ color: "var(--fg-4)" }} />
-        <span style={{ color: "var(--fg-1)", fontWeight: 400 }}>Estado</span>
-      </div>
+      {/* La ruta (Operaciones › Activos › Estado) la da el GlobalTopBar; acá
+          solo el nombre, para saber de qué activo es el historial. */}
+      <h1 style={{ fontSize: 20, fontWeight: 500, color: "var(--fg-1)", margin: "0 0 14px" }}>{nombre || "Activo"}</h1>
 
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", marginBottom: 18 }}>
         <button
@@ -245,23 +240,32 @@ export default function EstadoActivoPage() {
       {/* Tarjeta del historial */}
       <div style={{ border: "1px solid var(--border)", borderRadius: 12, background: "var(--surface-1)", padding: 20, marginBottom: 18 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", marginBottom: 18 }}>
-          <h2 style={{ margin: 0, fontSize: 14, fontWeight: 400, color: "var(--fg-1)" }}>Historial de estado</h2>
-          <div style={{ display: "inline-flex", border: "1px solid var(--border)", borderRadius: 8, overflow: "hidden" }}>
-            {RANGOS.map(r => (
-              <button
-                key={r.key}
-                type="button"
-                onClick={() => setRango(r.key)}
-                style={{
-                  minHeight: 30, padding: "0 11px", border: "none", cursor: "pointer",
-                  fontFamily: "inherit", fontSize: 14,
-                  background: rango === r.key ? "var(--brand)" : "var(--surface-1)",
-                  color: rango === r.key ? "var(--fg-on-brand)" : "var(--fg-3)",
-                }}
-              >
-                {r.label}
-              </button>
-            ))}
+          <h2 style={{ margin: 0, fontSize: 20, fontWeight: 500, color: "var(--fg-1)" }}>Historial de estado</h2>
+          {/* Mismo selector que /analitica/activos. "Personalizado" abre debajo
+              el selector de rango de fechas. */}
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8 }}>
+            <Desplegable<RangoKey>
+              ariaLabel="Período"
+              value={rango}
+              onChange={elegirRango}
+              opciones={[
+                ...RANGOS.map(r => ({ value: r.key as RangoKey, label: RANGO_LABEL[r.key] })),
+                { value: "personalizado" as const, label: "Personalizado" },
+              ]}
+            />
+            {rango === "personalizado" && (
+              <div style={{ width: 250 }}>
+                <DateRangePicker
+                  defaultOpen
+                  value={personalizado}
+                  max={new Date(reloj)}
+                  onChange={r => {
+                    setPersonalizado(r);
+                    if (r?.from && r.to) setRangoAplicado({ from: r.from, to: r.to });
+                  }}
+                />
+              </div>
+            )}
           </div>
         </div>
 
@@ -277,7 +281,7 @@ export default function EstadoActivoPage() {
           />
         </div>
 
-        <Timeline periodos={periodos} desde={ventana.desde} hasta={ventana.hasta} ahora={ahora} />
+        <Timeline periodos={periodos} desde={ventana.desde} hasta={ventana.hasta} ahora={reloj} />
 
         {resumen.cubiertoHoras > 0 && (
           <p style={{ margin: "16px 0 0", fontSize: 14, color: "var(--fg-4)" }}>
@@ -317,61 +321,17 @@ export default function EstadoActivoPage() {
                     )}
                   </span>
                 </div>
-                <LecturasChart medidor={m} desde={ventana.desde} hasta={ventana.hasta} refrescar={ticLecturas} />
+                <LecturasChart medidor={m} desde={ventana.desde} hasta={ventana.hasta} />
               </div>
             ))}
           </div>
         </div>
       )}
 
-      {/* Tabla */}
-      <div style={{ border: "1px solid var(--border)", borderRadius: 12, background: "var(--surface-1)", overflow: "hidden" }}>
-        <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 760 }}>
-            <thead>
-              <tr style={{ background: "var(--surface-2)" }}>
-                {["Estado", "Duración", "Inactividad", "Desde", "Hasta", "Notas"].map(h => (
-                  <th key={h} style={{ padding: "10px 16px", textAlign: "left", fontSize: 14, fontWeight: 400, color: "var(--fg-4)" }}>
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {periodos.length === 0 ? (
-                <tr>
-                  <td colSpan={6} style={{ padding: 32, textAlign: "center", color: "var(--fg-4)", fontSize: 14 }}>
-                    No hay cambios de estado en este período.
-                  </td>
-                </tr>
-              ) : periodos.map(p => {
-                const fin = p.fin ? new Date(p.fin).getTime() : ahora;
-                const horas = (fin - new Date(p.inicio).getTime()) / MS_POR_HORA;
-                return (
-                  <tr key={p.id} style={{ borderTop: "1px solid var(--border)" }}>
-                    <td style={{ padding: "12px 16px", fontSize: 14, color: "var(--fg-1)" }}>
-                      <span style={{ display: "inline-flex", alignItems: "center", gap: 7 }}>
-                        <span style={{ width: 7, height: 7, borderRadius: "50%", background: ESTADO_COLOR[p.estado] }} />
-                        {ESTADO_LABEL[p.estado]}
-                      </span>
-                    </td>
-                    <td style={{ padding: "12px 16px", fontSize: 14, color: "var(--fg-2)" }}>
-                      {formatDuracion(horas)}{p.fin ? "" : " (en curso)"}
-                    </td>
-                    <td style={{ padding: "12px 16px", fontSize: 14, color: "var(--fg-2)" }}>
-                      {p.tipo_inactividad === "planeado" ? "Planificada"
-                        : p.tipo_inactividad === "sin_planear" ? "Imprevista" : "—"}
-                    </td>
-                    <td style={{ padding: "12px 16px", fontSize: 14, color: "var(--fg-2)" }}>{fmtFecha(p.inicio)}</td>
-                    <td style={{ padding: "12px 16px", fontSize: 14, color: "var(--fg-2)" }}>{p.fin ? fmtFecha(p.fin) : "—"}</td>
-                    <td style={{ padding: "12px 16px", fontSize: 14, color: "var(--fg-3)" }}>{p.notas || "—"}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      {/* Tabla de cambios de estado (Data Table: buscar, filtrar, ordenar,
+          paginar). Es el registro completo: NO sigue al rango del gráfico, que
+          es un zoom. Sale de la misma consulta en caché que los totales. */}
+      <HistorialEstadoTabla periodos={todosPeriodos} ahora={reloj} />
 
       {/* El formulario vive en components/activos/CambiarEstadoDialog: el
           desplegable de estado en la OT (OTDetail) abre este mismo diálogo, y
@@ -382,8 +342,8 @@ export default function EstadoActivoPage() {
           estadoActual={estadoActual}
           onClose={() => setDlgOpen(false)}
           onSaved={async () => {
-            setAhora(Date.now());
-            await cargar();
+            setReloj(Date.now());
+            await qc.invalidateQueries({ queryKey: ["activo-estado", activoId] });
           }}
         />
       )}
@@ -573,6 +533,9 @@ function Timeline({ periodos, desde, hasta, ahora }: { periodos: EstadoPeriodo[]
               </span>
             )}
           </p>
+          {hover.p.motivo && (
+            <p style={{ margin: "4px 0 0", fontSize: 14, color: "var(--fg-2)" }}>Motivo: {hover.p.motivo.nombre}</p>
+          )}
           <p style={{ margin: "4px 0 0", fontSize: 14, color: "var(--fg-3)", fontVariantNumeric: "tabular-nums" }}>
             {fmtFecha(hover.p.inicio)} → {hover.p.fin ? fmtFecha(hover.p.fin) : "en curso"}
           </p>
