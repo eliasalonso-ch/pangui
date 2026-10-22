@@ -17,7 +17,8 @@ const STALE = 15 * 60 * 1000;
 export type FuenteCatalogo =
   | "categorias" | "activos" | "ubicaciones" | "sociedades" | "creadores" | "usuarios_baja"
   | "activos_sociedades" | "activos_ubicaciones" | "activos_lugares"
-  | "activos_responsables" | "activos_fabricantes" | "activos_modelos";
+  | "activos_responsables" | "activos_fabricantes" | "activos_modelos"
+  | "activos_proveedores" | "activos_cuadrillas" | "activos_medidores";
 
 type Fila = Record<string, any>;
 
@@ -103,6 +104,23 @@ const FUENTES: Record<FuenteCatalogo, Fuente> = {
   activos_responsables: enUsoPorActivos("usuarios", "id, nombre", "activos_responsable_id_fkey", "nombre", nombre, "Ningún activo tiene responsable"),
   activos_fabricantes: enUsoPorActivos("fabricantes", "id, nombre", "activos_fabricante_id_fkey", "nombre", nombre, "Ningún activo tiene fabricante"),
   activos_modelos: enUsoPorActivos("modelos", "id, nombre", "activos_modelo_id_fkey", "nombre", nombre, "Ningún activo tiene modelo"),
+  activos_proveedores: enUsoPorActivos("proveedores", "id, nombre", "activos_proveedor_id_fkey", "nombre", nombre, "Ningún activo tiene proveedor"),
+  // Cuadrillas a cargo de algún activo: la relación pasa por activo_cuadrillas.
+  activos_cuadrillas: {
+    tabla: "cuadrillas", columnas: "id, nombre, ac:activo_cuadrillas!activo_cuadrillas_cuadrilla_id_fkey!inner(activo_id)", columnasEtiqueta: "id, nombre",
+    orden: "nombre", buscar: ["nombre"],
+    delWorkspace: (q, ws) => q.eq("workspace_id", ws).limit(1, { referencedTable: "ac" }),
+    opcion: nombre, vacio: "Ningún activo tiene cuadrillas a cargo",
+  },
+  // Medidores colgados de un activo vigente. El join va con alias `act`
+  // porque `medidores.activo` ya es una columna (el booleano de vigencia).
+  activos_medidores: {
+    tabla: "medidores", columnas: "id, nombre, act:activos!medidores_activo_id_fkey!inner(nombre)", columnasEtiqueta: "id, nombre",
+    orden: "nombre", buscar: ["nombre"],
+    delWorkspace: (q, ws) => q.eq("workspace_id", ws).eq("activo", true).eq("act.activo", true),
+    opcion: r => ({ id: r.id, label: r.act?.nombre ? `${r.nombre} · ${r.act.nombre}` : r.nombre }),
+    vacio: "Ningún activo tiene medidores",
+  },
 };
 
 /** Acota el catálogo a filas cuya `columna` esté en `valores` (p. ej. modelos de los fabricantes elegidos). */

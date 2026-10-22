@@ -17,6 +17,8 @@ import AuditFooter from "@/components/catalogo/AuditFooter";
 import { BarraFiltros, FilterDropdown, OptionRow, OptionList, toggle } from "@/components/filtros/primitivas";
 import { MenuOrden } from "@/components/MenuOrden";
 import { CatalogoFiltro } from "@/components/ordenes/CatalogoMultiSelect";
+import { useQuery } from "@tanstack/react-query";
+import ArbolActivosFiltro from "./ArbolActivosFiltro";
 import SearchSelect from "@/components/activos/SearchSelect";
 import { EmptyState, EmptyDetail } from "@/components/EmptyState";
 import { cambiarEstadoActivo, fetchPeriodoVigente, type EstadoPeriodo } from "@/lib/activo-estado-api";
@@ -232,7 +234,7 @@ function RowBadge({ icon: Icon, iconColor, dotColor, children }: {
  * altura del bloque de texto y etiquetas con fondo blanco y borde gris —el
  * color solo en el icono—, en vez del punto de color suelto que tenía antes.
  */
-function ActivoRow({ activo, selected, onClick }: { activo: Activo; selected: boolean; onClick: () => void }) {
+function ActivoRow({ activo, subActivos, selected, onClick }: { activo: Activo; subActivos: number; selected: boolean; onClick: () => void }) {
   const crit = (activo.criticidad ?? "no_critico") as AssetCriticality;
   const critCfg = CRITICIDAD_COLOR[crit];
   const location = ubicacionLabel(activo);
@@ -290,6 +292,14 @@ function ActivoRow({ activo, selected, onClick }: { activo: Activo; selected: bo
           <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
             {location || "Sin ubicación"}
           </span>
+          {/* Un sub-activo solo llega a la lista por un filtro o una búsqueda:
+              sin el padre al lado no se sabe de qué equipo es parte. */}
+          {activo.parent && (
+            <>
+              <GitBranch size={14} style={{ color: "var(--fg-4)", flexShrink: 0, marginLeft: 4 }} />
+              <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{activo.parent.nombre}</span>
+            </>
+          )}
         </span>
         {/* `nowrap` + `overflow: hidden`: si las etiquetas se envolvieran, la
             tarjeta crecería y se rompería la altura uniforme. */}
@@ -300,6 +310,14 @@ function ActivoRow({ activo, selected, onClick }: { activo: Activo; selected: bo
           <RowBadge icon={AlertCircle} iconColor={critCfg.color}>
             {CRITICIDAD_LABEL[crit]}
           </RowBadge>
+          {/* Los sub-activos no se listan sueltos: sin esta etiqueta, un padre
+              con 8 equipos adentro se ve igual que uno vacío y parece que el
+              listado se cortó. */}
+          {subActivos > 0 && (
+            <RowBadge icon={GitBranch}>
+              {subActivos} sub-activo{subActivos === 1 ? "" : "s"}
+            </RowBadge>
+          )}
         </span>
       </span>
     </button>
@@ -1122,8 +1140,8 @@ function ActivoForm({
             </p>
           </FieldRow>
 
-          <FieldRow icon={<Building2 size={16} />} label="Cliente">
-            <SearchSelect placeholder="Elegir cliente…" value={form.sociedad_id} options={sociedadOptions} onChange={v => set("sociedad_id", v)} emptyLabel="Sin cliente" />
+          <FieldRow icon={<Building2 size={16} />} label="Sociedad">
+            <SearchSelect placeholder="Elegir sociedad…" value={form.sociedad_id} options={sociedadOptions} onChange={v => set("sociedad_id", v)} emptyLabel="Sin sociedad" />
           </FieldRow>
 
           <FieldRow icon={<MapPin size={16} />} label="Ubicación">
@@ -1903,7 +1921,7 @@ function DetallesTab({ activo, hijos, padreActivo, onOpenActivo, onOpenMaterial,
   ];
 
   const ubicFields: { label: string; value: string; icon: React.ReactNode }[] = [
-    { label: "Cliente", value: activo.sociedad?.nombre ?? "Sin cliente", icon: <Building2 size={16} /> },
+    { label: "Sociedad", value: activo.sociedad?.nombre ?? "Sin sociedad", icon: <Building2 size={16} /> },
     { label: "Ubicación", value: ubic ?? "Sin ubicación", icon: <MapPin size={16} /> },
     { label: "Lugar", value: activo.lugar?.nombre ?? "Sin lugar específico", icon: <Locate size={16} /> },
   ];
@@ -2573,6 +2591,14 @@ export default function ActivosBandeja({ initialActivos, usuarios, ubicaciones, 
   const [filterResponsableIds, setFilterResponsableIds] = useState<string[]>([]);
   const [filterFabricanteIds, setFilterFabricanteIds] = useState<string[]>([]);
   const [filterModeloIds, setFilterModeloIds] = useState<string[]>([]);
+  // Activos elegidos en el árbol: incluye sub-activos, que es la única forma
+  // de verlos en la bandeja sin buscarlos por nombre.
+  const [filterActivoIds, setFilterActivoIds] = useState<string[]>([]);
+  const [filterProveedorIds, setFilterProveedorIds] = useState<string[]>([]);
+  const [filterCuadrillaIds, setFilterCuadrillaIds] = useState<string[]>([]);
+  const [filterMedidorIds, setFilterMedidorIds] = useState<string[]>([]);
+  // Año de fabricación como texto; "sin" = activos sin año cargado.
+  const [filterAnios, setFilterAnios] = useState<string[]>([]);
   const [sort, setSort] = useState<ActivoSortOption>("nombre_asc");
   const [isDesktop, setIsDesktop] = useState(false);
 
@@ -2657,7 +2683,22 @@ export default function ActivosBandeja({ initialActivos, usuarios, ubicaciones, 
   }, [wsId]);
 
   const hayFiltros = [filterCrit, filterSociedadIds, filterEstado, filterUbicacionIds, filterLugarIds,
-    filterResponsableIds, filterFabricanteIds, filterModeloIds].some(f => f.length > 0);
+    filterResponsableIds, filterFabricanteIds, filterModeloIds, filterActivoIds, filterProveedorIds,
+    filterCuadrillaIds, filterMedidorIds, filterAnios].some(f => f.length > 0);
+
+  // Los medidores no vienen con los activos: de los elegidos basta saber a qué
+  // activo cuelgan. En caché igual que los catálogos de los filtros.
+  const medidorIdsOrdenados = useMemo(() => [...filterMedidorIds].sort(), [filterMedidorIds]);
+  const { data: activosConMedidor } = useQuery({
+    queryKey: ["activos-de-medidores", medidorIdsOrdenados],
+    queryFn: async () => {
+      const { data, error } = await createClient().from("medidores").select("activo_id").in("id", medidorIdsOrdenados);
+      if (error) throw error;
+      return new Set((data ?? []).map(r => r.activo_id as string));
+    },
+    enabled: medidorIdsOrdenados.length > 0,
+    staleTime: 15 * 60 * 1000,
+  });
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -2684,6 +2725,12 @@ export default function ActivosBandeja({ initialActivos, usuarios, ubicaciones, 
       if (fuera(filterResponsableIds, a.responsable_id ?? "sin")) return false;
       if (fuera(filterFabricanteIds, a.fabricante_id)) return false;
       if (fuera(filterModeloIds, a.modelo_id)) return false;
+      if (fuera(filterActivoIds, a.id)) return false;
+      if (fuera(filterProveedorIds, a.proveedor_id)) return false;
+      if (fuera(filterAnios, a.año_fabricacion ? String(a.año_fabricacion) : "sin")) return false;
+      if (filterCuadrillaIds.length > 0
+          && !(a.cuadrillas ?? []).some(c => filterCuadrillaIds.includes(c.cuadrilla_id))) return false;
+      if (filterMedidorIds.length > 0 && !activosConMedidor?.has(a.id)) return false;
       if (!q) return true;
       return [a.nombre, a.numero_serie, a.fabricante?.nombre, a.modelo?.nombre, a.sociedad?.nombre, ubicacionLabel(a)]
         .filter(Boolean)
@@ -2711,7 +2758,8 @@ export default function ActivosBandeja({ initialActivos, usuarios, ubicaciones, 
     });
     return list;
   }, [activos, search, hayFiltros, filterCrit, filterSociedadIds, filterEstado, filterUbicacionIds,
-      filterLugarIds, filterResponsableIds, filterFabricanteIds, filterModeloIds, sort]);
+      filterLugarIds, filterResponsableIds, filterFabricanteIds, filterModeloIds, filterActivoIds,
+      filterProveedorIds, filterAnios, filterCuadrillaIds, filterMedidorIds, activosConMedidor, sort]);
 
   // Cuantos activos hay en cada estado, para que el menu diga de entrada si
   // vale la pena filtrar por "Fuera de servicio".
@@ -2733,6 +2781,11 @@ export default function ActivosBandeja({ initialActivos, usuarios, ubicaciones, 
     setFilterResponsableIds([]);
     setFilterFabricanteIds([]);
     setFilterModeloIds([]);
+    setFilterActivoIds([]);
+    setFilterProveedorIds([]);
+    setFilterCuadrillaIds([]);
+    setFilterMedidorIds([]);
+    setFilterAnios([]);
   }
 
   /**
@@ -2741,18 +2794,35 @@ export default function ActivosBandeja({ initialActivos, usuarios, ubicaciones, 
    * pero los activos ya están en memoria: contar acá no cuesta una consulta.
    */
   const conteos = useMemo(() => {
-    const campos = ["sociedad_id", "ubicacion_id", "lugar_id", "responsable_id", "fabricante_id", "modelo_id"] as const;
-    const m = Object.fromEntries(campos.map(c => [c, new Map<string, number>()])) as Record<typeof campos[number], Map<string, number>>;
+    const campos = ["sociedad_id", "ubicacion_id", "lugar_id", "responsable_id", "fabricante_id", "modelo_id", "proveedor_id"] as const;
+    const m = Object.fromEntries([...campos, "cuadrilla_id"].map(c => [c, new Map<string, number>()])) as Record<typeof campos[number] | "cuadrilla_id", Map<string, number>>;
     for (const a of activos) {
       for (const c of campos) {
         const id = a[c];
         if (id) m[c].set(id, (m[c].get(id) ?? 0) + 1);
       }
+      for (const c of a.cuadrillas ?? []) m.cuadrilla_id.set(c.cuadrilla_id, (m.cuadrilla_id.get(c.cuadrilla_id) ?? 0) + 1);
     }
     return m;
   }, [activos]);
   const cuenta = (campo: keyof typeof conteos) => function ConteoOpcion(o: { id: string }) { return <Conteo n={conteos[campo].get(o.id)} />; };
   const sinResponsable = useMemo(() => activos.filter(a => !a.responsable_id).length, [activos]);
+  // Años que algún activo usa, del más nuevo al más viejo, con "Sin año" al final.
+  const aniosConteo = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const a of activos) {
+      const k = a.año_fabricacion ? String(a.año_fabricacion) : "sin";
+      m.set(k, (m.get(k) ?? 0) + 1);
+    }
+    return [...m].sort(([x], [y]) => x === "sin" ? 1 : y === "sin" ? -1 : Number(y) - Number(x));
+  }, [activos]);
+  const subActivosPorPadre = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const a of activos) {
+      if (a.activo_padre_id) m.set(a.activo_padre_id, (m.get(a.activo_padre_id) ?? 0) + 1);
+    }
+    return m;
+  }, [activos]);
 
   const openCreate = useCallback(() => { setEditing("new"); setSelected(null); }, []);
 
@@ -2834,6 +2904,9 @@ export default function ActivosBandeja({ initialActivos, usuarios, ubicaciones, 
             parte en varias filas en vez de hacer scroll horizontal: con
             overflow el desplegable quedaba recortado. */}
         <BarraFiltros hayFiltros={hayFiltros} onLimpiar={limpiarFiltros} style={{ padding: "6px 20px", minHeight: 40 }}>
+          <FilterDropdown label="Activo padre" icon={<GitBranch size={16} />} active={filterActivoIds.length > 0} count={filterActivoIds.length} onClear={() => setFilterActivoIds([])}>
+            <ArbolActivosFiltro activos={activos} value={filterActivoIds} onChange={setFilterActivoIds} />
+          </FilterDropdown>
           <FilterDropdown label="Criticidad" icon={<AlertCircle size={16} />} active={filterCrit.length > 0} count={filterCrit.length} onClear={() => setFilterCrit([])}>
             <OptionList>
               {CRITICIDADES.map(([value, label]) => (
@@ -2889,6 +2962,25 @@ export default function ActivosBandeja({ initialActivos, usuarios, ubicaciones, 
               restringir={filterFabricanteIds.length ? { columna: "fabricante_id", valores: filterFabricanteIds } : undefined}
             />
           </FilterDropdown>
+          <FilterDropdown label="Proveedor" icon={<Truck size={16} />} active={filterProveedorIds.length > 0} count={filterProveedorIds.length} onClear={() => setFilterProveedorIds([])}>
+            <CatalogoFiltro fuente="activos_proveedores" wsId={wsId} value={filterProveedorIds} onChange={setFilterProveedorIds} placeholder="Buscar proveedor…" fin={cuenta("proveedor_id")} />
+          </FilterDropdown>
+          <FilterDropdown label="Cuadrillas a cargo" icon={<Users size={16} />} active={filterCuadrillaIds.length > 0} count={filterCuadrillaIds.length} onClear={() => setFilterCuadrillaIds([])}>
+            <CatalogoFiltro fuente="activos_cuadrillas" wsId={wsId} value={filterCuadrillaIds} onChange={setFilterCuadrillaIds} placeholder="Buscar cuadrilla…" fin={cuenta("cuadrilla_id")} />
+          </FilterDropdown>
+          <FilterDropdown label="Medidor" icon={<Gauge size={16} />} active={filterMedidorIds.length > 0} count={filterMedidorIds.length} onClear={() => setFilterMedidorIds([])}>
+            <CatalogoFiltro fuente="activos_medidores" wsId={wsId} value={filterMedidorIds} onChange={setFilterMedidorIds} placeholder="Buscar medidor…" />
+          </FilterDropdown>
+          <FilterDropdown label="Año" icon={<Calendar size={16} />} active={filterAnios.length > 0} count={filterAnios.length} onClear={() => setFilterAnios([])}>
+            <OptionList>
+              {aniosConteo.map(([anio, n]) => (
+                <OptionRow key={anio} active={filterAnios.includes(anio)} onClick={() => setFilterAnios(toggle(filterAnios, anio))}>
+                  <span style={etiquetaOpcion}>{anio === "sin" ? "Sin año" : anio}</span>
+                  <Conteo n={n} />
+                </OptionRow>
+              ))}
+            </OptionList>
+          </FilterDropdown>
         </BarraFiltros>
       </div>
 
@@ -2926,7 +3018,7 @@ export default function ActivosBandeja({ initialActivos, usuarios, ubicaciones, 
                 hasSearch={!!search || hayFiltros}
               />
             ) : filtered.map(activo => (
-              <ActivoRow key={activo.id} activo={activo} selected={selected === activo.id} onClick={() => { setEditing(null); setSelected(prev => prev === activo.id ? null : activo.id); }} />
+              <ActivoRow key={activo.id} activo={activo} subActivos={subActivosPorPadre.get(activo.id) ?? 0} selected={selected === activo.id} onClick={() => { setEditing(null); setSelected(prev => prev === activo.id ? null : activo.id); }} />
             ))}
           </div>
         </div>
