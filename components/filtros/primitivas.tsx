@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, Children, Fragment, cloneElement, isValidElement } from "react";
+import { useState, useEffect, useLayoutEffect, useRef, Children, Fragment, cloneElement, isValidElement } from "react";
 import { X, Check, Trash2, Search, Plus } from "lucide-react";
 
 /**
@@ -152,6 +152,17 @@ function cabeALaDerecha(el: HTMLElement | null, ancho: number) {
   return !el || el.getBoundingClientRect().left + ancho <= window.innerWidth - 8;
 }
 
+/**
+ * Espacio libre bajo y sobre `el`, en px. Abajo se corta en la ventana o en el
+ * borde inferior del contenedor marcado con `data-limite-popover`, lo que
+ * llegue antes: en una tabla con pocas filas, el popover colgaba fuera de ella.
+ */
+function espacioVertical(el: HTMLElement) {
+  const r = el.getBoundingClientRect();
+  const limite = el.closest("[data-limite-popover]")?.getBoundingClientRect().bottom ?? Infinity;
+  return { abajo: Math.min(window.innerHeight, limite) - r.bottom - 8, arriba: r.top - 8 };
+}
+
 export function FilterDropdown({ label, icon, active, count, onClear, onRemove, children }: {
   label: string;
   icon: React.ReactNode;
@@ -164,7 +175,9 @@ export function FilterDropdown({ label, icon, active, count, onClear, onRemove, 
 }) {
   const [open, setOpen] = useState(false);
   const [aLaDerecha, setALaDerecha] = useState(false);
+  const espacio = useRef({ abajo: Infinity, arriba: 0 });
   const ref = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     function handler(e: MouseEvent) {
@@ -174,11 +187,28 @@ export function FilterDropdown({ label, icon, active, count, onClear, onRemove, 
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
+  // Abre hacia arriba si el panel no cabe abajo y arriba hay más espacio. El
+  // alto del panel solo se conoce ya dibujado: se decide antes de pintar (sin
+  // salto) y directo en el DOM; `top`/`bottom` no van en el style de abajo
+  // para que React no los pise.
+  useLayoutEffect(() => {
+    const panel = panelRef.current;
+    if (!open || !panel) return;
+    const { abajo, arriba } = espacio.current;
+    const haciaArriba = panel.offsetHeight > abajo && arriba > abajo;
+    panel.style.top = haciaArriba ? "" : "calc(100% + 4px)";
+    panel.style.bottom = haciaArriba ? "calc(100% + 4px)" : "";
+  }, [open]);
+
   return (
     <div ref={ref} style={{ position: "relative" }}>
       <button
         type="button"
-        onClick={() => { setALaDerecha(!cabeALaDerecha(ref.current, 360)); setOpen(v => !v); }}
+        onClick={() => {
+          if (!open && ref.current) espacio.current = espacioVertical(ref.current);
+          setALaDerecha(!cabeALaDerecha(ref.current, 360));
+          setOpen(v => !v);
+        }}
         style={{
           display: "flex", alignItems: "center", gap: 6,
           height: 34, padding: "0 11px",
@@ -201,8 +231,8 @@ export function FilterDropdown({ label, icon, active, count, onClear, onRemove, 
       </button>
 
       {open && (
-        <div style={{
-          position: "absolute", top: "calc(100% + 4px)", zIndex: 200,
+        <div ref={panelRef} style={{
+          position: "absolute", zIndex: 200,
           ...(aLaDerecha ? { right: 0 } : { left: 0 }),
           minWidth: 280, maxWidth: 360, background: "var(--surface-1)",
           border: "1px solid var(--border)", borderRadius: 8,

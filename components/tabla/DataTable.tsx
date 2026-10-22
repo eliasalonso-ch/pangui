@@ -1,10 +1,18 @@
 "use client";
+"use no memo";
 
 /**
  * Piezas del patrón "Data Table" de shadcn (TanStack Table + paginación con
  * números), compartidas por las tablas de la app: historial de estado de un
  * activo y activos de la analítica. Estilos inline con las variables de la app:
  * los componentes de shadcn salen rotos acá (preflight apagado, tokens distintos).
+ *
+ * "use no memo": TanStack Table v8 no es compatible con el React Compiler.
+ * `useReactTable` devuelve siempre la misma instancia; el compiler se salta
+ * solo el componente que la llama, pero memoizaba estos hijos por esa
+ * referencia y quedaban congelados en el primer render (flecha de orden y
+ * página activa sin cambiar). Todo componente que RECIBA la `tabla` necesita
+ * esta directiva.
  */
 
 import { flexRender, type Table } from "@tanstack/react-table";
