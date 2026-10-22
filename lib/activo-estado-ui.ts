@@ -55,3 +55,18 @@ export function fmtFecha(iso: string) {
     hour: "2-digit", minute: "2-digit",
   });
 }
+
+/**
+ * "22-10-2026, 06:22 p. m. → 06:33 p. m. (en curso)": de cuándo a cuándo va un
+ * período. El abierto termina en `ahora` (el de la última actualización):
+ * antes decía solo "→ en curso" y no se leía cuánto llevaba. Si empieza y
+ * termina el mismo día, el fin va solo con la hora.
+ */
+export function rangoPeriodo(inicio: string, fin: string | null, ahora: number): string {
+  const ini = new Date(inicio);
+  const hasta = fin ? new Date(fin) : new Date(ahora);
+  const finTxt = ini.toDateString() === hasta.toDateString()
+    ? hasta.toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" })
+    : fmtFecha(hasta.toISOString());
+  return `${fmtFecha(inicio)} → ${finTxt}${fin ? "" : " (en curso)"}`;
+}

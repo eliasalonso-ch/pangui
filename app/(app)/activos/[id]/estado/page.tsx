@@ -26,7 +26,7 @@ import CambiarEstadoDialog from "@/components/activos/CambiarEstadoDialog";
 import { MS_POR_HORA, RANGOS, marcasDeTiempo } from "@/lib/eje-tiempo";
 import LecturasChart from "@/components/activos/LecturasChart";
 import HistorialEstadoTabla from "@/components/activos/HistorialEstadoTabla";
-import { ESTADO_COLOR, ESTADO_LABEL, colorPeriodo, fmtDisponibilidad, fmtFecha } from "@/lib/activo-estado-ui";
+import { ESTADO_COLOR, ESTADO_LABEL, colorPeriodo, fmtDisponibilidad, fmtFecha, rangoPeriodo } from "@/lib/activo-estado-ui";
 import { fetchMedidoresBase } from "@/lib/medidores-api";
 import { Desplegable } from "@/components/Desplegable";
 import { DateRangePicker, type DateRange } from "@/components/ui/date-time-picker";
@@ -560,7 +560,7 @@ function Timeline({ periodos, desde, hasta, ahora }: { periodos: EstadoPeriodo[]
             <p style={{ margin: "4px 0 0", fontSize: 14, color: "var(--fg-2)" }}>Motivo: {hover.p.motivo.nombre}</p>
           )}
           <p style={{ margin: "4px 0 0", fontSize: 14, color: "var(--fg-3)", fontVariantNumeric: "tabular-nums" }}>
-            {fmtFecha(hover.p.inicio)} → {hover.p.fin ? fmtFecha(hover.p.fin) : "en curso"}
+            {rangoPeriodo(hover.p.inicio, hover.p.fin, ahora)}
           </p>
           <p style={{ margin: "2px 0 0", fontSize: 14, color: "var(--fg-3)" }}>
             {formatDuracion(((hover.p.fin ? new Date(hover.p.fin).getTime() : ahora) - new Date(hover.p.inicio).getTime()) / MS_POR_HORA)}
