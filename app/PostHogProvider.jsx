@@ -45,6 +45,13 @@ if (typeof window !== "undefined" && POSTHOG_KEY && !posthog.__loaded) {
   });
 }
 
+// Solo el primer $pageview de cada carga real del documento lleva `carga`:
+// "reload" = F5 o location.reload(), "navigate" = carga normal o navegacion
+// dura de Next (p. ej. buildId distinto tras un deploy), "back_forward" =
+// atras/adelante. `descartada` = Chrome boto la pestaña para ahorrar memoria.
+// Sirve para diagnosticar las "recargas solas" (ver $pageleave -> $pageview).
+let primeraVista = true;
+
 // Tracks SPA route changes as $pageview events.
 function PostHogPageview() {
   const pathname = usePathname();
@@ -56,7 +63,13 @@ function PostHogPageview() {
     let url = window.origin + pathname;
     const qs = searchParams?.toString();
     if (qs) url += "?" + qs;
-    ph.capture("$pageview", { $current_url: url });
+    const props = { $current_url: url };
+    if (primeraVista) {
+      primeraVista = false;
+      props.carga = performance.getEntriesByType("navigation")[0]?.type;
+      props.descartada = document.wasDiscarded === true;
+    }
+    ph.capture("$pageview", props);
   }, [pathname, searchParams, ph]);
 
   return null;
