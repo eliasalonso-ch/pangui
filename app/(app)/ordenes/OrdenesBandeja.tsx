@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { Plus, Search, X, ChevronDown, Loader2, ClipboardCheck, ArrowUp, ArrowUpDown, Download, AlertTriangle, Calendar, Check, Copy, DatabaseArrowDown, Eye, EyeOff } from "lucide-react";
 import { createClient, logRealtimeChannel } from "@/lib/supabase";
 import { esAdmin } from "@/lib/roles";
@@ -104,6 +104,19 @@ const MIN_LIST_WIDTH = 320;
 // Smallest width the detail panel is allowed to keep, so dragging can't crush it.
 const MIN_DETAIL_WIDTH = 480;
 
+// Abrir una OT, abrir "Nueva OT" o cerrar el panel solo cambian el query param:
+// todo el estado vive en el cliente. Con router.push cada uno de esos clicks
+// pedía el RSC de la página entera (las 8 consultas de page.tsx) y, si esa
+// respuesta no llegaba bien, Next.js caía a navegación de navegador: recarga
+// completa (ver fetchServerResponse en next/dist). Pasaba sobre todo en
+// pestañas abiertas desde antes de un deploy —el buildId ya no coincide— y le
+// botaba al usuario lo que estaba haciendo. pushState/replaceState se integran
+// con useSearchParams sin ir al servidor, así que ese camino ya no existe.
+function setUrl(url: string, replace = false) {
+  if (replace) window.history.replaceState(null, "", url);
+  else window.history.pushState(null, "", url);
+}
+
 // ── Props ─────────────────────────────────────────────────────────────────────
 
 interface Props {
@@ -129,7 +142,6 @@ export default function OrdenesBandeja({
   myId, myRol, wsId, initialSelectedId, initialPanel,
   todayKey,
 }: Props) {
-  const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
@@ -509,7 +521,7 @@ export default function OrdenesBandeja({
     if (pushUrl) {
       const params = new URLSearchParams();
       params.set("id", id);
-      router.push(`${viewPath}?${params.toString()}`, { scroll: false });
+      setUrl(`${viewPath}?${params.toString()}`);
     }
     setRightPanel("none");
     setSelected(id);
@@ -559,7 +571,7 @@ export default function OrdenesBandeja({
     } finally {
       setLoadingDetail(false);
     }
-  }, [router, viewPath, ordenes, countOrdenes, queryClient]);
+  }, [viewPath, ordenes, countOrdenes, queryClient]);
 
   const openCreate = useCallback(() => {
     setSelected(null);
@@ -567,8 +579,8 @@ export default function OrdenesBandeja({
     setRightPanel("create");
     const params = new URLSearchParams();
     params.set("panel", "crear");
-    router.push(`${viewPath}?${params.toString()}`, { scroll: false });
-  }, [router, viewPath]);
+    setUrl(`${viewPath}?${params.toString()}`);
+  }, [viewPath]);
 
   // Stable per-list callbacks so memoized OTRows don't re-render on every parent
   // update. These take the OT id and avoid per-row inline closures.
@@ -584,14 +596,14 @@ export default function OrdenesBandeja({
     if (searchParams?.get("copiarHoja") !== "1") return;
     const pending = getPendingHojaCopy();
     if (pending) setPendingCopy(pending);
-    else router.replace("/ordenes", { scroll: false });
-  }, [searchParams, router]);
+    else setUrl(viewPath, true);
+  }, [searchParams, viewPath]);
 
   const cancelCopy = useCallback(() => {
     clearPendingHojaCopy();
     setPendingCopy(null);
-    router.replace("/ordenes", { scroll: false });
-  }, [router]);
+    setUrl(viewPath, true);
+  }, [viewPath]);
 
   const confirmCopyTo = useCallback(async (target: OrdenListItem) => {
     if (!pendingCopy || copyInFlightRef.current) return;
@@ -985,7 +997,7 @@ export default function OrdenesBandeja({
     if (selected === id) {
       setSelected(null);
       setDetail(null);
-      router.push("/ordenes", { scroll: false });
+      setUrl(viewPath);
     }
   };
 
@@ -2088,7 +2100,7 @@ export default function OrdenesBandeja({
                 myId={myId}
                 wsId={wsId}
                 medidorId={searchParams?.get("medidor") ?? null}
-                onClose={() => { setRightPanel("none"); router.push("/ordenes", { scroll: false }); }}
+                onClose={() => { setRightPanel("none"); setUrl(viewPath); }}
                 onCreated={async (orden) => {
                   setRightPanel("none");
                   await refreshList();
@@ -2134,7 +2146,7 @@ export default function OrdenesBandeja({
                   wsId={wsId}
                   onEdit={() => setRightPanel("edit")}
                   onDelete={() => deleteOT(detail.id)}
-                  onClose={() => { setSelected(null); setDetail(null); router.push("/ordenes", { scroll: false }); }}
+                  onClose={() => { setSelected(null); setDetail(null); setUrl(viewPath); }}
                   onOpenOrden={(id) => openOT(id, true)}
                   isMarcada={marcadas.has(detail.id)}
                   onToggleMarcada={handleToggleMarcada}
@@ -2161,7 +2173,7 @@ export default function OrdenesBandeja({
       {view === "calendario" && (selected || rightPanel === "create" || (rightPanel === "edit" && detail)) && (
         <div
           style={{ position:"fixed", inset:0, zIndex:300, background:"rgba(15,23,42,0.45)", display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}
-          onClick={() => { setSelected(null); setDetail(null); setRightPanel("none"); router.push(viewPath, { scroll: false }); }}
+          onClick={() => { setSelected(null); setDetail(null); setRightPanel("none"); setUrl(viewPath); }}
         >
           <div
             onClick={e => e.stopPropagation()}
@@ -2184,7 +2196,7 @@ export default function OrdenesBandeja({
                 myId={myId}
                 wsId={wsId}
                 medidorId={searchParams?.get("medidor") ?? null}
-                onClose={() => { setRightPanel("none"); router.push(viewPath, { scroll: false }); }}
+                onClose={() => { setRightPanel("none"); setUrl(viewPath); }}
                 onCreated={async (orden) => {
                   setRightPanel("none");
                   await refreshList();
@@ -2227,7 +2239,7 @@ export default function OrdenesBandeja({
                 wsId={wsId}
                 onEdit={() => setRightPanel("edit")}
                 onDelete={() => deleteOT(detail.id)}
-                onClose={() => { setSelected(null); setDetail(null); setRightPanel("none"); router.push(viewPath, { scroll: false }); }}
+                onClose={() => { setSelected(null); setDetail(null); setRightPanel("none"); setUrl(viewPath); }}
                 showCloseButton
                 onOpenOrden={(id) => openOT(id, true)}
                 isMarcada={marcadas.has(detail.id)}
