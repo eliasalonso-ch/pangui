@@ -26,7 +26,7 @@ import CambiarEstadoDialog from "@/components/activos/CambiarEstadoDialog";
 import { MS_POR_HORA, RANGOS, marcasDeTiempo } from "@/lib/eje-tiempo";
 import LecturasChart from "@/components/activos/LecturasChart";
 import HistorialEstadoTabla from "@/components/activos/HistorialEstadoTabla";
-import { ESTADO_COLOR, ESTADO_LABEL, fmtFecha } from "@/lib/activo-estado-ui";
+import { ESTADO_COLOR, ESTADO_LABEL, colorPeriodo, fmtDisponibilidad, fmtFecha } from "@/lib/activo-estado-ui";
 import { fetchMedidoresBase } from "@/lib/medidores-api";
 import { Desplegable } from "@/components/Desplegable";
 import { DateRangePicker, type DateRange } from "@/components/ui/date-time-picker";
@@ -44,6 +44,13 @@ const FILAS: { estados: AssetStatus[]; label: string }[] = [
   { estados: ["operativo"], label: "Operativo" },
   { estados: ["mantencion"], label: "En mantención" },
   { estados: ["fuera_servicio"], label: "Fuera de servicio" },
+];
+
+/** Leyenda de colores de la línea de tiempo: los mismos nombres que los totales. */
+const LEYENDA = [
+  { label: "Operativo", color: ESTADO_COLOR.operativo },
+  { label: "Inactividad imprevista", color: ESTADO_COLOR.fuera_servicio },
+  { label: "Inactividad planificada", color: ESTADO_COLOR.mantencion },
 ];
 
 type RangoKey = (typeof RANGOS)[number]["key"] | "personalizado";
@@ -276,7 +283,7 @@ export default function EstadoActivoPage() {
           <Total valor={formatDuracion(resumen.imprevistoHoras)} label="Inactividad imprevista · histórico" color={ESTADO_COLOR.fuera_servicio} />
           <Total valor={formatDuracion(resumen.planificadoHoras)} label="Inactividad planificada · histórico" color={ESTADO_COLOR.mantencion} />
           <Total
-            valor={resumen.disponibilidadPct !== null ? `${resumen.disponibilidadPct.toFixed(1)}%` : "—"}
+            valor={resumen.disponibilidadPct !== null ? fmtDisponibilidad(resumen.disponibilidadPct) : "—"}
             label="Disponibilidad medida · histórico"
           />
         </div>
@@ -469,7 +476,8 @@ function Timeline({ periodos, desde, hasta, ahora }: { periodos: EstadoPeriodo[]
                     top: i * ALTO_FILA + 7,
                     height: ALTO_FILA - 15,
                     borderRadius: 4,
-                    background: ESTADO_COLOR[p.estado],
+                    // El carril dice el estado; el color, cómo cuenta (ver colorPeriodo).
+                    background: colorPeriodo(p),
                     // El periodo abierto no termina: se corta al borde derecho
                     // en vez de cerrar con esquina redondeada.
                     borderTopRightRadius: abierto ? 0 : 4,
@@ -501,13 +509,14 @@ function Timeline({ periodos, desde, hasta, ahora }: { periodos: EstadoPeriodo[]
         </div>
       </div>
 
-      {/* Leyenda: el color de estado no distingue solo, asi que siempre va
-          acompanado de su nombre. */}
+      {/* Leyenda: los carriles ya dicen el estado a la izquierda; los colores
+          dicen cómo cuenta cada tramo, con los mismos nombres que los totales.
+          El color nunca va solo. */}
       <div style={{ display: "flex", flexWrap: "wrap", gap: "6px 18px", marginTop: 14, paddingLeft: ANCHO_ETIQUETAS }}>
-        {FILAS.map(fila => (
-          <span key={fila.label} style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 14, color: "var(--fg-3)" }}>
-            <span style={{ width: 10, height: 10, borderRadius: 2, background: ESTADO_COLOR[fila.estados[0]], flexShrink: 0 }} />
-            {fila.label}
+        {LEYENDA.map(l => (
+          <span key={l.label} style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 14, color: "var(--fg-3)" }}>
+            <span style={{ width: 10, height: 10, borderRadius: 2, background: l.color, flexShrink: 0 }} />
+            {l.label}
           </span>
         ))}
       </div>
@@ -525,7 +534,7 @@ function Timeline({ periodos, desde, hasta, ahora }: { periodos: EstadoPeriodo[]
           }}
         >
           <p style={{ margin: 0, fontSize: 14, color: "var(--fg-1)", display: "flex", alignItems: "center", gap: 6 }}>
-            <span style={{ width: 8, height: 8, borderRadius: 2, background: ESTADO_COLOR[hover.p.estado], flexShrink: 0 }} />
+            <span style={{ width: 8, height: 8, borderRadius: 2, background: colorPeriodo(hover.p), flexShrink: 0 }} />
             {ESTADO_LABEL[hover.p.estado]}
             {hover.p.tipo_inactividad && (
               <span style={{ color: "var(--fg-4)" }}>

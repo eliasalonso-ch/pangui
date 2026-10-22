@@ -47,6 +47,7 @@ import {
   createMotivoInactividad, fetchMotivosInactividad,
   type MotivoInactividad, type TipoInactividad,
 } from "@/lib/activo-estado-api";
+import { tipoDeEstado } from "@/lib/activo-estado-ui";
 import type { MedidorConUltima } from "@/lib/medidores-api";
 import type { AssetCriticality, AssetStatus, CategoriaOT, OTLink, Usuario } from "@/types/ordenes";
 
@@ -618,32 +619,19 @@ function CamposCambiarEstado({ a, activos, onCambiar }: {
         <Desplegable
           value={a.estado}
           options={ESTADOS_DESTINO.map(e => ({ value: e.value, label: e.label }))}
-          onChange={v => onCambiar({
-            estado: v as AssetStatus,
-            // Operativo no lleva tipo ni motivo: dejarlos cargados mandaría
-            // valores que la base rechaza.
-            ...(v === "operativo" ? { tipo_inactividad: "" as const, motivo_id: "" } : {}),
-          })}
+          onChange={v => {
+            // El estado define el tipo (CHECKs en la base): fuera de servicio
+            // es avería y mantención es planificada. El motivo es solo de la
+            // avería: en los demás se borra para no mandar algo que se rechaza.
+            const tipo = tipoDeEstado(v as AssetStatus);
+            onCambiar({
+              estado: v as AssetStatus,
+              tipo_inactividad: tipo ?? "",
+              ...(tipo === "sin_planear" ? {} : { motivo_id: "" }),
+            });
+          }}
         />
       </div>
-
-      {a.estado !== "operativo" && (
-        <div>
-          <label style={labelStyle}>Tipo de parada</label>
-          <Desplegable
-            value={a.tipo_inactividad}
-            options={[
-              { value: "", label: "Elige el tipo de parada" },
-              { value: "planeado", label: "Planeado — mantención o inspección prevista" },
-              { value: "sin_planear", label: "Sin planear — avería o falla inesperada" },
-            ]}
-            onChange={v => onCambiar({
-              tipo_inactividad: v as TipoInactividad | "",
-              ...(v === "sin_planear" ? {} : { motivo_id: "" }),
-            })}
-          />
-        </div>
-      )}
 
       {/* Motivo: solo para la avería, igual que en el diálogo. Una parada
           imprevista sin causa registrada es el dato que después no se puede
@@ -1169,7 +1157,8 @@ function accionVacia(abierta: boolean, tipo: TipoAccion = "crear_ot"): AccionFor
     // una. `operativo` no lleva tipo de inactividad, así que arrancar ahí
     // escondería el campo que en el caso común hay que llenar.
     estado: "fuera_servicio",
-    tipo_inactividad: "",
+    // Fuera de servicio es siempre sin planear: no hay selector que lo elija.
+    tipo_inactividad: "sin_planear",
     motivo_id: "",
     notas: "",
   };
