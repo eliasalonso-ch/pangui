@@ -10,7 +10,7 @@ import { createHoja } from "@/lib/hojas-api";
 import { notifySolicitudMateriales } from "@/lib/notificar";
 import { tieneItos } from "@/lib/itos-gate";
 import {
-  X, Pencil, Trash2, Check, Copy, MapPin, Settings2, User, Flag, Calendar, Send, AlertTriangle, Loader2, CircleDot, PauseCircle, PlayCircle, CheckCircle2, XCircle, ChevronDown, ChevronLeft, ChevronRight, Plus, Image, Building2, Play, Pause, RotateCcw, FileText, Sheet, FileDown, MoreVertical, Upload, Download, Package, Search, ClipboardCheck, Info, Hash as HashIcon, Camera, PenLine, CheckSquare, Type, DollarSign, List, ListChecks, Mic, MicOff, GitBranch, Wrench, Link as LinkIcon, Paperclip, Phone, Mail, Circle, MessageSquare, Minus, ArrowUp, ArrowDown, RotateCw, UserRoundX, UserRoundCheck, Zap, Locate, Contact, Clock, SmilePlus, Share2,
+  X, Pencil, Trash2, Check, Copy, MapPin, Settings2, User, Flag, Calendar, Send, AlertTriangle, Loader2, CircleDot, PauseCircle, PlayCircle, CheckCircle2, XCircle, ChevronDown, ChevronLeft, ChevronRight, Plus, Image, Building2, Play, Pause, RotateCcw, FileText, Sheet, FileDown, MoreVertical, Upload, Download, Package, Search, ClipboardCheck, Info, Hash as HashIcon, Camera, PenLine, CheckSquare, Type, DollarSign, List, ListChecks, Mic, MicOff, GitBranch, Wrench, Link as LinkIcon, Paperclip, Phone, Mail, Circle, MessageSquare, Minus, ArrowUp, ArrowDown, RotateCw, UserRoundX, UserRoundCheck, Zap, Locate, Contact, Clock, SmilePlus, Share2, Power,
 } from "lucide-react";
 import { Engine } from "@/components/icons/Engine";
 import { cn } from "@/lib/utils";
@@ -33,7 +33,7 @@ import { useCategorias, useActividad, useWorkspaceConfig, usePartesCatalogo } fr
 import { iniciales, avatarStyle } from "@/lib/avatar";
 import { REACCIONES, TIPOS_REACCIONABLES, agruparReacciones, miReaccion, siguienteReaccion } from "@/lib/reacciones";
 import { tonoDeActividad, type TonoEstado } from "@/lib/actividad-estado";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { analytics } from "@/lib/analytics";
 import {
   fetchFotoGrupos, createFotoGrupo, updateFotoGrupo, deleteFotoGrupo,
@@ -51,11 +51,19 @@ import type {
   AssetStatus,
 } from "@/types/ordenes";
 import CambiarEstadoDialog from "@/components/activos/CambiarEstadoDialog";
+import { fetchMotivosInactividad } from "@/lib/activo-estado-api";
+import { ESTADO_LABEL } from "@/lib/activo-estado-ui";
+import { ESTADOS_PASO, faltaFoto } from "@/lib/procedimientos-reglas";
 import { notifyClasificacionCambiada } from "@/lib/notificar";
 import { esElevado, esAdmin } from "@/lib/roles";
 import EnvioContratista from "./EnvioContratista";
 import { CategoriaIcon } from "@/components/ordenes/categoria-icon";
 import ConfirmDeleteModal, { type ConfirmDelete } from "@/components/ConfirmDeleteModal";
+import SearchSelect from "@/components/activos/SearchSelect";
+import {
+  AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogFooter,
+  AlertDialogTitle, AlertDialogDescription, AlertDialogAction, AlertDialogCancel,
+} from "@/components/ui/alert-dialog";
 import type {
   OTProcedimiento, ProcedimientoEjecucion,
   PasoRespuesta, TipoPasoProc, ProcedimientoPaso,
@@ -218,21 +226,11 @@ function activoEstadoColor(e: string | null | undefined) {
  */
 function ActivoSection({ activo, onEstadoChanged }: {
   activo: NonNullable<OrdenTrabajo["activos"]>;
-  onEstadoChanged: () => void;
+  /** Recibe el estado que quedó escrito; el padre lo guarda (ver estadoActivoOverride). */
+  onEstadoChanged: (estado: string | null) => void;
 }) {
   const router = useRouter();
-  /**
-   * Estado optimista. `activo.estado` viene del join de la OT, que no se
-   * refresca al escribir el activo, así que la píldora seguiría mostrando el
-   * valor viejo y el cambio parecería no haber ocurrido.
-   *
-   * Se guarda como override en vez de sincronizarse en un efecto: el efecto
-   * disparaba un render en cascada por cada cambio de prop. El override manda
-   * mientras difiera de lo que trae la OT; cuando el padre finalmente refetcha
-   * y ambos coinciden, deja de aplicar solo.
-   */
-  const [override, setOverride] = useState<string | null | undefined>(undefined);
-  const estadoLocal = override ?? activo.estado;
+  const estadoLocal = activo.estado;
   // Estado que el usuario eligió en el desplegable; abre el diálogo con esa
   // opción ya puesta. `null` = diálogo cerrado.
   const [pendiente, setPendiente] = useState<AssetStatus | null>(null);
@@ -329,8 +327,7 @@ function ActivoSection({ activo, onEstadoChanged }: {
             // estado que quedó escrito se lee de vuelta antes de pintarlo.
             const sb = createClient();
             const { data } = await sb.from("activos").select("estado").eq("id", activo.id).maybeSingle();
-            setOverride((data?.estado ?? null) as string | null);
-            onEstadoChanged();
+            onEstadoChanged((data?.estado ?? null) as string | null);
           }}
         />
       )}
@@ -769,6 +766,16 @@ export default function OTDetail({
   } | null>(null);
   const [gateReason, setGateReason] = useState("");
   const [gateBusy, setGateBusy] = useState(false);
+  // Pregunta "¿cómo queda el equipo?" al completar (ver pasoEstadoPendiente).
+  // `resume` es el cierre que se estaba intentando.
+  const [cierreActivo, setCierreActivo] = useState<{
+    ejecId: string;
+    pasos: ProcedimientoPaso[];
+    pasoId: string;
+    estado: AssetStatus;
+    resume: () => Promise<void>;
+  } | null>(null);
+  const [cierreBusy, setCierreBusy] = useState(false);
   // Estado que se esta aplicando ahora mismo, o null. Cubre CUALQUIER cambio
   // (no solo completar): mientras hay uno en vuelo, el boton correspondiente
   // muestra un spinner y el resto queda deshabilitado.
@@ -953,6 +960,14 @@ export default function OTDetail({
   const [activeEjec, setActiveEjec] = useState<{ ejecucion: ProcedimientoEjecucion; pasos: OTProcedimiento["procedimiento"] | null } | null>(null);
   const [savingResp, setSavingResp] = useState<string | null>(null);
   const [pendingResps, setPendingResps] = useState<Record<string, PendingResp>>({});
+  /**
+   * Estado del activo de la OT escrito desde esta pantalla (la píldora o el
+   * paso "Estado del activo"). `orden.activos.estado` viene del join de la OT,
+   * que no se refresca al escribir el activo: sin esto la píldora y el paso
+   * seguirían mostrando el valor viejo y el cambio parecería no haber ocurrido.
+   * Override y no efecto: el efecto disparaba un render en cascada.
+   */
+  const [estadoActivoOverride, setEstadoActivoOverride] = useState<string | null | undefined>(undefined);
   const [completingEjec, setCompletingEjec] = useState(false);
 
   // ── Partes state ─────────────────────────────────────────────────────────────
@@ -1393,6 +1408,11 @@ export default function OTDetail({
       // If this paso auto-creates a corrective sub-OT on fail, fire the RPC.
       // Idempotent — server skips when already triggered.
       const paso = pasos.find((p: ProcedimientoPaso) => p.id === pasoId);
+      if (paso?.tipo === "estado_activo" && orden.activos?.id) {
+        const { data } = await createClient().from("activos").select("estado").eq("id", orden.activos.id).maybeSingle();
+        setEstadoActivoOverride((data?.estado ?? null) as string | null);
+        queryClient.invalidateQueries({ queryKey: ["activos-resumen", wsId] });
+      }
       if (paso?.genera_correctiva) {
         maybeTriggerCorrectiva({
           respuestaId: saved.id,
@@ -1783,15 +1803,65 @@ export default function OTDetail({
    * is missing and — for owner/admin only — offers to replay `close` with a
    * justified override.
    */
-  const closeWithRequirements = async (close: (forceClose?: ForceClose) => Promise<void>) => {
-    {
-      const missing = await checkCompletionRequirements();
-      if (missing.length === 0) {
-        await close();
-        return;
+  const closeWithRequirements = async (
+    close: (forceClose?: ForceClose) => Promise<void>,
+    // false = el cierre no completa la OT (enviar a revisión): no se pregunta por el activo.
+    preguntarActivo = true,
+  ) => {
+    const conActivo = async (forceClose?: ForceClose) => {
+      const pendiente = preguntarActivo ? await pasoEstadoPendiente() : null;
+      if (!pendiente) { await close(forceClose); return; }
+      setCierreActivo({ ...pendiente, resume: () => close(forceClose) });
+    };
+    const missing = await checkCompletionRequirements();
+    if (missing.length === 0) {
+      await conActivo();
+      return;
+    }
+    setGateReason("");
+    setGate({ missing, resume: conActivo });
+  };
+
+  /**
+   * Al completar: si un paso "Estado del activo" de esta OT dejó el equipo
+   * detenido y el cierre no lo va a devolver solo (el período abierto no es de
+   * esta OT, como sí lo es en una preventiva), se pregunta cómo queda. La
+   * respuesta reescribe ese mismo paso y el trigger aplica el cambio.
+   */
+  const pasoEstadoPendiente = async () => {
+    if (!orden.activos?.id) return null;
+    let paso: { ejecId: string; pasos: ProcedimientoPaso[]; pasoId: string } | null = null;
+    for (const otp of otProcs) {
+      const pasos = (otp.procedimiento?.pasos ?? []) as ProcedimientoPaso[];
+      for (const p of pasos) {
+        if (p.tipo !== "estado_activo" || !otp.ejecucion) continue;
+        if (otp.ejecucion.respuestas?.some(r => r.paso_id === p.id && r.valor_texto)) {
+          paso = { ejecId: otp.ejecucion.id, pasos, pasoId: p.id };
+        }
       }
-      setGateReason("");
-      setGate({ missing, resume: close });
+    }
+    if (!paso) return null;
+    const { data } = await createClient()
+      .from("activo_estado_periodos")
+      .select("estado, orden_id")
+      .eq("activo_id", orden.activos.id)
+      .is("fin", null)
+      .maybeSingle();
+    if (!data || data.estado === "operativo" || data.orden_id === orden.id) return null;
+    return { ...paso, estado: data.estado as AssetStatus };
+  };
+
+  const elegirEstadoCierre = async (extra?: PendingResp) => {
+    if (!cierreActivo) return;
+    setCierreBusy(true);
+    try {
+      await saveRespForEjecucion(cierreActivo.ejecId, cierreActivo.pasos, cierreActivo.pasoId, extra);
+      await cierreActivo.resume();
+      setCierreActivo(null);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "No se pudo cerrar la OT.");
+    } finally {
+      setCierreBusy(false);
     }
   };
 
@@ -3300,7 +3370,7 @@ export default function OTDetail({
                   onOrdenUpdated({ en_ejecucion: false, pausado_at: new Date().toISOString(), estado: "en_espera" });
                 }
                 await changeStatus("en_revision", undefined, true);
-              })}
+              }, false)}
               onOrdenUpdated={onOrdenUpdated}
             />
             </div>
@@ -3617,11 +3687,14 @@ export default function OTDetail({
                 editable. Antes era una celda de texto en la grilla de arriba. */}
             {orden.activos?.id && (
               <ActivoSection
-                activo={orden.activos}
+                activo={{ ...orden.activos, estado: (estadoActivoOverride ?? orden.activos.estado) as AssetStatus | undefined }}
                 // El estado vive en `activos`, no en la OT, así que no pasa por
                 // `onOrdenUpdated`: se invalida el resumen del workspace para
                 // que la bandeja de activos no quede mostrando el valor viejo.
-                onEstadoChanged={() => queryClient.invalidateQueries({ queryKey: ["activos-resumen", wsId] })}
+                onEstadoChanged={(estado) => {
+                  setEstadoActivoOverride(estado);
+                  queryClient.invalidateQueries({ queryKey: ["activos-resumen", wsId] });
+                }}
               />
             )}
 
@@ -3869,6 +3942,7 @@ export default function OTDetail({
                           onPhotoClick={(url) => setLightboxGrupo({ urls: [url], idx: 0 })}
                           editable={canFillProcs}
                           ordenId={orden.id}
+                          activo={orden.activos ? { ...orden.activos, estado: estadoActivoOverride ?? orden.activos.estado } : null}
                           pendingResps={pendingResps}
                           savingResp={savingResp}
                           onUpdateResp={(pasoId, patch) => setPendingResps(prev => ({ ...prev, [pasoId]: { ...(prev[pasoId] ?? {}), ...patch } }))}
@@ -4670,6 +4744,33 @@ export default function OTDetail({
       {/* ── Close-gate: unmet requisitos ──
           Everyone sees what the OT still owes. Only owner/admin get the override,
           and only with a written justification, which is stored on the OT. */}
+      <AlertDialog open={!!cierreActivo} onOpenChange={o => { if (!o && !cierreBusy) setCierreActivo(null); }}>
+        {cierreActivo && orden.activos && (
+          <AlertDialogContent style={{ ...ALERTA_CAJA, maxWidth: 540 }}>
+            <AlertDialogHeader>
+              <AlertDialogTitle style={{ ...ALERTA_TITULO, display: "flex", alignItems: "center", gap: 9 }}>
+                <Power size={18} style={{ color: (COLOR_ESTADO_PASO as Record<string, string>)[cierreActivo.estado] ?? "var(--fg-3)", flexShrink: 0 }} />
+                ¿Cómo queda el equipo?
+              </AlertDialogTitle>
+              <AlertDialogDescription style={ALERTA_TEXTO}>
+                {orden.activos.nombre} está {ESTADO_LABEL[cierreActivo.estado].toLowerCase()} desde el procedimiento de esta OT. Elige cómo queda al completarla.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <PasoEstadoActivo
+              activo={{ ...orden.activos, estado: cierreActivo.estado }}
+              cur="operativo"
+              motivoId={null}
+              isSaving={cierreBusy}
+              onSave={elegirEstadoCierre}
+              confirmar={false}
+            />
+            <AlertDialogFooter>
+              <AlertDialogCancel style={ALERTA_BOTON} disabled={cierreBusy}>Cancelar</AlertDialogCancel>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        )}
+      </AlertDialog>
+
       {gate && (
         <div
           role="presentation"
@@ -5006,11 +5107,15 @@ const EXEC_TIPO_META: Record<TipoPasoProc, { icon: React.ReactNode; color: strin
   sub_procedimiento:  { icon: <ClipboardCheck size={13} />,color: "var(--pr-high)" },
   seccion:            { icon: <Info size={13} />,          color: "var(--fg-3)" },
   puntuacion:         { icon: <CheckSquare size={13} />,   color: "var(--info)" },
+  estado_activo:      { icon: <Power size={13} />,         color: "var(--success)" },
 };
 
-function isAnsweredForType(paso: ProcedimientoPaso, resp: PendingResp | undefined): boolean {
+function isAnsweredForType(paso: ProcedimientoPaso, resp: PendingResp | undefined, sinActivo = false): boolean {
   // Organizers and computed fields never block "completar".
   if (paso.tipo === "seccion" || paso.tipo === "puntuacion") return true;
+  // Sin activo en la OT no hay estado que cambiar: no puede bloquear el cierre.
+  if (paso.tipo === "estado_activo" && sinActivo) return true;
+  if (faltaFoto(paso, resp)) return false;
   if (!resp) return false;
   switch (paso.tipo) {
     case "instruccion":
@@ -5039,6 +5144,7 @@ function isAnsweredForType(paso: ProcedimientoPaso, resp: PendingResp | undefine
     case "escaneo":        return !!resp.escaneo_valor;
     case "falla_iso14224": return !!resp.iso14224_modo;
     case "sub_procedimiento": return true; // Phase-5 will track child completion separately
+    case "estado_activo":  return !!resp.valor_texto;
     default:               return false;
   }
 }
@@ -5119,14 +5225,17 @@ const TIPO_FALLBACK_LABEL: Partial<Record<ProcedimientoPaso["tipo"], string>> = 
   hora: "Hora",
   fecha_hora: "Fecha y hora",
   opcion_multiple: "Opción múltiple",
+  estado_activo: "Estado del activo",
 };
 
 function ProcedimientoEjecutado({
   otp, onPhotoClick, nombrePorUsuario,
   editable = false, ordenId, pendingResps, savingResp, onUpdateResp, onSaveResp, onPreviewImage,
-  onEnsureEjecucion,
+  onEnsureEjecucion, activo,
 }: {
   otp: OTProcedimiento;
+  /** Activo de la OT, para el paso "Estado del activo". */
+  activo?: { id: string; nombre: string; estado?: string | null } | null;
   onPhotoClick: (url: string) => void;
   /** UUID → nombre, para mostrar quién rellenó cada campo. */
   nombrePorUsuario: Map<string, string>;
@@ -5172,7 +5281,7 @@ function ProcedimientoEjecutado({
   const answerable = pasos.filter(p => p.tipo !== "seccion");
   const answered = answerable.filter(p => {
     const r = respByPaso.get(p.id);
-    return r ? isAnsweredForType(p, r) : false;
+    return isAnsweredForType(p, r, !activo);
   }).length;
 
   return (
@@ -5239,6 +5348,7 @@ function ProcedimientoEjecutado({
                     ordenId={ordenId}
                     ejecucionId={ejec.id}
                     onPreviewImage={(urls, idx) => onPreviewImage?.(urls, idx)}
+                    activo={activo ?? null}
                   />
                 ) : paso.tipo === "si_no_na"
                   ? <EstadoSegmento valor={resp?.valor_texto ?? null} variante="si_no_na" />
@@ -5248,8 +5358,10 @@ function ProcedimientoEjecutado({
 
                 {/* La evidencia va aparte de la respuesta: cualquier tipo de
                     paso puede llevar fotos, no solo los de tipo imagen.
-                    "imagen" ya las dibuja en ReadonlyAnswer. */}
-                {resp && paso.tipo !== "imagen" && (
+                    "imagen" ya las dibuja en ReadonlyAnswer. Solo en lectura:
+                    editable, PasoInput ya las muestra con su papelera y salían
+                    dos veces. */}
+                {!(editable && onUpdateResp && onSaveResp && ordenId && ejec) && resp && paso.tipo !== "imagen" && (
                   <EvidenciaFotos resp={resp} onPhotoClick={onPhotoClick} />
                 )}
               </div>
@@ -5300,23 +5412,26 @@ function EvidenciaFotos({
   // foto_url suele ser la primera de evidence_images: se evita duplicarla.
   if (resp.foto_url && !urls.includes(resp.foto_url)) urls.unshift(resp.foto_url);
   if (urls.length === 0) return null;
+  return <div style={{ marginTop: 8 }}><FotosAdjuntas urls={urls} onPhotoClick={onPhotoClick} /></div>;
+}
+
+/**
+ * Fotos guardadas de un paso, en solo lectura: el mismo Attachment con
+ * miniatura que al llenarlo (PasoImagenField), y tocarlo abre el visor.
+ */
+function FotosAdjuntas({ urls, onPhotoClick }: { urls: string[]; onPhotoClick?: (url: string) => void }) {
   return (
-    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
       {urls.map((u, i) => (
-        <button
-          key={i}
-          type="button"
-          onClick={() => onPhotoClick?.(u)}
-          style={{ padding: 0, border: "none", background: "none", cursor: onPhotoClick ? "zoom-in" : "default", lineHeight: 0 }}
-        >
-          <img
-            src={u}
-            alt=""
-            loading="lazy"
-            decoding="async"
-            style={{ width: 96, height: 96, objectFit: "cover", borderRadius: "var(--r-sm)", border: "1px solid var(--border)", display: "block" }}
-          />
-        </button>
+        <Attachment
+          key={`${u}-${i}`}
+          nombre={`Foto ${i + 1}`}
+          mime="image/"
+          descripcion={(u.split("?")[0].split(".").pop() ?? "img").slice(0, 4).toUpperCase()}
+          imagen={optimizedProcedureImageUrl(u, 160)}
+          imagenRespaldo={u}
+          onOpen={onPhotoClick ? () => onPhotoClick(u) : undefined}
+        />
       ))}
     </div>
   );
@@ -5411,24 +5526,7 @@ function ReadonlyAnswer({ paso, resp, onPhotoClick }: { paso: ProcedimientoPaso;
               <div style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)" }}>{it.item}</div>
               <EstadoSegmento valor={it.result} />
               {(it.foto_urls ?? []).length > 0 && (
-                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                  {(it.foto_urls ?? []).map((u, k) => (
-                    <button
-                      key={k}
-                      type="button"
-                      onClick={() => onPhotoClick?.(u)}
-                      style={{ padding: 0, border: "none", background: "none", cursor: onPhotoClick ? "zoom-in" : "default", lineHeight: 0 }}
-                    >
-                      <img
-                        src={u}
-                        alt=""
-                        loading="lazy"
-                        decoding="async"
-                        style={{ width: 96, height: 96, objectFit: "cover", borderRadius: "var(--r-sm)", border: "1px solid var(--border)", display: "block" }}
-                      />
-                    </button>
-                  ))}
-                </div>
+                <FotosAdjuntas urls={it.foto_urls ?? []} onPhotoClick={onPhotoClick} />
               )}
             </div>
           ))}
@@ -5437,51 +5535,7 @@ function ReadonlyAnswer({ paso, resp, onPhotoClick }: { paso: ProcedimientoPaso;
     }
     case "imagen":
       if (!resp.foto_url) return null;
-      const thumbUrl = optimizedProcedureImageUrl(resp.foto_url, 360);
-      // If a click handler is provided, render the photo as a button that
-      // opens the lightbox. Otherwise it's a plain static thumbnail.
-      return onPhotoClick ? (
-        <button
-          type="button"
-          onClick={() => onPhotoClick(resp.foto_url!)}
-          style={{
-            marginTop: 6, padding: 0, border: "1px solid var(--border)",
-            borderRadius: "var(--r-sm)", background: "var(--surface-1)",
-            cursor: "pointer", display: "inline-block", position: "relative",
-          }}
-          title="Click para ampliar"
-        >
-          <img
-            src={thumbUrl}
-            alt="foto"
-            loading="lazy"
-            decoding="async"
-            onError={(e) => {
-              if (e.currentTarget.src !== resp.foto_url) e.currentTarget.src = resp.foto_url!;
-            }}
-            style={{ display: "block", width: 180, maxHeight: 140, objectFit: "cover", borderRadius: "var(--r-sm)", background: "var(--surface-hover)" }}
-          />
-          <span style={{
-            position: "absolute", top: 4, right: 4,
-            display: "inline-flex", alignItems: "center", gap: 3,
-            padding: "2px 6px", fontSize: 14, fontWeight: 400,
-            color: "#fff", background: "rgba(0,0,0,0.55)", borderRadius: 10,
-          }}>
-            <Image size={10} /> Ver
-          </span>
-        </button>
-      ) : (
-        <img
-          src={thumbUrl}
-          alt="foto"
-          loading="lazy"
-          decoding="async"
-          onError={(e) => {
-            if (e.currentTarget.src !== resp.foto_url) e.currentTarget.src = resp.foto_url!;
-          }}
-          style={{ marginTop: 6, width: 180, maxHeight: 140, objectFit: "cover", borderRadius: "var(--r-sm)", border: "1px solid var(--border)", background: "var(--surface-hover)" }}
-        />
-      );
+      return <div style={{ marginTop: 6 }}><FotosAdjuntas urls={[resp.foto_url]} onPhotoClick={onPhotoClick} /></div>;
     case "firma": {
       const src = signatureImageSrc(resp.firma_svg);
       return src
@@ -5514,6 +5568,8 @@ function ReadonlyAnswer({ paso, resp, onPhotoClick }: { paso: ProcedimientoPaso;
         )
         : <div style={{ fontSize: 14, color: "var(--success)", marginTop: 4 }}>✓ Firmado</div>;
     }
+    case "estado_activo":
+      return <div style={{ fontSize: 14, color: "var(--fg-2)", marginTop: 4 }}>{ESTADO_LABEL[resp.valor_texto as keyof typeof ESTADO_LABEL] ?? resp.valor_texto}</div>;
     case "medidor":
       return <div style={{ fontSize: 14, color: "var(--fg-2)", marginTop: 4 }}>{resp.valor_medido} {paso.unidad}{resp.lectura_delta != null ? ` (Δ ${resp.lectura_delta})` : ""}</div>;
     case "fecha":
@@ -5918,9 +5974,132 @@ function SignatureCanvas({
   );
 }
 
+/**
+ * Paso "Estado del activo": cómo queda el activo de la OT. Guardar la respuesta
+ * cambia el estado (trigger trg_paso_respuesta_estado_activo); acá solo se
+ * elige. Fuera de servicio pide el motivo antes de guardar: la base no abre una
+ * parada imprevista sin él.
+ */
+/**
+ * Estilos del AlertDialog de shadcn con los tokens de la app: sus clases
+ * (bg-background, buttonVariants) no calzan con las variables de pangui.
+ */
+const ALERTA_CAJA: React.CSSProperties = {
+  background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: "var(--r-lg, 12px)",
+  boxShadow: "var(--shadow-lg)", padding: 24, maxWidth: 420, gap: 18, color: "var(--fg-1)",
+};
+const ALERTA_TITULO: React.CSSProperties = { margin: 0, fontSize: 14, fontWeight: 400, color: "var(--fg-1)", lineHeight: 1.4 };
+const ALERTA_TEXTO: React.CSSProperties = { margin: 0, fontSize: 14, color: "var(--fg-3)", lineHeight: 1.5 };
+const ALERTA_BOTON: React.CSSProperties = {
+  height: 40, padding: "0 18px", borderRadius: "var(--r-sm)", fontSize: 14, fontWeight: 400, fontFamily: "inherit",
+  border: "1px solid var(--border)", background: "var(--surface-0)", color: "var(--fg-1)", boxShadow: "none",
+};
+const ALERTA_BOTON_PRIMARIO: React.CSSProperties = { ...ALERTA_BOTON, border: "none", background: "var(--brand)", color: "var(--fg-on-brand)" };
+
+/** Color de cada estado en el paso: los tokens de APROBADO / ALERTA / FALLA de la inspección. */
+const COLOR_ESTADO_PASO = { operativo: "var(--success)", mantencion: "var(--warning)", fuera_servicio: "var(--danger)" } as const;
+
+function PasoEstadoActivo({ activo, cur, motivoId, isSaving, onSave, confirmar = true }: {
+  /** false en el modal de cierre: elegir ahí ya es la confirmación. */
+  confirmar?: boolean;
+  activo: { id: string; nombre: string; estado?: string | null } | null;
+  cur: string | null;
+  motivoId: string | null;
+  isSaving: boolean;
+  onSave: (extra?: PendingResp) => void;
+}) {
+  const [pidiendoMotivo, setPidiendoMotivo] = useState(false);
+  // Estado elegido que espera el "Cambiar" del AlertDialog.
+  const [porConfirmar, setPorConfirmar] = useState<(typeof ESTADOS_PASO)[number] | null>(null);
+  const verMotivo = pidiendoMotivo || cur === "fuera_servicio";
+  const motivosQ = useQuery({ queryKey: ["motivos-inactividad"], queryFn: fetchMotivosInactividad, staleTime: 5 * 60_000, enabled: verMotivo });
+  const motivos = motivosQ.data ?? [];
+  if (!activo) return <div style={{ fontSize: 14, color: "var(--fg-3)" }}>Esta OT no tiene activo vinculado.</div>;
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      <div style={{ fontSize: 14, color: "var(--fg-3)" }}>{activo.nombre}</div>
+      <div style={{ display: "flex", gap: 10 }}>
+        {ESTADOS_PASO.map(e => {
+          const elegido = e === "fuera_servicio" && pidiendoMotivo ? true : cur === e && !pidiendoMotivo;
+          // El estado en que ya está el activo no se "cambia": elegirlo solo deja
+          // constancia de que sigue así (el trigger no hace nada). Así un paso
+          // requerido se puede responder igual.
+          const esActual = activo.estado === e;
+          return (
+            <button
+              key={e}
+              onClick={() => {
+                setPidiendoMotivo(false);
+                if (esActual) { onSave({ valor_texto: e, valor_json: null }); return; }
+                // Elegir el motivo ya es la confirmación.
+                if (e === "fuera_servicio") { setPidiendoMotivo(true); return; }
+                if (confirmar) { setPorConfirmar(e); return; }
+                onSave({ valor_texto: e, valor_json: null });
+              }}
+              disabled={isSaving}
+              // Mismos tokens y misma marca de elegido (solo el borde) que los
+              // botones de inspección, que van al lado en el mismo procedimiento.
+              style={{
+                flex: 1, minWidth: 0, minHeight: 42, padding: "0 10px", borderRadius: "var(--r-sm)", cursor: "pointer",
+                fontSize: 14, fontWeight: 400, fontFamily: "inherit", letterSpacing: "0.02em",
+                border: `1px solid ${elegido ? COLOR_ESTADO_PASO[e] : "var(--border)"}`,
+                background: "var(--surface-1)",
+                color: COLOR_ESTADO_PASO[e],
+              }}
+            >
+              {ESTADO_LABEL[e].toUpperCase()}{esActual ? " (ACTUAL)" : ""}
+            </button>
+          );
+        })}
+      </div>
+      {cur === "fuera_servicio" && motivoId && !pidiendoMotivo && (
+        <div style={{ fontSize: 14, color: "var(--fg-3)" }}>
+          Motivo: {motivos.find(m => m.id === motivoId)?.nombre ?? "—"}
+        </div>
+      )}
+      {pidiendoMotivo && (
+        // El mismo desplegable del diálogo de cambio de estado del activo.
+        <SearchSelect
+          placeholder="Motivo de la falla…"
+          value=""
+          options={motivos.map(m => ({ id: m.id, label: m.nombre }))}
+          disabled={isSaving}
+          onChange={id => {
+            if (!id) return;
+            setPidiendoMotivo(false);
+            onSave({ valor_texto: "fuera_servicio", valor_json: { motivo_id: id } });
+          }}
+        />
+      )}
+      <AlertDialog open={porConfirmar !== null} onOpenChange={o => { if (!o) setPorConfirmar(null); }}>
+        <AlertDialogContent style={ALERTA_CAJA}>
+          <AlertDialogHeader>
+            <AlertDialogTitle style={ALERTA_TITULO}>
+              ¿Cambiar a {porConfirmar ? ESTADO_LABEL[porConfirmar].toLowerCase() : ""}?
+            </AlertDialogTitle>
+            <AlertDialogDescription style={ALERTA_TEXTO}>
+              {activo.nombre} quedará {porConfirmar ? ESTADO_LABEL[porConfirmar].toLowerCase() : ""}.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter style={{ gap: 8 }}>
+            <AlertDialogCancel style={ALERTA_BOTON}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              style={ALERTA_BOTON_PRIMARIO}
+              onClick={() => { if (porConfirmar) onSave({ valor_texto: porConfirmar, valor_json: null }); }}
+            >
+              Cambiar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+}
+
 function PasoInput({
-  paso, resp, existingResp, isSaving, onUpdate, onSave, ordenId, ejecucionId, onPreviewImage,
+  paso, resp, existingResp, isSaving, onUpdate, onSave, ordenId, ejecucionId, onPreviewImage, activo,
 }: {
+  activo?: { id: string; nombre: string; estado?: string | null } | null;
   paso: ProcedimientoPaso;
   resp: PendingResp;
   existingResp: PendingResp | undefined;
@@ -6259,6 +6438,18 @@ function PasoInput({
     );
   }
 
+  if (paso.tipo === "estado_activo") {
+    return (
+      <PasoEstadoActivo
+        activo={activo ?? null}
+        cur={(val("valor_texto") as string | null | undefined) ?? null}
+        motivoId={(responseJson.motivo_id as string | undefined) ?? null}
+        isSaving={isSaving}
+        onSave={onSave}
+      />
+    );
+  }
+
   if (paso.tipo === "medidor") {
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -6592,6 +6783,12 @@ function PasoArchivoField({ folder, url, nombre, mime, isSaving, onUploaded, onC
   );
 }
 
+/**
+ * Fotos de un paso (imagen, medidor, sí/no, inspección): cada foto es un
+ * Attachment con su miniatura (variante image de shadcn) que abre el visor, la
+ * subida en curso y el error van como Attachment en su estado, y debajo la zona
+ * para agregar otra.
+ */
 function PasoImagenField({
   pasoId, ordenId, ejecucionId, fotoUrl, fotoUrls, isSaving, onUploaded, onClear, onPreview,
 }: {
@@ -6605,17 +6802,15 @@ function PasoImagenField({
   onClear: (url: string) => void;
   onPreview: (urls: string[], index: number) => void;
 }) {
-  const libraryInputRef = useRef<HTMLInputElement | null>(null);
-  const [uploading, setUploading] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-  // Deleting an attachment is destructive and the trash icon is easy to hit by
+  const [subiendo, setSubiendo] = useState<File | null>(null);
+  const [err, setErr] = useState<{ nombre: string; msg: string } | null>(null);
+  // Deleting an attachment is destructive and the remove icon is easy to hit by
   // accident on a dense card, so it confirms first.
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 
-  async function handleFile(f: File | undefined) {
-    if (!f) return;
+  async function handleFile(f: File) {
     setErr(null);
-    setUploading(true);
+    setSubiendo(f);
     try {
       // Inspection steps qualify pasoId with the item label, which is free text
       // and can carry spaces or accents. The presign endpoint rejects those, so
@@ -6628,104 +6823,57 @@ function PasoImagenField({
       // The raw error carries the presign JSON payload, which means nothing to
       // the person filling in the procedure.
       console.error("[paso-imagen] fallo la subida", e);
-      setErr("No se pudo subir el archivo. Inténtalo nuevamente.");
+      setErr({ nombre: f.name, msg: "No se pudo subir. Inténtalo nuevamente." });
     } finally {
-      setUploading(false);
-      // Reset the input so picking the same file twice still fires onChange.
-      if (libraryInputRef.current) libraryInputRef.current.value = "";
+      setSubiendo(null);
     }
   }
 
-  const busy = uploading || isSaving;
+  const busy = !!subiendo || isSaving;
   const urls = fotoUrls ?? (fotoUrl ? [fotoUrl] : []);
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", alignItems: "stretch", gap: 10, width: "100%" }}>
-      {/* Los adjuntos van en su propio panel sobre la zona de carga: la miniatura
-          a la izquierda con su formato, y la papelera al extremo derecho. */}
-      {urls.length > 0 && (
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "stretch", width: "100%", border: "1px solid var(--border)", borderRadius: "var(--r-sm)", background: "var(--surface-canvas)", overflow: "hidden" }}>
-          {urls.map((url, index) => (
-            <div key={url} style={{ display: "flex", alignItems: "center", gap: 14, padding: 12, borderTop: index === 0 ? "none" : "1px solid var(--border)" }}>
-              <span style={{ flexShrink: 0, padding: "5px 8px", borderRadius: "var(--r-xs)", background: "var(--surface-1)", fontSize: 14, fontWeight: 400, color: "var(--fg-3)" }}>
-                {(url.split("?")[0].split(".").pop() ?? "img").slice(0, 4)}
-              </span>
-              <button type="button" onClick={() => onPreview(urls, index)} style={{ padding: 0, border: 0, background: "transparent", cursor: "zoom-in", flexShrink: 0 }} aria-label="Ver imagen">
-                <img
-                  src={optimizedProcedureImageUrl(url, 480)}
-                  alt="Foto del paso"
-                  loading="lazy"
-                  decoding="async"
-                  onError={(e) => { if (e.currentTarget.src !== url) e.currentTarget.src = url; }}
-                  style={{ display: "block", width: 180, height: 180, objectFit: "contain", background: "transparent" }}
-                />
-              </button>
-              <span style={{ flex: 1 }} />
-              <button type="button" onClick={() => setConfirmDelete(url)} disabled={busy} aria-label="Quitar imagen" style={{ flexShrink: 0, width: 32, height: 32, display: "grid", placeItems: "center", padding: 0, border: "none", borderRadius: "var(--r-sm)", background: "transparent", color: "var(--fg-2)", cursor: busy ? "default" : "pointer" }}>
-                <Trash2 size={17} />
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-      {/* Una sola zona de carga en vez de dos botones: el selector de archivos
-          del sistema ya ofrece cámara en móvil, así que separarlos duplicaba la
-          decisión sin agregar nada. */}
-      <button
-        type="button"
-        onClick={() => libraryInputRef.current?.click()}
-        disabled={busy}
-        // Mismo vacío punteado tenue que Procedimiento y Adjuntos.
-        style={{
-          width: "100%", minHeight: 96, padding: "16px 12px",
-          display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8,
-          border: "1px dashed var(--border-strong)", borderRadius: "var(--r-md)",
-          background: "var(--surface-canvas)",
-          cursor: busy ? "default" : "pointer", opacity: busy ? 0.6 : 1,
-          fontSize: 14, fontWeight: 400, color: "var(--brand)", fontFamily: "inherit",
-        }}
-      >
-        {uploading ? <Loader2 size={20} className="animate-spin" /> : <Camera size={20} />}
-        {uploading ? "Subiendo…" : "Agregar Imágenes/Archivos"}
-      </button>
-      {err && <div style={{ fontSize: 14, color: "var(--danger)" }}>{err}</div>}
-      <input
-        ref={libraryInputRef}
-        type="file"
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "stretch", gap: 8, width: "100%" }}>
+      {urls.map((url, index) => (
+        <Attachment
+          key={url}
+          nombre={`Foto ${index + 1}`}
+          mime="image/"
+          descripcion={(url.split("?")[0].split(".").pop() ?? "img").slice(0, 4).toUpperCase()}
+          imagen={optimizedProcedureImageUrl(url, 160)}
+          imagenRespaldo={url}
+          onOpen={() => onPreview(urls, index)}
+          onRemove={busy ? undefined : () => setConfirmDelete(url)}
+        />
+      ))}
+      {subiendo && <Attachment nombre={subiendo.name} mime={subiendo.type} state="uploading" descripcion="Subiendo…" />}
+      {err && !subiendo && <Attachment nombre={err.nombre} mime="image/" state="error" descripcion={err.msg} onRemove={() => setErr(null)} />}
+      {/* Una sola zona de carga: el selector del sistema ya ofrece cámara en móvil. */}
+      <AttachmentDropzone
+        label={urls.length > 0 ? "Agregar otra imagen" : "Agregar imagen"}
         accept="image/*"
-        style={{ display: "none" }}
-        onChange={e => handleFile(e.target.files?.[0])}
+        icono={<Camera size={18} />}
+        onFile={handleFile}
+        disabled={busy}
       />
 
-      {confirmDelete && (
-        <div
-          role="presentation"
-          onMouseDown={e => { if (e.target === e.currentTarget) setConfirmDelete(null); }}
-          style={{ position: "fixed", inset: 0, zIndex: 820, background: "rgba(15,23,42,0.45)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}
-        >
-          <div role="dialog" aria-modal="true" aria-label="Eliminar archivo adjunto" style={{ width: "min(440px, 100%)", background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: "var(--r-xl)", boxShadow: "var(--shadow-lg)", padding: 24, textAlign: "left" }}>
-            <p style={{ margin: "0 0 22px", fontSize: 14, fontWeight: 400, lineHeight: 1.45, color: "var(--fg-1)" }}>
-              ¿Estás seguro de que quieres eliminar el archivo adjunto?
-            </p>
-            <div style={{ display: "flex", gap: 14, alignItems: "center", justifyContent: "flex-end" }}>
-              <button
-                type="button"
-                onClick={() => setConfirmDelete(null)}
-                style={{ background: "none", border: "none", padding: 4, cursor: "pointer", fontSize: 14, fontWeight: 400, color: "var(--brand)", fontFamily: "inherit" }}
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                onClick={() => { onClear(confirmDelete); setConfirmDelete(null); }}
-                style={{ height: 40, padding: "0 20px", border: "none", borderRadius: "var(--r-md)", background: "var(--brand)", color: "var(--fg-on-brand)", fontSize: 14, fontWeight: 400, fontFamily: "inherit", cursor: "pointer" }}
-              >
-                Confirmar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <AlertDialog open={confirmDelete !== null} onOpenChange={o => { if (!o) setConfirmDelete(null); }}>
+        <AlertDialogContent style={ALERTA_CAJA}>
+          <AlertDialogHeader>
+            <AlertDialogTitle style={ALERTA_TITULO}>¿Eliminar la foto?</AlertDialogTitle>
+            <AlertDialogDescription style={ALERTA_TEXTO}>Se quita de la respuesta de este paso.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter style={{ gap: 8 }}>
+            <AlertDialogCancel style={ALERTA_BOTON}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              style={ALERTA_BOTON_PRIMARIO}
+              onClick={() => { if (confirmDelete) onClear(confirmDelete); }}
+            >
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

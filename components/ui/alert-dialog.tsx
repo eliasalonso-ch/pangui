@@ -30,7 +30,9 @@ const AlertDialogContent = React.forwardRef<
   React.ComponentPropsWithoutRef<typeof AlertDialogPrimitive.Content>
 >(({ className, ...props }, ref) => (
   <AlertDialogPortal>
-    <AlertDialogOverlay />
+    {/* zIndex 500, como ConfirmDeleteModal: con el z-50 de shadcn la topbar
+        (zIndex 100) quedaba iluminada encima del fondo oscuro. */}
+    <AlertDialogOverlay style={{ zIndex: 500, background: "rgba(15,23,42,0.45)" }} />
     <AlertDialogPrimitive.Content
       ref={ref}
       className={cn(
@@ -38,6 +40,7 @@ const AlertDialogContent = React.forwardRef<
         className
       )}
       {...props}
+      style={{ zIndex: 500, ...props.style }}
     />
   </AlertDialogPortal>
 ))

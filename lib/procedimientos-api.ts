@@ -18,7 +18,7 @@ const PASO_SELECT = `
   requerido, unidad, valor_min, valor_max, moneda, multilinea,
   opciones, rol_firmante,
   peso, condicion_paso_id, condicion_operador, condicion_valor,
-  requiere_nota_si, requiere_foto_si,
+  requiere_nota_si, requiere_foto_si, foto_requerida,
   genera_correctiva, correctiva_plantilla,
   medidor_id, sub_procedimiento_id, multimedia_url
 `;
@@ -251,6 +251,7 @@ async function upsertPasos(procedimientoId: string, pasos: PasoFormItem[]) {
     requiere_foto_si: p.requiere_foto_si && p.requiere_foto_si.length > 0
       ? { on: p.requiere_foto_si }
       : null,
+    foto_requerida: p.foto_requerida ?? false,
     genera_correctiva: p.genera_correctiva ?? false,
     correctiva_plantilla: p.correctiva_plantilla ?? null,
     medidor_id: p.medidor_id ?? null,

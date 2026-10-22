@@ -9,7 +9,7 @@ import {
   Info, AlertTriangle, Type, Hash, DollarSign,
   CheckSquare, List, ListChecks, ClipboardCheck,
   Camera, PenLine, ChevronDown, ChevronUp, X, GripVertical,
-  CirclePlus, Rows2, EllipsisVertical, Check, Eye, Pencil, Settings, Calendar, Clock, CalendarClock, Paperclip, Gauge,
+  CirclePlus, Rows2, EllipsisVertical, Check, Eye, Pencil, Settings, Calendar, Clock, CalendarClock, Paperclip, Gauge, Power,
 } from "lucide-react";
 import {
   createProcedimiento, updateProcedimiento, getProcedimiento,
@@ -25,6 +25,8 @@ import { fetchMedidores, type MedidorConUltima } from "@/lib/medidores-api";
 import { DatePicker, TimePicker, DateTimePicker } from "@/components/ui/date-time-picker";
 import { useTopBarVista } from "@/components/TopBarActions";
 import { Attachment, AttachmentDropzone, tipoArchivo, tamanoArchivo } from "@/components/ui/attachment";
+import { ESTADO_LABEL } from "@/lib/activo-estado-ui";
+import { ESTADOS_PASO, PASOS_CON_FOTO } from "@/lib/procedimientos-reglas";
 
 // ─── Tipo metadata ────────────────────────────────────────────────────────────
 
@@ -53,6 +55,7 @@ const TIPO_META: Record<TipoPasoProc, { label: string; icon: React.ReactNode; co
   sub_procedimiento: { label: "Sub-procedimiento",     icon: <ClipboardCheck size={14} />,color: "#DB2777", desc: "Procedimiento reutilizable embebido" },
   seccion:           { label: "Sección",               icon: <Rows2 size={14} />,         color: "#94A3B8", desc: "Título que agrupa los campos que siguen. No pide respuesta." },
   puntuacion:        { label: "Puntuación",            icon: <CheckSquare size={14} />,   color: "#22C55E", desc: "Puntaje calculado" },
+  estado_activo:     { label: "Estado del activo",     icon: <Power size={14} />,         color: "#0D9488", desc: "El técnico indica cómo queda el activo de la OT: Operativo, En mantención o Fuera de servicio (con motivo). El estado del activo cambia al responder." },
 };
 
 // Espeja GALLERY en la app móvil (features/procedimientos/paso-tipos.ts).
@@ -62,7 +65,7 @@ const TIPO_META: Record<TipoPasoProc, { label: string; icon: React.ReactNode; co
 // igual que en móvil. Mismo orden que las secciones de GALLERY, sin títulos.
 // La sección no está: se crea desde la paleta y se dibuja como grupo.
 const TIPOS_OFRECIDOS: TipoPasoProc[] = [
-  "instruccion", "texto", "numero", "monto", "medidor",
+  "instruccion", "texto", "numero", "monto", "medidor", "estado_activo",
   "fecha", "hora", "fecha_hora",
   "si_no_na", "opcion_multiple", "lista_verificacion", "inspeccion",
   "imagen", "archivo", "firma",
@@ -123,6 +126,7 @@ function emptyPaso(tipo: TipoPasoProc = "instruccion"): PasoFormItem {
     condicion_valor: null,
     requiere_nota_si: [],
     requiere_foto_si: [],
+    foto_requerida: false,
     genera_correctiva: false,
     correctiva_plantilla: null,
     medidor_id: null,
@@ -415,6 +419,7 @@ export default function ProcedimientoBuilder({ editId, initialNombre, initialDes
             condicion_valor: p.condicion_valor ?? null,
             requiere_nota_si: p.requiere_nota_si?.on ?? [],
             requiere_foto_si: p.requiere_foto_si?.on ?? [],
+            foto_requerida: p.foto_requerida ?? false,
             genera_correctiva: p.genera_correctiva ?? false,
             correctiva_plantilla: p.correctiva_plantilla ?? null,
             medidor_id: p.medidor_id ?? null,
@@ -927,6 +932,11 @@ function FieldPreview({ paso, interactivo = false }: { paso: PasoFormItem; inter
 
     case "imagen":
       contenido = zonaImagen;
+      break;
+
+    case "estado_activo":
+      // Mismos tokens que APROBADO / ALERTA / FALLA (y que el paso en OTDetail).
+      contenido = fila(ESTADOS_PASO.map((e, i) => ({ key: e, label: ESTADO_LABEL[e].toUpperCase(), color: RESULTADOS_INSPECCION[i].color })), eleccion, setEleccion);
       break;
 
     case "archivo":
@@ -1482,6 +1492,12 @@ function PasoEditor({
                 <Trash2 size={16} />
               </button>
               <span style={{ width: 1, height: 20, background: "var(--border)", margin: "0 6px" }} />
+              {PASOS_CON_FOTO.includes(paso.tipo) && (
+                <div style={{ display: "flex", alignItems: "center", gap: 10, marginRight: 12 }}>
+                  <span style={{ fontSize: 14, color: "var(--fg-2)" }}>Foto obligatoria</span>
+                  <ProcSwitch checked={!!paso.foto_requerida} onChange={v => onChange({ foto_requerida: v })} label="Foto obligatoria" />
+                </div>
+              )}
               {/* Requerido también en instrucción/advertencia: obliga a confirmar lectura. */}
               {paso.tipo !== "seccion" && (
                 <div style={{ display: "flex", alignItems: "center", gap: 10, marginRight: 2 }}>
