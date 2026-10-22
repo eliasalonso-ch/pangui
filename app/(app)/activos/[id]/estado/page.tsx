@@ -10,12 +10,12 @@
  * distingue la parada planificada de la avería.
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { endOfDay, startOfDay } from "date-fns";
-import { AlertCircle, ChevronRight, Loader2, X } from "lucide-react";
+import { AlertCircle, ChevronRight, Loader2, RefreshCw, X } from "lucide-react";
 import { createClient } from "@/lib/supabase";
 import {
   fetchEstadoPeriodosTodos, formatDuracion, resumirInactividad,
@@ -98,17 +98,12 @@ export default function EstadoActivoPage() {
   const [rangoAplicado, setRangoAplicado] = useState<{ from: Date; to: Date } | null>(null);
 
   /**
-   * Reloj de la pantalla. Avanzarlo solo re-renderiza: no consulta nada. Las
-   * consultas salen cuando la ventana redondea a otro paso (ver `pasoPara`).
-   * Con la pestaña oculta no avanza; al volver, al tiro.
+   * "Ahora" de la pantalla: queda fijo en el momento en que se cargó, como en
+   * /analitica/activos. Antes avanzaba solo cada 30 s y la línea de tiempo, los
+   * totales y la duración "en curso" se movían mientras se leían. Avanza con el
+   * botón de actualizar (o al recargar) y al guardar un cambio de estado.
    */
   const [reloj, setReloj] = useState(() => Date.now());
-  useEffect(() => {
-    const tic = () => { if (!document.hidden) setReloj(Date.now()); };
-    const id = setInterval(tic, 30_000);
-    document.addEventListener("visibilitychange", tic);
-    return () => { clearInterval(id); document.removeEventListener("visibilitychange", tic); };
-  }, []);
 
   // La ventana en milisegundos: los memos y las claves de caché dependen de
   // números, que no cambian mientras la ventana sea la misma.
@@ -143,7 +138,9 @@ export default function EstadoActivoPage() {
   const estadoQ = useQuery({
     queryKey: ["activo-estado", activoId],
     enabled: !!activoId,
-    staleTime: 30_000,
+    // Sin refresco solo (ni por tiempo ni al volver a la pestaña): lo pide el
+    // botón de actualizar. invalidateQueries, al guardar un cambio, sí consulta.
+    staleTime: Infinity,
     queryFn: async () => {
       const [{ data: activo, error }, periodos] = await Promise.all([
         createClient().from("activos").select("nombre, estado").eq("id", activoId!).maybeSingle(),
@@ -159,6 +156,12 @@ export default function EstadoActivoPage() {
     staleTime: 5 * 60_000,
     queryFn: () => fetchMedidoresBase(activoId!),
   });
+
+  /** El botón ↻: mueve el "ahora" y trae el historial de nuevo. */
+  function actualizar() {
+    setReloj(Date.now());
+    void estadoQ.refetch();
+  }
 
   const activo = estadoQ.data?.activo;
   const nombre = activo?.nombre ?? "";
@@ -242,6 +245,17 @@ export default function EstadoActivoPage() {
           {estadoActual ? ESTADO_LABEL[estadoActual] : "Sin estado"}
           <ChevronRight size={14} style={{ color: "var(--fg-4)", transform: "rotate(90deg)" }} />
         </button>
+
+        {/* Como "Estado actual" de /analitica/activos: de cuándo son los datos
+            de la pantalla y el botón para traerlos de nuevo. */}
+        <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 14, color: "var(--fg-3)" }}>
+          <span>Última actualización: <span style={{ color: "var(--fg-1)" }}>{fmtFecha(new Date(reloj).toISOString())}</span></span>
+          <button type="button" onClick={actualizar} disabled={estadoQ.isFetching}
+            title="Actualizar ahora" aria-label="Actualizar ahora"
+            style={{ display: "flex", padding: 0, border: "none", background: "none", cursor: estadoQ.isFetching ? "wait" : "pointer", color: "var(--fg-4)" }}>
+            <RefreshCw size={14} className={estadoQ.isFetching ? "animate-spin" : undefined} />
+          </button>
+        </div>
       </div>
 
       {/* Tarjeta del historial */}
