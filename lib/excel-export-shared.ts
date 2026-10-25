@@ -104,6 +104,10 @@ export interface BuildWorkbookOptions {
   // The xlsx-js-style module is injected because its import path differs
   // between Node/Next.js and Deno.
   XLSX: XlsxModule;
+  // Optional: turns one sheet's formulas ("=B2*2") into their results, rows in
+  // `orden` order (lib/hoja-formulas → celdasConResultados). Injected like XLSX
+  // so this file stays dependency-free; without it cells go out as written.
+  resolverCeldas?: (columnas: { id: string; label: string }[], filas: FilaInput[]) => Record<string, string>[];
 }
 
 // ── XLSX module surface we depend on ─────────────────────────────────────────
@@ -355,7 +359,7 @@ const COL_DEFS: ColDef[] = [
  *   - "Materiales" — if cols.materiales_inventario.
  */
 export function buildOrdenesWorkbook(opts: BuildWorkbookOptions): Uint8Array {
-  const { ordenes, hojas = [], filas = [], fotos = [], materialesUsados = [], usuarios, cols, XLSX } = opts;
+  const { ordenes, hojas = [], filas = [], fotos = [], materialesUsados = [], usuarios, cols, XLSX, resolverCeldas } = opts;
   const { applyStyle, styleRow } = makeStyleHelpers(XLSX);
 
   // Pre-resolve names and metadata once.
@@ -614,7 +618,9 @@ export function buildOrdenesWorkbook(opts: BuildWorkbookOptions): Uint8Array {
       rows.push([""]);
 
       for (const hoja of otHojasArr) {
-        const hojaFilas = filasByHojaId.get(hoja.id) ?? [];
+        // In `orden` order: formula addresses (B2 = first row) depend on it.
+        const hojaFilas = [...(filasByHojaId.get(hoja.id) ?? [])].sort((a, b) => a.orden - b.orden);
+        const celdasHoja = resolverCeldas ? resolverCeldas(hoja.columnas ?? [], hojaFilas) : hojaFilas.map(f => f.celdas);
 
         rows.push([`Hoja: ${hoja.nombre}`]);
         blockStyles.push({ row: rows.length - 1, nCols: widestRow, style: S.headerBrand });
@@ -628,7 +634,7 @@ export function buildOrdenesWorkbook(opts: BuildWorkbookOptions): Uint8Array {
           blockStyles.push({ row: rows.length - 1, nCols: Math.max(headersH.length, 1), style: S.rowMuted(true) });
         } else {
           hojaFilas.forEach((fila, idx) => {
-            const row = (hoja.columnas ?? []).map(c => fila.celdas?.[c.id] ?? "");
+            const row = (hoja.columnas ?? []).map(c => celdasHoja[idx]?.[c.id] ?? fila.celdas?.[c.id] ?? "");
             rows.push(row.length > 0 ? row : [""]);
             blockStyles.push({
               row: rows.length - 1,

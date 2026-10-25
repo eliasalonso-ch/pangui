@@ -74,6 +74,7 @@ import { TransformWrapper, TransformComponent, useControls } from "react-zoom-pa
 import { format } from "date-fns";
 import { DatePicker, TimePicker, DateTimePicker } from "@/components/ui/date-time-picker";
 import { Attachment, AttachmentDropzone } from "@/components/ui/attachment";
+import { celdasConResultados } from "@/lib/hoja-formulas";
 
 type PendingResp = Omit<Partial<PasoRespuesta>, "firmado_nombre"> & { firmado_nombre?: string | null };
 type PauseReason = "acceso" | "materiales" | "reprogramar" | "otro";
@@ -2364,8 +2365,9 @@ export default function OTDetail({
           const cols: { id: string; label: string }[] = hoja.columnas ?? [];
           const hojaFilas = ((filas ?? []) as any[]).filter(row => row.hoja_id === hoja.id);
           const headers = cols.map((c: any) => c.label);
-          const rows = hojaFilas.map((fila: any) =>
-            cols.map((c: any) => fila.celdas?.[c.id] ?? "")
+          // Las fórmulas van con su resultado (filas ya en orden por `orden`).
+          const rows = celdasConResultados(cols, hojaFilas).map((celdas) =>
+            cols.map((c) => celdas[c.id] ?? "")
           );
           const wsH = XLS.utils.aoa_to_sheet([headers, ...rows]);
           applyStyles(wsH, headers, rows.length, cols.map(() => 22));

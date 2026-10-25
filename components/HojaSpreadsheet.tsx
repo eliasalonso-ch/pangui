@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Download, Plus, Trash2, FileSpreadsheet, X, Copy, Expand, ChevronDown, Pencil, Type, Hash, Check } from "lucide-react";
+import { Download, Plus, Trash2, FileSpreadsheet, X, Copy, Expand, ChevronDown, Pencil, Type, Hash, Check, TriangleAlert } from "lucide-react";
 import {
   fetchHojas, fetchFilas, createHoja, updateHoja, deleteHoja,
   createFila, updateFila, deleteFila, COLUMNA_CODIGO,
@@ -18,6 +18,7 @@ import {
 import { buscarMateriales, tieneCobros } from "@/lib/catalogo-api";
 import type { MaterialCatalogo } from "@/lib/catalogo-api";
 import { construirCobro, descargarCobro } from "@/lib/cobro-export";
+import { calcularHoja, celdasConResultados, type Resultado } from "@/lib/hoja-formulas";
 
 const SHEET_TYPES: { tipo: HojaTipo; title: string; description: string }[] = [
   { tipo: "general", title: "Hoja general", description: "Registra datos libres para trabajos específicos." },
@@ -77,9 +78,11 @@ function InlineInput({ initial, onDone, style }: {
 // ── Cell ──────────────────────────────────────────────────────────────────────
 
 function Cell({
-  value, tipo, width, readOnly, onChange, onBlur, sugerir,
+  value, resultado, tipo, width, readOnly, onChange, onBlur, sugerir,
 }: {
   value: string;
+  /** Si la celda es una fórmula ("=..."), su resultado: se muestra en vez de lo escrito. */
+  resultado?: Resultado;
   width: number;
   tipo: "texto" | "numero";
   readOnly: boolean;
@@ -159,7 +162,9 @@ function Cell({
       <div style={{ ...cellStyle, position: "relative", overflow: "visible", zIndex: 2 }}>
         <input
           ref={inputRef}
-          type={tipo === "numero" ? "number" : "text"}
+          // Texto también en columnas de número: un input "number" no deja escribir fórmulas ("=...").
+          type="text"
+          inputMode={tipo === "numero" ? "decimal" : undefined}
           value={value}
           onChange={e => handleChange(e.target.value)}
           onBlur={handleBlur}
@@ -207,20 +212,24 @@ function Cell({
   return (
     <div
       onClick={handleClick}
-      title={value}
+      // Una fórmula muestra su resultado; al pasar el mouse se ve lo escrito (y el error).
+      title={resultado ? `${value}  →  ${resultado.texto}` : value}
       style={{
         ...cellStyle,
         padding: "0 10px",
         cursor: readOnly ? "default" : "text",
         fontSize: 14,
         color: "var(--fg-1)",
-        justifyContent: tipo === "numero" ? "flex-end" : "flex-start",
+        justifyContent: resultado?.error ? "center" : tipo === "numero" || resultado?.numero ? "flex-end" : "flex-start",
         userSelect: "none",
         whiteSpace: "nowrap",
         textOverflow: "ellipsis",
       }}
     >
-      {value || <span style={{ color: "var(--fg-4)", fontSize: 14 }}>—</span>}
+      {/* Fórmula con error (mal escrita, circular, #DIV/0!…): triángulo rojo al centro, como la app. */}
+      {resultado?.error
+        ? <TriangleAlert size={16} style={{ color: "var(--danger)" }} aria-label={`Error en la fórmula: ${resultado.texto}`} />
+        : (resultado ? resultado.texto : value) || <span style={{ color: "var(--fg-4)", fontSize: 14 }}>—</span>}
     </div>
   );
 }
@@ -282,6 +291,13 @@ function SheetGrid({
     });
     return () => { cancelled = true; };
   }, [hoja.id]);
+
+  // Fórmulas (lib/hoja-formulas, el mismo motor de la app): se calculan con lo
+  // escrito, incluido lo que aún no se guarda, y la celda muestra el resultado.
+  const calculados = useMemo(
+    () => calcularHoja({ columnas: hoja.columnas, filas: filas.map(f => ({ celdas: { ...f.celdas, ...(localCells[f.id] ?? {}) } })) }),
+    [hoja.columnas, filas, localCells],
+  );
 
   const getCellValue = useCallback((fila: HojaFila, colId: string) => {
     return localCells[fila.id]?.[colId] ?? fila.celdas[colId] ?? "";
@@ -422,9 +438,10 @@ function SheetGrid({
   const handleExport = useCallback(() => {
     const cols = hoja.columnas;
     const header = cols.map(c => `"${c.label}"`).join(",");
-    const rows = filas.map(fila =>
+    // Las fórmulas van como su resultado (lo que se ve en la hoja).
+    const rows = celdasConResultados(cols, filas).map(celdas =>
       cols.map(col => {
-        const v = fila.celdas[col.id] ?? "";
+        const v = celdas[col.id] ?? "";
         return `"${v.replace(/"/g, '""')}"`;
       }).join(",")
     );
@@ -588,6 +605,7 @@ function SheetGrid({
               <Cell
                 key={col.id}
                 value={getCellValue(fila, col.id)}
+                resultado={calculados.get(`${rowIdx + 1}:${cols.indexOf(col)}`)}
                 tipo={col.tipo}
                 width={anchoDe(col)}
                 readOnly={readOnly}
