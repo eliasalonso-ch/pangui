@@ -10,12 +10,12 @@
  * distingue la parada planificada de la avería.
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { endOfDay, startOfDay } from "date-fns";
-import { AlertCircle, ChevronRight, Loader2, X } from "lucide-react";
+import { AlertCircle, ChevronRight, Loader2, RefreshCw, X } from "lucide-react";
 import { createClient } from "@/lib/supabase";
 import {
   fetchEstadoPeriodosTodos, formatDuracion, resumirInactividad,
@@ -26,7 +26,7 @@ import CambiarEstadoDialog from "@/components/activos/CambiarEstadoDialog";
 import { MS_POR_HORA, RANGOS, marcasDeTiempo } from "@/lib/eje-tiempo";
 import LecturasChart from "@/components/activos/LecturasChart";
 import HistorialEstadoTabla from "@/components/activos/HistorialEstadoTabla";
-import { ESTADO_COLOR, ESTADO_LABEL, fmtFecha } from "@/lib/activo-estado-ui";
+import { ESTADO_COLOR, ESTADO_LABEL, colorPeriodo, fmtDisponibilidad, fmtFecha, rangoPeriodo } from "@/lib/activo-estado-ui";
 import { fetchMedidoresBase } from "@/lib/medidores-api";
 import { Desplegable } from "@/components/Desplegable";
 import { DateRangePicker, type DateRange } from "@/components/ui/date-time-picker";
@@ -44,6 +44,13 @@ const FILAS: { estados: AssetStatus[]; label: string }[] = [
   { estados: ["operativo"], label: "Operativo" },
   { estados: ["mantencion"], label: "En mantención" },
   { estados: ["fuera_servicio"], label: "Fuera de servicio" },
+];
+
+/** Leyenda de colores de la línea de tiempo: los mismos nombres que los totales. */
+const LEYENDA = [
+  { label: "Operativo", color: ESTADO_COLOR.operativo },
+  { label: "Inactividad imprevista", color: ESTADO_COLOR.fuera_servicio },
+  { label: "Inactividad planificada", color: ESTADO_COLOR.mantencion },
 ];
 
 type RangoKey = (typeof RANGOS)[number]["key"] | "personalizado";
@@ -91,17 +98,12 @@ export default function EstadoActivoPage() {
   const [rangoAplicado, setRangoAplicado] = useState<{ from: Date; to: Date } | null>(null);
 
   /**
-   * Reloj de la pantalla. Avanzarlo solo re-renderiza: no consulta nada. Las
-   * consultas salen cuando la ventana redondea a otro paso (ver `pasoPara`).
-   * Con la pestaña oculta no avanza; al volver, al tiro.
+   * "Ahora" de la pantalla: queda fijo en el momento en que se cargó, como en
+   * /analitica/activos. Antes avanzaba solo cada 30 s y la línea de tiempo, los
+   * totales y la duración "en curso" se movían mientras se leían. Avanza con el
+   * botón de actualizar (o al recargar) y al guardar un cambio de estado.
    */
   const [reloj, setReloj] = useState(() => Date.now());
-  useEffect(() => {
-    const tic = () => { if (!document.hidden) setReloj(Date.now()); };
-    const id = setInterval(tic, 30_000);
-    document.addEventListener("visibilitychange", tic);
-    return () => { clearInterval(id); document.removeEventListener("visibilitychange", tic); };
-  }, []);
 
   // La ventana en milisegundos: los memos y las claves de caché dependen de
   // números, que no cambian mientras la ventana sea la misma.
@@ -136,7 +138,9 @@ export default function EstadoActivoPage() {
   const estadoQ = useQuery({
     queryKey: ["activo-estado", activoId],
     enabled: !!activoId,
-    staleTime: 30_000,
+    // Sin refresco solo (ni por tiempo ni al volver a la pestaña): lo pide el
+    // botón de actualizar. invalidateQueries, al guardar un cambio, sí consulta.
+    staleTime: Infinity,
     queryFn: async () => {
       const [{ data: activo, error }, periodos] = await Promise.all([
         createClient().from("activos").select("nombre, estado").eq("id", activoId!).maybeSingle(),
@@ -152,6 +156,12 @@ export default function EstadoActivoPage() {
     staleTime: 5 * 60_000,
     queryFn: () => fetchMedidoresBase(activoId!),
   });
+
+  /** El botón ↻: mueve el "ahora" y trae el historial de nuevo. */
+  function actualizar() {
+    setReloj(Date.now());
+    void estadoQ.refetch();
+  }
 
   const activo = estadoQ.data?.activo;
   const nombre = activo?.nombre ?? "";
@@ -235,6 +245,17 @@ export default function EstadoActivoPage() {
           {estadoActual ? ESTADO_LABEL[estadoActual] : "Sin estado"}
           <ChevronRight size={14} style={{ color: "var(--fg-4)", transform: "rotate(90deg)" }} />
         </button>
+
+        {/* Como "Estado actual" de /analitica/activos: de cuándo son los datos
+            de la pantalla y el botón para traerlos de nuevo. */}
+        <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 14, color: "var(--fg-3)" }}>
+          <span>Última actualización: <span style={{ color: "var(--fg-1)" }}>{fmtFecha(new Date(reloj).toISOString())}</span></span>
+          <button type="button" onClick={actualizar} disabled={estadoQ.isFetching}
+            title="Actualizar ahora" aria-label="Actualizar ahora"
+            style={{ display: "flex", padding: 0, border: "none", background: "none", cursor: estadoQ.isFetching ? "wait" : "pointer", color: "var(--fg-4)" }}>
+            <RefreshCw size={14} className={estadoQ.isFetching ? "animate-spin" : undefined} />
+          </button>
+        </div>
       </div>
 
       {/* Tarjeta del historial */}
@@ -276,7 +297,7 @@ export default function EstadoActivoPage() {
           <Total valor={formatDuracion(resumen.imprevistoHoras)} label="Inactividad imprevista · histórico" color={ESTADO_COLOR.fuera_servicio} />
           <Total valor={formatDuracion(resumen.planificadoHoras)} label="Inactividad planificada · histórico" color={ESTADO_COLOR.mantencion} />
           <Total
-            valor={resumen.disponibilidadPct !== null ? `${resumen.disponibilidadPct.toFixed(1)}%` : "—"}
+            valor={resumen.disponibilidadPct !== null ? fmtDisponibilidad(resumen.disponibilidadPct) : "—"}
             label="Disponibilidad medida · histórico"
           />
         </div>
@@ -469,7 +490,8 @@ function Timeline({ periodos, desde, hasta, ahora }: { periodos: EstadoPeriodo[]
                     top: i * ALTO_FILA + 7,
                     height: ALTO_FILA - 15,
                     borderRadius: 4,
-                    background: ESTADO_COLOR[p.estado],
+                    // El carril dice el estado; el color, cómo cuenta (ver colorPeriodo).
+                    background: colorPeriodo(p),
                     // El periodo abierto no termina: se corta al borde derecho
                     // en vez de cerrar con esquina redondeada.
                     borderTopRightRadius: abierto ? 0 : 4,
@@ -501,13 +523,14 @@ function Timeline({ periodos, desde, hasta, ahora }: { periodos: EstadoPeriodo[]
         </div>
       </div>
 
-      {/* Leyenda: el color de estado no distingue solo, asi que siempre va
-          acompanado de su nombre. */}
+      {/* Leyenda: los carriles ya dicen el estado a la izquierda; los colores
+          dicen cómo cuenta cada tramo, con los mismos nombres que los totales.
+          El color nunca va solo. */}
       <div style={{ display: "flex", flexWrap: "wrap", gap: "6px 18px", marginTop: 14, paddingLeft: ANCHO_ETIQUETAS }}>
-        {FILAS.map(fila => (
-          <span key={fila.label} style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 14, color: "var(--fg-3)" }}>
-            <span style={{ width: 10, height: 10, borderRadius: 2, background: ESTADO_COLOR[fila.estados[0]], flexShrink: 0 }} />
-            {fila.label}
+        {LEYENDA.map(l => (
+          <span key={l.label} style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 14, color: "var(--fg-3)" }}>
+            <span style={{ width: 10, height: 10, borderRadius: 2, background: l.color, flexShrink: 0 }} />
+            {l.label}
           </span>
         ))}
       </div>
@@ -525,7 +548,7 @@ function Timeline({ periodos, desde, hasta, ahora }: { periodos: EstadoPeriodo[]
           }}
         >
           <p style={{ margin: 0, fontSize: 14, color: "var(--fg-1)", display: "flex", alignItems: "center", gap: 6 }}>
-            <span style={{ width: 8, height: 8, borderRadius: 2, background: ESTADO_COLOR[hover.p.estado], flexShrink: 0 }} />
+            <span style={{ width: 8, height: 8, borderRadius: 2, background: colorPeriodo(hover.p), flexShrink: 0 }} />
             {ESTADO_LABEL[hover.p.estado]}
             {hover.p.tipo_inactividad && (
               <span style={{ color: "var(--fg-4)" }}>
@@ -537,7 +560,7 @@ function Timeline({ periodos, desde, hasta, ahora }: { periodos: EstadoPeriodo[]
             <p style={{ margin: "4px 0 0", fontSize: 14, color: "var(--fg-2)" }}>Motivo: {hover.p.motivo.nombre}</p>
           )}
           <p style={{ margin: "4px 0 0", fontSize: 14, color: "var(--fg-3)", fontVariantNumeric: "tabular-nums" }}>
-            {fmtFecha(hover.p.inicio)} → {hover.p.fin ? fmtFecha(hover.p.fin) : "en curso"}
+            {rangoPeriodo(hover.p.inicio, hover.p.fin, ahora)}
           </p>
           <p style={{ margin: "2px 0 0", fontSize: 14, color: "var(--fg-3)" }}>
             {formatDuracion(((hover.p.fin ? new Date(hover.p.fin).getTime() : ahora) - new Date(hover.p.inicio).getTime()) / MS_POR_HORA)}

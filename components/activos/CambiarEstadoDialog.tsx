@@ -29,6 +29,7 @@ import { Desplegable } from "@/components/Desplegable";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { Checkbox } from "@/components/filtros/primitivas";
 import { createClient } from "@/lib/supabase";
+import { tipoDeEstado } from "@/lib/activo-estado-ui";
 import type { AssetStatus } from "@/types/ordenes";
 
 const MS_POR_HORA = 3_600_000;
@@ -47,6 +48,12 @@ const ESTADO_LABEL: Record<AssetStatus, string> = {
  * Sigue siendo válido en la base para no invalidar filas históricas.
  */
 const ESTADO_OPCIONES: AssetStatus[] = ["operativo", "mantencion", "fuera_servicio"];
+
+/** Cómo cuenta cada parada, en la misma opción: ya no hay "Tipo de parada". */
+const DETALLE_ESTADO: Partial<Record<AssetStatus, string>> = {
+  mantencion: " — planificada (preventiva, inspección)",
+  fuera_servicio: " — avería o falla",
+};
 
 const labelStyle: React.CSSProperties = {
   fontSize: 14, fontWeight: 400, color: "var(--fg-2)", marginBottom: 5, display: "block",
@@ -86,7 +93,9 @@ export default function CambiarEstadoDialog({
       ? estadoInicial
       : (opciones[0] ?? "fuera_servicio"),
   );
-  const [tipo, setTipo] = useState<TipoInactividad | "">("");
+  // El estado define el tipo de parada (CHECKs en la base): fuera de servicio
+  // es una avería y mantención es planificada. No se pregunta.
+  const tipoEfectivo: TipoInactividad | "" = tipoDeEstado(estado) ?? "";
   const [desde, setDesde] = useState<"ahora" | "1h" | "ayer" | "custom">("ahora");
   const [custom, setCustom] = useState<Date | undefined>(undefined);
   const [notas, setNotas] = useState("");
@@ -176,10 +185,6 @@ export default function CambiarEstadoDialog({
 
   async function guardar() {
     setErr(null);
-    if (estado !== "operativo" && !tipo) {
-      setErr("Elige el tipo de parada.");
-      return;
-    }
     if (desde === "custom" && !custom) {
       setErr("Elige la fecha y hora de inicio.");
       return;
@@ -193,7 +198,7 @@ export default function CambiarEstadoDialog({
     }
     // La RPC también lo exige, pero llegar hasta allá significa mostrarle al
     // usuario una excepción de Postgres en vez de una frase.
-    if (tipo === "sin_planear" && !motivoId) {
+    if (tipoEfectivo === "sin_planear" && !motivoId) {
       setErr("Elige el motivo de la falla.");
       return;
     }
@@ -201,10 +206,10 @@ export default function CambiarEstadoDialog({
     try {
       const comun = {
         estado,
-        tipoInactividad: estado === "operativo" ? null : (tipo as TipoInactividad),
+        tipoInactividad: estado === "operativo" ? null : (tipoEfectivo as TipoInactividad),
         desde: resolverDesde(),
         notas: notas.trim() || null,
-        motivoId: tipo === "sin_planear" ? motivoId : null,
+        motivoId: tipoEfectivo === "sin_planear" ? motivoId : null,
       };
       // Con acompañantes va la versión en lote: una sola transacción, así no
       // queda el equipo parado y sus componentes operativos (o al revés) si
@@ -254,39 +259,18 @@ export default function CambiarEstadoDialog({
             <Desplegable
               ariaLabel="Estado" anchoCompleto disabled={busy}
               value={estado}
-              opciones={opciones.map(e => ({ value: e, label: ESTADO_LABEL[e] }))}
-              onChange={v => {
-                setEstado(v);
-                // Operativo no lleva tipo: dejarlo cargado mandaría un valor
-                // que la función rechaza.
-                if (v === "operativo") setTipo("");
-              }}
+              // El estado ya dice cómo cuenta la parada: se explica en la opción.
+              opciones={opciones.map(e => ({ value: e, label: ESTADO_LABEL[e] + (DETALLE_ESTADO[e] ?? "") }))}
+              onChange={setEstado}
             />
           </div>
-
-          {/* Solo tiene sentido clasificar una parada. */}
-          {estado !== "operativo" && (
-            <div>
-              <label style={labelStyle}>Tipo de parada</label>
-              <Desplegable<TipoInactividad | "">
-                ariaLabel="Tipo de parada" anchoCompleto disabled={busy}
-                placeholder="Elige el tipo de parada"
-                value={tipo}
-                opciones={[
-                  { value: "planeado", label: "Planeado — mantención o inspección prevista" },
-                  { value: "sin_planear", label: "Sin planear — avería o falla inesperada" },
-                ]}
-                onChange={setTipo}
-              />
-            </div>
-          )}
 
           {/* Motivo: solo para la avería.
               La mantención programada ya se explica sola; una avería sin causa
               registrada es el dato que después no se puede reconstruir, y sin
               él el Pareto de motivos queda con una barra "sin clasificar" que
               se come al resto. */}
-          {tipo === "sin_planear" && (
+          {tipoEfectivo === "sin_planear" && (
             <div>
               <label style={labelStyle}>Motivo de la falla</label>
               <SearchSelect

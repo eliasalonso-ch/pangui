@@ -51,7 +51,9 @@ export default function HistorialEstadoTabla({ periodos, ahora }: {
 }) {
   const [busqueda, setBusqueda] = useState("");
   const [filtros, setFiltros] = useState<ColumnFiltersState>([]);
-  const [orden, setOrden] = useState<SortingState>([{ id: "inicio", desc: true }]);
+  // Sin orden elegido: los períodos ya llegan del más reciente al más antiguo
+  // (fetchEstadoPeriodosTodos), y así ninguna columna aparece marcada de entrada.
+  const [orden, setOrden] = useState<SortingState>([]);
   const [pagina, setPagina] = useState<PaginationState>({ pageIndex: 0, pageSize: POR_PAGINA });
 
   // Filtrar u ordenar vuelve a la primera página. Se hace a mano y no con
@@ -162,7 +164,11 @@ export default function HistorialEstadoTabla({ periodos, ahora }: {
   const hayFiltros = busqueda.trim() !== "" || filtros.length > 0;
 
   return (
-    <div style={{ border: "1px solid var(--border)", borderRadius: 12, background: "var(--surface-1)", overflow: "hidden" }}>
+    // Sin overflow: hidden: recortaba los desplegables de los filtros (absolutos).
+    // Las esquinas no lo necesitan: la barra y la paginación no tienen fondo, y
+    // el scroll horizontal va en su propio div. data-limite-popover: con pocas
+    // filas los filtros abren hacia arriba en vez de salirse de la tabla.
+    <div data-limite-popover style={{ border: "1px solid var(--border)", borderRadius: 12, background: "var(--surface-1)" }}>
       {/* Barra: búsqueda + filtros, con las piezas de las demás barras. */}
       <BarraFiltros
         hayFiltros={hayFiltros}

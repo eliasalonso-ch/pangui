@@ -3,7 +3,7 @@
 import { LOGIN_URL, MARKETING_URL, REGISTRO_URL } from "@/lib/app-urls";
 import { FAQS } from "./structured-data";
 import "./landing.css";
-import { useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import Link from "next/link";
 import Image from "next/image";
@@ -177,15 +177,19 @@ export function LandingNav({ mobileOnly = false }) {
 }
 
 // Fondo azul del hero y del CTA final: la página abre y cierra igual.
-function FondoAscii() {
+function FondoAscii({ onReady }) {
   return (
     // Más alto que la sección (se recorta): deja el fundido a blanco del
     // "horizon" fuera de la sección, así el azul llega hasta abajo.
     <div className="pointer-events-none absolute inset-x-0 top-0 h-[230%]" aria-hidden="true">
       {/* --accent (#273D88) + tintes del mismo tono, en vez del azul/cian por
           defecto. Sin tonos claros: el más claro (#4a63c4) mantiene ~5:1 con
-          el texto blanco; uno casi blanco tapaba el título en móvil. */}
-      <GradientASCII colors={["#273D88", "#4a63c4", "#3a52a8", "#34499a"]} />
+          el texto blanco; uno casi blanco tapaba el título en móvil.
+          intro={false}: sin el barrido de 2.4s que "sube desde abajo"; en PCs
+          lentos se veía como que el fondo no terminaba de cargar.
+          dpr={1}: el canvas mide 230% de la sección; a DPR 2 eran 4× los
+          píxeles por frame y en un fondo de glifos no se nota la diferencia. */}
+      <GradientASCII colors={["#273D88", "#4a63c4", "#3a52a8", "#34499a"]} intro={false} dpr={1} onReady={onReady} />
     </div>
   );
 }
@@ -216,10 +220,10 @@ function CtaBotones({ className = "" }) {
   );
 }
 
-function Hero() {
+function Hero({ onFondoListo }) {
   return (
     <section className="landing-hero relative overflow-hidden pt-16 text-white md:pt-[68px]">
-      <FondoAscii />
+      <FondoAscii onReady={onFondoListo} />
       <div className="relative z-[1] mx-auto grid max-w-[1440px] gap-9 px-4 py-14 sm:px-5 md:gap-12 md:px-10 md:py-24 lg:min-h-[calc(100svh-68px)] lg:grid-cols-12 lg:items-center lg:py-16 xl:px-12">
         <motion.div
           variants={stagger}
@@ -247,12 +251,7 @@ function Hero() {
           </motion.div>
         </motion.div>
 
-        <motion.div
-          initial={{ opacity: 0, y: 24 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.75, ease: [0.2, 0.7, 0.3, 1] }}
-          className="lg:col-span-6"
-        >
+        <div className="lg:col-span-6">
           <div>
             {/* `fill` + a ratio-constrained wrapper, NOT width/height: with
                 explicit dimensions next/image emits its own height:auto sizing,
@@ -269,7 +268,7 @@ function Hero() {
               />
             </div>
           </div>
-        </motion.div>
+        </div>
       </div>
     </section>
   );
@@ -844,14 +843,51 @@ export function LandingFooter() {
   );
 }
 
+// Pantalla blanca con spinner hasta que el fondo WebGL del hero pinta su primer
+// frame: en PCs modestos compilar los shaders tarda y se veía el hero a medias.
+// Va en el HTML del servidor (si se montara en el cliente, la página asomaría
+// antes de taparse). Tope de 6s por si el WebGL nunca avisa; sin JS, el
+// <noscript> la oculta.
+function Precarga({ visible }) {
+  if (!visible) return null;
+  return (
+    <div
+      role="status"
+      aria-label="Cargando"
+      className="landing-precarga fixed inset-0 z-[200] flex items-center justify-center"
+      style={{ background: "#fff" }}
+    >
+      <div
+        className="animate-spin"
+        style={{
+          width: 40,
+          height: 40,
+          borderRadius: "50%",
+          border: "4px solid rgba(39, 61, 136, 0.15)",
+          borderTopColor: "var(--accent)",
+        }}
+      />
+      <noscript dangerouslySetInnerHTML={{ __html: "<style>.landing-precarga{display:none}</style>" }} />
+    </div>
+  );
+}
+
 export default function Landing() {
   const detail = useFeatureDetail();
+  const [cargando, setCargando] = useState(true);
+  const listo = useCallback(() => setCargando(false), []);
+
+  useEffect(() => {
+    const tope = setTimeout(listo, 6000);
+    return () => clearTimeout(tope);
+  }, [listo]);
 
   return (
     <div className="landing-root antialiased">
+      <Precarga visible={cargando} />
       <PublicPageTheme />
       <LandingNav />
-      <Hero />
+      <Hero onFondoListo={listo} />
       <ProblemSection />
       <PlatformSection />
       <SampleReport />

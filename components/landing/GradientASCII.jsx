@@ -445,6 +445,7 @@ const GradientASCII = ({
   lightMode = false,
   fontFamily = DEFAULT_FONT,
   dpr,
+  onReady,
   className = '',
   style,
   ...rest
@@ -480,6 +481,10 @@ const GradientASCII = ({
   };
   const settingsRef = useRef(settings);
   settingsRef.current = settings;
+  // Pangui: avisa cuando el primer frame ya está en pantalla (o cuando no hay
+  // WebGL), para que la landing saque su pantalla de carga.
+  const onReadyRef = useRef(onReady);
+  onReadyRef.current = onReady;
 
   useEffect(() => {
     const container = containerRef.current;
@@ -491,13 +496,19 @@ const GradientASCII = ({
       depth: false,
       stencil: false
     });
-    if (!container || !canvas || !gl) return undefined;
+    if (!container || !canvas || !gl) {
+      onReadyRef.current?.();
+      return undefined;
+    }
 
     const field = link(gl, FIELD);
     const halo = link(gl, HALO);
     const blur = link(gl, BLUR);
     const composite = link(gl, COMPOSITE);
-    if (!field || !halo || !blur || !composite) return undefined;
+    if (!field || !halo || !blur || !composite) {
+      onReadyRef.current?.();
+      return undefined;
+    }
     const vao = gl.createVertexArray();
     const fieldTarget = createTarget(gl, 2);
     const haloA = createTarget(gl, 1);
@@ -806,6 +817,9 @@ const GradientASCII = ({
     document.addEventListener('visibilitychange', onVisibility);
     resize();
     wakeRef.current = wake;
+    requestAnimationFrame(() => {
+      if (!disposed) onReadyRef.current?.();
+    });
 
     return () => {
       disposed = true;

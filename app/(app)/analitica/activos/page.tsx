@@ -16,7 +16,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
-  Activity, AlertTriangle, Annoyed, Building2, Frown, MapPin, Meh, Package, RefreshCw, Settings, Smile, User,
+  Activity, AlertTriangle, Annoyed, Building2, Circle, Frown, MapPin, Meh, RefreshCw, Settings, Smile, User, Wrench,
   type LucideIcon,
 } from "lucide-react";
 import { Engine } from "@/components/icons/Engine";
@@ -39,7 +39,8 @@ import {
   type ColumnDef, type PaginationState, type SortingState,
 } from "@tanstack/react-table";
 import { BuscadorTabla, EncabezadoTabla, PaginacionTabla } from "@/components/tabla/DataTable";
-import { ESTADO_COLOR } from "@/lib/activo-estado-ui";
+import { ESTADO_COLOR, ESTADO_LABEL } from "@/lib/activo-estado-ui";
+import { fetchMotivosInactividad } from "@/lib/activo-estado-api";
 import { UpgradePrompt } from "@/components/UpgradePrompt";
 import { DatePicker } from "@/components/ui/date-time-picker";
 import { Desplegable, FiltroFijo, FiltroRemoto, type Opcion } from "./FiltrosActivos";
@@ -289,6 +290,16 @@ const ids = (sel: Opcion[]) => (sel.length ? sel.map(o => o.value) : null);
 const CRIT_OPCIONES = (["critico", "semi_critico", "no_critico"] as AssetCriticality[])
   .map(k => ({ value: k, label: CRIT_LABEL[k] }));
 
+/** Los filtros de la función SQL sin ninguno puesto (misma forma que `filtros`). */
+const SIN_FILTROS = {
+  p_criticidades: null, p_estados: null, p_motivos: null, p_activos: null,
+  p_ubicaciones: null, p_sociedades: null, p_responsables: null,
+};
+
+/** Estado actual del activo (los de baja no entran en la analítica). */
+const ESTADO_OPCIONES = (["operativo", "mantencion", "fuera_servicio"] as const)
+  .map(k => ({ value: k, label: ESTADO_LABEL[k] }));
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function AnaliticaActivosPage() {
@@ -305,17 +316,22 @@ export default function AnaliticaActivosPage() {
   // Selección múltiple, como en /ordenes. Las opciones remotas guardan su
   // etiqueta para dibujar las fichas sin depender de la página cargada.
   const [critFilter, setCritFilter] = useState<string[]>([]);
-  const [modeloFilter, setModeloFilter] = useState<Opcion[]>([]);
+  const [estadoFilter, setEstadoFilter] = useState<string[]>([]);
+  const [motivoFilter, setMotivoFilter] = useState<string[]>([]);
   const [activoFilter, setActivoFilter] = useState<Opcion[]>([]);
   const [ubicFilter, setUbicFilter] = useState<Opcion[]>([]);
   const [sociedadFilter, setSociedadFilter] = useState<Opcion[]>([]);
   const [responsableFilter, setResponsableFilter] = useState<Opcion[]>([]);
-  const hayFiltros = critFilter.length + modeloFilter.length + activoFilter.length
+  const hayFiltros = critFilter.length + estadoFilter.length + motivoFilter.length + activoFilter.length
     + ubicFilter.length + sociedadFilter.length + responsableFilter.length > 0;
   const limpiarFiltros = () => {
-    setCritFilter([]); setModeloFilter([]); setActivoFilter([]);
+    setCritFilter([]); setEstadoFilter([]); setMotivoFilter([]); setActivoFilter([]);
     setUbicFilter([]); setSociedadFilter([]); setResponsableFilter([]);
   };
+
+  // Catálogo de motivos del workspace: pocos, así que va en un filtro fijo.
+  const motivosQ = useQuery({ queryKey: ["motivos-inactividad"], queryFn: fetchMotivosInactividad, staleTime: 5 * 60_000 });
+  const motivoOpciones = (motivosQ.data ?? []).map(m => ({ value: m.id, label: m.nombre }));
 
   const suscripcion = useSuscripcion();
   // Objetivos de KPI: solo plan Empresa. Los edita owner/admin (la RLS exige lo mismo).
@@ -364,27 +380,33 @@ export default function AnaliticaActivosPage() {
   const grano = granoPara(rango);
   const filtros = {
     p_criticidades: critFilter.length ? critFilter : null,
-    p_modelos: ids(modeloFilter),
+    p_estados: estadoFilter.length ? estadoFilter : null,
+    p_motivos: motivoFilter.length ? motivoFilter : null,
     p_activos: ids(activoFilter),
     p_ubicaciones: ids(ubicFilter),
     p_sociedades: ids(sociedadFilter),
     p_responsables: ids(responsableFilter),
   };
-  const informe = useQuery({
-    queryKey: ["analitica-activos", workspaceId, rango.desde, rango.hasta, grano, tz, filtros],
+  const consultaInforme = (f: typeof filtros) => ({
+    queryKey: ["analitica-activos", workspaceId, rango.desde, rango.hasta, grano, tz, f],
     enabled: !!workspaceId,
     // Al cambiar un filtro se queda el informe anterior en pantalla (atenuado)
     // en vez de volver a "Cargando…".
     placeholderData: keepPreviousData,
     queryFn: async (): Promise<Informe> => {
       const { data, error } = await createClient().rpc("analitica_activos", {
-        p_desde: rango.desde, p_hasta: rango.hasta, p_grano: grano, p_tz: tz, ...filtros,
+        p_desde: rango.desde, p_hasta: rango.hasta, p_grano: grano, p_tz: tz, ...f,
       });
       if (error) throw error;
       return data as Informe;
     },
   });
+  const informe = useQuery(consultaInforme(filtros));
   const d = informe.data;
+  // La tabla de "más problemáticos" es el ranking de TODO el workspace en el
+  // período: los filtros son para los gráficos. Sin filtros activos la clave es
+  // la misma que la de arriba, así que TanStack hace una sola consulta.
+  const informeTabla = useQuery(consultaInforme(SIN_FILTROS));
 
   // ── Derived (cheap: the heavy lifting already happened in SQL) ──────────────
   const cruzaAnio = rango.desde.slice(0, 4) !== rango.hasta.slice(0, 4);
@@ -506,14 +528,15 @@ export default function AnaliticaActivosPage() {
       .map(k => ({ name: CRIT_LABEL[k], value: Number(counts[k]), key: k }));
   }, [d]);
 
-  /** Todos los activos del filtro con sus métricas (la tabla los ordena y pagina). */
+  /** Todos los activos del workspace con sus métricas del período (la tabla los ordena y pagina). */
+  const rankingTabla = informeTabla.data?.ranking;
   const rankedDisp = useMemo(
-    () => (d?.ranking ?? []).map(r => ({
+    () => (rankingTabla ?? []).map(r => ({
       asset: { id: r.id, nombre: r.nombre, criticidad: r.criticidad },
       m: derivarDisponibilidad(r),
       costo: r.costo == null ? null : Number(r.costo),
     })),
-    [d],
+    [rankingTabla],
   );
 
   /**
@@ -592,10 +615,12 @@ export default function AnaliticaActivosPage() {
         )}
         <FiltroFijo label="Criticidad" icon={<AlertTriangle size={16} />}
           opciones={CRIT_OPCIONES} seleccion={critFilter} onChange={setCritFilter} />
+        <FiltroFijo label="Estado" icon={<Circle size={16} />}
+          opciones={ESTADO_OPCIONES} seleccion={estadoFilter} onChange={setEstadoFilter} />
+        <FiltroFijo label="Razón de inactividad" icon={<Wrench size={16} />}
+          opciones={motivoOpciones} seleccion={motivoFilter} onChange={setMotivoFilter} />
         {workspaceId && (
           <>
-            <FiltroRemoto label="Tipo de activo" icon={<Package size={16} />} tipo="modelo"
-              workspaceId={workspaceId} seleccion={modeloFilter} onChange={setModeloFilter} />
             <FiltroRemoto label="Activo" icon={<Engine size={16} />} tipo="activo"
               workspaceId={workspaceId} seleccion={activoFilter} onChange={setActivoFilter} />
             <FiltroRemoto label="Ubicación" icon={<MapPin size={16} />} tipo="ubicacion"
@@ -1062,14 +1087,21 @@ export default function AnaliticaActivosPage() {
         </Card>
       </div>
 
-      {/* Activos del filtro con sus métricas: Data Table (buscar, ordenar,
-          paginar) en vez del top 10 fijo. Sale del mismo informe en caché. */}
+      {/* Todos los activos del workspace con sus métricas del período: Data
+          Table (buscar, ordenar, paginar). No sigue los filtros de arriba (esos
+          son para los gráficos), solo el período. */}
       <Card style={{ marginTop: 14 }}>
         <CardHeader
           title="Activos más problemáticos"
-          subtitle="Por horas de parada imprevista"
+          subtitle="Por horas de parada imprevista · todos los activos del período, sin filtros"
         />
-        <TablaActivos filas={rankedDisp} onAbrir={id => router.push(`/activos?id=${encodeURIComponent(id)}`)} />
+        {informeTabla.data ? (
+          <TablaActivos filas={rankedDisp} onAbrir={id => router.push(`/activos?id=${encodeURIComponent(id)}`)} />
+        ) : (
+          <div style={{ padding: 28, color: C.text3, fontSize: 14, textAlign: "center" }}>
+            {informeTabla.error ? "No se pudo cargar la tabla." : "Cargando…"}
+          </div>
+        )}
       </Card>
 
       {metasDe && workspaceId && (
@@ -1091,7 +1123,7 @@ const celdaActivo: React.CSSProperties = { padding: "10px 16px", fontSize: 14, c
 const COLUMNAS_NUMERICAS = ["fallas", "mtbf", "mttr", "detenido", "costo", "disponibilidad"];
 
 /**
- * Activos del filtro con sus métricas, como el "Reporting Details" de
+ * Activos del workspace con sus métricas del período, como el "Reporting Details" de
  * MaintainX: buscar por nombre, ordenar por cualquier columna (por defecto,
  * más horas detenido primero) y paginar de a 10. Todo en el cliente: las filas
  * ya vienen del informe en caché, así que ordenar o cambiar de página no
@@ -1099,7 +1131,9 @@ const COLUMNAS_NUMERICAS = ["fallas", "mtbf", "mttr", "detenido", "costo", "disp
  */
 function TablaActivos({ filas, onAbrir }: { filas: FilaActivo[]; onAbrir: (id: string) => void }) {
   const [busqueda, setBusqueda] = useState("");
-  const [orden, setOrden] = useState<SortingState>([{ id: "detenido", desc: true }]);
+  // Sin orden elegido: el ranking ya llega de la base por horas detenido y
+  // fallas, y así ninguna columna aparece marcada de entrada.
+  const [orden, setOrden] = useState<SortingState>([]);
   const [pagina, setPagina] = useState<PaginationState>({ pageIndex: 0, pageSize: 10 });
 
   const columnas = useMemo<ColumnDef<FilaActivo>[]>(() => [
@@ -1167,7 +1201,7 @@ function TablaActivos({ filas, onAbrir }: { filas: FilaActivo[]; onAbrir: (id: s
   if (filas.length === 0) {
     return (
       <div style={{ padding: 28, color: C.text3, fontSize: 14, textAlign: "center" }}>
-        Sin historial de estados en el período para los activos filtrados.
+        Sin historial de estados en el período.
       </div>
     );
   }
