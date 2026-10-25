@@ -19,7 +19,8 @@ export type TipoPasoProc =
   | "falla_iso14224"
   | "sub_procedimiento"
   | "seccion"
-  | "puntuacion";
+  | "puntuacion"
+  | "estado_activo";
 
 export type EstadoEjecucion = "pendiente" | "en_curso" | "completado" | "cancelado";
 
@@ -106,6 +107,8 @@ export interface ProcedimientoPaso {
   // soft requirements
   requiere_nota_si?: { on: string[] } | null;
   requiere_foto_si?: { on: string[] } | null;
+  // inspeccion | si_no_na | medidor: la respuesta necesita al menos una foto
+  foto_requerida?: boolean;
   // corrective action
   genera_correctiva?: boolean;
   correctiva_plantilla?: Record<string, unknown> | null;
@@ -265,6 +268,7 @@ export interface PasoFormItem {
   condicion_valor?: unknown | null;
   requiere_nota_si?: string[];
   requiere_foto_si?: string[];
+  foto_requerida?: boolean;
   genera_correctiva?: boolean;
   correctiva_plantilla?: Record<string, unknown> | null;
   medidor_id?: string | null;

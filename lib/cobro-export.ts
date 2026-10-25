@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase";
 import { fetchFilas, COLUMNA_CODIGO } from "@/lib/hojas-api";
 import type { Hoja } from "@/lib/hojas-api";
+import { celdasConResultados } from "@/lib/hoja-formulas";
 
 /**
  * Exporta una hoja de cobro como archivo .json para la app local de cobros.
@@ -70,12 +71,14 @@ export async function construirCobro(hoja: Hoja, ordenId: string): Promise<Cobro
   const colCantidad = col("Cantidad") ?? hoja.columnas[1]?.id;
   const colObs = col("Observación");
 
-  const items = filas
-    .map((f) => ({
-      codigo: String(f.celdas[colCodigo ?? ""] ?? "").trim(),
+  // Fórmulas resueltas (crudo: "400", no "400,0" ni "1.500"); sin esto "=20x20" se leía como 0
+  // y el material se caía del cobro.
+  const items = celdasConResultados(hoja.columnas, filas, true)
+    .map((celdas) => ({
+      codigo: String(celdas[colCodigo ?? ""] ?? "").trim(),
       // las celdas son texto libre: "2", "2,5" y " 3 " tienen que llegar como número
-      cantidad: parseFloat(String(f.celdas[colCantidad ?? ""] ?? "").replace(",", ".")) || 0,
-      observacion: colObs ? String(f.celdas[colObs] ?? "").trim() : "",
+      cantidad: parseFloat(String(celdas[colCantidad ?? ""] ?? "").replace(",", ".")) || 0,
+      observacion: colObs ? String(celdas[colObs] ?? "").trim() : "",
     }))
     .filter((i) => i.codigo && i.cantidad > 0);
 

@@ -194,8 +194,14 @@ export async function listItosSinCatalogo(
  */
 export async function archivarHito(id: string): Promise<void> {
   const sb = createClient();
-  const { error } = await sb.from("hitos").update({ archivada: true }).eq("id", id);
+  const { data, error } = await sb
+    .from("hitos")
+    .update({ archivada: true })
+    .eq("id", id)
+    .select("id");
   if (error) throw error;
+  // RLS no da error al bloquear un UPDATE: solo deja 0 filas.
+  if (!data?.length) throw new Error("No se pudo eliminar el ITO");
 }
 
 /**

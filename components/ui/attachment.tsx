@@ -38,7 +38,7 @@ function iconoPara(nombre?: string | null, mime?: string | null): React.ReactNod
   return <File size={18} />
 }
 
-export function Attachment({ nombre, mime, descripcion, state = "done", href, onRemove }: {
+export function Attachment({ nombre, mime, descripcion, state = "done", href, onOpen, imagen, imagenRespaldo, onRemove }: {
   nombre: string
   mime?: string | null
   /** Línea secundaria; por defecto, el tipo de archivo. */
@@ -46,19 +46,38 @@ export function Attachment({ nombre, mime, descripcion, state = "done", href, on
   state?: AttachmentState
   /** Si hay URL, toda la tarjeta abre el archivo (las acciones siguen aparte). */
   href?: string | null
+  /** Como href, pero abre algo de la app (p. ej. el visor de fotos): AttachmentTrigger de shadcn. */
+  onOpen?: () => void
+  /** Miniatura en el lugar del ícono (AttachmentMedia variant="image"). */
+  imagen?: string | null
+  /** Si la miniatura falla (p. ej. el CDN de redimensión), se prueba esta. */
+  imagenRespaldo?: string | null
   onRemove?: () => void
 }) {
   const error = state === "error"
   const subiendo = state === "uploading"
+  const conImagen = !!imagen && !subiendo && !error
   const contenido = (
     <>
       <span style={{
-        width: 40, height: 40, borderRadius: "var(--r-md)", flexShrink: 0,
-        display: "flex", alignItems: "center", justifyContent: "center",
-        background: error ? "var(--danger-bg)" : "var(--brand-tint)",
+        width: conImagen ? 56 : 40, height: conImagen ? 56 : 40, borderRadius: "var(--r-md)", flexShrink: 0,
+        display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden",
+        background: error ? "var(--danger-bg)" : conImagen ? "var(--surface-hover)" : "var(--brand-tint)",
         color: error ? "var(--danger)" : "var(--brand)",
       }}>
-        {subiendo ? <Loader2 size={18} className="animate-spin" /> : iconoPara(nombre, mime)}
+        {subiendo ? <Loader2 size={18} className="animate-spin" />
+          : conImagen ? (
+            // eslint-disable-next-line @next/next/no-img-element -- miniatura de R2/CDN, igual que el resto de las fotos
+            <img
+              src={imagen!}
+              alt=""
+              loading="lazy"
+              decoding="async"
+              onError={e => { if (imagenRespaldo && e.currentTarget.src !== imagenRespaldo) e.currentTarget.src = imagenRespaldo }}
+              style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+            />
+          )
+          : iconoPara(nombre, mime)}
       </span>
       <span style={{ minWidth: 0, flex: 1 }}>
         <span
@@ -85,7 +104,14 @@ export function Attachment({ nombre, mime, descripcion, state = "done", href, on
     }}>
       {href && !subiendo
         ? <a href={href} target="_blank" rel="noreferrer" aria-label={`Abrir ${nombre}`} style={marco}>{contenido}</a>
-        : <span style={marco}>{contenido}</span>}
+        : onOpen && !subiendo
+          ? (
+            <button type="button" onClick={onOpen} aria-label={`Ver ${nombre}`}
+              style={{ ...marco, padding: 0, border: "none", background: "transparent", cursor: "zoom-in", textAlign: "left", fontFamily: "inherit" }}>
+              {contenido}
+            </button>
+          )
+          : <span style={marco}>{contenido}</span>}
       {onRemove && !subiendo && (
         <button
           type="button"
@@ -106,10 +132,13 @@ export function Attachment({ nombre, mime, descripcion, state = "done", href, on
 }
 
 /** Zona para elegir un archivo (mismo vacío punteado que la de imágenes). */
-export function AttachmentDropzone({ label, onFile, disabled }: {
+export function AttachmentDropzone({ label, onFile, disabled, accept, icono }: {
   label: string
   onFile: (f: File) => void
   disabled?: boolean
+  /** Filtro del selector, p. ej. "image/*". */
+  accept?: string
+  icono?: React.ReactNode
 }) {
   const ref = React.useRef<HTMLInputElement>(null)
   return (
@@ -126,12 +155,13 @@ export function AttachmentDropzone({ label, onFile, disabled }: {
           fontFamily: "inherit", fontSize: 14, color: "var(--brand)",
         }}
       >
-        <File size={18} />
+        {icono ?? <File size={18} />}
         {label}
       </button>
       <input
         ref={ref}
         type="file"
+        accept={accept}
         style={{ display: "none" }}
         onChange={e => {
           const f = e.target.files?.[0]

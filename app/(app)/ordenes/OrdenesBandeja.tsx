@@ -45,6 +45,7 @@ import type {
 } from "@/types/ordenes";
 import { classifyWaitingReason, type WaitingReasonKey } from "@/lib/waiting-reason";
 import { COLORES_BANDERA, useOTBanderaActions, useOTBanderas } from "@/lib/ot-banderas";
+import { celdasConResultados } from "@/lib/hoja-formulas";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -445,18 +446,18 @@ export default function OrdenesBandeja({
       // tooltip de "En espera" (todas, si el técnico agregó más de una).
       const { data: hojasData } = await sb
         .from("hojas_inventario")
-        .select("orden_id, nombre, created_at, filas:hojas_inventario_filas(orden, celdas)")
+        .select("orden_id, nombre, created_at, columnas, filas:hojas_inventario_filas(orden, celdas)")
         .eq("tipo", "materiales_solicitados")
         .in("orden_id", ids)
         .order("created_at", { ascending: true });
 
       if (cancelled) return;
       const hojasPorOrden = new Map<string, HojaSolicitudResumen[]>();
-      for (const h of (hojasData ?? []) as { orden_id: string; nombre: string | null; filas: { orden: number | null; celdas: Record<string, unknown> | null }[] | null }[]) {
+      for (const h of (hojasData ?? []) as { orden_id: string; nombre: string | null; columnas: { id: string; label: string }[] | null; filas: { orden: number | null; celdas: Record<string, unknown> | null }[] | null }[]) {
         const filas = [...(h.filas ?? [])].sort((a, b) => (a.orden ?? 0) - (b.orden ?? 0));
-        const items = filas
-          .map(f => {
-            const c = f.celdas ?? {};
+        // Una cantidad escrita como fórmula ("=20x20") se muestra con su resultado.
+        const items = celdasConResultados(h.columnas ?? [], filas)
+          .map(c => {
             const material = String(c.material_solicitado ?? "").trim();
             if (!material) return null;
             const cantidad = String(c.cantidad_solicitada ?? "").trim();
@@ -1559,6 +1560,8 @@ export default function OrdenesBandeja({
         // in some TS configs. The shared builder only reaches into utils/write,
         // both of which are direct exports.
         XLSX: XLSX as unknown as Parameters<typeof buildOrdenesWorkbook>[0]["XLSX"],
+        // Las fórmulas de las hojas salen con su resultado (como se ven en la app).
+        resolverCeldas: celdasConResultados,
       });
 
       // Trigger browser download.
