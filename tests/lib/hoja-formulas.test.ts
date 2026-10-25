@@ -88,3 +88,19 @@ describe("celdasConResultados", () => {
     expect(celdasConResultados(columnas, filas, true)[1].b).toBe("3750");
   });
 });
+
+describe("funciones que el motor trae vacías", () => {
+  it("MIN, MAX, CONTARA y MAYUSC calculan (antes daban #¿NOMBRE?)", () => {
+    // A: Ítem (texto), B: Cantidad. Fila 2: Cable/10, 3: Caja/2, 4: vacía/vacía.
+    const m = hoja([
+      { a: "Cable", b: "10", c: "=MIN(B2:B4)" },
+      { a: "Caja", b: "2", c: "=MAX(A2:B4;3)" },
+      { c: "=CONTARA(A2:B4)" },
+      { c: "=MAYUSC(A2)" },
+    ]);
+    expect(texto(m, "1:2")).toBe("2");
+    expect(texto(m, "2:2")).toBe("10"); // los textos del rango no cuentan
+    expect(texto(m, "3:2")).toBe("4"); // las vacías tampoco
+    expect(texto(m, "4:2")).toBe("CABLE");
+  });
+});

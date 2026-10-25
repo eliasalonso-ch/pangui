@@ -1,11 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { Download, Plus, Trash2, FileSpreadsheet, X, Copy, Expand, ChevronDown, Pencil, Type, Hash, Check, TriangleAlert } from "lucide-react";
 import {
   fetchHojas, fetchFilas, createHoja, updateHoja, deleteHoja,
-  createFila, updateFila, deleteFila, COLUMNA_CODIGO,
+  createFila, createFilasIniciales, updateFila, deleteFila, COLUMNA_CODIGO,
 } from "@/lib/hojas-api";
 import type { Hoja, HojaColumna, HojaFila, HojaTipo } from "@/lib/hojas-api";
 import { setPendingHojaCopy } from "@/lib/hoja-copy-store";
@@ -18,7 +19,12 @@ import {
 import { buscarMateriales, tieneCobros } from "@/lib/catalogo-api";
 import type { MaterialCatalogo } from "@/lib/catalogo-api";
 import { construirCobro, descargarCobro } from "@/lib/cobro-export";
-import { calcularHoja, celdasConResultados, type Resultado } from "@/lib/hoja-formulas";
+import { COLORES_REF, calcularHoja, colLetter, esFormula, normalizar, referencias, type Resultado } from "@/lib/hoja-formulas";
+import { libroDeHoja, type XlsxHoja } from "@/lib/hoja-excel";
+import {
+  alternarAbsoluta, buscarFunciones, completarFuncion, explicarError, funcionEscribiendo, puedeApuntar, type Funcion,
+} from "@/lib/hoja-funciones";
+import { AyudaFormula, Flotante, HojaBarraFormula } from "@/components/HojaBarraFormula";
 
 const SHEET_TYPES: { tipo: HojaTipo; title: string; description: string }[] = [
   { tipo: "general", title: "Hoja general", description: "Registra datos libres para trabajos específicos." },
@@ -33,6 +39,7 @@ const MAX_COL_WIDTH = 800;
 const ROW_NUM_WIDTH = 44;
 const ROW_HEIGHT = 38;
 const HEADER_HEIGHT = 48;
+const LETRAS_HEIGHT = 22;
 
 function genId() {
   return crypto.randomUUID();
@@ -77,8 +84,13 @@ function InlineInput({ initial, onDone, style }: {
 
 // ── Cell ──────────────────────────────────────────────────────────────────────
 
+/** Borde y fondo de una celda que nombra la fórmula en edición (color de su referencia). */
+type Marca = { color: string; arriba: boolean; abajo: boolean; izq: boolean; der: boolean };
+/** La celda abierta: r = fila de la hoja (desde 0), c = columna; `original` vuelve con Esc. */
+type Edicion = { r: number; c: number; valor: string; original: string };
+
 function Cell({
-  value, resultado, tipo, width, readOnly, onChange, onBlur, sugerir,
+  value, resultado, tipo, width, readOnly, editando, marca, inputRef, campo, onMouseDown, onMouseEnter, sugerir, onElegir,
 }: {
   value: string;
   /** Si la celda es una fórmula ("=..."), su resultado: se muestra en vez de lo escrito. */
@@ -86,15 +98,18 @@ function Cell({
   width: number;
   tipo: "texto" | "numero";
   readOnly: boolean;
-  onChange: (v: string) => void;
-  onBlur: () => void;
+  editando: boolean;
+  marca?: Marca;
+  inputRef: React.RefObject<HTMLInputElement | null>;
+  /** Eventos del input mientras se edita: los maneja la grilla (fórmulas, teclado, guardar). */
+  campo: React.InputHTMLAttributes<HTMLInputElement>;
+  onMouseDown: (e: React.MouseEvent) => void;
+  onMouseEnter: () => void;
   /** Si viene, la celda ofrece autocompletar (columna Código de la hoja de cobro). */
   sugerir?: (texto: string) => Promise<MaterialCatalogo[]>;
+  onElegir: (codigo: string) => void;
 }) {
-  const [editing, setEditing] = useState(false);
   const [opciones, setOpciones] = useState<MaterialCatalogo[]>([]);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const cerrando = useRef(false);
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Descarta respuestas viejas: si se teclea rápido, la última pedida manda.
   const pedido = useRef(0);
@@ -113,38 +128,13 @@ function Cell({
 
   useEffect(() => () => { if (debounce.current) clearTimeout(debounce.current); }, []);
 
-  function handleChange(v: string) {
-    onChange(v);
-    buscar(v);
-  }
-
-  function handleClick() {
-    if (readOnly) return;
-    setEditing(true);
-    // Con la celda ya escrita, ofrece las coincidencias de entrada.
-    buscar(value);
-    setTimeout(() => inputRef.current?.focus(), 0);
-  }
-
-  function handleBlur() {
-    // Al hacer clic en una sugerencia el input pierde el foco antes del onMouseDown:
-    // se pospone el cierre para no perder la selección.
-    setTimeout(() => {
-      if (cerrando.current) { cerrando.current = false; return; }
-      setEditing(false);
-      setOpciones([]);
-      onBlur();
-    }, 120);
-  }
-
   function elegir(m: MaterialCatalogo) {
-    cerrando.current = true;
-    onChange(m.codigo);
+    pedido.current++;
     setOpciones([]);
-    setEditing(false);
-    setTimeout(onBlur, 0);
+    onElegir(m.codigo);
   }
 
+  const c = marca?.color;
   const cellStyle: React.CSSProperties = {
     width,
     height: ROW_HEIGHT,
@@ -154,32 +144,39 @@ function Cell({
     overflow: "hidden",
     flexShrink: 0,
     boxSizing: "border-box",
+    ...(marca && {
+      background: `${c}1F`,
+      boxShadow: [marca.arriba && `inset 0 2px 0 ${c}`, marca.abajo && `inset 0 -2px 0 ${c}`, marca.izq && `inset 2px 0 0 ${c}`, marca.der && `inset -2px 0 0 ${c}`]
+        .filter(Boolean).join(", ") || undefined,
+    }),
   };
 
-  if (editing) {
+  if (editando) {
     return (
       // overflow visible: con el hidden de cellStyle el autocompletar quedaba recortado.
       <div style={{ ...cellStyle, position: "relative", overflow: "visible", zIndex: 2 }}>
         <input
           ref={inputRef}
+          {...campo}
           // Texto también en columnas de número: un input "number" no deja escribir fórmulas ("=...").
           type="text"
           inputMode={tipo === "numero" ? "decimal" : undefined}
           value={value}
-          onChange={e => handleChange(e.target.value)}
-          onBlur={handleBlur}
+          spellCheck={false}
+          autoComplete="off"
+          onChange={e => { campo.onChange?.(e); buscar(e.target.value); }}
+          onFocus={e => { campo.onFocus?.(e); buscar(e.currentTarget.value); }}
+          onBlur={e => { setOpciones([]); campo.onBlur?.(e); }}
           onKeyDown={e => {
-            if (e.key === "Enter") {
-              if (opciones.length) { elegir(opciones[0]); return; }
-              e.currentTarget.blur();
-            }
-            if (e.key === "Escape") { e.preventDefault(); setOpciones([]); e.currentTarget.blur(); }
+            // Con sugerencias de material a la vista, Enter elige la primera y Esc solo las cierra.
+            if (opciones.length && e.key === "Enter") { e.preventDefault(); elegir(opciones[0]); return; }
+            if (opciones.length && e.key === "Escape") { e.preventDefault(); setOpciones([]); return; }
+            campo.onKeyDown?.(e);
           }}
-          autoFocus
           style={{
             width: "100%", height: "100%", border: "none", outline: "2px solid var(--brand)",
             outlineOffset: -2, padding: "0 10px", fontSize: 14, fontFamily: "inherit",
-            background: "var(--surface-1)", color: "var(--fg-1)", textAlign: tipo === "numero" ? "right" : "left",
+            background: "var(--surface-1)", color: "var(--fg-1)", textAlign: tipo === "numero" && !value.startsWith("=") ? "right" : "left",
             boxSizing: "border-box",
           }}
         />
@@ -195,7 +192,8 @@ function Cell({
             {opciones.map(m => (
               <div
                 key={m.codigo}
-                onMouseDown={() => elegir(m)}
+                // preventDefault: el input no pierde el foco (y no se guarda antes de elegir).
+                onMouseDown={e => { e.preventDefault(); elegir(m); }}
                 style={{ padding: "7px 10px", cursor: "pointer", borderBottom: "1px solid var(--border)" }}
               >
                 <div style={{ fontFamily: "monospace", fontSize: 12, color: "var(--brand)" }}>{m.codigo}</div>
@@ -211,9 +209,10 @@ function Cell({
 
   return (
     <div
-      onClick={handleClick}
+      onMouseDown={onMouseDown}
+      onMouseEnter={onMouseEnter}
       // Una fórmula muestra su resultado; al pasar el mouse se ve lo escrito (y el error).
-      title={resultado ? `${value}  →  ${resultado.texto}` : value}
+      title={resultado ? `${value}  →  ${resultado.error ? `${resultado.texto}: ${explicarError(resultado.texto)}` : resultado.texto}` : value}
       style={{
         ...cellStyle,
         padding: "0 10px",
@@ -228,7 +227,7 @@ function Cell({
     >
       {/* Fórmula con error (mal escrita, circular, #DIV/0!…): triángulo rojo al centro, como la app. */}
       {resultado?.error
-        ? <TriangleAlert size={16} style={{ color: "var(--danger)" }} aria-label={`Error en la fórmula: ${resultado.texto}`} />
+        ? <TriangleAlert size={16} style={{ color: "var(--danger)" }} aria-label={`Error en la fórmula: ${explicarError(resultado.texto)}`} />
         : (resultado ? resultado.texto : value) || <span style={{ color: "var(--fg-4)", fontSize: 14 }}>—</span>}
     </div>
   );
@@ -258,7 +257,6 @@ function SheetGrid({
   // effect: a response for a previous sheet is ignored rather than overwriting
   // the current one (the old version could race when switching quickly).
   const [rows, setRows] = useState<{ hojaId: string; filas: HojaFila[] } | null>(null);
-  const [localCells, setLocalCells] = useState<Record<string, Record<string, string>>>({});
   const loading = rows?.hojaId !== hoja.id;
 
   // Autocompletar: sólo en la columna "Código" de una hoja de cobro, y sólo
@@ -292,28 +290,242 @@ function SheetGrid({
     return () => { cancelled = true; };
   }, [hoja.id]);
 
+  // ── Edición: una celda abierta a la vez (r = fila de la hoja, c = columna) ──
+  // La celda y la barra de fórmulas editan el mismo texto. Mientras se escribe
+  // una fórmula, un clic en otra celda inserta su referencia en vez de cerrarla.
+  const [edicion, setEdicion] = useState<Edicion | null>(null);
+  // Lo último, para handlers que corren fuera del render (blur diferido, mouse).
+  const edicionRef = useRef<Edicion | null>(null);
+  const poner = (e: Edicion | null) => { edicionRef.current = e; setEdicion(e); };
+  const celdaInputRef = useRef<HTMLInputElement>(null);
+  const barraInputRef = useRef<HTMLInputElement>(null);
+  // El input con el foco (celda o barra): ahí va la ayuda y ahí se mueve el cursor.
+  const [campo, setCampo] = useState<HTMLInputElement | null>(null);
+  const [caret, setCaret] = useState(0);
+  const caretRef = useRef(0);
+  const caretPendiente = useRef<number | null>(null);
+  // La última referencia insertada con el mouse: otro clic la reemplaza (o la extiende a rango).
+  const ultimaRef = useRef<{ inicio: number; fin: number; ancla: { r: number; c: number } } | null>(null);
+  const arrastrando = useRef(false);
+  const [sugIdx, setSugIdx] = useState(0);
+  const [sinSugerir, setSinSugerir] = useState(false);
+
   // Fórmulas (lib/hoja-formulas, el mismo motor de la app): se calculan con lo
   // escrito, incluido lo que aún no se guarda, y la celda muestra el resultado.
   const calculados = useMemo(
-    () => calcularHoja({ columnas: hoja.columnas, filas: filas.map(f => ({ celdas: { ...f.celdas, ...(localCells[f.id] ?? {}) } })) }),
-    [hoja.columnas, filas, localCells],
+    () => calcularHoja({
+      columnas: hoja.columnas,
+      filas: filas.map((f, i) => ({
+        celdas: edicion?.r === i ? { ...f.celdas, [hoja.columnas[edicion.c]?.id]: edicion.valor } : f.celdas,
+      })),
+    }),
+    [hoja.columnas, filas, edicion],
   );
 
-  const getCellValue = useCallback((fila: HojaFila, colId: string) => {
-    return localCells[fila.id]?.[colId] ?? fila.celdas[colId] ?? "";
-  }, [localCells]);
+  const moverCaret = (p: number) => { caretRef.current = p; setCaret(p); };
 
-  function handleCellChange(filaId: string, colId: string, value: string) {
-    setLocalCells(prev => ({ ...prev, [filaId]: { ...(prev[filaId] ?? {}), [colId]: value } }));
+  /** Cambia lo escrito. `programado`: lo puso la grilla (referencia, función, F4), no el teclado. */
+  function escribir(valor: string, pos: number, programado = false) {
+    const e = edicionRef.current;
+    if (!e) return;
+    poner({ ...e, valor });
+    moverCaret(pos);
+    setSugIdx(0);
+    setSinSugerir(false);
+    if (programado) caretPendiente.current = pos;
+    else ultimaRef.current = null;
   }
 
-  async function handleCellBlur(fila: HojaFila, colId: string) {
-    const local = localCells[fila.id];
-    if (!local) return;
-    const merged = { ...fila.celdas, ...local };
-    await updateFila(fila.id, merged);
-    setFilas(prev => prev.map(f => f.id === fila.id ? { ...f, celdas: merged } : f));
-    if (Object.values(merged).some(value => String(value).trim().length > 0)) onContentSaved?.(hoja);
+  // Tras un cambio programado, el cursor queda donde corresponde (React lo deja al final).
+  useLayoutEffect(() => {
+    const p = caretPendiente.current;
+    if (p == null) return;
+    caretPendiente.current = null;
+    (campo ?? celdaInputRef.current)?.setSelectionRange(p, p);
+  }, [edicion?.valor, campo]);
+
+  // Al abrir una celda: foco en ella, con el cursor al final.
+  const abierta = edicion ? `${edicion.r}:${edicion.c}` : null;
+  useLayoutEffect(() => {
+    const el = celdaInputRef.current;
+    if (!abierta || !el) return;
+    el.focus();
+    el.setSelectionRange(el.value.length, el.value.length);
+  }, [abierta]);
+
+  function abrir(r: number, c: number) {
+    const fila = filas[r];
+    const col = hoja.columnas[c];
+    if (readOnly || !fila || !col) return;
+    const v = fila.celdas[col.id] ?? "";
+    ultimaRef.current = null;
+    setSugIdx(0);
+    setSinSugerir(false);
+    moverCaret(v.length);
+    poner({ r, c, valor: v, original: v });
+  }
+
+  /** Cierra la celda abierta: guarda (o deshace, `cancelar`) y opcionalmente abre la vecina. */
+  function terminar(cancelar = false, mover?: [number, number], valor?: string) {
+    const e = edicionRef.current;
+    if (!e) return;
+    poner(null);
+    setCampo(null);
+    const final = valor ?? e.valor;
+    if (!cancelar && final !== e.original) guardar(e.r, e.c, final);
+    if (!mover) return;
+    let [r, c] = [e.r + mover[0], e.c + mover[1]];
+    // Tab al final de la fila sigue en la siguiente (y Shift+Tab al revés), como en una planilla.
+    if (c >= hoja.columnas.length) { r++; c = 0; } else if (c < 0) { r--; c = hoja.columnas.length - 1; }
+    if (r >= 0 && r < filas.length) abrir(r, c);
+  }
+
+  // Un guardado a la vez por fila: cada uno manda la fila entera, y si llegaran
+  // desordenados el más viejo pisaría al nuevo.
+  const colas = useRef(new Map<string, Promise<void>>());
+  function guardar(r: number, c: number, valor: string) {
+    const fila = filas[r];
+    const col = hoja.columnas[c];
+    if (!fila || !col) return;
+    const antes = fila.celdas[col.id] ?? "";
+    const celdas = { ...fila.celdas, [col.id]: valor };
+    const fijar = (v: string) => setFilas(prev => prev.map(f => (f.id === fila.id ? { ...f, celdas: { ...f.celdas, [col.id]: v } } : f)));
+    fijar(valor);
+    const esta = (colas.current.get(fila.id) ?? Promise.resolve())
+      .then(() => updateFila(fila.id, celdas))
+      .then(
+        () => { if (Object.values(celdas).some(v => String(v).trim().length > 0)) onContentSaved?.(hoja); },
+        () => {
+          fijar(antes);
+          toast.error("No se pudo guardar la celda. Revisa tu conexión e inténtalo de nuevo.");
+        },
+      );
+    colas.current.set(fila.id, esta);
+  }
+
+  const direccion = (a: { r: number; c: number }, b: { r: number; c: number }) => {
+    const una = (r: number, c: number) => `${colLetter(c)}${r + 2}`; // fila 1 = nombres de columna
+    if (a.r === b.r && a.c === b.c) return una(a.r, a.c);
+    return `${una(Math.min(a.r, b.r), Math.min(a.c, b.c))}:${una(Math.max(a.r, b.r), Math.max(a.c, b.c))}`;
+  };
+
+  // ¿Un clic en otra celda inserta su referencia? Tras "=", "(", ";", un operador… o
+  // justo después de la referencia recién insertada (que entonces se reemplaza).
+  function apuntando() {
+    const e = edicionRef.current;
+    if (!e) return false;
+    const u = ultimaRef.current;
+    return (!!u && u.fin === caretRef.current) || puedeApuntar(e.valor, caretRef.current);
+  }
+
+  function insertarRef(r: number, c: number, extender: boolean) {
+    const e = edicionRef.current;
+    if (!e) return;
+    const pos = caretRef.current;
+    const u = ultimaRef.current?.fin === pos ? ultimaRef.current : null;
+    const ancla = u && extender ? u.ancla : { r, c };
+    const inicio = u ? u.inicio : pos;
+    const dir = direccion(ancla, { r, c });
+    escribir(e.valor.slice(0, inicio) + dir + e.valor.slice(u ? u.fin : pos), inicio + dir.length, true);
+    ultimaRef.current = { inicio, fin: inicio + dir.length, ancla };
+  }
+
+  function onCeldaMouseDown(ev: React.MouseEvent, r: number, c: number) {
+    if (readOnly || ev.button !== 0) return;
+    // preventDefault: el foco se queda en el input (sin blur) y no se selecciona texto.
+    ev.preventDefault();
+    if (edicionRef.current && apuntando()) {
+      insertarRef(r, c, ev.shiftKey);
+      arrastrando.current = true;
+      return;
+    }
+    terminar();
+    abrir(r, c);
+  }
+
+  // Arrastrar mientras se apunta arma el rango.
+  function onCeldaMouseEnter(r: number, c: number) {
+    if (arrastrando.current && edicionRef.current) insertarRef(r, c, true);
+  }
+  useEffect(() => {
+    const soltar = () => { arrastrando.current = false; };
+    window.addEventListener("mouseup", soltar);
+    return () => window.removeEventListener("mouseup", soltar);
+  }, []);
+
+  // Autocompletar de funciones: lo que se está escribiendo antes del cursor.
+  const tipeando = edicion ? funcionEscribiendo(edicion.valor, caret) : null;
+  const sugerencias = tipeando && !sinSugerir && edicion?.valor[caret] !== "(" ? buscarFunciones(tipeando.prefijo) : [];
+  const indiceSug = Math.min(sugIdx, Math.max(0, sugerencias.length - 1));
+
+  function elegirFuncion(f: Funcion) {
+    const e = edicionRef.current;
+    if (!e) return;
+    const t = completarFuncion(e.valor, caretRef.current, f);
+    escribir(t.texto, t.caret, true);
+  }
+
+  // Desde la guía fx: inserta la función donde está el cursor (una celda sin fórmula pasa a serlo).
+  function insertarDesdeGuia(f: Funcion) {
+    const e = edicionRef.current;
+    if (!e) return;
+    const pone = f.args.length ? `${f.nombre}(` : `${f.nombre}()`;
+    const formula = e.valor.startsWith("=");
+    const base = formula ? e.valor : "=";
+    const pos = formula ? caretRef.current : 1;
+    escribir(base.slice(0, pos) + pone + base.slice(pos), pos + pone.length, true);
+  }
+
+  function onTecla(ev: React.KeyboardEvent<HTMLInputElement>) {
+    const e = edicionRef.current;
+    if (!e) return;
+    if (sugerencias.length) {
+      if (ev.key === "ArrowDown" || ev.key === "ArrowUp") {
+        ev.preventDefault();
+        const n = sugerencias.length;
+        setSugIdx((indiceSug + (ev.key === "ArrowDown" ? 1 : n - 1)) % n);
+        return;
+      }
+      if (ev.key === "Tab" || ev.key === "Enter") { ev.preventDefault(); elegirFuncion(sugerencias[indiceSug]); return; }
+      if (ev.key === "Escape") { ev.preventDefault(); setSinSugerir(true); return; }
+    }
+    if (ev.key === "F4") {
+      ev.preventDefault();
+      const t = alternarAbsoluta(e.valor, caretRef.current);
+      if (t) escribir(t.texto, t.caret, true);
+      return;
+    }
+    // preventDefault en Escape: que no cierre también la vista ampliada.
+    if (ev.key === "Enter") { ev.preventDefault(); terminar(false, [ev.shiftKey ? -1 : 1, 0]); }
+    else if (ev.key === "Tab") { ev.preventDefault(); terminar(false, [0, ev.shiftKey ? -1 : 1]); }
+    else if (ev.key === "Escape") { ev.preventDefault(); terminar(true); }
+  }
+
+  // El foco pasa de la celda a la barra (o al revés) sin cerrar; a cualquier otro lado, guarda.
+  function onSalir() {
+    setTimeout(() => {
+      const a = document.activeElement;
+      if (a === celdaInputRef.current || a === barraInputRef.current) return;
+      terminar();
+    }, 0);
+  }
+
+  const eventosCampo: React.InputHTMLAttributes<HTMLInputElement> = {
+    onChange: ev => escribir(ev.target.value, ev.target.selectionStart ?? ev.target.value.length),
+    onSelect: ev => moverCaret(ev.currentTarget.selectionStart ?? 0),
+    onKeyDown: onTecla,
+    onFocus: ev => setCampo(ev.currentTarget),
+    onBlur: onSalir,
+  };
+
+  // Celdas que nombra la fórmula en edición, con el color de su referencia.
+  const refsEdicion = edicion && esFormula(edicion.valor) ? referencias(edicion.valor) : [];
+  function marcaDe(r: number, c: number): Marca | undefined {
+    const rl = r + 1; // fila del lienzo (0 = nombres de columna)
+    const i = refsEdicion.findIndex(x => x.r0 <= rl && rl <= x.r1 && x.c0 <= c && c <= x.c1);
+    if (i < 0) return undefined;
+    const x = refsEdicion[i];
+    return { color: COLORES_REF[i % COLORES_REF.length], arriba: rl === x.r0, abajo: rl === x.r1, izq: c === x.c0, der: c === x.c1 };
   }
 
   async function handleAddRow() {
@@ -331,7 +543,7 @@ function SheetGrid({
       setFilas(prev => prev.filter(f => f.id !== fila.id));
     };
     // Una fila vacía se borra sin preguntar: no hay nada que perder.
-    if (hoja.columnas.every(c => !getCellValue(fila, c.id).trim())) { void borrar(); return; }
+    if (hoja.columnas.every(c => !String(fila.celdas[c.id] ?? "").trim())) { void borrar(); return; }
     setConfirmar({
       title: `¿Eliminar la fila ${numero}?`,
       description: "Se borran todos los datos de esa fila.",
@@ -433,24 +645,23 @@ function SheetGrid({
     void saveColumns(hoja.columnas.map(c => c.id === col.id ? { ...c, tipo } : c));
   }
 
-  // Export to CSV. useCallback so the effect below can depend on it honestly
-  // instead of suppressing the lint rule — it changes only when the data does.
-  const handleExport = useCallback(() => {
-    const cols = hoja.columnas;
-    const header = cols.map(c => `"${c.label}"`).join(",");
-    // Las fórmulas van como su resultado (lo que se ve en la hoja).
-    const rows = celdasConResultados(cols, filas).map(celdas =>
-      cols.map(col => {
-        const v = celdas[col.id] ?? "";
-        return `"${v.replace(/"/g, '""')}"`;
-      }).join(",")
-    );
-    const csv = [header, ...rows].join("\n");
-    const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
+  // A Excel como se ve aquí (lib/hoja-excel): números, fechas y fórmulas reales,
+  // colores y anchos de la grilla. useCallback so the effect below can depend on
+  // it honestly instead of suppressing the lint rule — it changes only when the data does.
+  const handleExport = useCallback(async () => {
+    const XLSX = (await import("xlsx-js-style")) as unknown as XlsxHoja;
+    const bytes = libroDeHoja(XLSX, {
+      nombre: hoja.nombre,
+      columnas: hoja.columnas,
+      filas: filas.map(f => f.celdas),
+      calc: calcularHoja({ columnas: hoja.columnas, filas }),
+      normalizar,
+    });
+    const blob = new Blob([bytes], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `${hoja.nombre.replace(/[^a-zA-Z0-9]/g, "_")}_${Date.now()}.csv`;
+    a.download = `${hoja.nombre.replace(/[\\/:*?"<>|]/g, "-").trim() || "Hoja"}.xlsx`;
     a.click();
     URL.revokeObjectURL(url);
   }, [filas, hoja]);
@@ -470,16 +681,44 @@ function SheetGrid({
     );
   }
 
+  const celdaAbierta = edicion ? `${colLetter(edicion.c)}${edicion.r + 2}` : null;
+  const ayuda = edicion && campo && (
+    <Flotante ancla={campo}>
+      <AyudaFormula valor={edicion.valor} caret={caret} sugerencias={sugerencias} indice={indiceSug} onElegir={elegirFuncion} />
+    </Flotante>
+  );
+
   return (
+    <div style={expandido ? { display: "flex", flexDirection: "column", flex: 1, minHeight: 0 } : undefined}>
+    {!readOnly && (
+      <HojaBarraFormula
+        celda={celdaAbierta}
+        valor={edicion?.valor ?? ""}
+        resultado={edicion ? calculados.get(`${edicion.r + 1}:${edicion.c}`) : undefined}
+        inputRef={barraInputRef}
+        campo={eventosCampo}
+        onFuncion={insertarDesdeGuia}
+      />
+    )}
+    {ayuda}
     <div style={expandido
       ? { overflow: "auto", flex: 1, minHeight: 0 }   // ocupa el alto del marco
       : { overflowX: "auto", overflowY: "visible" }}>
       <div style={{ width: totalWidth, minWidth: "100%" }}>
 
-        {/* Header row */}
-        <div style={{ display: "flex", borderBottom: "2px solid var(--border)", background: "var(--surface-0)", position: "sticky", top: 0, zIndex: 1 }}>
+        {/* Header: letras de columna (las de las fórmulas) y nombres. Es la fila 1. */}
+        <div style={{ position: "sticky", top: 0, zIndex: 1, background: "var(--surface-0)" }}>
+        <div style={{ display: "flex", borderBottom: "1px solid var(--divider)" }}>
+          <div style={{ width: ROW_NUM_WIDTH, flexShrink: 0, borderRight: "1px solid var(--border)" }} />
+          {cols.map((col, c) => (
+            <div key={col.id} style={{ width: anchoDe(col), height: LETRAS_HEIGHT, display: "grid", placeItems: "center", borderRight: "1px solid var(--border)", flexShrink: 0, fontSize: 12, color: edicion?.c === c ? "var(--fg-1)" : "var(--fg-4)", fontWeight: edicion?.c === c ? 600 : 400 }}>
+              {colLetter(c)}
+            </div>
+          ))}
+        </div>
+        <div style={{ display: "flex", borderBottom: "2px solid var(--border)" }}>
           <div style={{ width: ROW_NUM_WIDTH, height: HEADER_HEIGHT, display: "flex", alignItems: "center", justifyContent: "center", borderRight: "1px solid var(--border)", flexShrink: 0 }}>
-            <span style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-4)" }}>#</span>
+            <span style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-4)" }}>1</span>
           </div>
           {cols.map(col => (
             <div
@@ -579,6 +818,7 @@ function SheetGrid({
             </button>
           )}
         </div>
+        </div>
 
         {/* Data rows */}
         {filas.map((fila, rowIdx) => (
@@ -586,34 +826,49 @@ function SheetGrid({
             key={fila.id}
             style={{ display: "flex", borderBottom: "1px solid var(--divider)", height: ROW_HEIGHT, background: rowIdx % 2 === 0 ? "var(--surface-1)" : "var(--surface-0)", alignItems: "center" }}
           >
-            <div style={{ width: ROW_NUM_WIDTH, height: ROW_HEIGHT, display: "flex", alignItems: "center", justifyContent: "center", borderRight: "1px solid var(--border)", flexShrink: 0 }}>
-              {!readOnly ? (
+            {/* El número de la fila (el de las fórmulas: la primera es la 2); al pasar el mouse, borrar. */}
+            <div className="group" style={{ position: "relative", width: ROW_NUM_WIDTH, height: ROW_HEIGHT, display: "flex", alignItems: "center", justifyContent: "center", borderRight: "1px solid var(--border)", flexShrink: 0 }}>
+              <span
+                className={readOnly ? undefined : "group-hover:opacity-0"}
+                style={{ fontSize: 13, color: edicion?.r === rowIdx ? "var(--fg-1)" : "var(--fg-4)", fontWeight: edicion?.r === rowIdx ? 600 : 400 }}
+              >
+                {rowIdx + 2}
+              </span>
+              {!readOnly && (
                 <button
-                  onClick={() => handleDeleteRow(fila, rowIdx + 1)}
+                  onClick={() => handleDeleteRow(fila, rowIdx + 2)}
                   title="Eliminar fila"
-                  style={{ width: 22, height: 22, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", borderRadius: 4, cursor: "pointer", color: "var(--fg-4)", padding: 0 }}
+                  aria-label={`Eliminar fila ${rowIdx + 2}`}
+                  className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+                  style={{ position: "absolute", width: 22, height: 22, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", borderRadius: 4, cursor: "pointer", color: "var(--fg-4)", padding: 0 }}
                   onMouseEnter={e => { e.currentTarget.style.color = "var(--danger)"; e.currentTarget.style.background = "var(--danger-bg)"; }}
                   onMouseLeave={e => { e.currentTarget.style.color = "var(--fg-4)"; e.currentTarget.style.background = "none"; }}
                 >
                   <Trash2 size={12} />
                 </button>
-              ) : (
-                <span style={{ fontSize: 14, color: "var(--fg-4)" }}>{rowIdx + 1}</span>
               )}
             </div>
-            {cols.map(col => (
-              <Cell
-                key={col.id}
-                value={getCellValue(fila, col.id)}
-                resultado={calculados.get(`${rowIdx + 1}:${cols.indexOf(col)}`)}
-                tipo={col.tipo}
-                width={anchoDe(col)}
-                readOnly={readOnly}
-                onChange={v => handleCellChange(fila.id, col.id, v)}
-                onBlur={() => handleCellBlur(fila, col.id)}
-                sugerir={col.id === colCodigoId ? sugerirMaterial : undefined}
-              />
-            ))}
+            {cols.map((col, c) => {
+              const editando = edicion?.r === rowIdx && edicion.c === c;
+              return (
+                <Cell
+                  key={col.id}
+                  value={editando ? edicion.valor : fila.celdas[col.id] ?? ""}
+                  resultado={calculados.get(`${rowIdx + 1}:${c}`)}
+                  tipo={col.tipo}
+                  width={anchoDe(col)}
+                  readOnly={readOnly}
+                  editando={editando}
+                  marca={marcaDe(rowIdx, c)}
+                  inputRef={celdaInputRef}
+                  campo={eventosCampo}
+                  onMouseDown={e => onCeldaMouseDown(e, rowIdx, c)}
+                  onMouseEnter={() => onCeldaMouseEnter(rowIdx, c)}
+                  sugerir={col.id === colCodigoId ? sugerirMaterial : undefined}
+                  onElegir={codigo => terminar(false, undefined, codigo)}
+                />
+              );
+            })}
             {!readOnly && <div style={{ width: COL_WIDTH, flexShrink: 0 }} />}
           </div>
         ))}
@@ -636,6 +891,7 @@ function SheetGrid({
         )}
       </div>
       <ConfirmDeleteModal pending={confirmar} onClose={() => setConfirmar(null)} />
+    </div>
     </div>
   );
 }
@@ -695,6 +951,8 @@ export default function HojaSpreadsheet({
     setCreating(true);
     try {
       const hoja = await createHoja(workspaceId, tipo, userId, ordenId);
+      // Antes de mostrarla: la grilla lee sus filas al abrirse.
+      await createFilasIniciales(hoja.id, workspaceId);
       setHojas(prev => [...prev, hoja]);
       setActiveId(hoja.id);
       setCreateOpen(false);
@@ -864,7 +1122,7 @@ export default function HojaSpreadsheet({
             onMouseEnter={e => { e.currentTarget.style.opacity = "0.85"; }}
             onMouseLeave={e => { e.currentTarget.style.opacity = "1"; }}
           >
-            <Download size={13} /> Exportar .csv
+            <Download size={13} /> Exportar Excel
           </button>
         )}
 

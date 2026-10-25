@@ -23,6 +23,11 @@
 // IMPORTANT: do not add any imports here that aren't usable in Deno. Keep
 // this file framework-agnostic. parseDescMeta is duplicated as a small local
 // helper to avoid pulling in a browser-only utils.js module.
+//
+// hoja-excel is dependency-free and mirrored too (the Deno copy imports
+// "./hoja-excel.ts"): it renders the hojas de cálculo the way the app shows them.
+
+import { ajustarLibro, celdaExcel, type AjustePestana, type CeldaExcel, type ColumnaExcel, type ResultadoExcel, type XlsxHoja } from "./hoja-excel";
 
 // ── Public input/output types ────────────────────────────────────────────────
 
@@ -57,7 +62,7 @@ export interface HojaInput {
   id: string;
   orden_id: string;
   nombre: string;
-  columnas: { id: string; label: string }[];
+  columnas: ColumnaExcel[];
 }
 
 export interface FilaInput {
@@ -104,10 +109,10 @@ export interface BuildWorkbookOptions {
   // The xlsx-js-style module is injected because its import path differs
   // between Node/Next.js and Deno.
   XLSX: XlsxModule;
-  // Optional: turns one sheet's formulas ("=B2*2") into their results, rows in
-  // `orden` order (lib/hoja-formulas → celdasConResultados). Injected like XLSX
-  // so this file stays dependency-free; without it cells go out as written.
-  resolverCeldas?: (columnas: { id: string; label: string }[], filas: FilaInput[]) => Record<string, string>[];
+  // Optional: one sheet's formula results by `${fila}:${columna}`, rows in
+  // `orden` order (lib/hoja-formulas → calcularHoja). Injected like XLSX so this
+  // file stays dependency-free; without it formulas go out as written.
+  calcular?: (columnas: ColumnaExcel[], filas: FilaInput[]) => Map<string, ResultadoExcel>;
 }
 
 // ── XLSX module surface we depend on ─────────────────────────────────────────
@@ -129,6 +134,9 @@ export interface XlsxModule {
     encode_range: (r: { s: { r: number; c: number }; e: { r: number; c: number } }) => string;
   };
   write: (wb: unknown, opts: { bookType: "xlsx"; type: "array" | "buffer" }) => ArrayBuffer | Uint8Array;
+  // The zip reader/writer bundled with SheetJS: hoja-excel uses it to add the
+  // frozen panes and print setup xlsx-js-style can't write.
+  CFB: XlsxHoja["CFB"];
 }
 
 // ── Pure helpers ─────────────────────────────────────────────────────────────
@@ -359,7 +367,7 @@ const COL_DEFS: ColDef[] = [
  *   - "Materiales" — if cols.materiales_inventario.
  */
 export function buildOrdenesWorkbook(opts: BuildWorkbookOptions): Uint8Array {
-  const { ordenes, hojas = [], filas = [], fotos = [], materialesUsados = [], usuarios, cols, XLSX, resolverCeldas } = opts;
+  const { ordenes, hojas = [], filas = [], fotos = [], materialesUsados = [], usuarios, cols, XLSX, calcular } = opts;
   const { applyStyle, styleRow } = makeStyleHelpers(XLSX);
 
   // Pre-resolve names and metadata once.
@@ -511,7 +519,15 @@ export function buildOrdenesWorkbook(opts: BuildWorkbookOptions): Uint8Array {
   }
 
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, wsOrd, "Órdenes de trabajo");
+  // Cada pestaña con su `!freeze`: xlsx-js-style no lo escribe, lo aplica
+  // ajustarLibro al final (en el orden en que se agregaron).
+  const ajustes: (AjustePestana | undefined)[] = [];
+  const agregar = (ws: Record<string, unknown>, nombre: string) => {
+    const f = ws["!freeze"] as { xSplit: number; ySplit: number } | undefined;
+    ajustes.push(f && { filas: f.ySplit, columnas: f.xSplit });
+    XLSX.utils.book_append_sheet(wb, ws, nombre);
+  };
+  agregar(wsOrd, "Órdenes de trabajo");
 
   // ── SHEET 2: Resumen (KPIs) ─────────────────────────────────────────────
   if (cols.resumen) {
@@ -583,7 +599,7 @@ export function buildOrdenesWorkbook(opts: BuildWorkbookOptions): Uint8Array {
       }
     });
 
-    XLSX.utils.book_append_sheet(wb, wsKpi, "Resumen");
+    agregar(wsKpi, "Resumen");
   }
 
   // ── Per-OT sheets (hoja rows + fotos section) ────────────────────────────
@@ -603,6 +619,8 @@ export function buildOrdenesWorkbook(opts: BuildWorkbookOptions): Uint8Array {
       const blockStyles: { row: number; nCols: number; style: Record<string, unknown> }[] = [];
       const backlinkCells: { row: number; col: number }[] = [];
       const hyperlinkCells: { row: number; col: number; url: string }[] = [];
+      // Filas de las hojas de cálculo: ya traen valor, tipo, formato y estilo.
+      const celdasTabla: { row: number; celdas: CeldaExcel[] }[] = [];
       const widestRow = (() => {
         let w = 4;
         for (const h of otHojasArr) w = Math.max(w, (h.columnas?.length ?? 0));
@@ -620,28 +638,32 @@ export function buildOrdenesWorkbook(opts: BuildWorkbookOptions): Uint8Array {
       for (const hoja of otHojasArr) {
         // In `orden` order: formula addresses (B2 = first row) depend on it.
         const hojaFilas = [...(filasByHojaId.get(hoja.id) ?? [])].sort((a, b) => a.orden - b.orden);
-        const celdasHoja = resolverCeldas ? resolverCeldas(hoja.columnas ?? [], hojaFilas) : hojaFilas.map(f => f.celdas);
+        const columnas = hoja.columnas ?? [];
+        const calc = calcular?.(columnas, hojaFilas);
+        // Sin las filas vacías del final (las hojas nuevas parten con 23).
+        let n = hojaFilas.length;
+        while (n > 0 && !columnas.some(c => String(hojaFilas[n - 1].celdas?.[c.id] ?? "").trim())) n--;
 
         rows.push([`Hoja: ${hoja.nombre}`]);
         blockStyles.push({ row: rows.length - 1, nCols: widestRow, style: S.headerBrand });
 
-        const headersH = (hoja.columnas ?? []).map(c => c.label);
-        rows.push(headersH.length > 0 ? headersH : ["(sin columnas)"]);
-        blockStyles.push({ row: rows.length - 1, nCols: Math.max(headersH.length, 1), style: S.headerDark });
-
-        if (hojaFilas.length === 0) {
-          rows.push(["(sin filas)"]);
-          blockStyles.push({ row: rows.length - 1, nCols: Math.max(headersH.length, 1), style: S.rowMuted(true) });
+        if (columnas.length === 0 || n === 0) {
+          rows.push([columnas.length === 0 ? "(sin columnas)" : "(sin filas)"]);
+          blockStyles.push({ row: rows.length - 1, nCols: Math.max(columnas.length, 1), style: S.rowMuted(true) });
         } else {
-          hojaFilas.forEach((fila, idx) => {
-            const row = (hoja.columnas ?? []).map(c => celdasHoja[idx]?.[c.id] ?? fila.celdas?.[c.id] ?? "");
-            rows.push(row.length > 0 ? row : [""]);
-            blockStyles.push({
-              row: rows.length - 1,
-              nCols: Math.max(headersH.length, 1),
-              style: idx % 2 === 0 ? S.rowEven : S.rowOdd,
-            });
-          });
+          // La tabla como en la app (lib/hoja-excel). Las fórmulas van solo como
+          // resultado: apiladas con otras hojas, sus direcciones no calzarían.
+          const tabla = [
+            columnas.map(c => celdaExcel(c.label, c, { cabecera: true })),
+            ...hojaFilas.slice(0, n).map((fila, i) => columnas.map((c, j) => {
+              const raw = String(fila.celdas?.[c.id] ?? "");
+              return celdaExcel(raw, c, { calc: raw.startsWith("=") ? calc?.get(`${i + 1}:${j}`) : undefined });
+            })),
+          ];
+          for (const fila of tabla) {
+            rows.push(fila.map(() => ""));
+            celdasTabla.push({ row: rows.length - 1, celdas: fila });
+          }
         }
 
         rows.push([""]);
@@ -670,11 +692,16 @@ export function buildOrdenesWorkbook(opts: BuildWorkbookOptions): Uint8Array {
       wsOt["!cols"] = Array.from({ length: widestRow }, (_, i) => ({
         wch: i === 0 ? 18 : i === widestRow - 1 ? 60 : 24,
       }));
-      wsOt["!rows"] = rows.map(() => ({ hpt: 18 }));
+      // Las filas de las hojas, sin alto fijo: el texto largo salta de línea como en la app.
+      const filasTabla = new Set(celdasTabla.map(t => t.row));
+      wsOt["!rows"] = rows.map((_, i) => (filasTabla.has(i) ? {} : { hpt: 18 }));
       wsOt["!freeze"] = { xSplit: 0, ySplit: 4 };
 
       for (const { row, nCols, style } of blockStyles) {
         styleRow(wsOt, row, nCols, style);
+      }
+      for (const { row, celdas } of celdasTabla) {
+        celdas.forEach((celda, c) => { wsOt[XLSX.utils.encode_cell({ r: row, c })] = celda; });
       }
       for (const { row, col } of backlinkCells) {
         const addr = XLSX.utils.encode_cell({ r: row, c: col });
@@ -695,7 +722,7 @@ export function buildOrdenesWorkbook(opts: BuildWorkbookOptions): Uint8Array {
         };
       }
 
-      XLSX.utils.book_append_sheet(wb, wsOt, sheetName);
+      agregar(wsOt, sheetName);
     }
   }
 
@@ -721,10 +748,10 @@ export function buildOrdenesWorkbook(opts: BuildWorkbookOptions): Uint8Array {
       XLSX.utils.sheet_add_aoa(wsMat, [totalRow], { origin: totalIdx });
       styleRow(wsMat, totalIdx, matHeaders.length, S.totalRow);
     }
-    XLSX.utils.book_append_sheet(wb, wsMat, "Materiales");
+    agregar(wsMat, "Materiales");
   }
 
   // Return the bytes — caller decides what to do with them.
   const out = XLSX.write(wb, { bookType: "xlsx", type: "array" });
-  return out instanceof Uint8Array ? out : new Uint8Array(out);
+  return ajustarLibro(XLSX as unknown as XlsxHoja, out instanceof Uint8Array ? out : new Uint8Array(out), ajustes);
 }
