@@ -72,8 +72,34 @@ let limites = { filas: 0, cols: 0 };
 // en Excel, la fórmula toma ese error. Así también un rango que incluye su propia celda.
 let pila: unknown[] = [];
 
+// El motor trae estas como funciones vacías ("not implemented" → #¿NOMBRE?): se
+// implementan aquí, como en Excel (en un rango solo cuentan los números; un texto
+// escrito tal cual en la fórmula da #¡VALOR!).
+const { FormulaHelpers: H, Types } = FormulaParser;
+type Info = { isLiteral: boolean };
+const extremo = (elegir: (a: number, b: number) => number) => (...params: unknown[]) => {
+  let r: number | null = null;
+  H.flattenParams(params, Types.NUMBER, true, (item: unknown) => {
+    if (typeof item === "number") r = r == null ? item : elegir(r, item);
+  });
+  return r ?? 0;
+};
+const FUNCIONES_FALTANTES = {
+  MIN: extremo(Math.min),
+  MAX: extremo(Math.max),
+  COUNTA: (...params: unknown[]) => {
+    let n = 0;
+    H.flattenParams(params, null, true, (item: unknown, info: Info) => {
+      if (item != null && (item !== "" || info.isLiteral)) n++;
+    });
+    return n;
+  },
+  UPPER: (texto: unknown) => String(H.accept(texto, Types.STRING)).toUpperCase(),
+};
+
 function getMotor() {
   return (motor ??= new FormulaParser({
+    functions: FUNCIONES_FALTANTES,
     onCell: ({ row, col }: { row: number; col: number }) => leer(row, col),
     onRange: ({ from, to }: { from: { row: number; col: number }; to: { row: number; col: number } }) => {
       // Rangos de columna entera (B:B) llegan hasta la fila 1.048.576: se recortan a la hoja.

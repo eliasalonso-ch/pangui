@@ -45,7 +45,7 @@ import type {
 } from "@/types/ordenes";
 import { classifyWaitingReason, type WaitingReasonKey } from "@/lib/waiting-reason";
 import { COLORES_BANDERA, useOTBanderaActions, useOTBanderas } from "@/lib/ot-banderas";
-import { celdasConResultados } from "@/lib/hoja-formulas";
+import { calcularHoja, celdasConResultados } from "@/lib/hoja-formulas";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -1561,7 +1561,7 @@ export default function OrdenesBandeja({
         // both of which are direct exports.
         XLSX: XLSX as unknown as Parameters<typeof buildOrdenesWorkbook>[0]["XLSX"],
         // Las fórmulas de las hojas salen con su resultado (como se ven en la app).
-        resolverCeldas: celdasConResultados,
+        calcular: (columnas, filas) => calcularHoja({ columnas, filas: filas.map(f => ({ celdas: f.celdas ?? {} })) }),
       });
 
       // Trigger browser download.

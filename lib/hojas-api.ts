@@ -160,6 +160,17 @@ export async function createFila(hojaId: string, workspaceId: string, orden: num
   return data as HojaFila;
 }
 
+/** Hoja nueva con filas vacías hasta la 24 (la 1 son los nombres de columna), como en la app. */
+export const FILAS_INICIALES = 23;
+
+/** Las filas vacías de una hoja recién creada, en un solo insert. */
+export async function createFilasIniciales(hojaId: string, workspaceId: string): Promise<void> {
+  const sb = createClient();
+  const filas = Array.from({ length: FILAS_INICIALES }, (_, orden) => ({ hoja_id: hojaId, workspace_id: workspaceId, orden, celdas: {} }));
+  const { error } = await sb.from("hojas_inventario_filas").insert(filas);
+  if (error) throw error;
+}
+
 export async function updateFila(id: string, celdas: Record<string, string>): Promise<void> {
   const sb = createClient();
   const { error } = await sb
