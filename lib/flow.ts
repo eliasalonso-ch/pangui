@@ -341,11 +341,11 @@ export const flow = {
     flowPost<{ sub_id: string; item_id: number; quantity: number; success: boolean }>(
       "/subscription/updateItem", p
     ),
-  // El nombre del parámetro no está verificado: la única prueba respondió
-  // 105 sobre una suscripción que se estaba cancelando en paralelo. Se
-  // asume `itemId` por simetría con addItem/updateItem.
+  // /subscription/deleteItem, no removeItem: ese path no existe y responde
+  // "105 No services available" con cualquier parámetro. Verificado en sandbox
+  // el 2026-11-01.
   removeSubscriptionItem: (p: { subscriptionId: string; itemId: number }) =>
-    flowPost("/subscription/removeItem", p),
+    flowPost("/subscription/deleteItem", p),
 };
 
 export { BASE_URL as FLOW_BASE_URL };

@@ -95,7 +95,10 @@ export async function itemUsuariosExtra(
   extras: number,
   montoPorUsuario: number,
 ): Promise<{ id: number }> {
-  return itemDeCatalogo(extras * montoPorUsuario, `${extras} usuarios adicionales`);
+  // El monto va en el nombre porque Flow rechaza dos ítems activos con el mismo
+  // nombre (1001): "2 usuarios adicionales" de Pro chocaba con el de Esencial.
+  const monto = extras * montoPorUsuario;
+  return itemDeCatalogo(monto, `${extras} usuarios adicionales ${monto}`);
 }
 
 export async function syncSubscriptionToUserCount(workspaceId: string): Promise<void> {
@@ -164,7 +167,8 @@ async function reconciliarItems(subscriptionId: string, extras: number, monto: n
 
 /** Ítem del catálogo para un usuario adicional a ese monto bruto. */
 async function itemUsuarioAdicional(monto: number): Promise<{ id: number }> {
-  return itemDeCatalogo(monto, `Usuario adicional $${monto.toLocaleString("es-CL")}`);
+  // Flow solo acepta nombres alfanuméricos: "$" y "." responden 1001.
+  return itemDeCatalogo(monto, `Usuario adicional ${monto}`);
 }
 
 /**
