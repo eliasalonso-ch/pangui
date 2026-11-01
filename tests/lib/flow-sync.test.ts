@@ -80,7 +80,8 @@ describe("syncSubscriptionToUserCount", () => {
     await syncSubscriptionToUserCount("ws");
 
     expect(flowMock.createSubscriptionItem).toHaveBeenCalledWith(
-      expect.objectContaining({ amount: 4748, currency: "CLP" }),
+      // Flow responde 1001 si el nombre lleva "$" o ".".
+      expect.objectContaining({ amount: 4748, currency: "CLP", name: expect.stringMatching(/^[A-Za-z0-9 ]+$/) }),
     );
     expect(flowMock.addSubscriptionItem).toHaveBeenCalledWith({ subscriptionId: "sus_x", itemId: 555 });
   });

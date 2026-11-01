@@ -183,6 +183,39 @@ Deno.serve(async (req) => {
       }
     }
 
+    // ── 5b. Tope de usuarios del plan Basic ────────────────────────────────
+    // Se revisa ANTES de mandar el correo: si no, la persona recibe la
+    // invitación y el alta falla después en el trigger trg_basic_tope_usuarios
+    // con un error genérico. Mismo criterio que ese trigger y que
+    // usuariosCobrables (lib/flow-sync.ts). Los solicitantes no cuentan.
+    if (rol !== "requester") {
+      const { data: conPlan } = await supabaseAdmin
+        .from("subscriptions")
+        .select("id")
+        .eq("workspace_id", workspaceId)
+        .in("status", ["trialing", "active", "past_due"])
+        .neq("plan_key", "basic")
+        .limit(1);
+
+      if (!conPlan || conPlan.length === 0) {
+        const { count } = await supabaseAdmin
+          .from("usuarios")
+          .select("id", { count: "exact", head: true })
+          .eq("workspace_id", workspaceId)
+          .eq("activo", true)
+          .eq("excluir_de_facturacion", false)
+          .neq("rol", "requester")
+          .is("deleted_at", null);
+
+        if ((count ?? 0) >= 3) {
+          return new Response(
+            JSON.stringify({ error: "El plan Basic permite hasta 3 usuarios. Elige un plan en Suscripción para sumar a más personas." }),
+            { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+      }
+    }
+
     // ── 6. Invite via Supabase Auth ─────────────────────────────────────────
     // This sends an email invite. The user sets their password on first login.
     // We store workspace_id + rol in user_metadata so the trigger can use them.
