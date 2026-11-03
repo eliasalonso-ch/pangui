@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useLayoutEffect, useRef, Children, Fragment, cloneElement, isValidElement } from "react";
+import { useState, useEffect, useLayoutEffect, useRef } from "react";
 import { X, Check, Trash2, Search, Plus } from "lucide-react";
 
 /**
@@ -417,28 +417,13 @@ export function toggle<T>(arr: T[], val: T): T[] {
 
 // ── Contenedor de la barra ────────────────────────────────────────────────────
 
-/** Máximo de chips por línea; del decimotercero en adelante bajan a la siguiente. */
-const CHIPS_POR_FILA = 12;
-
 /**
- * Los chips sueltos, aunque vengan dentro de fragmentos o de un `.map`.
- * `toArray` numera los hijos de cada fragmento desde `.0` otra vez, así que a
- * cada uno se le antepone la clave de su fragmento: si no, chocan con los
- * chips de afuera ("two children with the same key").
- */
-function aplanar(children: React.ReactNode): React.ReactNode[] {
-  return Children.toArray(children).flatMap(c =>
-    isValidElement<{ children?: React.ReactNode }>(c) && c.type === Fragment
-      ? aplanar(c.props.children).map(h => isValidElement(h) ? cloneElement(h, { key: `${c.key}/${h.key}` }) : h)
-      : [c]);
-}
-
-/**
- * Fila de chips de filtro de cualquier pantalla: a lo más doce por línea y
- * "Limpiar filtros" siempre en el mismo lugar, a la derecha. Sin filtros
- * puestos el botón queda invisible pero ocupa su espacio: si apareciera y
- * desapareciera, los chips saltarían de lugar al elegir el primer valor.
- * En pantallas angostas cada línea igual se parte antes de llegar a doce.
+ * Fila de chips de filtro de cualquier pantalla: una sola fila que se parte
+ * donde se acaba el ancho, y "Limpiar filtros" siempre en el mismo lugar, a la
+ * derecha. Sin filtros puestos el botón queda invisible pero ocupa su espacio:
+ * si apareciera y desapareciera, los chips saltarían de lugar al elegir el
+ * primer valor. (Antes se cortaba en grupos fijos de doce: cuando la pantalla
+ * partía el primer grupo, el segundo empezaba otra línea con espacio de sobra.)
  */
 export function BarraFiltros({ children, hayFiltros, onLimpiar, style }: {
   children: React.ReactNode;
@@ -446,15 +431,10 @@ export function BarraFiltros({ children, hayFiltros, onLimpiar, style }: {
   onLimpiar: () => void;
   style?: React.CSSProperties;
 }) {
-  const chips = aplanar(children);
-  const filas: React.ReactNode[][] = [];
-  for (let i = 0; i < chips.length; i += CHIPS_POR_FILA) filas.push(chips.slice(i, i + CHIPS_POR_FILA));
   return (
     <div style={{ display: "flex", alignItems: "flex-start", gap: 8, width: "100%", ...style }}>
-      <div style={{ flex: "1 1 auto", minWidth: 0, display: "flex", flexDirection: "column", gap: 6 }}>
-        {filas.map((fila, i) => (
-          <div key={i} style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>{fila}</div>
-        ))}
+      <div style={{ flex: "1 1 auto", minWidth: 0, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+        {children}
       </div>
       <button
         type="button"

@@ -14,6 +14,7 @@ import { numeroOtCliente } from "@/lib/cobro-export";
 import { todoElCatalogo } from "@/lib/catalogo-api";
 import { libroCobros, leerPrecios, leerExcelCobros, otsNuevas, MESES, type OtCobro, type FilaPrecios } from "@/lib/cobros-excel";
 import type { XlsxHoja } from "@/lib/hoja-excel";
+import { DateRangePicker, fechaDeYmd, ymdDeFecha } from "@/components/ui/date-time-picker";
 
 /** "YYYY-MM-DD" con el calendario local: toISOString() correría el día a UTC. */
 function dateKey(d: Date): string {
@@ -122,21 +123,15 @@ function bajar(bytes: Uint8Array, nombre: string) {
 }
 
 function RangoFechas({ titulo, nota, rango, onChange }: { titulo: string; nota: string; rango: Rango; onChange: (r: Rango) => void }) {
-  const input = {
-    flex: 1, minWidth: 0, height: 30, padding: "0 6px",
-    border: "1px solid var(--border)", borderRadius: 6,
-    background: "var(--surface-1)", color: "var(--fg-1)",
-    fontSize: 14, fontFamily: "inherit",
-  } as const;
   return (
     <div style={{ marginBottom: 12 }}>
       <div style={{ fontSize: 14, color: "var(--fg-2)", marginBottom: 2 }}>{titulo}</div>
       <div style={{ fontSize: 13, color: "var(--fg-4)", marginBottom: 6 }}>{nota}</div>
-      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-        <input type="date" aria-label={`${titulo} desde`} value={rango.desde} max={rango.hasta || undefined} onChange={(e) => onChange({ ...rango, desde: e.target.value })} style={input} />
-        <span style={{ color: "var(--fg-4)" }}>→</span>
-        <input type="date" aria-label={`${titulo} hasta`} value={rango.hasta} min={rango.desde || undefined} onChange={(e) => onChange({ ...rango, hasta: e.target.value })} style={input} />
-      </div>
+      {/* Un solo selector de rango: desde y hasta se eligen en el mismo calendario. */}
+      <DateRangePicker
+        value={{ from: fechaDeYmd(rango.desde), to: fechaDeYmd(rango.hasta) }}
+        onChange={(r) => onChange({ desde: ymdDeFecha(r?.from), hasta: ymdDeFecha(r?.to) })}
+      />
     </div>
   );
 }

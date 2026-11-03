@@ -16,6 +16,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { RefreshCw, Loader2, Check, AlertTriangle, ExternalLink, X, ChevronDown } from "lucide-react";
+import { DateRangePicker, fechaDeYmd, ymdDeFecha } from "@/components/ui/date-time-picker";
 
 const COOLDOWN_MS = 5_000;
 
@@ -281,32 +282,12 @@ export default function MeconectaCheck({ onOpenOrden }: Props) {
 
               {periodo === "custom" && (
                 <div style={{ padding: "8px 9px 4px", borderTop: "1px solid var(--border)", marginTop: 4 }}>
-                  <label style={{ display: "block", fontSize: 14, color: "var(--fg-4)", marginBottom: 3 }}>Desde</label>
-                  <input
-                    type="date"
-                    value={customDesde}
-                    max={customHasta || undefined}
-                    onChange={(e) => setCustomDesde(e.target.value)}
-                    style={{
-                      width: "100%", height: 30, marginBottom: 8, padding: "0 8px",
-                      border: "1px solid var(--border)", borderRadius: 6,
-                      background: "var(--surface-1)", color: "var(--fg-1)",
-                      fontSize: 14, fontFamily: "inherit",
-                    }}
-                  />
-                  <label style={{ display: "block", fontSize: 14, color: "var(--fg-4)", marginBottom: 3 }}>Hasta</label>
-                  <input
-                    type="date"
-                    value={customHasta}
-                    min={customDesde || undefined}
-                    onChange={(e) => setCustomHasta(e.target.value)}
-                    style={{
-                      width: "100%", height: 30, marginBottom: 8, padding: "0 8px",
-                      border: "1px solid var(--border)", borderRadius: 6,
-                      background: "var(--surface-1)", color: "var(--fg-1)",
-                      fontSize: 14, fontFamily: "inherit",
-                    }}
-                  />
+                  <div style={{ marginBottom: 8 }}>
+                    <DateRangePicker
+                      value={customDesde || customHasta ? { from: fechaDeYmd(customDesde), to: fechaDeYmd(customHasta) } : undefined}
+                      onChange={(r) => { setCustomDesde(ymdDeFecha(r?.from)); setCustomHasta(ymdDeFecha(r?.to)); }}
+                    />
+                  </div>
                   <button
                     type="button"
                     onClick={() => setPeriodoOpen(false)}

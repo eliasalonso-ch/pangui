@@ -14,6 +14,7 @@ import LinksInput from "@/components/LinksInput";
 import { buildRecurrenciaConfig, RecurrenceControls } from "../RecurrenceControls";
 import type { Usuario, Ubicacion, Activo, CategoriaOT, Prioridad, TipoTrabajo, Recurrencia, RecurrenciaConfig, OTLink } from "@/types/ordenes";
 import { FieldRow, SearchSelect, AssigneeSelect } from "@/components/ot/OTFormFields";
+import { DatePicker, fechaDeYmd, ymdDeFecha } from "@/components/ui/date-time-picker";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -642,32 +643,16 @@ export default function OTCrearForm({ usuarios, ubicaciones, activos, categorias
 
           {/* Due date */}
           <FieldRow icon={<CalendarDays size={16} />} label="Fecha límite">
-            <input
-              type="date"
-              value={form.fecha_termino}
-              onChange={e => setF("fecha_termino", e.target.value)}
-              style={{
-                height: 36, padding: "0 10px",
-                border: "1px solid var(--border)", borderRadius: 6,
-                fontSize: 14, color: form.fecha_termino ? "var(--fg-1)" : "var(--fg-3)",
-                outline: "none", fontFamily: "inherit", background: "var(--surface-1)",
-              }}
-            />
+            <div style={{ width: 200 }}>
+              <DatePicker alto={36} value={fechaDeYmd(form.fecha_termino)} onChange={d => setF("fecha_termino", ymdDeFecha(d))} />
+            </div>
           </FieldRow>
 
           {/* Start date */}
           <FieldRow icon={<CalendarDays size={16} />} label="Fecha inicio">
-            <input
-              type="date"
-              value={form.fecha_inicio}
-              onChange={e => setF("fecha_inicio", e.target.value)}
-              style={{
-                height: 36, padding: "0 10px",
-                border: "1px solid var(--border)", borderRadius: 6,
-                fontSize: 14, color: form.fecha_inicio ? "var(--fg-1)" : "var(--fg-3)",
-                outline: "none", fontFamily: "inherit", background: "var(--surface-1)",
-              }}
-            />
+            <div style={{ width: 200 }}>
+              <DatePicker alto={36} value={fechaDeYmd(form.fecha_inicio)} onChange={d => setF("fecha_inicio", ymdDeFecha(d))} />
+            </div>
           </FieldRow>
 
           {/* Work type */}

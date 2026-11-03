@@ -72,7 +72,7 @@ import { FotoOIniciales } from "@/components/FotoPerfil";
 import { AudioNota } from "@/components/ordenes/AudioNota";
 import { TransformWrapper, TransformComponent, useControls } from "react-zoom-pan-pinch";
 import { format } from "date-fns";
-import { DatePicker, TimePicker, DateTimePicker } from "@/components/ui/date-time-picker";
+import { DatePicker, TimePicker, DateTimePicker, fechaDeYmd, ymdDeFecha } from "@/components/ui/date-time-picker";
 import { Attachment, AttachmentDropzone } from "@/components/ui/attachment";
 import { celdasConResultados } from "@/lib/hoja-formulas";
 
@@ -4683,7 +4683,7 @@ export default function OTDetail({
               </div>
             ) : (
               <div style={{ padding: 20, display: "flex", flexDirection: "column", gap: 16 }}>
-                {pauseReason === "reprogramar" && <label style={{ display: "flex", flexDirection: "column", gap: 7, fontSize: 14, fontWeight: 400, color: "var(--fg-3)", letterSpacing: "0.01em" }}>Nueva fecha programada<input type="date" min={new Date().toISOString().slice(0, 10)} value={pauseDate} onChange={e => setPauseDate(e.target.value)} style={{ height: 42, padding: "0 12px", border: "1px solid var(--border)", borderRadius: "var(--r-md)", background: "var(--surface-0)", color: "var(--fg-1)", font: "inherit", textTransform: "none", letterSpacing: 0 }} /></label>}
+                {pauseReason === "reprogramar" && <label style={{ display: "flex", flexDirection: "column", gap: 7, fontSize: 14, fontWeight: 400, color: "var(--fg-3)", letterSpacing: "0.01em" }}>Nueva fecha programada<span style={{ textTransform: "none", letterSpacing: 0 }}><DatePicker alto={42} min={new Date(new Date().setHours(0, 0, 0, 0))} value={fechaDeYmd(pauseDate)} onChange={d => setPauseDate(ymdDeFecha(d))} /></span></label>}
                 {(pauseReason === "acceso" || pauseReason === "otro" || pauseReason === "reprogramar") && <label style={{ display: "flex", flexDirection: "column", gap: 7, fontSize: 14, fontWeight: 400, color: "var(--fg-3)", letterSpacing: "0.01em" }}>{pauseReason === "reprogramar" ? "Comentario opcional" : "Motivo"}<textarea autoFocus value={pauseComment} onChange={e => setPauseComment(e.target.value)} placeholder={pauseReason === "acceso" ? "Ej: No había nadie en las instalaciones…" : "Describe el motivo…"} rows={4} style={{ resize: "vertical", minHeight: 96, padding: 12, border: "1px solid var(--border)", borderRadius: "var(--r-md)", background: "var(--surface-0)", color: "var(--fg-1)", font: "inherit", fontSize: 14, lineHeight: 1.45, textTransform: "none", letterSpacing: 0 }} /></label>}
                 {pauseReason === "materiales" && <p style={{ margin: 0, fontSize: 14, lineHeight: 1.5, color: "var(--fg-2)" }}>La OT quedará en espera y se abrirá la hoja de cálculo para registrar los materiales necesarios.</p>}
                 <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 4 }}>
