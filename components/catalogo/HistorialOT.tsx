@@ -20,6 +20,7 @@ import {
   type HistorialTarget, type FechaHistorial,
 } from "@/lib/catalogo-historial-api";
 import OTModal from "./OTModal";
+import { DateRangePicker } from "@/components/ui/date-time-picker";
 
 /**
  * "Historial de Orden de Trabajo": el bloque que comparten las fichas de
@@ -75,6 +76,9 @@ function useClickFuera(onClose: () => void) {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     function handler(e: MouseEvent) {
+      // El calendario se abre en un portal de Radix, fuera de `ref`: elegir un
+      // día no es un clic afuera.
+      if ((e.target as Element).closest?.("[data-radix-popper-content-wrapper]")) return;
       if (ref.current && !ref.current.contains(e.target as Node)) onClose();
     }
     document.addEventListener("mousedown", handler);
@@ -116,18 +120,6 @@ const inputStyle: React.CSSProperties = {
   boxSizing: "border-box",
 };
 
-function toInputDate(d: Date): string {
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  return `${d.getFullYear()}-${mm}-${dd}`;
-}
-
-function fromInputDate(v: string): Date | undefined {
-  const [y, m, d] = v.split("-").map(Number);
-  if (!y || !m || !d) return undefined;
-  return new Date(y, m - 1, d);
-}
-
 function RangoPopover({ rango, onChange, onClose }: {
   rango: RangoHistorial;
   onChange: (r: RangoHistorial) => void;
@@ -162,19 +154,10 @@ function RangoPopover({ rango, onChange, onClose }: {
       </div>
 
       {rango.modo === "entre" ? (
-        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 12 }}>
-          <input
-            type="date"
-            value={toInputDate(desde)}
-            onChange={e => onChange({ ...rango, desde: fromInputDate(e.target.value), hasta })}
-            style={{ ...inputStyle, flex: 1 }}
-          />
-          <span style={{ color: "var(--fg-4)", fontSize: 14 }}>–</span>
-          <input
-            type="date"
-            value={toInputDate(hasta)}
-            onChange={e => onChange({ ...rango, desde, hasta: fromInputDate(e.target.value) })}
-            style={{ ...inputStyle, flex: 1 }}
+        <div style={{ marginBottom: 12 }}>
+          <DateRangePicker
+            value={{ from: desde, to: hasta }}
+            onChange={r => onChange({ ...rango, desde: r?.from, hasta: r?.to })}
           />
         </div>
       ) : (

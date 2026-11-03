@@ -18,6 +18,8 @@ import { mergeCalendarExtras } from "@/lib/orden-merge";
 import { buildOrdenesWorkbook, type ExportCols as SharedExportCols, type OrdenInput, type HojaInput, type FilaInput, type FotoItemInput, type MaterialUsadoInput } from "@/lib/excel-export-shared";
 import { ExportScheduler } from "./ExportScheduler";
 import MeconectaCheck from "./MeconectaCheck";
+import ExportCobros from "./ExportCobros";
+import { tieneCobros } from "@/lib/catalogo-api";
 import OTRow, { type HojaSolicitudResumen } from "./OTRow";
 import { EmptyState, EmptyDetail } from "@/components/EmptyState";
 import CalendarView from "./CalendarView";
@@ -1659,6 +1661,8 @@ export default function OrdenesBandeja({
               </button>
             )}
 
+            {/* Excel de cobros con el dibujo CON OT / SIN OT de Electrilam. */}
+            {puedeExportar && tieneCobros(wsId) && <ExportCobros wsId={wsId} />}
 
             {/* Revisar MeConecta — Electrilam-exclusive (same single-tenant gate
                 as ITOs on mobile) and restricted to owners/admins: it reconciles

@@ -345,6 +345,19 @@ export function DateTimePicker({ value, onChange, placeholder = "Seleccionar fec
 export type { DateRange }
 
 /**
+ * "YYYY-MM-DD" ↔ Date, en hora local: para los formularios que guardan la
+ * fecha como texto. `new Date("2026-07-01")` la leería en UTC y en Chile
+ * quedaría en el día anterior.
+ */
+export function fechaDeYmd(s: string | null | undefined): Date | undefined {
+  const [y, m, d] = (s ?? "").split("-").map(Number)
+  return y && m && d ? new Date(y, m - 1, d) : undefined
+}
+export function ymdDeFecha(d: Date | undefined): string {
+  return d ? format(d, "yyyy-MM-dd") : ""
+}
+
+/**
  * Rango de fechas (ejemplo "Date Range Picker" de shadcn): dos meses lado a
  * lado, el primer clic marca el inicio y el segundo el fin. No se cierra solo
  * al elegir: así se puede corregir el rango sin volver a abrirlo.
