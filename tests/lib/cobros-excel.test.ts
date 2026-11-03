@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import * as XLSX from "xlsx-js-style";
 import type { XlsxHoja } from "@/lib/hoja-excel";
-import { lineasDeOt, pestanaCobros, libroCobros, type OtCobro, type HojaCobro } from "@/lib/cobros-excel";
+import { lineasDeOt, pestanaCobros, libroCobros, leerPrecios, type OtCobro, type HojaCobro } from "@/lib/cobros-excel";
 
 const X = XLSX as unknown as XlsxHoja;
 const COLS = [{ id: "a", label: "Ítem" }, { id: "b", label: "Cantidad" }, { id: "c", label: "Unidad" }];
@@ -22,7 +22,7 @@ describe("lineasDeOt: mano de obra = personas × hh (regla de Claudio)", () => {
   it.each([
     ["|2|hh", "|2|pp", 4],                      // …803
     ["Hh|4|", "Personas|2|", 8],                // …804
-    ["HH |1,5|Horas", "PP|2|Personas", 3],      // …948
+    ["HH |1,5|Horas", "PP|2|Personas", 4],      // …948: 1,5hh se cobra como 2hh
     ["Escalera telescópica |2|hh", "|2|pp", 4], // …844
     ["Hh|2|Hr", "Persona |2|", 4],              // …909
   ])("%s + %s → %d", (a, b, esperado) => {
@@ -32,6 +32,10 @@ describe("lineasDeOt: mano de obra = personas × hh (regla de Claudio)", () => {
   it("lee \"1 hh 2 personas\" escrito de corrido en una celda", () => {
     expect(manoObra(ot([hoja("materiales_usados", "Cobrar 1 hh 2 personas ||")]))?.cantidad).toBe(2);
     expect(manoObra(ot([hoja("general", "2 hh 2 personas ||")]))?.cantidad).toBe(4);
+  });
+
+  it("SIN OT es emergencia salvo que se diga otra cosa", () => {
+    expect(manoObra(ot([hoja("materiales_usados", "|1|hh", "|2|pp")], { numeroOt: "" }))?.codigo).toBe("reveme");
   });
 
   it("emergencia usa reveme", () => {
@@ -172,6 +176,29 @@ describe("pestanaCobros: el dibujo de bloques del Excel de Claudio", () => {
     expect(wb.Sheets["SIN OT"]["C13"]?.v).toBe(46225);
     expect(wb.Sheets["Materiales"]["G4"]?.v).toBe("tubled18");
     expect(wb.Sheets["Materiales"]["J4"]).toBeUndefined();
+  });
+
+  it("con la tabla de precios de Patricio, Materiales la lleva tal cual y suma lo que falte del catálogo", () => {
+    // Un "COBROS" mínimo con la pestaña Materiales como la de Patricio (fila 3 rótulos, datos desde la 4).
+    // Empieza en la columna B, como la de verdad (su !ref no parte en A).
+    const fila = (cod: string, desc: string, mat: number, mo: number) => ["Iluminación", null, null, null, null, cod, desc, "Un", mat, mo, 1, 1, mat, mo];
+    const origen = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(origen, XLSX.utils.aoa_to_sheet([["ESTA TABLA NO SE MODIFICA"], [], ["Clasificación"], fila("tubled18", "Tubo led 18W", 6750, 4150), fila("revnor", "Revisión normal", 0, 12000)], { origin: "B1" } as unknown as XLSX.AOA2SheetOpts), "Materiales");
+    const precios = leerPrecios(X, new Uint8Array(XLSX.write(origen, { bookType: "xlsx", type: "array" })));
+    expect(precios.map((f) => [f[5], f[12], f[13]])).toEqual([["tubled18", 6750, 4150], ["revnor", 0, 12000]]);
+
+    const wb = XLSX.read(libroCobros(X, {
+      ots: [ot([])], precios,
+      catalogo: [{ codigo: "tubled18", descripcion: "Tubo led 18W", unidad: "Un", clasificacion: "" }, { codigo: "cajpla", descripcion: "Caja plástica", unidad: "Un", clasificacion: "" }],
+      conOt: { desde: "2026-06-01", hasta: "2026-06-30" }, sinOt: { desde: "2026-06-01", hasta: "2026-06-30" },
+    }), { type: "array" });
+    const m = wb.Sheets["Materiales"];
+    expect([m["G4"]?.v, m["N4"]?.v, m["O4"]?.v]).toEqual(["tubled18", 6750, 4150]);
+    expect([m["G5"]?.v, m["O5"]?.v]).toEqual(["revnor", 12000]);
+    expect([m["G6"]?.v, m["N6"]]).toEqual(["cajpla", undefined]); // del catálogo, sin precio
+    const sinMateriales = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(sinMateriales, XLSX.utils.aoa_to_sheet([["x"]]), "Otra");
+    expect(leerPrecios(X, new Uint8Array(XLSX.write(sinMateriales, { bookType: "xlsx", type: "array" })))).toEqual([]);
   });
 
   it("lleva el logo y \"ELECTRILAM\" con \"SPA\" chico en las dos pestañas", () => {

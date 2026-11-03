@@ -12,7 +12,7 @@ import { createClient } from "@/lib/supabase";
 import { celdasConResultados } from "@/lib/hoja-formulas";
 import { numeroOtCliente } from "@/lib/cobro-export";
 import { todoElCatalogo } from "@/lib/catalogo-api";
-import { libroCobros, MESES, type OtCobro } from "@/lib/cobros-excel";
+import { libroCobros, leerPrecios, MESES, type OtCobro, type FilaPrecios } from "@/lib/cobros-excel";
 import type { XlsxHoja } from "@/lib/hoja-excel";
 
 /** "YYYY-MM-DD" con el calendario local: toISOString() correría el día a UTC. */
@@ -117,7 +117,22 @@ export default function ExportCobros({ wsId }: { wsId: string }) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Tabla de precios de Patricio, leída acá en el navegador: nunca se sube a Pangui.
+  const [precios, setPrecios] = useState<{ nombre: string; filas: FilaPrecios[] } | null>(null);
   const completo = !!(conOt.desde && conOt.hasta && sinOt.desde && sinOt.hasta);
+
+  async function elegirPrecios(archivo: File | undefined) {
+    if (!archivo) return;
+    setError(null);
+    try {
+      const XLSX = await import("xlsx-js-style");
+      const filas = leerPrecios(XLSX as unknown as XlsxHoja, new Uint8Array(await archivo.arrayBuffer()));
+      if (filas.length === 0) { setError(`"${archivo.name}" no tiene la pestaña Materiales con códigos`); return; }
+      setPrecios({ nombre: archivo.name, filas });
+    } catch {
+      setError(`No se pudo leer "${archivo.name}"`);
+    }
+  }
 
   async function descargar() {
     if (loading || !completo) return;
@@ -136,7 +151,9 @@ export default function ExportCobros({ wsId }: { wsId: string }) {
       ]);
       if (ots.length === 0) { setError("No hay OTs completadas en esos rangos"); return; }
 
-      const bytes = libroCobros(XLSX as unknown as XlsxHoja, { ots, catalogo, conOt, sinOt, logo: logo ? new Uint8Array(logo) : undefined });
+      const bytes = libroCobros(XLSX as unknown as XlsxHoja, {
+        ots, catalogo, conOt, sinOt, logo: logo ? new Uint8Array(logo) : undefined, precios: precios?.filas,
+      });
       const a = document.createElement("a");
       a.href = URL.createObjectURL(new Blob([new Uint8Array(bytes).buffer as ArrayBuffer], {
         type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -188,7 +205,24 @@ export default function ExportCobros({ wsId }: { wsId: string }) {
           >
             <RangoFechas titulo="CON OT" nota="Según el corte del ITO" rango={conOt} onChange={setConOt} />
             <RangoFechas titulo="SIN OT" nota="Mes calendario" rango={sinOt} onChange={setSinOt} />
-            {error && <div style={{ fontSize: 14, color: "var(--danger)", marginBottom: 8 }}>{error}</div>}
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 14, color: "var(--fg-2)", marginBottom: 2 }}>Precios</div>
+              <div style={{ fontSize: 13, color: "var(--fg-4)", marginBottom: 6 }}>
+                Cualquier COBROS anterior: se usa su pestaña Materiales. Se lee en este computador, no se sube.
+              </div>
+              <label style={{
+                display: "flex", alignItems: "center", gap: 6, height: 30, padding: "0 8px",
+                border: "1px dashed var(--border-strong)", borderRadius: 6, cursor: "pointer",
+                fontSize: 14, color: precios ? "var(--fg-1)" : "var(--fg-3)", overflow: "hidden",
+              }}>
+                <FileSpreadsheet size={14} style={{ flexShrink: 0, color: precios ? "var(--brand)" : undefined }} />
+                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {precios ? `${precios.nombre} · ${precios.filas.length} códigos` : "Elegir Excel de precios…"}
+                </span>
+                <input type="file" accept=".xlsx,.xlsm,.xls" onChange={(e) => { void elegirPrecios(e.target.files?.[0]); e.target.value = ""; }} style={{ display: "none" }} />
+              </label>
+            </div>
+            {error &&<div style={{ fontSize: 14, color: "var(--danger)", marginBottom: 8 }}>{error}</div>}
             <button
               type="button"
               onClick={descargar}
@@ -202,9 +236,11 @@ export default function ExportCobros({ wsId }: { wsId: string }) {
             >
               {loading ? <><Loader2 size={13} className="animate-spin" />Armando…</> : "Descargar Excel"}
             </button>
-            <div style={{ fontSize: 13, color: "var(--fg-4)", marginTop: 10, lineHeight: 1.4 }}>
-              Para ver los precios, pega la tabla de Materiales de Patricio en la pestaña <b>Materiales</b>, desde B4.
-            </div>
+            {!precios && (
+              <div style={{ fontSize: 13, color: "var(--fg-4)", marginTop: 10, lineHeight: 1.4 }}>
+                Sin Excel de precios, los montos salen en blanco hasta que pegues la tabla en la pestaña <b>Materiales</b> (desde B4).
+              </div>
+            )}
           </div>
         </>
       )}

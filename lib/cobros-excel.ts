@@ -163,12 +163,16 @@ export function lineasDeOt(ot: OtCobro, catalogo: Map<string, string>): Linea[] 
   // Se trabaja de a dos casi siempre; en la OT suele quedar asignado uno solo,
   // así que los asignados sólo cuentan cuando son más de dos.
   if (personas.length === 0) personas.push(Math.max(2, ot.asignados ?? 0));
+  // La hh se cobra entera hacia arriba también cuando viene de la hoja: "1,5" → 2hh.
+  for (let i = 0; i < horas.length; i++) horas[i] = Math.max(1, Math.ceil(horas[i]));
 
-  const manoObra: Linea = ot.emergencia
+  // SIN OT son llamados: en julio Claudio cobró emergencia en 56 de 68. CON OT,
+  // sólo si la OT está marcada como emergencia.
+  const manoObra: Linea = ot.emergencia || !ot.numeroOt
     ? { texto: "Revisión de emergencia", codigo: "reveme" }
     : { texto: "Revisión normal", codigo: "revnor" };
   if (!dudoso && horas.length === 1 && personas.length === 1) {
-    manoObra.cantidad = Math.round(horas[0] * personas[0] * 100) / 100;
+    manoObra.cantidad = horas[0] * personas[0];
   }
 
   return [
@@ -318,7 +322,7 @@ function encabezado(p: Pestana, titulo: string, desde: string, hasta: string, ul
 }
 
 /** Un bloque de 23 filas desde `cab` (la fila de cabecera de la OT); `n` es su número en la columna A. */
-function bloque(p: Pestana, cab: number, n: number, ot: OtCobro | null, lineas: Linea[], catalogo: Map<string, MaterialCobro>, sinOt: boolean) {
+function bloque(p: Pestana, cab: number, n: number, ot: OtCobro | null, lineas: Linea[], catalogo: Map<string, MaterialCobro>, sinOt: boolean, alto: number) {
   p.put(cab, "A", { v: n, s: est({ negrita: true, h: "center" }) });
   const bd = (c: string, arriba: Borde = "thin", abajo: Borde = "thin"): [Borde, Borde, Borde, Borde] =>
     [c === "C" ? "medium" : "thin", c === "P" ? "medium" : "thin", arriba, abajo];
@@ -344,7 +348,7 @@ function bloque(p: Pestana, cab: number, n: number, ot: OtCobro | null, lineas: 
   p.altura(cab, 27.75);
 
   // 20 líneas con las fórmulas de la plantilla: BUSCARV contra Materiales e IVA 19 %.
-  const buscar = (fila: number, n: number) => `IFERROR(VLOOKUP($F${fila},Materiales!$G$2:$O$${ALTO_MAT},${n},FALSE),"-")`;
+  const buscar = (fila: number, n: number) => `IFERROR(VLOOKUP($F${fila},Materiales!$G$2:$O$${alto},${n},FALSE),"-")`;
   for (let j = 0; j < LINEAS_POR_BLOQUE; j++) {
     const r = cab + 1 + j;
     const l = lineas[j];
@@ -394,6 +398,7 @@ export function pestanaCobros(
   X: XlsxHoja, ots: OtCobro[], catalogo: Map<string, string>, sinOt: boolean,
   rango: { desde: string; hasta: string } = { desde: ots[0]?.fecha || "2026-01-01", hasta: ots.at(-1)?.fecha || "2026-01-01" },
   materiales: Map<string, MaterialCobro> = new Map(),
+  alto = ALTO_MAT,
 ): Record<string, unknown> {
   const p = new Pestana(X);
   const bloques = ots.flatMap((ot) => {
@@ -404,25 +409,65 @@ export function pestanaCobros(
   });
   const ultima = PRIMERA_CABECERA + Math.max(bloques.length, 1) * FILAS_POR_BLOQUE - 1;
   encabezado(p, sinOt ? "TRABAJOS SIN OT" : "TRABAJOS CON OT", rango.desde, rango.hasta, ultima);
-  bloques.forEach((b, k) => bloque(p, PRIMERA_CABECERA + k * FILAS_POR_BLOQUE, k + 1, b.ot, b.lineas, materiales, sinOt));
+  bloques.forEach((b, k) => bloque(p, PRIMERA_CABECERA + k * FILAS_POR_BLOQUE, k + 1, b.ot, b.lineas, materiales, sinOt, alto));
   const ws = p.cerrar(ultima, "P", ANCHOS);
   ws["!autofilter"] = { ref: `C12:P${ultima}` }; // las flechas de filtro de la tabla
   return ws;
 }
 
-/** Pestaña Materiales con el dibujo de la de Patricio, sin precios (los pega él). */
-function pestanaMateriales(X: XlsxHoja, catalogo: MaterialCobro[]): Record<string, unknown> {
+/** Una fila de la tabla Materiales de Patricio, columnas B..O (código en G, MAT FIN en N, MO FIN en O). */
+export type FilaPrecios = (string | number | null)[];
+const COLS_MAT = "BCDEFGHIJKLMNO".split("");
+
+type XlsxLectura = {
+  read: (datos: Uint8Array, opts: { type: "array"; sheets?: string[] }) => { SheetNames: string[]; Sheets: Record<string, Record<string, unknown>> };
+  utils: { sheet_to_json: (ws: unknown, opts: { header: 1; range: string; defval: null; raw: true }) => unknown[][] };
+};
+
+/**
+ * Lee la tabla de precios de un Excel de Electrilam (la pestaña "Materiales"
+ * de cualquier COBROS, que es la de Patricio). Corre en el navegador de quien
+ * exporta: los precios no pasan por Pangui. Devuelve [] si no la encuentra.
+ */
+export function leerPrecios(X: XlsxHoja, libro: Uint8Array): FilaPrecios[] {
+  const R = X as unknown as XlsxLectura;
+  const wb = R.read(libro, { type: "array", sheets: ["Materiales"] });
+  const ws = wb.Sheets["Materiales"];
+  if (!ws) return [];
+  // Desde A4 fijo: la hoja de Patricio empieza en B, y un rango numérico partiría
+  // desde su primera columna y correría todo una posición.
+  const ultima = /(\d+)$/.exec(String(ws["!ref"] ?? ""))?.[1] ?? "4";
+  return R.utils.sheet_to_json(ws, { header: 1, range: `A4:O${ultima}`, defval: null, raw: true })
+    .map((fila) => (fila as (string | number | null)[]).slice(1, 15))
+    .filter((f) => String(f[5] ?? "").trim() !== "");
+}
+
+/**
+ * Pestaña Materiales con el dibujo de la de Patricio. Con su tabla de precios,
+ * va esa tal cual (y debajo los códigos del catálogo que no traiga); sin ella,
+ * sólo el catálogo, para que al menos salgan descripción y unidad.
+ */
+function pestanaMateriales(X: XlsxHoja, catalogo: MaterialCobro[], precios: FilaPrecios[]): Record<string, unknown> {
   const p = new Pestana(X);
-  p.put(2, "G", { v: "   PEGAR AQUÍ LA TABLA CON PRECIOS (desde B4). Pangui no guarda precios.", s: est({ negrita: true }) });
-  const rotulos = ["Clasificación", "Sub Clasificación", "Elemento", "Tamaño / potencia", "Caracteristica", "Codigo", "Descripción", "Un", "MATERIAL", "MO", "% MAT", "% MO", "MAT FIN", "MO FIN"];
-  "BCDEFGHIJKLMNO".split("").forEach((c, i) => p.put(3, c, { v: rotulos[i], s: est({ negrita: true, relleno: GRIS, h: "center", bd: ["thin", "thin", "thin", "thin"] }) }));
-  catalogo.forEach((m, i) => {
-    p.put(4 + i, "B", { v: m.clasificacion || undefined });
-    p.put(4 + i, "G", { v: m.codigo });
-    p.put(4 + i, "H", { v: m.descripcion });
-    p.put(4 + i, "I", { v: m.unidad });
+  p.put(2, "G", {
+    v: precios.length ? "   ESTA TABLA NO SE MODIFICA" : "   SIN PRECIOS: elige el Excel de precios al exportar, o pega la tabla desde B4.",
+    s: est({ negrita: true }),
   });
-  return p.cerrar(Math.max(3 + catalogo.length, 3), "O", [4, 16, 16, 10, 10, 12, 16, 50, 6, 10, 10, 7, 7, 10, 10]);
+  const rotulos = ["Clasificación", "Sub Clasificación", "Elemento", "Tamaño / potencia", "Caracteristica", "Codigo", "Descripción", "Un", "MATERIAL", "MO", "% MAT", "% MO", "MAT FIN", "MO FIN"];
+  COLS_MAT.forEach((c, i) => p.put(3, c, { v: rotulos[i], s: est({ negrita: true, relleno: GRIS, h: "center", bd: ["thin", "thin", "thin", "thin"] }) }));
+  const conPrecio = new Set(precios.map((f) => norm(f[5])));
+  const filas: FilaPrecios[] = [
+    ...precios,
+    ...catalogo.filter((m) => !conPrecio.has(norm(m.codigo)))
+      .map((m) => [m.clasificacion, null, null, null, null, m.codigo, m.descripcion, m.unidad, null, null, null, null, null, null]),
+  ];
+  filas.forEach((f, i) => COLS_MAT.forEach((c, j) => {
+    const v = f[j];
+    // J/K (MATERIAL, MO) y N/O (MAT FIN, MO FIN) son pesos.
+    const pesos = [8, 9, 12, 13].includes(j);
+    if (v != null && v !== "") p.put(4 + i, c, { v, s: typeof v === "number" && pesos ? est({ fmt: PESOS }) : undefined });
+  }));
+  return p.cerrar(Math.max(3 + filas.length, 3), "O", [4, 16, 16, 10, 10, 12, 16, 50, 6, 10, 10, 7, 7, 10, 10]);
 }
 
 // ── Lo que xlsx-js-style no escribe: logo y "SPA" chico ──────────────────────
@@ -483,7 +528,7 @@ function adornar(X: XlsxZip, libro: Uint8Array, hojas: number[], logo?: Uint8Arr
 }
 
 export function libroCobros(X: XlsxHoja, {
-  ots, catalogo, conOt, sinOt, logo,
+  ots, catalogo, conOt, sinOt, logo, precios = [],
 }: {
   ots: OtCobro[];
   catalogo: MaterialCobro[];
@@ -492,19 +537,24 @@ export function libroCobros(X: XlsxHoja, {
   sinOt: { desde: string; hasta: string };
   /** PNG del logo de Electrilam; sin él el libro sale igual, sólo sin imagen. */
   logo?: Uint8Array;
+  /** Tabla de precios de Patricio (leerPrecios). Sin ella, los montos salen en blanco. */
+  precios?: FilaPrecios[];
 }): Uint8Array {
   // Texto normalizado → código: se busca tanto por descripción como por código.
   const mapa = new Map<string, string>();
   for (const m of catalogo) mapa.set(norm(m.descripcion), m.codigo);
   for (const m of catalogo) mapa.set(norm(m.codigo), m.codigo);
   const porCodigo = new Map(catalogo.map((m) => [norm(m.codigo), m]));
+  for (const f of precios) porCodigo.set(norm(f[5]), { codigo: String(f[5]), descripcion: String(f[6] ?? ""), unidad: String(f[7] ?? ""), clasificacion: String(f[0] ?? "") });
+  // El BUSCARV de la plantilla llega hasta la fila 1912; si la tabla crece, el rango con ella.
+  const alto = Math.max(ALTO_MAT, 3 + porCodigo.size);
 
   const enRango = (o: OtCobro, r: { desde: string; hasta: string }) => o.fecha >= r.desde && o.fecha <= r.hasta;
   const porFecha = (a: OtCobro, b: OtCobro) => a.fecha.localeCompare(b.fecha);
   const wb = X.utils.book_new();
-  X.utils.book_append_sheet(wb, pestanaCobros(X, ots.filter((o) => o.numeroOt && enRango(o, conOt)).sort(porFecha), mapa, false, conOt, porCodigo), "CON OT");
-  X.utils.book_append_sheet(wb, pestanaCobros(X, ots.filter((o) => !o.numeroOt && enRango(o, sinOt)).sort(porFecha), mapa, true, sinOt, porCodigo), "SIN OT");
-  X.utils.book_append_sheet(wb, pestanaMateriales(X, catalogo), "Materiales");
+  X.utils.book_append_sheet(wb, pestanaCobros(X, ots.filter((o) => o.numeroOt && enRango(o, conOt)).sort(porFecha), mapa, false, conOt, porCodigo, alto), "CON OT");
+  X.utils.book_append_sheet(wb, pestanaCobros(X, ots.filter((o) => !o.numeroOt && enRango(o, sinOt)).sort(porFecha), mapa, true, sinOt, porCodigo, alto), "SIN OT");
+  X.utils.book_append_sheet(wb, pestanaMateriales(X, catalogo, precios), "Materiales");
   const bytes = new Uint8Array(X.write(wb, { bookType: "xlsx", type: "array" }));
   const vista = { filas: 0, columnas: 0, sinCuadricula: true, zoom: 90 };
   return adornar(X as XlsxZip, ajustarLibro(X, bytes, [vista, vista, undefined]), [1, 2], logo);
