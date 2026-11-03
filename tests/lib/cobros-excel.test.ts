@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import * as XLSX from "xlsx-js-style";
 import type { XlsxHoja } from "@/lib/hoja-excel";
-import { lineasDeOt, pestanaCobros, libroCobros, leerPrecios, type OtCobro, type HojaCobro } from "@/lib/cobros-excel";
+import { lineasDeOt, pestanaCobros, libroCobros, leerPrecios, leerExcelCobros, otsNuevas, type OtCobro, type HojaCobro } from "@/lib/cobros-excel";
 
 const X = XLSX as unknown as XlsxHoja;
 const COLS = [{ id: "a", label: "Ítem" }, { id: "b", label: "Cantidad" }, { id: "c", label: "Unidad" }];
@@ -199,6 +199,49 @@ describe("pestanaCobros: el dibujo de bloques del Excel de Claudio", () => {
     const sinMateriales = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(sinMateriales, XLSX.utils.aoa_to_sheet([["x"]]), "Otra");
     expect(leerPrecios(X, new Uint8Array(XLSX.write(sinMateriales, { bookType: "xlsx", type: "array" })))).toEqual([]);
+  });
+
+  it("actualizar: conserva lo que corrigió Claudio y agrega sólo las OTs nuevas", () => {
+    const rango = { desde: "2026-07-01", hasta: "2026-07-31" };
+    const a = ot([hoja("materiales_usados", "Caja chuqui|1|Uni", "|1|hh", "|2|pp")], { id: "ot-a", fecha: "2026-07-02" });
+    const s = ot([hoja("materiales_usados", "|1|hh")], { id: "ot-s", numeroOt: "", solicitante: "Javier Araneda", fecha: "2026-07-03" });
+    const primero = libroCobros(X, { ots: [a, s], catalogo: [], conOt: rango, sinOt: rango });
+
+    // Claudio corrige en Excel: código y cantidad a la caja chuqui, y una nota suya.
+    const wb = XLSX.read(primero, { type: "array" });
+    wb.Sheets["CON OT"]["F15"] = { t: "s", v: "cajpla" };
+    wb.Sheets["CON OT"]["I15"] = { t: "n", v: 3 };
+    wb.Sheets["CON OT"]["E19"] = { t: "s", v: "Nota de Claudio" }; // con una fila vacía antes: no tiene que subir
+    const editado = new Uint8Array(XLSX.write(wb, { bookType: "xlsx", type: "array" }));
+
+    const previo = leerExcelCobros(X, editado)!;
+    expect(previo.conOt.map((b) => b.id)).toEqual(["ot-a"]);
+    expect(previo.sinOt.map((b) => b.id)).toEqual(["ot-s"]);
+    const b = ot([], { id: "ot-b", numeroOt: "SF920260728999", fecha: "2026-07-20" });
+    expect(otsNuevas([a, s, b], previo).map((o) => o.id)).toEqual(["ot-b"]);
+
+    const final = XLSX.read(libroCobros(X, { ots: [a, s, b], catalogo: [], conOt: rango, sinOt: rango, previos: previo }), { type: "array" });
+    const con = final.Sheets["CON OT"];
+    expect([con["F15"]?.v, con["I15"]?.v]).toEqual(["cajpla", 3]); // lo de Claudio, intacto
+    expect([con["E18"]?.v, con["E19"]?.v]).toEqual(["", "Nota de Claudio"]);
+    expect(con["D36"]?.v).toBe("SF920260728999");                   // la nueva, en el bloque siguiente
+    expect(con["R36"]?.v).toBe("ot-b");
+    expect(final.Sheets["SIN OT"]["D36"]).toBeUndefined();           // la SIN OT no se repitió
+  });
+
+  it("los Excel sin id se reconocen por N° OT o por fecha + solicitante + descripción", () => {
+    const previos = {
+      conOt: [{ id: "", cabecera: { fecha: "2026-07-02", solicitud: "SF920260627830", lugar: "", descripcion: "" }, lineas: [] }],
+      sinOt: [{ id: "", cabecera: { fecha: "2026-07-03", solicitud: "Javier Araneda", lugar: "", descripcion: "Instalar 3 proyectores" }, lineas: [] }],
+    };
+    const repetidas = [ot([]), ot([], { numeroOt: "", solicitante: "javier araneda", fecha: "2026-07-03" })];
+    expect(otsNuevas(repetidas, previos)).toEqual([]);
+  });
+
+  it("no actualiza el COBROS original con macros y otras pestañas (se perderían)", () => {
+    const orig = XLSX.utils.book_new();
+    for (const n of ["CON OT", "SIN OT", "ASIG 2026", "Materiales"]) XLSX.utils.book_append_sheet(orig, XLSX.utils.aoa_to_sheet([["x"]]), n);
+    expect(leerExcelCobros(X, new Uint8Array(XLSX.write(orig, { bookType: "xlsx", type: "array" })))).toBeNull();
   });
 
   it("lleva el logo y \"ELECTRILAM\" con \"SPA\" chico en las dos pestañas", () => {

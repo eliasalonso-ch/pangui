@@ -26,6 +26,8 @@ export interface HojaCobro {
 }
 
 export interface OtCobro {
+  /** Id de la OT en Pangui: va oculto en el Excel para no repetirla al actualizar. */
+  id?: string;
   /** SF9… si la OT viene del portal del cliente; vacío = SIN OT. */
   numeroOt: string;
   solicitante: string;
@@ -321,9 +323,38 @@ function encabezado(p: Pestana, titulo: string, desde: string, hasta: string, ul
   [15.75, 18.75, 16.5, 24, 16.9, 24, 21.75, 8.65, 35.25, 24.95, 18.4, 54.75].forEach((h, i) => p.altura(i + 1, h));
 }
 
+/**
+ * Lo que se dibuja en un bloque. Sale de una OT de Pangui (bloquesDeOt) o se
+ * leyó del Excel de Claudio con sus correcciones (leerExcelCobros): por eso el
+ * dibujo no depende de la OT, sólo de esto.
+ */
+export interface BloqueCobro {
+  /** Id de la OT en Pangui, oculto en la columna R. Vacío en Excel viejos. */
+  id: string;
+  /** null = continuación de la OT anterior (más de 20 líneas). */
+  cabecera: { fecha: string; solicitud: string; lugar: string; descripcion: string } | null;
+  lineas: Linea[];
+}
+
+/** Una OT en bloques de 20 líneas; las que sobran siguen con "Continuación", como lo hace Claudio. */
+export function bloquesDeOt(ot: OtCobro, catalogo: Map<string, string>, sinOt: boolean): BloqueCobro[] {
+  const lineas = lineasDeOt(ot, catalogo);
+  const out: BloqueCobro[] = [];
+  for (let i = 0; i < lineas.length; i += LINEAS_POR_BLOQUE) {
+    out.push({
+      id: ot.id ?? "",
+      cabecera: i ? null : { fecha: ot.fecha, solicitud: sinOt ? ot.solicitante : ot.numeroOt, lugar: ot.lugar, descripcion: ot.descripcion },
+      lineas: lineas.slice(i, i + LINEAS_POR_BLOQUE),
+    });
+  }
+  return out;
+}
+
 /** Un bloque de 23 filas desde `cab` (la fila de cabecera de la OT); `n` es su número en la columna A. */
-function bloque(p: Pestana, cab: number, n: number, ot: OtCobro | null, lineas: Linea[], catalogo: Map<string, MaterialCobro>, sinOt: boolean, alto: number) {
+function bloque(p: Pestana, cab: number, n: number, b: BloqueCobro, catalogo: Map<string, MaterialCobro>, alto: number) {
+  const { cabecera, lineas } = b;
   p.put(cab, "A", { v: n, s: est({ negrita: true, h: "center" }) });
+  if (b.id) p.put(cab, "R", { v: b.id });
   const bd = (c: string, arriba: Borde = "thin", abajo: Borde = "thin"): [Borde, Borde, Borde, Borde] =>
     [c === "C" ? "medium" : "thin", c === "P" ? "medium" : "thin", arriba, abajo];
 
@@ -337,11 +368,11 @@ function bloque(p: Pestana, cab: number, n: number, ot: OtCobro | null, lineas: 
       bd: bd(c, "medium"),
     });
     let v: string | number | undefined = rotulos[c];
-    if (ot) {
-      if (c === "C" && ot.fecha) v = serieExcel(ot.fecha);
-      if (c === "D") v = sinOt ? ot.solicitante : ot.numeroOt;
-      if (c === "E") v = ot.lugar;
-      if (c === "G") v = ot.descripcion;
+    if (cabecera) {
+      if (c === "C" && cabecera.fecha) v = serieExcel(cabecera.fecha);
+      if (c === "D") v = cabecera.solicitud;
+      if (c === "E") v = cabecera.lugar;
+      if (c === "G") v = cabecera.descripcion;
     } else if (c === "D") v = "Continuación";
     p.put(cab, c, { v, s });
   }
@@ -390,29 +421,104 @@ function bloque(p: Pestana, cab: number, n: number, ot: OtCobro | null, lineas: 
 }
 
 /**
- * Una pestaña CON OT o SIN OT completa. Una OT con más de 20 líneas sigue en
- * el bloque siguiente con "Continuación" en la Solicitud, como ya lo hace
- * Claudio a mano.
+ * Una pestaña CON OT o SIN OT completa: primero los bloques que ya traía el
+ * Excel (`previos`, tal como los dejó Claudio) y después las OTs nuevas.
  */
 export function pestanaCobros(
   X: XlsxHoja, ots: OtCobro[], catalogo: Map<string, string>, sinOt: boolean,
   rango: { desde: string; hasta: string } = { desde: ots[0]?.fecha || "2026-01-01", hasta: ots.at(-1)?.fecha || "2026-01-01" },
   materiales: Map<string, MaterialCobro> = new Map(),
   alto = ALTO_MAT,
+  previos: BloqueCobro[] = [],
 ): Record<string, unknown> {
   const p = new Pestana(X);
-  const bloques = ots.flatMap((ot) => {
-    const lineas = lineasDeOt(ot, catalogo);
-    const partes: { ot: OtCobro | null; lineas: Linea[] }[] = [];
-    for (let i = 0; i < lineas.length; i += LINEAS_POR_BLOQUE) partes.push({ ot: i ? null : ot, lineas: lineas.slice(i, i + LINEAS_POR_BLOQUE) });
-    return partes;
-  });
+  const bloques = [...previos, ...ots.flatMap((ot) => bloquesDeOt(ot, catalogo, sinOt))];
   const ultima = PRIMERA_CABECERA + Math.max(bloques.length, 1) * FILAS_POR_BLOQUE - 1;
   encabezado(p, sinOt ? "TRABAJOS SIN OT" : "TRABAJOS CON OT", rango.desde, rango.hasta, ultima);
-  bloques.forEach((b, k) => bloque(p, PRIMERA_CABECERA + k * FILAS_POR_BLOQUE, k + 1, b.ot, b.lineas, materiales, sinOt, alto));
-  const ws = p.cerrar(ultima, "P", ANCHOS);
+  bloques.forEach((b, k) => bloque(p, PRIMERA_CABECERA + k * FILAS_POR_BLOQUE, k + 1, b, materiales, alto));
+  const ws = p.cerrar(ultima, "R", ANCHOS);
+  // R guarda el id de la OT: oculta, fuera de la tabla y de lo que se imprime.
+  ws["!cols"] = [...(ws["!cols"] as object[]), { wch: 2.9 }, { wch: 38, hidden: true }];
   ws["!autofilter"] = { ref: `C12:P${ultima}` }; // las flechas de filtro de la tabla
   return ws;
+}
+
+// ── Actualizar el mismo Excel ────────────────────────────────────────────────
+
+/** Fecha de Excel (días desde 30-12-1899) → "YYYY-MM-DD". */
+function ymdDeSerie(serie: number): string {
+  return new Date(Date.UTC(1899, 11, 30) + Math.round(serie) * 86400000).toISOString().slice(0, 10);
+}
+
+const PESTANAS_PANGUI = ["CON OT", "SIN OT", "Materiales"];
+
+export interface ExcelCobros {
+  conOt: BloqueCobro[];
+  sinOt: BloqueCobro[];
+  /** Su pestaña Materiales (con los precios, si ya se los pusieron). */
+  precios: FilaPrecios[];
+}
+
+/**
+ * Lee un Excel de cobros exportado por Pangui para agregarle OTs sin perder lo
+ * que Claudio ya corrigió (textos, códigos, cantidades). Devuelve null si no
+ * es uno de Pangui: el COBROS original trae macros y otras pestañas (ASIG…)
+ * que al reescribirlo se perderían.
+ */
+export function leerExcelCobros(X: XlsxHoja, libro: Uint8Array): ExcelCobros | null {
+  const R = X as unknown as XlsxLectura;
+  const wb = R.read(libro, { type: "array" });
+  if (wb.SheetNames.length !== PESTANAS_PANGUI.length || !PESTANAS_PANGUI.every((n) => wb.SheetNames.includes(n))) return null;
+
+  const pestana = (nombre: string): BloqueCobro[] => {
+    const ws = wb.Sheets[nombre];
+    const ultima = /(\d+)$/.exec(String(ws["!ref"] ?? ""))?.[1] ?? "1";
+    const filas = R.utils.sheet_to_json(ws, { header: 1, range: `A1:R${ultima}`, defval: null, raw: true }) as (string | number | null)[][];
+    const txt = (v: unknown) => (v == null ? "" : String(v).trim());
+    const out: BloqueCobro[] = [];
+    for (let i = PRIMERA_CABECERA - 1; i < filas.length; i++) {
+      const f = filas[i] ?? [];
+      if (txt(f[5]) !== "Codigo" || txt(f[8]) === "TOTALES") continue;
+      const lineas: Linea[] = [];
+      for (let j = i + 1; j < filas.length; j++) {
+        const l = filas[j] ?? [];
+        if (txt(l[8]) === "TOTALES" || txt(l[5]) === "Codigo") break;
+        // Cada línea en su fila, también las vacías: lo que Claudio escribió en E19 vuelve a E19.
+        const linea: Linea = { texto: txt(l[4]) };
+        if (txt(l[5])) linea.codigo = txt(l[5]);
+        if (typeof l[8] === "number") linea.cantidad = l[8];
+        lineas.push(linea);
+      }
+      while (lineas.length && !lineas.at(-1)!.texto && !lineas.at(-1)!.codigo && lineas.at(-1)!.cantidad == null) lineas.pop();
+      const solicitud = txt(f[3]);
+      const continuacion = norm(solicitud).startsWith("continuaci");
+      const fecha = typeof f[2] === "number" ? ymdDeSerie(f[2]) : txt(f[2]);
+      if (!continuacion && !solicitud && !fecha && !txt(f[6]) && lineas.length === 0) continue; // bloque vacío de plantilla
+      out.push({
+        id: txt(f[17]),
+        cabecera: continuacion ? null : { fecha, solicitud, lugar: txt(f[4]), descripcion: txt(f[6]) },
+        lineas,
+      });
+    }
+    return out;
+  };
+  return { conOt: pestana("CON OT"), sinOt: pestana("SIN OT"), precios: leerPrecios(X, libro) };
+}
+
+/**
+ * Las OTs que todavía no están en el Excel. Por id (columna R); los Excel sin
+ * id se reconocen por N° OT (CON OT) o por fecha + solicitante + descripción
+ * (SIN OT, que no tiene número).
+ */
+export function otsNuevas(ots: OtCobro[], previos: Pick<ExcelCobros, "conOt" | "sinOt">): OtCobro[] {
+  const ids = new Set([...previos.conOt, ...previos.sinOt].map((b) => b.id).filter(Boolean));
+  const clave = (fecha: string, sol: string, desc: string) => `${fecha}|${norm(sol)}|${norm(desc)}`;
+  const numeros = new Set(previos.conOt.flatMap((b) => (b.cabecera ? [norm(b.cabecera.solicitud)] : [])));
+  const sinOt = new Set(previos.sinOt.flatMap((b) => (b.cabecera ? [clave(b.cabecera.fecha, b.cabecera.solicitud, b.cabecera.descripcion)] : [])));
+  return ots.filter((o) => {
+    if (o.id && ids.has(o.id)) return false;
+    return o.numeroOt ? !numeros.has(norm(o.numeroOt)) : !sinOt.has(clave(o.fecha, o.solicitante, o.descripcion));
+  });
 }
 
 /** Una fila de la tabla Materiales de Patricio, columnas B..O (código en G, MAT FIN en N, MO FIN en O). */
@@ -528,8 +634,10 @@ function adornar(X: XlsxZip, libro: Uint8Array, hojas: number[], logo?: Uint8Arr
 }
 
 export function libroCobros(X: XlsxHoja, {
-  ots, catalogo, conOt, sinOt, logo, precios = [],
+  ots, catalogo, conOt, sinOt, logo, precios = [], previos,
 }: {
+  /** El Excel que se está actualizando: sus bloques van primero y sus OTs no se repiten. */
+  previos?: Pick<ExcelCobros, "conOt" | "sinOt">;
   ots: OtCobro[];
   catalogo: MaterialCobro[];
   /** Período de cada pestaña: CON OT sigue el corte del ITO, SIN OT el mes calendario. */
@@ -551,9 +659,10 @@ export function libroCobros(X: XlsxHoja, {
 
   const enRango = (o: OtCobro, r: { desde: string; hasta: string }) => o.fecha >= r.desde && o.fecha <= r.hasta;
   const porFecha = (a: OtCobro, b: OtCobro) => a.fecha.localeCompare(b.fecha);
+  const nuevas = previos ? otsNuevas(ots, previos) : ots;
   const wb = X.utils.book_new();
-  X.utils.book_append_sheet(wb, pestanaCobros(X, ots.filter((o) => o.numeroOt && enRango(o, conOt)).sort(porFecha), mapa, false, conOt, porCodigo, alto), "CON OT");
-  X.utils.book_append_sheet(wb, pestanaCobros(X, ots.filter((o) => !o.numeroOt && enRango(o, sinOt)).sort(porFecha), mapa, true, sinOt, porCodigo, alto), "SIN OT");
+  X.utils.book_append_sheet(wb, pestanaCobros(X, nuevas.filter((o) => o.numeroOt && enRango(o, conOt)).sort(porFecha), mapa, false, conOt, porCodigo, alto, previos?.conOt), "CON OT");
+  X.utils.book_append_sheet(wb, pestanaCobros(X, nuevas.filter((o) => !o.numeroOt && enRango(o, sinOt)).sort(porFecha), mapa, true, sinOt, porCodigo, alto, previos?.sinOt), "SIN OT");
   X.utils.book_append_sheet(wb, pestanaMateriales(X, catalogo, precios), "Materiales");
   const bytes = new Uint8Array(X.write(wb, { bookType: "xlsx", type: "array" }));
   const vista = { filas: 0, columnas: 0, sinCuadricula: true, zoom: 90 };
