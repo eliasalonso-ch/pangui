@@ -222,7 +222,7 @@ function HitoSelect({ value, onChange, wsId }: {
   const load = useCallback(async () => {
     const sb = createClient();
     const { data } = await sb
-      .from("hitos").select("id, nombre")
+      .from("hitos").select("id, nombre").eq("archivada", false)
       .eq("workspace_id", wsId).order("nombre");
     setHitos(data ?? []);
   }, [wsId]);

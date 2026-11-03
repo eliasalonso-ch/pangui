@@ -205,6 +205,17 @@ export async function archivarHito(id: string): Promise<void> {
 }
 
 /**
+ * Borra de verdad un ITO que ninguna OT menciona. Sin OTs no hay nada que
+ * proteger del aviso "Sin catálogo", así que no tiene sentido archivarlo.
+ */
+export async function borrarHito(id: string): Promise<void> {
+  const sb = createClient();
+  const { data, error } = await sb.from("hitos").delete().eq("id", id).select("id");
+  if (error) throw error;
+  if (!data?.length) throw new Error("No se pudo eliminar el ITO");
+}
+
+/**
  * Nombres de ITO archivados, para no listarlos como "sin catálogo".
  * Siguen existiendo en OTs históricas, solo que ya no se ofrecen.
  */
