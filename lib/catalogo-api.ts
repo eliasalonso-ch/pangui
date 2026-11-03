@@ -70,6 +70,23 @@ export async function materialesPorCodigo(
   return out;
 }
 
+/** El catálogo entero (~1.500 códigos), de a 1.000: es el tope por consulta de PostgREST. */
+export async function todoElCatalogo(workspaceId: string): Promise<MaterialCatalogo[]> {
+  const sb = createClient();
+  const out: MaterialCatalogo[] = [];
+  for (let desde = 0; ; desde += 1000) {
+    const { data, error } = await sb
+      .from("catalogo_materiales")
+      .select("codigo, descripcion, unidad, clasificacion")
+      .eq("workspace_id", workspaceId)
+      .order("codigo")
+      .range(desde, desde + 999);
+    if (error) throw error;
+    out.push(...((data ?? []) as MaterialCatalogo[]));
+    if (!data || data.length < 1000) return out;
+  }
+}
+
 /**
  * Publica el catálogo desde la app de cobros. Reemplaza por código (upsert),
  * así un código que cambia de descripción se actualiza y los que ya no existen
