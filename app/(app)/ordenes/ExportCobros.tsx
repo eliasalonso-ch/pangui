@@ -33,7 +33,7 @@ async function cargarOts(wsId: string, desde: string, hasta: string): Promise<Ot
   for (let i = 0; ; i += 1000) {
     const { data, error } = await sb
       .from("ordenes_trabajo")
-      .select("id, n_serie, numero_meconecta, descripcion, titulo, observacion, solicitante, tipo_trabajo, completado_en, tiempo_total_segundos, ubicaciones(edificio, detalle), lugares(nombre)")
+      .select("id, n_serie, numero_meconecta, descripcion, titulo, observacion, solicitante, tipo_trabajo, completado_en, tiempo_total_segundos, asignados_ids, ubicaciones(edificio, detalle), lugares(nombre)")
       .eq("workspace_id", wsId)
       .eq("estado", "completado")
       .is("deleted_at", null)
@@ -74,6 +74,7 @@ async function cargarOts(wsId: string, desde: string, hasta: string): Promise<Ot
       descripcion: txt(o.titulo),
       emergencia: o.tipo_trabajo === "emergencia",
       minutosApp: o.tiempo_total_segundos ? Number(o.tiempo_total_segundos) / 60 : null,
+      asignados: Array.isArray(o.asignados_ids) ? o.asignados_ids.length : 0,
       hojas: hojasPorOt.get(String(o.id)) ?? [],
     };
   });

@@ -54,15 +54,23 @@ describe("lineasDeOt: mano de obra = personas × hh (regla de Claudio)", () => {
     expect(manoObra(ot([hoja("materiales_usados", "|4|hh", "|3|pp", "|5|hh", "|2|pp")]))).not.toHaveProperty("cantidad");
     // días, no horas (…527302)
     expect(manoObra(ot([hoja("materiales_usados", "Personas|4|", "Hh|2|Dias")]))).not.toHaveProperty("cantidad");
-    // horas sin personas (…728175)
-    expect(manoObra(ot([hoja("materiales_usados", "Hora|2|Hh")]))).not.toHaveProperty("cantidad");
+  });
+
+  it("sin personas en la hoja son 2, o los asignados si son más", () => {
+    expect(manoObra(ot([hoja("materiales_usados", "Hora|2|Hh")]))?.cantidad).toBe(4);                 // …728175
+    expect(manoObra(ot([hoja("materiales_usados", "Hora|2|Hh")], { asignados: 1 }))?.cantidad).toBe(4);
+    expect(manoObra(ot([hoja("materiales_usados", "Hora|2|Hh")], { asignados: 3 }))?.cantidad).toBe(6);
+    expect(manoObra(ot([hoja("materiales_usados", "|1|hh", "|3|pp")], { asignados: 1 }))?.cantidad).toBe(3); // la hoja manda
+    // ni hh en la hoja ni cronómetro: no hay cuenta
+    expect(manoObra(ot([hoja("materiales_usados", "Tubo LED 18W|2|un")]))).not.toHaveProperty("cantidad");
+    expect(lineasDeOt(ot([]), catalogo).map((l) => l.texto)).toEqual(["Revisión normal", "2 personas"]);
   });
 });
 
 describe("lineasDeOt: materiales", () => {
   it("texto del técnico en E; código sólo si calza exacto con el catálogo", () => {
     const l = lineasDeOt(ot([hoja("materiales_usados", "Tubo LED 18W|2|un", "Caja chuqui|1|Uni", "Apoyo en altura||")]), catalogo);
-    expect(l.slice(1)).toEqual([
+    expect(l.slice(1, -1)).toEqual([
       { texto: "2 un Tubo LED 18W", codigo: "tubled18", cantidad: 2 },
       { texto: "1 Uni Caja chuqui", cantidad: 1 },
       { texto: "Apoyo en altura", codigo: "AA" },
@@ -81,7 +89,7 @@ describe("lineasDeOt: materiales", () => {
       filas: [{ a: "enctri10", b: "3", c: "" }],
     };
     const l = lineasDeOt(ot([hoja("materiales_solicitados", "Plafón|1|un"), cobro]), catalogo);
-    expect(l.slice(1)).toEqual([{ texto: "3 enctri10", codigo: "enctri10", cantidad: 3 }]);
+    expect(l.slice(1, -1)).toEqual([{ texto: "3 enctri10", codigo: "enctri10", cantidad: 3 }]);
   });
 });
 

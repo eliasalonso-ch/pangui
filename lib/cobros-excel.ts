@@ -36,6 +36,8 @@ export interface OtCobro {
   emergencia: boolean;
   /** Minutos que marcó el cronómetro de la app; respaldo si la hoja no trae las hh. */
   minutosApp?: number | null;
+  /** Técnicos asignados en Pangui; respaldo si la hoja no dice cuántas personas fueron. */
+  asignados?: number;
   hojas: HojaCobro[];
 }
 
@@ -74,7 +76,8 @@ const PP_EN_TEXTO = /(\d+)\s*(?:pp|personas?)\b/;
  *
  * Mano de obra = personas × hh, la regla de Claudio. Las hh salen de la hoja
  * (es lo que él copia); si la hoja no las trae, del cronómetro de la app:
- * menos de 60 min es 1hh, hasta 120 son 2hh, etc. Sólo se calcula si queda
+ * menos de 60 min es 1hh, hasta 120 son 2hh, etc. Las personas, de la hoja;
+ * si no, 2 (o los asignados, si son más). Sólo se calcula si queda
  * exactamente un dato de cada uno: con dos trabajos dentro de la misma OT
  * (4hh 3pp y 5hh 2pp) o con "2 días" no hay una cuenta segura y la cantidad
  * queda en blanco para que la ponga él.
@@ -148,6 +151,9 @@ export function lineasDeOt(ot: OtCobro, catalogo: Map<string, string>): Linea[] 
   if (horas.length === 0 && ot.minutosApp && ot.minutosApp > 0) {
     horas.push(Math.max(1, Math.ceil(ot.minutosApp / 60)));
   }
+  // Se trabaja de a dos casi siempre; en la OT suele quedar asignado uno solo,
+  // así que los asignados sólo cuentan cuando son más de dos.
+  if (personas.length === 0) personas.push(Math.max(2, ot.asignados ?? 0));
 
   const manoObra: Linea = ot.emergencia
     ? { texto: "Revisión de emergencia", codigo: "reveme" }
