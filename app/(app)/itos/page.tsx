@@ -9,7 +9,7 @@ import {
   Plus, Search, X, Loader2, Zap, Inbox,
 } from "lucide-react";
 import {
-  listHitos, createHito, archivarHito, contarOrdenesDeIto, listItosSinCatalogo,
+  listHitos, createHito, archivarHito, borrarHito, contarOrdenesDeIto, listItosSinCatalogo,
   renameHito, type Hito,
 } from "@/lib/hitos-api";
 import AccionesCatalogo from "@/components/catalogo/AccionesCatalogo";
@@ -148,8 +148,9 @@ export default function ItosPage() {
     if (!confirmDelete) return;
     setGuardando(true);
     try {
-      // Se archiva, no se borra: las OTs conservan el texto del ITO.
-      await archivarHito(confirmDelete.hito.id);
+      // Con OTs se archiva (conservan el texto del ITO); sin OTs se borra.
+      if (confirmDelete.enUso > 0) await archivarHito(confirmDelete.hito.id);
+      else await borrarHito(confirmDelete.hito.id);
       setItems(prev => prev.filter(h => h.id !== confirmDelete.hito.id));
       if (selectedId === confirmDelete.hito.id) closeIto();
       setConfirmDelete(null);

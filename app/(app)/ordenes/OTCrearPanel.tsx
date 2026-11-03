@@ -421,7 +421,7 @@ function HitoSelect({ value, onChange, wsId }: {
 
   const load = useCallback(async () => {
     const sb = createClient();
-    const { data } = await sb.from("hitos").select("id, nombre")
+    const { data } = await sb.from("hitos").select("id, nombre").eq("archivada", false)
       .eq("workspace_id", wsId).order("nombre");
     setHitos(data ?? []);
   }, [wsId]);
@@ -868,7 +868,7 @@ export default function OTCrearPanel({
     try {
       const sb = createClient();
       const [{ data: hitos }, { data: procedimientos }] = await Promise.all([
-        sb.from("hitos").select("id,nombre").eq("workspace_id", wsId),
+        sb.from("hitos").select("id,nombre").eq("workspace_id", wsId).eq("archivada", false),
         sb.from("procedimientos").select("id,nombre,descripcion").eq("workspace_id", wsId).eq("activo", true),
       ]);
       const catalog = {
@@ -969,7 +969,7 @@ export default function OTCrearPanel({
       // 2. Load the catalogs the AI needs to resolve fields against.
       const sb = createClient();
       const [hitosRes] = await Promise.all([
-        sb.from("hitos").select("id, nombre").eq("workspace_id", wsId),
+        sb.from("hitos").select("id, nombre").eq("workspace_id", wsId).eq("archivada", false),
       ]);
       const hitosCatalog = (hitosRes.data ?? []).map(h => ({ id: h.id, name: h.nombre }));
 
