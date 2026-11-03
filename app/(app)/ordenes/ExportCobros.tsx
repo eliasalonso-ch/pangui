@@ -33,7 +33,7 @@ async function cargarOts(wsId: string, desde: string, hasta: string): Promise<Ot
   for (let i = 0; ; i += 1000) {
     const { data, error } = await sb
       .from("ordenes_trabajo")
-      .select("id, n_serie, numero_meconecta, descripcion, titulo, observacion, solicitante, tipo_trabajo, completado_en, tiempo_total_segundos, asignados_ids, ubicaciones(edificio, detalle), lugares(nombre)")
+      .select("id, n_serie, numero_meconecta, descripcion, titulo, observacion, solicitante, tipo_trabajo, completado_en, tiempo_total_segundos, asignados_ids, ubicacion_texto, lugar, ubicaciones(edificio, detalle), lugares(nombre)")
       .eq("workspace_id", wsId)
       .eq("estado", "completado")
       .is("deleted_at", null)
@@ -69,7 +69,9 @@ async function cargarOts(wsId: string, desde: string, hasta: string): Promise<Ot
     return {
       numeroOt: numeroOtCliente(txt(o.n_serie), txt(o.numero_meconecta), txt(o.descripcion), txt(o.titulo), txt(o.observacion)),
       solicitante: txt(o.solicitante),
-      lugar: [txt(ubi.edificio), txt(ubi.detalle), txt(lug.nombre)].filter(Boolean).join(" · "),
+      // Sin ubicación del catálogo, el texto libre que se escribió al crear la OT.
+      lugar: [txt(ubi.edificio), txt(ubi.detalle), txt(lug.nombre)].filter(Boolean).join(" · ")
+        || txt(o.ubicacion_texto) || txt(o.lugar),
       fecha: o.completado_en ? dateKey(new Date(String(o.completado_en))) : "",
       descripcion: txt(o.titulo),
       emergencia: o.tipo_trabajo === "emergencia",

@@ -56,6 +56,24 @@ describe("lineasDeOt: mano de obra = personas × hh (regla de Claudio)", () => {
     expect(manoObra(ot([hoja("materiales_usados", "Personas|4|", "Hh|2|Dias")]))).not.toHaveProperty("cantidad");
   });
 
+  it("lee las horas escritas como texto con su cantidad (casos de octubre)", () => {
+    expect(manoObra(ot([hoja("materiales_usados", "Horas de trabajo|3|2 personas")]))?.cantidad).toBe(6);
+    expect(manoObra(ot([hoja("general", "horas revisión emergencia 3 personas|18|")]))?.cantidad).toBe(54);
+    // "Reloj horario" es material, no horas
+    expect(lineasDeOt(ot([hoja("materiales_usados", "Reloj horario|1|un")]), catalogo)[1]).toMatchObject({ texto: "1 un Reloj horario", cantidad: 1 });
+  });
+
+  it("días en cualquier parte de la hoja dejan la cantidad en blanco", () => {
+    expect(manoObra(ot([hoja("materiales_usados", "Dias|3|Dias")], { minutosApp: 1600 }))).not.toHaveProperty("cantidad");
+    expect(manoObra(ot([hoja("general", "Trabajo duro 2 días completos||")], { minutosApp: 900 }))).not.toHaveProperty("cantidad");
+  });
+
+  it("las hh del cronómetro salen marcadas para revisar", () => {
+    const l = lineasDeOt(ot([hoja("materiales_usados", "|2|pp")], { minutosApp: 1560 }), catalogo);
+    expect(l.at(-1)?.texto).toBe("26hh (según app)");
+    expect(lineasDeOt(ot([hoja("materiales_usados", "|2|hh", "|2|pp")]), catalogo).at(-1)?.texto).toBe("2hh");
+  });
+
   it("sin personas en la hoja son 2, o los asignados si son más", () => {
     expect(manoObra(ot([hoja("materiales_usados", "Hora|2|Hh")]))?.cantidad).toBe(4);                 // …728175
     expect(manoObra(ot([hoja("materiales_usados", "Hora|2|Hh")], { asignados: 1 }))?.cantidad).toBe(4);

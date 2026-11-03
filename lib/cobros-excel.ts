@@ -66,7 +66,8 @@ function numero(s: string): number | null {
 const HH = /^(h|hh|h\.h\.?|hrs?|horas?)$/;
 const UNIDAD_HH = /^(hh|h\.h\.?)$/;
 const PP = /^(p|pp|personas?)$/;
-const DIAS = /^d[ií]as?$/;
+const DIAS = /\bdias?\b/; // sobre texto ya normalizado (sin tildes)
+const MENCIONA_HH = /(^|\s)(hh|h\.h\.?|horas?)(\s|$)/;
 const HH_EN_TEXTO = /(\d+(?:[.,]\d+)?)\s*(?:hh|h\.h\.?|horas?)\b/;
 const PP_EN_TEXTO = /(\d+)\s*(?:pp|personas?)\b/;
 
@@ -122,12 +123,20 @@ export function lineasDeOt(ot: OtCobro, catalogo: Map<string, string>): Linea[] 
       const n = numero(cant);
       const esHH = HH.test(nItem) || UNIDAD_HH.test(nUnidad);
       const esPP = PP.test(nItem) || PP.test(nUnidad);
+      // "3 | Días", "Trabajo de 2 días completos": las hh no salen de la cuenta.
+      if (DIAS.test(nItem) || DIAS.test(nUnidad)) dudoso = true;
 
       if ((esHH || esPP) && n != null) {
-        if (DIAS.test(nUnidad)) dudoso = true;
         (esHH ? horas : personas).push(n);
         // "Alza-hombre | 4 | hh": las horas cuentan, pero el texto también dice algo.
         if (item && !HH.test(nItem) && !PP.test(nItem)) notas.push(item);
+        continue;
+      }
+      // "Horas de trabajo | 3 | 2 personas", "18 | horas revisión emergencia 3 personas".
+      if (n != null && (MENCIONA_HH.test(nItem) || MENCIONA_HH.test(nUnidad))) {
+        horas.push(n);
+        const pp = `${nItem} ${nUnidad}`.match(PP_EN_TEXTO);
+        if (pp) personas.push(numero(pp[1])!);
         continue;
       }
       // "1 hh 2 personas" escrito de corrido en una sola celda.
@@ -148,9 +157,9 @@ export function lineasDeOt(ot: OtCobro, catalogo: Map<string, string>): Linea[] 
     }
   }
 
-  if (horas.length === 0 && ot.minutosApp && ot.minutosApp > 0) {
-    horas.push(Math.max(1, Math.ceil(ot.minutosApp / 60)));
-  }
+  // El cronómetro a veces queda corriendo días: esas hh salen marcadas para revisar.
+  const deLaApp = horas.length === 0 && !!ot.minutosApp && ot.minutosApp > 0;
+  if (deLaApp) horas.push(Math.max(1, Math.ceil(ot.minutosApp! / 60)));
   // Se trabaja de a dos casi siempre; en la OT suele quedar asignado uno solo,
   // así que los asignados sólo cuentan cuando son más de dos.
   if (personas.length === 0) personas.push(Math.max(2, ot.asignados ?? 0));
@@ -167,7 +176,7 @@ export function lineasDeOt(ot: OtCobro, catalogo: Map<string, string>): Linea[] 
     ...materiales,
     ...notas.map((texto) => ({ texto })),
     ...personas.map((n) => ({ texto: `${n} ${n === 1 ? "persona" : "personas"}` })),
-    ...horas.map((n) => ({ texto: `${n}hh` })),
+    ...horas.map((n) => ({ texto: deLaApp ? `${n}hh (según app)` : `${n}hh` })),
   ];
 }
 
@@ -420,7 +429,10 @@ function pestanaMateriales(X: XlsxHoja, catalogo: MaterialCobro[]): Record<strin
 // Igual que ajustarLibro, se edita el zip ya escrito.
 
 type Zip = { FullPaths: string[]; FileIndex: { content: Uint8Array | number[] }[] };
-type XlsxZip = XlsxHoja & { CFB: { utils: { cfb_add: (zip: Zip, ruta: string, datos: Uint8Array) => void } } };
+type XlsxZip = XlsxHoja & { CFB: {
+  utils: { cfb_add: (zip: Zip, ruta: string, datos: Uint8Array) => void };
+  write: (zip: unknown, opts: { fileType: "zip"; type: "array"; compression?: boolean }) => ArrayBuffer | Uint8Array | number[];
+} };
 
 const LOGO_EMU = { col: 2, colOff: 1631, rowOff: 180341, cx: 1113728, cy: 1071832 }; // posición en la plantilla
 const NS_REL = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
@@ -466,7 +478,8 @@ function adornar(X: XlsxZip, libro: Uint8Array, hojas: number[], logo?: Uint8Arr
     escribir(ruta, xml);
   }
   escribir("[Content_Types].xml", tipos);
-  return Uint8Array.from(X.CFB.write(zip, { fileType: "zip", type: "array" }) as ArrayLike<number>);
+  // Comprimido: sin esto un mes de SIN OT pesaba 6 MB (el XML de las celdas es muy repetitivo).
+  return Uint8Array.from(X.CFB.write(zip, { fileType: "zip", type: "array", compression: true }) as ArrayLike<number>);
 }
 
 export function libroCobros(X: XlsxHoja, {
