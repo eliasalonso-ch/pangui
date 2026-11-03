@@ -39,6 +39,16 @@ describe("lineasDeOt: mano de obra = personas × hh (regla de Claudio)", () => {
       .toEqual({ texto: "Revisión de emergencia", codigo: "reveme", cantidad: 2 });
   });
 
+  it("sin hh en la hoja usa el cronómetro de la app: < 60 min es 1hh, y así", () => {
+    const conApp = (min: number) => manoObra(ot([hoja("materiales_usados", "|2|pp")], { minutosApp: min }))?.cantidad;
+    expect(conApp(12)).toBe(2);   // 1hh × 2 personas
+    expect(conApp(60)).toBe(2);
+    expect(conApp(61)).toBe(4);   // 2hh × 2
+    expect(conApp(150)).toBe(6);  // 3hh × 2
+    // la hoja manda: …844 decía 2hh y la app marcó 54 min
+    expect(manoObra(ot([hoja("materiales_usados", "|2|hh", "|2|pp")], { minutosApp: 54 }))?.cantidad).toBe(4);
+  });
+
   it("sin cuenta segura la cantidad queda en blanco", () => {
     // dos trabajos en la misma OT (…791)
     expect(manoObra(ot([hoja("materiales_usados", "|4|hh", "|3|pp", "|5|hh", "|2|pp")]))).not.toHaveProperty("cantidad");
@@ -88,10 +98,25 @@ describe("pestanaCobros: el dibujo de bloques del Excel de Claudio", () => {
     expect(celda(ws, "G13")).toBe("Instalar 3 proyectores");
     expect([celda(ws, "E14"), celda(ws, "F14"), celda(ws, "I14")]).toEqual(["Revisión normal", "revnor", 2]);
     expect([celda(ws, "F15"), celda(ws, "I15")]).toEqual(["tubled18", 2]);
-    // G/H de las líneas quedan vacías: con "Saltar blancos" no pisan el BUSCARV
-    expect(ws["G15"]).toBeUndefined();
     expect(celda(ws, "I34")).toBe("TOTALES");
     expect(celda(ws, "D36")).toBe("SF920260627859");
+  });
+
+  it("las fórmulas de la plantilla: BUSCARV contra Materiales, IVA y totales", () => {
+    const ws = pestanaCobros(X, [ot([hoja("materiales_usados", "Tubo LED 18W|2|un")])], catalogo, false);
+    const f = (ref: string) => (ws[ref] as { f?: string }).f;
+    expect(f("G15")).toBe('IFERROR(VLOOKUP($F15,Materiales!$G$2:$O$1912,2,FALSE),"-")');
+    expect(f("J15")).toBe('IFERROR(VLOOKUP($F15,Materiales!$G$2:$O$1912,8,FALSE),"-")');
+    expect(f("L15")).toBe('IFERROR(VLOOKUP($F15,Materiales!$G$2:$O$1912,9,FALSE),"-")');
+    expect([f("K15"), f("M15"), f("N15"), f("O15"), f("P15")]).toEqual([
+      'IFERROR(J15*I15,"-")', 'IFERROR(L15*I15,"-")', 'IFERROR(M15+K15,"-")', 'IFERROR(N15*0.19,"-")', 'IFERROR(O15+N15,"-")',
+    ]);
+    expect(f("K34")).toBe("SUM(K14:K33)");
+    expect(f("L10")).toBe('SUMIF(J13:J35,"materiales",K13:K35)');
+    expect(f("M10")).toBe('SUMIF(L13:L35,"m.o",M13:M35)');
+    expect(f("C10")).toBe("COUNT(C13:C35)");
+    expect(celda(ws, "E9")).toBe("TRABAJOS CON OT");
+    expect(celda(ws, "F2")).toBe("ELECTRILAMSPA");
   });
 
   it("más de 20 líneas siguen en un bloque de continuación", () => {
@@ -107,9 +132,38 @@ describe("pestanaCobros: el dibujo de bloques del Excel de Claudio", () => {
     expect(celda(ws, "D13")).toBe("Cristian Quijada");
   });
 
-  it("el libro reparte CON OT y SIN OT y se puede volver a leer", () => {
-    const bytes = libroCobros(X, [ot([]), ot([], { numeroOt: "" })], catalogo);
+  it("el libro reparte CON OT y SIN OT, cada una con su rango, y Materiales sin precios", () => {
+    const bytes = libroCobros(X, {
+      ots: [ot([]), ot([], { fecha: "2026-07-22" }), ot([], { numeroOt: "", fecha: "2026-07-22" })],
+      catalogo: [{ codigo: "tubled18", descripcion: "Tubo led 18W", unidad: "Un", clasificacion: "Iluminación" }],
+      conOt: { desde: "2026-06-17", hasta: "2026-07-21" },
+      sinOt: { desde: "2026-07-01", hasta: "2026-07-31" },
+    });
     const wb = XLSX.read(bytes, { type: "array" });
-    expect(wb.SheetNames).toEqual(["CON OT", "SIN OT"]);
+    expect(wb.SheetNames).toEqual(["CON OT", "SIN OT", "Materiales"]);
+    expect(wb.Sheets["CON OT"]["D13"]?.v).toBe("SF920260627830");
+    expect(wb.Sheets["CON OT"]["D36"]).toBeUndefined(); // la del 22-jul queda fuera del corte del ITO
+    expect(wb.Sheets["SIN OT"]["C13"]?.v).toBe(46225);
+    expect(wb.Sheets["Materiales"]["G4"]?.v).toBe("tubled18");
+    expect(wb.Sheets["Materiales"]["J4"]).toBeUndefined();
+  });
+
+  it("lleva el logo y \"ELECTRILAM\" con \"SPA\" chico en las dos pestañas", () => {
+    const bytes = libroCobros(X, {
+      ots: [ot([])], catalogo: [], logo: new Uint8Array([137, 80, 78, 71]),
+      conOt: { desde: "2026-06-01", hasta: "2026-06-30" }, sinOt: { desde: "2026-06-01", hasta: "2026-06-30" },
+    });
+    const zip = XLSX.CFB.read(bytes, { type: "array" });
+    const leer = (ruta: string) => {
+      const i = zip.FullPaths.findIndex((p: string) => p.endsWith("/" + ruta));
+      return i < 0 ? "" : new TextDecoder().decode(Uint8Array.from(zip.FileIndex[i].content as ArrayLike<number>));
+    };
+    for (const n of [1, 2]) {
+      expect(leer(`xl/worksheets/sheet${n}.xml`)).toContain('<drawing r:id="rIdLogo"/>');
+      expect(leer(`xl/worksheets/sheet${n}.xml`)).toContain("<t>ELECTRILAM</t></r><r><rPr><b/><sz val=\"11\"/>");
+      expect(leer(`xl/drawings/logo${n}.xml`)).toContain('r:embed="rId1"');
+    }
+    expect(leer("[Content_Types].xml")).toContain('Extension="png"');
+    expect(leer("xl/worksheets/sheet1.xml")).toContain('showGridLines="0"');
   });
 });

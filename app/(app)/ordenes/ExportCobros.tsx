@@ -12,7 +12,7 @@ import { createClient } from "@/lib/supabase";
 import { celdasConResultados } from "@/lib/hoja-formulas";
 import { numeroOtCliente } from "@/lib/cobro-export";
 import { todoElCatalogo } from "@/lib/catalogo-api";
-import { libroCobros, norm, type OtCobro } from "@/lib/cobros-excel";
+import { libroCobros, MESES, type OtCobro } from "@/lib/cobros-excel";
 import type { XlsxHoja } from "@/lib/hoja-excel";
 
 /** "YYYY-MM-DD" con el calendario local: toISOString() correría el día a UTC. */
@@ -33,7 +33,7 @@ async function cargarOts(wsId: string, desde: string, hasta: string): Promise<Ot
   for (let i = 0; ; i += 1000) {
     const { data, error } = await sb
       .from("ordenes_trabajo")
-      .select("id, n_serie, numero_meconecta, descripcion, titulo, observacion, solicitante, tipo_trabajo, completado_en, ubicaciones(edificio, detalle), lugares(nombre)")
+      .select("id, n_serie, numero_meconecta, descripcion, titulo, observacion, solicitante, tipo_trabajo, completado_en, tiempo_total_segundos, ubicaciones(edificio, detalle), lugares(nombre)")
       .eq("workspace_id", wsId)
       .eq("estado", "completado")
       .is("deleted_at", null)
@@ -73,42 +73,72 @@ async function cargarOts(wsId: string, desde: string, hasta: string): Promise<Ot
       fecha: o.completado_en ? dateKey(new Date(String(o.completado_en))) : "",
       descripcion: txt(o.titulo),
       emergencia: o.tipo_trabajo === "emergencia",
+      minutosApp: o.tiempo_total_segundos ? Number(o.tiempo_total_segundos) / 60 : null,
       hojas: hojasPorOt.get(String(o.id)) ?? [],
     };
   });
 }
 
+type Rango = { desde: string; hasta: string };
+
+function RangoFechas({ titulo, nota, rango, onChange }: { titulo: string; nota: string; rango: Rango; onChange: (r: Rango) => void }) {
+  const input = {
+    flex: 1, minWidth: 0, height: 30, padding: "0 6px",
+    border: "1px solid var(--border)", borderRadius: 6,
+    background: "var(--surface-1)", color: "var(--fg-1)",
+    fontSize: 14, fontFamily: "inherit",
+  } as const;
+  return (
+    <div style={{ marginBottom: 12 }}>
+      <div style={{ fontSize: 14, color: "var(--fg-2)", marginBottom: 2 }}>{titulo}</div>
+      <div style={{ fontSize: 13, color: "var(--fg-4)", marginBottom: 6 }}>{nota}</div>
+      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        <input type="date" aria-label={`${titulo} desde`} value={rango.desde} max={rango.hasta || undefined} onChange={(e) => onChange({ ...rango, desde: e.target.value })} style={input} />
+        <span style={{ color: "var(--fg-4)" }}>→</span>
+        <input type="date" aria-label={`${titulo} hasta`} value={rango.hasta} min={rango.desde || undefined} onChange={(e) => onChange({ ...rango, hasta: e.target.value })} style={input} />
+      </div>
+    </div>
+  );
+}
+
 export default function ExportCobros({ wsId }: { wsId: string }) {
-  // Por defecto el mes pasado: el cobro se arma a mes cerrado.
+  // Por defecto el mes pasado en las dos: el cobro se arma a mes cerrado. CON OT
+  // suele cortar distinto (julio fue del 17-jun al 21-jul), por eso va aparte.
   const hoy = new Date();
-  const [desde, setDesde] = useState(() => dateKey(new Date(hoy.getFullYear(), hoy.getMonth() - 1, 1)));
-  const [hasta, setHasta] = useState(() => dateKey(new Date(hoy.getFullYear(), hoy.getMonth(), 0)));
+  const mesPasado = (): Rango => ({
+    desde: dateKey(new Date(hoy.getFullYear(), hoy.getMonth() - 1, 1)),
+    hasta: dateKey(new Date(hoy.getFullYear(), hoy.getMonth(), 0)),
+  });
+  const [conOt, setConOt] = useState<Rango>(mesPasado);
+  const [sinOt, setSinOt] = useState<Rango>(mesPasado);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const completo = !!(conOt.desde && conOt.hasta && sinOt.desde && sinOt.hasta);
 
   async function descargar() {
-    if (loading || !desde || !hasta) return;
+    if (loading || !completo) return;
     setLoading(true);
     setError(null);
     try {
-      const [XLSX, ots, catalogo] = await Promise.all([
+      // Una sola lectura que cubre los dos rangos; cada pestaña filtra el suyo.
+      const desde = conOt.desde < sinOt.desde ? conOt.desde : sinOt.desde;
+      const hasta = conOt.hasta > sinOt.hasta ? conOt.hasta : sinOt.hasta;
+      const [XLSX, ots, catalogo, logo] = await Promise.all([
         import("xlsx-js-style"),
         cargarOts(wsId, desde, hasta),
         todoElCatalogo(wsId),
+        // Sin logo el Excel sale igual: no vale la pena fallar por la imagen.
+        fetch("/cobros/electrilam-logo.png").then((r) => (r.ok ? r.arrayBuffer() : null)).catch(() => null),
       ]);
-      if (ots.length === 0) { setError("No hay OTs completadas en ese rango"); return; }
-      // Texto normalizado → código: se busca tanto por código como por descripción.
-      const mapa = new Map<string, string>();
-      for (const m of catalogo) mapa.set(norm(m.descripcion), m.codigo);
-      for (const m of catalogo) mapa.set(norm(m.codigo), m.codigo);
+      if (ots.length === 0) { setError("No hay OTs completadas en esos rangos"); return; }
 
-      const bytes = libroCobros(XLSX as unknown as XlsxHoja, ots, mapa);
+      const bytes = libroCobros(XLSX as unknown as XlsxHoja, { ots, catalogo, conOt, sinOt, logo: logo ? new Uint8Array(logo) : undefined });
       const a = document.createElement("a");
       a.href = URL.createObjectURL(new Blob([new Uint8Array(bytes).buffer as ArrayBuffer], {
         type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       }));
-      a.download = `cobros_${desde}_a_${hasta}.xlsx`;
+      a.download = `COBROS CON Y SIN OT ${MESES[Number(sinOt.hasta.slice(5, 7)) - 1]} ${sinOt.hasta.slice(0, 4)}.xlsx`;
       a.click();
       URL.revokeObjectURL(a.href);
       setOpen(false);
@@ -118,13 +148,6 @@ export default function ExportCobros({ wsId }: { wsId: string }) {
       setLoading(false);
     }
   }
-
-  const input = {
-    width: "100%", height: 30, marginBottom: 8, padding: "0 8px",
-    border: "1px solid var(--border)", borderRadius: 6,
-    background: "var(--surface-1)", color: "var(--fg-1)",
-    fontSize: 14, fontFamily: "inherit",
-  } as const;
 
   return (
     <div style={{ position: "relative", flexShrink: 0 }}>
@@ -154,24 +177,19 @@ export default function ExportCobros({ wsId }: { wsId: string }) {
             aria-label="Exportar cobros"
             style={{
               position: "absolute", top: "calc(100% + 8px)", right: 0, zIndex: 41,
-              width: 280, padding: 12,
+              width: 320, padding: 12,
               background: "var(--surface-1)",
               border: "1px solid var(--border-strong)", borderRadius: 9,
               boxShadow: "0 8px 24px rgba(0,0,0,0.12)",
             }}
           >
-            <div style={{ fontSize: 14, color: "var(--fg-4)", marginBottom: 10 }}>
-              OTs completadas en el rango, separadas en CON OT y SIN OT.
-            </div>
-            <label style={{ display: "block", fontSize: 14, color: "var(--fg-4)", marginBottom: 3 }}>Desde</label>
-            <input type="date" value={desde} max={hasta || undefined} onChange={(e) => setDesde(e.target.value)} style={input} />
-            <label style={{ display: "block", fontSize: 14, color: "var(--fg-4)", marginBottom: 3 }}>Hasta</label>
-            <input type="date" value={hasta} min={desde || undefined} onChange={(e) => setHasta(e.target.value)} style={input} />
+            <RangoFechas titulo="CON OT" nota="Según el corte del ITO" rango={conOt} onChange={setConOt} />
+            <RangoFechas titulo="SIN OT" nota="Mes calendario" rango={sinOt} onChange={setSinOt} />
             {error && <div style={{ fontSize: 14, color: "var(--danger)", marginBottom: 8 }}>{error}</div>}
             <button
               type="button"
               onClick={descargar}
-              disabled={loading || !desde || !hasta}
+              disabled={loading || !completo}
               style={{
                 width: "100%", height: 32, border: "none", borderRadius: 6,
                 background: "var(--brand)", color: "var(--fg-on-brand)",
@@ -182,7 +200,7 @@ export default function ExportCobros({ wsId }: { wsId: string }) {
               {loading ? <><Loader2 size={13} className="animate-spin" />Armando…</> : "Descargar Excel"}
             </button>
             <div style={{ fontSize: 13, color: "var(--fg-4)", marginTop: 10, lineHeight: 1.4 }}>
-              En tu plantilla: copia desde C13, pega en C13 con Pegado especial → <b>Saltar blancos</b> para no borrar las fórmulas.
+              Para ver los precios, pega la tabla de Materiales de Patricio en la pestaña <b>Materiales</b>, desde B4.
             </div>
           </div>
         </>

@@ -177,6 +177,9 @@ export type AjustePestana = {
   columnas: number;
   /** Imprimir en horizontal y a una página de ancho. */
   imprimir?: boolean;
+  /** Sin la cuadrícula gris y con zoom (%), para un libro con bordes propios. */
+  sinCuadricula?: boolean;
+  zoom?: number;
 };
 
 const bytesAscii = (s: string) => Uint8Array.from(s, (ch) => ch.charCodeAt(0));
@@ -202,11 +205,12 @@ function reemplazar(datos: Uint8Array, de: string, por: string): Uint8Array | nu
 
 const letra = (c: number): string => (c < 26 ? "" : letra(Math.floor(c / 26) - 1)) + String.fromCharCode(65 + (c % 26));
 
-function vista({ filas, columnas }: AjustePestana): string {
-  if (!filas && !columnas) return '<sheetView workbookViewId="0"/>';
+function vista({ filas, columnas, sinCuadricula, zoom }: AjustePestana): string {
+  const attrs = `${sinCuadricula ? ' showGridLines="0"' : ""}${zoom ? ` zoomScale="${zoom}" zoomScaleNormal="${zoom}"` : ""} workbookViewId="0"`;
+  if (!filas && !columnas) return `<sheetView${attrs}/>`;
   const celda = `${letra(columnas)}${filas + 1}`;
   const panel = filas && columnas ? "bottomRight" : filas ? "bottomLeft" : "topRight";
-  return `<sheetView workbookViewId="0"><pane${columnas ? ` xSplit="${columnas}"` : ""}${filas ? ` ySplit="${filas}"` : ""}`
+  return `<sheetView${attrs}><pane${columnas ? ` xSplit="${columnas}"` : ""}${filas ? ` ySplit="${filas}"` : ""}`
     + ` topLeftCell="${celda}" activePane="${panel}" state="frozen"/><selection pane="${panel}" activeCell="${celda}" sqref="${celda}"/></sheetView>`;
 }
 
