@@ -229,50 +229,30 @@ function est(o: {
 const L = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 type Celda = { v?: string | number; f?: string; s?: Estilo };
 
-/**
- * Una pestaña que se escribe con las letras de la plantilla de Claudio. Con
- * `corre`, todo lo que va de C en adelante se dibuja esa cantidad de columnas
- * más a la derecha, fórmulas incluidas: así caben columnas nuevas antes de
- * "Fecha termino" sin reescribir cada referencia. Una columna numérica es la
- * posición real (0 = A) y no se corre.
- */
 class Pestana {
   ws: Record<string, unknown> = {};
   merges: { s: { r: number; c: number }; e: { r: number; c: number } }[] = [];
   alto: { hpt: number }[] = [];
-  constructor(private X: XlsxHoja, private corre = 0) {}
-  /** Índice real (0 = A) de una columna de la plantilla. */
-  col(c: string | number): number {
-    if (typeof c === "number") return c;
-    const i = L.indexOf(c);
-    return i >= 2 ? i + this.corre : i;
-  }
-  /** "K15" de la plantilla → donde quedó; lo de Materiales! no se toca (esa pestaña no se corre). */
-  private formula(f: string): string {
-    if (!this.corre) return f;
-    return f.replace(/Materiales![$A-Z0-9:]+|(?<![A-Z])(\$?)([A-Z])(\$?)(\d+)/g, (m, d1, c, d2, n) =>
-      c ? `${d1}${L[this.col(c)]}${d2}${n}` : m);
-  }
-  /** fila 1-based, columna "C" de la plantilla o índice real. Fórmula sin "=". */
-  put(fila: number, col: string | number, { v, f, s }: Celda) {
+  constructor(private X: XlsxHoja) {}
+  /** fila 1-based, columna "C". Fórmula sin "=". */
+  put(fila: number, col: string, { v, f, s }: Celda) {
     const cell: Record<string, unknown> = {};
-    if (f) cell.f = this.formula(f);
+    if (f) cell.f = f;
     // xlsx-js-style no escribe una celda sin valor ni fórmula, aunque tenga
     // bordes: las vacías van como texto "" para que el dibujo no se pierda.
     if (v !== undefined) { cell.v = v; cell.t = typeof v === "number" ? "n" : "s"; }
     else if (f) cell.t = "n";
     else { cell.v = ""; cell.t = "s"; }
     if (s) { cell.s = s; if (typeof s.numFmt === "string") cell.z = s.numFmt; }
-    this.ws[this.X.utils.encode_cell({ r: fila - 1, c: this.col(col) })] = cell;
+    this.ws[this.X.utils.encode_cell({ r: fila - 1, c: L.indexOf(col) })] = cell;
   }
   unir(desde: string, hasta: string) {
-    const p = (ref: string) => ({ r: Number(ref.slice(1)) - 1, c: this.col(ref[0]) });
+    const p = (ref: string) => ({ r: Number(ref.slice(1)) - 1, c: L.indexOf(ref[0]) });
     this.merges.push({ s: p(desde), e: p(hasta) });
   }
   altura(fila: number, hpt: number) { this.alto[fila - 1] = { hpt }; }
-  /** `anchos` va por columna real, desde A. */
-  cerrar(ultimaFila: number, ultimaCol: string | number, anchos: number[]) {
-    this.ws["!ref"] = this.X.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: ultimaFila - 1, c: this.col(ultimaCol) } });
+  cerrar(ultimaFila: number, ultimaCol: string, anchos: number[]) {
+    this.ws["!ref"] = this.X.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: ultimaFila - 1, c: L.indexOf(ultimaCol) } });
     this.ws["!merges"] = this.merges;
     this.ws["!rows"] = this.alto;
     this.ws["!cols"] = anchos.map((wch) => ({ wch }));
@@ -281,23 +261,17 @@ class Pestana {
 }
 
 const COLS_BLOQUE = "CDEFGHIJKLMNOP".split("");
-// Antes de la tabla de Claudio (C..P de su plantilla) van dos columnas de
-// Pangui, en C y D reales: su tabla queda corrida a E..R.
-const TECNICO = 2, NUM_OT = 3, CORRE = 2;
-const ID_OT = 18; // S: el id de la OT, oculto
-// Por columna real: A (n° de bloque) y B (margen), técnico, N° OT, y C..P de la plantilla.
-const ANCHOS = [4.6, 2, 24, 12, 10.6, 20, 72.9, 9.4, 70.4, 13.4, 15.3, 16.6, 15.6, 18.1, 15.4, 15.4, 13.9, 18.1];
+// C..P de la plantilla (A y B son márgenes); Q y R, técnico y N° Pangui.
+const ANCHOS = [4.6, 2, 10.6, 20, 72.9, 9.4, 70.4, 13.4, 15.3, 16.6, 15.6, 18.1, 15.4, 15.4, 13.9, 18.1, 24, 12];
 const NUM_PANGUI = '"#"0'; // 343 se ve "#343" y sigue siendo número para ordenar
 
 /** Membrete, resumen del período (fila 9-10) y encabezados de columna (fila 12). */
 function encabezado(p: Pestana, titulo: string, desde: string, hasta: string, ultima: number) {
-  // El recuadro del membrete abarca también las columnas de Pangui (desde C real).
-  const fin = p.col("P");
-  const box = (fila: number, col: number): [Borde, Borde, Borde, Borde] =>
-    [col === TECNICO ? "medium" : undefined, col === fin ? "medium" : undefined, fila === 2 ? "medium" : undefined, fila === 7 ? "medium" : undefined];
+  const box = (fila: number, col: string): [Borde, Borde, Borde, Borde] =>
+    [col === "C" ? "medium" : undefined, col === "P" ? "medium" : undefined, fila === 2 ? "medium" : undefined, fila === 7 ? "medium" : undefined];
   // Sólo el borde del recuadro: una celda de más (aunque vacía) corta el texto
   // de contacto, que se extiende hacia la izquierda desde P.
-  for (let fila = 2; fila <= 7; fila++) for (let col = TECNICO; col <= fin; col++) {
+  for (let fila = 2; fila <= 7; fila++) for (const col of COLS_BLOQUE) {
     if (box(fila, col).some(Boolean)) p.put(fila, col, { s: est({ bd: box(fila, col) }) });
   }
 
@@ -351,8 +325,8 @@ function encabezado(p: Pestana, titulo: string, desde: string, hasta: string, ul
       bd: [c === "D" || c === "G" ? undefined : c === "C" || c === "E" || c === "F" ? "medium" : "thin",
         c === "D" || c === "G" ? undefined : c === "E" || c === "F" || c === "P" ? "medium" : "thin", "medium", "medium"] }),
   }));
-  for (const [c, v] of [[TECNICO, "Técnico"], [NUM_OT, "N° OT \nPangui"]] as const) {
-    p.put(12, c, { v, s: est({ fuente: "Aptos Display", tam: 12, negrita: true, h: "center", ajustar: true, bd: [c === TECNICO ? "medium" : "thin", "thin", "medium", "medium"] }) });
+  for (const [c, v] of [["Q", "Técnico"], ["R", "N° OT \nPangui"]]) {
+    p.put(12, c, { v, s: est({ fuente: "Aptos Display", tam: 12, negrita: true, h: "center", ajustar: true, bd: ["thin", c === "R" ? "medium" : "thin", "medium", "medium"] }) });
   }
   [15.75, 18.75, 16.5, 24, 16.9, 24, 21.75, 8.65, 35.25, 24.95, 18.4, 54.75].forEach((h, i) => p.altura(i + 1, h));
 }
@@ -397,7 +371,7 @@ export function bloquesDeOt(ot: OtCobro, catalogo: Map<string, string>, sinOt: b
 function bloque(p: Pestana, cab: number, n: number, b: BloqueCobro, catalogo: Map<string, MaterialCobro>, alto: number) {
   const { cabecera, lineas } = b;
   p.put(cab, "A", { v: n, s: est({ negrita: true, h: "center" }) });
-  if (b.id) p.put(cab, ID_OT, { v: b.id });
+  if (b.id) p.put(cab, "S", { v: b.id });
   const bd = (c: string, arriba: Borde = "thin", abajo: Borde = "thin"): [Borde, Borde, Borde, Borde] =>
     [c === "C" ? "medium" : "thin", c === "P" ? "medium" : "thin", arriba, abajo];
 
@@ -419,12 +393,13 @@ function bloque(p: Pestana, cab: number, n: number, b: BloqueCobro, catalogo: Ma
     } else if (c === "D") v = "Continuación";
     p.put(cab, c, { v, s });
   }
-  // Las columnas de Pangui, con el mismo dibujo que Fecha y Solicitud en todo el bloque.
-  const izq = (c: number): Borde => (c === TECNICO ? "medium" : "thin");
-  const cabPangui = (c: number) => est({ fuente: "Aptos Display", tam: 12, negrita: true, relleno: CELESTE, h: "center", ajustar: true,
-    fmt: c === NUM_OT ? NUM_PANGUI : undefined, bd: [izq(c), "thin", "medium", "thin"] });
-  p.put(cab, TECNICO, { v: cabecera?.tecnico ?? "", s: cabPangui(TECNICO) });
-  p.put(cab, NUM_OT, { v: cabecera?.numeroPangui ?? undefined, s: cabPangui(NUM_OT) });
+  // Técnico y N° Pangui después de Total, para no mover las fórmulas de Claudio,
+  // con el mismo dibujo que el resto del bloque; R cierra la tabla con borde grueso.
+  const der = (c: string): Borde => (c === "R" ? "medium" : "thin");
+  const cabPangui = (c: string) => est({ fuente: "Aptos Display", tam: 12, negrita: true, relleno: CELESTE, h: "center", ajustar: true,
+    fmt: c === "R" ? NUM_PANGUI : undefined, bd: ["thin", der(c), "medium", "thin"] });
+  p.put(cab, "Q", { v: cabecera?.tecnico ?? "", s: cabPangui("Q") });
+  p.put(cab, "R", { v: cabecera?.numeroPangui ?? undefined, s: cabPangui("R") });
   p.altura(cab, 27.75);
 
   // 20 líneas con las fórmulas de la plantilla: BUSCARV contra Materiales e IVA 19 %.
@@ -435,7 +410,7 @@ function bloque(p: Pestana, cab: number, n: number, b: BloqueCobro, catalogo: Ma
     const mat = l?.codigo ? catalogo.get(norm(l.codigo)) : undefined;
     // Franjas grises en filas impares: lo que pinta el estilo de tabla de la plantilla.
     const b12 = (o: Parameters<typeof est>[0]) => est({ fuente: "Bahnschrift", tam: 12, h: "center", relleno: r % 2 ? FRANJA : undefined, ...o });
-    for (const c of [TECNICO, NUM_OT]) p.put(r, c, { s: b12({ negrita: true, fmt: "0", bd: [izq(c), "thin", "thin", "thin"] }) });
+    for (const c of ["Q", "R"]) p.put(r, c, { s: b12({ negrita: true, fmt: "0", bd: ["thin", der(c), "thin", "thin"] }) });
     p.put(r, "C", { s: b12({ negrita: true, fmt: "0", bd: bd("C") }) });
     p.put(r, "D", { s: b12({ negrita: true, fmt: "0", bd: bd("D") }) });
     p.put(r, "E", { v: l?.texto, s: b12({ h: "left", fmt: "0", bd: bd("E") }) });
@@ -465,11 +440,11 @@ function bloque(p: Pestana, cab: number, n: number, b: BloqueCobro, catalogo: Ma
       fmt: "KLMNOPJ".includes(c) ? PESOS : "0", bd: bd(c, "thin", "FGHIJKLMNOP".includes(c) ? "medium" : "thin"),
     }) });
   }
-  for (const c of [TECNICO, NUM_OT]) {
-    p.put(t, c, { s: est({ fuente: "Bahnschrift", tam: 12, negrita: true, relleno: DORADO, h: "center", bd: [izq(c), "thin", "thin", "thin"] }) });
+  for (const c of ["Q", "R"]) {
+    p.put(t, c, { s: est({ fuente: "Bahnschrift", tam: 12, negrita: true, relleno: DORADO, h: "center", bd: ["thin", der(c), "thin", "medium"] }) });
   }
   p.altura(t, 19.5);
-  p.put(t + 1, TECNICO, { s: est({ bd: ["medium", undefined, undefined, undefined] }) });
+  p.put(t + 1, "C", { s: est({ bd: ["medium", undefined, undefined, undefined] }) });
   p.altura(t + 1, 15.75);
 }
 
@@ -484,16 +459,15 @@ export function pestanaCobros(
   alto = ALTO_MAT,
   previos: BloqueCobro[] = [],
 ): Record<string, unknown> {
-  const p = new Pestana(X, CORRE);
+  const p = new Pestana(X);
   const bloques = [...previos, ...ots.flatMap((ot) => bloquesDeOt(ot, catalogo, sinOt))];
   const ultima = PRIMERA_CABECERA + Math.max(bloques.length, 1) * FILAS_POR_BLOQUE - 1;
   encabezado(p, sinOt ? "TRABAJOS SIN OT" : "TRABAJOS CON OT", rango.desde, rango.hasta, ultima);
   bloques.forEach((b, k) => bloque(p, PRIMERA_CABECERA + k * FILAS_POR_BLOQUE, k + 1, b, materiales, alto));
-  const ws = p.cerrar(ultima, ID_OT, ANCHOS);
+  const ws = p.cerrar(ultima, "S", ANCHOS);
   // S guarda el id de la OT: oculta, fuera de la tabla y de lo que se imprime.
   ws["!cols"] = [...(ws["!cols"] as object[]), { wch: 38, hidden: true }];
-  // Las flechas de filtro, desde Técnico hasta Total.
-  ws["!autofilter"] = { ref: `${L[TECNICO]}12:${L[p.col("P")]}${ultima}` };
+  ws["!autofilter"] = { ref: `C12:R${ultima}` }; // las flechas de filtro, también por técnico
   return ws;
 }
 
@@ -530,9 +504,10 @@ export function leerExcelCobros(X: XlsxHoja, libro: Uint8Array): ExcelCobros | n
     const filas = R.utils.sheet_to_json(ws, { header: 1, range: `A1:S${ultima}`, defval: null, raw: true }) as (string | number | null)[][];
     const txt = (v: unknown) => (v == null ? "" : String(v).trim());
     const out: BloqueCobro[] = [];
-    // Dónde quedó "Fecha termino" dice qué versión es: en C (2) los Excel de
-    // antes de las columnas de Pangui, en E (4) los de ahora. `c` lleva una
-    // columna de la plantilla (C = 2, D = 3…) a su posición en este archivo.
+    // Versiones ya exportadas: 3-nov sin técnico ni N° y el id en R; desde el
+    // 4-nov técnico en Q, N° en R e id en S; y un rato del 4-nov con técnico y
+    // N° en C/D y la tabla corrida a E. Dónde está "Fecha termino" (fila 12)
+    // dice cuál es; `c` lleva una columna de la plantilla a la de este archivo.
     const corre = Math.max(0, (filas[11] ?? []).findIndex((v) => norm(v) === "fecha termino") - 2);
     const c = (i: number) => i + corre;
     for (let i = PRIMERA_CABECERA - 1; i < filas.length; i++) {
@@ -545,20 +520,21 @@ export function leerExcelCobros(X: XlsxHoja, libro: Uint8Array): ExcelCobros | n
         // Cada línea en su fila, también las vacías: lo que Claudio escribió en E19 vuelve a E19.
         const linea: Linea = { texto: txt(l[c(4)]) };
         if (txt(l[c(5)])) linea.codigo = txt(l[c(5)]);
-        if (typeof l[c(8)] === "number") linea.cantidad = l[c(8)] as number;
+        const cant = l[c(8)];
+        if (typeof cant === "number") linea.cantidad = cant;
         lineas.push(linea);
       }
       while (lineas.length && !lineas.at(-1)!.texto && !lineas.at(-1)!.codigo && lineas.at(-1)!.cantidad == null) lineas.pop();
       const solicitud = txt(f[c(3)]);
       const continuacion = norm(solicitud).startsWith("continuaci");
-      const fecha = typeof f[c(2)] === "number" ? ymdDeSerie(f[c(2)] as number) : txt(f[c(2)]);
+      const celdaFecha = f[c(2)];
+      const fecha = typeof celdaFecha === "number" ? ymdDeSerie(celdaFecha) : txt(celdaFecha);
       if (!continuacion && !solicitud && !fecha && !txt(f[c(6)]) && lineas.length === 0) continue; // bloque vacío de plantilla
-      // Sin corrimiento hubo dos versiones: técnico/N° en Q/R con el id en S
-      // (4-nov), o sin ellas y el id en R (3-nov), que es texto y no número.
+      // En los del 3-nov R trae el id (texto); desde el 4-nov, el N° (número).
       const idViejo = !corre && typeof f[17] === "string" ? txt(f[17]) : "";
-      const [tec, num] = corre ? [f[TECNICO], f[NUM_OT]] : [f[16], f[17]];
+      const [tec, num] = corre ? [f[2], f[3]] : [f[16], f[17]];
       out.push({
-        id: txt(f[ID_OT]) || idViejo,
+        id: txt(f[18]) || idViejo,
         cabecera: continuacion ? null : {
           fecha, solicitud, lugar: txt(f[c(4)]), descripcion: txt(f[c(6)]),
           tecnico: idViejo ? "" : txt(tec), numeroPangui: typeof num === "number" ? num : null,
@@ -674,9 +650,8 @@ function adornar(X: XlsxZip, libro: Uint8Array, hojas: number[], logo?: Uint8Arr
     let xml = leer(ruta);
     if (!xml) continue;
     // "ELECTRILAM" grande y "SPA" chico, como en la plantilla.
-    // H2: la F2 de la plantilla, corrida por las columnas de Pangui.
-    xml = xml.replace(/<c r="H2" s="(\d+)" t="str"><v>ELECTRILAMSPA<\/v><\/c>/,
-      '<c r="H2" s="$1" t="inlineStr"><is><r><t>ELECTRILAM</t></r><r><rPr><b/><sz val="11"/><rFont val="Aptos Display"/></rPr><t>SPA</t></r></is></c>');
+    xml = xml.replace(/<c r="F2" s="(\d+)" t="str"><v>ELECTRILAMSPA<\/v><\/c>/,
+      '<c r="F2" s="$1" t="inlineStr"><is><r><t>ELECTRILAM</t></r><r><rPr><b/><sz val="11"/><rFont val="Aptos Display"/></rPr><t>SPA</t></r></is></c>');
     if (logo) {
       xml = xml.replace("</worksheet>", '<drawing r:id="rIdLogo"/></worksheet>');
       const rels = leer(`xl/worksheets/_rels/sheet${n}.xml.rels`)
