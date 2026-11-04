@@ -123,56 +123,78 @@ describe("pestanaCobros: el dibujo de bloques del Excel de Claudio", () => {
       ot([hoja("materiales_usados", "Tubo LED 18W|2|un", "|1|hh", "|2|pp")]),
       ot([], { numeroOt: "SF920260627859", fecha: "2026-06-20" }),
     ], catalogo, false);
-    expect(celda(ws, "D13")).toBe("SF920260627830");
-    expect(celda(ws, "C13")).toBe(46192); // 19-06-2026 como fecha de Excel
-    expect(celda(ws, "G13")).toBe("Instalar 3 proyectores");
-    expect([celda(ws, "E14"), celda(ws, "F14"), celda(ws, "I14")]).toEqual(["Revisión normal", "revnor", 2]);
-    expect([celda(ws, "F15"), celda(ws, "I15")]).toEqual(["tubled18", 2]);
-    expect(celda(ws, "I34")).toBe("TOTALES");
-    expect(celda(ws, "D36")).toBe("SF920260627859");
+    expect(celda(ws, "F13")).toBe("SF920260627830");
+    expect(celda(ws, "E13")).toBe(46192); // 19-06-2026 como fecha de Excel
+    expect(celda(ws, "I13")).toBe("Instalar 3 proyectores");
+    expect([celda(ws, "G14"), celda(ws, "H14"), celda(ws, "K14")]).toEqual(["Revisión normal", "revnor", 2]);
+    expect([celda(ws, "H15"), celda(ws, "K15")]).toEqual(["tubled18", 2]);
+    expect(celda(ws, "K34")).toBe("TOTALES");
+    expect(celda(ws, "F36")).toBe("SF920260627859");
   });
 
   it("las fórmulas de la plantilla: BUSCARV contra Materiales, IVA y totales", () => {
     const ws = pestanaCobros(X, [ot([hoja("materiales_usados", "Tubo LED 18W|2|un")])], catalogo, false);
     const f = (ref: string) => (ws[ref] as { f?: string }).f;
-    expect(f("G15")).toBe('IFERROR(VLOOKUP($F15,Materiales!$G$2:$O$1912,2,FALSE),"-")');
-    expect(f("J15")).toBe('IFERROR(VLOOKUP($F15,Materiales!$G$2:$O$1912,8,FALSE),"-")');
-    expect(f("L15")).toBe('IFERROR(VLOOKUP($F15,Materiales!$G$2:$O$1912,9,FALSE),"-")');
-    expect([f("K15"), f("M15"), f("N15"), f("O15"), f("P15")]).toEqual([
-      'IFERROR(J15*I15,"-")', 'IFERROR(L15*I15,"-")', 'IFERROR(M15+K15,"-")', 'IFERROR(N15*0.19,"-")', 'IFERROR(O15+N15,"-")',
+    expect(f("I15")).toBe('IFERROR(VLOOKUP($H15,Materiales!$G$2:$O$1912,2,FALSE),"-")');
+    expect(f("L15")).toBe('IFERROR(VLOOKUP($H15,Materiales!$G$2:$O$1912,8,FALSE),"-")');
+    expect(f("N15")).toBe('IFERROR(VLOOKUP($H15,Materiales!$G$2:$O$1912,9,FALSE),"-")');
+    expect([f("M15"), f("O15"), f("P15"), f("Q15"), f("R15")]).toEqual([
+      'IFERROR(L15*K15,"-")', 'IFERROR(N15*K15,"-")', 'IFERROR(O15+M15,"-")', 'IFERROR(P15*0.19,"-")', 'IFERROR(Q15+P15,"-")',
     ]);
-    expect(f("K34")).toBe("SUM(K14:K33)");
-    expect(f("L10")).toBe('SUMIF(J13:J35,"materiales",K13:K35)');
-    expect(f("M10")).toBe('SUMIF(L13:L35,"m.o",M13:M35)');
-    expect(f("C10")).toBe("COUNT(C13:C35)");
-    expect(celda(ws, "E9")).toBe("TRABAJOS CON OT");
-    expect(celda(ws, "F2")).toBe("ELECTRILAMSPA");
+    expect(f("M34")).toBe("SUM(M14:M33)");
+    expect(f("N10")).toBe('SUMIF(L13:L35,"materiales",M13:M35)');
+    expect(f("O10")).toBe('SUMIF(N13:N35,"m.o",O13:O35)');
+    expect(f("E10")).toBe("COUNT(E13:E35)");
+    expect(celda(ws, "G9")).toBe("TRABAJOS CON OT");
+    expect(celda(ws, "H2")).toBe("ELECTRILAMSPA");
   });
 
   it("más de 20 líneas siguen en un bloque de continuación", () => {
     const muchas = Array.from({ length: 25 }, (_, i) => `Material ${i}|1|un`);
     const ws = pestanaCobros(X, [ot([hoja("materiales_usados", ...muchas)])], catalogo, false);
-    expect(celda(ws, "E33")).toBe("1 un Material 18");
-    expect(celda(ws, "D36")).toBe("Continuación");
-    expect(celda(ws, "E37")).toBe("1 un Material 19");
+    expect(celda(ws, "G33")).toBe("1 un Material 18");
+    expect(celda(ws, "F36")).toBe("Continuación");
+    expect(celda(ws, "G37")).toBe("1 un Material 19");
   });
 
-  it("técnico que hizo la hoja en Q y N° OT de Pangui en R, también al actualizar", () => {
+  it("técnico que hizo la hoja en C y N° OT de Pangui en D, antes de la tabla de Claudio", () => {
     const conAutor = (autor: string, tipo = "materiales_usados"): HojaCobro => ({ ...hoja(tipo, "|1|hh"), autor });
     const a = ot([conAutor("Juan Pérez"), conAutor("Juan Pérez"), conAutor("Ana Soto"), conAutor("Pide Otro", "materiales_solicitados")], { id: "ot-a", numeroPangui: 343 });
     const ws = pestanaCobros(X, [a, ot([], { numeroPangui: null })], catalogo, false);
-    expect([celda(ws, "Q12"), celda(ws, "Q13"), celda(ws, "R13")]).toEqual(["Técnico", "Juan Pérez, Ana Soto", 343]);
-    expect((ws["R13"] as { z?: string }).z).toBe('"#"0'); // se ve "#343"
-    expect([celda(ws, "Q36"), celda(ws, "R36")]).toEqual(["", ""]); // sin hoja ni número: en blanco
+    expect([celda(ws, "C12"), celda(ws, "D12"), celda(ws, "E12")]).toEqual(["Técnico", "N° OT \nPangui", "Fecha termino"]);
+    expect([celda(ws, "C13"), celda(ws, "D13")]).toEqual(["Juan Pérez, Ana Soto", 343]);
+    expect((ws["D13"] as { z?: string }).z).toBe('"#"0'); // se ve "#343"
+    expect([celda(ws, "C36"), celda(ws, "D36")]).toEqual(["", ""]); // sin hoja ni número: en blanco
+    // El dibujo sigue hacia abajo: franja en las líneas impares y dorado en TOTALES.
+    const relleno = (ref: string) => (ws[ref] as { s?: { fill?: { fgColor?: { rgb?: string } } } }).s?.fill?.fgColor?.rgb;
+    expect([relleno("C13"), relleno("C15"), relleno("D15"), relleno("C34"), relleno("D34")]).toEqual(["D0DFE6", "D9D9D9", "D9D9D9", "FFD757", "FFD757"]);
+    expect(ws["!autofilter"]).toEqual({ ref: "C12:R58" });
 
     const rango = { desde: "2026-06-01", hasta: "2026-06-30" };
     const previo = leerExcelCobros(X, libroCobros(X, { ots: [a], catalogo: [], conOt: rango, sinOt: rango }))!;
     expect(previo.conOt[0]).toMatchObject({ id: "ot-a", cabecera: { tecnico: "Juan Pérez, Ana Soto", numeroPangui: 343 } });
   });
 
+  it("actualiza también los Excel de antes, con la tabla en C..P", () => {
+    // Fila 12 con los rótulos desde C y un bloque como los exportaba Pangui el 3-nov: id en R.
+    const filas: (string | number | null)[][] = Array.from({ length: 35 }, () => []);
+    filas[11] = [null, null, "Fecha termino", "Solicitud"];
+    filas[12] = [1, null, 46192, "SF920260627830", "Cabina 2", "Codigo", "Instalar", "", "Cantidad", "", "", "", "", "", "", "", null, "ot-vieja"];
+    filas[13] = [null, null, null, null, "Caja chuqui", "cajpla", null, null, 3];
+    filas[33] = [null, null, null, null, null, null, null, null, "TOTALES"];
+    const wb = XLSX.utils.book_new();
+    for (const n of ["CON OT", "SIN OT", "Materiales"]) XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(n === "CON OT" ? filas : [["x"]]), n);
+    const previo = leerExcelCobros(X, new Uint8Array(XLSX.write(wb, { bookType: "xlsx", type: "array" })))!;
+    expect(previo.conOt).toEqual([{
+      id: "ot-vieja",
+      cabecera: { fecha: "2026-06-19", solicitud: "SF920260627830", lugar: "Cabina 2", descripcion: "Instalar", tecnico: "", numeroPangui: null },
+      lineas: [{ texto: "Caja chuqui", codigo: "cajpla", cantidad: 3 }],
+    }]);
+  });
+
   it("SIN OT lleva el solicitante en la Solicitud", () => {
     const ws = pestanaCobros(X, [ot([], { numeroOt: "", solicitante: "Cristian Quijada" })], catalogo, true);
-    expect(celda(ws, "D13")).toBe("Cristian Quijada");
+    expect(celda(ws, "F13")).toBe("Cristian Quijada");
   });
 
   it("el libro reparte CON OT y SIN OT, cada una con su rango, y Materiales sin precios", () => {
@@ -184,9 +206,9 @@ describe("pestanaCobros: el dibujo de bloques del Excel de Claudio", () => {
     });
     const wb = XLSX.read(bytes, { type: "array" });
     expect(wb.SheetNames).toEqual(["CON OT", "SIN OT", "Materiales"]);
-    expect(wb.Sheets["CON OT"]["D13"]?.v).toBe("SF920260627830");
-    expect(wb.Sheets["CON OT"]["D36"]).toBeUndefined(); // la del 22-jul queda fuera del corte del ITO
-    expect(wb.Sheets["SIN OT"]["C13"]?.v).toBe(46225);
+    expect(wb.Sheets["CON OT"]["F13"]?.v).toBe("SF920260627830");
+    expect(wb.Sheets["CON OT"]["F36"]).toBeUndefined(); // la del 22-jul queda fuera del corte del ITO
+    expect(wb.Sheets["SIN OT"]["E13"]?.v).toBe(46225);
     expect(wb.Sheets["Materiales"]["G4"]?.v).toBe("tubled18");
     expect(wb.Sheets["Materiales"]["J4"]).toBeUndefined();
   });
@@ -222,9 +244,9 @@ describe("pestanaCobros: el dibujo de bloques del Excel de Claudio", () => {
 
     // Claudio corrige en Excel: código y cantidad a la caja chuqui, y una nota suya.
     const wb = XLSX.read(primero, { type: "array" });
-    wb.Sheets["CON OT"]["F15"] = { t: "s", v: "cajpla" };
-    wb.Sheets["CON OT"]["I15"] = { t: "n", v: 3 };
-    wb.Sheets["CON OT"]["E19"] = { t: "s", v: "Nota de Claudio" }; // con una fila vacía antes: no tiene que subir
+    wb.Sheets["CON OT"]["H15"] = { t: "s", v: "cajpla" };
+    wb.Sheets["CON OT"]["K15"] = { t: "n", v: 3 };
+    wb.Sheets["CON OT"]["G19"] = { t: "s", v: "Nota de Claudio" }; // con una fila vacía antes: no tiene que subir
     const editado = new Uint8Array(XLSX.write(wb, { bookType: "xlsx", type: "array" }));
 
     const previo = leerExcelCobros(X, editado)!;
@@ -235,11 +257,11 @@ describe("pestanaCobros: el dibujo de bloques del Excel de Claudio", () => {
 
     const final = XLSX.read(libroCobros(X, { ots: [a, s, b], catalogo: [], conOt: rango, sinOt: rango, previos: previo }), { type: "array" });
     const con = final.Sheets["CON OT"];
-    expect([con["F15"]?.v, con["I15"]?.v]).toEqual(["cajpla", 3]); // lo de Claudio, intacto
-    expect([con["E18"]?.v, con["E19"]?.v]).toEqual(["", "Nota de Claudio"]);
-    expect(con["D36"]?.v).toBe("SF920260728999");                   // la nueva, en el bloque siguiente
+    expect([con["H15"]?.v, con["K15"]?.v]).toEqual(["cajpla", 3]); // lo de Claudio, intacto
+    expect([con["G18"]?.v, con["G19"]?.v]).toEqual(["", "Nota de Claudio"]);
+    expect(con["F36"]?.v).toBe("SF920260728999");                   // la nueva, en el bloque siguiente
     expect(con["S36"]?.v).toBe("ot-b");
-    expect(final.Sheets["SIN OT"]["D36"]).toBeUndefined();           // la SIN OT no se repitió
+    expect(final.Sheets["SIN OT"]["F36"]).toBeUndefined();           // la SIN OT no se repitió
   });
 
   it("los Excel sin id se reconocen por N° OT o por fecha + solicitante + descripción", () => {
