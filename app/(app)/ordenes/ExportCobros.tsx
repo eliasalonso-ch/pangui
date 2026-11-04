@@ -6,7 +6,7 @@
  * para que no tenga que transcribir OT por OT lo que escribieron los técnicos.
  */
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { FileSpreadsheet, Loader2, ChevronDown } from "lucide-react";
 import { createClient } from "@/lib/supabase";
 import { celdasConResultados } from "@/lib/hoja-formulas";
@@ -25,7 +25,11 @@ type Rel = Record<string, unknown> | Record<string, unknown>[] | null;
 const uno = (rel: Rel): Record<string, unknown> => (Array.isArray(rel) ? rel[0] : rel) ?? {};
 const txt = (v: unknown) => (v == null ? "" : String(v).trim());
 
-async function cargarOts(wsId: string, desde: string, hasta: string): Promise<OtCobro[]> {
+/** Lo mínimo para saber si la OT va a CON OT o SIN OT y en qué día cayó. */
+const COLS_PESTANA = "id, n_serie, numero_meconecta, descripcion, titulo, observacion, completado_en";
+
+/** OTs completadas entre `desde` y `hasta` (incluido el día completo), de a 1000. */
+async function otsCompletadas(wsId: string, desde: string, hasta: string, columnas: string): Promise<Record<string, unknown>[]> {
   const sb = createClient();
   const fin = new Date(`${hasta}T00:00:00`);
   fin.setDate(fin.getDate() + 1); // "hasta" incluye el día completo
@@ -34,7 +38,7 @@ async function cargarOts(wsId: string, desde: string, hasta: string): Promise<Ot
   for (let i = 0; ; i += 1000) {
     const { data, error } = await sb
       .from("ordenes_trabajo")
-      .select("id, n_serie, numero_meconecta, descripcion, titulo, observacion, solicitante, tipo_trabajo, completado_en, tiempo_total_segundos, asignados_ids, ubicacion_texto, lugar, ubicaciones(edificio, detalle), lugares(nombre)")
+      .select(columnas)
       .eq("workspace_id", wsId)
       .eq("estado", "completado")
       .is("deleted_at", null)
@@ -43,9 +47,20 @@ async function cargarOts(wsId: string, desde: string, hasta: string): Promise<Ot
       .order("completado_en")
       .range(i, i + 999);
     if (error) throw error;
-    ots.push(...(data ?? []));
+    ots.push(...((data ?? []) as unknown as Record<string, unknown>[]));
     if (!data || data.length < 1000) break;
   }
+  return ots;
+}
+
+const numeroOt = (o: Record<string, unknown>) =>
+  numeroOtCliente(txt(o.n_serie), txt(o.numero_meconecta), txt(o.descripcion), txt(o.titulo), txt(o.observacion));
+const fechaOt = (o: Record<string, unknown>) => (o.completado_en ? dateKey(new Date(String(o.completado_en))) : "");
+
+async function cargarOts(wsId: string, desde: string, hasta: string): Promise<OtCobro[]> {
+  const sb = createClient();
+  const ots = await otsCompletadas(wsId, desde, hasta,
+    `${COLS_PESTANA}, numero, solicitante, tipo_trabajo, tiempo_total_segundos, asignados_ids, ubicacion_texto, lugar, ubicaciones(edificio, detalle), lugares(nombre)`);
 
   // Hojas con sus filas; de a 100 OTs para no armar una URL gigante.
   const hojasPorOt = new Map<string, OtCobro["hojas"]>();
@@ -53,14 +68,14 @@ async function cargarOts(wsId: string, desde: string, hasta: string): Promise<Ot
   for (let i = 0; i < ids.length; i += 100) {
     const { data, error } = await sb
       .from("hojas_inventario")
-      .select("orden_id, tipo, columnas, created_at, filas:hojas_inventario_filas(orden, celdas)")
+      .select("orden_id, tipo, columnas, created_at, autor:usuarios!created_by(nombre), filas:hojas_inventario_filas(orden, celdas)")
       .in("orden_id", ids.slice(i, i + 100))
       .order("created_at");
     if (error) throw error;
-    for (const h of (data ?? []) as { orden_id: string; tipo: string; columnas: { id: string; label: string }[] | null; filas: { orden: number | null; celdas: Record<string, unknown> | null }[] | null }[]) {
+    for (const h of (data ?? []) as unknown as { orden_id: string; tipo: string; columnas: { id: string; label: string }[] | null; autor: Rel; filas: { orden: number | null; celdas: Record<string, unknown> | null }[] | null }[]) {
       const filas = [...(h.filas ?? [])].sort((a, b) => (a.orden ?? 0) - (b.orden ?? 0));
       const columnas = h.columnas ?? [];
-      hojasPorOt.set(h.orden_id, [...(hojasPorOt.get(h.orden_id) ?? []), { tipo: h.tipo, columnas, filas: celdasConResultados(columnas, filas, true) }]);
+      hojasPorOt.set(h.orden_id, [...(hojasPorOt.get(h.orden_id) ?? []), { tipo: h.tipo, columnas, autor: txt(uno(h.autor).nombre), filas: celdasConResultados(columnas, filas, true) }]);
     }
   }
 
@@ -69,12 +84,13 @@ async function cargarOts(wsId: string, desde: string, hasta: string): Promise<Ot
     const lug = uno(o.lugares as Rel);
     return {
       id: String(o.id),
-      numeroOt: numeroOtCliente(txt(o.n_serie), txt(o.numero_meconecta), txt(o.descripcion), txt(o.titulo), txt(o.observacion)),
+      numeroPangui: typeof o.numero === "number" ? o.numero : null,
+      numeroOt: numeroOt(o),
       solicitante: txt(o.solicitante),
       // Sin ubicación del catálogo, el texto libre que se escribió al crear la OT.
       lugar: [txt(ubi.edificio), txt(ubi.detalle), txt(lug.nombre)].filter(Boolean).join(" · ")
         || txt(o.ubicacion_texto) || txt(o.lugar),
-      fecha: o.completado_en ? dateKey(new Date(String(o.completado_en))) : "",
+      fecha: fechaOt(o),
       descripcion: txt(o.titulo),
       emergencia: o.tipo_trabajo === "emergencia",
       minutosApp: o.tiempo_total_segundos ? Number(o.tiempo_total_segundos) / 60 : null,
@@ -85,6 +101,7 @@ async function cargarOts(wsId: string, desde: string, hasta: string): Promise<Ot
 }
 
 type Rango = { desde: string; hasta: string };
+const enRango = (fecha: string, r: Rango) => fecha >= r.desde && fecha <= r.hasta;
 
 // File System Access API (Chrome/Edge): permite guardar sobre el mismo archivo.
 // No está en lib.dom de TypeScript, así que se declara lo que se usa.
@@ -122,7 +139,7 @@ function bajar(bytes: Uint8Array, nombre: string) {
   URL.revokeObjectURL(a.href);
 }
 
-function RangoFechas({ titulo, nota, rango, onChange }: { titulo: string; nota: string; rango: Rango; onChange: (r: Rango) => void }) {
+function RangoFechas({ titulo, nota, rango, onChange, cuantas }: { titulo: string; nota: string; rango: Rango; onChange: (r: Rango) => void; cuantas?: number | null }) {
   return (
     <div style={{ marginBottom: 12 }}>
       <div style={{ fontSize: 14, color: "var(--fg-2)", marginBottom: 2 }}>{titulo}</div>
@@ -132,6 +149,12 @@ function RangoFechas({ titulo, nota, rango, onChange }: { titulo: string; nota: 
         value={{ from: fechaDeYmd(rango.desde), to: fechaDeYmd(rango.hasta) }}
         onChange={(r) => onChange({ desde: ymdDeFecha(r?.from), hasta: ymdDeFecha(r?.to) })}
       />
+      {/* Para ajustar el rango al tope de OTs por Excel que pide el cliente. */}
+      {cuantas != null && (
+        <div style={{ fontSize: 13, color: "var(--fg-3)", marginTop: 4 }}>
+          {cuantas === 1 ? "1 OT" : `${cuantas} OTs`} en el rango
+        </div>
+      )}
     </div>
   );
 }
@@ -153,6 +176,27 @@ export default function ExportCobros({ wsId }: { wsId: string }) {
   // Tabla de precios de Patricio, leída acá en el navegador: nunca se sube a Pangui.
   const [precios, setPrecios] = useState<{ nombre: string; filas: FilaPrecios[] } | null>(null);
   const completo = !!(conOt.desde && conOt.hasta && sinOt.desde && sinOt.hasta);
+  const [cuantas, setCuantas] = useState<{ conOt: number; sinOt: number } | null>(null);
+
+  // Cuántas OTs saldrían en cada pestaña, al tiro mientras se eligen las fechas.
+  useEffect(() => {
+    setCuantas(null);
+    if (!open || !completo) return;
+    let vigente = true;
+    const desde = conOt.desde < sinOt.desde ? conOt.desde : sinOt.desde;
+    const hasta = conOt.hasta > sinOt.hasta ? conOt.hasta : sinOt.hasta;
+    otsCompletadas(wsId, desde, hasta, COLS_PESTANA).then((ots) => {
+      if (!vigente) return;
+      // La misma regla que libroCobros: con N° OT va a CON OT, sin él a SIN OT.
+      let con = 0, sin = 0;
+      for (const o of ots) {
+        if (numeroOt(o)) { if (enRango(fechaOt(o), conOt)) con++; }
+        else if (enRango(fechaOt(o), sinOt)) sin++;
+      }
+      setCuantas({ conOt: con, sinOt: sin });
+    }).catch(() => {}); // sin el conteo el export sigue funcionando
+    return () => { vigente = false; };
+  }, [open, completo, wsId, conOt, sinOt]);
 
   async function elegirPrecios(archivo: File | undefined) {
     if (!archivo) return;
@@ -229,7 +273,6 @@ export default function ExportCobros({ wsId }: { wsId: string }) {
         setError(`"${archivo.file.name}" no es un Excel de cobros de Pangui: actualízalo sólo sobre uno exportado con "Descargar Excel"`);
         return;
       }
-      const enRango = (fecha: string, r: Rango) => fecha >= r.desde && fecha <= r.hasta;
       const nuevas = otsNuevas(ots, previo).filter((o) => enRango(o.fecha, o.numeroOt ? conOt : sinOt));
       if (nuevas.length === 0) { setAviso("No hay OTs nuevas: el Excel ya tiene todas las del período."); return; }
 
@@ -295,8 +338,8 @@ export default function ExportCobros({ wsId }: { wsId: string }) {
               boxShadow: "0 8px 24px rgba(0,0,0,0.12)",
             }}
           >
-            <RangoFechas titulo="CON OT" nota="Según el corte del ITO" rango={conOt} onChange={setConOt} />
-            <RangoFechas titulo="SIN OT" nota="Mes calendario" rango={sinOt} onChange={setSinOt} />
+            <RangoFechas titulo="CON OT" nota="Según el corte del ITO" rango={conOt} onChange={setConOt} cuantas={cuantas?.conOt} />
+            <RangoFechas titulo="SIN OT" nota="Mes calendario" rango={sinOt} onChange={setSinOt} cuantas={cuantas?.sinOt} />
             <div style={{ marginBottom: 12 }}>
               <div style={{ fontSize: 14, color: "var(--fg-2)", marginBottom: 2 }}>Precios</div>
               <div style={{ fontSize: 13, color: "var(--fg-4)", marginBottom: 6 }}>
