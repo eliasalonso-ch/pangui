@@ -23,11 +23,15 @@ export interface HojaCobro {
   columnas: { id: string; label: string }[];
   /** Celdas ya con las fórmulas resueltas (celdasConResultados). */
   filas: Record<string, string>[];
+  /** Nombre de quien creó la hoja: en la práctica, el técnico que la llenó. */
+  autor?: string;
 }
 
 export interface OtCobro {
   /** Id de la OT en Pangui: va oculto en el Excel para no repetirla al actualizar. */
   id?: string;
+  /** El "#343" con que se ve la OT en Pangui. */
+  numeroPangui?: number | null;
   /** SF9… si la OT viene del portal del cliente; vacío = SIN OT. */
   numeroOt: string;
   solicitante: string;
@@ -257,8 +261,9 @@ class Pestana {
 }
 
 const COLS_BLOQUE = "CDEFGHIJKLMNOP".split("");
-// C..P de la plantilla (A y B son márgenes).
-const ANCHOS = [4.6, 2, 10.6, 20, 72.9, 9.4, 70.4, 13.4, 15.3, 16.6, 15.6, 18.1, 15.4, 15.4, 13.9, 18.1];
+// C..P de la plantilla (A y B son márgenes); Q y R, técnico y N° Pangui.
+const ANCHOS = [4.6, 2, 10.6, 20, 72.9, 9.4, 70.4, 13.4, 15.3, 16.6, 15.6, 18.1, 15.4, 15.4, 13.9, 18.1, 24, 12];
+const NUM_PANGUI = '"#"0'; // 343 se ve "#343" y sigue siendo número para ordenar
 
 /** Membrete, resumen del período (fila 9-10) y encabezados de columna (fila 12). */
 function encabezado(p: Pestana, titulo: string, desde: string, hasta: string, ultima: number) {
@@ -320,6 +325,9 @@ function encabezado(p: Pestana, titulo: string, desde: string, hasta: string, ul
       bd: [c === "D" || c === "G" ? undefined : c === "C" || c === "E" || c === "F" ? "medium" : "thin",
         c === "D" || c === "G" ? undefined : c === "E" || c === "F" || c === "P" ? "medium" : "thin", "medium", "medium"] }),
   }));
+  for (const [c, v] of [["Q", "Técnico"], ["R", "N° OT \nPangui"]]) {
+    p.put(12, c, { v, s: est({ fuente: "Aptos Display", tam: 12, negrita: true, h: "center", ajustar: true, bd: ["thin", "thin", "medium", "medium"] }) });
+  }
   [15.75, 18.75, 16.5, 24, 16.9, 24, 21.75, 8.65, 35.25, 24.95, 18.4, 54.75].forEach((h, i) => p.altura(i + 1, h));
 }
 
@@ -329,21 +337,30 @@ function encabezado(p: Pestana, titulo: string, desde: string, hasta: string, ul
  * dibujo no depende de la OT, sólo de esto.
  */
 export interface BloqueCobro {
-  /** Id de la OT en Pangui, oculto en la columna R. Vacío en Excel viejos. */
+  /** Id de la OT en Pangui, oculto en la columna S. Vacío en Excel viejos. */
   id: string;
   /** null = continuación de la OT anterior (más de 20 líneas). */
-  cabecera: { fecha: string; solicitud: string; lugar: string; descripcion: string } | null;
+  cabecera: {
+    fecha: string; solicitud: string; lugar: string; descripcion: string;
+    /** Quién hizo la hoja (columna Q) y el N° de la OT en Pangui (columna R). */
+    tecnico?: string; numeroPangui?: number | null;
+  } | null;
   lineas: Linea[];
 }
 
 /** Una OT en bloques de 20 líneas; las que sobran siguen con "Continuación", como lo hace Claudio. */
 export function bloquesDeOt(ot: OtCobro, catalogo: Map<string, string>, sinOt: boolean): BloqueCobro[] {
   const lineas = lineasDeOt(ot, catalogo);
+  // Las mismas hojas que se cobran: la de materiales solicitados no cuenta.
+  const tecnico = [...new Set(ot.hojas.filter((h) => h.tipo !== "materiales_solicitados").map((h) => h.autor?.trim()).filter(Boolean))].join(", ");
   const out: BloqueCobro[] = [];
   for (let i = 0; i < lineas.length; i += LINEAS_POR_BLOQUE) {
     out.push({
       id: ot.id ?? "",
-      cabecera: i ? null : { fecha: ot.fecha, solicitud: sinOt ? ot.solicitante : ot.numeroOt, lugar: ot.lugar, descripcion: ot.descripcion },
+      cabecera: i ? null : {
+        fecha: ot.fecha, solicitud: sinOt ? ot.solicitante : ot.numeroOt, lugar: ot.lugar, descripcion: ot.descripcion,
+        tecnico, numeroPangui: ot.numeroPangui ?? null,
+      },
       lineas: lineas.slice(i, i + LINEAS_POR_BLOQUE),
     });
   }
@@ -354,7 +371,7 @@ export function bloquesDeOt(ot: OtCobro, catalogo: Map<string, string>, sinOt: b
 function bloque(p: Pestana, cab: number, n: number, b: BloqueCobro, catalogo: Map<string, MaterialCobro>, alto: number) {
   const { cabecera, lineas } = b;
   p.put(cab, "A", { v: n, s: est({ negrita: true, h: "center" }) });
-  if (b.id) p.put(cab, "R", { v: b.id });
+  if (b.id) p.put(cab, "S", { v: b.id });
   const bd = (c: string, arriba: Borde = "thin", abajo: Borde = "thin"): [Borde, Borde, Borde, Borde] =>
     [c === "C" ? "medium" : "thin", c === "P" ? "medium" : "thin", arriba, abajo];
 
@@ -376,6 +393,10 @@ function bloque(p: Pestana, cab: number, n: number, b: BloqueCobro, catalogo: Ma
     } else if (c === "D") v = "Continuación";
     p.put(cab, c, { v, s });
   }
+  // Fuera de la tabla de Claudio, para no mover sus fórmulas: técnico y N° Pangui.
+  const extra = (h: "left" | "center", fmt?: string) => est({ fuente: "Aptos Display", tam: 12, relleno: CELESTE, h, ajustar: true, fmt, bd: ["thin", "thin", "medium", "thin"] });
+  p.put(cab, "Q", { v: cabecera?.tecnico ?? "", s: extra("left") });
+  p.put(cab, "R", { v: cabecera?.numeroPangui ?? undefined, s: extra("center", NUM_PANGUI) });
   p.altura(cab, 27.75);
 
   // 20 líneas con las fórmulas de la plantilla: BUSCARV contra Materiales e IVA 19 %.
@@ -436,10 +457,10 @@ export function pestanaCobros(
   const ultima = PRIMERA_CABECERA + Math.max(bloques.length, 1) * FILAS_POR_BLOQUE - 1;
   encabezado(p, sinOt ? "TRABAJOS SIN OT" : "TRABAJOS CON OT", rango.desde, rango.hasta, ultima);
   bloques.forEach((b, k) => bloque(p, PRIMERA_CABECERA + k * FILAS_POR_BLOQUE, k + 1, b, materiales, alto));
-  const ws = p.cerrar(ultima, "R", ANCHOS);
-  // R guarda el id de la OT: oculta, fuera de la tabla y de lo que se imprime.
-  ws["!cols"] = [...(ws["!cols"] as object[]), { wch: 2.9 }, { wch: 38, hidden: true }];
-  ws["!autofilter"] = { ref: `C12:P${ultima}` }; // las flechas de filtro de la tabla
+  const ws = p.cerrar(ultima, "S", ANCHOS);
+  // S guarda el id de la OT: oculta, fuera de la tabla y de lo que se imprime.
+  ws["!cols"] = [...(ws["!cols"] as object[]), { wch: 38, hidden: true }];
+  ws["!autofilter"] = { ref: `C12:R${ultima}` }; // las flechas de filtro, también por técnico
   return ws;
 }
 
@@ -473,7 +494,7 @@ export function leerExcelCobros(X: XlsxHoja, libro: Uint8Array): ExcelCobros | n
   const pestana = (nombre: string): BloqueCobro[] => {
     const ws = wb.Sheets[nombre];
     const ultima = /(\d+)$/.exec(String(ws["!ref"] ?? ""))?.[1] ?? "1";
-    const filas = R.utils.sheet_to_json(ws, { header: 1, range: `A1:R${ultima}`, defval: null, raw: true }) as (string | number | null)[][];
+    const filas = R.utils.sheet_to_json(ws, { header: 1, range: `A1:S${ultima}`, defval: null, raw: true }) as (string | number | null)[][];
     const txt = (v: unknown) => (v == null ? "" : String(v).trim());
     const out: BloqueCobro[] = [];
     for (let i = PRIMERA_CABECERA - 1; i < filas.length; i++) {
@@ -495,8 +516,11 @@ export function leerExcelCobros(X: XlsxHoja, libro: Uint8Array): ExcelCobros | n
       const fecha = typeof f[2] === "number" ? ymdDeSerie(f[2]) : txt(f[2]);
       if (!continuacion && !solicitud && !fecha && !txt(f[6]) && lineas.length === 0) continue; // bloque vacío de plantilla
       out.push({
-        id: txt(f[17]),
-        cabecera: continuacion ? null : { fecha, solicitud, lugar: txt(f[4]), descripcion: txt(f[6]) },
+        id: txt(f[18]),
+        cabecera: continuacion ? null : {
+          fecha, solicitud, lugar: txt(f[4]), descripcion: txt(f[6]),
+          tecnico: txt(f[16]), numeroPangui: typeof f[17] === "number" ? f[17] : null,
+        },
         lineas,
       });
     }
@@ -506,7 +530,7 @@ export function leerExcelCobros(X: XlsxHoja, libro: Uint8Array): ExcelCobros | n
 }
 
 /**
- * Las OTs que todavía no están en el Excel. Por id (columna R); los Excel sin
+ * Las OTs que todavía no están en el Excel. Por id (columna S); los Excel sin
  * id se reconocen por N° OT (CON OT) o por fecha + solicitante + descripción
  * (SIN OT, que no tiene número).
  */

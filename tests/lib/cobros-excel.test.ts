@@ -157,6 +157,19 @@ describe("pestanaCobros: el dibujo de bloques del Excel de Claudio", () => {
     expect(celda(ws, "E37")).toBe("1 un Material 19");
   });
 
+  it("técnico que hizo la hoja en Q y N° OT de Pangui en R, también al actualizar", () => {
+    const conAutor = (autor: string, tipo = "materiales_usados"): HojaCobro => ({ ...hoja(tipo, "|1|hh"), autor });
+    const a = ot([conAutor("Juan Pérez"), conAutor("Juan Pérez"), conAutor("Ana Soto"), conAutor("Pide Otro", "materiales_solicitados")], { id: "ot-a", numeroPangui: 343 });
+    const ws = pestanaCobros(X, [a, ot([], { numeroPangui: null })], catalogo, false);
+    expect([celda(ws, "Q12"), celda(ws, "Q13"), celda(ws, "R13")]).toEqual(["Técnico", "Juan Pérez, Ana Soto", 343]);
+    expect((ws["R13"] as { z?: string }).z).toBe('"#"0'); // se ve "#343"
+    expect([celda(ws, "Q36"), celda(ws, "R36")]).toEqual(["", ""]); // sin hoja ni número: en blanco
+
+    const rango = { desde: "2026-06-01", hasta: "2026-06-30" };
+    const previo = leerExcelCobros(X, libroCobros(X, { ots: [a], catalogo: [], conOt: rango, sinOt: rango }))!;
+    expect(previo.conOt[0]).toMatchObject({ id: "ot-a", cabecera: { tecnico: "Juan Pérez, Ana Soto", numeroPangui: 343 } });
+  });
+
   it("SIN OT lleva el solicitante en la Solicitud", () => {
     const ws = pestanaCobros(X, [ot([], { numeroOt: "", solicitante: "Cristian Quijada" })], catalogo, true);
     expect(celda(ws, "D13")).toBe("Cristian Quijada");
@@ -225,7 +238,7 @@ describe("pestanaCobros: el dibujo de bloques del Excel de Claudio", () => {
     expect([con["F15"]?.v, con["I15"]?.v]).toEqual(["cajpla", 3]); // lo de Claudio, intacto
     expect([con["E18"]?.v, con["E19"]?.v]).toEqual(["", "Nota de Claudio"]);
     expect(con["D36"]?.v).toBe("SF920260728999");                   // la nueva, en el bloque siguiente
-    expect(con["R36"]?.v).toBe("ot-b");
+    expect(con["S36"]?.v).toBe("ot-b");
     expect(final.Sheets["SIN OT"]["D36"]).toBeUndefined();           // la SIN OT no se repitió
   });
 
