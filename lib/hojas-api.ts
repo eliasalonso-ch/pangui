@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase";
+import { celdasConResultados } from "@/lib/hoja-formulas";
 
 export interface HojaColumna {
   id: string;
@@ -61,6 +62,61 @@ export async function fetchHojas(workspaceId: string, ordenId: string): Promise<
     .order("created_at");
   if (error) throw error;
   return (data ?? []) as Hoja[];
+}
+
+export interface HojaCalculada {
+  nombre: string;
+  tipo: HojaTipo;
+  columnas: { id: string; label: string }[];
+  /** Una entrada por fila, en orden; las fórmulas ya vienen con su resultado. */
+  filas: Record<string, string>[];
+}
+
+/** Hojas de la OT con las fórmulas resueltas (para los exportes Excel y PDF). */
+export async function fetchHojasCalculadas(ordenId: string): Promise<HojaCalculada[]> {
+  const sb = createClient();
+  const { data: hojas, error } = await sb
+    .from("hojas_inventario")
+    .select("id, nombre, tipo, columnas")
+    .eq("orden_id", ordenId)
+    .order("created_at");
+  if (error) throw error;
+  const hojaIds = (hojas ?? []).map((h) => h.id);
+  if (hojaIds.length === 0) return [];
+  const { data: filas, error: errFilas } = await sb
+    .from("hojas_inventario_filas")
+    .select("hoja_id, celdas, orden")
+    .in("hoja_id", hojaIds)
+    .order("orden");
+  if (errFilas) throw errFilas;
+  return (hojas ?? []).map((hoja) => {
+    const columnas: { id: string; label: string }[] = hoja.columnas ?? [];
+    const filasHoja = (filas ?? []).filter((row) => row.hoja_id === hoja.id);
+    return { nombre: hoja.nombre, tipo: hoja.tipo, columnas, filas: celdasConResultados(columnas, filasHoja) };
+  });
+}
+
+/**
+ * Las hojas tal como van al informe PDF: solo texto, sin filas vacías ni
+ * columnas sin ningún dato (hay hojas con una primera columna en blanco y
+ * "Observación" casi nunca se llena). Las hojas sin datos no van. La de cobro
+ * queda fuera: son códigos internos de facturación, no algo para el mandante.
+ */
+export function hojasParaInforme(hojas: HojaCalculada[]): { nombre: string; columnas: string[]; filas: string[][] }[] {
+  return hojas
+    .filter((h) => h.tipo !== "cobro")
+    .map((h) => {
+      const filas = h.filas
+        .map((celdas) => h.columnas.map((c) => (celdas[c.id] ?? "").trim()))
+        .filter((fila) => fila.some(Boolean));
+      const usada = h.columnas.map((_, i) => filas.some((fila) => fila[i]));
+      return {
+        nombre: h.nombre,
+        columnas: h.columnas.filter((_, i) => usada[i]).map((c) => c.label),
+        filas: filas.map((fila) => fila.filter((_, i) => usada[i])),
+      };
+    })
+    .filter((h) => h.filas.length > 0);
 }
 
 export async function createHoja(workspaceId: string, tipo: HojaTipo, userId: string, ordenId: string): Promise<Hoja> {
