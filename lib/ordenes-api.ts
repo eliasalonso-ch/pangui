@@ -1353,6 +1353,35 @@ export async function fetchTrashedOrdenes(wsId: string): Promise<OrdenListItem[]
   return (data ?? []) as unknown as OrdenListItem[];
 }
 
+// Busqueda en la papelera: cuando la bandeja no encuentra nada, la OT puede
+// estar eliminada (borrada sin querer). Sin este aviso el usuario cree que la
+// OT desaparecio. Mismos campos de texto que la busqueda normal (titulo,
+// descripcion con el "N° OT:", solicitante) o el numero si busca "#123".
+export async function searchPapelera(
+  wsId: string,
+  rawQuery: string,
+): Promise<Pick<OrdenListItem, "id" | "numero" | "titulo">[]> {
+  const q = rawQuery.trim();
+  if (!q) return [];
+  // Comillas dobles: la sintaxis de .or() de PostgREST se rompe con comas o
+  // parentesis en el valor; dentro de comillas solo hay que escapar " y \.
+  const v = `"%${q.replace(/[\\"]/g, "\\$&")}%"`;
+  const filtros = [`titulo.ilike.${v}`, `descripcion.ilike.${v}`, `solicitante.ilike.${v}`];
+  const numero = parseOrdenNumeroQuery(q);
+  if (numero !== null) filtros.push(`numero.eq.${numero}`);
+  const sb = createClient();
+  const { data, error } = await sb
+    .from("ordenes_trabajo")
+    .select("id, numero, titulo")
+    .eq("workspace_id", wsId)
+    .not("deleted_at", "is", null)
+    .or(numero !== null && q.startsWith("#") ? `numero.eq.${numero}` : filtros.join(","))
+    .order("deleted_at", { ascending: false })
+    .limit(5);
+  if (error) throw error;
+  return (data ?? []) as Pick<OrdenListItem, "id" | "numero" | "titulo">[];
+}
+
 // ── Photos ────────────────────────────────────────────────────────────────────
 
 // ── Storage upload ────────────────────────────────────────────────────────────

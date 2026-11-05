@@ -5,7 +5,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { Plus, Search, X, ChevronDown, Loader2, ClipboardCheck, ArrowUp, ArrowUpDown, Download, AlertTriangle, Calendar, Check, Copy, DatabaseArrowDown, Eye, EyeOff } from "lucide-react";
 import { createClient, logRealtimeChannel } from "@/lib/supabase";
 import { esAdmin } from "@/lib/roles";
-import { fetchOrdenesPage, fetchAllOrdenesForExport, fetchAllOrdenesBulk, fetchOrdenesCalendarExtras, fetchOrdenListItem, searchOrdenes, ORDENES_SEARCH_LIMIT, deleteOrden, ORDENES_PAGE_SIZE, parseDescMeta, fetchMarcadasIds, toggleMarcada, matchesSearch, ELECTRILAM_WORKSPACE_ID } from "@/lib/ordenes-api";
+import { fetchOrdenesPage, fetchAllOrdenesForExport, fetchAllOrdenesBulk, fetchOrdenesCalendarExtras, fetchOrdenListItem, searchOrdenes, searchPapelera, restoreOrden, ORDENES_SEARCH_LIMIT, deleteOrden, ORDENES_PAGE_SIZE, parseDescMeta, fetchMarcadasIds, toggleMarcada, matchesSearch, ELECTRILAM_WORKSPACE_ID } from "@/lib/ordenes-api";
 import { ordenQueryOptions } from "@/lib/queries";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { needsBulkSnapshot, overlaySnapshot, BULK_MIN_INTERVAL_MS } from "./bulk-refresh";
@@ -1113,6 +1113,29 @@ export default function OrdenesBandeja({
 
   const searchHitCap = searchResults !== null && searchResults.length >= ORDENES_SEARCH_LIMIT;
 
+  // Busqueda sin resultados: ¿esta en la papelera? Solo admins, que son los
+  // unicos que ven y restauran la papelera.
+  const { data: enPapelera } = useQuery({
+    queryKey: ["ordenes-papelera-search", wsId, debouncedSearch],
+    enabled: esAdmin(myRol) && searchData !== undefined && searchData.length === 0 && !isSearchFetching,
+    queryFn: () => searchPapelera(wsId, debouncedSearch),
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
+  });
+  const [restaurandoId, setRestaurandoId] = useState<string | null>(null);
+  const restaurarDePapelera = async (id: string) => {
+    setRestaurandoId(id);
+    try {
+      await restoreOrden(id);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["ordenes-papelera-search"] }),
+        queryClient.invalidateQueries({ queryKey: ["ordenes-search"] }),
+      ]);
+    } finally {
+      setRestaurandoId(null);
+    }
+  };
+
   /* Hay dos ventanas en las que todavia no se sabe si hay resultados: los 300ms
      del debounce (la consulta ni siquiera salio) y el viaje al servidor. En
      ambas `filtered` queda vacio, y sin esta bandera la lista dice "Sin
@@ -2007,7 +2030,30 @@ export default function OrdenesBandeja({
             createLabel="Crear la primera"
             hasSearch={!!search || tab !== "pendientes" || scope !== "todas"}
           />
-            ) : (
+            ) : null}
+            {!searchPendiente && filtered.length === 0 && search && enPapelera && enPapelera.length > 0 && (
+              <div style={{ margin:"-40px auto 0", maxWidth:430, width:"100%", display:"flex", flexDirection:"column", gap:8 }}>
+                <p style={{ fontSize:14, color:"var(--fg-3)", margin:0, textAlign:"center" }}>
+                  {enPapelera.length === 1 ? "Esta orden está en la " : "Estas órdenes están en la "}
+                  <a href="/papelera" style={{ color:"var(--brand)" }}>Papelera</a>:
+                </p>
+                {enPapelera.map(o => (
+                  <div key={o.id} style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 12px", background:"var(--surface-1)", border:"1px solid var(--border)", borderRadius:"var(--r-md)" }}>
+                    <span style={{ flex:1, minWidth:0, fontSize:14, color:"var(--fg-1)", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                      {o.numero ? `#${o.numero} · ` : ""}{o.titulo || "Sin título"}
+                    </span>
+                    <button
+                      onClick={() => restaurarDePapelera(o.id)}
+                      disabled={restaurandoId !== null}
+                      style={{ padding:"6px 12px", fontSize:14, color:"var(--brand-fg)", background:"var(--brand-tint)", border:"1px solid var(--brand)", borderRadius:"var(--r-sm)", cursor: restaurandoId ? "default" : "pointer", fontFamily:"inherit", opacity: restaurandoId === o.id ? 0.5 : 1 }}
+                    >
+                      Restaurar
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            {filtered.length > 0 && (
               <>
                 {visibleOrdenes.map((o, idx) => (
                   <OTRow
