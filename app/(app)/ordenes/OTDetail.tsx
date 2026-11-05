@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase";
 import { uploadToR2 } from "@/lib/r2";
 import { encuadrarFirma } from "@/lib/firma-encuadre";
 import HojaSpreadsheet from "@/components/HojaSpreadsheet";
-import { createHoja } from "@/lib/hojas-api";
+import { createHoja, fetchHojasCalculadas, hojasParaInforme } from "@/lib/hojas-api";
 import { notifySolicitudMateriales } from "@/lib/notificar";
 import { tieneItos } from "@/lib/itos-gate";
 import {
@@ -74,7 +74,6 @@ import { TransformWrapper, TransformComponent, useControls } from "react-zoom-pa
 import { format } from "date-fns";
 import { DatePicker, TimePicker, DateTimePicker, fechaDeYmd, ymdDeFecha } from "@/components/ui/date-time-picker";
 import { Attachment, AttachmentDropzone } from "@/components/ui/attachment";
-import { celdasConResultados } from "@/lib/hoja-formulas";
 
 type PendingResp = Omit<Partial<PasoRespuesta>, "firmado_nombre"> & { firmado_nombre?: string | null };
 type PauseReason = "acceso" | "materiales" | "reprogramar" | "otro";
@@ -919,7 +918,7 @@ export default function OTDetail({
     | "n_ot" | "estado" | "prioridad" | "tipo_trabajo" | "resumen"
     | "solicitante" | "hito" | "fechas"
     | "descripcion" | "asignados" | "imagenes" | "ubicacion" | "activo"
-    | "materiales" | "tiempo" | "procedimientos" | "historial" | "firma";
+    | "materiales" | "hojas" | "tiempo" | "procedimientos" | "historial" | "firma";
 
   // n_ot/estado/prioridad/tipo_trabajo/resumen: the PDF service always
   // honored them (show(key) defaults to true), the web just never offered them.
@@ -938,7 +937,8 @@ export default function OTDetail({
     { key: "ubicacion",     label: "Ubicación",         group: "Contenido" },
     { key: "activo",        label: "Activo",            group: "Contenido" },
     { key: "materiales",    label: "Materiales",        group: "Seguimiento" },
-    { key: "tiempo",        label: "Tiempo trabajado",  group: "Seguimiento" },
+    { key: "hojas",         label: "Hoja de cálculo",   group: "Seguimiento" },
+    { key: "tiempo",       label: "Tiempo trabajado",  group: "Seguimiento" },
     { key: "procedimientos",label: "Procedimientos",    group: "Seguimiento" },
     { key: "historial",     label: "Historial",         group: "Seguimiento" },
     { key: "firma",         label: "Bloque de firma",   group: "Seguimiento" },
@@ -2147,12 +2147,14 @@ export default function OTDetail({
       );
 
       const shouldIncludeSubOrdenes = includeSubOrdenes && !orden.parent_id;
-      const [act, wsInfo, freshProcs, hojaGrupos, freshSubOrdenes] = await Promise.all([
+      const [act, wsInfo, freshProcs, hojaGrupos, freshSubOrdenes, hojas] = await Promise.all([
         fetchActividadForExport(),
         fetchWorkspaceInfo(),
         getOTProcedimientos(orden.id),
         loadFotoGruposForPdf(orden.id),
         shouldIncludeSubOrdenes ? fetchSubOrdenes(orden.id) : Promise.resolve([]),
+        // Van ya calculadas: el servicio de PDF no tiene el motor de fórmulas.
+        pdfFields.hojas ? fetchHojasCalculadas(orden.id).then(hojasParaInforme) : Promise.resolve([]),
       ]);
       const enrichedSubOrdenes = await Promise.all(
         freshSubOrdenes.map(async (sub) => {
@@ -2205,6 +2207,7 @@ export default function OTDetail({
             : [],
           procedimientos: freshProcs,
           fotoGrupos: hojaGrupos,
+          hojas,
           fields: pdfFields,
           // Mode-aware extras — flat block, same as mobile. Web has no
           // workspace-mode / client-signature concept yet, so those are null.
@@ -2349,26 +2352,11 @@ export default function OTDetail({
 
       // ── Sheet 3: Hoja de cálculo ────────────────────────────────────────────
       if (f.hoja_calculo) {
-        const sb = createClient();
-        const { data: hojas } = await sb
-          .from("hojas_inventario")
-          .select("id, nombre, columnas")
-          .eq("orden_id", orden.id)
-          .order("created_at");
-
-        const hojaIds = (hojas ?? []).map((h: any) => h.id);
-        const { data: filas } = hojaIds.length > 0
-          ? await sb.from("hojas_inventario_filas").select("hoja_id, celdas, orden").in("hoja_id", hojaIds).order("orden")
-          : { data: [] };
-
-        for (const hoja of (hojas ?? []) as any[]) {
-          const cols: { id: string; label: string }[] = hoja.columnas ?? [];
-          const hojaFilas = ((filas ?? []) as any[]).filter(row => row.hoja_id === hoja.id);
-          const headers = cols.map((c: any) => c.label);
+        for (const hoja of await fetchHojasCalculadas(orden.id)) {
+          const cols = hoja.columnas;
+          const headers = cols.map((c) => c.label);
           // Las fórmulas van con su resultado (filas ya en orden por `orden`).
-          const rows = celdasConResultados(cols, hojaFilas).map((celdas) =>
-            cols.map((c) => celdas[c.id] ?? "")
-          );
+          const rows = hoja.filas.map((celdas) => cols.map((c) => celdas[c.id] ?? ""));
           const wsH = XLS.utils.aoa_to_sheet([headers, ...rows]);
           applyStyles(wsH, headers, rows.length, cols.map(() => 22));
           XLS.utils.book_append_sheet(wb, wsH, hoja.nombre.slice(0, 31));
