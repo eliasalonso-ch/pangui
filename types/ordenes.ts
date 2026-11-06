@@ -438,6 +438,11 @@ export interface FiltrosState {
    * proveedor (ot_envios). Opcional por la misma razón que banderaColores.
    */
   origenes?: ("propia" | "recibida" | "enviada")[];
+  /**
+   * Cobro (Electrilam, dueño/admin): "cobradas" = marcadas con el botón $ de la
+   * card; "sin_cobrar" = el resto. Opcional, igual que banderaColores.
+   */
+  cobro?: ("cobradas" | "sin_cobrar")[];
   /** Quién creó la OT (ordenes_trabajo.creado_por). Opcional, igual que banderaColores. */
   creadoPorIds?: string[];
   /** OTs asignadas a estos usuarios dados de baja. Opcional, igual que banderaColores. */

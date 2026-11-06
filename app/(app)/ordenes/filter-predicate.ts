@@ -47,6 +47,8 @@ export interface FilterDeps {
   todayKey: string;
   /** orden_id → color de su bandera (solo dueño/admin), para banderaColores. */
   banderaColorPorOrden?: Map<string, string>;
+  /** OTs marcadas como cobradas (ot_cobros, solo dueño/admin), para el filtro "Cobro". */
+  cobradaIds?: Set<string>;
   /** Origen de cada OT (origenDeOT de lib/envios-api), para el filtro "Origen". */
   origenDe?: (ordenId: string) => string;
   /** Free-text search. Applied last, via `matchesSearch`, when non-empty. */
@@ -106,6 +108,13 @@ export function applyFiltros<T extends FilterableOrden>(
   const origenes = filtros.origenes ?? [];
   if (origenes.length && deps.origenDe) {
     list = list.filter(o => (origenes as string[]).includes(deps.origenDe!(o.id)));
+  }
+  // Cobro: "sin cobrar" es todo lo no marcado, abierta o no: así, junto con la
+  // bandera, se ve de un vistazo cuál falta marcar (las abiertas no tienen botón $).
+  const cobro = filtros.cobro ?? [];
+  if (cobro.length && deps.cobradaIds) {
+    const cobradas = deps.cobradaIds;
+    list = list.filter(o => cobro.includes(cobradas.has(o.id) ? "cobradas" : "sin_cobrar"));
   }
   if (filtros.sociedadIds.length) {
     // Match via ubicacion.sociedad_id (joined in list select)

@@ -168,7 +168,7 @@ describe("pestanaCobros: el dibujo de bloques del Excel de Claudio", () => {
     const s = (ref: string) => (ws[ref] as { s?: { fill?: { fgColor?: { rgb?: string } }; border?: { right?: { style?: string } } } }).s;
     expect(["Q13", "Q15", "R15", "Q34", "R34"].map((r) => s(r)?.fill?.fgColor?.rgb)).toEqual(["D0DFE6", "D9D9D9", "D9D9D9", "FFD757", "FFD757"]);
     expect(["Q20", "R20"].map((r) => s(r)?.border?.right?.style)).toEqual(["thin", "medium"]);
-    expect(ws["!autofilter"]).toEqual({ ref: "C12:R58" });
+    expect(ws["!autofilter"]).toEqual({ ref: "C12:T58" });
 
     const rango = { desde: "2026-06-01", hasta: "2026-06-30" };
     const previo = leerExcelCobros(X, libroCobros(X, { ots: [a], catalogo: [], conOt: rango, sinOt: rango }))!;
@@ -242,6 +242,27 @@ describe("pestanaCobros: el dibujo de bloques del Excel de Claudio", () => {
     expect(leerPrecios(X, new Uint8Array(XLSX.write(sinMateriales, { bookType: "xlsx", type: "array" })))).toEqual([]);
   });
 
+  it("lee la base de Patricio (pestaña Valores, desde la fila 2) y MAT FIN / MO FIN siguen al modificador general", () => {
+    // Como "base datos materiales 2026 - OT.xlsm": rótulos en la fila 1, desde la columna B, N/O como números.
+    const fila = (cod: string, mat: number, mo: number, pct: number) => ["Iluminación", null, null, null, null, cod, "x", "Un", mat, mo, pct, pct, mat * pct, mo * pct];
+    const base = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(base, XLSX.utils.aoa_to_sheet([["Clasificación"], fila("tubled18", 6750, 4150, 1), fila("revnor", 0, 12000, 1.1)], { origin: "B1" } as unknown as XLSX.AOA2SheetOpts), "Valores");
+    const precios = leerPrecios(X, new Uint8Array(XLSX.write(base, { bookType: "xlsx", type: "array" })));
+    expect(precios.map((f) => f[5])).toEqual(["tubled18", "revnor"]);
+
+    const rango = { desde: "2026-06-01", hasta: "2026-06-30" };
+    const libro = (modificador?: [number, number]) => XLSX.read(libroCobros(X, { ots: [ot([])], catalogo: [], precios, conOt: rango, sinOt: rango, modificador }), { type: "array", cellFormula: true });
+    const m = libro().Sheets["Materiales"];
+    expect([m["L2"]?.v, m["M2"]?.v]).toEqual([1, 1]);
+    expect([m["N4"]?.f, m["N4"]?.v, m["O5"]?.f, Math.round(m["O5"]?.v as number)]).toEqual(["J4*L4*$L$2", 6750, "K5*M5*$M$2", 13200]);
+
+    // Claudio sube a 110 % los materiales: al actualizar se conserva.
+    const conMod = new Uint8Array(XLSX.write(libro([1.1, 1]), { bookType: "xlsx", type: "array" }));
+    const previo = leerExcelCobros(X, conMod)!;
+    expect(previo.modificador).toEqual([1.1, 1]);
+    expect(Math.round(libro(previo.modificador).Sheets["Materiales"]["N4"]?.v as number)).toBe(7425);
+  });
+
   it("actualizar: conserva lo que corrigió Claudio y agrega sólo las OTs nuevas", () => {
     const rango = { desde: "2026-07-01", hasta: "2026-07-31" };
     const a = ot([hoja("materiales_usados", "Caja chuqui|1|Uni", "|1|hh", "|2|pp")], { id: "ot-a", fecha: "2026-07-02" });
@@ -268,6 +289,23 @@ describe("pestanaCobros: el dibujo de bloques del Excel de Claudio", () => {
     expect(con["D36"]?.v).toBe("SF920260728999");                   // la nueva, en el bloque siguiente
     expect(con["S36"]?.v).toBe("ot-b");
     expect(final.Sheets["SIN OT"]["D36"]).toBeUndefined();           // la SIN OT no se repitió
+  });
+
+  it("columna T: COBRADA en lo que ya traía, YA SALIÓ en lo nuevo que salió en otro Excel", () => {
+    const rango = { desde: "2026-07-01", hasta: "2026-07-31" };
+    const a = ot([], { id: "ot-a", fecha: "2026-07-02" });
+    const c = ot([], { id: "ot-c", numeroOt: "SF920260700001", fecha: "2026-07-04" });
+    const previo = leerExcelCobros(X, libroCobros(X, { ots: [a, c], catalogo: [], conOt: rango, sinOt: rango }))!;
+    const b = ot([], { id: "ot-b", numeroOt: "SF920260728999", fecha: "2026-07-20" });
+    const mediodia = (d: string) => `2026-${d}T15:00:00Z`; // mismo día en Chile y en UTC
+    const estados = new Map([
+      ["ot-a", { exportadaAt: mediodia("07-25"), cobradaAt: mediodia("08-02") }],
+      ["ot-c", { exportadaAt: mediodia("07-25"), cobradaAt: null }], // salió en este mismo Excel: sin aviso
+      ["ot-b", { exportadaAt: mediodia("07-28"), cobradaAt: null }],
+    ]);
+    const con = XLSX.read(libroCobros(X, { ots: [a, c, b], catalogo: [], conOt: rango, sinOt: rango, previos: previo, estados }), { type: "array" }).Sheets["CON OT"];
+    expect([con["T12"]?.v, con["T13"]?.v, con["T36"]?.v, con["T59"]?.v]).toEqual(["Cobro", "COBRADA 02-08", undefined, "YA SALIÓ EN EXCEL DEL 28-07"]);
+    expect(con["S59"]?.v).toBe("ot-b");
   });
 
   it("los Excel sin id se reconocen por N° OT o por fecha + solicitante + descripción", () => {

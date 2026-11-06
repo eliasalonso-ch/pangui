@@ -13,6 +13,7 @@ import { celdasConResultados } from "@/lib/hoja-formulas";
 import { numeroOtCliente } from "@/lib/cobro-export";
 import { todoElCatalogo } from "@/lib/catalogo-api";
 import { libroCobros, leerPrecios, leerExcelCobros, otsNuevas, MESES, type OtCobro, type FilaPrecios } from "@/lib/cobros-excel";
+import { fetchOTCobros, registrarExportadas } from "@/lib/ot-cobros";
 import type { XlsxHoja } from "@/lib/hoja-excel";
 import { DateRangePicker, fechaDeYmd, ymdDeFecha } from "@/components/ui/date-time-picker";
 
@@ -139,7 +140,7 @@ function bajar(bytes: Uint8Array, nombre: string) {
   URL.revokeObjectURL(a.href);
 }
 
-function RangoFechas({ titulo, nota, rango, onChange, cuantas }: { titulo: string; nota: string; rango: Rango; onChange: (r: Rango) => void; cuantas?: number | null }) {
+function RangoFechas({ titulo, nota, rango, onChange, cuantas }: { titulo: string; nota: string; rango: Rango; onChange: (r: Rango) => void; cuantas?: { total: number; cobradas: number } | null }) {
   return (
     <div style={{ marginBottom: 12 }}>
       <div style={{ fontSize: 14, color: "var(--fg-2)", marginBottom: 2 }}>{titulo}</div>
@@ -152,7 +153,9 @@ function RangoFechas({ titulo, nota, rango, onChange, cuantas }: { titulo: strin
       {/* Para ajustar el rango al tope de OTs por Excel que pide el cliente. */}
       {cuantas != null && (
         <div style={{ fontSize: 13, color: "var(--fg-3)", marginTop: 4 }}>
-          {cuantas === 1 ? "1 OT" : `${cuantas} OTs`} en el rango
+          {cuantas.total === 1 ? "1 OT" : `${cuantas.total} OTs`} en el rango
+          {/* Las cobradas no salen en el Excel. */}
+          {cuantas.cobradas > 0 && ` · ${cuantas.cobradas} ya ${cuantas.cobradas === 1 ? "cobrada" : "cobradas"}`}
         </div>
       )}
     </div>
@@ -173,10 +176,23 @@ export default function ExportCobros({ wsId }: { wsId: string }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
-  // Tabla de precios de Patricio, leída acá en el navegador: nunca se sube a Pangui.
-  const [precios, setPrecios] = useState<{ nombre: string; filas: FilaPrecios[] } | null>(null);
+  // Tabla de precios de Patricio, leída acá en el navegador: nunca se sube a
+  // Pangui. Se recuerda en este computador (localStorage) para no elegirla cada vez.
+  const [precios, setPreciosState] = useState<{ nombre: string; filas: FilaPrecios[] } | null>(null);
+  const clavePrecios = `cobros-precios:${wsId}`;
+  useEffect(() => {
+    try {
+      const guardado = localStorage.getItem(clavePrecios);
+      if (guardado) setPreciosState(JSON.parse(guardado));
+    } catch { /* sin storage (incógnito, bloqueado): se elige de nuevo */ }
+  }, [clavePrecios]);
+  const setPrecios = (p: { nombre: string; filas: FilaPrecios[] }) => {
+    setPreciosState(p);
+    try { localStorage.setItem(clavePrecios, JSON.stringify(p)); } catch { /* sigue sirviendo hasta recargar */ }
+  };
   const completo = !!(conOt.desde && conOt.hasta && sinOt.desde && sinOt.hasta);
-  const [cuantas, setCuantas] = useState<{ conOt: number; sinOt: number } | null>(null);
+  type Conteo = { total: number; cobradas: number };
+  const [cuantas, setCuantas] = useState<{ conOt: Conteo; sinOt: Conteo } | null>(null);
 
   // Cuántas OTs saldrían en cada pestaña, al tiro mientras se eligen las fechas.
   useEffect(() => {
@@ -185,13 +201,15 @@ export default function ExportCobros({ wsId }: { wsId: string }) {
     let vigente = true;
     const desde = conOt.desde < sinOt.desde ? conOt.desde : sinOt.desde;
     const hasta = conOt.hasta > sinOt.hasta ? conOt.hasta : sinOt.hasta;
-    otsCompletadas(wsId, desde, hasta, COLS_PESTANA).then((ots) => {
+    Promise.all([otsCompletadas(wsId, desde, hasta, COLS_PESTANA), fetchOTCobros()]).then(([ots, cobros]) => {
       if (!vigente) return;
       // La misma regla que libroCobros: con N° OT va a CON OT, sin él a SIN OT.
-      let con = 0, sin = 0;
+      const con = { total: 0, cobradas: 0 }, sin = { total: 0, cobradas: 0 };
       for (const o of ots) {
-        if (numeroOt(o)) { if (enRango(fechaOt(o), conOt)) con++; }
-        else if (enRango(fechaOt(o), sinOt)) sin++;
+        const n = numeroOt(o) ? (enRango(fechaOt(o), conOt) ? con : null) : (enRango(fechaOt(o), sinOt) ? sin : null);
+        if (!n) continue;
+        n.total++;
+        if (cobros.get(String(o.id))?.cobradaAt) n.cobradas++;
       }
       setCuantas({ conOt: con, sinOt: sin });
     }).catch(() => {}); // sin el conteo el export sigue funcionando
@@ -204,7 +222,7 @@ export default function ExportCobros({ wsId }: { wsId: string }) {
     try {
       const XLSX = await import("xlsx-js-style");
       const filas = leerPrecios(XLSX as unknown as XlsxHoja, new Uint8Array(await archivo.arrayBuffer()));
-      if (filas.length === 0) { setError(`"${archivo.name}" no tiene la pestaña Materiales con códigos`); return; }
+      if (filas.length === 0) { setError(`"${archivo.name}" no tiene una tabla de precios con códigos (pestaña Valores o Materiales)`); return; }
       setPrecios({ nombre: archivo.name, filas });
     } catch {
       setError(`No se pudo leer "${archivo.name}"`);
@@ -216,15 +234,21 @@ export default function ExportCobros({ wsId }: { wsId: string }) {
     // Una sola lectura que cubre los dos rangos; cada pestaña filtra el suyo.
     const desde = conOt.desde < sinOt.desde ? conOt.desde : sinOt.desde;
     const hasta = conOt.hasta > sinOt.hasta ? conOt.hasta : sinOt.hasta;
-    const [XLSX, ots, catalogo, logo] = await Promise.all([
+    const [XLSX, todas, catalogo, logo, estados] = await Promise.all([
       import("xlsx-js-style"),
       cargarOts(wsId, desde, hasta),
       todoElCatalogo(wsId),
       // Sin logo el Excel sale igual: no vale la pena fallar por la imagen.
       fetch("/cobros/electrilam-logo.png").then((r) => (r.ok ? r.arrayBuffer() : null)).catch(() => null),
+      fetchOTCobros(),
     ]);
-    return { X: XLSX as unknown as XlsxHoja, ots, catalogo, logo: logo ? new Uint8Array(logo) : undefined };
+    // Las cobradas (botón de la card) no se vuelven a sacar en ningún Excel.
+    const ots = todas.filter((o) => !estados.get(o.id!)?.cobradaAt);
+    return { X: XLSX as unknown as XlsxHoja, ots, cobradas: todas.length - ots.length, catalogo, logo: logo ? new Uint8Array(logo) : undefined, estados };
   }
+
+  /** Las OTs que quedaron en el Excel: con N° OT en el rango CON OT, sin él en el SIN OT. */
+  const delPeriodo = (ots: OtCobro[]) => ots.filter((o) => enRango(o.fecha, o.numeroOt ? conOt : sinOt));
 
   async function descargar() {
     if (loading || !completo) return;
@@ -232,10 +256,21 @@ export default function ExportCobros({ wsId }: { wsId: string }) {
     setError(null);
     setAviso(null);
     try {
-      const { X, ots, catalogo, logo } = await cargarTodo();
-      if (ots.length === 0) { setError("No hay OTs completadas en esos rangos"); return; }
-      const bytes = libroCobros(X, { ots, catalogo, conOt, sinOt, logo, precios: precios?.filas });
+      const { X, ots, cobradas, catalogo, logo, estados } = await cargarTodo();
+      const salen = delPeriodo(ots);
+      if (salen.length === 0) {
+        setError(cobradas ? "Todas las OTs de esos rangos ya están cobradas" : "No hay OTs completadas en esos rangos");
+        return;
+      }
+      const bytes = libroCobros(X, { ots, catalogo, conOt, sinOt, logo, precios: precios?.filas, estados });
       bajar(bytes, `COBROS CON Y SIN OT ${MESES[Number(sinOt.hasta.slice(5, 7)) - 1]} ${sinOt.hasta.slice(0, 4)}.xlsx`);
+      try {
+        await registrarExportadas(salen.map((o) => o.id!));
+      } catch {
+        // El Excel ya bajó: lo único que se pierde es el aviso "ya salió" en el próximo.
+        setAviso("El Excel se descargó, pero no se pudo anotar qué OTs salieron: el próximo no avisará de repetidas.");
+        return;
+      }
       setOpen(false);
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo armar el Excel de cobros");
@@ -267,22 +302,30 @@ export default function ExportCobros({ wsId }: { wsId: string }) {
     }
     setLoading(true);
     try {
-      const { X, ots, catalogo, logo } = await cargarTodo();
+      const { X, ots, catalogo, logo, estados } = await cargarTodo();
       const previo = leerExcelCobros(X, new Uint8Array(await archivo.file.arrayBuffer()));
       if (!previo) {
         setError(`"${archivo.file.name}" no es un Excel de cobros de Pangui: actualízalo sólo sobre uno exportado con "Descargar Excel"`);
         return;
       }
-      const nuevas = otsNuevas(ots, previo).filter((o) => enRango(o.fecha, o.numeroOt ? conOt : sinOt));
-      if (nuevas.length === 0) { setAviso("No hay OTs nuevas: el Excel ya tiene todas las del período."); return; }
+      const nuevas = delPeriodo(otsNuevas(ots, previo));
+      // Se reescribe aunque no haya nuevas: las marcas COBRADA (columna T) salen
+      // de Pangui cada vez, también las que se desmarcaron.
+      const previos = [...previo.conOt, ...previo.sinOt].filter((b) => b.cabecera && b.id);
+      const cobradas = previos.filter((b) => estados.get(b.id)?.cobradaAt).length;
 
-      // Sus precios si ya los tiene; si no, los del Excel de precios elegido.
-      const conPrecio = previo.precios.some((f) => typeof f[12] === "number" || typeof f[13] === "number");
+      // La base de precios elegida manda (si Patricio la actualizó, entra al tiro);
+      // sin ella, la que ya traía el Excel. El modificador general es de Claudio: se conserva.
       const bytes = libroCobros(X, {
-        ots, catalogo, conOt, sinOt, logo, previos: previo,
-        precios: conPrecio ? previo.precios : precios?.filas ?? previo.precios,
+        ots, catalogo, conOt, sinOt, logo, previos: previo, estados,
+        precios: precios?.filas ?? previo.precios, modificador: previo.modificador,
       });
-      const resumen = `${nuevas.filter((o) => o.numeroOt).length} CON OT y ${nuevas.filter((o) => !o.numeroOt).length} SIN OT`;
+      const resumen = [
+        nuevas.length ? `se agregaron ${nuevas.filter((o) => o.numeroOt).length} CON OT y ${nuevas.filter((o) => !o.numeroOt).length} SIN OT` : "no hay OTs nuevas",
+        cobradas ? `${cobradas} ${cobradas === 1 ? "marcada" : "marcadas"} como cobrada${cobradas === 1 ? "" : "s"}` : "",
+      ].filter(Boolean).join(", ");
+      // También las que ya traía: así los Excel de antes de esto quedan anotados.
+      const anotar = () => registrarExportadas([...new Set([...previos.map((b) => b.id), ...nuevas.map((o) => o.id!)])]).catch(() => {});
       if (archivo.handle) {
         try {
           const w = await archivo.handle.createWritable();
@@ -292,10 +335,12 @@ export default function ExportCobros({ wsId }: { wsId: string }) {
           setError(`No se pudo guardar "${archivo.file.name}". Ciérralo en Excel y vuelve a intentar.`);
           return;
         }
-        setAviso(`Listo: se agregaron ${resumen} a "${archivo.file.name}".`);
+        await anotar();
+        setAviso(`Listo "${archivo.file.name}": ${resumen}.`);
       } else {
         bajar(bytes, archivo.file.name);
-        setAviso(`Se agregaron ${resumen}. Reemplaza tu archivo por el descargado.`);
+        await anotar();
+        setAviso(`Listo: ${resumen}. Reemplaza tu archivo por el descargado.`);
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo actualizar el Excel de cobros");
@@ -343,7 +388,7 @@ export default function ExportCobros({ wsId }: { wsId: string }) {
             <div style={{ marginBottom: 12 }}>
               <div style={{ fontSize: 14, color: "var(--fg-2)", marginBottom: 2 }}>Precios</div>
               <div style={{ fontSize: 13, color: "var(--fg-4)", marginBottom: 6 }}>
-                Cualquier COBROS anterior: se usa su pestaña Materiales. Se lee en este computador, no se sube.
+                La base de materiales de Patricio (la de OT) o cualquier COBROS anterior. Se lee en este computador, no se sube.
               </div>
               <label style={{
                 display: "flex", alignItems: "center", gap: 6, height: 30, padding: "0 8px",

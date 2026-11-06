@@ -51,6 +51,17 @@ describe("applyFiltros", () => {
     expect(run(list, {}, d)).toHaveLength(3);
   });
 
+  it("cobro: con bandera verde + sin cobrar quedan las que faltan marcar", () => {
+    const list = [ot({ id: "a" }), ot({ id: "b" }), ot({ id: "c", estado: "en_curso" }), ot({ id: "d" })];
+    const d = { ...deps, cobradaIds: new Set(["a"]), banderaColorPorOrden: new Map([["a", "#22C55E"], ["b", "#22C55E"], ["c", "#22C55E"]]) };
+    expect(run(list, { cobro: ["cobradas"] }, d).map(o => o.id)).toEqual(["a"]);
+    // Sin cobrar incluye las abiertas: ninguna verde sin marcar se escapa.
+    expect(run(list, { cobro: ["sin_cobrar"], banderaColores: ["#22C55E"] }, d).map(o => o.id)).toEqual(["b", "c"]);
+    expect(run(list, { cobro: ["cobradas", "sin_cobrar"] }, d)).toHaveLength(4);
+    // Sin permiso (sin cobradaIds) no recorta nada.
+    expect(run(list, { cobro: ["cobradas"] })).toHaveLength(4);
+  });
+
   it("origen: propias, recibidas de clientes y enviadas a proveedores", () => {
     const list = [ot({ id: "p" }), ot({ id: "r" }), ot({ id: "e" })];
     const origen: Record<string, string> = { p: "propia", r: "recibida", e: "enviada" };

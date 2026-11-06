@@ -52,6 +52,7 @@ describe("needsFullWorkspaceSet", () => {
     ["bajaIds", { bajaIds: ["b1"] }],
     ["creadoPorIds", { creadoPorIds: ["u1"] }],
     ["origenes", { origenes: ["recibida"] }],
+    ["cobro", { cobro: ["sin_cobrar"] }],
   ])("el filtro %s exige el set completo", (_name, over) => {
     expect(
       needsFullWorkspaceSet({ ...base, filtros: { ...SIN_FILTROS, ...over } as FiltrosState }),
