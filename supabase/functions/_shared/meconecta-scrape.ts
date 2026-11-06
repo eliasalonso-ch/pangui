@@ -198,3 +198,104 @@ export function detalleUrl(href: string): string {
   const qs = href.replace(/^[?&]+/, "");
   return `${BASE}/index.php?${qs}`;
 }
+
+// ── Detalle de una solicitud ("Ver solicitud") ──────────────────────────────
+//
+// Todo lo que necesita la OT viene en esa página, cada dato como
+// `<label>Etiqueta</label>` seguido de su valor (en un div DestacaTexto o como
+// texto suelto hasta el </td>). Incluye el "Nombre Resolutor" = el ITO, que el
+// PDF de la solicitud NO trae.
+
+export interface SolicitudDetalle {
+  folio: string;
+  titulo: string;
+  prioridad: string;
+  ubicacion: string;
+  lugar: string;
+  contacto: string;
+  telefono: string;
+  email: string;
+  detalle: string;
+  tipoMantencion: string;
+  sociedad: string;
+  resolutor: string;
+  /** "Archivo N" adjuntos por el solicitante (fotos casi siempre). */
+  archivos: string[];
+}
+
+/** Valor de la primera etiqueta exacta `label` ("" si no está). */
+export function campo(html: string, label: string): string {
+  const esc = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const m = new RegExp(`<label[^>]*>\\s*${esc}\\s*:?\\s*</label>([\\s\\S]*?)(?=<label|</td>|</form>)`, "i").exec(html);
+  return m ? stripTags(m[1]).trim() : "";
+}
+
+/** null si la página no es un detalle (p. ej. el portal devolvió el login). */
+export function parseDetalle(html: string): SolicitudDetalle | null {
+  const folio = campo(html, "N°");
+  if (!/^SF\d+$/i.test(folio)) return null;
+  const archivos = [...html.matchAll(/<a[^>]*href=["']([^"']+)["'][^>]*>\s*Descargar Archivo\s*<\/a>/gi)]
+    .map((m) => decodeEntities(m[1]));
+  return {
+    folio,
+    titulo:         campo(html, "Título Solicitud"),
+    prioridad:      campo(html, "Prioridad"),
+    ubicacion:      campo(html, "Ubicación"),
+    lugar:          campo(html, "Lugar"),
+    // Persona de Contacto; si viene vacía, el solicitante. Teléfono y email
+    // primero del contacto, para no mezclar datos de dos personas.
+    contacto:       campo(html, "Nombre") || campo(html, "Nombres y Apellidos"),
+    telefono:       campo(html, "Anexo") || campo(html, "Teléfono"),
+    email:          campo(html, "E-mail") || campo(html, "Email"),
+    detalle:        campo(html, "Detalle Solicitud"),
+    tipoMantencion: campo(html, "Tipo de Mantención"),
+    sociedad:       campo(html, "Sociedad"),
+    resolutor:      campo(html, "Nombre Resolutor"),
+    archivos,
+  };
+}
+
+/**
+ * El portal declara UTF-8 pero no está garantizado (PHP viejo); fetch().text()
+ * asume UTF-8 y destrozaría las tildes de un Latin-1. Si no es UTF-8 válido,
+ * se lee como windows-1252.
+ */
+export function decodificar(bytes: Uint8Array): string {
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  } catch {
+    return new TextDecoder("windows-1252").decode(bytes);
+  }
+}
+
+export async function fetchDetalle(cookie: string, detalleHref: string): Promise<SolicitudDetalle> {
+  const res = await fetchMeconecta(detalleUrl(detalleHref), {
+    headers: { "Cookie": cookie, "User-Agent": UA, "Accept": "text/html" },
+  }, "detalle fetch");
+  if (!res.ok) throw new Error(`detalle fetch ${res.status}`);
+  const detalle = parseDetalle(decodificar(new Uint8Array(await res.arrayBuffer())));
+  if (!detalle) throw new Error("detalle fetch: la página no trae un N° SF (¿sesión caída o markup cambiado?)");
+  return detalle;
+}
+
+const MAX_ARCHIVO_BYTES = 20 * 1024 * 1024;
+
+/** El PDF "Solicitud de Mantención" que genera el portal (el que se imprimía a mano). */
+export async function descargarPdfSolicitud(cookie: string, idExterno: number): Promise<Uint8Array> {
+  const bytes = await descargarArchivo(cookie, `${BASE}/modulos/resolutor/resolutor_solicitudPDF.fmgf.php?ids=${btoa(String(idExterno))}`);
+  if (new TextDecoder().decode(bytes.subarray(0, 5)) !== "%PDF-") {
+    throw new Error("el portal no devolvió un PDF (¿sesión caída?)");
+  }
+  return bytes;
+}
+
+/** Descarga un adjunto del portal (con la sesión, por si /files/ la pide). */
+export async function descargarArchivo(cookie: string, url: string): Promise<Uint8Array> {
+  const abs = new URL(url, `${BASE}/`).href;
+  if (!abs.startsWith(`${BASE}/`)) throw new Error(`archivo fuera del portal: ${abs}`);
+  const res = await fetchMeconecta(abs, { headers: { "Cookie": cookie, "User-Agent": UA } }, "archivo fetch");
+  if (!res.ok) throw new Error(`archivo fetch ${res.status}`);
+  const bytes = new Uint8Array(await res.arrayBuffer());
+  if (bytes.byteLength > MAX_ARCHIVO_BYTES) throw new Error(`archivo de ${bytes.byteLength} bytes supera 20 MB`);
+  return bytes;
+}

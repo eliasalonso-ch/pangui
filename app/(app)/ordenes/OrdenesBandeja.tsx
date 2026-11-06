@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { Plus, Search, X, ChevronDown, Loader2, ClipboardCheck, ArrowUp, ArrowUpDown, Download, AlertTriangle, Calendar, Check, Copy, DatabaseArrowDown, Eye, EyeOff } from "lucide-react";
 import { createClient, logRealtimeChannel } from "@/lib/supabase";
-import { esAdmin } from "@/lib/roles";
+import { esAdmin, esElevado } from "@/lib/roles";
 import { fetchOrdenesPage, fetchAllOrdenesForExport, fetchAllOrdenesBulk, fetchOrdenesCalendarExtras, fetchOrdenListItem, searchOrdenes, searchPapelera, restoreOrden, ORDENES_SEARCH_LIMIT, deleteOrden, ORDENES_PAGE_SIZE, parseDescMeta, fetchMarcadasIds, toggleMarcada, matchesSearch, ELECTRILAM_WORKSPACE_ID } from "@/lib/ordenes-api";
 import { ordenQueryOptions } from "@/lib/queries";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -47,6 +47,7 @@ import type {
 } from "@/types/ordenes";
 import { classifyWaitingReason, type WaitingReasonKey } from "@/lib/waiting-reason";
 import { COLORES_BANDERA, useOTBanderaActions, useOTBanderas } from "@/lib/ot-banderas";
+import { imprimirPdf, useMarcarImpresa, useOTImpresiones } from "@/lib/ot-impresiones";
 import { calcularHoja, celdasConResultados } from "@/lib/hoja-formulas";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -640,11 +641,18 @@ export default function OrdenesBandeja({
     openOT(id, true);
   }, [openOT, pendingCopy, ordenes, confirmCopyTo]);
 
+  // Asignar desde la tarjeta. Como en removeOrdenLocal, la OT vive en la página
+  // visible, en el snapshot del workspace (de ahí sale la lista con pestaña o
+  // filtro activo) y en los resultados de búsqueda: parchar solo `ordenes`
+  // dejaba la tarjeta con los asignados viejos hasta recargar.
   const handleRowAssigned = useCallback((id: string, newIds: string[]) => {
-    setOrdenes(prev =>
-      prev.map(x => x.id === id ? { ...x, asignados_ids: newIds.length > 0 ? newIds : null } : x)
-    );
-  }, []);
+    const asignados_ids = newIds.length > 0 ? newIds : null;
+    const patch = <T extends { id: string }>(rows: T[]) => rows.map(x => x.id === id ? { ...x, asignados_ids } : x);
+    setOrdenes(prev => patch(prev));
+    setAllOrdenesForCounts(prev => prev ? patch(prev) : prev);
+    queryClient.setQueryData<OrdenBulkItem[]>(["ordenes-snapshot", wsId], prev => prev ? patch(prev) : prev);
+    queryClient.setQueriesData<OrdenListItem[]>({ queryKey: ["ordenes-search", wsId] }, prev => prev ? patch(prev) : prev);
+  }, [queryClient, wsId]);
 
   // Sync the panel with the ?id= URL param so direct/pasted links open the
   // OT detail, and so closing the panel (which strips ?id=) clears it.
@@ -1041,6 +1049,17 @@ export default function OrdenesBandeja({
     (ordenId: string) => banderaActions.quitar(ordenId),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [wsId],
+  );
+
+  // PDF de la solicitud MeConecta por OT (solo las que creó la integración).
+  // RLS no se la muestra a solicitantes; `enabled` evita pedirla para ellos.
+  const { data: impresiones } = useOTImpresiones(esElevado(myRol));
+  const marcarImpresaOT = useMarcarImpresa();
+  // Estable para no romper el memo de cada fila.
+  const marcarImpresa = useCallback(
+    (ordenId: string) => marcarImpresaOT(ordenId),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
   );
 
   // Motivo de pausa por OT: tooltip de "En espera" en la fila (categoría +
@@ -2071,6 +2090,9 @@ export default function OrdenesBandeja({
                     bandera={puedeMarcar ? banderas?.get(o.id) ?? null : undefined}
                     onGuardarBandera={puedeMarcar ? guardarBandera : undefined}
                     onQuitarBandera={puedeMarcar ? quitarBandera : undefined}
+                    impresion={impresiones?.get(o.id)}
+                    onImprimir={imprimirPdf}
+                    onMarcarImpresa={marcarImpresa}
                     isMarcada={marcadas.has(o.id)}
                     onToggleMarcada={handleToggleMarcada}
                     todayKey={todayKey}
