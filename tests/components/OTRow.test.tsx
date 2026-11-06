@@ -4,6 +4,13 @@ import userEvent from "@testing-library/user-event";
 import OTRow from "@/app/(app)/ordenes/OTRow";
 import type { OrdenListItem, Usuario } from "@/types/ordenes";
 
+// Asignar desde la tarjeta llama a updateOrden; el resto del módulo es real.
+const updateOrden = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/ordenes-api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/ordenes-api")>()),
+  updateOrden,
+}));
+
 // La foto de perfil sale de una query (TanStack) que en la app provee el
 // layout. Aca solo importan las iniciales: se renderizan tal cual.
 vi.mock("@/components/FotoPerfil", () => ({
@@ -149,5 +156,66 @@ describe("OTRow", () => {
     const ordenWith4 = { ...baseOrden, asignados_ids: ["u1", "u2", "u3", "u4"] };
     render(<OTRow orden={ordenWith4} usuarios={moreUsers} isSelected={false} onClick={vi.fn()} />);
     expect(screen.getByText("+1")).toBeInTheDocument();
+  });
+});
+
+describe("OTRow — imprimir solicitud", () => {
+  const impresion = { pdfUrl: "https://cdn.example/s.pdf", impresaAt: null, impresaPor: null };
+  const props = { usuarios, isSelected: false, onClick: vi.fn() };
+
+  it("sin PDF de MeConecta no muestra el botón", () => {
+    render(<OTRow orden={baseOrden} {...props} onImprimir={vi.fn()} onMarcarImpresa={vi.fn()} />);
+    expect(screen.queryByLabelText("Imprimir solicitud")).not.toBeInTheDocument();
+  });
+
+  it("imprime sin abrir la OT y solo marca si se confirma", async () => {
+    const onClick = vi.fn();
+    const onImprimir = vi.fn().mockResolvedValue(undefined);
+    const onMarcar = vi.fn().mockResolvedValue(undefined);
+    render(<OTRow orden={baseOrden} {...props} onClick={onClick} impresion={impresion} onImprimir={onImprimir} onMarcarImpresa={onMarcar} />);
+    await userEvent.click(screen.getByLabelText("Imprimir solicitud"));
+    expect(onImprimir).toHaveBeenCalledWith("https://cdn.example/s.pdf");
+    expect(onClick).not.toHaveBeenCalled();
+    expect(onMarcar).not.toHaveBeenCalled();
+    await userEvent.click(await screen.findByRole("button", { name: "Sí, marcar" }));
+    expect(onMarcar).toHaveBeenCalledWith("ot-1");
+  });
+
+  it("si no se imprimió, no marca", async () => {
+    const onMarcar = vi.fn().mockResolvedValue(undefined);
+    render(<OTRow orden={baseOrden} {...props} impresion={impresion} onImprimir={vi.fn().mockResolvedValue(undefined)} onMarcarImpresa={onMarcar} />);
+    await userEvent.click(screen.getByLabelText("Imprimir solicitud"));
+    await userEvent.click(await screen.findByRole("button", { name: "No" }));
+    expect(onMarcar).not.toHaveBeenCalled();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("impresa: reimprimir no vuelve a preguntar", async () => {
+    const onImprimir = vi.fn().mockResolvedValue(undefined);
+    render(<OTRow orden={baseOrden} {...props}
+      impresion={{ ...impresion, impresaAt: "2026-11-06T13:30:00Z", impresaPor: "u2" }} onImprimir={onImprimir} onMarcarImpresa={vi.fn()} />);
+    await userEvent.click(screen.getByLabelText("Reimprimir solicitud"));
+    expect(onImprimir).toHaveBeenCalled();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+});
+
+describe("OTRow — asignar desde la tarjeta", () => {
+  it("es optimista: avisa antes de que responda el servidor", async () => {
+    updateOrden.mockReturnValue(new Promise(() => {})); // nunca responde
+    const onAssigned = vi.fn();
+    render(<OTRow orden={baseOrden} usuarios={usuarios} isSelected={false} onClick={vi.fn()} myId="u2" onAssigned={onAssigned} />);
+    await userEvent.click(screen.getByTitle("Asignar usuario"));
+    await userEvent.click(screen.getByRole("button", { name: /Ana López/ }));
+    expect(onAssigned).toHaveBeenCalledWith("ot-1", ["u1"]);
+  });
+
+  it("si el servidor falla, vuelve a los asignados de antes", async () => {
+    updateOrden.mockRejectedValue(new Error("409"));
+    const onAssigned = vi.fn();
+    render(<OTRow orden={baseOrden} usuarios={usuarios} isSelected={false} onClick={vi.fn()} myId="u2" onAssigned={onAssigned} />);
+    await userEvent.click(screen.getByTitle("Asignar usuario"));
+    await userEvent.click(screen.getByRole("button", { name: /Ana López/ }));
+    await vi.waitFor(() => expect(onAssigned).toHaveBeenLastCalledWith("ot-1", []));
   });
 });

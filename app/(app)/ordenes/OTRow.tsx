@@ -2,14 +2,17 @@
 
 import { useState, useRef, useEffect, useMemo, memo } from "react";
 import { createPortal } from "react-dom";
+import { toast } from "sonner";
 import {
   Clock, MapPin, Copy, Check as CheckIcon, AlertCircle, UserPlus, X as XIcon,
   CheckCircle2, Circle,
   Minus, Pause, Check, RotateCw, UserRoundX, UserRoundCheck,
   ArrowUp, ArrowDown, AlertTriangle, FlagTriangleRight, ClipboardCheck,
+  Printer, PrinterCheck, Loader2,
   type LucideIcon,
 } from "lucide-react";
 import { COLORES_BANDERA, type OTBandera } from "@/lib/ot-banderas";
+import type { OTImpresion } from "@/lib/ot-impresiones";
 import { parseDescMeta, updateOrden } from "@/lib/ordenes-api";
 import { clienteDeOT } from "@/lib/envios-api";
 import type { OrdenListItem, OrdenBulkItem, Usuario, Estado, Prioridad } from "@/types/ordenes";
@@ -74,6 +77,8 @@ function RowBadge({
       color: "var(--fg-1)",
       background: "var(--surface-1)",
       whiteSpace: "nowrap",
+      // Las etiquetas no se encogen: el espacio que falte lo cede la ubicación.
+      flexShrink: 0,
     }}>
       {Icon && <SolidIcon icon={Icon} color={iconColor ?? "var(--fg-3)"} />}
       {children}
@@ -252,18 +257,24 @@ function AssignDropdown({ orden, usuarios, myId, onAssigned, onClose, anchorRect
   const flipUp = window.innerHeight - anchorRect.bottom < 220;
   const top = flipUp ? anchorRect.top : anchorRect.bottom + 6;
 
+  // Optimista: la tarjeta cambia al instante; si el servidor rechaza, vuelve a
+  // los asignados de antes y se avisa.
   async function toggle(userId: string) {
     const already = currentIds.includes(userId);
     const newIds = already ? currentIds.filter(id => id !== userId) : [...currentIds, userId];
+    const antes = currentIds;
     setSaving(userId);
+    onAssigned(newIds);
     try {
       await updateOrden(orden.id, myId, {
         // Array vacio, no null: la validacion del comando exige un array
         // cuando la clave viene presente (400 "asignados_ids must be an
         // array" al desasignar al ultimo usuario).
         asignados_ids: newIds,
-      }, currentIds);
-      onAssigned(newIds);
+      }, antes);
+    } catch {
+      onAssigned(antes);
+      toast.error("No se pudo cambiar la asignación. Inténtalo de nuevo.");
     } finally {
       setSaving(null);
     }
@@ -346,6 +357,131 @@ function AssignDropdown({ orden, usuarios, myId, onAssigned, onClose, anchorRect
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+
+// ── Imprimir PDF de la solicitud (OTs creadas desde MeConecta) ────────────────
+
+// Tenue sin imprimir (como "marcar como leída"); impresa, el verde de
+// "Completada" con check y, al pasar el mouse, quién y cuándo.
+//
+// El navegador no dice si el diálogo de impresión terminó en imprimir o en
+// cancelar, así que tras abrirlo se pregunta "¿Se imprimió?" y solo un "Sí"
+// marca la OT. Reimprimir una ya marcada no pregunta (la marca guarda la
+// primera vez).
+function ImprimirTrigger({ ordenId, impresion, usuarios, onImprimir, onMarcar }: {
+  ordenId:    string;
+  impresion:  OTImpresion;
+  usuarios:   Usuario[];
+  onImprimir: (pdfUrl: string) => Promise<void>;
+  onMarcar:   (ordenId: string) => Promise<void>;
+}) {
+  const ref = useRef<HTMLButtonElement>(null);
+  const [busy, setBusy] = useState(false);
+  const [pregunta, setPregunta] = useState<DOMRect | null>(null);
+  const impresa = Boolean(impresion.impresaAt);
+
+  const boton = (
+    <button
+      ref={ref}
+      type="button"
+      disabled={busy}
+      title={impresa ? undefined : "Imprimir solicitud"}
+      aria-label={impresa ? "Reimprimir solicitud" : "Imprimir solicitud"}
+      onClick={e => {
+        e.stopPropagation();
+        setBusy(true);
+        onImprimir(impresion.pdfUrl)
+          .then(() => { if (!impresa) setPregunta(ref.current?.getBoundingClientRect() ?? null); })
+          .catch(() => undefined)
+          .finally(() => setBusy(false));
+      }}
+      style={{
+        background: "none", border: "none", cursor: busy ? "wait" : "pointer", padding: 2,
+        display: "flex", alignItems: "center",
+        color: impresa ? "var(--st-done-dot)" : "var(--fg-4)", // verde de "Completada"
+        transition: "color var(--dur-fast) var(--ease)",
+      }}
+      onMouseEnter={e => { if (!impresa) e.currentTarget.style.color = "var(--fg-2)"; }}
+      onMouseLeave={e => { if (!impresa) e.currentTarget.style.color = "var(--fg-4)"; }}
+    >
+      {busy ? <Loader2 size={14} className="animate-spin" /> : impresa ? <PrinterCheck size={14} /> : <Printer size={14} />}
+    </button>
+  );
+
+  if (!impresa) {
+    return (
+      <>
+        {boton}
+        {pregunta && (
+          <PreguntaImpresa anchorRect={pregunta} onClose={() => setPregunta(null)} onSi={() => onMarcar(ordenId)} />
+        )}
+      </>
+    );
+  }
+  const quien = usuarios.find(u => u.id === impresion.impresaPor)?.nombre ?? "—";
+  const cuando = new Date(impresion.impresaAt!).toLocaleString("es-CL", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+  return <HoverTooltip label="Impresa" body={`${cuando} · ${quien}`}>{boton}</HoverTooltip>;
+}
+
+function PreguntaImpresa({ anchorRect, onClose, onSi }: {
+  anchorRect: DOMRect;
+  onClose:    () => void;
+  onSi:       () => Promise<void>;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    function onDown(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
+    }
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [onClose]);
+
+  const W = 220;
+  let left = anchorRect.right - W;
+  if (left < 8) left = 8;
+  if (left + W > window.innerWidth - 8) left = window.innerWidth - W - 8;
+
+  return createPortal(
+    <div
+      ref={ref}
+      role="dialog"
+      aria-label="¿Se imprimió?"
+      onClick={e => e.stopPropagation()}
+      onMouseDown={e => e.stopPropagation()}
+      style={{
+        position: "fixed", top: anchorRect.bottom + 6, left, width: W, zIndex: 9999,
+        background: "var(--surface-2)", border: "1px solid var(--border)",
+        borderRadius: "var(--r-md)", boxShadow: "var(--shadow-md)", padding: 12,
+        display: "flex", flexDirection: "column", gap: 10,
+      }}
+    >
+      <span style={{ fontSize: 14, color: "var(--fg-1)" }}>¿Se imprimió la solicitud?</span>
+      {error && <span style={{ fontSize: 13, color: "var(--danger)" }}>{error}</span>}
+      <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+        <button type="button" disabled={saving} onClick={onClose}
+          style={{ background: "none", border: "none", cursor: "pointer", color: "var(--fg-2)", fontSize: 14, padding: "6px 8px" }}>
+          No
+        </button>
+        <button type="button" disabled={saving}
+          onClick={() => {
+            setSaving(true);
+            setError(null);
+            onSi().then(onClose).catch(() => setError("No se pudo marcar. Inténtalo de nuevo.")).finally(() => setSaving(false));
+          }}
+          style={{
+            border: "none", cursor: "pointer", borderRadius: "var(--r-sm)", padding: "6px 14px",
+            background: "var(--brand)", color: "var(--fg-on-brand)", fontSize: 14, opacity: saving ? 0.6 : 1,
+          }}>
+          Sí, marcar
+        </button>
+      </div>
+    </div>,
+    document.body,
+  );
+}
 
 // ── Bandera (solo dueño/admin) ────────────────────────────────────────────────
 
@@ -530,11 +666,15 @@ interface Props {
   bandera?:          OTBandera | null;
   onGuardarBandera?: (ordenId: string, color: string, nota: string) => Promise<void>;
   onQuitarBandera?:  (ordenId: string) => Promise<void>;
+  // PDF de la solicitud MeConecta: solo las OTs que creó la integración lo traen.
+  impresion?:       OTImpresion;
+  onImprimir?:      (pdfUrl: string) => Promise<void>;
+  onMarcarImpresa?: (ordenId: string) => Promise<void>;
 }
 
 // `rowNumber` sigue en Props porque el contenedor lo pasa, pero ya no se
 // muestra: el número correlativo no aportaba y competía con el N° de OT real.
-function OTRow({ orden, usuarios, isSelected, onClick, onPrefetch, myId, onAssigned, coordinadaPara, isMarcada, onToggleMarcada, todayKey, motivoEspera, bandera, onGuardarBandera, onQuitarBandera }: Props) {
+function OTRow({ orden, usuarios, isSelected, onClick, onPrefetch, myId, onAssigned, coordinadaPara, isMarcada, onToggleMarcada, todayKey, motivoEspera, bandera, onGuardarBandera, onQuitarBandera, impresion, onImprimir, onMarcarImpresa }: Props) {
   const effectiveTodayKey = todayKey ?? chileDateKey();
   const isPending = Boolean(orden._pending);
   const hasAssignees = (orden.asignados_ids ?? []).length > 0;
@@ -640,6 +780,9 @@ function OTRow({ orden, usuarios, isSelected, onClick, onPrefetch, myId, onAssig
           )}
         </span>
         <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {impresion && onImprimir && onMarcarImpresa && !isPending && (
+            <ImprimirTrigger ordenId={orden.id} impresion={impresion} usuarios={usuarios} onImprimir={onImprimir} onMarcar={onMarcarImpresa} />
+          )}
           {due && (
             <span style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 14, fontWeight: 400, color: "var(--fg-1)" }}>
               {due.overdue
@@ -732,12 +875,13 @@ function OTRow({ orden, usuarios, isSelected, onClick, onPrefetch, myId, onAssig
             </RowBadge>
           )}
 
-          {/* Location */}
+          {/* Location — lo único que se encoge (con elipsis) cuando falta
+              espacio, en vez de cortarse en seco. */}
           {orden.ubicaciones?.edificio && (
-            <HoverTooltip label="Ubicación" body={orden.ubicaciones.edificio}>
-              <span style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 14, fontWeight: 400, color: "var(--fg-3)" }}>
-                <MapPin size={14} />
-                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 120 }}>
+            <HoverTooltip label="Ubicación" body={orden.ubicaciones.edificio} triggerStyle={{ minWidth: 0 }}>
+              <span style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 14, fontWeight: 400, color: "var(--fg-3)", minWidth: 0 }}>
+                <MapPin size={14} style={{ flexShrink: 0 }} />
+                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>
                   {orden.ubicaciones.edificio}
                 </span>
               </span>
@@ -746,12 +890,11 @@ function OTRow({ orden, usuarios, isSelected, onClick, onPrefetch, myId, onAssig
 
         </div>
 
-        {/* Right: flag + time + avatars */}
+        {/* Right: time + avatars + flag. La bandera va al final, pegada al
+            borde: así cae en el mismo lugar en todas las tarjetas sin reservar
+            anchos fijos que le quiten espacio a la ubicación. */}
         <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
-          {bandera !== undefined && onGuardarBandera && onQuitarBandera && (
-            <BanderaTrigger ordenId={orden.id} bandera={bandera} onGuardar={onGuardarBandera} onQuitar={onQuitarBandera} />
-          )}
-          <span suppressHydrationWarning style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-4)" }}>{mounted ? timeAgo(orden.created_at) : ""}</span>
+          <span suppressHydrationWarning style={{ whiteSpace: "nowrap", fontSize: 14, fontWeight: 400, color: "var(--fg-4)" }}>{mounted ? timeAgo(orden.created_at) : ""}</span>
 
           {/* Avatar trigger — always shown as a button when onAssigned is wired */}
           <button
@@ -814,6 +957,10 @@ function OTRow({ orden, usuarios, isSelected, onClick, onPrefetch, myId, onAssig
               onClose={() => setDropOpen(false)}
               anchorRect={anchorRect}
             />
+          )}
+
+          {bandera !== undefined && onGuardarBandera && onQuitarBandera && (
+            <BanderaTrigger ordenId={orden.id} bandera={bandera} onGuardar={onGuardarBandera} onQuitar={onQuitarBandera} />
           )}
         </div>
       </div>
