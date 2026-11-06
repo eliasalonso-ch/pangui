@@ -48,6 +48,7 @@ import type {
 import { classifyWaitingReason, type WaitingReasonKey } from "@/lib/waiting-reason";
 import { COLORES_BANDERA, useOTBanderaActions, useOTBanderas } from "@/lib/ot-banderas";
 import { imprimirPdf, useMarcarImpresa, useOTImpresiones } from "@/lib/ot-impresiones";
+import { useMarcarCobrada, useOTCobros } from "@/lib/ot-cobros";
 import { calcularHoja, celdasConResultados } from "@/lib/hoja-formulas";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -1062,6 +1063,23 @@ export default function OrdenesBandeja({
     [],
   );
 
+  // Cobro por OT (Electrilam): botón "cobrada" en las completadas, que después
+  // toma el Excel de cobros. Los mismos que ven el botón Cobros.
+  const puedeCobrar = esAdmin(myRol) && tieneCobros(wsId);
+  const { data: cobros } = useOTCobros(puedeCobrar);
+  // Para el filtro "Cobro". Sin permiso queda undefined y el filtro no recorta nada.
+  const cobradaIds = useMemo(
+    () => (puedeCobrar && cobros ? new Set([...cobros].filter(([, c]) => c.cobradaAt).map(([id]) => id)) : undefined),
+    [puedeCobrar, cobros],
+  );
+  const marcarCobradaOT = useMarcarCobrada();
+  // Estable para no romper el memo de cada fila.
+  const marcarCobrada = useCallback(
+    (ordenId: string, cobrada: boolean) => marcarCobradaOT(ordenId, cobrada),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
+
   // Motivo de pausa por OT: tooltip de "En espera" en la fila (categoría +
   // comentario del técnico). Mismos datos que alimentan los contadores.
   const motivoEsperaPorId = useMemo(
@@ -1207,7 +1225,7 @@ export default function OrdenesBandeja({
 
     // Filtros + búsqueda — cadena compartida con los contadores de pestaña.
     list = applyFiltros(list, filtros, {
-      ubicaciones, todayKey, search, matchesSearch, banderaColorPorOrden, origenDe: origenDeOT,
+      ubicaciones, todayKey, search, matchesSearch, banderaColorPorOrden, cobradaIds, origenDe: origenDeOT,
     });
 
     // Hide the current user's marked ("leídas") OTs when the toggle is on.
@@ -1252,7 +1270,7 @@ export default function OrdenesBandeja({
       });
     }
     return list;
-  }, [ordenes, countOrdenes, usarSetCompleto, searchResults, view, tab, scope, search, sort, filtros, ubicaciones, reprogramadaIds, faltanMaterialesIds, ocultarMarcadas, marcadas, todayKey, banderaColorPorOrden]);
+  }, [ordenes, countOrdenes, usarSetCompleto, searchResults, view, tab, scope, search, sort, filtros, ubicaciones, reprogramadaIds, faltanMaterialesIds, ocultarMarcadas, marcadas, todayKey, banderaColorPorOrden, cobradaIds]);
 
   // The calendar needs recurrencia_config + activos, which the lean bulk select
   // omits. Fetch them the first time the calendar opens, not on every list load.
@@ -1362,7 +1380,7 @@ export default function OrdenesBandeja({
     // every field read below exists on both.
     const applyFilters = (list: OrdenBulkItem[]) =>
       applyFiltros(list, filtros, {
-        ubicaciones, todayKey, search, matchesSearch, banderaColorPorOrden, origenDe: origenDeOT,
+        ubicaciones, todayKey, search, matchesSearch, banderaColorPorOrden, cobradaIds, origenDe: origenDeOT,
       });
     // Per tab × per scope. Drives the dropdown labels, the red-dot indicators,
     // and the tab pill counts. All respect search + filtros so the count
@@ -1405,7 +1423,7 @@ export default function OrdenesBandeja({
         presupuestos:   applyFilters(closed.filter(esPresupuesto)).length,
       },
     };
-  }, [countOrdenes, searchResults, filtros, search, ubicaciones, reprogramadaIds, faltanMaterialesIds, todayKey, banderaColorPorOrden]);
+  }, [countOrdenes, searchResults, filtros, search, ubicaciones, reprogramadaIds, faltanMaterialesIds, todayKey, banderaColorPorOrden, cobradaIds]);
   const currentSortLabel = SORT_OPTIONS.find(o => o.value === sort)?.label ?? "";
   const scopeLabel: Record<ScopeKey, string> = {
     todas: "Todas",
@@ -1511,7 +1529,7 @@ export default function OrdenesBandeja({
         // contadores. Antes esta era una tercera copia a mano y ya se habia
         // quedado sin los filtros de sociedad y de ITO.
         list = applyFiltros(list, filtros, {
-          ubicaciones, todayKey, search, matchesSearch, banderaColorPorOrden, origenDe: origenDeOT,
+          ubicaciones, todayKey, search, matchesSearch, banderaColorPorOrden, cobradaIds, origenDe: origenDeOT,
         });
         list.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
         return list;
@@ -1812,6 +1830,7 @@ export default function OrdenesBandeja({
             onVisibleKeysChange={changeVisibleFilterKeys}
             coloresBandera={coloresBandera}
             mostrarOrigen={hayEnvios()}
+            mostrarCobro={puedeCobrar}
             wsId={wsId}
           />
         </div>
@@ -2093,6 +2112,8 @@ export default function OrdenesBandeja({
                     impresion={impresiones?.get(o.id)}
                     onImprimir={imprimirPdf}
                     onMarcarImpresa={marcarImpresa}
+                    cobro={puedeCobrar && o.estado === "completado" ? cobros?.get(o.id) ?? null : undefined}
+                    onMarcarCobrada={puedeCobrar ? marcarCobrada : undefined}
                     isMarcada={marcadas.has(o.id)}
                     onToggleMarcada={handleToggleMarcada}
                     todayKey={todayKey}

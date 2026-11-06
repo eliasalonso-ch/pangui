@@ -52,6 +52,7 @@ export function needsFullWorkspaceSet(args: {
     filtros.categoriaIds.length > 0 ||
     (filtros.banderaColores?.length ?? 0) > 0 ||
     (filtros.origenes?.length ?? 0) > 0 ||
+    (filtros.cobro?.length ?? 0) > 0 ||
     (filtros.creadoPorIds?.length ?? 0) > 0 ||
     (filtros.bajaIds?.length ?? 0) > 0 ||
     filtros.fechaVencimiento != null ||

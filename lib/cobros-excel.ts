@@ -53,6 +53,16 @@ export interface Linea {
   cantidad?: number;
 }
 
+/**
+ * Lo que Pangui sabe del cobro de la OT (tabla ot_cobros). Va en la columna T
+ * de la cabecera: "COBRADA" si la marcaron en la card, o "YA SALIÓ" si es nueva
+ * en este Excel pero ya salió en otro. Se calcula cada vez, no se lee del Excel.
+ */
+export interface EstadoCobro {
+  exportadaAt: string | null;
+  cobradaAt: string | null;
+}
+
 export interface MaterialCobro {
   codigo: string;
   descripcion: string;
@@ -207,6 +217,8 @@ const DORADO = "FFD757";   // fila de TOTALES
 const GRIS = "F2F2F2";
 const FRANJA = "D9D9D9";   // banda del TableStyleLight1
 const ALTO_MAT = 1912;     // la plantilla busca en Materiales!$G$2:$O$1912
+const VERDE = "00A65A";    // marca COBRADA
+const ROJO = "C00000";     // marca YA SALIÓ EN OTRO EXCEL
 
 type Borde = "thin" | "medium" | undefined;
 type Estilo = Record<string, unknown>;
@@ -328,6 +340,8 @@ function encabezado(p: Pestana, titulo: string, desde: string, hasta: string, ul
   for (const [c, v] of [["Q", "Técnico"], ["R", "N° OT \nPangui"]]) {
     p.put(12, c, { v, s: est({ fuente: "Aptos Display", tam: 12, negrita: true, h: "center", ajustar: true, bd: ["thin", c === "R" ? "medium" : "thin", "medium", "medium"] }) });
   }
+  // Fuera de la tabla (entremedio va S, oculta): el aviso de cobro de cada OT.
+  p.put(12, "T", { v: "Cobro", s: est({ fuente: "Aptos Display", tam: 12, negrita: true, h: "center", ajustar: true }) });
   [15.75, 18.75, 16.5, 24, 16.9, 24, 21.75, 8.65, 35.25, 24.95, 18.4, 54.75].forEach((h, i) => p.altura(i + 1, h));
 }
 
@@ -368,10 +382,14 @@ export function bloquesDeOt(ot: OtCobro, catalogo: Map<string, string>, sinOt: b
 }
 
 /** Un bloque de 23 filas desde `cab` (la fila de cabecera de la OT); `n` es su número en la columna A. */
-function bloque(p: Pestana, cab: number, n: number, b: BloqueCobro, catalogo: Map<string, MaterialCobro>, alto: number) {
+function bloque(p: Pestana, cab: number, n: number, b: BloqueCobro, catalogo: Map<string, MaterialCobro>, alto: number, marca?: { v: string; rgb: string }) {
   const { cabecera, lineas } = b;
   p.put(cab, "A", { v: n, s: est({ negrita: true, h: "center" }) });
   if (b.id) p.put(cab, "S", { v: b.id });
+  if (marca) {
+    const s = est({ fuente: "Aptos Display", tam: 12, negrita: true, h: "center", ajustar: true });
+    p.put(cab, "T", { v: marca.v, s: { ...s, font: { ...(s.font as object), color: { rgb: marca.rgb } } } });
+  }
   const bd = (c: string, arriba: Borde = "thin", abajo: Borde = "thin"): [Borde, Borde, Borde, Borde] =>
     [c === "C" ? "medium" : "thin", c === "P" ? "medium" : "thin", arriba, abajo];
 
@@ -448,6 +466,22 @@ function bloque(p: Pestana, cab: number, n: number, b: BloqueCobro, catalogo: Ma
   p.altura(t + 1, 15.75);
 }
 
+/** "06-11" con el calendario local. */
+function ddmm(iso: string): string {
+  const d = new Date(iso);
+  return `${String(d.getDate()).padStart(2, "0")}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
+/**
+ * El aviso de la columna T, sólo en la cabecera. COBRADA gana; "ya salió" sólo
+ * en los bloques nuevos de este Excel: los que ya traía salieron justamente en él.
+ */
+function marcaCobro(b: BloqueCobro, nuevo: boolean, estados: Map<string, EstadoCobro>): { v: string; rgb: string } | undefined {
+  const e = b.cabecera && b.id ? estados.get(b.id) : undefined;
+  if (e?.cobradaAt) return { v: `COBRADA ${ddmm(e.cobradaAt)}`, rgb: VERDE };
+  if (nuevo && e?.exportadaAt) return { v: `YA SALIÓ EN EXCEL DEL ${ddmm(e.exportadaAt)}`, rgb: ROJO };
+}
+
 /**
  * Una pestaña CON OT o SIN OT completa: primero los bloques que ya traía el
  * Excel (`previos`, tal como los dejó Claudio) y después las OTs nuevas.
@@ -458,16 +492,18 @@ export function pestanaCobros(
   materiales: Map<string, MaterialCobro> = new Map(),
   alto = ALTO_MAT,
   previos: BloqueCobro[] = [],
+  estados: Map<string, EstadoCobro> = new Map(),
 ): Record<string, unknown> {
   const p = new Pestana(X);
   const bloques = [...previos, ...ots.flatMap((ot) => bloquesDeOt(ot, catalogo, sinOt))];
   const ultima = PRIMERA_CABECERA + Math.max(bloques.length, 1) * FILAS_POR_BLOQUE - 1;
   encabezado(p, sinOt ? "TRABAJOS SIN OT" : "TRABAJOS CON OT", rango.desde, rango.hasta, ultima);
-  bloques.forEach((b, k) => bloque(p, PRIMERA_CABECERA + k * FILAS_POR_BLOQUE, k + 1, b, materiales, alto));
-  const ws = p.cerrar(ultima, "S", ANCHOS);
-  // S guarda el id de la OT: oculta, fuera de la tabla y de lo que se imprime.
-  ws["!cols"] = [...(ws["!cols"] as object[]), { wch: 38, hidden: true }];
-  ws["!autofilter"] = { ref: `C12:R${ultima}` }; // las flechas de filtro, también por técnico
+  bloques.forEach((b, k) => bloque(p, PRIMERA_CABECERA + k * FILAS_POR_BLOQUE, k + 1, b, materiales, alto,
+    marcaCobro(b, k >= previos.length, estados)));
+  const ws = p.cerrar(ultima, "T", ANCHOS);
+  // S guarda el id de la OT: oculta, fuera de la tabla y de lo que se imprime. T, el aviso de cobro.
+  ws["!cols"] = [...(ws["!cols"] as object[]), { wch: 38, hidden: true }, { wch: 26 }];
+  ws["!autofilter"] = { ref: `C12:T${ultima}` }; // las flechas de filtro, también por técnico y por cobro
   return ws;
 }
 
@@ -485,7 +521,12 @@ export interface ExcelCobros {
   sinOt: BloqueCobro[];
   /** Su pestaña Materiales (con los precios, si ya se los pusieron). */
   precios: FilaPrecios[];
+  /** Modificador general de su pestaña Materiales (L2 materiales, M2 mano de obra). */
+  modificador: Modificador;
 }
+
+/** Multiplicador sobre todos los precios: [materiales, mano de obra]. 1 = 100 %. */
+export type Modificador = [number, number];
 
 /**
  * Lee un Excel de cobros exportado por Pangui para agregarle OTs sin perder lo
@@ -544,7 +585,10 @@ export function leerExcelCobros(X: XlsxHoja, libro: Uint8Array): ExcelCobros | n
     }
     return out;
   };
-  return { conOt: pestana("CON OT"), sinOt: pestana("SIN OT"), precios: leerPrecios(X, libro) };
+  // El modificador que haya puesto Claudio; los Excel de antes no lo traen (100 %).
+  const mat = wb.Sheets["Materiales"] as Record<string, { v?: unknown } | undefined>;
+  const pct = (ref: string) => (typeof mat[ref]?.v === "number" ? (mat[ref]!.v as number) : 1);
+  return { conOt: pestana("CON OT"), sinOt: pestana("SIN OT"), precios: leerPrecios(X, libro), modificador: [pct("L2"), pct("M2")] };
 }
 
 /**
@@ -573,19 +617,22 @@ type XlsxLectura = {
 };
 
 /**
- * Lee la tabla de precios de un Excel de Electrilam (la pestaña "Materiales"
- * de cualquier COBROS, que es la de Patricio). Corre en el navegador de quien
- * exporta: los precios no pasan por Pangui. Devuelve [] si no la encuentra.
+ * Lee la tabla de precios de un Excel de Electrilam: la base de materiales de
+ * Patricio (pestaña "Valores", datos desde la fila 2) o la pestaña "Materiales"
+ * de cualquier COBROS (desde la 4). Mismas columnas B..O en las dos. Corre en el
+ * navegador de quien exporta: los precios no pasan por Pangui. [] si no la hay.
  */
 export function leerPrecios(X: XlsxHoja, libro: Uint8Array): FilaPrecios[] {
   const R = X as unknown as XlsxLectura;
-  const wb = R.read(libro, { type: "array", sheets: ["Materiales"] });
-  const ws = wb.Sheets["Materiales"];
+  const wb = R.read(libro, { type: "array", sheets: ["Materiales", "Valores"] });
+  const nombre = wb.Sheets["Materiales"] ? "Materiales" : "Valores";
+  const ws = wb.Sheets[nombre];
   if (!ws) return [];
-  // Desde A4 fijo: la hoja de Patricio empieza en B, y un rango numérico partiría
-  // desde su primera columna y correría todo una posición.
-  const ultima = /(\d+)$/.exec(String(ws["!ref"] ?? ""))?.[1] ?? "4";
-  return R.utils.sheet_to_json(ws, { header: 1, range: `A4:O${ultima}`, defval: null, raw: true })
+  const desde = nombre === "Valores" ? 2 : 4;
+  // Desde la columna A fija: la hoja de Patricio empieza en B, y un rango numérico
+  // partiría desde su primera columna y correría todo una posición.
+  const ultima = /(\d+)$/.exec(String(ws["!ref"] ?? ""))?.[1] ?? String(desde);
+  return R.utils.sheet_to_json(ws, { header: 1, range: `A${desde}:O${ultima}`, defval: null, raw: true })
     .map((fila) => (fila as (string | number | null)[]).slice(1, 15))
     .filter((f) => String(f[5] ?? "").trim() !== "");
 }
@@ -595,12 +642,19 @@ export function leerPrecios(X: XlsxHoja, libro: Uint8Array): FilaPrecios[] {
  * va esa tal cual (y debajo los códigos del catálogo que no traiga); sin ella,
  * sólo el catálogo, para que al menos salgan descripción y unidad.
  */
-function pestanaMateriales(X: XlsxHoja, catalogo: MaterialCobro[], precios: FilaPrecios[]): Record<string, unknown> {
+function pestanaMateriales(X: XlsxHoja, catalogo: MaterialCobro[], precios: FilaPrecios[], [modMat, modMo]: Modificador = [1, 1]): Record<string, unknown> {
   const p = new Pestana(X);
   p.put(2, "G", {
     v: precios.length ? "   ESTA TABLA NO SE MODIFICA" : "   SIN PRECIOS: elige el Excel de precios al exportar, o pega la tabla desde B4.",
     s: est({ negrita: true }),
   });
+  // Modificador general, como el de las planillas de presupuesto de Patricio:
+  // subir el 100 % a 110 % acá sube MAT FIN / MO FIN de toda la tabla y, con
+  // ellos, todos los cobros (el BUSCARV de CON OT / SIN OT lee N y O).
+  p.put(2, "K", { v: "MODIFICADOR GENERAL", s: est({ negrita: true, h: "right" }) });
+  for (const [c, v] of [["L", modMat], ["M", modMo]] as const) {
+    p.put(2, c, { v, s: est({ negrita: true, relleno: AMARILLO, h: "center", fmt: "0%", bd: ["medium", "medium", "medium", "medium"] }) });
+  }
   const rotulos = ["Clasificación", "Sub Clasificación", "Elemento", "Tamaño / potencia", "Caracteristica", "Codigo", "Descripción", "Un", "MATERIAL", "MO", "% MAT", "% MO", "MAT FIN", "MO FIN"];
   COLS_MAT.forEach((c, i) => p.put(3, c, { v: rotulos[i], s: est({ negrita: true, relleno: GRIS, h: "center", bd: ["thin", "thin", "thin", "thin"] }) }));
   const conPrecio = new Set(precios.map((f) => norm(f[5])));
@@ -609,12 +663,28 @@ function pestanaMateriales(X: XlsxHoja, catalogo: MaterialCobro[], precios: Fila
     ...catalogo.filter((m) => !conPrecio.has(norm(m.codigo)))
       .map((m) => [m.clasificacion, null, null, null, null, m.codigo, m.descripcion, m.unidad, null, null, null, null, null, null]),
   ];
-  filas.forEach((f, i) => COLS_MAT.forEach((c, j) => {
-    const v = f[j];
-    // J/K (MATERIAL, MO) y N/O (MAT FIN, MO FIN) son pesos.
-    const pesos = [8, 9, 12, 13].includes(j);
-    if (v != null && v !== "") p.put(4 + i, c, { v, s: typeof v === "number" && pesos ? est({ fmt: PESOS }) : undefined });
-  }));
+  filas.forEach((f, i) => {
+    const r = 4 + i;
+    COLS_MAT.forEach((c, j) => {
+      const v = f[j];
+      // J/K (MATERIAL, MO) y N/O (MAT FIN, MO FIN) son pesos.
+      const pesos = [8, 9, 12, 13].includes(j);
+      if (j < 12 && v != null && v !== "") p.put(r, c, { v, s: typeof v === "number" && pesos ? est({ fmt: PESOS }) : undefined });
+    });
+    // MAT FIN / MO FIN: base × % de la fila × modificador general. En la base de
+    // Patricio vienen como números (siempre base × %); acá van como fórmula para
+    // que cambiar un % recalcule. Con el resultado ya puesto, para leerse sin recalcular.
+    for (const [fin, base, pct, mod] of [["N", 8, 10, modMat], ["O", 9, 11, modMo]] as const) {
+      const b = f[base], fila = f[pct];
+      if (typeof b !== "number") continue;
+      const conPct = typeof fila === "number";
+      p.put(r, fin, {
+        f: `${COLS_MAT[base]}${r}*${conPct ? `${COLS_MAT[pct]}${r}*` : ""}$${fin === "N" ? "L" : "M"}$2`,
+        v: b * (conPct ? fila : 1) * mod,
+        s: est({ fmt: PESOS }),
+      });
+    }
+  });
   return p.cerrar(Math.max(3 + filas.length, 3), "O", [4, 16, 16, 10, 10, 12, 16, 50, 6, 10, 10, 7, 7, 10, 10]);
 }
 
@@ -676,8 +746,12 @@ function adornar(X: XlsxZip, libro: Uint8Array, hojas: number[], logo?: Uint8Arr
 }
 
 export function libroCobros(X: XlsxHoja, {
-  ots, catalogo, conOt, sinOt, logo, precios = [], previos,
+  ots, catalogo, conOt, sinOt, logo, precios = [], previos, estados, modificador,
 }: {
+  /** Modificador general de precios (Materiales L2/M2). Al actualizar, el que ya tenía el Excel. */
+  modificador?: Modificador;
+  /** Cobro de cada OT (ot_cobros): el aviso de la columna T. */
+  estados?: Map<string, EstadoCobro>;
   /** El Excel que se está actualizando: sus bloques van primero y sus OTs no se repiten. */
   previos?: Pick<ExcelCobros, "conOt" | "sinOt">;
   ots: OtCobro[];
@@ -703,9 +777,9 @@ export function libroCobros(X: XlsxHoja, {
   const porFecha = (a: OtCobro, b: OtCobro) => a.fecha.localeCompare(b.fecha);
   const nuevas = previos ? otsNuevas(ots, previos) : ots;
   const wb = X.utils.book_new();
-  X.utils.book_append_sheet(wb, pestanaCobros(X, nuevas.filter((o) => o.numeroOt && enRango(o, conOt)).sort(porFecha), mapa, false, conOt, porCodigo, alto, previos?.conOt), "CON OT");
-  X.utils.book_append_sheet(wb, pestanaCobros(X, nuevas.filter((o) => !o.numeroOt && enRango(o, sinOt)).sort(porFecha), mapa, true, sinOt, porCodigo, alto, previos?.sinOt), "SIN OT");
-  X.utils.book_append_sheet(wb, pestanaMateriales(X, catalogo, precios), "Materiales");
+  X.utils.book_append_sheet(wb, pestanaCobros(X, nuevas.filter((o) => o.numeroOt && enRango(o, conOt)).sort(porFecha), mapa, false, conOt, porCodigo, alto, previos?.conOt, estados), "CON OT");
+  X.utils.book_append_sheet(wb, pestanaCobros(X, nuevas.filter((o) => !o.numeroOt && enRango(o, sinOt)).sort(porFecha), mapa, true, sinOt, porCodigo, alto, previos?.sinOt, estados), "SIN OT");
+  X.utils.book_append_sheet(wb, pestanaMateriales(X, catalogo, precios, modificador), "Materiales");
   const bytes = new Uint8Array(X.write(wb, { bookType: "xlsx", type: "array" }));
   const vista = { filas: 0, columnas: 0, sinCuadricula: true, zoom: 90 };
   return adornar(X as XlsxZip, ajustarLibro(X, bytes, [vista, vista, undefined]), [1, 2], logo);

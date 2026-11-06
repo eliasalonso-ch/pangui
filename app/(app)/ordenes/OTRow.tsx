@@ -8,11 +8,12 @@ import {
   CheckCircle2, Circle,
   Minus, Pause, Check, RotateCw, UserRoundX, UserRoundCheck,
   ArrowUp, ArrowDown, AlertTriangle, FlagTriangleRight, ClipboardCheck,
-  Printer, PrinterCheck, Loader2,
+  Printer, PrinterCheck, Loader2, BadgeDollarSign,
   type LucideIcon,
 } from "lucide-react";
 import { COLORES_BANDERA, type OTBandera } from "@/lib/ot-banderas";
 import type { OTImpresion } from "@/lib/ot-impresiones";
+import type { OTCobro } from "@/lib/ot-cobros";
 import { parseDescMeta, updateOrden } from "@/lib/ordenes-api";
 import { clienteDeOT } from "@/lib/envios-api";
 import type { OrdenListItem, OrdenBulkItem, Usuario, Estado, Prioridad } from "@/types/ordenes";
@@ -422,6 +423,53 @@ function ImprimirTrigger({ ordenId, impresion, usuarios, onImprimir, onMarcar }:
   return <HoverTooltip label="Impresa" body={`${cuando} · ${quien}`}>{boton}</HoverTooltip>;
 }
 
+// ── Marcar como cobrada (Electrilam, OTs completadas) ─────────────────────────
+
+// Mismo dibujo que la impresora: tenue sin cobrar; cobrada, el verde de
+// "Completada" y, al pasar el mouse, quién y cuándo. Otro clic la desmarca.
+// El Excel de cobros lo toma: no la vuelve a sacar y al actualizar la marca.
+function CobradaTrigger({ ordenId, cobro, usuarios, onMarcar }: {
+  ordenId:  string;
+  cobro:    OTCobro | null;
+  usuarios: Usuario[];
+  onMarcar: (ordenId: string, cobrada: boolean) => Promise<void>;
+}) {
+  const [busy, setBusy] = useState(false);
+  const cobrada = Boolean(cobro?.cobradaAt);
+
+  const boton = (
+    <button
+      type="button"
+      disabled={busy}
+      title={cobrada ? undefined : "Marcar como cobrada"}
+      aria-label={cobrada ? "Cobrada — clic para desmarcar" : "Marcar como cobrada"}
+      aria-pressed={cobrada}
+      onClick={e => {
+        e.stopPropagation();
+        setBusy(true);
+        onMarcar(ordenId, !cobrada)
+          .catch(err => toast.error(err instanceof Error ? err.message : "No se pudo marcar la OT"))
+          .finally(() => setBusy(false));
+      }}
+      style={{
+        background: "none", border: "none", cursor: busy ? "wait" : "pointer", padding: 2,
+        display: "flex", alignItems: "center",
+        color: cobrada ? "var(--st-done-dot)" : "var(--fg-4)",
+        transition: "color var(--dur-fast) var(--ease)",
+      }}
+      onMouseEnter={e => { if (!cobrada) e.currentTarget.style.color = "var(--fg-2)"; }}
+      onMouseLeave={e => { if (!cobrada) e.currentTarget.style.color = "var(--fg-4)"; }}
+    >
+      {busy ? <Loader2 size={14} className="animate-spin" /> : <BadgeDollarSign size={14} />}
+    </button>
+  );
+
+  if (!cobrada) return boton;
+  const quien = usuarios.find(u => u.id === cobro!.cobradaPor)?.nombre ?? "—";
+  const cuando = new Date(cobro!.cobradaAt!).toLocaleString("es-CL", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+  return <HoverTooltip label="Cobrada — clic para desmarcar" body={`${cuando} · ${quien}`}>{boton}</HoverTooltip>;
+}
+
 function PreguntaImpresa({ anchorRect, onClose, onSi }: {
   anchorRect: DOMRect;
   onClose:    () => void;
@@ -670,11 +718,15 @@ interface Props {
   impresion?:       OTImpresion;
   onImprimir?:      (pdfUrl: string) => Promise<void>;
   onMarcarImpresa?: (ordenId: string) => Promise<void>;
+  // Cobro (Electrilam, dueño/admin, OTs completadas). `undefined` = no se
+  // dibuja; `null` = puede marcar pero la OT no tiene fila en ot_cobros.
+  cobro?:            OTCobro | null;
+  onMarcarCobrada?:  (ordenId: string, cobrada: boolean) => Promise<void>;
 }
 
 // `rowNumber` sigue en Props porque el contenedor lo pasa, pero ya no se
 // muestra: el número correlativo no aportaba y competía con el N° de OT real.
-function OTRow({ orden, usuarios, isSelected, onClick, onPrefetch, myId, onAssigned, coordinadaPara, isMarcada, onToggleMarcada, todayKey, motivoEspera, bandera, onGuardarBandera, onQuitarBandera, impresion, onImprimir, onMarcarImpresa }: Props) {
+function OTRow({ orden, usuarios, isSelected, onClick, onPrefetch, myId, onAssigned, coordinadaPara, isMarcada, onToggleMarcada, todayKey, motivoEspera, bandera, onGuardarBandera, onQuitarBandera, impresion, onImprimir, onMarcarImpresa, cobro, onMarcarCobrada }: Props) {
   const effectiveTodayKey = todayKey ?? chileDateKey();
   const isPending = Boolean(orden._pending);
   const hasAssignees = (orden.asignados_ids ?? []).length > 0;
@@ -782,6 +834,9 @@ function OTRow({ orden, usuarios, isSelected, onClick, onPrefetch, myId, onAssig
         <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
           {impresion && onImprimir && onMarcarImpresa && !isPending && (
             <ImprimirTrigger ordenId={orden.id} impresion={impresion} usuarios={usuarios} onImprimir={onImprimir} onMarcar={onMarcarImpresa} />
+          )}
+          {cobro !== undefined && onMarcarCobrada && !isPending && (
+            <CobradaTrigger ordenId={orden.id} cobro={cobro} usuarios={usuarios} onMarcar={onMarcarCobrada} />
           )}
           {due && (
             <span style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 14, fontWeight: 400, color: "var(--fg-1)" }}>
