@@ -1054,7 +1054,11 @@ export default function OrdenesBandeja({
 
   // PDF de la solicitud MeConecta por OT (solo las que creó la integración).
   // RLS no se la muestra a solicitantes; `enabled` evita pedirla para ellos.
-  const { data: impresiones } = useOTImpresiones(esElevado(myRol));
+  const ultimaOT = useMemo(
+    () => ordenes.reduce<string | null>((max, o) => (max && max > o.created_at ? max : o.created_at), null),
+    [ordenes],
+  );
+  const { data: impresiones } = useOTImpresiones(esElevado(myRol), ultimaOT);
   const marcarImpresaOT = useMarcarImpresa();
   // Estable para no romper el memo de cada fila.
   const marcarImpresa = useCallback(

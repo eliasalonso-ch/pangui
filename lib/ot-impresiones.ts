@@ -6,7 +6,7 @@
  * deja leer al workspace sin solicitantes; marcar va por marcar_ot_impresa().
  * Se trae el workspace completo de una vez (pocas filas), como las banderas.
  */
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase";
 
 export interface OTImpresion {
@@ -17,12 +17,19 @@ export interface OTImpresion {
 
 const KEY = ["ot-impresiones"] as const;
 
-/** orden_id → impresión. */
-export function useOTImpresiones(enabled: boolean) {
+/**
+ * orden_id → impresión.
+ * @param ultimaOT created_at de la OT más nueva de la bandeja. Va en la key:
+ * la OT de MeConecta llega por el poll de la lista con la pestaña abierta, y
+ * sin esto el mapa no se volvía a pedir y la card salía sin botón hasta recargar.
+ */
+export function useOTImpresiones(enabled: boolean, ultimaOT: string | null) {
   return useQuery({
-    queryKey: KEY,
+    queryKey: [...KEY, ultimaOT],
     enabled,
     staleTime: 60 * 1000,
+    // Mientras baja el mapa nuevo, los botones de las demás cards no parpadean.
+    placeholderData: keepPreviousData,
     queryFn: async (): Promise<Map<string, OTImpresion>> => {
       const { data, error } = await createClient().from("ot_impresiones").select("orden_id, pdf_url, impresa_at, impresa_por");
       if (error) throw error;
