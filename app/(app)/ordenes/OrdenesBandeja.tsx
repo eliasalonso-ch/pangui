@@ -1059,6 +1059,11 @@ export default function OrdenesBandeja({
     [ordenes],
   );
   const { data: impresiones } = useOTImpresiones(esElevado(myRol), ultimaOT);
+  // Para el filtro "Impresión": solo las OTs con PDF, y si ya se imprimieron.
+  const impresaPorOrden = useMemo(
+    () => (impresiones ? new Map([...impresiones].map(([id, i]) => [id, Boolean(i.impresaAt)])) : undefined),
+    [impresiones],
+  );
   const marcarImpresaOT = useMarcarImpresa();
   // Estable para no romper el memo de cada fila.
   const marcarImpresa = useCallback(
@@ -1229,7 +1234,7 @@ export default function OrdenesBandeja({
 
     // Filtros + búsqueda — cadena compartida con los contadores de pestaña.
     list = applyFiltros(list, filtros, {
-      ubicaciones, todayKey, search, matchesSearch, banderaColorPorOrden, cobradaIds, origenDe: origenDeOT,
+      ubicaciones, todayKey, search, matchesSearch, banderaColorPorOrden, cobradaIds, impresaPorOrden, origenDe: origenDeOT,
     });
 
     // Hide the current user's marked ("leídas") OTs when the toggle is on.
@@ -1274,7 +1279,7 @@ export default function OrdenesBandeja({
       });
     }
     return list;
-  }, [ordenes, countOrdenes, usarSetCompleto, searchResults, view, tab, scope, search, sort, filtros, ubicaciones, reprogramadaIds, faltanMaterialesIds, ocultarMarcadas, marcadas, todayKey, banderaColorPorOrden, cobradaIds]);
+  }, [ordenes, countOrdenes, usarSetCompleto, searchResults, view, tab, scope, search, sort, filtros, ubicaciones, reprogramadaIds, faltanMaterialesIds, ocultarMarcadas, marcadas, todayKey, banderaColorPorOrden, cobradaIds, impresaPorOrden]);
 
   // The calendar needs recurrencia_config + activos, which the lean bulk select
   // omits. Fetch them the first time the calendar opens, not on every list load.
@@ -1384,7 +1389,7 @@ export default function OrdenesBandeja({
     // every field read below exists on both.
     const applyFilters = (list: OrdenBulkItem[]) =>
       applyFiltros(list, filtros, {
-        ubicaciones, todayKey, search, matchesSearch, banderaColorPorOrden, cobradaIds, origenDe: origenDeOT,
+        ubicaciones, todayKey, search, matchesSearch, banderaColorPorOrden, cobradaIds, impresaPorOrden, origenDe: origenDeOT,
       });
     // Per tab × per scope. Drives the dropdown labels, the red-dot indicators,
     // and the tab pill counts. All respect search + filtros so the count
@@ -1427,7 +1432,7 @@ export default function OrdenesBandeja({
         presupuestos:   applyFilters(closed.filter(esPresupuesto)).length,
       },
     };
-  }, [countOrdenes, searchResults, filtros, search, ubicaciones, reprogramadaIds, faltanMaterialesIds, todayKey, banderaColorPorOrden, cobradaIds]);
+  }, [countOrdenes, searchResults, filtros, search, ubicaciones, reprogramadaIds, faltanMaterialesIds, todayKey, banderaColorPorOrden, cobradaIds, impresaPorOrden]);
   const currentSortLabel = SORT_OPTIONS.find(o => o.value === sort)?.label ?? "";
   const scopeLabel: Record<ScopeKey, string> = {
     todas: "Todas",
@@ -1533,7 +1538,7 @@ export default function OrdenesBandeja({
         // contadores. Antes esta era una tercera copia a mano y ya se habia
         // quedado sin los filtros de sociedad y de ITO.
         list = applyFiltros(list, filtros, {
-          ubicaciones, todayKey, search, matchesSearch, banderaColorPorOrden, cobradaIds, origenDe: origenDeOT,
+          ubicaciones, todayKey, search, matchesSearch, banderaColorPorOrden, cobradaIds, impresaPorOrden, origenDe: origenDeOT,
         });
         list.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
         return list;
@@ -1835,6 +1840,7 @@ export default function OrdenesBandeja({
             coloresBandera={coloresBandera}
             mostrarOrigen={hayEnvios()}
             mostrarCobro={puedeCobrar}
+            mostrarImpresion={(impresiones?.size ?? 0) > 0}
             wsId={wsId}
           />
         </div>

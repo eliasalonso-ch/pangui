@@ -51,6 +51,16 @@ describe("applyFiltros", () => {
     expect(run(list, {}, d)).toHaveLength(3);
   });
 
+  it("impresión: solo OTs con PDF; sin imprimir = las que faltan", () => {
+    const list = [ot({ id: "a" }), ot({ id: "b" }), ot({ id: "c" })];
+    const d = { ...deps, impresaPorOrden: new Map([["a", true], ["b", false]]) };
+    expect(run(list, { impresion: ["impresas"] }, d).map(o => o.id)).toEqual(["a"]);
+    expect(run(list, { impresion: ["sin_imprimir"] }, d).map(o => o.id)).toEqual(["b"]);
+    expect(run(list, { impresion: ["impresas", "sin_imprimir"] }, d).map(o => o.id)).toEqual(["a", "b"]);
+    // Sin el mapa (sin permiso) no recorta nada.
+    expect(run(list, { impresion: ["impresas"] })).toHaveLength(3);
+  });
+
   it("cobro: con bandera verde + sin cobrar quedan las que faltan marcar", () => {
     const list = [ot({ id: "a" }), ot({ id: "b" }), ot({ id: "c", estado: "en_curso" }), ot({ id: "d" })];
     const d = { ...deps, cobradaIds: new Set(["a"]), banderaColorPorOrden: new Map([["a", "#22C55E"], ["b", "#22C55E"], ["c", "#22C55E"]]) };

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Check, User, UserRoundX, PenLine, Clock, MapPin, Flag, Zap, Wrench, Building2, Tag, FlagTriangleRight, Share2, BadgeDollarSign, Pause, RotateCw, ArrowUp, ArrowDown, AlertTriangle, Minus, type LucideIcon } from "lucide-react";
+import { Check, User, UserRoundX, PenLine, Clock, MapPin, Flag, Zap, Wrench, Building2, Tag, FlagTriangleRight, Share2, BadgeDollarSign, Printer, Pause, RotateCw, ArrowUp, ArrowDown, AlertTriangle, Minus, type LucideIcon } from "lucide-react";
 
 import type { FiltrosState, Estado, Prioridad, TipoTrabajo, Usuario, Sociedad, CategoriaOT } from "@/types/ordenes";
 import { CategoriaIcon } from "@/components/ordenes/categoria-icon";
@@ -52,6 +52,12 @@ const COBRO: { value: NonNullable<FiltrosState["cobro"]>[number]; label: string 
   { value: "cobradas",   label: "Cobradas" },
 ];
 
+// Filtro "Impresión": el botón impresora de las OTs MeConecta.
+const IMPRESION: { value: NonNullable<FiltrosState["impresion"]>[number]; label: string }[] = [
+  { value: "sin_imprimir", label: "Sin imprimir" },
+  { value: "impresas",     label: "Impresas" },
+];
+
 const TIPOS: { value: TipoTrabajo; label: string }[] = [
   { value: "reactiva",   label: "Reactiva" },
   { value: "preventiva", label: "Preventiva" },
@@ -88,6 +94,7 @@ const FILTER_ICONS: Record<FilterKey, React.ReactNode> = {
   banderaColores:   <FlagTriangleRight size={16} />,
   origenes:         <Share2 size={16} />,
   cobro:            <BadgeDollarSign size={16} />,
+  impresion:        <Printer size={16} />,
 };
 
 // ── FilterBar (inline toolbar) ────────────────────────────────────────────────
@@ -110,13 +117,15 @@ interface FilterBarProps {
   mostrarOrigen?: boolean;
   /** Electrilam y dueño/admin: solo entonces se ofrece "Cobro". */
   mostrarCobro?: boolean;
+  /** Hay OTs con PDF MeConecta: solo entonces se ofrece "Impresión". */
+  mostrarImpresion?: boolean;
   /** Para los catálogos paginados (Creada por, Dados de baja, Ubicación, Sociedad). */
   wsId: string | null;
   /** Primer elemento de la fila (el toggle de leídas), dentro del mismo wrap. */
   inicio?: React.ReactNode;
 }
 
-export function FilterBar({ filtros, onChange, usuarios, sociedades, categorias, itos, visibleKeys, onVisibleKeysChange, coloresBandera = [], mostrarOrigen = false, mostrarCobro = false, wsId, inicio }: FilterBarProps) {
+export function FilterBar({ filtros, onChange, usuarios, sociedades, categorias, itos, visibleKeys, onVisibleKeysChange, coloresBandera = [], mostrarOrigen = false, mostrarCobro = false, mostrarImpresion = false, wsId, inicio }: FilterBarProps) {
   const [userSearch, setUserSearch]  = useState("");
   const [itoSearch,  setItoSearch]   = useState("");
   const [catSearch,  setCatSearch]   = useState("");
@@ -143,10 +152,11 @@ export function FilterBar({ filtros, onChange, usuarios, sociedades, categorias,
   const hayBajas = usuarios.some(u => u.deleted_at);
   // Bandera solo se ofrece si hay OTs con bandera (y solo dueño/admin las ve).
   const available = FILTER_ORDER
-    .filter(k => !shown.has(k) && (k !== "banderaColores" || coloresBandera.length > 0) && (k !== "origenes" || mostrarOrigen) && (k !== "cobro" || mostrarCobro) && (k !== "bajaIds" || hayBajas))
+    .filter(k => !shown.has(k) && (k !== "banderaColores" || coloresBandera.length > 0) && (k !== "origenes" || mostrarOrigen) && (k !== "cobro" || mostrarCobro) && (k !== "impresion" || mostrarImpresion) && (k !== "bajaIds" || hayBajas))
     .map(k => FILTER_META[k]);
   const banderaColores = filtros.banderaColores ?? [];
   const cobro = filtros.cobro ?? [];
+  const impresion = filtros.impresion ?? [];
   const origenes = filtros.origenes ?? [];
   const creadoPorIds = filtros.creadoPorIds ?? [];
   const bajaIds = filtros.bajaIds ?? [];
@@ -518,6 +528,26 @@ export function FilterBar({ filtros, onChange, usuarios, sociedades, categorias,
           <div style={{ padding: "6px 0 8px" }}>
             {COBRO.map(o => (
               <OptionRow key={o.value} active={cobro.includes(o.value)} onClick={() => set({ cobro: toggle(cobro, o.value) })}>
+                <span style={{ flex: 1, minWidth: 0, fontSize: 14, color: "var(--fg-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{o.label}</span>
+              </OptionRow>
+            ))}
+          </div>
+        </FilterDropdown>
+      )}
+
+      {/* ── Impresión (botón impresora de la card, MeConecta) ── */}
+      {shown.has("impresion") && mostrarImpresion && (
+        <FilterDropdown
+          label="Impresión"
+          icon={FILTER_ICONS.impresion}
+          active={impresion.length > 0}
+          count={impresion.length}
+          onClear={() => set({ impresion: [] })}
+          onRemove={() => removeFilter("impresion")}
+        >
+          <div style={{ padding: "6px 0 8px" }}>
+            {IMPRESION.map(o => (
+              <OptionRow key={o.value} active={impresion.includes(o.value)} onClick={() => set({ impresion: toggle(impresion, o.value) })}>
                 <span style={{ flex: 1, minWidth: 0, fontSize: 14, color: "var(--fg-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{o.label}</span>
               </OptionRow>
             ))}

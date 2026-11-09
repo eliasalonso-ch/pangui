@@ -49,6 +49,8 @@ export interface FilterDeps {
   banderaColorPorOrden?: Map<string, string>;
   /** OTs marcadas como cobradas (ot_cobros, solo dueño/admin), para el filtro "Cobro". */
   cobradaIds?: Set<string>;
+  /** orden_id → ya impresa, solo OTs con PDF MeConecta (ot_impresiones), para el filtro "Impresión". */
+  impresaPorOrden?: Map<string, boolean>;
   /** Origen de cada OT (origenDeOT de lib/envios-api), para el filtro "Origen". */
   origenDe?: (ordenId: string) => string;
   /** Free-text search. Applied last, via `matchesSearch`, when non-empty. */
@@ -115,6 +117,16 @@ export function applyFiltros<T extends FilterableOrden>(
   if (cobro.length && deps.cobradaIds) {
     const cobradas = deps.cobradaIds;
     list = list.filter(o => cobro.includes(cobradas.has(o.id) ? "cobradas" : "sin_cobrar"));
+  }
+  // Impresión: a diferencia de Cobro, las OTs sin PDF quedan fuera: "sin imprimir"
+  // es la lista de lo que falta imprimir, no todo lo que no tiene botón.
+  const impresion = filtros.impresion ?? [];
+  if (impresion.length && deps.impresaPorOrden) {
+    const impresas = deps.impresaPorOrden;
+    list = list.filter(o => {
+      const impresa = impresas.get(o.id);
+      return impresa !== undefined && impresion.includes(impresa ? "impresas" : "sin_imprimir");
+    });
   }
   if (filtros.sociedadIds.length) {
     // Match via ubicacion.sociedad_id (joined in list select)
