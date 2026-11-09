@@ -57,6 +57,8 @@ import { ESTADOS_PASO, faltaFoto } from "@/lib/procedimientos-reglas";
 import { notifyClasificacionCambiada } from "@/lib/notificar";
 import { esElevado, esAdmin } from "@/lib/roles";
 import EnvioContratista from "./EnvioContratista";
+import FichaPtsUdec from "./FichaPtsUdec";
+import { armarFichaPts, PTS_PROCEDIMIENTO_ID, type FilaPts, type RespuestaPts } from "@/lib/pts-udec";
 import { CategoriaIcon } from "@/components/ordenes/categoria-icon";
 import ConfirmDeleteModal, { type ConfirmDelete } from "@/components/ConfirmDeleteModal";
 import SearchSelect from "@/components/activos/SearchSelect";
@@ -955,6 +957,7 @@ export default function OTDetail({
   const [loadingProcs, setLoadingProcs] = useState(false);
   // Menú "⋮" del procedimiento visible en el carrusel.
   const [procMenuOpen, setProcMenuOpen] = useState(false);
+  const [fichaPts, setFichaPts] = useState<FilaPts[] | null>(null);
   // Pending destructive action awaiting confirmation (shared across the tab —
   // procedures, photo groups, individual photos, materials). Guards accidental clicks.
   const [confirmDelete, setConfirmDelete] = useState<ConfirmDelete | null>(null);
@@ -2907,6 +2910,7 @@ export default function OTDetail({
 
       {/* Shared confirmation popup for every destructive action in this view. */}
       <ConfirmDeleteModal pending={confirmDelete} onClose={() => setConfirmDelete(null)} />
+      {fichaPts && <FichaPtsUdec filas={fichaPts} onClose={() => setFichaPts(null)} />}
 
       {/* An OT closed with unmet requisitos says so permanently — the audit trail
           is worthless if it only lives in the activity log nobody scrolls to. */}
@@ -3831,6 +3835,34 @@ export default function OTDetail({
                         no la ejecución, así que quitar uno ya respondido dejaría
                         las respuestas huérfanas en la base — evidencia que
                         desaparece de la vista sin quedar registrada. */}
+                    {(() => {
+                      const visible = otProcs.find(o => o.id === procVisibleId) ?? otProcs[0];
+                      if (visible?.procedimiento_id !== PTS_PROCEDIMIENTO_ID || !tieneItos(wsId)) return null;
+                      return (
+                        <button
+                          type="button"
+                          onClick={() => setFichaPts(armarFichaPts(
+                            // OTs antiguas guardan ITO/solicitante/ubicación solo en la descripción.
+                            {
+                              ...orden,
+                              hito: orden.hito || meta.hito,
+                              solicitante: orden.solicitante || meta.solicitante,
+                              ubicaciones: orden.ubicaciones ?? (meta.ubicacionTexto ? { edificio: meta.ubicacionTexto } : null),
+                              lugar: orden.lugar ?? (meta.lugar ? { nombre: meta.lugar } : null),
+                            },
+                            visible.procedimiento?.pasos ?? [],
+                            (visible.ejecucion?.respuestas ?? []) as RespuestaPts[],
+                          ))}
+                          style={{
+                            marginLeft: "auto", height: 26, padding: "0 10px", display: "inline-flex", alignItems: "center", gap: 6,
+                            border: "1px solid var(--border)", borderRadius: "var(--r-xs)", background: "var(--surface-1)",
+                            color: "var(--brand-fg)", cursor: "pointer", fontSize: 14, fontFamily: "inherit",
+                          }}
+                        >
+                          <ClipboardCheck size={14} /> Ficha UdeC
+                        </button>
+                      );
+                    })()}
                     {canFillProcs && (() => {
                       const visible = otProcs.find(o => o.id === procVisibleId) ?? otProcs[0];
                       if (!visible) return null;
