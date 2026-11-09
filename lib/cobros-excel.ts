@@ -1,4 +1,5 @@
 import { ajustarLibro, type XlsxHoja } from "@/lib/hoja-excel";
+import { codigosDeTexto } from "@/lib/cobros-diccionario";
 
 /**
  * Export de cobros de Electrilam: el libro "COBROS CON Y SIN OT <MES>" que
@@ -164,12 +165,14 @@ export function lineasDeOt(ot: OtCobro, catalogo: Map<string, string>): Linea[] 
         continue;
       }
 
-      const codigo = catalogo.get(nItem);
-      materiales.push({
-        texto: [cant, unidad, item].filter(Boolean).join(" "),
-        ...(codigo ? { codigo } : {}),
-        ...(n != null ? { cantidad: n } : {}),
-      });
+      // Texto exacto del catálogo; si no, el diccionario ("caja chuky" → cajpla).
+      // Un panel sobrepuesto son dos códigos (panel + base) con la misma cantidad.
+      const exacto = catalogo.get(nItem);
+      const codigos = exacto ? [exacto] : codigosDeTexto(nItem, (c) => catalogo.get(norm(c))) ?? [];
+      const texto = [cant, unidad, item].filter(Boolean).join(" ");
+      const cantidad = n != null ? { cantidad: n } : {};
+      if (!codigos.length) materiales.push({ texto, ...cantidad });
+      codigos.forEach((codigo, i) => materiales.push({ texto: i ? "" : texto, codigo, ...cantidad }));
     }
   }
 
