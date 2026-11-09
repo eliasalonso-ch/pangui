@@ -443,6 +443,11 @@ export interface FiltrosState {
    * card; "sin_cobrar" = el resto. Opcional, igual que banderaColores.
    */
   cobro?: ("cobradas" | "sin_cobrar")[];
+  /**
+   * Impresión del PDF MeConecta (ot_impresiones): "impresas" / "sin_imprimir".
+   * Solo cuentan las OTs con PDF; las demás no se pueden imprimir y quedan fuera.
+   */
+  impresion?: ("impresas" | "sin_imprimir")[];
   /** Quién creó la OT (ordenes_trabajo.creado_por). Opcional, igual que banderaColores. */
   creadoPorIds?: string[];
   /** OTs asignadas a estos usuarios dados de baja. Opcional, igual que banderaColores. */
