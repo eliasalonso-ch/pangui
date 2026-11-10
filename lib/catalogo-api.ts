@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase";
 import { ELECTRILAM_WORKSPACE_ID } from "@/lib/itos-gate";
+import { normMaterial, type Uso } from "@/lib/materiales-busqueda";
 
 /**
  * Catálogo de códigos de material para autocompletar en la hoja de cobro.
@@ -85,6 +86,20 @@ export async function todoElCatalogo(workspaceId: string): Promise<MaterialCatal
     out.push(...((data ?? []) as MaterialCatalogo[]));
     if (!data || data.length < 1000) return out;
   }
+}
+
+/** Alias aprendidos (texto del maestro → código), con la clave normalizada como la busca el picker. */
+export async function fetchAlias(workspaceId: string): Promise<Map<string, string>> {
+  const { data, error } = await createClient().from("material_alias").select("texto_norm, codigo").eq("workspace_id", workspaceId);
+  if (error) throw error;
+  return new Map((data ?? []).map((a) => [normMaterial(a.texto_norm), a.codigo]));
+}
+
+/** Cuántas veces usó cada código este usuario y el equipo (RPC material_usos). */
+export async function fetchUsos(): Promise<Map<string, Uso>> {
+  const { data, error } = await createClient().rpc("material_usos");
+  if (error) throw error;
+  return new Map(((data ?? []) as Uso[]).map((u) => [u.codigo, u]));
 }
 
 /**
