@@ -16,7 +16,7 @@ const MEDIA_VIDA_DIAS = 90;
 const PESO_EQUIPO = 0.1;
 
 export function normMaterial(s: string): string {
-  return s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
+  return s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
 }
 
 /** Columnas Material y Código por label (las hojas web tienen ids aleatorios). */
