@@ -43,7 +43,12 @@ export function buscarEnCatalogo({ texto, categoria, catalogo, alias, usos, ahor
   const porCodigo = new Map(catalogo.map((m) => [m.codigo.toLowerCase(), m]));
 
   let candidatos: Material[];
-  if (!t) {
+  // Sin texto y con categoría: la categoría entera (para recorrerla sin escribir),
+  // lo usado arriba. Sin texto ni categoría: sólo lo usado ("Tus más usados").
+  const recorrer = !t && !!categoria;
+  if (recorrer) {
+    candidatos = base;
+  } else if (!t) {
     candidatos = base.filter((m) => usos.has(m.codigo.toLowerCase()));
   } else {
     const palabras = t.split(" ");
@@ -63,6 +68,6 @@ export function buscarEnCatalogo({ texto, categoria, catalogo, alias, usos, ahor
   return candidatos
     .map((m) => ({ m, exacto: m.codigo.toLowerCase() === t, p: puntaje(usos.get(m.codigo.toLowerCase()), ahora) }))
     .sort((x, y) => Number(y.exacto) - Number(x.exacto) || y.p - x.p || x.m.codigo.localeCompare(y.m.codigo))
-    .slice(0, limite)
+    .slice(0, recorrer ? undefined : limite)
     .map((x) => x.m);
 }

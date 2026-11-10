@@ -37,9 +37,16 @@ describe("buscarEnCatalogo", () => {
     expect(buscar("caja chuky")).toContain("cajpla");
     expect(buscar("la cosa gris", { alias: new Map([["la cosa gris", "tab12"]]) })).toEqual(["tab12"]);
   });
-  it("chip de categoría filtra; sin texto muestra solo lo usado", () => {
-    expect(buscar("", { categoria: "Tablero", usos: usos(["tab24", 2, 2, "2026-11-01"], ["cajpla", 9, 9, "2026-11-01"]) })).toEqual(["tab24"]);
+  it("chip de categoría sin texto: la categoría entera, lo usado arriba y sin tope", () => {
+    expect(buscar("", { categoria: "Tablero", usos: usos(["tab24", 2, 2, "2026-11-01"], ["cajpla", 9, 9, "2026-11-01"]) })).toEqual(["tab24", "tab12"]);
+    expect(buscar("", { categoria: "Protecciones", limite: 1 })).toEqual(["ITM1x10a", "ITM1x16a"]);
+  });
+  it("sin texto ni categoría: sólo lo usado", () => {
+    expect(buscar("", { usos: usos(["cajpla", 1, 1, "2026-11-01"]) })).toEqual(["cajpla"]);
     expect(buscar("")).toEqual([]);
+  });
+  it("chip de categoría con texto: filtra dentro de la categoría", () => {
+    expect(buscar("24", { categoria: "Tablero" })).toEqual(["tab24"]);
   });
 });
 
