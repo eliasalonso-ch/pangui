@@ -371,3 +371,20 @@ describe("lineasDeOt: picker de materiales", () => {
     expect(l.some((x) => x.codigo === "tab12")).toBe(false);
   });
 });
+
+describe("lineasDeOt: Sin materiales", () => {
+  const COLS = [{ id: "m", label: "Material" }, { id: "k", label: "Código" }, { id: "q", label: "Cantidad" }];
+  it("'sinmat' no sale como material a cobrar (solo marca que no se usaron)", () => {
+    const l = lineasDeOt(ot([{ tipo: "materiales_usados", columnas: COLS, filas: [{ m: "Sin materiales", k: "sinmat", q: "" }] }]), catalogo);
+    expect(l.some((x) => x.codigo?.toLowerCase() === "sinmat")).toBe(false);
+    expect(l.some((x) => /sin materiales/i.test(x.texto))).toBe(false);
+  });
+});
+
+describe("lineasDeOt: Sin materiales escrito a mano", () => {
+  it("el texto exacto del catálogo tampoco se cobra", () => {
+    const cat = new Map([...catalogo, ["sin materiales", "sinmat"]]);
+    const l = lineasDeOt(ot([hoja("materiales_usados", "Sin materiales||")]), cat);
+    expect(l.some((x) => x.codigo === "sinmat")).toBe(false);
+  });
+});

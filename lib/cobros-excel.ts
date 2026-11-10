@@ -80,6 +80,8 @@ function numero(s: string): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+/** Código del catálogo para "Sin materiales" (OT sin materiales con hoja obligatoria): no se cobra. */
+export const SIN_MATERIALES = "sinmat";
 const HH = /^(h|hh|h\.h\.?|hrs?|horas?)$/;
 const UNIDAD_HH = /^(hh|h\.h\.?)$/;
 const PP = /^(p|pp|personas?)$/;
@@ -136,6 +138,8 @@ export function lineasDeOt(ot: OtCobro, catalogo: Map<string, string>): Linea[] 
       // El técnico ya eligió el código del catálogo (hoja de cobro o picker de materiales).
       if (cCodigo) {
         const codigo = String(f[cCodigo] ?? "").trim();
+        // "Sin materiales": sólo deja constancia en la hoja obligatoria; no se cobra.
+        if (codigo.toLowerCase() === SIN_MATERIALES) continue;
         if (codigo) {
           materiales.push({ texto: [cant, (obs || item || codigo) + sufijo].filter(Boolean).join(" "), codigo, cantidad: numero(cant) ?? undefined });
           continue;
@@ -180,6 +184,7 @@ export function lineasDeOt(ot: OtCobro, catalogo: Map<string, string>): Linea[] 
       // Un panel sobrepuesto son dos códigos (panel + base) con la misma cantidad.
       const exacto = catalogo.get(nItem);
       const codigos = exacto ? [exacto] : codigosDeTexto(nItem, (c) => catalogo.get(norm(c))) ?? [];
+      if (codigos.some((c) => c.toLowerCase() === SIN_MATERIALES)) continue; // "Sin materiales" escrito a mano
       const texto = [cant, unidad, item].filter(Boolean).join(" ") + sufijo;
       const cantidad = n != null ? { cantidad: n } : {};
       if (!codigos.length) materiales.push({ texto, ...cantidad });
