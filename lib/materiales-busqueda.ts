@@ -19,12 +19,22 @@ export function normMaterial(s: string): string {
   return s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
 }
 
-/** Columnas Material y Código por label (las hojas web tienen ids aleatorios). */
-export function columnasMaterial(columnas: { id: string; label: string }[]): { material: string; codigo: string } | null {
+/** Columnas Material y Código (y Unidad, si la hay) por label (las hojas web tienen ids aleatorios). */
+export function columnasMaterial(columnas: { id: string; label: string }[]): { material: string; codigo: string; unidad?: string } | null {
   const id = (...labels: string[]) => columnas.find((c) => labels.includes(normMaterial(c.label)))?.id;
   const material = id("material", "item", "descripcion");
   const codigo = id("codigo");
-  return material && codigo ? { material, codigo } : null;
+  const unidad = id("unidad");
+  return material && codigo ? { material, codigo, ...(unidad ? { unidad } : {}) } : null;
+}
+
+/** Celdas que escribe elegir un material: descripción oficial, código y, si el catálogo la trae, la unidad. */
+export function celdasDeMaterial(cols: { material: string; codigo: string; unidad?: string }, m: Material): Record<string, string> {
+  return {
+    [cols.material]: m.descripcion,
+    [cols.codigo]: m.codigo,
+    ...(cols.unidad && m.unidad.trim() ? { [cols.unidad]: m.unidad } : {}),
+  };
 }
 
 function puntaje(u: Uso | undefined, ahora: number): number {

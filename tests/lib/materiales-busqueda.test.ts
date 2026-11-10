@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buscarEnCatalogo, columnasMaterial, normMaterial, type Material, type Uso } from "@/lib/materiales-busqueda";
+import { buscarEnCatalogo, celdasDeMaterial, columnasMaterial, normMaterial, type Material, type Uso } from "@/lib/materiales-busqueda";
 
 const m = (codigo: string, descripcion: string, clasificacion = "Protecciones"): Material =>
   ({ codigo, descripcion, unidad: "un", clasificacion });
@@ -57,4 +57,21 @@ describe("columnasMaterial", () => {
     expect(columnasMaterial([{ id: "a", label: "Material" }])).toBeNull();
   });
   it("normMaterial", () => expect(normMaterial("  Caja CHUKY ")).toBe("caja chuky"));
+  it("detecta Unidad si existe", () => {
+    expect(columnasMaterial([{ id: "a", label: "Material" }, { id: "b", label: "Código" }, { id: "u", label: "Unidad" }]))
+      .toEqual({ material: "a", codigo: "b", unidad: "u" });
+  });
+});
+
+describe("celdasDeMaterial", () => {
+  const cols = { material: "a", codigo: "b", unidad: "u" };
+  it("escribe descripción, código y unidad del catálogo", () => {
+    expect(celdasDeMaterial(cols, m("tab12", "Tablero 12 módulos"))).toEqual({ a: "Tablero 12 módulos", b: "tab12", u: "un" });
+  });
+  it("si el catálogo no trae unidad, no toca la que había", () => {
+    expect(celdasDeMaterial(cols, { ...m("x", "Algo"), unidad: "" })).toEqual({ a: "Algo", b: "x" });
+  });
+  it("hoja sin columna Unidad", () => {
+    expect(celdasDeMaterial({ material: "a", codigo: "b" }, m("x", "Algo"))).toEqual({ a: "Algo", b: "x" });
+  });
 });

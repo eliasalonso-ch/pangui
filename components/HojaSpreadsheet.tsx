@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { tieneCobros } from "@/lib/catalogo-api";
 import type { MaterialCatalogo } from "@/lib/catalogo-api";
-import { buscarEnCatalogo, columnasMaterial } from "@/lib/materiales-busqueda";
+import { buscarEnCatalogo, celdasDeMaterial, columnasMaterial } from "@/lib/materiales-busqueda";
 import { useMateriales } from "@/lib/use-materiales";
 import { construirCobro, descargarCobro } from "@/lib/cobro-export";
 import { COLORES_REF, calcularHoja, colLetter, esFormula, normalizar, referencias, type Resultado } from "@/lib/hoja-formulas";
@@ -406,9 +406,9 @@ function SheetGrid({
     if (col) guardarCeldas(r, { [col.id]: valor });
   }
 
-  /** Elegir del catálogo: Material = descripción oficial y Código = código, en un solo guardado. */
+  /** Elegir del catálogo: Material = descripción oficial, Código y Unidad del catálogo, en un solo guardado. */
   function guardarMaterial(r: number, m: MaterialCatalogo) {
-    if (colsMat) guardarCeldas(r, { [colsMat.material]: m.descripcion, [colsMat.codigo]: m.codigo });
+    if (colsMat) guardarCeldas(r, celdasDeMaterial(colsMat, m));
   }
 
   function guardarCeldas(r: number, cambios: Record<string, string>) {
