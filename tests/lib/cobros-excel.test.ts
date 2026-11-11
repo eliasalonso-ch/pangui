@@ -342,3 +342,49 @@ describe("pestanaCobros: el dibujo de bloques del Excel de Claudio", () => {
     expect(leer("xl/worksheets/sheet1.xml")).toContain('showGridLines="0"');
   });
 });
+
+describe("lineasDeOt: picker de materiales", () => {
+  const COLS_PICKER = [{ id: "m", label: "Material" }, { id: "k", label: "Código" }, { id: "q", label: "Cantidad" }];
+  const hojaPicker = (tipo: string, ...filas: [string, string, string][]): HojaCobro =>
+    ({ tipo, columnas: COLS_PICKER, filas: filas.map(([m, k, q]) => ({ m, k, q })) });
+
+  it("si la fila trae Código, se usa tal cual (sin diccionario)", () => {
+    const l = lineasDeOt(ot([hojaPicker("materiales_usados", ["Lo que sea", "tab12", "2"])]), catalogo);
+    expect(l.find((x) => x.codigo === "tab12")?.cantidad).toBe(2);
+  });
+
+  it("fila sin Código (no listado) sigue el camino del texto", () => {
+    const l = lineasDeOt(ot([hojaPicker("materiales_usados", ["tubo led 18w", "", "3"])]), catalogo);
+    expect(l.find((x) => x.codigo === "tubled18")?.cantidad).toBe(3);
+  });
+
+  it("sin hoja de usados, toma solicitados marcados (según solicitud)", () => {
+    const l = lineasDeOt(ot([hojaPicker("materiales_solicitados", ["Tablero 12", "tab12", "1"])]), catalogo);
+    expect(l.find((x) => x.codigo === "tab12")?.texto).toMatch(/según solicitud/);
+  });
+
+  it("con hoja de usados con filas, solicitados se sigue ignorando", () => {
+    const l = lineasDeOt(ot([
+      hojaPicker("materiales_usados", ["Tablero 24", "tab24", "1"]),
+      hojaPicker("materiales_solicitados", ["Tablero 12", "tab12", "1"]),
+    ]), catalogo);
+    expect(l.some((x) => x.codigo === "tab12")).toBe(false);
+  });
+});
+
+describe("lineasDeOt: Sin materiales", () => {
+  const COLS = [{ id: "m", label: "Material" }, { id: "k", label: "Código" }, { id: "q", label: "Cantidad" }];
+  it("'sinmat' no sale como material a cobrar (solo marca que no se usaron)", () => {
+    const l = lineasDeOt(ot([{ tipo: "materiales_usados", columnas: COLS, filas: [{ m: "Sin materiales", k: "sinmat", q: "" }] }]), catalogo);
+    expect(l.some((x) => x.codigo?.toLowerCase() === "sinmat")).toBe(false);
+    expect(l.some((x) => /sin materiales/i.test(x.texto))).toBe(false);
+  });
+});
+
+describe("lineasDeOt: Sin materiales escrito a mano", () => {
+  it("el texto exacto del catálogo tampoco se cobra", () => {
+    const cat = new Map([...catalogo, ["sin materiales", "sinmat"]]);
+    const l = lineasDeOt(ot([hoja("materiales_usados", "Sin materiales||")]), cat);
+    expect(l.some((x) => x.codigo === "sinmat")).toBe(false);
+  });
+});

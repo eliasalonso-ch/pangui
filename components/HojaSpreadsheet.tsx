@@ -16,8 +16,10 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
   DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { buscarMateriales, tieneCobros } from "@/lib/catalogo-api";
+import { tieneCobros } from "@/lib/catalogo-api";
 import type { MaterialCatalogo } from "@/lib/catalogo-api";
+import { buscarEnCatalogo, celdasDeMaterial, columnasMaterial } from "@/lib/materiales-busqueda";
+import { useMateriales } from "@/lib/use-materiales";
 import { construirCobro, descargarCobro } from "@/lib/cobro-export";
 import { COLORES_REF, calcularHoja, colLetter, esFormula, normalizar, referencias, type Resultado } from "@/lib/hoja-formulas";
 import { libroDeHoja, type XlsxHoja } from "@/lib/hoja-excel";
@@ -90,7 +92,7 @@ type Marca = { color: string; arriba: boolean; abajo: boolean; izq: boolean; der
 type Edicion = { r: number; c: number; valor: string; original: string };
 
 function Cell({
-  value, resultado, tipo, width, readOnly, editando, marca, inputRef, campo, onMouseDown, onMouseEnter, sugerir, onElegir,
+  value, resultado, tipo, width, readOnly, editando, marca, inputRef, campo, onMouseDown, onMouseEnter, sugerir, onElegir, onNoListado,
 }: {
   value: string;
   /** Si la celda es una fórmula ("=..."), su resultado: se muestra en vez de lo escrito. */
@@ -105,34 +107,30 @@ function Cell({
   campo: React.InputHTMLAttributes<HTMLInputElement>;
   onMouseDown: (e: React.MouseEvent) => void;
   onMouseEnter: () => void;
-  /** Si viene, la celda ofrece autocompletar (columna Código de la hoja de cobro). */
-  sugerir?: (texto: string) => Promise<MaterialCatalogo[]>;
-  onElegir: (codigo: string) => void;
+  /** Si viene, la celda ofrece materiales del catálogo (Material/Código, o Código de la hoja de cobro).
+   * Es síncrona: el catálogo ya está en memoria (lib/use-materiales). */
+  sugerir?: (texto: string) => MaterialCatalogo[];
+  onElegir: (m: MaterialCatalogo) => void;
+  /** Si viene, la lista termina con "No encontré «…» → anotar como no listado". */
+  onNoListado?: () => void;
 }) {
   const [opciones, setOpciones] = useState<MaterialCatalogo[]>([]);
-  const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // Descarta respuestas viejas: si se teclea rápido, la última pedida manda.
-  const pedido = useRef(0);
+  // El dropdown se abre al escribir o enfocar, y se cierra al elegir o con Esc.
+  const [abierto, setAbierto] = useState(false);
 
-  /** Lanza la búsqueda del autocompletar (sólo donde `sugerir` viene dado). */
+  /** Recalcula el autocompletar (sólo donde `sugerir` viene dado). */
   const buscar = useCallback((texto: string) => {
     if (!sugerir) return;
-    if (debounce.current) clearTimeout(debounce.current);
-    const mio = ++pedido.current;
-    debounce.current = setTimeout(() => {
-      sugerir(texto)
-        .then(r => { if (mio === pedido.current) setOpciones(r); })
-        .catch(() => { if (mio === pedido.current) setOpciones([]); });
-    }, 180);
+    setOpciones(sugerir(texto));
+    setAbierto(true);
   }, [sugerir]);
 
-  useEffect(() => () => { if (debounce.current) clearTimeout(debounce.current); }, []);
-
   function elegir(m: MaterialCatalogo) {
-    pedido.current++;
     setOpciones([]);
-    onElegir(m.codigo);
+    setAbierto(false);
+    onElegir(m);
   }
+  const conNoListado = !!onNoListado && abierto && !!value.trim();
 
   const c = marca?.color;
   const cellStyle: React.CSSProperties = {
@@ -166,11 +164,12 @@ function Cell({
           autoComplete="off"
           onChange={e => { campo.onChange?.(e); buscar(e.target.value); }}
           onFocus={e => { campo.onFocus?.(e); buscar(e.currentTarget.value); }}
-          onBlur={e => { setOpciones([]); campo.onBlur?.(e); }}
+          onBlur={e => { setAbierto(false); campo.onBlur?.(e); }}
           onKeyDown={e => {
             // Con sugerencias de material a la vista, Enter elige la primera y Esc solo las cierra.
-            if (opciones.length && e.key === "Enter") { e.preventDefault(); elegir(opciones[0]); return; }
-            if (opciones.length && e.key === "Escape") { e.preventDefault(); setOpciones([]); return; }
+            // Sin sugerencias, Enter guarda lo escrito: en Material eso es "no listado".
+            if (abierto && opciones.length && e.key === "Enter") { e.preventDefault(); elegir(opciones[0]); return; }
+            if (abierto && (opciones.length || conNoListado) && e.key === "Escape") { e.preventDefault(); setAbierto(false); return; }
             campo.onKeyDown?.(e);
           }}
           style={{
@@ -180,7 +179,7 @@ function Cell({
             boxSizing: "border-box",
           }}
         />
-        {opciones.length > 0 && (
+        {abierto && (opciones.length > 0 || conNoListado) && (
           <div
             style={{
               position: "absolute", top: ROW_HEIGHT, left: 0, zIndex: 40, width: 380,
@@ -201,6 +200,15 @@ function Cell({
                 {m.unidad && <div style={{ fontSize: 11, color: "var(--fg-3)" }}>{m.unidad}</div>}
               </div>
             ))}
+            {conNoListado && (
+              // Material que no está en el catálogo: queda con Código vacío (pendiente para la oficina).
+              <div
+                onMouseDown={e => { e.preventDefault(); setAbierto(false); onNoListado?.(); }}
+                style={{ padding: "8px 10px", cursor: "pointer", fontSize: 13, color: "var(--fg-2)" }}
+              >
+                No encontré «{value.trim()}» → anotar como no listado
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -259,17 +267,23 @@ function SheetGrid({
   const [rows, setRows] = useState<{ hojaId: string; filas: HojaFila[] } | null>(null);
   const loading = rows?.hojaId !== hoja.id;
 
-  // Autocompletar: sólo en la columna "Código" de una hoja de cobro, y sólo
-  // donde la función está habilitada (Electrilam).
-  const colCodigoId = useMemo(
+  // Picker de catálogo (Electrilam): en hojas con Material + Código, esas dos
+  // celdas se llenan eligiendo del catálogo; lo que no está queda "no listado".
+  const mats = useMateriales(workspaceId);
+  const colsMat = useMemo(
+    () => (tieneCobros(workspaceId) ? columnasMaterial(hoja.columnas) : null),
+    [hoja.columnas, workspaceId],
+  );
+  // Hoja tipo cobro (la de antes): autocompletar sólo en Código.
+  const colCodigoCobro = useMemo(
     () => (hoja.tipo === "cobro" && tieneCobros(workspaceId)
       ? hoja.columnas.find(c => c.label.trim().toLowerCase() === COLUMNA_CODIGO.toLowerCase())?.id
       : undefined),
     [hoja.tipo, hoja.columnas, workspaceId],
   );
   const sugerirMaterial = useCallback(
-    (texto: string) => buscarMateriales(workspaceId, texto),
-    [workspaceId],
+    (texto: string) => buscarEnCatalogo({ texto, catalogo: mats.catalogo, alias: mats.alias, usos: mats.usos, limite: 20 }),
+    [mats.catalogo, mats.alias, mats.usos],
   );
   // useMemo so the empty-array identity is stable while loading — otherwise
   // every render hands downstream hooks a new [].
@@ -372,7 +386,11 @@ function SheetGrid({
     poner(null);
     setCampo(null);
     const final = valor ?? e.valor;
-    if (!cancelar && final !== e.original) guardar(e.r, e.c, final);
+    // En la columna Código del picker sólo entra un código del catálogo (o nada).
+    const codigoInvalido = colsMat && hoja.columnas[e.c]?.id === colsMat.codigo && final.trim()
+      && !mats.catalogo.some(m => m.codigo.toLowerCase() === final.trim().toLowerCase());
+    if (codigoInvalido) toast.error("Ese código no está en el catálogo. Elige uno de la lista.");
+    if (!cancelar && !codigoInvalido && final !== e.original) guardar(e.r, e.c, final);
     if (!mover) return;
     let [r, c] = [e.r + mover[0], e.c + mover[1]];
     // Tab al final de la fila sigue en la siguiente (y Shift+Tab al revés), como en una planilla.
@@ -384,13 +402,22 @@ function SheetGrid({
   // desordenados el más viejo pisaría al nuevo.
   const colas = useRef(new Map<string, Promise<void>>());
   function guardar(r: number, c: number, valor: string) {
-    const fila = filas[r];
     const col = hoja.columnas[c];
-    if (!fila || !col) return;
-    const antes = fila.celdas[col.id] ?? "";
-    const celdas = { ...fila.celdas, [col.id]: valor };
-    const fijar = (v: string) => setFilas(prev => prev.map(f => (f.id === fila.id ? { ...f, celdas: { ...f.celdas, [col.id]: v } } : f)));
-    fijar(valor);
+    if (col) guardarCeldas(r, { [col.id]: valor });
+  }
+
+  /** Elegir del catálogo: Material = descripción oficial, Código y Unidad del catálogo, en un solo guardado. */
+  function guardarMaterial(r: number, m: MaterialCatalogo) {
+    if (colsMat) guardarCeldas(r, celdasDeMaterial(colsMat, m));
+  }
+
+  function guardarCeldas(r: number, cambios: Record<string, string>) {
+    const fila = filas[r];
+    if (!fila) return;
+    const antes = Object.fromEntries(Object.keys(cambios).map(k => [k, fila.celdas[k] ?? ""]));
+    const celdas = { ...fila.celdas, ...cambios };
+    const fijar = (v: Record<string, string>) => setFilas(prev => prev.map(f => (f.id === fila.id ? { ...f, celdas: { ...f.celdas, ...v } } : f)));
+    fijar(cambios);
     const esta = (colas.current.get(fila.id) ?? Promise.resolve())
       .then(() => updateFila(fila.id, celdas))
       .then(
@@ -850,6 +877,7 @@ function SheetGrid({
             </div>
             {cols.map((col, c) => {
               const editando = edicion?.r === rowIdx && edicion.c === c;
+              const esMat = !!colsMat && (col.id === colsMat.material || col.id === colsMat.codigo);
               return (
                 <Cell
                   key={col.id}
@@ -864,8 +892,13 @@ function SheetGrid({
                   campo={eventosCampo}
                   onMouseDown={e => onCeldaMouseDown(e, rowIdx, c)}
                   onMouseEnter={() => onCeldaMouseEnter(rowIdx, c)}
-                  sugerir={col.id === colCodigoId ? sugerirMaterial : undefined}
-                  onElegir={codigo => terminar(false, undefined, codigo)}
+                  sugerir={esMat || col.id === colCodigoCobro ? sugerirMaterial : undefined}
+                  onElegir={m => {
+                    if (esMat) { terminar(true); guardarMaterial(rowIdx, m); }
+                    else terminar(false, undefined, m.codigo);
+                  }}
+                  // "No listado": guarda lo escrito en Material con Código vacío.
+                  onNoListado={esMat && col.id === colsMat?.material ? () => terminar(false) : undefined}
                 />
               );
             })}

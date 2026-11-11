@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase";
 import { celdasConResultados } from "@/lib/hoja-formulas";
+import { ELECTRILAM_WORKSPACE_ID } from "@/lib/itos-gate";
 
 export interface HojaColumna {
   id: string;
@@ -30,6 +31,14 @@ export const HOJA_TEMPLATES: Record<HojaTipo, { nombre: string; columnas: Omit<H
 
 /** Etiqueta exacta de la columna que lleva el código del catálogo. */
 export const COLUMNA_CODIGO = "Código";
+
+/** Columnas con que nace una hoja. En Electrilam, las de materiales llevan
+ * "Código" al lado de Material: la llena el picker, nunca el teclado. */
+export function columnasDeTipo(tipo: HojaTipo, workspaceId: string): Omit<HojaColumna, "id">[] {
+  const base = HOJA_TEMPLATES[tipo].columnas;
+  if (workspaceId !== ELECTRILAM_WORKSPACE_ID || (tipo !== "materiales_usados" && tipo !== "materiales_solicitados")) return base;
+  return [base[0], { label: COLUMNA_CODIGO, tipo: "texto" }, ...base.slice(1)];
+}
 
 export interface Hoja {
   id: string;
@@ -122,7 +131,7 @@ export function hojasParaInforme(hojas: HojaCalculada[]): { nombre: string; colu
 export async function createHoja(workspaceId: string, tipo: HojaTipo, userId: string, ordenId: string): Promise<Hoja> {
   const sb = createClient();
   const template = HOJA_TEMPLATES[tipo];
-  const columnas = template.columnas.map((columna) => ({ ...columna, id: crypto.randomUUID() }));
+  const columnas = columnasDeTipo(tipo, workspaceId).map((columna) => ({ ...columna, id: crypto.randomUUID() }));
   const { data, error } = await sb
     .from("hojas_inventario")
     .insert({ workspace_id: workspaceId, nombre: template.nombre, tipo, created_by: userId, orden_id: ordenId, columnas })

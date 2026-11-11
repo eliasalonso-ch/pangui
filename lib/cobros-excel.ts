@@ -80,6 +80,8 @@ function numero(s: string): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+/** Código del catálogo para "Sin materiales" (OT sin materiales con hoja obligatoria): no se cobra. */
+export const SIN_MATERIALES = "sinmat";
 const HH = /^(h|hh|h\.h\.?|hrs?|horas?)$/;
 const UNIDAD_HH = /^(hh|h\.h\.?)$/;
 const PP = /^(p|pp|personas?)$/;
@@ -111,8 +113,14 @@ export function lineasDeOt(ot: OtCobro, catalogo: Map<string, string>): Linea[] 
   const personas: number[] = [];
   let dudoso = false;
 
+  // Si nadie llenó lo usado, lo solicitado es lo mejor que hay (marcado como tal).
+  const conFilas = (h: HojaCobro) => h.filas.some((f) => Object.values(f).some((v) => String(v ?? "").trim()));
+  const sinUsados = !ot.hojas.some((h) => (h.tipo === "materiales_usados" || h.tipo === "cobro") && conFilas(h));
+
   for (const hoja of ot.hojas) {
-    if (hoja.tipo === "materiales_solicitados") continue; // lo pedido no es lo usado
+    const solicitud = hoja.tipo === "materiales_solicitados";
+    if (solicitud && !sinUsados) continue; // lo pedido no es lo usado
+    const sufijo = solicitud ? " (según solicitud)" : "";
     // Por etiqueta y no por posición: las hojas se renombran a gusto.
     const col = (...etiquetas: string[]) => hoja.columnas.find((c) => etiquetas.includes(norm(c.label)))?.id;
     const cItem = col("material", "item", "descripcion") ?? hoja.columnas[0]?.id;
@@ -127,49 +135,57 @@ export function lineasDeOt(ot: OtCobro, catalogo: Map<string, string>): Linea[] 
       const unidad = String(f[cUnidad ?? ""] ?? "").trim();
       const obs = String(f[cObs ?? ""] ?? "").trim();
 
-      // Hoja de cobro: el técnico ya eligió el código del catálogo.
-      if (hoja.tipo === "cobro" && cCodigo) {
+      // El técnico ya eligió el código del catálogo (hoja de cobro o picker de materiales).
+      if (cCodigo) {
         const codigo = String(f[cCodigo] ?? "").trim();
-        if (!codigo) continue;
-        materiales.push({ texto: [cant, obs || codigo].filter(Boolean).join(" "), codigo, cantidad: numero(cant) ?? undefined });
-        continue;
+        // "Sin materiales": sólo deja constancia en la hoja obligatoria; no se cobra.
+        if (codigo.toLowerCase() === SIN_MATERIALES) continue;
+        if (codigo) {
+          materiales.push({ texto: [cant, (obs || item || codigo) + sufijo].filter(Boolean).join(" "), codigo, cantidad: numero(cant) ?? undefined });
+          continue;
+        }
+        if (hoja.tipo === "cobro") continue; // hoja de cobro sin código: como antes
       }
       if (!item && !cant) continue;
 
       const nItem = norm(item), nUnidad = norm(unidad);
       const n = numero(cant);
-      const esHH = HH.test(nItem) || UNIDAD_HH.test(nUnidad);
-      const esPP = PP.test(nItem) || PP.test(nUnidad);
-      // "3 | Días", "Trabajo de 2 días completos": las hh no salen de la cuenta.
-      if (DIAS.test(nItem) || DIAS.test(nUnidad)) dudoso = true;
-
-      if ((esHH || esPP) && n != null) {
-        (esHH ? horas : personas).push(n);
-        // "Alza-hombre | 4 | hh": las horas cuentan, pero el texto también dice algo.
-        if (item && !HH.test(nItem) && !PP.test(nItem)) notas.push(item);
-        continue;
-      }
-      // "Horas de trabajo | 3 | 2 personas", "18 | horas revisión emergencia 3 personas".
-      if (n != null && (MENCIONA_HH.test(nItem) || MENCIONA_HH.test(nUnidad))) {
-        horas.push(n);
-        const pp = `${nItem} ${nUnidad}`.match(PP_EN_TEXTO);
-        if (pp) personas.push(numero(pp[1])!);
-        continue;
-      }
-      // "1 hh 2 personas" escrito de corrido en una sola celda.
-      const h = !cant && nItem.match(HH_EN_TEXTO);
-      const p = !cant && nItem.match(PP_EN_TEXTO);
-      if (h || p) {
-        if (h) horas.push(numero(h[1])!);
-        if (p) personas.push(numero(p[1])!);
-        continue;
+      // Una solicitud no trae horas ni personas que cobrar: sólo materiales.
+      if (!solicitud) {
+        const esHH = HH.test(nItem) || UNIDAD_HH.test(nUnidad);
+        const esPP = PP.test(nItem) || PP.test(nUnidad);
+        // "3 | Días", "Trabajo de 2 días completos": las hh no salen de la cuenta.
+        if (DIAS.test(nItem) || DIAS.test(nUnidad)) dudoso = true;
+  
+        if ((esHH || esPP) && n != null) {
+          (esHH ? horas : personas).push(n);
+          // "Alza-hombre | 4 | hh": las horas cuentan, pero el texto también dice algo.
+          if (item && !HH.test(nItem) && !PP.test(nItem)) notas.push(item);
+          continue;
+        }
+        // "Horas de trabajo | 3 | 2 personas", "18 | horas revisión emergencia 3 personas".
+        if (n != null && (MENCIONA_HH.test(nItem) || MENCIONA_HH.test(nUnidad))) {
+          horas.push(n);
+          const pp = `${nItem} ${nUnidad}`.match(PP_EN_TEXTO);
+          if (pp) personas.push(numero(pp[1])!);
+          continue;
+        }
+        // "1 hh 2 personas" escrito de corrido en una sola celda.
+        const h = !cant && nItem.match(HH_EN_TEXTO);
+        const p = !cant && nItem.match(PP_EN_TEXTO);
+        if (h || p) {
+          if (h) horas.push(numero(h[1])!);
+          if (p) personas.push(numero(p[1])!);
+          continue;
+        }
       }
 
       // Texto exacto del catálogo; si no, el diccionario ("caja chuky" → cajpla).
       // Un panel sobrepuesto son dos códigos (panel + base) con la misma cantidad.
       const exacto = catalogo.get(nItem);
       const codigos = exacto ? [exacto] : codigosDeTexto(nItem, (c) => catalogo.get(norm(c))) ?? [];
-      const texto = [cant, unidad, item].filter(Boolean).join(" ");
+      if (codigos.some((c) => c.toLowerCase() === SIN_MATERIALES)) continue; // "Sin materiales" escrito a mano
+      const texto = [cant, unidad, item].filter(Boolean).join(" ") + sufijo;
       const cantidad = n != null ? { cantidad: n } : {};
       if (!codigos.length) materiales.push({ texto, ...cantidad });
       codigos.forEach((codigo, i) => materiales.push({ texto: i ? "" : texto, codigo, ...cantidad }));

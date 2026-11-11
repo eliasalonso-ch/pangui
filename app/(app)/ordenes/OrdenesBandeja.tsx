@@ -19,6 +19,7 @@ import { buildOrdenesWorkbook, type ExportCols as SharedExportCols, type OrdenIn
 import { ExportScheduler } from "./ExportScheduler";
 import MeconectaCheck from "./MeconectaCheck";
 import ExportCobros from "./ExportCobros";
+import MaterialesPendientes from "./MaterialesPendientes";
 import { tieneCobros } from "@/lib/catalogo-api";
 import OTRow, { type HojaSolicitudResumen } from "./OTRow";
 import { EmptyState, EmptyDetail } from "@/components/EmptyState";
@@ -1732,6 +1733,9 @@ export default function OrdenesBandeja({
 
             {/* Excel de cobros con el dibujo CON OT / SIN OT de Electrilam. */}
             {puedeExportar && tieneCobros(wsId) && <ExportCobros wsId={wsId} />}
+
+            {/* Materiales anotados sin código del catálogo: la oficina los resuelve. */}
+            {puedeCobrar && <MaterialesPendientes wsId={wsId} />}
 
             {/* Revisar MeConecta — Electrilam-exclusive (same single-tenant gate
                 as ITOs on mobile) and restricted to owners/admins: it reconciles
