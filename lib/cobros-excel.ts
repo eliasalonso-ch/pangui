@@ -629,6 +629,8 @@ export function otsNuevas(ots: OtCobro[], previos: Pick<ExcelCobros, "conOt" | "
 /** Una fila de la tabla Materiales de Patricio, columnas B..O (código en G, MAT FIN en N, MO FIN en O). */
 export type FilaPrecios = (string | number | null)[];
 const COLS_MAT = "BCDEFGHIJKLMNO".split("");
+// También son los nombres de las columnas de la tabla de Excel: tienen que calzar con la fila 3.
+const ROTULOS_MAT = ["Clasificación", "Sub Clasificación", "Elemento", "Tamaño / potencia", "Caracteristica", "Codigo", "Descripción", "Un", "MATERIAL", "MO", "% MAT", "% MO", "MAT FIN", "MO FIN"];
 
 type XlsxLectura = {
   read: (datos: Uint8Array, opts: { type: "array"; sheets?: string[] }) => { SheetNames: string[]; Sheets: Record<string, Record<string, unknown>> };
@@ -674,8 +676,8 @@ function pestanaMateriales(X: XlsxHoja, catalogo: MaterialCobro[], precios: Fila
   for (const [c, v] of [["L", modMat], ["M", modMo]] as const) {
     p.put(2, c, { v, s: est({ negrita: true, relleno: AMARILLO, h: "center", fmt: "0%", bd: ["medium", "medium", "medium", "medium"] }) });
   }
-  const rotulos = ["Clasificación", "Sub Clasificación", "Elemento", "Tamaño / potencia", "Caracteristica", "Codigo", "Descripción", "Un", "MATERIAL", "MO", "% MAT", "% MO", "MAT FIN", "MO FIN"];
-  COLS_MAT.forEach((c, i) => p.put(3, c, { v: rotulos[i], s: est({ negrita: true, relleno: GRIS, h: "center", bd: ["thin", "thin", "thin", "thin"] }) }));
+  p.altura(1, 67); // ahí van las segmentaciones (adornar)
+  COLS_MAT.forEach((c, i) => p.put(3, c, { v: ROTULOS_MAT[i], s: est({ negrita: true, relleno: GRIS, h: "center", bd: ["thin", "thin", "thin", "thin"] }) }));
   const conPrecio = new Set(precios.map((f) => norm(f[5])));
   const filas: FilaPrecios[] = [
     ...precios,
@@ -758,6 +760,54 @@ function adornar(X: XlsxZip, libro: Uint8Array, hojas: number[], logo?: Uint8Arr
       tipos = tipos.replace("</Types>", `<Override PartName="/xl/drawings/logo${n}.xml" ContentType="application/vnd.openxmlformats-officedocument.drawing+xml"/></Types>`);
     }
     escribir(ruta, xml);
+  }
+
+  // Materiales como la base de Patricio: tabla de Excel con segmentaciones por
+  // Clasificación y Sub Clasificación en la fila 1 (se filtra con un clic).
+  const NS_SL = "http://schemas.microsoft.com/office/spreadsheetml/2009/9/main";
+  const NS_X15 = "http://schemas.microsoft.com/office/spreadsheetml/2010/11/main";
+  const XML = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>`;
+  const mat = leer("xl/worksheets/sheet3.xml");
+  const ultima = Number(/<dimension ref="[A-Z]+\d+:[A-Z]+(\d+)"/.exec(mat ?? "")?.[1] ?? 0);
+  if (mat && ultima >= 4) {
+    const segs = [
+      { col: 1, cache: "Slicer_Clasificacion", botones: 5, desde: 1, hasta: 5 },     // B..E
+      { col: 2, cache: "Slicer_Sub_Clasificacion", botones: 8, desde: 5, hasta: 8 }, // F..H
+    ].map((s) => ({ ...s, nombre: ROTULOS_MAT[s.col - 1] }));
+    escribir("xl/tables/materiales.xml", `${XML}<table xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" id="1" name="Materiales" displayName="Materiales" ref="B3:O${ultima}" totalsRowShown="0">`
+      + `<autoFilter ref="B3:O${ultima}"/><tableColumns count="${ROTULOS_MAT.length}">${ROTULOS_MAT.map((n, i) => `<tableColumn id="${i + 1}" name="${n}"/>`).join("")}</tableColumns>`
+      + `<tableStyleInfo name="TableStyleLight1" showFirstColumn="0" showLastColumn="0" showRowStripes="1" showColumnStripes="0"/></table>`);
+    segs.forEach((s, i) => escribir(`xl/slicerCaches/materiales${i + 1}.xml`,
+      `${XML}<slicerCacheDefinition xmlns="${NS_SL}" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" mc:Ignorable="x" xmlns:x="http://schemas.openxmlformats.org/spreadsheetml/2006/main" name="${s.cache}" sourceName="${s.nombre}">`
+      + `<extLst><x:ext uri="{2F2917AC-EB37-4324-AD4E-5DD8C200BD13}" xmlns:x15="${NS_X15}"><x15:tableSlicerCache tableId="1" column="${s.col}"/></x:ext></extLst></slicerCacheDefinition>`));
+    escribir("xl/slicers/materiales.xml", `${XML}<slicers xmlns="${NS_SL}">`
+      + segs.map((s) => `<slicer name="${s.nombre}" cache="${s.cache}" caption="${s.nombre}" columnCount="${s.botones}" showCaption="0" rowHeight="180000"/>`).join("") + `</slicers>`);
+    const punto = (col: number, off: number) => `<xdr:col>${col}</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>0</xdr:row><xdr:rowOff>${off}</xdr:rowOff>`;
+    escribir("xl/drawings/segmentaciones.xml", `${XML}<xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">`
+      + segs.map((s, i) => `<xdr:twoCellAnchor editAs="absolute"><xdr:from>${punto(s.desde, 25400)}</xdr:from><xdr:to>${punto(s.hasta, 820000)}</xdr:to>`
+        + `<mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" xmlns:sle15="http://schemas.microsoft.com/office/drawing/2012/slicer"><mc:Choice Requires="sle15">`
+        + `<xdr:graphicFrame macro=""><xdr:nvGraphicFramePr><xdr:cNvPr id="${i + 2}" name="${s.nombre}"/><xdr:cNvGraphicFramePr/></xdr:nvGraphicFramePr><xdr:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/></xdr:xfrm>`
+        + `<a:graphic><a:graphicData uri="http://schemas.microsoft.com/office/drawing/2010/slicer"><sle:slicer xmlns:sle="http://schemas.microsoft.com/office/drawing/2010/slicer" name="${s.nombre}"/></a:graphicData></a:graphic></xdr:graphicFrame>`
+        + `</mc:Choice><mc:Fallback/></mc:AlternateContent><xdr:clientData/></xdr:twoCellAnchor>`).join("") + `</xdr:wsDr>`);
+    escribir("xl/worksheets/_rels/sheet3.xml.rels", `${XML}<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">`
+      + `<Relationship Id="rIdSeg" Type="${NS_REL}/drawing" Target="../drawings/segmentaciones.xml"/>`
+      + `<Relationship Id="rIdTabla" Type="${NS_REL}/table" Target="../tables/materiales.xml"/>`
+      + `<Relationship Id="rIdSlicer" Type="http://schemas.microsoft.com/office/2007/relationships/slicer" Target="../slicers/materiales.xml"/></Relationships>`);
+    escribir("xl/worksheets/sheet3.xml", mat.replace("</worksheet>", `<drawing r:id="rIdSeg"/><tableParts count="1"><tablePart r:id="rIdTabla"/></tableParts>`
+      + `<extLst><ext uri="{3A4CF648-6AED-40f4-86FF-DC5316D8AED3}" xmlns:x15="${NS_X15}"><x14:slicerList xmlns:x14="${NS_SL}"><x14:slicer r:id="rIdSlicer"/></x14:slicerList></ext></extLst></worksheet>`));
+    const rels = leer("xl/_rels/workbook.xml.rels")!;
+    escribir("xl/_rels/workbook.xml.rels", rels.replace("</Relationships>", segs.map((_, i) =>
+      `<Relationship Id="rIdSc${i + 1}" Type="http://schemas.microsoft.com/office/2007/relationships/slicerCache" Target="slicerCaches/materiales${i + 1}.xml"/>`).join("") + "</Relationships>"));
+    // Cada segmentación necesita su nombre definido (#N/A) y su caché listada en el libro.
+    const nombres = segs.map((s) => `<definedName name="${s.cache}">#N/A</definedName>`).join("");
+    let libroXml = leer("xl/workbook.xml")!;
+    libroXml = libroXml.includes("</definedNames>") ? libroXml.replace("</definedNames>", nombres + "</definedNames>") : libroXml.replace("</sheets>", `</sheets><definedNames>${nombres}</definedNames>`);
+    escribir("xl/workbook.xml", libroXml.replace("</workbook>", `<extLst><ext uri="{46BE6895-7355-4a93-B00E-2C351335B9C9}" xmlns:x15="${NS_X15}"><x15:slicerCaches xmlns:x14="${NS_SL}">`
+      + segs.map((_, i) => `<x14:slicerCache r:id="rIdSc${i + 1}"/>`).join("") + `</x15:slicerCaches></ext></extLst></workbook>`));
+    tipos = tipos.replace("</Types>", `<Override PartName="/xl/tables/materiales.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.table+xml"/>`
+      + segs.map((_, i) => `<Override PartName="/xl/slicerCaches/materiales${i + 1}.xml" ContentType="application/vnd.ms-excel.slicerCache+xml"/>`).join("")
+      + `<Override PartName="/xl/slicers/materiales.xml" ContentType="application/vnd.ms-excel.slicer+xml"/>`
+      + `<Override PartName="/xl/drawings/segmentaciones.xml" ContentType="application/vnd.openxmlformats-officedocument.drawing+xml"/></Types>`);
   }
   escribir("[Content_Types].xml", tipos);
   // Comprimido: sin esto un mes de SIN OT pesaba 6 MB (el XML de las celdas es muy repetitivo).

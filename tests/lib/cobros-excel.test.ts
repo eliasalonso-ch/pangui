@@ -341,6 +341,25 @@ describe("pestanaCobros: el dibujo de bloques del Excel de Claudio", () => {
     expect(leer("[Content_Types].xml")).toContain('Extension="png"');
     expect(leer("xl/worksheets/sheet1.xml")).toContain('showGridLines="0"');
   });
+
+  it("Materiales es una tabla con segmentaciones por Clasificación y Sub Clasificación, como la de Patricio", () => {
+    const bytes = libroCobros(X, {
+      ots: [], catalogo: [{ codigo: "tubled18", descripcion: "Tubo led 18W", unidad: "Un", clasificacion: "Iluminación" }],
+      conOt: { desde: "2026-06-01", hasta: "2026-06-30" }, sinOt: { desde: "2026-06-01", hasta: "2026-06-30" },
+    });
+    const zip = XLSX.CFB.read(bytes, { type: "array" });
+    const leer = (ruta: string) => {
+      const i = zip.FullPaths.findIndex((p: string) => p.endsWith("/" + ruta));
+      return i < 0 ? "" : new TextDecoder().decode(Uint8Array.from(zip.FileIndex[i].content as ArrayLike<number>));
+    };
+    expect(leer("xl/tables/materiales.xml")).toContain('ref="B3:O4"');
+    expect(leer("xl/tables/materiales.xml")).toContain('<tableColumn id="2" name="Sub Clasificación"/>');
+    expect(leer("xl/slicerCaches/materiales1.xml")).toContain('<x15:tableSlicerCache tableId="1" column="1"/>');
+    expect(leer("xl/slicerCaches/materiales2.xml")).toContain('<x15:tableSlicerCache tableId="1" column="2"/>');
+    expect(leer("xl/worksheets/sheet3.xml")).toContain('<tablePart r:id="rIdTabla"/>');
+    expect(leer("xl/workbook.xml")).toContain('<definedName name="Slicer_Sub_Clasificacion">#N/A</definedName>');
+    expect(leer("[Content_Types].xml")).toContain("application/vnd.ms-excel.slicer+xml");
+  });
 });
 
 describe("lineasDeOt: picker de materiales", () => {
