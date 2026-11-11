@@ -1,33 +1,28 @@
-// Supabase Edge Function — runs daily via pg_cron / Supabase cron dashboard.
-// Permanently deletes OTs that have been in the trash (papelera) for more than
-// 30 days, cleaning up their R2 photos first.
+// Supabase Edge Function — corre a diario por pg_cron (04:00 UTC).
 //
-// Suggested schedule: every day at 04:00 UTC.
+// 1. Borra definitivamente las OTs que llevan más de 30 días en la papelera.
+// 2. Vacía la cola `r2_borrados_pendientes`: borra de R2 la carpeta de cada OT
+//    eliminada.
+//
+// La cola la llena un trigger AFTER DELETE en ordenes_trabajo, así que cubre
+// TODOS los caminos que borran una OT (esta purga, "Eliminar definitivamente"
+// en web y móvil, el borrado de workspace), no solo este.
+//
+// Antes esta función borraba solo imagen_url y fotos_urls llamando a r2-delete
+// con la service key, que respondía 401; el error se tragaba y las fotos
+// quedaban huérfanas en el bucket (158 OTs, 175 MB al 2026-11-11).
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { borrarCarpetaDeOrden, esPrefijoDeOrden } from "../_shared/r2.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY  = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const R2_DELETE_ENDPOINT = `${SUPABASE_URL}/functions/v1/r2-delete`;
 
 const RETENTION_DAYS = 30;
-
-async function deleteFromR2(url: string): Promise<void> {
-  try {
-    await fetch(R2_DELETE_ENDPOINT, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${SERVICE_KEY}`,
-        apikey: SERVICE_KEY,
-      },
-      body: JSON.stringify({ url }),
-    });
-  } catch (err) {
-    // Best-effort — a failed photo delete shouldn't block purging the row.
-    console.error("[purge-papelera] R2 delete failed for", url, err);
-  }
-}
+// ponytail: tope por corrida para no pasarse del límite de tiempo de la
+// función. Lo que sobre sale al día siguiente; si la cola crece más rápido que
+// esto, subir el tope o correr el cron más seguido.
+const MAX_CARPETAS_POR_CORRIDA = 100;
 
 Deno.serve(async (req) => {
   const authHeader = req.headers.get("Authorization");
@@ -41,42 +36,46 @@ Deno.serve(async (req) => {
 
   const cutoff = new Date(Date.now() - RETENTION_DAYS * 24 * 60 * 60 * 1000).toISOString();
 
-  // Fetch the trashed rows old enough to purge, with their photo URLs.
-  const { data: rows, error: fetchErr } = await supabase
-    .from("ordenes_trabajo")
-    .select("id, imagen_url, fotos_urls")
-    .not("deleted_at", "is", null)
-    .lt("deleted_at", cutoff)
-    .limit(500);
-
-  if (fetchErr) {
-    console.error("[purge-papelera] fetch error:", fetchErr);
-    return new Response(JSON.stringify({ error: fetchErr.message }), { status: 500 });
-  }
-
-  if (!rows || rows.length === 0) {
-    return new Response(JSON.stringify({ purged: 0 }), { status: 200 });
-  }
-
-  // Clean up R2 photos (best-effort) before removing the rows.
-  for (const row of rows) {
-    const urls: string[] = [];
-    if (row.imagen_url) urls.push(row.imagen_url);
-    if (Array.isArray(row.fotos_urls)) urls.push(...row.fotos_urls);
-    await Promise.allSettled(urls.map((u: string) => deleteFromR2(u)));
-  }
-
-  const ids = rows.map((r) => r.id);
-  const { error: delErr } = await supabase
+  // El trigger encola la carpeta de cada fila borrada.
+  const { data: purgadas, error: delErr } = await supabase
     .from("ordenes_trabajo")
     .delete()
-    .in("id", ids);
+    .not("deleted_at", "is", null)
+    .lt("deleted_at", cutoff)
+    .select("id");
 
   if (delErr) {
     console.error("[purge-papelera] delete error:", delErr);
     return new Response(JSON.stringify({ error: delErr.message }), { status: 500 });
   }
 
-  console.log(`[purge-papelera] purged ${ids.length} OTs older than ${RETENTION_DAYS} days`);
-  return new Response(JSON.stringify({ purged: ids.length }), { status: 200 });
+  const { data: cola, error: colaErr } = await supabase
+    .from("r2_borrados_pendientes")
+    .select("id, prefijo")
+    .order("id")
+    .limit(MAX_CARPETAS_POR_CORRIDA);
+
+  if (colaErr) {
+    console.error("[purge-papelera] cola error:", colaErr);
+    return new Response(JSON.stringify({ error: colaErr.message }), { status: 500 });
+  }
+
+  let objetos = 0;
+  let fallidas = 0;
+  for (const item of cola ?? []) {
+    try {
+      // Un prefijo inválido no va a servir nunca: se saca de la cola sin tocar R2.
+      if (esPrefijoDeOrden(item.prefijo)) objetos += await borrarCarpetaDeOrden(item.prefijo);
+      else console.error("[purge-papelera] prefijo descartado:", item.prefijo);
+      await supabase.from("r2_borrados_pendientes").delete().eq("id", item.id);
+    } catch (err) {
+      // Queda en la cola y se reintenta mañana.
+      fallidas++;
+      console.error("[purge-papelera] R2 falló para", item.prefijo, err);
+    }
+  }
+
+  const resumen = { purged: purgadas?.length ?? 0, carpetas: (cola?.length ?? 0) - fallidas, objetos, fallidas };
+  console.log("[purge-papelera]", JSON.stringify(resumen));
+  return new Response(JSON.stringify(resumen), { status: 200 });
 });
