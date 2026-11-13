@@ -157,12 +157,6 @@ describe("pestanaCobros: el dibujo de bloques del Excel de Claudio", () => {
     expect(celda(ws, "E37")).toBe("1 un Material 19");
   });
 
-  it("la continuación hereda el técnico, para que el filtro por Q no la esconda", () => {
-    const muchas = Array.from({ length: 25 }, (_, i) => `Material ${i}|1|un`);
-    const ws = pestanaCobros(X, [ot([{ ...hoja("materiales_usados", ...muchas), autor: "Cristian" }])], catalogo, false);
-    expect(["Q13", "Q36", "Q37", "Q57"].map((r) => celda(ws, r))).toEqual(["Cristian", "Cristian", "Cristian", "Cristian"]);
-  });
-
   it("técnico que hizo la hoja en Q y N° OT de Pangui en R, también al actualizar", () => {
     const conAutor = (autor: string, tipo = "materiales_usados"): HojaCobro => ({ ...hoja(tipo, "|1|hh"), autor });
     const a = ot([conAutor("Juan Pérez"), conAutor("Juan Pérez"), conAutor("Ana Soto"), conAutor("Pide Otro", "materiales_solicitados")], { id: "ot-a", numeroPangui: 343 });
@@ -170,8 +164,6 @@ describe("pestanaCobros: el dibujo de bloques del Excel de Claudio", () => {
     expect([celda(ws, "Q12"), celda(ws, "Q13"), celda(ws, "R13")]).toEqual(["Técnico", "Juan Pérez, Ana Soto", 343]);
     expect((ws["R13"] as { z?: string }).z).toBe('"#"0'); // se ve "#343"
     expect([celda(ws, "Q36"), celda(ws, "R36")]).toEqual(["", ""]); // sin hoja ni número: en blanco
-    // Filtrar Q por un técnico no puede esconder las líneas ni los TOTALES de su OT.
-    expect(["Q14", "Q33", "Q34", "Q35"].map((r) => celda(ws, r))).toEqual(Array(4).fill("Juan Pérez, Ana Soto"));
     // El dibujo sigue hacia abajo: franja en las líneas impares y dorado en TOTALES; R cierra la tabla.
     const s = (ref: string) => (ws[ref] as { s?: { fill?: { fgColor?: { rgb?: string } }; border?: { right?: { style?: string } } } }).s;
     expect(["Q13", "Q15", "R15", "Q34", "R34"].map((r) => s(r)?.fill?.fgColor?.rgb)).toEqual(["D0DFE6", "D9D9D9", "D9D9D9", "FFD757", "FFD757"]);
@@ -199,7 +191,7 @@ describe("pestanaCobros: el dibujo de bloques del Excel de Claudio", () => {
       return filas;
     };
     const bloque = (id: string, tecnico: string, numeroPangui: number | null) => [{
-      id, cabecera: { fecha: "2026-06-19", solicitud: "SF920260627830", lugar: "Cabina 2", descripcion: "Instalar", tecnico, numeroPangui },
+      id, cabecera: { fecha: "2026-06-19", solicitud: "SF920260627830", lugar: "Cabina 2", descripcion: "Instalar", tecnico, numeroPangui, ito: "" },
       lineas: [{ texto: "Caja chuqui", codigo: "cajpla", cantidad: 3 }],
     }];
     expect(leer(libro([], [null, "ot-vieja"]))).toEqual(bloque("ot-vieja", "", null));
@@ -219,7 +211,7 @@ describe("pestanaCobros: el dibujo de bloques del Excel de Claudio", () => {
       sinOt: { desde: "2026-07-01", hasta: "2026-07-31" },
     });
     const wb = XLSX.read(bytes, { type: "array" });
-    expect(wb.SheetNames).toEqual(["CON OT", "SIN OT", "Materiales"]);
+    expect(wb.SheetNames).toEqual(["CON OT", "SIN OT", "Materiales", "Revisión", "Resumen"]);
     expect(wb.Sheets["CON OT"]["D13"]?.v).toBe("SF920260627830");
     expect(wb.Sheets["CON OT"]["D36"]).toBeUndefined(); // la del 22-jul queda fuera del corte del ITO
     expect(wb.Sheets["SIN OT"]["C13"]?.v).toBe(46225);
@@ -350,6 +342,94 @@ describe("pestanaCobros: el dibujo de bloques del Excel de Claudio", () => {
     expect(leer("xl/worksheets/sheet1.xml")).toContain('showGridLines="0"');
   });
 
+  it("Revisión y Resumen: cada OT con las líneas de su bloque debajo, en una tabla para filtrar y sumar", () => {
+    const muchas = Array.from({ length: 25 }, (_, i) => `Material ${i}|1|un`);
+    const rango = { desde: "2026-06-01", hasta: "2026-06-30" };
+    const de = (autor: string, ...filas: string[]): HojaCobro => ({ ...hoja("materiales_usados", ...filas), autor });
+    const fila = (cod: string, mat: number, mo: number) => ["Iluminación", null, null, null, null, cod, cod, "Un", mat, mo, 1, 1, mat, mo];
+    const bytes = libroCobros(X, {
+      ots: [
+        ot([de("Cesar", ...muchas), de("Ana", "|1|hh")], { numeroPangui: 343, ito: "Samuel Artiaga" }), // 2 bloques: filas 13 y 36
+        ot([], { numeroOt: "SF2", fecha: "2026-06-20" }),                                                // fila 59, sin técnico ni ITO
+        ot([de("Ana", "Tubo LED 18W|2|un", "|1|hh")], { numeroOt: "", solicitante: "Lilian Lamperti", ito: "Cristian Quijada" }),
+      ],
+      catalogo: [{ codigo: "tubled18", descripcion: "Tubo LED 18W", unidad: "Un", clasificacion: "" }], conOt: rango, sinOt: rango,
+      precios: [fila("tubled18", 6750, 4150), fila("revnor", 0, 12000), fila("reveme", 0, 18000)],
+    });
+    const wb = XLSX.read(bytes, { type: "array", sheetStubs: true, cellNF: true, cellStyles: true }); // sheetStubs: las fórmulas aún sin valor
+    const f = (ws: XLSX.WorkSheet, ref: string) => (ws[ref] as { f?: string }).f;
+    const z = (ws: XLSX.WorkSheet, ref: string) => (ws[ref] as { z?: string }).z;
+    const r = wb.Sheets["Revisión"];
+    const oculta = (n: number) => !!(r["!rows"] as { hidden?: boolean }[] | undefined)?.[n - 1]?.hidden;
+
+    // El ITO de Pangui va oculto en la columna U de la cabecera: los bloques se ven igual.
+    const con = wb.Sheets["CON OT"];
+    expect([con["U13"]?.v, con["U12"]?.v, (con["!cols"] as { hidden?: boolean }[])[20]?.hidden]).toEqual(["Samuel Artiaga", "ITO", true]);
+
+    // La OT: fila 4, con sus datos, su descripción y los totales de sus dos bloques.
+    expect(["B4", "D4", "E4", "F4", "G4", "H4", "I4", "K4"].map((c) => r[c]?.v)).toEqual(["CON OT", "SF920260627830", "Samuel Artiaga", "Cesar", "Ana", 343, "OT", "Instalar 3 proyectores"]);
+    expect([f(r, "C4"), f(r, "D4"), f(r, "K4")]).toEqual(["'CON OT'!C13", "'CON OT'!D13&\"\"", "'CON OT'!G13&\"\""]);
+    expect(f(r, "E4")).toBe("IF('CON OT'!U13&\"\"=\"\",\"Sin ITO\",'CON OT'!U13&\"\")");
+    // Un técnico por botón: el primero en Técnico, el resto en Acompañantes; sin hoja, "Sin técnico".
+    expect(f(r, "F4")).toBe("IF('CON OT'!Q13&\"\"=\"\",\"Sin técnico\",IFERROR(LEFT('CON OT'!Q13&\"\",FIND(\",\",'CON OT'!Q13&\"\")-1),'CON OT'!Q13&\"\"))");
+    expect(f(r, "G4")).toBe("IFERROR(MID('CON OT'!Q13&\"\",FIND(\",\",'CON OT'!Q13&\"\")+2,200),\"\")");
+    expect([f(r, "Q4"), f(r, "V4")]).toEqual(["'CON OT'!K34+'CON OT'!K57", "'CON OT'!P34+'CON OT'!P57"]); // la continuación suma
+    expect(f(r, "W4")).toBe("IF(LEFT('CON OT'!T13&\"\",7)=\"COBRADA\",\"Cobrada\",IF(LEFT('CON OT'!T13&\"\",7)=\"YA SALI\",\"Ya exportada\",\"Nueva\"))");
+
+    // Debajo, las 40 líneas de sus dos bloques (filas 5..44), con los datos de la OT repetidos.
+    expect(["D5", "E5", "F5", "I5", "K5", "L5"].map((c) => r[c]?.v)).toEqual(["SF920260627830", "Samuel Artiaga", "Cesar", "Mano de obra", "Revisión normal", "revnor"]);
+    expect([f(r, "K5"), f(r, "L5"), f(r, "O5"), f(r, "Q5")]).toEqual(["'CON OT'!E14&\"\"", "'CON OT'!F14&\"\"", "IFERROR('CON OT'!I14+0,\"\")", "IFERROR('CON OT'!K14+0,0)"]);
+    expect(f(r, "I5")).toBe("IF('CON OT'!E14&'CON OT'!F14&'CON OT'!I14=\"\",\"(vacía)\",IF('CON OT'!F14&\"\"=\"\",\"Sin código\",IF(AND(IFERROR('CON OT'!K14+0,0)=0,IFERROR('CON OT'!M14+0,0)>0),\"Mano de obra\",\"Material\")))");
+    expect([f(r, "K25"), f(r, "D25")]).toEqual(["'CON OT'!E37&\"\"", "'CON OT'!D13&\"\""]); // la línea 21 sigue en la continuación
+    // Las líneas sin nada escrito van, pero filtradas: si se rellenan después, aparecen al reaplicar el filtro.
+    expect([r["I44"]?.v, oculta(44), oculta(5), oculta(4)]).toEqual(["(vacía)", true, false, false]);
+
+    // La OT siguiente (sin hoja): fila 45; la SIN OT, después de sus 20 líneas.
+    expect(["B45", "E45", "F45", "I45"].map((c) => r[c]?.v)).toEqual(["CON OT", "Sin ITO", "Sin técnico", "OT"]);
+    expect(f(r, "Q45")).toBe("'CON OT'!K80");
+    expect(["B66", "D66", "E66", "I66", "L68", "I68"].map((c) => r[c]?.v)).toEqual(["SIN OT", "Lilian Lamperti", "Cristian Quijada", "OT", "tubled18", "Material"]);
+
+    // Arriba, lo filtrado: sólo suman las filas de OT (ya traen el total de sus líneas).
+    expect(f(r, "C2")).toBe("SUMPRODUCT(SUBTOTAL(103,OFFSET(I4,ROW(I4:I86)-ROW(I4),0))*(I4:I86=\"OT\"))");
+    expect(f(r, "V2")).toBe("IF(SUMPRODUCT(SUBTOTAL(103,OFFSET(I4,ROW(I4:I86)-ROW(I4),0))*(I4:I86=\"OT\"))>0,SUMPRODUCT(SUBTOTAL(109,OFFSET(V4,ROW(V4:V86)-ROW(V4),0))*(I4:I86=\"OT\")),SUBTOTAL(109,V4:V86))");
+    // Moneda y fecha de verdad, no formatos personalizados.
+    expect([z(r, "C4"), z(r, "Q4"), z(r, "Q5")]).toEqual(["dd-mm-yyyy", "[$$-340A] #,##0", "[$$-340A] #,##0"]);
+
+    // Resumen: cada técnico (la OT cuenta para todos los que fueron), cada ITO y cada código.
+    const m = wb.Sheets["Resumen"];
+    expect(["B5", "B6", "B7", "B8"].map((c) => m[c]?.v)).toEqual(["Ana", "Cesar", "Sin técnico", undefined]);
+    expect(f(m, "C5")).toBe("SUMPRODUCT(('Revisión'!$I$4:$I$86=\"OT\")*(('Revisión'!$F$4:$F$86=$B5)+ISNUMBER(SEARCH($B5,'Revisión'!$G$4:$G$86))>0))");
+    expect(f(m, "H5")).toBe("SUMPRODUCT(('Revisión'!$I$4:$I$86=\"OT\")*(('Revisión'!$F$4:$F$86=$B5)+ISNUMBER(SEARCH($B5,'Revisión'!$G$4:$G$86))>0)*'Revisión'!$V$4:$V$86)");
+    expect(["J5", "J6", "J7", "J8"].map((c) => m[c]?.v)).toEqual(["Cristian Quijada", "Samuel Artiaga", "Sin ITO", "TOTAL"]);
+    expect([f(m, "K5"), f(m, "P5")]).toEqual(["COUNTIFS('Revisión'!$I$4:$I$86,\"OT\",'Revisión'!$E$4:$E$86,$J5)", "SUMIFS('Revisión'!$V$4:$V$86,'Revisión'!$I$4:$I$86,\"OT\",'Revisión'!$E$4:$E$86,$J5)"]);
+    expect(f(m, "P8")).toBe("SUM(P5:P7)");
+    const codigos = Object.keys(m).filter((k) => /^R\d+$/.test(k) && Number(k.slice(1)) >= 5).map((k) => m[k]?.v);
+    expect(codigos).toEqual(["reveme", "revnor", "tubled18", "TOTAL"]); // SIN OT se cobra como emergencia
+    expect(f(m, "U7")).toBe("SUMIFS('Revisión'!$O$4:$O$86,'Revisión'!$L$4:$L$86,$R7)");
+    expect(f(m, "S7")).toBe("IFERROR(INDEX('Revisión'!$M$4:$M$86,MATCH($R7,'Revisión'!$L$4:$L$86,0))&\"\",\"\")");
+
+    const zip = XLSX.CFB.read(bytes, { type: "array" });
+    const leer = (ruta: string) => {
+      const i = zip.FullPaths.findIndex((p: string) => p.endsWith("/" + ruta));
+      return i < 0 ? "" : new TextDecoder().decode(Uint8Array.from(zip.FileIndex[i].content as ArrayLike<number>));
+    };
+    expect(leer("xl/tables/revision.xml")).toContain('id="2" name="Revision" displayName="Revision" ref="B3:W86"');
+    // La tabla sale con el mismo filtro que las filas ocultas: todo menos las líneas vacías.
+    expect(leer("xl/tables/revision.xml")).toContain('<filterColumn colId="7"><filters><filter val="OT"/><filter val="Material"/><filter val="Mano de obra"/><filter val="Sin código"/></filters></filterColumn>');
+    expect(leer("xl/slicerCaches/revision5.xml")).toContain('name="Slicer_Tecnico" sourceName="Técnico"');
+    expect(leer("xl/slicers/revision.xml")).not.toContain("showCaption"); // con título: ahí está el botón de borrar el filtro
+    expect(leer("xl/workbook.xml").match(/<extLst>/g)).toHaveLength(1); // las cachés de las dos tablas, en una sola lista
+
+    // Con o sin estas pestañas (se borran antes de mandarlo al ITO), el Excel se puede seguir actualizando, y el ITO vuelve.
+    const previo = leerExcelCobros(X, bytes)!;
+    expect(previo.conOt).toHaveLength(3);
+    expect([previo.conOt[0].cabecera?.ito, previo.conOt[2].cabecera?.ito, previo.sinOt[0].cabecera?.ito]).toEqual(["Samuel Artiaga", "", "Cristian Quijada"]);
+    // Un Excel de antes no trae el ITO en sus bloques: se completa con el de Pangui, por id.
+    const viejo = { conOt: [{ ...previo.conOt[0], id: "ot-a", cabecera: { ...previo.conOt[0].cabecera!, ito: "" } }], sinOt: [] };
+    const act = XLSX.read(libroCobros(X, { ots: [], catalogo: [], conOt: rango, sinOt: rango, previos: viejo, itos: new Map([["ot-a", "Enzo Cifuente"]]) }), { type: "array" });
+    expect([act.Sheets["CON OT"]["U13"]?.v, act.Sheets["Revisión"]["E4"]?.v]).toEqual(["Enzo Cifuente", "Enzo Cifuente"]);
+  });
+
   it("Materiales es una tabla con segmentaciones por Clasificación y Sub Clasificación, como la de Patricio", () => {
     const bytes = libroCobros(X, {
       ots: [], catalogo: [{ codigo: "tubled18", descripcion: "Tubo led 18W", unidad: "Un", clasificacion: "Iluminación" }],
@@ -407,7 +487,6 @@ describe("lineasDeOt: Sin materiales", () => {
     expect(l.some((x) => /sin materiales/i.test(x.texto))).toBe(false);
   });
 });
-
 describe("lineasDeOt: Sin materiales escrito a mano", () => {
   it("el texto exacto del catálogo tampoco se cobra", () => {
     const cat = new Map([...catalogo, ["sin materiales", "sinmat"]]);

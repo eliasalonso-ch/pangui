@@ -36,6 +36,8 @@ export interface OtCobro {
   /** SF9… si la OT viene del portal del cliente; vacío = SIN OT. */
   numeroOt: string;
   solicitante: string;
+  /** El ITO de la OT (ordenes_trabajo.hito). No se ve en los bloques: es para Revisión. */
+  ito?: string;
   lugar: string;
   /** Fecha de término, YYYY-MM-DD. */
   fecha: string;
@@ -263,7 +265,7 @@ type Celda = { v?: string | number; f?: string; s?: Estilo };
 class Pestana {
   ws: Record<string, unknown> = {};
   merges: { s: { r: number; c: number }; e: { r: number; c: number } }[] = [];
-  alto: { hpt: number }[] = [];
+  alto: { hpt?: number; hidden?: boolean }[] = [];
   constructor(private X: XlsxHoja) {}
   /** fila 1-based, columna "C". Fórmula sin "=". */
   put(fila: number, col: string, { v, f, s }: Celda) {
@@ -281,7 +283,9 @@ class Pestana {
     const p = (ref: string) => ({ r: Number(ref.slice(1)) - 1, c: L.indexOf(ref[0]) });
     this.merges.push({ s: p(desde), e: p(hasta) });
   }
-  altura(fila: number, hpt: number) { this.alto[fila - 1] = { hpt }; }
+  altura(fila: number, hpt: number) { this.alto[fila - 1] = { ...this.alto[fila - 1], hpt }; }
+  /** Fila fuera del filtro de su tabla (el mismo filtro va en la tabla: adornar). */
+  ocultar(fila: number) { this.alto[fila - 1] = { ...this.alto[fila - 1], hidden: true }; }
   cerrar(ultimaFila: number, ultimaCol: string, anchos: number[]) {
     this.ws["!ref"] = this.X.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: ultimaFila - 1, c: L.indexOf(ultimaCol) } });
     this.ws["!merges"] = this.merges;
@@ -361,6 +365,7 @@ function encabezado(p: Pestana, titulo: string, desde: string, hasta: string, ul
   }
   // Fuera de la tabla (entremedio va S, oculta): el aviso de cobro de cada OT.
   p.put(12, "T", { v: "Cobro", s: est({ fuente: "Aptos Display", tam: 12, negrita: true, h: "center", ajustar: true }) });
+  p.put(12, "U", { v: "ITO" }); // columna oculta
   [15.75, 18.75, 16.5, 24, 16.9, 24, 21.75, 8.65, 35.25, 24.95, 18.4, 54.75].forEach((h, i) => p.altura(i + 1, h));
 }
 
@@ -377,6 +382,8 @@ export interface BloqueCobro {
     fecha: string; solicitud: string; lugar: string; descripcion: string;
     /** Quién hizo la hoja (columna Q) y el N° de la OT en Pangui (columna R). */
     tecnico?: string; numeroPangui?: number | null;
+    /** El ITO de la OT, oculto en la columna U. Vacío en los Excel de antes del 13-nov. */
+    ito?: string;
   } | null;
   lineas: Linea[];
 }
@@ -392,7 +399,7 @@ export function bloquesDeOt(ot: OtCobro, catalogo: Map<string, string>, sinOt: b
       id: ot.id ?? "",
       cabecera: i ? null : {
         fecha: ot.fecha, solicitud: sinOt ? ot.solicitante : ot.numeroOt, lugar: ot.lugar, descripcion: ot.descripcion,
-        tecnico, numeroPangui: ot.numeroPangui ?? null,
+        tecnico, numeroPangui: ot.numeroPangui ?? null, ito: ot.ito?.trim() ?? "",
       },
       lineas: lineas.slice(i, i + LINEAS_POR_BLOQUE),
     });
@@ -401,13 +408,11 @@ export function bloquesDeOt(ot: OtCobro, catalogo: Map<string, string>, sinOt: b
 }
 
 /** Un bloque de 23 filas desde `cab` (la fila de cabecera de la OT); `n` es su número en la columna A. */
-function bloque(p: Pestana, cab: number, n: number, b: BloqueCobro, catalogo: Map<string, MaterialCobro>, alto: number, marca?: { v: string; rgb: string }, tecnico = "") {
+function bloque(p: Pestana, cab: number, n: number, b: BloqueCobro, catalogo: Map<string, MaterialCobro>, alto: number, marca?: { v: string; rgb: string }) {
   const { cabecera, lineas } = b;
-  // El técnico se repite en gris en todas las filas del bloque: si sólo va en la
-  // cabecera, filtrar Q por un nombre esconde las líneas y los TOTALES de su OT.
-  const enGris = (s: Record<string, unknown>) => ({ ...s, font: { ...(s.font as object), bold: false, color: { rgb: "A6A6A6" } } });
   p.put(cab, "A", { v: n, s: est({ negrita: true, h: "center" }) });
   if (b.id) p.put(cab, "S", { v: b.id });
+  if (cabecera?.ito) p.put(cab, "U", { v: cabecera.ito });
   if (marca) {
     const s = est({ fuente: "Aptos Display", tam: 12, negrita: true, h: "center", ajustar: true });
     p.put(cab, "T", { v: marca.v, s: { ...s, font: { ...(s.font as object), color: { rgb: marca.rgb } } } });
@@ -438,7 +443,7 @@ function bloque(p: Pestana, cab: number, n: number, b: BloqueCobro, catalogo: Ma
   const der = (c: string): Borde => (c === "R" ? "medium" : "thin");
   const cabPangui = (c: string) => est({ fuente: "Aptos Display", tam: 12, negrita: true, relleno: CELESTE, h: "center", ajustar: true,
     fmt: c === "R" ? NUM_PANGUI : undefined, bd: ["thin", der(c), "medium", "thin"] });
-  p.put(cab, "Q", { v: tecnico, s: cabPangui("Q") });
+  p.put(cab, "Q", { v: cabecera?.tecnico ?? "", s: cabPangui("Q") });
   p.put(cab, "R", { v: cabecera?.numeroPangui ?? undefined, s: cabPangui("R") });
   p.altura(cab, 27.75);
 
@@ -450,8 +455,7 @@ function bloque(p: Pestana, cab: number, n: number, b: BloqueCobro, catalogo: Ma
     const mat = l?.codigo ? catalogo.get(norm(l.codigo)) : undefined;
     // Franjas grises en filas impares: lo que pinta el estilo de tabla de la plantilla.
     const b12 = (o: Parameters<typeof est>[0]) => est({ fuente: "Bahnschrift", tam: 12, h: "center", relleno: r % 2 ? FRANJA : undefined, ...o });
-    p.put(r, "Q", { v: tecnico, s: enGris(b12({ fmt: "0", bd: ["thin", der("Q"), "thin", "thin"] })) });
-    p.put(r, "R", { s: b12({ negrita: true, fmt: "0", bd: ["thin", der("R"), "thin", "thin"] }) });
+    for (const c of ["Q", "R"]) p.put(r, c, { s: b12({ negrita: true, fmt: "0", bd: ["thin", der(c), "thin", "thin"] }) });
     p.put(r, "C", { s: b12({ negrita: true, fmt: "0", bd: bd("C") }) });
     p.put(r, "D", { s: b12({ negrita: true, fmt: "0", bd: bd("D") }) });
     p.put(r, "E", { v: l?.texto, s: b12({ h: "left", fmt: "0", bd: bd("E") }) });
@@ -482,13 +486,10 @@ function bloque(p: Pestana, cab: number, n: number, b: BloqueCobro, catalogo: Ma
     }) });
   }
   for (const c of ["Q", "R"]) {
-    const s = est({ fuente: "Bahnschrift", tam: 12, negrita: true, relleno: DORADO, h: "center", bd: ["thin", der(c), "thin", "medium"] });
-    p.put(t, c, c === "Q" ? { v: tecnico, s: enGris(s) } : { s });
+    p.put(t, c, { s: est({ fuente: "Bahnschrift", tam: 12, negrita: true, relleno: DORADO, h: "center", bd: ["thin", der(c), "thin", "medium"] }) });
   }
   p.altura(t, 19.5);
   p.put(t + 1, "C", { s: est({ bd: ["medium", undefined, undefined, undefined] }) });
-  // La fila de separación también, en blanco sobre blanco: filtrada, las OTs quedarían pegadas.
-  if (tecnico) p.put(t + 1, "Q", { v: tecnico, s: { font: { color: { rgb: "FFFFFF" } } } });
   p.altura(t + 1, 15.75);
 }
 
@@ -508,6 +509,11 @@ function marcaCobro(b: BloqueCobro, nuevo: boolean, estados: Map<string, EstadoC
   if (nuevo && e?.exportadaAt) return { v: `YA SALIÓ EN EXCEL DEL ${ddmm(e.exportadaAt)}`, rgb: ROJO };
 }
 
+/** Los bloques de una pestaña, en orden: los que ya traía el Excel y después las OTs nuevas. */
+function bloquesDePestana(ots: OtCobro[], catalogo: Map<string, string>, sinOt: boolean, previos: BloqueCobro[] = []): BloqueCobro[] {
+  return [...previos, ...ots.flatMap((ot) => bloquesDeOt(ot, catalogo, sinOt))];
+}
+
 /**
  * Una pestaña CON OT o SIN OT completa: primero los bloques que ya traía el
  * Excel (`previos`, tal como los dejó Claudio) y después las OTs nuevas.
@@ -521,17 +527,15 @@ export function pestanaCobros(
   estados: Map<string, EstadoCobro> = new Map(),
 ): Record<string, unknown> {
   const p = new Pestana(X);
-  const bloques = [...previos, ...ots.flatMap((ot) => bloquesDeOt(ot, catalogo, sinOt))];
+  const bloques = bloquesDePestana(ots, catalogo, sinOt, previos);
   const ultima = PRIMERA_CABECERA + Math.max(bloques.length, 1) * FILAS_POR_BLOQUE - 1;
   encabezado(p, sinOt ? "TRABAJOS SIN OT" : "TRABAJOS CON OT", rango.desde, rango.hasta, ultima);
-  let tecnico = ""; // las continuaciones no traen cabecera: heredan el de su OT
-  bloques.forEach((b, k) => {
-    if (b.cabecera) tecnico = b.cabecera.tecnico ?? "";
-    bloque(p, PRIMERA_CABECERA + k * FILAS_POR_BLOQUE, k + 1, b, materiales, alto, marcaCobro(b, k >= previos.length, estados), tecnico);
-  });
-  const ws = p.cerrar(ultima, "T", ANCHOS);
+  bloques.forEach((b, k) => bloque(p, PRIMERA_CABECERA + k * FILAS_POR_BLOQUE, k + 1, b, materiales, alto,
+    marcaCobro(b, k >= previos.length, estados)));
+  const ws = p.cerrar(ultima, "U", ANCHOS);
   // S guarda el id de la OT: oculta, fuera de la tabla y de lo que se imprime. T, el aviso de cobro.
-  ws["!cols"] = [...(ws["!cols"] as object[]), { wch: 38, hidden: true }, { wch: 26 }];
+  // U, el ITO: oculta también; los bloques se ven igual y Revisión lo lee de ahí.
+  ws["!cols"] = [...(ws["!cols"] as object[]), { wch: 38, hidden: true }, { wch: 26 }, { wch: 24, hidden: true }];
   ws["!autofilter"] = { ref: `C12:T${ultima}` }; // las flechas de filtro, también por técnico y por cobro
   return ws;
 }
@@ -544,6 +548,8 @@ function ymdDeSerie(serie: number): string {
 }
 
 const PESTANAS_PANGUI = ["CON OT", "SIN OT", "Materiales"];
+const REVISION = "Revisión";
+const RESUMEN = "Resumen";
 
 export interface ExcelCobros {
   conOt: BloqueCobro[];
@@ -566,12 +572,14 @@ export type Modificador = [number, number];
 export function leerExcelCobros(X: XlsxHoja, libro: Uint8Array): ExcelCobros | null {
   const R = X as unknown as XlsxLectura;
   const wb = R.read(libro, { type: "array" });
-  if (wb.SheetNames.length !== PESTANAS_PANGUI.length || !PESTANAS_PANGUI.every((n) => wb.SheetNames.includes(n))) return null;
+  // Revisión y Resumen se regeneran enteras desde los bloques: pueden venir o no (se borran antes de mandar el Excel al ITO).
+  const propias = wb.SheetNames.filter((n) => n !== REVISION && n !== RESUMEN);
+  if (propias.length !== PESTANAS_PANGUI.length || !PESTANAS_PANGUI.every((n) => propias.includes(n))) return null;
 
   const pestana = (nombre: string): BloqueCobro[] => {
     const ws = wb.Sheets[nombre];
     const ultima = /(\d+)$/.exec(String(ws["!ref"] ?? ""))?.[1] ?? "1";
-    const filas = R.utils.sheet_to_json(ws, { header: 1, range: `A1:S${ultima}`, defval: null, raw: true }) as (string | number | null)[][];
+    const filas = R.utils.sheet_to_json(ws, { header: 1, range: `A1:U${ultima}`, defval: null, raw: true }) as (string | number | null)[][];
     const txt = (v: unknown) => (v == null ? "" : String(v).trim());
     const out: BloqueCobro[] = [];
     // Versiones ya exportadas: 3-nov sin técnico ni N° y el id en R; desde el
@@ -608,6 +616,7 @@ export function leerExcelCobros(X: XlsxHoja, libro: Uint8Array): ExcelCobros | n
         cabecera: continuacion ? null : {
           fecha, solicitud, lugar: txt(f[c(4)]), descripcion: txt(f[c(6)]),
           tecnico: idViejo ? "" : txt(tec), numeroPangui: typeof num === "number" ? num : null,
+          ito: corre ? "" : txt(f[20]),
         },
         lineas,
       });
@@ -719,6 +728,214 @@ function pestanaMateriales(X: XlsxHoja, catalogo: MaterialCobro[], precios: Fila
   return p.cerrar(Math.max(3 + filas.length, 3), "O", [4, 16, 16, 10, 10, 12, 16, 50, 6, 10, 10, 7, 7, 10, 10]);
 }
 
+// ── Revisión y Resumen: los datos para revisar, filtrar y sumar ──────────────
+// CON OT y SIN OT son el informe que va al ITO (bloques para leer, no para
+// filtrar). Revisión es lo mismo como tabla de datos: una fila celeste por OT
+// con sus totales y, debajo, una fila por cada línea de su bloque. Cada celda
+// apunta al bloque: lo que se rellene o corrija allá se ve acá. Es una tabla
+// de Excel con segmentaciones (adornar). Resumen la suma por técnico, ITO y código.
+
+// Tipos de celda de verdad (Excel los muestra como Moneda y Fecha), no formatos personalizados.
+const MONEDA = "[$$-340A] #,##0";
+const FECHA = "dd-mm-yyyy";
+const SIN_TECNICO = "Sin técnico";
+const SIN_ITO = "Sin ITO";
+// Qué es cada fila de Revisión (columna "Ver"): la OT o una línea de su bloque.
+const FILA_OT = "OT";
+const VACIA = "(vacía)"; // línea del bloque sin nada escrito: va, pero filtrada, por si se rellena después
+const FILAS_VISIBLES = [FILA_OT, "Material", "Mano de obra", "Sin código"];
+
+// También son los nombres de las columnas de la tabla de Excel: tienen que calzar con la fila 3.
+const ROTULOS_REV = ["Tipo", "Fecha", "Solicitud", "ITO", "Técnico", "Acompañantes", "N° OT Pangui", "Ver", "Notas/Facultad", "Detalle",
+  "Codigo", "Descripción", "Unidad", "Cantidad", "Valor Unit. Material", "Total Materiales", "Valor Unit. M.O", "Total M.O", "Neto", "IVA", "Total", "Cobro"];
+const MONTOS_REV = ["Total Materiales", "Total M.O", "Neto", "IVA", "Total"];
+/** Letra de una columna de Revisión (la tabla parte en B). */
+const colRev = (rotulo: string) => L[1 + ROTULOS_REV.indexOf(rotulo)];
+
+/** Una OT: su cabecera y sus bloques (las continuaciones siguen a la cabecera). */
+type FilaRevision = { hoja: string; cab: number; bloques: number[]; c: NonNullable<BloqueCobro["cabecera"]>; lineas: (Linea | undefined)[] };
+
+function filasRevision(grupos: { hoja: string; bloques: BloqueCobro[] }[]): FilaRevision[] {
+  const ots: FilaRevision[] = [];
+  for (const { hoja, bloques } of grupos) bloques.forEach((b, k) => {
+    const cab = PRIMERA_CABECERA + k * FILAS_POR_BLOQUE;
+    if (b.cabecera) ots.push({ hoja, cab, bloques: [cab], c: b.cabecera, lineas: [] });
+    else if (ots.at(-1)?.hoja === hoja) ots.at(-1)!.bloques.push(cab);
+    else return;
+    // Las 20 filas del bloque, también las vacías: lo que se escriba después tiene que tener dónde aparecer.
+    for (let j = 0; j < LINEAS_POR_BLOQUE; j++) ots.at(-1)!.lineas.push(b.lineas[j]);
+  });
+  return ots;
+}
+
+/** "Juan, Ana" (columna Q del bloque) → ["Juan", "Ana"]. */
+const tecnicosDe = (c: FilaRevision["c"]) => (c.tecnico ?? "").split(",").map((t) => t.trim()).filter(Boolean);
+const escrita = (l?: Linea) => !!l && (!!l.texto || !!l.codigo || l.cantidad != null);
+
+/** Filas de Revisión que ocupa cada OT: la suya y las 20 de cada uno de sus bloques. */
+const filasDe = (o: FilaRevision) => 1 + o.bloques.length * LINEAS_POR_BLOQUE;
+
+function pestanaRevision(X: XlsxHoja, ots: FilaRevision[], catalogo: Map<string, MaterialCobro>, manoDeObra: Set<string>): Record<string, unknown> {
+  const p = new Pestana(X);
+  const ultima = 3 + ots.reduce((n, o) => n + filasDe(o), 0);
+  const hasta = Math.max(ultima, 4);
+  const rango = (rotulo: string) => `${colRev(rotulo)}4:${colRev(rotulo)}${hasta}`;
+
+  p.altura(1, 135); // ahí van las segmentaciones (adornar)
+  // Sobre la tabla, lo que suma lo filtrado. Las filas de OT ya traen el total de sus líneas, así que
+  // sólo se suman ellas (SUBTOTALES fila por fila = sólo las visibles); si se filtró dejando sólo líneas, las líneas.
+  const visibles = (r: string) => `SUBTOTAL(109,OFFSET(${r.split(":")[0]},ROW(${r})-ROW(${r.split(":")[0]}),0))`;
+  const esOt = `(${rango("Ver")}="${FILA_OT}")`;
+  const otsVisibles = `SUMPRODUCT(SUBTOTAL(103,OFFSET(${colRev("Ver")}4,ROW(${rango("Ver")})-ROW(${colRev("Ver")}4),0))*${esOt})`;
+  const amarillo = (fmt: string) => est({ negrita: true, relleno: AMARILLO, h: "center", fmt, bd: ["medium", "medium", "medium", "medium"] });
+  p.put(2, "B", { v: "OTs", s: est({ negrita: true, h: "right" }) });
+  p.put(2, "C", { f: otsVisibles, s: amarillo("0") });
+  p.put(2, "E", { v: "¿Rellenaste líneas nuevas en CON OT / SIN OT? Datos → Volver a aplicar (Ctrl+Alt+L) para que aparezcan acá.", s: est({ tam: 9 }) });
+  p.put(2, colRev("Valor Unit. Material"), { v: "TOTAL FILTRADO", s: est({ negrita: true, h: "right" }) });
+  for (const m of MONTOS_REV) {
+    p.put(2, colRev(m), { f: `IF(${otsVisibles}>0,SUMPRODUCT(${visibles(rango(m))}*${esOt}),SUBTOTAL(109,${rango(m)}))`, s: amarillo(MONEDA) });
+  }
+  ROTULOS_REV.forEach((v, i) => p.put(3, L[1 + i], { v, s: est({ negrita: true, relleno: GRIS, h: "center", ajustar: true, bd: ["thin", "thin", "thin", "thin"] }) }));
+
+  let r = 4;
+  for (const o of ots) {
+    const { hoja, cab, c } = o;
+    const [principal, ...acompanantes] = tecnicosDe(c);
+    const q = `'${hoja}'!Q${cab}&""`, t = `'${hoja}'!T${cab}&""`;
+    // Los datos de la OT van en todas sus filas: así el filtro por técnico, ITO o cobro trae la OT entera.
+    const datosOt = (fila: number, s: (o?: Parameters<typeof est>[0]) => Estilo) => {
+      const cabecera = (letra: string) => `'${hoja}'!${letra}${cab}`;
+      p.put(fila, colRev("Tipo"), { v: hoja, s: s() });
+      p.put(fila, colRev("Fecha"), { f: cabecera("C"), v: c.fecha ? serieExcel(c.fecha) : "", s: s({ h: "center", fmt: FECHA }) });
+      // &"": una celda vacía allá no puede salir como 0 acá. Con el valor ya puesto, para leerse sin recalcular.
+      p.put(fila, colRev("Solicitud"), { f: `${cabecera("D")}&""`, v: c.solicitud, s: s() });
+      // El ITO de la OT en Pangui, que va oculto en la columna U del bloque (CON OT y SIN OT).
+      p.put(fila, colRev("ITO"), { f: `IF(${cabecera("U")}&""="","${SIN_ITO}",${cabecera("U")}&"")`, v: c.ito || SIN_ITO, s: s() });
+      // Un técnico por botón: el primero de la hoja acá, el resto en Acompañantes.
+      p.put(fila, colRev("Técnico"), { f: `IF(${q}="","${SIN_TECNICO}",IFERROR(LEFT(${q},FIND(",",${q})-1),${q}))`, v: principal ?? SIN_TECNICO, s: s() });
+      p.put(fila, colRev("Acompañantes"), { f: `IFERROR(MID(${q},FIND(",",${q})+2,200),"")`, v: acompanantes.join(", "), s: s() });
+      p.put(fila, colRev("N° OT Pangui"), { f: cabecera("R"), v: c.numeroPangui ?? "", s: s({ h: "center", fmt: NUM_PANGUI }) });
+      p.put(fila, colRev("Notas/Facultad"), { f: `${cabecera("E")}&""`, v: c.lugar, s: s() });
+      // El aviso de la columna T ("COBRADA dd-mm", "YA SALIÓ EN EXCEL DEL dd-mm") lo pone Pangui en cada exportación.
+      p.put(fila, colRev("Cobro"), { f: `IF(LEFT(${t},7)="COBRADA","Cobrada",IF(LEFT(${t},7)="YA SALI","Ya exportada","Nueva"))`, s: s({ h: "center" }) });
+    };
+
+    // La fila de la OT: celeste, con su descripción y los totales de sus bloques.
+    const ot = (x: Parameters<typeof est>[0] = {}) => est({ negrita: true, relleno: CELESTE, bd: [undefined, undefined, "thin", undefined], ...x });
+    datosOt(r, ot);
+    p.put(r, colRev("Ver"), { v: FILA_OT, s: ot({ h: "center" }) });
+    p.put(r, colRev("Detalle"), { f: `'${hoja}'!G${cab}&""`, v: c.descripcion, s: ot() });
+    for (const m of ["Codigo", "Descripción", "Unidad", "Cantidad", "Valor Unit. Material", "Valor Unit. M.O"]) p.put(r, colRev(m), { s: ot() });
+    "KMNOP".split("").forEach((letra, k) => p.put(r, colRev(MONTOS_REV[k]), {
+      f: o.bloques.map((b) => `'${hoja}'!${letra}${b + 1 + LINEAS_POR_BLOQUE}`).join("+"), s: ot({ fmt: MONEDA }),
+    }));
+    r++;
+
+    // Debajo, una fila por línea de sus bloques.
+    const linea = (x: Parameters<typeof est>[0] = {}) => est(x);
+    o.lineas.forEach((l, j) => {
+      const fila = o.bloques[Math.floor(j / LINEAS_POR_BLOQUE)] + 1 + (j % LINEAS_POR_BLOQUE);
+      const ref = (letra: string) => `'${hoja}'!${letra}${fila}`;
+      const mat = l?.codigo ? catalogo.get(norm(l.codigo)) : undefined;
+      // En el bloque, una línea sin precio muestra "-": acá es 0, para que sume.
+      const monto = (letra: string) => ({ f: `IFERROR(${ref(letra)}+0,0)`, s: linea({ fmt: MONEDA }) });
+      datosOt(r, linea);
+      // Material, mano de obra (sólo tiene valor de M.O), una nota sin código ("2 personas", "3hh") o nada.
+      p.put(r, colRev("Ver"), {
+        f: `IF(${ref("E")}&${ref("F")}&${ref("I")}="","${VACIA}",IF(${ref("F")}&""="","Sin código",IF(AND(IFERROR(${ref("K")}+0,0)=0,IFERROR(${ref("M")}+0,0)>0),"Mano de obra","Material")))`,
+        // Con el valor correcto ya puesto: Excel arma los botones de la segmentación con los valores guardados.
+        v: !escrita(l) ? VACIA : !l!.codigo ? "Sin código" : manoDeObra.has(norm(l!.codigo)) ? "Mano de obra" : "Material", s: linea({ h: "center" }),
+      });
+      p.put(r, colRev("Detalle"), { f: `${ref("E")}&""`, v: l?.texto ?? "" });
+      p.put(r, colRev("Codigo"), { f: `${ref("F")}&""`, v: l?.codigo ?? "", s: linea({ negrita: true, h: "center" }) });
+      p.put(r, colRev("Descripción"), { f: `IF(${ref("G")}&""="-","",${ref("G")}&"")`, v: mat?.descripcion ?? "" });
+      p.put(r, colRev("Unidad"), { f: `IF(${ref("H")}&""="-","",${ref("H")}&"")`, v: mat?.unidad ?? "", s: linea({ h: "center" }) });
+      p.put(r, colRev("Cantidad"), { f: `IFERROR(${ref("I")}+0,"")`, v: l?.cantidad ?? "", s: linea({ h: "center" }) });
+      "JKLMNOP".split("").forEach((letra, k) => p.put(r, L[1 + ROTULOS_REV.indexOf("Valor Unit. Material") + k], monto(letra)));
+      // Las vacías van filtradas (adornar deja el mismo filtro en la tabla).
+      if (!escrita(l)) p.ocultar(r);
+      r++;
+    });
+  }
+  return p.cerrar(Math.max(ultima, 3), L[ROTULOS_REV.length],
+    [4, 9, 12, 26, 28, 22, 22, 11, 14, 34, 46, 18, 44, 8, 10, 14, 14, 14, 14, 14, 14, 14, 14]);
+}
+
+/**
+ * Cuánto suma cada técnico, cada ITO y cada código, sin tener que filtrar.
+ * Fórmulas sobre Revisión, así que sigue lo que se rellene en los bloques; los
+ * nombres y códigos son los de la exportación (uno nuevo escrito a mano
+ * aparece al actualizar el Excel).
+ */
+function pestanaResumen(X: XlsxHoja, ots: FilaRevision[], catalogo: Map<string, MaterialCobro>): Record<string, unknown> {
+  const p = new Pestana(X);
+  const hasta = Math.max(3 + ots.reduce((n, o) => n + filasDe(o), 0), 4);
+  const rev = (rotulo: string) => `'${REVISION}'!$${colRev(rotulo)}$4:$${colRev(rotulo)}$${hasta}`;
+  const titulo = est({ tam: 14, negrita: true });
+  const cabecera = est({ negrita: true, relleno: GRIS, h: "center", ajustar: true, bd: ["thin", "thin", "thin", "thin"] });
+  const amarillo = (fmt: string) => est({ negrita: true, relleno: AMARILLO, h: "center", fmt, bd: ["medium", "medium", "medium", "medium"] });
+  const orden = (a: string, b: string) => a.localeCompare(b, "es");
+
+  /** Título en la fila 2, rótulos en la 4 y una fila por nombre desde la 5. Devuelve la fila que sigue. */
+  const tabla = (desde: number, nombre: string, rotulos: string[], filas: Celda[][]) => {
+    p.put(2, L[desde], { v: nombre, s: titulo });
+    rotulos.forEach((v, i) => p.put(4, L[desde + i], { v, s: cabecera }));
+    filas.forEach((fila, k) => fila.forEach((celda, i) => p.put(5 + k, L[desde + i], celda)));
+    return 5 + filas.length;
+  };
+  const total = (desde: number, fila: number, formatos: string[]) => {
+    p.put(fila, L[desde], { v: "TOTAL", s: est({ negrita: true, h: "right" }) });
+    formatos.forEach((fmt, i) => {
+      const c = L[desde + 1 + i];
+      if (fmt) p.put(fila, c, { f: `SUM(${c}5:${c}${fila - 1})`, s: amarillo(fmt) });
+    });
+  };
+  const MONTOS = ["Materiales", "M.O", "Neto", "IVA", "Total"];
+  const pesos = est({ fmt: MONEDA }), centro = est({ h: "center", fmt: "0" });
+  // Sólo las filas de OT: ya traen el total de sus líneas.
+  const esOt = `(${rev("Ver")}="${FILA_OT}")`;
+
+  // Por técnico (B..H): la OT cuenta para todos los que fueron (principal o acompañante).
+  const tecnicos = [...new Set(ots.flatMap((o) => tecnicosDe(o.c)))].sort(orden);
+  if (ots.some((o) => !tecnicosDe(o.c).length)) tecnicos.push(SIN_TECNICO);
+  const finTec = tabla(1, "POR TÉCNICO", ["Técnico", "OTs", ...MONTOS], tecnicos.map((nombre, k) => {
+    const fue = `${esOt}*((${rev("Técnico")}=$B${5 + k})+ISNUMBER(SEARCH($B${5 + k},${rev("Acompañantes")}))>0)`;
+    return [{ v: nombre }, { f: `SUMPRODUCT(${fue})`, s: centro }, ...MONTOS_REV.map((m) => ({ f: `SUMPRODUCT(${fue}*${rev(m)})`, s: pesos }))];
+  }));
+  p.put(finTec + 1, "B", { v: "Una OT hecha entre varios cuenta para cada uno: esta tabla no suma el total del mes.", s: est({ tam: 9 }) });
+
+  // Por ITO (J..P): CON OT y SIN OT. Su total es el del período.
+  const itos = [...new Set(ots.map((o) => o.c.ito?.trim()).filter((n): n is string => !!n))].sort(orden);
+  if (ots.some((o) => !o.c.ito?.trim())) itos.push(SIN_ITO);
+  const finIto = tabla(9, "POR ITO", ["ITO", "OTs", ...MONTOS], itos.map((nombre, k) => {
+    const de = `${rev("Ver")},"${FILA_OT}",${rev("ITO")},$J${5 + k}`;
+    return [{ v: nombre }, { f: `COUNTIFS(${de})`, s: centro }, ...MONTOS_REV.map((m) => ({ f: `SUMIFS(${rev(m)},${de})`, s: pesos }))];
+  }));
+  if (itos.length) total(9, finIto, ["0", MONEDA, MONEDA, MONEDA, MONEDA, MONEDA]);
+
+  // Por código (R..X): qué se gastó en el período, materiales y mano de obra. Las filas de OT no llevan código.
+  const codigos = new Map<string, string>(); // normalizado → como está escrito
+  for (const o of ots) for (const l of o.lineas) if (l?.codigo && !codigos.has(norm(l.codigo))) codigos.set(norm(l.codigo), l.codigo);
+  const lista = [...codigos.values()].sort(orden);
+  const finCod = tabla(17, "POR CÓDIGO (materiales y mano de obra)", ["Codigo", "Descripción", "Unidad", "Cantidad", "Total Materiales", "Total M.O", "Neto"],
+    lista.map((codigo, k) => {
+      const n = `$R${5 + k}`, mat = catalogo.get(norm(codigo));
+      const busca = (rotulo: string) => `IFERROR(INDEX(${rev(rotulo)},MATCH(${n},${rev("Codigo")},0))&"","")`;
+      const suma = (rotulo: string) => `SUMIFS(${rev(rotulo)},${rev("Codigo")},${n})`;
+      return [
+        { v: codigo, s: est({ negrita: true, h: "center" }) },
+        { f: busca("Descripción"), v: mat?.descripcion ?? "" },
+        { f: busca("Unidad"), v: mat?.unidad ?? "", s: est({ h: "center" }) },
+        { f: suma("Cantidad"), s: est({ h: "center" }) },
+        { f: suma("Total Materiales"), s: pesos }, { f: suma("Total M.O"), s: pesos }, { f: suma("Neto"), s: pesos },
+      ];
+    }));
+  if (lista.length) total(17, finCod, ["", "", "", MONEDA, MONEDA, MONEDA]);
+
+  return p.cerrar(Math.max(finTec + 1, finIto, finCod, 4), "X",
+    [4, 30, 7, 14, 14, 14, 14, 14, 4, 36, 7, 14, 14, 14, 14, 14, 4, 20, 46, 8, 10, 14, 14, 14]);
+}
+
 // ── Lo que xlsx-js-style no escribe: logo y "SPA" chico ──────────────────────
 // Igual que ajustarLibro, se edita el zip ya escrito.
 
@@ -772,52 +989,75 @@ function adornar(X: XlsxZip, libro: Uint8Array, hojas: number[], logo?: Uint8Arr
     escribir(ruta, xml);
   }
 
-  // Materiales como la base de Patricio: tabla de Excel con segmentaciones por
-  // Clasificación y Sub Clasificación en la fila 1 (se filtra con un clic).
+  // Tablas de Excel con segmentaciones en la fila 1 (se filtra con un clic):
+  // Materiales, como la base de Patricio (Clasificación y Sub Clasificación), y Revisión.
   const NS_SL = "http://schemas.microsoft.com/office/spreadsheetml/2009/9/main";
   const NS_X15 = "http://schemas.microsoft.com/office/spreadsheetml/2010/11/main";
   const XML = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>`;
-  const mat = leer("xl/worksheets/sheet3.xml");
-  const ultima = Number(/<dimension ref="[A-Z]+\d+:[A-Z]+(\d+)"/.exec(mat ?? "")?.[1] ?? 0);
-  if (mat && ultima >= 4) {
-    const segs = [
+  // col = N° de columna dentro de la tabla; desde/hasta = columnas de la hoja que ocupa el botón; alto en EMU.
+  const tablas = [
+    { hoja: 3, archivo: "materiales", nombre: "Materiales", hasta: "O", columnas: ROTULOS_MAT, alto: 820000, titulo: false, filtro: undefined, segs: [
       { col: 1, cache: "Slicer_Clasificacion", botones: 5, desde: 1, hasta: 5 },     // B..E
       { col: 2, cache: "Slicer_Sub_Clasificacion", botones: 8, desde: 5, hasta: 8 }, // F..H
-    ].map((s) => ({ ...s, nombre: ROTULOS_MAT[s.col - 1] }));
-    escribir("xl/tables/materiales.xml", `${XML}<table xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" id="1" name="Materiales" displayName="Materiales" ref="B3:O${ultima}" totalsRowShown="0">`
-      + `<autoFilter ref="B3:O${ultima}"/><tableColumns count="${ROTULOS_MAT.length}">${ROTULOS_MAT.map((n, i) => `<tableColumn id="${i + 1}" name="${n}"/>`).join("")}</tableColumns>`
+    ] },
+    // Con título: ahí está el botón de borrar el filtro. col = posición en ROTULOS_REV.
+    // Sale filtrada: sin las líneas vacías de los bloques (las mismas filas que oculta pestanaRevision).
+    { hoja: 4, archivo: "revision", nombre: "Revision", hasta: L[ROTULOS_REV.length], columnas: ROTULOS_REV, alto: 1690000, titulo: true,
+      filtro: { col: 8, valores: FILAS_VISIBLES }, segs: [
+        { col: 8, cache: "Slicer_Ver", botones: 1, desde: 1, hasta: 3 },       // B..C
+        { col: 1, cache: "Slicer_Tipo", botones: 1, desde: 3, hasta: 4 },      // D
+        { col: 22, cache: "Slicer_Cobro", botones: 1, desde: 4, hasta: 5 },    // E
+        { col: 4, cache: "Slicer_ITO", botones: 2, desde: 5, hasta: 8 },       // F..H
+        { col: 5, cache: "Slicer_Tecnico", botones: 3, desde: 8, hasta: 11 },  // I..K
+      ] },
+  ];
+  const caches: { archivo: string; cache: string }[] = []; // las de todo el libro: se listan una sola vez
+  tablas.forEach((t, k) => {
+    const ruta = `xl/worksheets/sheet${t.hoja}.xml`;
+    const hoja = leer(ruta);
+    const ultima = Number(/<dimension ref="[A-Z]+\d+:[A-Z]+(\d+)"/.exec(hoja ?? "")?.[1] ?? 0);
+    if (!hoja || ultima < 4) return;
+    const id = k + 1;
+    const segs = t.segs.map((s, i) => ({ ...s, nombre: t.columnas[s.col - 1], archivo: `${t.archivo}${i + 1}` }));
+    escribir(`xl/tables/${t.archivo}.xml`, `${XML}<table xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" id="${id}" name="${t.nombre}" displayName="${t.nombre}" ref="B3:${t.hasta}${ultima}" totalsRowShown="0">`
+      + `<autoFilter ref="B3:${t.hasta}${ultima}"${t.filtro
+        ? `><filterColumn colId="${t.filtro.col - 1}"><filters>${t.filtro.valores.map((v) => `<filter val="${v}"/>`).join("")}</filters></filterColumn></autoFilter>`
+        : "/>"}<tableColumns count="${t.columnas.length}">${t.columnas.map((n, i) => `<tableColumn id="${i + 1}" name="${n}"/>`).join("")}</tableColumns>`
       + `<tableStyleInfo name="TableStyleLight1" showFirstColumn="0" showLastColumn="0" showRowStripes="1" showColumnStripes="0"/></table>`);
-    segs.forEach((s, i) => escribir(`xl/slicerCaches/materiales${i + 1}.xml`,
+    segs.forEach((s) => escribir(`xl/slicerCaches/${s.archivo}.xml`,
       `${XML}<slicerCacheDefinition xmlns="${NS_SL}" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" mc:Ignorable="x" xmlns:x="http://schemas.openxmlformats.org/spreadsheetml/2006/main" name="${s.cache}" sourceName="${s.nombre}">`
-      + `<extLst><x:ext uri="{2F2917AC-EB37-4324-AD4E-5DD8C200BD13}" xmlns:x15="${NS_X15}"><x15:tableSlicerCache tableId="1" column="${s.col}"/></x:ext></extLst></slicerCacheDefinition>`));
-    escribir("xl/slicers/materiales.xml", `${XML}<slicers xmlns="${NS_SL}">`
-      + segs.map((s) => `<slicer name="${s.nombre}" cache="${s.cache}" caption="${s.nombre}" columnCount="${s.botones}" showCaption="0" rowHeight="180000"/>`).join("") + `</slicers>`);
+      + `<extLst><x:ext uri="{2F2917AC-EB37-4324-AD4E-5DD8C200BD13}" xmlns:x15="${NS_X15}"><x15:tableSlicerCache tableId="${id}" column="${s.col}"/></x:ext></extLst></slicerCacheDefinition>`));
+    escribir(`xl/slicers/${t.archivo}.xml`, `${XML}<slicers xmlns="${NS_SL}">`
+      + segs.map((s) => `<slicer name="${s.nombre}" cache="${s.cache}" caption="${s.nombre}" columnCount="${s.botones}"${t.titulo ? "" : ' showCaption="0"'} rowHeight="180000"/>`).join("") + `</slicers>`);
     const punto = (col: number, off: number) => `<xdr:col>${col}</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>0</xdr:row><xdr:rowOff>${off}</xdr:rowOff>`;
-    escribir("xl/drawings/segmentaciones.xml", `${XML}<xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">`
-      + segs.map((s, i) => `<xdr:twoCellAnchor editAs="absolute"><xdr:from>${punto(s.desde, 25400)}</xdr:from><xdr:to>${punto(s.hasta, 820000)}</xdr:to>`
+    escribir(`xl/drawings/segmentaciones-${t.archivo}.xml`, `${XML}<xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">`
+      + segs.map((s, i) => `<xdr:twoCellAnchor editAs="absolute"><xdr:from>${punto(s.desde, 25400)}</xdr:from><xdr:to>${punto(s.hasta, t.alto)}</xdr:to>`
         + `<mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" xmlns:sle15="http://schemas.microsoft.com/office/drawing/2012/slicer"><mc:Choice Requires="sle15">`
         + `<xdr:graphicFrame macro=""><xdr:nvGraphicFramePr><xdr:cNvPr id="${i + 2}" name="${s.nombre}"/><xdr:cNvGraphicFramePr/></xdr:nvGraphicFramePr><xdr:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/></xdr:xfrm>`
         + `<a:graphic><a:graphicData uri="http://schemas.microsoft.com/office/drawing/2010/slicer"><sle:slicer xmlns:sle="http://schemas.microsoft.com/office/drawing/2010/slicer" name="${s.nombre}"/></a:graphicData></a:graphic></xdr:graphicFrame>`
         + `</mc:Choice><mc:Fallback/></mc:AlternateContent><xdr:clientData/></xdr:twoCellAnchor>`).join("") + `</xdr:wsDr>`);
-    escribir("xl/worksheets/_rels/sheet3.xml.rels", `${XML}<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">`
-      + `<Relationship Id="rIdSeg" Type="${NS_REL}/drawing" Target="../drawings/segmentaciones.xml"/>`
-      + `<Relationship Id="rIdTabla" Type="${NS_REL}/table" Target="../tables/materiales.xml"/>`
-      + `<Relationship Id="rIdSlicer" Type="http://schemas.microsoft.com/office/2007/relationships/slicer" Target="../slicers/materiales.xml"/></Relationships>`);
-    escribir("xl/worksheets/sheet3.xml", mat.replace("</worksheet>", `<drawing r:id="rIdSeg"/><tableParts count="1"><tablePart r:id="rIdTabla"/></tableParts>`
+    escribir(`xl/worksheets/_rels/sheet${t.hoja}.xml.rels`, `${XML}<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">`
+      + `<Relationship Id="rIdSeg" Type="${NS_REL}/drawing" Target="../drawings/segmentaciones-${t.archivo}.xml"/>`
+      + `<Relationship Id="rIdTabla" Type="${NS_REL}/table" Target="../tables/${t.archivo}.xml"/>`
+      + `<Relationship Id="rIdSlicer" Type="http://schemas.microsoft.com/office/2007/relationships/slicer" Target="../slicers/${t.archivo}.xml"/></Relationships>`);
+    escribir(ruta, hoja.replace("</worksheet>", `<drawing r:id="rIdSeg"/><tableParts count="1"><tablePart r:id="rIdTabla"/></tableParts>`
       + `<extLst><ext uri="{3A4CF648-6AED-40f4-86FF-DC5316D8AED3}" xmlns:x15="${NS_X15}"><x14:slicerList xmlns:x14="${NS_SL}"><x14:slicer r:id="rIdSlicer"/></x14:slicerList></ext></extLst></worksheet>`));
+    caches.push(...segs.map((s) => ({ archivo: s.archivo, cache: s.cache })));
+    tipos = tipos.replace("</Types>", `<Override PartName="/xl/tables/${t.archivo}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.table+xml"/>`
+      + segs.map((s) => `<Override PartName="/xl/slicerCaches/${s.archivo}.xml" ContentType="application/vnd.ms-excel.slicerCache+xml"/>`).join("")
+      + `<Override PartName="/xl/slicers/${t.archivo}.xml" ContentType="application/vnd.ms-excel.slicer+xml"/>`
+      + `<Override PartName="/xl/drawings/segmentaciones-${t.archivo}.xml" ContentType="application/vnd.openxmlformats-officedocument.drawing+xml"/></Types>`);
+  });
+  if (caches.length) {
     const rels = leer("xl/_rels/workbook.xml.rels")!;
-    escribir("xl/_rels/workbook.xml.rels", rels.replace("</Relationships>", segs.map((_, i) =>
-      `<Relationship Id="rIdSc${i + 1}" Type="http://schemas.microsoft.com/office/2007/relationships/slicerCache" Target="slicerCaches/materiales${i + 1}.xml"/>`).join("") + "</Relationships>"));
+    escribir("xl/_rels/workbook.xml.rels", rels.replace("</Relationships>", caches.map((c, i) =>
+      `<Relationship Id="rIdSc${i + 1}" Type="http://schemas.microsoft.com/office/2007/relationships/slicerCache" Target="slicerCaches/${c.archivo}.xml"/>`).join("") + "</Relationships>"));
     // Cada segmentación necesita su nombre definido (#N/A) y su caché listada en el libro.
-    const nombres = segs.map((s) => `<definedName name="${s.cache}">#N/A</definedName>`).join("");
+    const nombres = caches.map((c) => `<definedName name="${c.cache}">#N/A</definedName>`).join("");
     let libroXml = leer("xl/workbook.xml")!;
     libroXml = libroXml.includes("</definedNames>") ? libroXml.replace("</definedNames>", nombres + "</definedNames>") : libroXml.replace("</sheets>", `</sheets><definedNames>${nombres}</definedNames>`);
     escribir("xl/workbook.xml", libroXml.replace("</workbook>", `<extLst><ext uri="{46BE6895-7355-4a93-B00E-2C351335B9C9}" xmlns:x15="${NS_X15}"><x15:slicerCaches xmlns:x14="${NS_SL}">`
-      + segs.map((_, i) => `<x14:slicerCache r:id="rIdSc${i + 1}"/>`).join("") + `</x15:slicerCaches></ext></extLst></workbook>`));
-    tipos = tipos.replace("</Types>", `<Override PartName="/xl/tables/materiales.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.table+xml"/>`
-      + segs.map((_, i) => `<Override PartName="/xl/slicerCaches/materiales${i + 1}.xml" ContentType="application/vnd.ms-excel.slicerCache+xml"/>`).join("")
-      + `<Override PartName="/xl/slicers/materiales.xml" ContentType="application/vnd.ms-excel.slicer+xml"/>`
-      + `<Override PartName="/xl/drawings/segmentaciones.xml" ContentType="application/vnd.openxmlformats-officedocument.drawing+xml"/></Types>`);
+      + caches.map((_, i) => `<x14:slicerCache r:id="rIdSc${i + 1}"/>`).join("") + `</x15:slicerCaches></ext></extLst></workbook>`));
   }
   escribir("[Content_Types].xml", tipos);
   // Comprimido: sin esto un mes de SIN OT pesaba 6 MB (el XML de las celdas es muy repetitivo).
@@ -825,7 +1065,7 @@ function adornar(X: XlsxZip, libro: Uint8Array, hojas: number[], logo?: Uint8Arr
 }
 
 export function libroCobros(X: XlsxHoja, {
-  ots, catalogo, conOt, sinOt, logo, precios = [], previos, estados, modificador,
+  ots, catalogo, conOt, sinOt, logo, precios = [], previos, estados, modificador, itos,
 }: {
   /** Modificador general de precios (Materiales L2/M2). Al actualizar, el que ya tenía el Excel. */
   modificador?: Modificador;
@@ -833,6 +1073,8 @@ export function libroCobros(X: XlsxHoja, {
   estados?: Map<string, EstadoCobro>;
   /** El Excel que se está actualizando: sus bloques van primero y sus OTs no se repiten. */
   previos?: Pick<ExcelCobros, "conOt" | "sinOt">;
+  /** Id de OT → ITO, para los bloques de un Excel de antes de que el ITO viajara en él. */
+  itos?: Map<string, string>;
   ots: OtCobro[];
   catalogo: MaterialCobro[];
   /** Período de cada pestaña: CON OT sigue el corte del ITO, SIN OT el mes calendario. */
@@ -855,11 +1097,27 @@ export function libroCobros(X: XlsxHoja, {
   const enRango = (o: OtCobro, r: { desde: string; hasta: string }) => o.fecha >= r.desde && o.fecha <= r.hasta;
   const porFecha = (a: OtCobro, b: OtCobro) => a.fecha.localeCompare(b.fecha);
   const nuevas = previos ? otsNuevas(ots, previos) : ots;
+  // Los Excel de antes no traen el ITO en sus bloques: se completa con el de Pangui.
+  const conIto = (bloques?: BloqueCobro[]) => bloques?.map((b) =>
+    (b.cabecera && !b.cabecera.ito && itos?.get(b.id) ? { ...b, cabecera: { ...b.cabecera, ito: itos.get(b.id) } } : b));
+  if (previos) previos = { conOt: conIto(previos.conOt)!, sinOt: conIto(previos.sinOt)! };
   const wb = X.utils.book_new();
-  X.utils.book_append_sheet(wb, pestanaCobros(X, nuevas.filter((o) => o.numeroOt && enRango(o, conOt)).sort(porFecha), mapa, false, conOt, porCodigo, alto, previos?.conOt, estados), "CON OT");
-  X.utils.book_append_sheet(wb, pestanaCobros(X, nuevas.filter((o) => !o.numeroOt && enRango(o, sinOt)).sort(porFecha), mapa, true, sinOt, porCodigo, alto, previos?.sinOt, estados), "SIN OT");
+  const otsCon = nuevas.filter((o) => o.numeroOt && enRango(o, conOt)).sort(porFecha);
+  const otsSin = nuevas.filter((o) => !o.numeroOt && enRango(o, sinOt)).sort(porFecha);
+  X.utils.book_append_sheet(wb, pestanaCobros(X, otsCon, mapa, false, conOt, porCodigo, alto, previos?.conOt, estados), "CON OT");
+  X.utils.book_append_sheet(wb, pestanaCobros(X, otsSin, mapa, true, sinOt, porCodigo, alto, previos?.sinOt, estados), "SIN OT");
   X.utils.book_append_sheet(wb, pestanaMateriales(X, catalogo, precios, modificador), "Materiales");
+  // Al final: Materiales tiene que seguir siendo la hoja 3 (adornar), y estas dos se borran antes de mandar el Excel.
+  const revision = filasRevision([
+    { hoja: "CON OT", bloques: bloquesDePestana(otsCon, mapa, false, previos?.conOt) },
+    { hoja: "SIN OT", bloques: bloquesDePestana(otsSin, mapa, true, previos?.sinOt) },
+  ]);
+  // Códigos que sólo tienen precio de mano de obra (revnor, reveme, aa…).
+  const precio = (f: FilaPrecios, fin: number, base: number) => Number(f[fin] ?? f[base]) || 0;
+  const manoDeObra = new Set(precios.filter((f) => precio(f, 12, 8) === 0 && precio(f, 13, 9) > 0).map((f) => norm(f[5])));
+  X.utils.book_append_sheet(wb, pestanaRevision(X, revision, porCodigo, manoDeObra), REVISION);
+  X.utils.book_append_sheet(wb, pestanaResumen(X, revision, porCodigo), RESUMEN);
   const bytes = new Uint8Array(X.write(wb, { bookType: "xlsx", type: "array" }));
   const vista = { filas: 0, columnas: 0, sinCuadricula: true, zoom: 90 };
-  return adornar(X as XlsxZip, ajustarLibro(X, bytes, [vista, vista, undefined]), [1, 2], logo);
+  return adornar(X as XlsxZip, ajustarLibro(X, bytes, [vista, vista, undefined, { filas: 3, columnas: 0 }, { filas: 4, columnas: 0 }]), [1, 2], logo);
 }
