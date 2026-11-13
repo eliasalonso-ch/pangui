@@ -16,6 +16,8 @@ export interface OTImpresion {
 }
 
 const KEY = ["ot-impresiones"] as const;
+/** Para refrescar los botones tras traer un PDF desde "Revisar MeConecta". */
+export const OT_IMPRESIONES_KEY = KEY;
 
 /**
  * orden_id → impresión.

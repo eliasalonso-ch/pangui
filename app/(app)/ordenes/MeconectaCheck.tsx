@@ -15,8 +15,10 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { RefreshCw, Loader2, Check, AlertTriangle, ExternalLink, X, ChevronDown } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { RefreshCw, Loader2, Check, AlertTriangle, ExternalLink, X, ChevronDown, Download } from "lucide-react";
 import { DateRangePicker, fechaDeYmd, ymdDeFecha } from "@/components/ui/date-time-picker";
+import { OT_IMPRESIONES_KEY } from "@/lib/ot-impresiones";
 
 const COOLDOWN_MS = 5_000;
 
@@ -111,6 +113,46 @@ export default function MeconectaCheck({ onOpenOrden }: Props) {
   const [periodoOpen, setPeriodoOpen] = useState(false);
   const [customDesde, setCustomDesde] = useState("");
   const [customHasta, setCustomHasta] = useState("");
+
+  // "Traer" una solicitud: crea su OT o le suma el PDF a la que ya existe, para
+  // que tenga botón de imprimir. Un folio a la vez.
+  const queryClient = useQueryClient();
+  const [folioTraer, setFolioTraer] = useState("");
+  const [trayendo, setTrayendo]     = useState<string | null>(null);
+  const [traida, setTraida]         = useState<{ folio: string; texto: string; id?: string; error?: boolean } | null>(null);
+
+  const traer = useCallback(async (folio: string) => {
+    folio = folio.trim().toUpperCase();
+    if (!folio || trayendo) return;
+    setTrayendo(folio);
+    setTraida(null);
+    try {
+      const res = await fetch("/api/meconecta/check", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ importar: folio }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        setTraida({ folio, texto: data?.error ?? `No se pudo traer ${folio}`, error: true });
+        return;
+      }
+      const ot = `OT #${data.numero}`;
+      const texto = !data.existente ? `${ot} creada`
+        : data.pdfAgregado ? `${ot} ya existía: se le agregó el PDF`
+        : data.pendientes?.length ? `${ot} ya existía, pero no se pudo traer el PDF`
+        : `${ot} ya tenía el PDF`;
+      setTraida({ folio, texto, id: data.id, error: data.pendientes?.includes("sin PDF de la solicitud") });
+      setFolioTraer("");
+      // Marca el folio como cubierto y hace aparecer la impresora en la card.
+      setResult((r) => r && { ...r, faltantes: r.faltantes.filter((f) => f.folio !== folio) });
+      await queryClient.invalidateQueries({ queryKey: OT_IMPRESIONES_KEY });
+    } catch {
+      setTraida({ folio, texto: "Error de red al traer la solicitud", error: true });
+    } finally {
+      setTrayendo(null);
+    }
+  }, [trayendo, queryClient]);
 
   const periodoLabel = useMemo(() => {
     if (periodo !== "custom") return PERIODOS.find((p) => p.key === periodo)!.label;
@@ -386,26 +428,44 @@ export default function MeconectaCheck({ onOpenOrden }: Props) {
                       Sin OT en Pangui ({faltantes.length})
                     </div>
                     {faltantes.map((f) => (
-                      <a
+                      <div
                         key={f.idExterno}
-                        href={f.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
                         style={{
                           display: "flex", alignItems: "center", gap: 8,
                           padding: "8px 10px", marginBottom: 4,
                           border: "1px solid var(--border)", borderRadius: 7,
-                          textDecoration: "none", color: "inherit",
                         }}
                       >
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)" }}>{f.folio}</div>
-                          <div style={{ fontSize: 14, color: "var(--fg-4)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                            {[f.estado, f.fecha].filter(Boolean).join(" · ")}
+                        <a
+                          href={f.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          title="Abrir en MeConecta"
+                          style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 8, textDecoration: "none", color: "inherit" }}
+                        >
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: 14, fontWeight: 400, color: "var(--fg-1)" }}>{f.folio}</div>
+                            <div style={{ fontSize: 14, color: "var(--fg-4)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                              {[f.estado, f.fecha].filter(Boolean).join(" · ")}
+                            </div>
                           </div>
-                        </div>
-                        <ExternalLink size={12} style={{ color: "var(--fg-4)", flexShrink: 0 }} />
-                      </a>
+                          <ExternalLink size={12} style={{ color: "var(--fg-4)", flexShrink: 0 }} />
+                        </a>
+                        <button
+                          type="button"
+                          onClick={() => traer(f.folio)}
+                          disabled={trayendo !== null}
+                          style={{
+                            flexShrink: 0, display: "flex", alignItems: "center", gap: 5,
+                            height: 28, padding: "0 10px", border: "1px solid var(--border)", borderRadius: 6,
+                            background: "var(--surface-1)", color: "var(--brand)",
+                            fontSize: 14, cursor: trayendo ? "default" : "pointer", fontFamily: "inherit",
+                          }}
+                        >
+                          {trayendo === f.folio ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
+                          Crear OT
+                        </button>
+                      </div>
                     ))}
                   </div>
                 )}
@@ -441,6 +501,65 @@ export default function MeconectaCheck({ onOpenOrden }: Props) {
                     ))}
                   </div>
                 )}
+
+                {/* Traer un folio a mano: el que no salió en la lista, o una OT
+                    cargada a mano que no tiene el PDF para imprimir. */}
+                <form
+                  onSubmit={(e) => { e.preventDefault(); traer(folioTraer); }}
+                  style={{ marginTop: 14, paddingTop: 12, borderTop: "1px solid var(--border)" }}
+                >
+                  <div style={{ fontSize: 14, color: "var(--fg-2)", marginBottom: 2 }}>Traer una solicitud</div>
+                  <div style={{ fontSize: 14, color: "var(--fg-4)", marginBottom: 8 }}>
+                    Crea la OT con su PDF, o le agrega el PDF a la que ya existe.
+                  </div>
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <input
+                      value={folioTraer}
+                      onChange={(e) => setFolioTraer(e.target.value)}
+                      placeholder="SF920261030376"
+                      aria-label="Folio MeConecta"
+                      spellCheck={false}
+                      style={{
+                        flex: 1, minWidth: 0, height: 32, padding: "0 10px",
+                        border: "1px solid var(--border)", borderRadius: 6,
+                        background: "var(--surface-1)", color: "var(--fg-1)",
+                        fontSize: 14, fontFamily: "inherit",
+                      }}
+                    />
+                    <button
+                      type="submit"
+                      disabled={!folioTraer.trim() || trayendo !== null}
+                      style={{
+                        display: "flex", alignItems: "center", gap: 5,
+                        height: 32, padding: "0 12px", border: "none", borderRadius: 6,
+                        background: "var(--brand)", color: "var(--fg-on-brand)",
+                        opacity: !folioTraer.trim() || trayendo ? 0.6 : 1,
+                        fontSize: 14, cursor: "pointer", fontFamily: "inherit",
+                      }}
+                    >
+                      {trayendo && !faltantes.some((f) => f.folio === trayendo)
+                        ? <Loader2 size={13} className="animate-spin" />
+                        : <Download size={13} />}
+                      Traer
+                    </button>
+                  </div>
+                  {traida && (
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, fontSize: 14,
+                      color: traida.error ? "var(--st-late-fg, #a13030)" : "var(--st-done-fg, #2b6b3f)" }}>
+                      {traida.error ? <AlertTriangle size={14} style={{ flexShrink: 0 }} /> : <Check size={14} style={{ flexShrink: 0 }} />}
+                      <span style={{ flex: 1 }}>{traida.folio}: {traida.texto}</span>
+                      {traida.id && onOpenOrden && (
+                        <button
+                          type="button"
+                          onClick={() => { onOpenOrden(traida.id!); setOpen(false); }}
+                          style={{ background: "none", border: "none", padding: 0, color: "var(--brand)", fontSize: 14, cursor: "pointer", fontFamily: "inherit" }}
+                        >
+                          Abrir
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </form>
               </>
             )}
           </div>

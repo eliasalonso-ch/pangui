@@ -20,8 +20,43 @@
 // EXCLUSIVE to the Electrilam workspace.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { fetchOrders, login, detalleUrl, MeconectaAuthError, type ScrapedRow } from "../_shared/meconecta-scrape.ts";
+import { fetchDetalle, fetchOrders, login, detalleUrl, MeconectaAuthError, type ScrapedRow, type SolicitudDetalle } from "../_shared/meconecta-scrape.ts";
 import { ELECTRILAM_WS, getCredenciales, marcarEstado, describirError } from "../_shared/meconecta-conexion.ts";
+import { crearOtDesdeSolicitud } from "../_shared/meconecta-ot.ts";
+import { idDeFolio } from "../_shared/meconecta-reglas.ts";
+
+/**
+ * { importar: "SF9…" } — botón "Traer" del panel: crea la OT de esa solicitud
+ * (igual que el cron) o, si ya hay una cargada a mano, le suma el PDF para que
+ * tenga botón de imprimir. Va por id interno, así que sirve aunque la
+ * solicitud no aparezca en "asignadas".
+ */
+async function importar(supabase: ReturnType<typeof createClient>, username: string, password: string, folio: string): Promise<Response> {
+  const id = idDeFolio(folio);
+  if (id === null) return json({ ok: false, error: "Folio inválido" }, 400);
+  let d: SolicitudDetalle;
+  let cookie: string;
+  try {
+    cookie = await login(username, password);
+    d = await fetchDetalle(cookie, `?accion=${btoa("solicitudMosResolutor")}&ids=${btoa(String(id))}`);
+  } catch (e) {
+    if (e instanceof MeconectaAuthError) {
+      return json({ ok: false, code: "credenciales_invalidas", error: "MeConecta rechazó el usuario o la clave" }, 409);
+    }
+    return json({ ok: false, error: `No se pudo traer ${folio}: ${describirError(e)}` }, 502);
+  }
+  // El id sale del folio por convención del portal: si la página es de otra
+  // solicitud, se corta antes de pegarle un PDF ajeno a una OT.
+  if (d.folio.toUpperCase() !== folio.trim().toUpperCase()) {
+    return json({ ok: false, error: `MeConecta devolvió ${d.folio} en vez de ${folio}` }, 502);
+  }
+  const hoy = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Santiago" }).format(new Date());
+  try {
+    return json({ ok: true, folio: d.folio, ...(await crearOtDesdeSolicitud(supabase, cookie, d, hoy, id)) });
+  } catch (e) {
+    return json({ ok: false, error: `No se pudo crear la OT de ${folio}: ${describirError(e)}` }, 502);
+  }
+}
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY  = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -84,11 +119,13 @@ Deno.serve(async (req) => {
   let desde: string | null = null;
   let hasta: string | null = null;
   let soloProbar = false;
+  let folioImportar: string | null = null;
   try {
     const body = await req.json();
     if (typeof body?.desde === "string" && DATE_RE.test(body.desde)) desde = body.desde;
     if (typeof body?.hasta === "string" && DATE_RE.test(body.hasta)) hasta = body.hasta;
     soloProbar = body?.soloProbar === true;
+    if (typeof body?.importar === "string") folioImportar = body.importar;
   } catch {
     // no/invalid body — check everything
   }
@@ -110,6 +147,7 @@ Deno.serve(async (req) => {
       error: "MeConecta rechazó la clave. Vuelve a conectarlo en Integraciones.",
     }, 409);
   }
+  if (folioImportar !== null) return await importar(supabase, creds.username, creds.password, folioImportar);
 
   // ── Scrape the portal ──
   let scraped: ScrapedRow[];

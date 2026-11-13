@@ -50,3 +50,14 @@ export function descripcionDe(d: { folio: string; contacto: string; detalle: str
     .filter(Boolean).join(" | ");
   return d.detalle ? `${header}\n\n${d.detalle}` : header;
 }
+
+/**
+ * Id interno del portal a partir del folio: "SF9" + AAAAMM + id
+ * (SF920261030376 → 30376). Calza en las 583 solicitudes vistas (nov 2026).
+ * Sirve para traer una solicitud que no está en la lista "asignadas".
+ * null si no tiene esa forma.
+ */
+export function idDeFolio(folio: string): number | null {
+  const m = /^SF9\d{6}(\d{5,})$/.exec(folio.trim().toUpperCase());
+  return m ? Number(m[1]) : null;
+}
