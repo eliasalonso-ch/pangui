@@ -61,7 +61,7 @@ const fechaOt = (o: Record<string, unknown>) => (o.completado_en ? dateKey(new D
 async function cargarOts(wsId: string, desde: string, hasta: string): Promise<OtCobro[]> {
   const sb = createClient();
   const ots = await otsCompletadas(wsId, desde, hasta,
-    `${COLS_PESTANA}, numero, solicitante, tipo_trabajo, tiempo_total_segundos, asignados_ids, ubicacion_texto, lugar, ubicaciones(edificio, detalle), lugares(nombre)`);
+    `${COLS_PESTANA}, numero, solicitante, hito, tipo_trabajo, tiempo_total_segundos, asignados_ids, ubicacion_texto, lugar, ubicaciones(edificio, detalle), lugares(nombre)`);
 
   // Hojas con sus filas; de a 100 OTs para no armar una URL gigante.
   const hojasPorOt = new Map<string, OtCobro["hojas"]>();
@@ -88,6 +88,7 @@ async function cargarOts(wsId: string, desde: string, hasta: string): Promise<Ot
       numeroPangui: typeof o.numero === "number" ? o.numero : null,
       numeroOt: numeroOt(o),
       solicitante: txt(o.solicitante),
+      ito: txt(o.hito),
       // Sin ubicación del catálogo, el texto libre que se escribió al crear la OT.
       lugar: [txt(ubi.edificio), txt(ubi.detalle), txt(lug.nombre)].filter(Boolean).join(" · ")
         || txt(o.ubicacion_texto) || txt(o.lugar),
@@ -244,7 +245,9 @@ export default function ExportCobros({ wsId }: { wsId: string }) {
     ]);
     // Las cobradas (botón de la card) no se vuelven a sacar en ningún Excel.
     const ots = todas.filter((o) => !estados.get(o.id!)?.cobradaAt);
-    return { X: XLSX as unknown as XlsxHoja, ots, cobradas: todas.length - ots.length, catalogo, logo: logo ? new Uint8Array(logo) : undefined, estados };
+    // Todas, también las cobradas: un Excel de antes no trae el ITO en sus bloques y se completa con éste.
+    const itos = new Map(todas.map((o) => [o.id!, o.ito ?? ""]));
+    return { X: XLSX as unknown as XlsxHoja, ots, cobradas: todas.length - ots.length, catalogo, logo: logo ? new Uint8Array(logo) : undefined, estados, itos };
   }
 
   /** Las OTs que quedaron en el Excel: con N° OT en el rango CON OT, sin él en el SIN OT. */
@@ -302,7 +305,7 @@ export default function ExportCobros({ wsId }: { wsId: string }) {
     }
     setLoading(true);
     try {
-      const { X, ots, catalogo, logo, estados } = await cargarTodo();
+      const { X, ots, catalogo, logo, estados, itos } = await cargarTodo();
       const previo = leerExcelCobros(X, new Uint8Array(await archivo.file.arrayBuffer()));
       if (!previo) {
         setError(`"${archivo.file.name}" no es un Excel de cobros de Pangui: actualízalo sólo sobre uno exportado con "Descargar Excel"`);
@@ -317,7 +320,7 @@ export default function ExportCobros({ wsId }: { wsId: string }) {
       // La base de precios elegida manda (si Patricio la actualizó, entra al tiro);
       // sin ella, la que ya traía el Excel. El modificador general es de Claudio: se conserva.
       const bytes = libroCobros(X, {
-        ots, catalogo, conOt, sinOt, logo, previos: previo, estados,
+        ots, catalogo, conOt, sinOt, logo, previos: previo, estados, itos,
         precios: precios?.filas ?? previo.precios, modificador: previo.modificador,
       });
       const resumen = [
