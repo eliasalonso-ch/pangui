@@ -157,6 +157,12 @@ describe("pestanaCobros: el dibujo de bloques del Excel de Claudio", () => {
     expect(celda(ws, "E37")).toBe("1 un Material 19");
   });
 
+  it("la continuación hereda el técnico, para que el filtro por Q no la esconda", () => {
+    const muchas = Array.from({ length: 25 }, (_, i) => `Material ${i}|1|un`);
+    const ws = pestanaCobros(X, [ot([{ ...hoja("materiales_usados", ...muchas), autor: "Cristian" }])], catalogo, false);
+    expect(["Q13", "Q36", "Q37", "Q57"].map((r) => celda(ws, r))).toEqual(["Cristian", "Cristian", "Cristian", "Cristian"]);
+  });
+
   it("técnico que hizo la hoja en Q y N° OT de Pangui en R, también al actualizar", () => {
     const conAutor = (autor: string, tipo = "materiales_usados"): HojaCobro => ({ ...hoja(tipo, "|1|hh"), autor });
     const a = ot([conAutor("Juan Pérez"), conAutor("Juan Pérez"), conAutor("Ana Soto"), conAutor("Pide Otro", "materiales_solicitados")], { id: "ot-a", numeroPangui: 343 });
@@ -164,6 +170,8 @@ describe("pestanaCobros: el dibujo de bloques del Excel de Claudio", () => {
     expect([celda(ws, "Q12"), celda(ws, "Q13"), celda(ws, "R13")]).toEqual(["Técnico", "Juan Pérez, Ana Soto", 343]);
     expect((ws["R13"] as { z?: string }).z).toBe('"#"0'); // se ve "#343"
     expect([celda(ws, "Q36"), celda(ws, "R36")]).toEqual(["", ""]); // sin hoja ni número: en blanco
+    // Filtrar Q por un técnico no puede esconder las líneas ni los TOTALES de su OT.
+    expect(["Q14", "Q33", "Q34", "Q35"].map((r) => celda(ws, r))).toEqual(Array(4).fill("Juan Pérez, Ana Soto"));
     // El dibujo sigue hacia abajo: franja en las líneas impares y dorado en TOTALES; R cierra la tabla.
     const s = (ref: string) => (ws[ref] as { s?: { fill?: { fgColor?: { rgb?: string } }; border?: { right?: { style?: string } } } }).s;
     expect(["Q13", "Q15", "R15", "Q34", "R34"].map((r) => s(r)?.fill?.fgColor?.rgb)).toEqual(["D0DFE6", "D9D9D9", "D9D9D9", "FFD757", "FFD757"]);
