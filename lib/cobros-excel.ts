@@ -401,8 +401,11 @@ export function bloquesDeOt(ot: OtCobro, catalogo: Map<string, string>, sinOt: b
 }
 
 /** Un bloque de 23 filas desde `cab` (la fila de cabecera de la OT); `n` es su número en la columna A. */
-function bloque(p: Pestana, cab: number, n: number, b: BloqueCobro, catalogo: Map<string, MaterialCobro>, alto: number, marca?: { v: string; rgb: string }) {
+function bloque(p: Pestana, cab: number, n: number, b: BloqueCobro, catalogo: Map<string, MaterialCobro>, alto: number, marca?: { v: string; rgb: string }, tecnico = "") {
   const { cabecera, lineas } = b;
+  // El técnico se repite en gris en todas las filas del bloque: si sólo va en la
+  // cabecera, filtrar Q por un nombre esconde las líneas y los TOTALES de su OT.
+  const enGris = (s: Record<string, unknown>) => ({ ...s, font: { ...(s.font as object), bold: false, color: { rgb: "A6A6A6" } } });
   p.put(cab, "A", { v: n, s: est({ negrita: true, h: "center" }) });
   if (b.id) p.put(cab, "S", { v: b.id });
   if (marca) {
@@ -435,7 +438,7 @@ function bloque(p: Pestana, cab: number, n: number, b: BloqueCobro, catalogo: Ma
   const der = (c: string): Borde => (c === "R" ? "medium" : "thin");
   const cabPangui = (c: string) => est({ fuente: "Aptos Display", tam: 12, negrita: true, relleno: CELESTE, h: "center", ajustar: true,
     fmt: c === "R" ? NUM_PANGUI : undefined, bd: ["thin", der(c), "medium", "thin"] });
-  p.put(cab, "Q", { v: cabecera?.tecnico ?? "", s: cabPangui("Q") });
+  p.put(cab, "Q", { v: tecnico, s: cabPangui("Q") });
   p.put(cab, "R", { v: cabecera?.numeroPangui ?? undefined, s: cabPangui("R") });
   p.altura(cab, 27.75);
 
@@ -447,7 +450,8 @@ function bloque(p: Pestana, cab: number, n: number, b: BloqueCobro, catalogo: Ma
     const mat = l?.codigo ? catalogo.get(norm(l.codigo)) : undefined;
     // Franjas grises en filas impares: lo que pinta el estilo de tabla de la plantilla.
     const b12 = (o: Parameters<typeof est>[0]) => est({ fuente: "Bahnschrift", tam: 12, h: "center", relleno: r % 2 ? FRANJA : undefined, ...o });
-    for (const c of ["Q", "R"]) p.put(r, c, { s: b12({ negrita: true, fmt: "0", bd: ["thin", der(c), "thin", "thin"] }) });
+    p.put(r, "Q", { v: tecnico, s: enGris(b12({ fmt: "0", bd: ["thin", der("Q"), "thin", "thin"] })) });
+    p.put(r, "R", { s: b12({ negrita: true, fmt: "0", bd: ["thin", der("R"), "thin", "thin"] }) });
     p.put(r, "C", { s: b12({ negrita: true, fmt: "0", bd: bd("C") }) });
     p.put(r, "D", { s: b12({ negrita: true, fmt: "0", bd: bd("D") }) });
     p.put(r, "E", { v: l?.texto, s: b12({ h: "left", fmt: "0", bd: bd("E") }) });
@@ -478,10 +482,13 @@ function bloque(p: Pestana, cab: number, n: number, b: BloqueCobro, catalogo: Ma
     }) });
   }
   for (const c of ["Q", "R"]) {
-    p.put(t, c, { s: est({ fuente: "Bahnschrift", tam: 12, negrita: true, relleno: DORADO, h: "center", bd: ["thin", der(c), "thin", "medium"] }) });
+    const s = est({ fuente: "Bahnschrift", tam: 12, negrita: true, relleno: DORADO, h: "center", bd: ["thin", der(c), "thin", "medium"] });
+    p.put(t, c, c === "Q" ? { v: tecnico, s: enGris(s) } : { s });
   }
   p.altura(t, 19.5);
   p.put(t + 1, "C", { s: est({ bd: ["medium", undefined, undefined, undefined] }) });
+  // La fila de separación también, en blanco sobre blanco: filtrada, las OTs quedarían pegadas.
+  if (tecnico) p.put(t + 1, "Q", { v: tecnico, s: { font: { color: { rgb: "FFFFFF" } } } });
   p.altura(t + 1, 15.75);
 }
 
@@ -517,8 +524,11 @@ export function pestanaCobros(
   const bloques = [...previos, ...ots.flatMap((ot) => bloquesDeOt(ot, catalogo, sinOt))];
   const ultima = PRIMERA_CABECERA + Math.max(bloques.length, 1) * FILAS_POR_BLOQUE - 1;
   encabezado(p, sinOt ? "TRABAJOS SIN OT" : "TRABAJOS CON OT", rango.desde, rango.hasta, ultima);
-  bloques.forEach((b, k) => bloque(p, PRIMERA_CABECERA + k * FILAS_POR_BLOQUE, k + 1, b, materiales, alto,
-    marcaCobro(b, k >= previos.length, estados)));
+  let tecnico = ""; // las continuaciones no traen cabecera: heredan el de su OT
+  bloques.forEach((b, k) => {
+    if (b.cabecera) tecnico = b.cabecera.tecnico ?? "";
+    bloque(p, PRIMERA_CABECERA + k * FILAS_POR_BLOQUE, k + 1, b, materiales, alto, marcaCobro(b, k >= previos.length, estados), tecnico);
+  });
   const ws = p.cerrar(ultima, "T", ANCHOS);
   // S guarda el id de la OT: oculta, fuera de la tabla y de lo que se imprime. T, el aviso de cobro.
   ws["!cols"] = [...(ws["!cols"] as object[]), { wch: 38, hidden: true }, { wch: 26 }];
