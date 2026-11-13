@@ -22,6 +22,10 @@
  *     faltantes: [{ folio, idExterno, fecha, estado, url }],  // no OT yet
  *     huerfanas: [{ id, folio, numero, titulo, estado }],     // OT, not pending upstream
  *   }
+ *
+ * `{ importar: "SF9…" }` trae esa solicitud: crea su OT, o le suma el PDF
+ * (botón de imprimir) a la que ya existe. Responde { ok, id, numero, existente,
+ * pdfAgregado?, pendientes }. No usa el cooldown: es un click por folio.
  */
 import { NextResponse } from "next/server";
 import { createServerSupabase, getServerUser, shouldRedirectToLogin } from "@/lib/supabase-server";
@@ -37,6 +41,10 @@ const lastRunAtByWorkspace = new Map<string, number>();
 const FUNCTION_TIMEOUT_MS = 30_000;
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const FOLIO_RE = /^SF9\d{11,}$/;
+// Crear la OT copia el PDF y las fotos del portal a R2: más lento que revisar.
+const IMPORTAR_TIMEOUT_MS = 60_000;
+export const maxDuration = 70;
 
 export async function POST(req: Request) {
   // ── Auth: real session, Electrilam only, no requesters ──
@@ -76,11 +84,19 @@ export async function POST(req: Request) {
   let desde: string | null = null;
   let hasta: string | null = null;
   let soloProbar = false;
+  let importar: string | null = null;
   try {
     const body = await req.json();
     if (typeof body?.desde === "string" && DATE_RE.test(body.desde)) desde = body.desde;
     if (typeof body?.hasta === "string" && DATE_RE.test(body.hasta)) hasta = body.hasta;
     soloProbar = body?.soloProbar === true;
+    if (typeof body?.importar === "string") {
+      const folio: string = body.importar.trim().toUpperCase();
+      importar = folio;
+      if (!FOLIO_RE.test(folio)) {
+        return NextResponse.json({ ok: false, error: "Folio inválido (ej. SF920261030376)" }, { status: 400 });
+      }
+    }
   } catch {
     // no body — check everything
   }
@@ -88,14 +104,14 @@ export async function POST(req: Request) {
   // ── Cooldown ──
   const now = Date.now();
   const elapsed = now - (lastRunAtByWorkspace.get(perfil.workspace_id) ?? 0);
-  if (elapsed < COOLDOWN_MS) {
+  if (!importar && elapsed < COOLDOWN_MS) {
     const retryIn = Math.ceil((COOLDOWN_MS - elapsed) / 1000);
     return NextResponse.json(
       { ok: false, error: `Espera ${retryIn}s antes de revisar de nuevo`, retryIn },
       { status: 429, headers: { "Retry-After": String(retryIn) } }
     );
   }
-  lastRunAtByWorkspace.set(perfil.workspace_id, now);
+  if (!importar) lastRunAtByWorkspace.set(perfil.workspace_id, now);
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceKey  = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -109,7 +125,7 @@ export async function POST(req: Request) {
 
   // ── Delegate to the edge function ──
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), FUNCTION_TIMEOUT_MS);
+  const timeout = setTimeout(() => controller.abort(), importar ? IMPORTAR_TIMEOUT_MS : FUNCTION_TIMEOUT_MS);
   try {
     const res = await fetch(`${supabaseUrl}/functions/v1/meconecta-check`, {
       method: "POST",
@@ -117,7 +133,7 @@ export async function POST(req: Request) {
         "Content-Type": "application/json",
         "Authorization": `Bearer ${serviceKey}`,
       },
-      body: JSON.stringify({ desde, hasta, soloProbar }),
+      body: JSON.stringify(importar ? { importar } : { desde, hasta, soloProbar }),
       signal: controller.signal,
     });
 

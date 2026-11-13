@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, it, expect } from "vitest";
 import { parseDetalle, decodificar } from "@/supabase/functions/_shared/meconecta-scrape";
-import { matchIto, matchCategoria, prioridadDe, sumarDias, descripcionDe } from "@/supabase/functions/_shared/meconecta-reglas";
+import { matchIto, matchCategoria, prioridadDe, sumarDias, descripcionDe, idDeFolio } from "@/supabase/functions/_shared/meconecta-reglas";
 
 // Markup copiado de una página "Ver solicitud" real (nov 2026), con datos
 // inventados. Ojo con lo que el parser debe resistir: el "Nombre" de Persona de
@@ -123,5 +123,17 @@ describe("reglas de la OT", () => {
       "N° OT: SF920260000001 | Solicitante: Pedro Contacto | Hito: Cristian Quijada\n\nEl enchufe hizo corte & se ve quemado.",
     );
     expect(descripcionDe(d, null)).toMatch(/^N° OT: SF920260000001 \| Solicitante: Pedro Contacto\n\n/);
+  });
+});
+
+describe("idDeFolio", () => {
+  it("saca el id interno del folio", () => {
+    expect(idDeFolio("SF920261030376")).toBe(30376);
+    expect(idDeFolio(" sf920261130968 ")).toBe(30968);
+  });
+  it("rechaza lo que no es un folio", () => {
+    expect(idDeFolio("SF9")).toBeNull();
+    expect(idDeFolio("OT-1235")).toBeNull();
+    expect(idDeFolio("SF92026103")).toBeNull();
   });
 });

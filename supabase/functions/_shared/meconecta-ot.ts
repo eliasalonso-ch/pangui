@@ -132,6 +132,8 @@ export interface OtCreada {
   existente: boolean;
   /** Lo que un admin debe completar a mano ("sin ITO", …), para el aviso. */
   pendientes: string[];
+  /** OT existente a la que recién se le sumó el PDF (botón de imprimir). */
+  pdfAgregado?: boolean;
 }
 
 /** PDF "Solicitud de Mantención" del portal, con el nombre que usaba Electrilam a mano. */
@@ -139,6 +141,14 @@ async function copiarPdfSolicitud(cookie: string, idExterno: number, folio: stri
   const bytes = await descargarPdfSolicitud(cookie, idExterno);
   const url = await subirR2(`${carpeta}/${Date.now()}_${crypto.randomUUID().slice(0, 12)}.pdf`, bytes, "application/pdf");
   return { url, nombre: `Solicitud_${folio}.pdf`, tipo: "archivo" as const, origen: "creacion" as const, bytes: bytes.byteLength };
+}
+
+/** Copia el PDF y lo registra en ot_impresiones: eso hace aparecer el botón de imprimir en la card. */
+async function registrarPdf(supabase: Supabase, cookie: string, otId: string, idExterno: number, folio: string) {
+  const { bytes: _b, ...pdf } = await copiarPdfSolicitud(cookie, idExterno, folio, `ordenes/${otId}/adjuntos`);
+  const { error } = await supabase.from("ot_impresiones").insert({ orden_id: otId, workspace_id: ELECTRILAM_WS, pdf_url: pdf.url });
+  if (error) console.error(`[meconecta-ot] ${folio} ot_impresiones:`, error.message);
+  return pdf;
 }
 
 /**
@@ -154,10 +164,23 @@ export async function crearOtDesdeSolicitud(
 ): Promise<OtCreada> {
   const ws = ELECTRILAM_WS;
 
-  // Folio ya cargado (a mano o por una corrida anterior): no se duplica.
+  // Folio ya cargado (a mano o por una corrida anterior): no se duplica, pero
+  // si no tiene PDF se le suma, para que también tenga botón de imprimir. La
+  // OT no se toca (links mueve updated_at, el token de concurrencia v1).
   const { data: previa } = await supabase.from("ordenes_trabajo")
     .select("id, numero").eq("workspace_id", ws).ilike("n_serie", d.folio).is("deleted_at", null).limit(1).maybeSingle();
-  if (previa) return { id: previa.id as string, numero: previa.numero as number, existente: true, pendientes: [] };
+  if (previa) {
+    const base = { id: previa.id as string, numero: previa.numero as number, existente: true, pendientes: [] as string[] };
+    const { data: imp } = await supabase.from("ot_impresiones").select("orden_id").eq("orden_id", base.id).maybeSingle();
+    if (imp) return base;
+    try {
+      await registrarPdf(supabase, cookie, base.id, idExterno, d.folio);
+      return { ...base, pdfAgregado: true };
+    } catch (e) {
+      console.error(`[meconecta-ot] ${d.folio} PDF:`, e);
+      return { ...base, pendientes: ["sin PDF de la solicitud"] };
+    }
+  }
 
   const { fila, lugarNuevo, pendientes } = await resolverOt(supabase, d, fecha);
 
@@ -189,13 +212,9 @@ export async function crearOtDesdeSolicitud(
   let archivosFallidos = 0;
   let grupoId: string | null = null;
   const links: { url: string; nombre: string; tipo: "archivo"; origen: "creacion" }[] = [];
-  // El PDF de la solicitud va primero, y queda registrado en ot_impresiones:
-  // eso es lo que hace aparecer el botón de imprimir en la card.
+  // El PDF de la solicitud va primero.
   try {
-    const { bytes: _b, ...pdf } = await copiarPdfSolicitud(cookie, idExterno, d.folio, `ordenes/${otId}/adjuntos`);
-    links.push(pdf);
-    const { error: impErr } = await supabase.from("ot_impresiones").insert({ orden_id: otId, workspace_id: ws, pdf_url: pdf.url });
-    if (impErr) console.error(`[meconecta-ot] ${d.folio} ot_impresiones:`, impErr.message);
+    links.push(await registrarPdf(supabase, cookie, otId, idExterno, d.folio));
   } catch (e) {
     pendientes.push("sin PDF de la solicitud");
     console.error(`[meconecta-ot] ${d.folio} PDF:`, e);
