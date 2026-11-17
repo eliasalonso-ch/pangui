@@ -138,11 +138,12 @@ export default function MeconectaCheck({ onOpenOrden }: Props) {
         return;
       }
       const ot = `OT #${data.numero}`;
+      const agregado = [data.pdfAgregado && "el PDF", data.fotosAgregadas && `${data.fotosAgregadas} foto(s)`].filter(Boolean).join(" y ");
       const texto = !data.existente ? `${ot} creada`
-        : data.pdfAgregado ? `${ot} ya existía: se le agregó el PDF`
-        : data.pendientes?.length ? `${ot} ya existía, pero no se pudo traer el PDF`
-        : `${ot} ya tenía el PDF`;
-      setTraida({ folio, texto, id: data.id, error: data.pendientes?.includes("sin PDF de la solicitud") });
+        : data.pendientes?.length ? `${ot} ya existía${agregado ? `: se le agregó ${agregado}` : ""} (${data.pendientes.join(", ")})`
+        : agregado ? `${ot} ya existía: se le agregó ${agregado}`
+        : `${ot} ya estaba al día`;
+      setTraida({ folio, texto, id: data.id, error: data.pendientes?.length > 0 });
       setFolioTraer("");
       // Marca el folio como cubierto y hace aparecer la impresora en la card.
       setResult((r) => r && { ...r, faltantes: r.faltantes.filter((f) => f.folio !== folio) });

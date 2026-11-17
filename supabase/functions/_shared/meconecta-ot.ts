@@ -134,6 +134,51 @@ export interface OtCreada {
   pendientes: string[];
   /** OT existente a la que recién se le sumó el PDF (botón de imprimir). */
   pdfAgregado?: boolean;
+  /** OT existente a la que recién se le sumaron las fotos del portal. */
+  fotosAgregadas?: number;
+}
+
+type Link = { url: string; nombre: string; tipo: "archivo"; origen: "creacion" };
+
+/**
+ * Adjuntos "Archivo N" del portal: imágenes al grupo de fotos de referencia
+ * "Fotos MeConecta", el resto como links (que el caller guarda en la OT). Un
+ * adjunto que falla no tumba nada: se cuenta para el aviso.
+ */
+async function copiarAdjuntos(supabase: Supabase, cookie: string, otId: string, d: SolicitudDetalle, soloFotos: boolean) {
+  let fallidos = 0;
+  let fotos = 0;
+  let grupoId: string | null = null;
+  const links: Link[] = [];
+  for (const [i, url] of d.archivos.entries()) {
+    const tipo = tipoAdjunto(url);
+    if (soloFotos && !tipo?.imagen) continue;
+    try {
+      if (!tipo) throw new Error("extensión no soportada");
+      const bytes = await descargarArchivo(cookie, url);
+      const objeto = `${Date.now()}_${crypto.randomUUID().slice(0, 12)}.${tipo.ext}`;
+      if (tipo.imagen) {
+        if (!grupoId) {
+          const { data: g, error: gErr } = await supabase.from("foto_grupos").insert({
+            orden_id: otId, workspace_id: ELECTRILAM_WS, titulo: "Fotos MeConecta", tipo: "referencia", orden_display: 0,
+          }).select("id").single();
+          if (gErr) throw new Error(`grupo: ${gErr.message}`);
+          grupoId = g.id as string;
+        }
+        const publica = await subirR2(`ordenes/${otId}/grupos/${grupoId}/${objeto}`, bytes, tipo.mime);
+        const { error: iErr } = await supabase.from("foto_grupo_items").insert({ grupo_id: grupoId, url: publica, orden_display: i });
+        if (iErr) throw new Error(`foto: ${iErr.message}`);
+        fotos += 1;
+      } else {
+        const publica = await subirR2(`ordenes/${otId}/adjuntos/${objeto}`, bytes, tipo.mime);
+        links.push({ url: publica, nombre: decodeURIComponent(url.split("/").pop() ?? `Archivo ${i + 1}`), tipo: "archivo", origen: "creacion" });
+      }
+    } catch (e) {
+      fallidos += 1;
+      console.error(`[meconecta-ot] ${d.folio} adjunto ${url}:`, e);
+    }
+  }
+  return { links, fallidos, fotos };
 }
 
 /** PDF "Solicitud de Mantención" del portal, con el nombre que usaba Electrilam a mano. */
@@ -165,21 +210,34 @@ export async function crearOtDesdeSolicitud(
   const ws = ELECTRILAM_WS;
 
   // Folio ya cargado (a mano o por una corrida anterior): no se duplica, pero
-  // si no tiene PDF se le suma, para que también tenga botón de imprimir. La
-  // OT no se toca (links mueve updated_at, el token de concurrencia v1).
+  // se le suma lo que le falte del portal: el PDF (botón de imprimir) y las
+  // fotos de referencia. La fila de la OT no se toca (links mueve updated_at,
+  // el token de concurrencia v1), así que los adjuntos que no son imagen no van.
   const { data: previa } = await supabase.from("ordenes_trabajo")
     .select("id, numero").eq("workspace_id", ws).ilike("n_serie", d.folio).is("deleted_at", null).limit(1).maybeSingle();
   if (previa) {
-    const base = { id: previa.id as string, numero: previa.numero as number, existente: true, pendientes: [] as string[] };
-    const { data: imp } = await supabase.from("ot_impresiones").select("orden_id").eq("orden_id", base.id).maybeSingle();
-    if (imp) return base;
-    try {
-      await registrarPdf(supabase, cookie, base.id, idExterno, d.folio);
-      return { ...base, pdfAgregado: true };
-    } catch (e) {
-      console.error(`[meconecta-ot] ${d.folio} PDF:`, e);
-      return { ...base, pendientes: ["sin PDF de la solicitud"] };
+    const res: OtCreada = { id: previa.id as string, numero: previa.numero as number, existente: true, pendientes: [] };
+    const [{ data: imp }, { data: ref }] = await Promise.all([
+      supabase.from("ot_impresiones").select("orden_id").eq("orden_id", res.id).maybeSingle(),
+      supabase.from("foto_grupos").select("id").eq("orden_id", res.id).eq("tipo", "referencia").limit(1).maybeSingle(),
+    ]);
+    if (!imp) {
+      try {
+        await registrarPdf(supabase, cookie, res.id, idExterno, d.folio);
+        res.pdfAgregado = true;
+      } catch (e) {
+        console.error(`[meconecta-ot] ${d.folio} PDF:`, e);
+        res.pendientes.push("sin PDF de la solicitud");
+      }
     }
+    // Con fotos de referencia ya puestas (a mano o por una corrida anterior)
+    // no se agregan: serían las mismas del portal, duplicadas.
+    if (!ref) {
+      const { fallidos, fotos } = await copiarAdjuntos(supabase, cookie, res.id, d, true);
+      if (fotos > 0) res.fotosAgregadas = fotos;
+      if (fallidos > 0) res.pendientes.push(`${fallidos} adjunto(s) sin copiar`);
+    }
+    return res;
   }
 
   const { fila, lugarNuevo, pendientes } = await resolverOt(supabase, d, fecha);
@@ -206,45 +264,17 @@ export async function crearOtDesdeSolicitud(
   if (error) throw new Error(`OT: ${error.message}`);
   const otId = ot.id as string;
 
-  // Adjuntos del portal: imágenes al grupo de fotos de referencia, el resto a
-  // los adjuntos de la OT. Un adjunto que falla no tumba la OT ya creada: se
-  // cuenta y se avisa en la notificación.
-  let archivosFallidos = 0;
-  let grupoId: string | null = null;
-  const links: { url: string; nombre: string; tipo: "archivo"; origen: "creacion" }[] = [];
-  // El PDF de la solicitud va primero.
+  // El PDF de la solicitud va primero en los links; después los adjuntos.
+  const links: Link[] = [];
   try {
     links.push(await registrarPdf(supabase, cookie, otId, idExterno, d.folio));
   } catch (e) {
     pendientes.push("sin PDF de la solicitud");
     console.error(`[meconecta-ot] ${d.folio} PDF:`, e);
   }
-  for (const [i, url] of d.archivos.entries()) {
-    try {
-      const tipo = tipoAdjunto(url);
-      if (!tipo) throw new Error("extensión no soportada");
-      const bytes = await descargarArchivo(cookie, url);
-      const objeto = `${Date.now()}_${crypto.randomUUID().slice(0, 12)}.${tipo.ext}`;
-      if (tipo.imagen) {
-        if (!grupoId) {
-          const { data: g, error: gErr } = await supabase.from("foto_grupos").insert({
-            orden_id: otId, workspace_id: ws, titulo: "Fotos MeConecta", tipo: "referencia", orden_display: 0,
-          }).select("id").single();
-          if (gErr) throw new Error(`grupo: ${gErr.message}`);
-          grupoId = g.id as string;
-        }
-        const publica = await subirR2(`ordenes/${otId}/grupos/${grupoId}/${objeto}`, bytes, tipo.mime);
-        const { error: iErr } = await supabase.from("foto_grupo_items").insert({ grupo_id: grupoId, url: publica, orden_display: i });
-        if (iErr) throw new Error(`foto: ${iErr.message}`);
-      } else {
-        const publica = await subirR2(`ordenes/${otId}/adjuntos/${objeto}`, bytes, tipo.mime);
-        links.push({ url: publica, nombre: decodeURIComponent(url.split("/").pop() ?? `Archivo ${i + 1}`), tipo: "archivo", origen: "creacion" });
-      }
-    } catch (e) {
-      archivosFallidos += 1;
-      console.error(`[meconecta-ot] ${d.folio} adjunto ${url}:`, e);
-    }
-  }
+  const adjuntos = await copiarAdjuntos(supabase, cookie, otId, d, false);
+  links.push(...adjuntos.links);
+  let archivosFallidos = adjuntos.fallidos;
   if (links.length > 0) {
     const { error: lErr } = await supabase.from("ordenes_trabajo").update({ links }).eq("id", otId);
     if (lErr) { archivosFallidos += links.length; console.error(`[meconecta-ot] ${d.folio} links:`, lErr.message); }
