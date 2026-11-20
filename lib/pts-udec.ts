@@ -155,7 +155,7 @@ export function armarFichaPts(
     return Array.isArray(c) ? c.map(String) : [];
   };
 
-  const sf = numeroOtCliente(ot.n_serie, ot.numero_meconecta, ot.descripcion, ot.titulo, ot.observacion);
+  const sf = numeroOtCliente(ot.n_serie, ot.numero_meconecta);
   // Regla de Electrilam (igual que cobros): con N° SF es CON OT (Me-Conecta);
   // sin SF es SIN OT, que en la práctica son los llamados de emergencia.
   const emergencia = !sf || ot.tipo_trabajo === "emergencia" || ot.prioridad === "urgente";

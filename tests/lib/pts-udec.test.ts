@@ -35,7 +35,11 @@ describe("ficha PTS UdeC", () => {
     expect(valor(sin, "Prioridad")).toBe("Emergencia");
     expect(valor(sin, "Medio de Solicitud")).toBe("Llamado de Andrea Mora");
 
-    const con = armarFichaPts({ ...ot, descripcion: "N° OT: SF920261130825" }, pasos, []);
+    // un SF citado en el texto no cuenta: puede ser de otra OT (#1457 citaba el de la #919)
+    const citado = armarFichaPts({ ...ot, titulo: "Tablero SF920260829356", descripcion: "N° OT: SF920261130825" }, pasos, []);
+    expect(valor(citado, "Tipo de Orden")).toBe("Otro Medio");
+
+    const con = armarFichaPts({ ...ot, n_serie: "SF920261130825" }, pasos, []);
     expect(valor(con, "Tipo de Orden")).toBe("Solicitud de Trabajo por Me-Conecta");
     expect(valor(con, "Nº Orden")).toBe("SF920261130825");
     expect(valor(con, "Prioridad")).toBe("Planificado");
