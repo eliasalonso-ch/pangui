@@ -38,9 +38,10 @@ function norm(s: string): string {
 }
 
 /**
- * El N° de OT del cliente (SF920260929640) viene dentro del texto de la
- * descripción, no en una columna propia: `numero_meconecta` quedó vacío en
- * las 827 órdenes. Con ese número el cobro es CON OT; sin él, SIN OT.
+ * El N° de OT del cliente (SF920260929640) sale SOLO de su campo (n_serie o
+ * numero_meconecta). Con ese número el cobro es CON OT; sin él, SIN OT.
+ * No se busca en título/descripción: ahí puede venir citado el SF de otra OT
+ * (la #1457 citaba el de la #919 y caía en CON OT).
  */
 const RE_NUM_OT = /SF9\d{10,}/;
 
@@ -56,7 +57,7 @@ export async function construirCobro(hoja: Hoja, ordenId: string): Promise<Cobro
   const sb = createClient();
   const { data: ot, error } = await sb
     .from("ordenes_trabajo")
-    .select("numero, numero_meconecta, solicitante, fecha_termino, completado_en, descripcion, titulo, observacion, ubicacion_id, lugar_id, ubicaciones(edificio, detalle), lugares(nombre)")
+    .select("numero, n_serie, numero_meconecta, solicitante, fecha_termino, completado_en, descripcion, titulo, observacion, ubicacion_id, lugar_id, ubicaciones(edificio, detalle), lugares(nombre)")
     .eq("id", ordenId)
     .single();
   if (error) throw error;
@@ -104,8 +105,7 @@ export async function construirCobro(hoja: Hoja, ordenId: string): Promise<Cobro
     orden: {
       numero: (o.numero as number) ?? null,
       numeroMeconecta:
-        numeroOtCliente(o.numero_meconecta as string, o.descripcion as string,
-                        o.titulo as string, o.observacion as string) || null,
+        numeroOtCliente(o.n_serie as string, o.numero_meconecta as string) || null,
       solicitante: txt(o.solicitante),
       lugar: ubicacion,
       fechaTermino: completado.slice(0, 10) || txt(o.fecha_termino).slice(0, 10),

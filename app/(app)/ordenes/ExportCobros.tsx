@@ -55,7 +55,7 @@ async function otsCompletadas(wsId: string, desde: string, hasta: string, column
 }
 
 const numeroOt = (o: Record<string, unknown>) =>
-  numeroOtCliente(txt(o.n_serie), txt(o.numero_meconecta), txt(o.descripcion), txt(o.titulo), txt(o.observacion));
+  numeroOtCliente(txt(o.n_serie), txt(o.numero_meconecta));
 const fechaOt = (o: Record<string, unknown>) => (o.completado_en ? dateKey(new Date(String(o.completado_en))) : "");
 
 async function cargarOts(wsId: string, desde: string, hasta: string): Promise<OtCobro[]> {
