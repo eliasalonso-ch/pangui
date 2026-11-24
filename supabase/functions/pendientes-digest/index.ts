@@ -1,4 +1,4 @@
-// Supabase Edge Function — correo diario de pendientes de OT.
+// Supabase Edge Function — correo diario de pendientes (de OT y sin OT).
 //
 // La llama el cron 'pendientes-tick' (días hábiles, 08:30 Chile) justo
 // después del push. Un correo por persona con sus pendientes de hoy o
@@ -21,7 +21,7 @@ const RESEND_FROM  = Deno.env.get("RESEND_FROM") ?? "Pangui <noreply@getpangui.c
 const APP_URL      = "https://app.getpangui.com";
 
 interface Fila {
-  orden_id: string;
+  orden_id: string | null; // null = tarea sin OT
   usuario_id: string;
   fecha: string;
   hora: string | null; // "HH:MM:SS"
@@ -62,18 +62,21 @@ function htmlCorreo(nombre: string, filas: Fila[], hoy: string): string {
     const ot = o?.titulo?.trim() || o?.descripcion?.trim().slice(0, 80) || "OT";
     const num = o?.numero ? `OT #${o.numero} · ` : "";
     const atrasado = diasEntre(f.fecha, hoy) > 0;
+    const enlace = f.orden_id
+      ? `<a href="${APP_URL}/ordenes/${f.orden_id}" style="font-size:13px;color:#0e6b7e">${esc(num + ot)}</a>`
+      : `<a href="${APP_URL}/pendientes" style="font-size:13px;color:#0e6b7e">Tarea sin OT</a>`;
     return `
       <tr><td style="padding:12px 0;border-bottom:1px solid #e5e7eb">
         <div style="font-size:12px;color:${atrasado ? "#b45309" : "#0e6b7e"};font-weight:600">${esc(cuando(f.fecha, f.hora, hoy))}</div>
         <div style="font-size:15px;color:#111827;margin:2px 0">${esc(f.nota)}</div>
-        <a href="${APP_URL}/ordenes/${f.orden_id}" style="font-size:13px;color:#0e6b7e">${esc(num + ot)}</a>
+        ${enlace}
       </td></tr>`;
   }).join("");
   return `<!doctype html><html><body style="margin:0;padding:24px;background:#f9fafb;font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif">
     <table width="100%" style="max-width:560px;margin:0 auto;background:#fff;border-radius:8px;padding:20px 24px">
       <tr><td>
         <p style="font-size:15px;color:#111827;margin:0 0 4px">Hola ${esc(nombre)},</p>
-        <p style="font-size:14px;color:#4b5563;margin:0 0 12px">Estas OTs te pidieron atención. Ábrelas para marcarlas hechas o posponerlas.</p>
+        <p style="font-size:14px;color:#4b5563;margin:0 0 12px">Estos pendientes te piden atención. Márcalos hechos o pospónlos en Pangui.</p>
       </td></tr>
       ${items}
       <tr><td style="padding-top:16px;font-size:12px;color:#9ca3af">Te llega porque creaste estos pendientes en Pangui. Mientras no los marques hechos, aparecerán aquí cada día hábil. <a href="${APP_URL}/pendientes" style="color:#0e6b7e">Ver todos mis pendientes</a></td></tr>
@@ -108,7 +111,8 @@ Deno.serve(async (req) => {
 
       const porUsuario = new Map<string, Fila[]>();
       for (const f of (data ?? []) as unknown as Fila[]) {
-        if (!f.ordenes_trabajo || f.ordenes_trabajo.deleted_at) continue;
+        // Los de OT, solo si la OT sigue existiendo; los sin OT, siempre.
+        if (f.orden_id && (!f.ordenes_trabajo || f.ordenes_trabajo.deleted_at)) continue;
         // Sale en el correo desde que se cumple su aviso: fecha + hora (08:30 si no tiene) − aviso.
         const momento = utcDeSantiago(f.fecha, (f.hora ?? "08:30").slice(0, 5)).getTime() - f.aviso_minutos * 60_000;
         if (momento > Date.now()) continue;
@@ -131,7 +135,7 @@ Deno.serve(async (req) => {
           body: JSON.stringify({
             from: RESEND_FROM,
             to: [email],
-            subject: filas.length === 1 ? "1 OT te pide atención hoy" : `${filas.length} OTs te piden atención hoy`,
+            subject: filas.length === 1 ? "1 pendiente te pide atención hoy" : `${filas.length} pendientes te piden atención hoy`,
             html: htmlCorreo(perfil?.nombre?.split(" ")[0] ?? "", filas, hoy),
           }),
         });

@@ -2,7 +2,10 @@ import { createClient } from "@/lib/supabase";
 import type { EstadoVisible } from "@/lib/meconecta-conexion";
 
 /**
- * Integración Google Calendar, lado cliente (/integraciones/google-calendar).
+ * Integraciones Google Calendar y Google Tasks, lado cliente
+ * (/integraciones/google-calendar y /integraciones/google-tasks). Las dos
+ * comparten la conexión: una cuenta de Google por persona, con los permisos
+ * que se hayan concedido (`scopes`).
  * Lo que la UI puede ver de la conexión: el refresh token nunca sale de Vault.
  * RLS: cada persona ve solo su conexión y su link (calendario_google, calendario_feeds).
  */
@@ -10,17 +13,26 @@ export interface ConexionGoogle {
   google_email: string;
   calendar_id: string | null;
   calendar_nombre: string | null;
+  tasklist_id: string | null;
+  tasklist_nombre: string | null;
+  /** Permisos concedidos, separados por espacio. */
+  scopes: string | null;
   estado: "activo" | "revocado" | "error";
   ultimo_error: string | null;
   updated_at: string;
 }
 
 export interface CalendarioGoogle { id: string; nombre: string; principal: boolean }
+export interface ListaTareasGoogle { id: string; nombre: string }
+
+/** Si la conexión ya tiene los permisos de ese destino (si no, hay que conectar para pedirlos). */
+export const tienePermisoCalendar = (c: ConexionGoogle | null) => !!c?.scopes?.includes("auth/calendar.events");
+export const tienePermisoTasks = (c: ConexionGoogle | null) => !!c?.scopes?.includes("auth/tasks");
 
 export async function leerConexionGoogle(): Promise<ConexionGoogle | null> {
   const { data, error } = await createClient()
     .from("calendario_google")
-    .select("google_email, calendar_id, calendar_nombre, estado, ultimo_error, updated_at")
+    .select("google_email, calendar_id, calendar_nombre, tasklist_id, tasklist_nombre, scopes, estado, ultimo_error, updated_at")
     .maybeSingle();
   if (error) throw error;
   return data as ConexionGoogle | null;
@@ -28,9 +40,17 @@ export async function leerConexionGoogle(): Promise<ConexionGoogle | null> {
 
 /** Para la insignia de estado (mismos colores que MeConecta). */
 export function estadoGoogle(c: ConexionGoogle | null): { estado: EstadoVisible; label?: string } {
-  if (!c) return { estado: "sin_conexion" };
+  if (!c || !tienePermisoCalendar(c)) return { estado: "sin_conexion" };
   if (c.estado === "revocado") return { estado: "credenciales_invalidas", label: "Reconectar" };
   if (!c.calendar_id) return { estado: "pendiente", label: "Elige calendario" };
+  if (c.ultimo_error) return { estado: "error" };
+  return { estado: "conectado" };
+}
+
+export function estadoGoogleTasks(c: ConexionGoogle | null): { estado: EstadoVisible; label?: string } {
+  if (!c || !tienePermisoTasks(c)) return { estado: "sin_conexion" };
+  if (c.estado === "revocado") return { estado: "credenciales_invalidas", label: "Reconectar" };
+  if (!c.tasklist_id) return { estado: "pendiente", label: "Elige lista" };
   if (c.ultimo_error) return { estado: "error" };
   return { estado: "conectado" };
 }
@@ -43,6 +63,26 @@ export const MENSAJE_VUELTA: Record<string, { texto: string; ok: boolean }> = {
   invalido: { texto: "El enlace de conexión venció o no es válido. Vuelve a intentarlo.", ok: false },
   error: { texto: "No se pudo conectar con Google. Vuelve a intentarlo.", ok: false },
 };
+
+/** Vuelta de Google para Google Tasks (?tareas=…). */
+export const MENSAJE_VUELTA_TAREAS: Record<string, { texto: string; ok: boolean }> = {
+  ...MENSAJE_VUELTA,
+  conectado: { texto: "Google Tasks conectado. Ahora elige la lista.", ok: true },
+  permisos: { texto: "Faltó aceptar el permiso de Google Tasks. Vuelve a conectar y déjalo marcado.", ok: false },
+};
+
+export async function listarListasTareasGoogle(): Promise<{ listas: ListaTareasGoogle[] } | { revocado: true }> {
+  const r = await fetch("/api/google/listas-tareas");
+  const j = await r.json();
+  if (r.status === 409) return { revocado: true };
+  if (!r.ok) throw new Error(j.error ?? "No se pudieron leer las listas de tareas");
+  return { listas: j.listas };
+}
+
+export async function elegirListaTareasGoogle(l: ListaTareasGoogle): Promise<void> {
+  const { error } = await createClient().rpc("gtasks_elegir_lista", { p_id: l.id, p_nombre: l.nombre });
+  if (error) throw error;
+}
 
 export async function listarCalendariosGoogle(): Promise<{ calendarios: CalendarioGoogle[] } | { revocado: true }> {
   const r = await fetch("/api/google/calendarios");

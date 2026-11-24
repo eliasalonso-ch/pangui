@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 1214" width="1280" height="1214">
+  <defs>
+    <path id="check" d="M330 535L426 439Q468 405 511 439L605 532L1080 58Q1123 22 1166 58L1263 155Q1297 197 1263 240L660 842Q607 885 553 842L330 619Q296 577 330 535Z"/>
+    <clipPath id="anillo">
+      <path clip-rule="evenodd" d="M607 0a607 607 0 1 0 0.1 0ZM607 212a395 395 0 1 1 -0.1 0Z"/>
+    </clipPath>
+  </defs>
+  <circle cx="607" cy="607" r="501" fill="none" stroke="#2684FC" stroke-width="212"/>
+  <use href="#check" fill="#2684FC"/>
+  <use href="#check" fill="#0066DA" clip-path="url(#anillo)"/>
+</svg>

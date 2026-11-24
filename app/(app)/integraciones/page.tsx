@@ -5,9 +5,9 @@ import Link from "next/link";
 import { Loader2, Plug, Send, ArrowRight } from "lucide-react";
 import { integracionesDe, type Integracion } from "@/lib/integraciones";
 import { getConexionMeconecta, estadoVisible, type EstadoVisible } from "@/lib/meconecta-conexion";
-import { leerConexionGoogle, estadoGoogle } from "@/lib/google-calendar-conexion";
+import { leerConexionGoogle, estadoGoogle, estadoGoogleTasks } from "@/lib/google-calendar-conexion";
 import { getPerfilUsuario } from "@/lib/perfil-usuario";
-import { LogoUdec, LogoGoogleCalendar, EstadoBadge } from "@/components/integraciones/Logos";
+import { LogoUdec, LogoGoogleCalendar, LogoGoogleTasks, EstadoBadge } from "@/components/integraciones/Logos";
 import { useGateIntegraciones } from "@/components/integraciones/useGateIntegraciones";
 
 type Estado = { estado: EstadoVisible; label?: string };
@@ -15,11 +15,13 @@ type Estado = { estado: EstadoVisible; label?: string };
 // Estado de cada conector; si falla la lectura, se muestra "sin conexión".
 const LEER_ESTADO: Record<string, () => Promise<Estado>> = {
   "google-calendar": () => leerConexionGoogle().then(estadoGoogle),
+  "google-tasks": () => leerConexionGoogle().then(estadoGoogleTasks),
   meconecta: () => getConexionMeconecta().then(c => ({ estado: estadoVisible(c) })),
 };
 
 const LOGO: Record<string, React.ReactNode> = {
   "google-calendar": <LogoGoogleCalendar alto={84} />,
+  "google-tasks": <LogoGoogleTasks alto={80} />,
   meconecta: <LogoUdec completo alto={72} />,
 };
 

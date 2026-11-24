@@ -18,3 +18,10 @@ describe("state del OAuth de Google", () => {
     expect(verificarState("basura", "secreto", T)).toBeNull();
   });
 });
+
+describe("destino del state", () => {
+  it("por defecto calendar; tasks vuelve como tasks", () => {
+    expect(verificarState(firmarState("ws-1", "u-1", "s", T), "s", T)?.destino).toBe("calendar");
+    expect(verificarState(firmarState("ws-1", "u-1", "s", T, "tasks"), "s", T)?.destino).toBe("tasks");
+  });
+});

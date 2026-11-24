@@ -3,7 +3,9 @@ import { createClient } from "@/lib/supabase";
 import type { Recurrencia, RecurrenciaConfig } from "@/types/ordenes";
 
 /**
- * Pendientes de OT: lo que falta hacer, con fecha y opcionalmente hora. Son
+ * Pendientes: lo que falta hacer, con fecha y opcionalmente hora. Casi todos
+ * cuelgan de una OT; los sin OT (orden_id null, migración 20261124220000) son
+ * tareas administrativas que no tocan el ciclo de ninguna OT. Son
  * personales: el RLS solo deja ver y tocar los propios, y workspace_id /
  * usuario_id los pone la base por defecto. El push lo manda el cron
  * 'pendientes-tick' (cada 15 min) y el correo 'pendientes-correo' (08:30);
@@ -34,6 +36,18 @@ export const PRIORIDADES_PENDIENTE: [PrioridadPendiente, string][] = [
   ["urgente", "Emergencia"],
 ];
 
+/**
+ * A dónde va el pendiente en Google (migración 20261124240000). Por defecto,
+ * con hora es una cita (Calendar) y sin hora un to-do del día (Tasks).
+ */
+export type DestinoGooglePendiente = "calendar" | "tasks" | "ninguno";
+export const DESTINOS_GOOGLE: [DestinoGooglePendiente, string][] = [
+  ["calendar", "Google Calendar"],
+  ["tasks", "Google Tasks"],
+  ["ninguno", "No enviar"],
+];
+export const destinoPorDefecto = (hora: string | null): DestinoGooglePendiente => (hora ? "calendar" : "tasks");
+
 export const etiquetaDe = <K extends string>(lista: [K, string][], k: K) => lista.find(x => x[0] === k)?.[1] ?? k;
 
 export interface DatosPendiente {
@@ -48,11 +62,13 @@ export interface DatosPendiente {
   prioridad: PrioridadPendiente;
   /** Minutos antes de fecha + hora (sin hora = 08:30). 0 = a la hora. Manda el push, el correo y el aviso de Google. */
   aviso_minutos: number;
+  gcal_destino: DestinoGooglePendiente;
 }
 
 export interface Pendiente extends DatosPendiente {
   id: string;
-  orden_id: string;
+  /** null = tarea sin OT. */
+  orden_id: string | null;
   hecho_at: string | null;
   created_at: string;
   usuario: { nombre: string } | null; // quien lo creó (los pendientes son personales)
@@ -62,7 +78,7 @@ export interface MiPendiente extends Pendiente {
   ordenes_trabajo: { numero: number | null; titulo: string | null; descripcion: string | null; deleted_at: string | null } | null;
 }
 
-const COLS = "id, orden_id, fecha, hora, nota, recurrencia, recurrencia_config, push, correo, estado, prioridad, aviso_minutos, hecho_at, created_at, usuario:usuarios(nombre)";
+const COLS = "id, orden_id, fecha, hora, nota, recurrencia, recurrencia_config, push, correo, estado, prioridad, aviso_minutos, gcal_destino, hecho_at, created_at, usuario:usuarios(nombre)";
 
 // ── Aviso (puro, testeado) ───────────────────────────────────────────────────
 
@@ -253,6 +269,13 @@ export function filtroCuando(grupos: GrupoPendiente[], hoy: string): string | nu
 
 export type OrdenPendientes = { id: "cuando" | "nota" | "estado" | "prioridad" | "creado"; desc: boolean };
 
+/** Filtro "Origen": de una OT o tarea sin OT. */
+export type OrigenPendiente = "ot" | "sin_ot";
+export const ORIGENES_PENDIENTE: [OrigenPendiente, string][] = [
+  ["ot", "De una OT"],
+  ["sin_ot", "Sin OT"],
+];
+
 export interface ConsultaPendientes {
   pagina: number;     // desde 0
   porPagina: number;
@@ -260,19 +283,25 @@ export interface ConsultaPendientes {
   estados: EstadoPendiente[];
   prioridades: PrioridadPendiente[];
   cuando: GrupoPendiente[];
+  origenes: OrigenPendiente[];
   orden: OrdenPendientes | null;
 }
 
 /**
  * Una página de "Mis pendientes", paginada, filtrada y ordenada en el
- * servidor (`.range()` + `count: exact`). El RLS deja solo los propios; el
- * `!inner` saca los de OTs en la papelera también del conteo.
+ * servidor (`.range()` + `count: exact`). El RLS deja solo los propios. La OT
+ * va con left join para traer también los sin OT: el filtro sobre deleted_at
+ * deja la OT embebida en null si está en la papelera, y el `or` saca esos
+ * pendientes (también del conteo) sin sacar los que nunca tuvieron OT.
  */
 export async function fetchMisPendientesPagina(c: ConsultaPendientes, hoy: string): Promise<{ filas: MiPendiente[]; total: number }> {
   let q = createClient()
     .from("ot_pendientes")
-    .select(`${COLS}, ordenes_trabajo!inner(numero, titulo, descripcion, deleted_at)`, { count: "exact" })
-    .is("ordenes_trabajo.deleted_at", null);
+    .select(`${COLS}, ordenes_trabajo(numero, titulo, descripcion, deleted_at)`, { count: "exact" })
+    .is("ordenes_trabajo.deleted_at", null)
+    .or("orden_id.is.null,ordenes_trabajo.not.is.null");
+
+  if (c.origenes.length === 1) q = c.origenes[0] === "sin_ot" ? q.is("orden_id", null) : q.not("orden_id", "is", null);
 
   if (c.busqueda.trim()) q = q.ilike("nota", `%${c.busqueda.trim()}%`);
   if (c.estados.length) q = q.in("estado", c.estados);
@@ -309,7 +338,8 @@ export async function fetchPendientes(ordenId: string): Promise<Pendiente[]> {
   return ((data ?? []) as unknown as Pendiente[]).map(normalizar);
 }
 
-export async function crearPendiente(ordenId: string, d: DatosPendiente): Promise<void> {
+/** ordenId null = tarea sin OT. */
+export async function crearPendiente(ordenId: string | null, d: DatosPendiente): Promise<void> {
   const { error } = await createClient()
     .from("ot_pendientes")
     .insert({ orden_id: ordenId, ...d, nota: d.nota.trim() });
@@ -347,10 +377,10 @@ export async function posponerPendiente(id: string, fecha: string): Promise<void
   if (error) throw error;
 }
 
-/** Copia abierta del pendiente, en la misma OT. */
+/** Copia abierta del pendiente, en la misma OT (o sin OT si no tenía). */
 export async function duplicarPendiente(p: Pendiente): Promise<void> {
-  const { nota, fecha, hora, recurrencia, recurrencia_config, push, correo, prioridad, aviso_minutos } = p;
-  await crearPendiente(p.orden_id, { nota, fecha, hora, recurrencia, recurrencia_config, push, correo, prioridad, aviso_minutos, estado: "por_hacer" });
+  const { nota, fecha, hora, recurrencia, recurrencia_config, push, correo, prioridad, aviso_minutos, gcal_destino } = p;
+  await crearPendiente(p.orden_id, { nota, fecha, hora, recurrencia, recurrencia_config, push, correo, prioridad, aviso_minutos, gcal_destino, estado: "por_hacer" });
 }
 
 export async function borrarPendientes(ids: string[]): Promise<void> {

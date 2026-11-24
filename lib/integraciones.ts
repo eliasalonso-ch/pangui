@@ -31,8 +31,16 @@ export const INTEGRACIONES: Integracion[] = [
     nombre: "Google Calendar",
     proveedor: "Google",
     descripcion:
-      "Tus pendientes de las OTs aparecen en tu Google Calendar, con su aviso, y se actualizan solos cuando cambian en Pangui.",
+      "Tus pendientes con hora aparecen en tu Google Calendar como eventos, con su aviso, y se actualizan solos cuando cambian en Pangui.",
     href: "/integraciones/google-calendar",
+  },
+  {
+    slug: "google-tasks",
+    nombre: "Google Tasks",
+    proveedor: "Google",
+    descripcion:
+      "Tus pendientes por hacer, de una OT o administrativos, aparecen en tu lista de Google Tasks y se marcan completados cuando los cierras en Pangui.",
+    href: "/integraciones/google-tasks",
   },
   {
     slug: "meconecta",

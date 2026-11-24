@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   etiquetaPendiente, grupoPendiente, RAPIDAS, rapidaActiva, resumenPendiente, validarPendiente, filtroCuando,
-  etiquetaAviso, descomponerAviso, AVISO_MAX,
+  etiquetaAviso, descomponerAviso, AVISO_MAX, destinoPorDefecto,
   type DatosPendiente,
 } from "@/lib/pendientes-api";
 
@@ -21,7 +21,7 @@ describe("filtroCuando", () => {
 const ahora = new Date(2026, 10, 23, 16, 40);
 const hoy = "2026-11-23";
 const calc = (id: string, a = ahora) => RAPIDAS.find(r => r.id === id)!.calc(a);
-const base: DatosPendiente = { nota: "Confirmar materiales", fecha: "2026-11-24", hora: "09:00", recurrencia: "ninguna", recurrencia_config: null, push: true, correo: true, estado: "por_hacer", prioridad: "media", aviso_minutos: 0 };
+const base: DatosPendiente = { nota: "Confirmar materiales", fecha: "2026-11-24", hora: "09:00", recurrencia: "ninguna", recurrencia_config: null, push: true, correo: true, estado: "por_hacer", prioridad: "media", aviso_minutos: 0, gcal_destino: "calendar" };
 
 describe("etiquetaPendiente", () => {
   it("marca atrasados con los días", () => {
@@ -117,5 +117,12 @@ describe("aviso", () => {
   it("valida el rango", () => {
     expect(validarPendiente({ ...base, aviso_minutos: AVISO_MAX + 1 }, ahora)?.campo).toBe("aviso");
     expect(validarPendiente({ ...base, aviso_minutos: -5 }, ahora)?.campo).toBe("aviso");
+  });
+});
+
+describe("destinoPorDefecto", () => {
+  it("con hora es una cita (Calendar); sin hora, un to-do del día (Tasks)", () => {
+    expect(destinoPorDefecto("15:00")).toBe("calendar");
+    expect(destinoPorDefecto(null)).toBe("tasks");
   });
 });

@@ -26,7 +26,8 @@ import {
   type ColumnDef, type PaginationState, type RowSelectionState, type SortingState, type VisibilityState,
 } from "@tanstack/react-table";
 import { addDays } from "date-fns";
-import { CalendarClock, CalendarDays, CircleDot, Flag, MoreHorizontal, Repeat, Settings2 } from "lucide-react";
+import { CalendarClock, CircleDot, Flag, Layers, MoreHorizontal, Plus, Repeat, Settings2 } from "lucide-react";
+import { LogoGoogleCalendar, LogoGoogleTasks } from "@/components/integraciones/Logos";
 import { usePermisos } from "@/lib/permisos";
 import { esAdmin } from "@/lib/roles";
 import { ymdDeFecha } from "@/components/ui/date-time-picker";
@@ -44,9 +45,9 @@ import { etiquetaRecurrencia } from "@/app/(app)/ordenes/RecurrenceControls";
 import {
   fetchMisPendientesPagina, cambiarEstadoPendientes, cambiarPrioridadPendientes, posponerPendiente,
   duplicarPendiente, borrarPendientes, etiquetaPendiente, etiquetaAviso, fmtCreado,
-  ESTADOS_PENDIENTE, ESTADOS_ABIERTOS, PRIORIDADES_PENDIENTE, GRUPOS_PENDIENTES,
+  ESTADOS_PENDIENTE, ESTADOS_ABIERTOS, PRIORIDADES_PENDIENTE, GRUPOS_PENDIENTES, ORIGENES_PENDIENTE,
   type ConsultaPendientes, type EstadoPendiente, type GrupoPendiente, type MiPendiente,
-  type OrdenPendientes, type PrioridadPendiente,
+  type OrdenPendientes, type OrigenPendiente, type PrioridadPendiente,
 } from "@/lib/pendientes-api";
 
 const celda: React.CSSProperties = { padding: "10px 16px", fontSize: 14, color: "var(--fg-2)", verticalAlign: "middle" };
@@ -93,6 +94,7 @@ export default function PendientesPage() {
   const [estados, setEstados] = useState<EstadoPendiente[]>([]);
   const [prioridades, setPrioridades] = useState<PrioridadPendiente[]>([]);
   const [cuando, setCuando] = useState<GrupoPendiente[]>([]);
+  const [origenes, setOrigenes] = useState<OrigenPendiente[]>([]);
   const [orden, setOrden] = useState<SortingState>([{ id: "cuando", desc: false }]);
   const [pagina, setPagina] = useState<PaginationState>({ pageIndex: 0, pageSize: 10 });
   const [seleccion, setSeleccion] = useState<RowSelectionState>({});
@@ -100,6 +102,7 @@ export default function PendientesPage() {
 
   const { userRol } = usePermisos();
   const [editando, setEditando] = useState<MiPendiente | null>(null);
+  const [creando, setCreando] = useState(false);
   const [confirmar, setConfirmar] = useState<ConfirmDelete | null>(null);
   const [fallo, setFallo] = useState<string | null>(null);
 
@@ -109,7 +112,7 @@ export default function PendientesPage() {
 
   const consulta: ConsultaPendientes = {
     pagina: pagina.pageIndex, porPagina: pagina.pageSize, busqueda: busquedaQ,
-    estados, prioridades, cuando,
+    estados, prioridades, cuando, origenes,
     orden: orden[0] ? { id: orden[0].id as OrdenPendientes["id"], desc: orden[0].desc } : null,
   };
   const claveDe = (c: ConsultaPendientes) => ["pendientes", "mios", c, hoy] as const;
@@ -183,7 +186,9 @@ export default function PendientesPage() {
       id: "ot",
       header: "OT",
       enableSorting: false,
-      cell: ({ row }) => (
+      cell: ({ row }) => !row.original.orden_id ? (
+        <span style={{ fontSize: 13, color: "var(--fg-4)", whiteSpace: "nowrap" }}>Sin OT</span>
+      ) : (
         <Link href={`/ordenes?id=${encodeURIComponent(row.original.orden_id)}`} prefetch={false}
           title={nombreOT(row.original)}
           style={{ fontFamily: "var(--font-mono)", fontSize: 13, color: "var(--brand)", whiteSpace: "nowrap" }}>
@@ -318,7 +323,7 @@ export default function PendientesPage() {
   });
 
   const idsSeleccionados = Object.keys(seleccion).filter(id => seleccion[id]);
-  const hayFiltros = busqueda.trim() !== "" || estados.length > 0 || prioridades.length > 0 || cuando.length > 0;
+  const hayFiltros = busqueda.trim() !== "" || estados.length > 0 || prioridades.length > 0 || cuando.length > 0 || origenes.length > 0;
   const conFiltro = <T,>(set: (v: T) => void) => (v: T) => { set(v); alPrimera(); };
 
   return (
@@ -327,14 +332,25 @@ export default function PendientesPage() {
         <div>
           <h1 style={{ margin: 0, fontSize: 22, fontWeight: 600, color: "var(--fg-1)" }}>Mis pendientes</h1>
           <p style={{ margin: "6px 0 0", fontSize: 14, color: "var(--fg-4)" }}>
-            Lo que falta hacer en tus OTs. Los pendientes se crean en la pestaña Pendientes de cada OT.
+            Lo que falta hacer en tus OTs, y tus tareas administrativas sin OT. Los de una OT se crean en su pestaña Pendientes.
           </p>
         </div>
-        {esAdmin(userRol) && (
-          <Link href="/integraciones/google-calendar" prefetch={false} style={{ ...btnBarra, height: 38, textDecoration: "none" }}>
-            <CalendarDays size={15} /> Google Calendar
-          </Link>
-        )}
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {esAdmin(userRol) && (
+            <>
+              <Link href="/integraciones/google-calendar" prefetch={false} style={{ ...btnBarra, height: 38, textDecoration: "none" }}>
+                <LogoGoogleCalendar alto={16} /> Google Calendar
+              </Link>
+              <Link href="/integraciones/google-tasks" prefetch={false} style={{ ...btnBarra, height: 38, textDecoration: "none" }}>
+                <LogoGoogleTasks alto={15} /> Google Tasks
+              </Link>
+            </>
+          )}
+          <button type="button" onClick={() => setCreando(true)}
+            style={{ ...btnBarra, height: 38, border: "none", background: "var(--brand)", color: "var(--fg-on-brand)", fontWeight: 500 }}>
+            <Plus size={15} /> Nueva tarea
+          </button>
+        </div>
       </div>
 
       {fallo && <p role="alert" style={{ margin: "0 0 12px", fontSize: 13, color: "var(--st-wait-fg)" }}>{fallo}</p>}
@@ -344,7 +360,7 @@ export default function PendientesPage() {
         <div style={{ display: "flex", alignItems: "flex-start", gap: 8, padding: "12px 16px", borderBottom: "1px solid var(--border)" }}>
           <BarraFiltros
             hayFiltros={hayFiltros}
-            onLimpiar={() => { setBusqueda(""); setEstados([]); setPrioridades([]); setCuando([]); alPrimera(); }}
+            onLimpiar={() => { setBusqueda(""); setEstados([]); setPrioridades([]); setCuando([]); setOrigenes([]); alPrimera(); }}
           >
             <BuscadorTabla value={busqueda} onChange={setBusqueda} placeholder="Filtrar pendientes…" />
             <FiltroMultiple label="Estado" icon={<CircleDot size={16} />} buscable={false}
@@ -356,6 +372,9 @@ export default function PendientesPage() {
             <FiltroMultiple label="Cuándo" icon={<CalendarClock size={16} />} buscable={false}
               opciones={GRUPOS_PENDIENTES.map(([id, label]) => ({ id, label }))}
               seleccion={cuando} onChange={conFiltro(v => setCuando(v as GrupoPendiente[]))} />
+            <FiltroMultiple label="Origen" icon={<Layers size={16} />} buscable={false}
+              opciones={ORIGENES_PENDIENTE.map(([id, label]) => ({ id, label }))}
+              seleccion={origenes} onChange={conFiltro(v => setOrigenes(v as OrigenPendiente[]))} />
           </BarraFiltros>
 
           {idsSeleccionados.length > 0 && (
@@ -401,7 +420,7 @@ export default function PendientesPage() {
                     {isPending ? "Cargando…"
                       : error ? "No se pudieron cargar los pendientes."
                       : hayFiltros ? "Ningún pendiente coincide con los filtros."
-                      : "No tienes pendientes. Abre una OT y agrega uno en la pestaña Pendientes."}
+                      : "No tienes pendientes. Crea una tarea con «Nueva tarea» o agrega un pendiente en la pestaña Pendientes de una OT."}
                   </td>
                 </tr>
               ) : tabla.getRowModel().rows.map(r => (
@@ -427,6 +446,11 @@ export default function PendientesPage() {
             qc.invalidateQueries({ queryKey: ["pendientes"] }),
             qc.invalidateQueries({ queryKey: ["actividad", editando.orden_id] }),
           ])} />
+      )}
+      {creando && (
+        <PendienteDialog ordenId={null} pendiente={null}
+          onClose={() => setCreando(false)}
+          onSaved={() => qc.invalidateQueries({ queryKey: ["pendientes"] })} />
       )}
       <ConfirmDeleteModal pending={confirmar} onClose={() => setConfirmar(null)} />
     </div>

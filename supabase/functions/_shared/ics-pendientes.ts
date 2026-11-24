@@ -11,7 +11,7 @@ export interface PendienteIcs {
   hora: string | null;  // HH:MM[:SS] de Santiago; null = evento de todo el día
   estado: string;
   prioridad: string;
-  orden_id: string;
+  orden_id: string | null; // null = tarea sin OT
   ot_numero: number | null;
   ot_titulo: string | null;
   /** Quién lo creó: el feed es de todo el workspace. */
@@ -74,11 +74,11 @@ export function plegar(linea: string): string {
 /** Título, descripción y link: los mismos en el .ics y en Google Calendar. */
 function textos(p: PendienteIcs) {
   const ot = p.ot_numero ? `OT #${p.ot_numero}` : "OT";
-  const url = `${APP_URL}/ordenes?id=${encodeURIComponent(p.orden_id)}`;
+  const url = p.orden_id ? `${APP_URL}/ordenes?id=${encodeURIComponent(p.orden_id)}` : `${APP_URL}/pendientes`;
   const quien = p.usuario_nombre?.trim() || null;
   const descripcion = [
     ...(quien ? [`De: ${quien}`] : []),
-    p.ot_titulo?.trim() ? `${ot} · ${p.ot_titulo.trim()}` : ot,
+    !p.orden_id ? "Tarea sin OT" : p.ot_titulo?.trim() ? `${ot} · ${p.ot_titulo.trim()}` : ot,
     `Estado: ${ESTADO[p.estado] ?? p.estado} · Prioridad: ${PRIORIDAD[p.prioridad] ?? p.prioridad}`,
     url,
   ].join("\n");
@@ -122,6 +122,32 @@ export function eventoGoogle(p: PendienteIcs, avisoMinutos = 0) {
     source: { title: "Abrir en Pangui", url },
     reminders: avisoGoogle(avisoMinutos),
     extendedProperties: { private: { pangui_pendiente_id: p.id } },
+  };
+}
+
+/** Lo que una tarea de Google necesita de un pendiente sin OT. */
+export type PendienteTarea = Pick<PendienteIcs, "nota" | "fecha" | "hora" | "estado" | "prioridad">;
+
+/**
+ * Cuerpo de una tarea de la Tasks API (tasks.insert / tasks.patch), para los
+ * pendientes sin OT. La API guarda solo el día del `due` (bota la hora), así
+ * que la hora va en las notas; el aviso lo sigue mandando Pangui. Hecho = tarea
+ * completada (queda tachada en Google); al reabrirlo, `completed: null` la
+ * desmarca.
+ */
+export function tareaGoogle(p: PendienteTarea) {
+  const hecho = p.estado === "hecho";
+  const notas = [
+    ...(p.hora ? [`Hora: ${p.hora.slice(0, 5)}`] : []),
+    `Estado: ${ESTADO[p.estado] ?? p.estado} · Prioridad: ${PRIORIDAD[p.prioridad] ?? p.prioridad}`,
+    `${APP_URL}/pendientes`,
+  ].join("\n");
+  return {
+    title: p.nota,
+    notes: notas,
+    due: `${p.fecha}T00:00:00.000Z`,
+    status: hecho ? "completed" : "needsAction",
+    ...(hecho ? {} : { completed: null }),
   };
 }
 

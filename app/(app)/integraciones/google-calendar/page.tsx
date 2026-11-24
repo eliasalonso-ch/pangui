@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Loader2, Sparkles, ListChecks, Workflow, CircleHelp, ExternalLink, Mail, ShieldCheck, ClipboardCheck, Link2, KeyRound } from "lucide-react";
 import { LogoGoogleCalendar } from "@/components/integraciones/Logos";
 import { useGateIntegraciones } from "@/components/integraciones/useGateIntegraciones";
-import ConexionGoogleCalendarPanel from "@/components/integraciones/ConexionGoogleCalendarPanel";
+import ConexionGooglePanel from "@/components/integraciones/ConexionGooglePanel";
 import LinkCalendarioIcs from "@/components/integraciones/LinkCalendarioIcs";
 import {
   EncabezadoIntegracion, Seccion, ListaTitulada, FichaTecnica, PreguntasFrecuentes, TarjetaLateral,
@@ -12,7 +12,7 @@ import {
 
 const FUNCIONALIDADES: { titulo: string; texto: string }[] = [
   { titulo: "Cada pendiente, un evento",
-    texto: "Tus pendientes abiertos aparecen en tu calendario. El título dice qué hay que hacer; la descripción trae la OT, el estado, la prioridad y el enlace «Abrir en Pangui»." },
+    texto: "Tus pendientes abiertos con «Enviar a Google: Google Calendar» (por defecto, los que tienen hora) aparecen en tu calendario. El título dice qué hay que hacer; la descripción trae la OT, el estado, la prioridad y el enlace «Abrir en Pangui»." },
   { titulo: "Siempre al día",
     texto: "Si cambias la fecha, la hora, la nota, el estado o el aviso de un pendiente, el evento se actualiza en el minuto siguiente. Al marcarlo hecho, cancelarlo o borrarlo, desaparece del calendario." },
   { titulo: "El aviso de cada pendiente",
@@ -145,7 +145,7 @@ export default function GoogleCalendarIntegracionPage() {
         </div>
 
         <aside style={{ display: "grid", gap: 16, position: "sticky", top: 24 }}>
-          <ConexionGoogleCalendarPanel vuelta={vuelta} />
+          <ConexionGooglePanel destino="calendar" vuelta={vuelta} />
           <TarjetaLateral
             titulo="Tus pendientes, en tu Google Calendar"
             texto="Lo que te falta hacer en cada orden de trabajo aparece en tu calendario, con su aviso, y se actualiza solo."

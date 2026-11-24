@@ -1,6 +1,8 @@
 "use client";
 
 import { useRef, useState } from "react";
+import Link from "next/link";
+import { useQuery } from "@tanstack/react-query";
 import Modal from "@/components/Modal";
 import { DatePicker, TimePicker, fechaDeYmd, ymdDeFecha } from "@/components/ui/date-time-picker";
 import { RecurrenceControls, etiquetaRecurrencia } from "@/app/(app)/ordenes/RecurrenceControls";
@@ -8,9 +10,10 @@ import { Desplegable } from "@/components/Desplegable";
 import {
   RAPIDAS, HORA_DEFECTO, rapidaActiva, resumenPendiente, validarPendiente,
   crearPendiente, actualizarPendiente, ESTADOS_PENDIENTE, PRIORIDADES_PENDIENTE,
-  PLANTILLAS_AVISO, UNIDADES_AVISO, AVISO_MAX_GOOGLE, descomponerAviso,
-  type DatosPendiente, type EstadoPendiente, type Pendiente, type PrioridadPendiente,
+  PLANTILLAS_AVISO, UNIDADES_AVISO, AVISO_MAX_GOOGLE, descomponerAviso, DESTINOS_GOOGLE, destinoPorDefecto,
+  type DatosPendiente, type DestinoGooglePendiente, type EstadoPendiente, type Pendiente, type PrioridadPendiente,
 } from "@/lib/pendientes-api";
+import { leerConexionGoogle, tienePermisoCalendar, tienePermisoTasks } from "@/lib/google-calendar-conexion";
 
 /**
  * Diálogo para crear o editar un pendiente. Sigue el bloque "Set Reminder" de
@@ -34,7 +37,8 @@ const atajo = (activo: boolean): React.CSSProperties => ({
 });
 
 export default function PendienteDialog({ ordenId, pendiente, onClose, onSaved }: {
-  ordenId: string;
+  /** null = tarea sin OT. */
+  ordenId: string | null;
   /** null = crear uno nuevo. */
   pendiente: Pendiente | null;
   onClose: () => void;
@@ -45,9 +49,18 @@ export default function PendienteDialog({ ordenId, pendiente, onClose, onSaved }
         nota: pendiente.nota, fecha: pendiente.fecha, hora: pendiente.hora,
         recurrencia: pendiente.recurrencia, recurrencia_config: pendiente.recurrencia_config,
         push: pendiente.push, correo: pendiente.correo, estado: pendiente.estado, prioridad: pendiente.prioridad,
-        aviso_minutos: pendiente.aviso_minutos,
+        aviso_minutos: pendiente.aviso_minutos, gcal_destino: pendiente.gcal_destino,
       }
-    : { nota: "", fecha: "", hora: null, recurrencia: "ninguna", recurrencia_config: null, push: true, correo: true, estado: "por_hacer", prioridad: "media", aviso_minutos: 0 });
+    : { nota: "", fecha: "", hora: null, recurrencia: "ninguna", recurrencia_config: null, push: true, correo: true, estado: "por_hacer", prioridad: "media", aviso_minutos: 0, gcal_destino: destinoPorDefecto(null) });
+  // Mientras nadie toque "Enviar a Google", el destino sigue a la hora (con hora → Calendar, sin hora → Tasks).
+  const [destinoTocado, setDestinoTocado] = useState(!!pendiente);
+  // La conexión con Google es personal: sin conexión no hay a dónde enviar y el campo no se muestra.
+  const { data: conexion } = useQuery({ queryKey: ["calendario-google"], queryFn: leerConexionGoogle, staleTime: 60_000 });
+  const destinoListo: Record<DestinoGooglePendiente, boolean> = {
+    calendar: tienePermisoCalendar(conexion ?? null) && !!conexion?.calendar_id,
+    tasks: tienePermisoTasks(conexion ?? null) && !!conexion?.tasklist_id,
+    ninguno: true,
+  };
   // Aviso personalizado: se abre solo si el aviso guardado no es una plantilla.
   const [personalizado, setPersonalizado] = useState(() => !PLANTILLAS_AVISO.some(([m]) => m === (pendiente?.aviso_minutos ?? 0)));
   const [avisoCant, setAvisoCant] = useState(() => descomponerAviso(pendiente?.aviso_minutos ?? 0).cantidad);
@@ -59,7 +72,14 @@ export default function PendienteDialog({ ordenId, pendiente, onClose, onSaved }
   const ahora = new Date();
 
   // Cualquier cambio borra el motivo del rechazo anterior.
-  const cambiar = (p: Partial<DatosPendiente>) => { setD(prev => ({ ...prev, ...p })); setError(null); };
+  const cambiar = (p: Partial<DatosPendiente>) => {
+    setD(prev => {
+      const n = { ...prev, ...p };
+      if ("hora" in p && !destinoTocado) n.gcal_destino = destinoPorDefecto(n.hora);
+      return n;
+    });
+    setError(null);
+  };
   const activa = d.fecha ? rapidaActiva(d.fecha, d.hora, ahora) : null;
   // Mover fecha, hora o aviso vuelve a avisar (limpia avisado_at).
   const movioFecha = !pendiente || pendiente.fecha !== d.fecha || pendiente.hora !== d.hora || pendiente.aviso_minutos !== d.aviso_minutos;
@@ -91,7 +111,7 @@ export default function PendienteDialog({ ordenId, pendiente, onClose, onSaved }
     <Modal
       open
       busy={busy}
-      title={pendiente ? "Editar pendiente" : "Nuevo pendiente"}
+      title={pendiente ? (ordenId ? "Editar pendiente" : "Editar tarea") : (ordenId ? "Nuevo pendiente" : "Nueva tarea sin OT")}
       onClose={onClose}
       footer={
         <>
@@ -102,7 +122,7 @@ export default function PendienteDialog({ ordenId, pendiente, onClose, onSaved }
           </button>
           <button type="button" onClick={guardar} disabled={busy}
             style={{ height: 40, padding: "0 18px", border: "none", borderRadius: "var(--r-md)", background: "var(--brand)", color: "var(--fg-on-brand)", font: "inherit", cursor: "pointer", opacity: busy ? 0.5 : 1 }}>
-            {busy ? "Guardando…" : pendiente ? "Guardar cambios" : "Crear pendiente"}
+            {busy ? "Guardando…" : pendiente ? "Guardar cambios" : ordenId ? "Crear pendiente" : "Crear tarea"}
           </button>
         </>
       }
@@ -187,7 +207,7 @@ export default function PendienteDialog({ ordenId, pendiente, onClose, onSaved }
             <span style={{ fontSize: 14, color: "var(--fg-3)" }}>antes</span>
           </div>
         )}
-        {d.aviso_minutos > AVISO_MAX_GOOGLE && (
+        {d.gcal_destino === "calendar" && d.aviso_minutos > AVISO_MAX_GOOGLE && (
           <p style={{ margin: "8px 0 0", fontSize: 13, lineHeight: 1.5, color: "var(--fg-4)" }}>
             Google Calendar avisa como máximo 4 semanas antes. El aviso de Pangui (push y correo) llega igual en la fecha elegida.
           </p>
@@ -231,6 +251,25 @@ export default function PendienteDialog({ ordenId, pendiente, onClose, onSaved }
           </label>
         </div>
       </fieldset>
+
+      {conexion && (
+        <div>
+          <div style={rotulo}>Enviar a Google</div>
+          <Desplegable<DestinoGooglePendiente> ariaLabel="Enviar a Google" anchoCompleto alto={ALTO} value={d.gcal_destino}
+            onChange={v => { setDestinoTocado(true); cambiar({ gcal_destino: v }); }}
+            opciones={DESTINOS_GOOGLE.map(([value, label]) => ({ value, label }))} />
+          <p style={{ margin: "8px 0 0", fontSize: 13, lineHeight: 1.5, color: "var(--fg-4)" }}>
+            {!destinoListo[d.gcal_destino] ? (
+              <>
+                Todavía no conectas {d.gcal_destino === "calendar" ? "Google Calendar" : "Google Tasks"}: se enviará cuando lo conectes en{" "}
+                <Link href={`/integraciones/${d.gcal_destino === "calendar" ? "google-calendar" : "google-tasks"}`} prefetch={false} style={{ color: "var(--brand)" }}>Integraciones</Link>.
+              </>
+            ) : d.gcal_destino === "calendar" ? "Como evento en tu calendario, a su hora."
+              : d.gcal_destino === "tasks" ? "Como tarea por hacer en tu lista; Google Tasks guarda el día, no la hora."
+              : "Queda solo en Pangui."}
+          </p>
+        </div>
+      )}
 
       <div>
         <p aria-live="polite" style={{ margin: 0, minHeight: 20, color: "var(--fg-2)" }}>

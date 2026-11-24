@@ -2,21 +2,36 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { createServerSupabase, getServerUser, shouldRedirectToLogin } from "@/lib/supabase-server";
 import { esAdmin } from "@/lib/roles";
+import type { DestinoGoogle } from "@/lib/google-state";
 
 /**
- * Google Calendar con OAuth (etapa 2 de pendientes → calendario). Solo servidor:
+ * Google Calendar y Google Tasks con OAuth. Solo servidor:
  * usa GOOGLE_CLIENT_SECRET y la service role. Especificación en
  * docs/superpowers/plans/2026-11-23-google-calendar-oauth.md.
  *
  * Flujo: /api/google/auth → Google → /api/google/callback (guarda el refresh
- * token en Vault) → la persona elige su calendario → la edge function gcal-sync
- * escribe sus pendientes. La conexión es personal: una por usuario.
+ * token en Vault) → la persona elige su calendario o su lista de tareas → la
+ * edge function gcal-sync escribe sus pendientes (los de OT como eventos, los
+ * sin OT como tareas). La conexión es personal: una por usuario, y un mismo
+ * token junta los permisos de los dos destinos (include_granted_scopes).
  */
 
-export const SCOPES = [
-  "https://www.googleapis.com/auth/calendar.calendarlist.readonly",
-  "https://www.googleapis.com/auth/calendar.events",
-];
+/**
+ * Permisos de cada destino. Tasks pide además openid + email (no sensibles)
+ * para mostrar "Conectado como …": sin Calendar no hay otra forma de saber el correo.
+ */
+export const SCOPES: Record<DestinoGoogle, string[]> = {
+  calendar: [
+    "https://www.googleapis.com/auth/calendar.calendarlist.readonly",
+    "https://www.googleapis.com/auth/calendar.events",
+  ],
+  tasks: ["https://www.googleapis.com/auth/tasks", "openid", "email"],
+};
+/** Los que tienen que volver concedidos para que el destino funcione. */
+export const SCOPES_REQUERIDOS: Record<DestinoGoogle, string[]> = {
+  calendar: SCOPES.calendar,
+  tasks: ["https://www.googleapis.com/auth/tasks"],
+};
 
 export { firmarState, verificarState } from "@/lib/google-state";
 
@@ -30,12 +45,12 @@ const credenciales = () => {
 
 export const redirectUri = (req: Request) => `${new URL(req.url).origin}/api/google/callback`;
 
-export function urlAutorizacion(req: Request, state: string): string {
+export function urlAutorizacion(req: Request, state: string, destino: DestinoGoogle): string {
   const q = new URLSearchParams({
     client_id: credenciales().id,
     redirect_uri: redirectUri(req),
     response_type: "code",
-    scope: SCOPES.join(" "),
+    scope: SCOPES[destino].join(" "),
     // offline + consent: que Google entregue un refresh token cada vez.
     access_type: "offline",
     prompt: "consent",
@@ -54,7 +69,7 @@ async function token(body: Record<string, string>) {
   });
   const json = await res.json();
   if (!res.ok) throw Object.assign(new Error(json.error_description ?? json.error ?? "Error de Google"), { codigo: json.error });
-  return json as { access_token: string; refresh_token?: string; scope?: string };
+  return json as { access_token: string; refresh_token?: string; scope?: string; id_token?: string };
 }
 
 export const canjearCodigo = (req: Request, code: string) =>
@@ -78,6 +93,32 @@ export async function listarCalendarios(access: string): Promise<CalendarioGoogl
   if (!res.ok) throw new Error(`Google respondió ${res.status} al listar calendarios`);
   const json = await res.json() as { items?: { id: string; summary: string; summaryOverride?: string; primary?: boolean }[] };
   return (json.items ?? []).map(c => ({ id: c.id, nombre: c.summaryOverride || c.summary, principal: !!c.primary }));
+}
+
+export interface ListaTareasGoogle { id: string; nombre: string }
+
+/** Las listas de Google Tasks de la cuenta (la primera es "Mis tareas"). */
+export async function listarListasTareas(access: string): Promise<ListaTareasGoogle[]> {
+  const res = await fetch("https://tasks.googleapis.com/tasks/v1/users/@me/lists?maxResults=100", {
+    headers: { Authorization: `Bearer ${access}` },
+  });
+  if (!res.ok) throw new Error(`Google respondió ${res.status} al listar las listas de tareas`);
+  const json = await res.json() as { items?: { id: string; title: string }[] };
+  return (json.items ?? []).map(l => ({ id: l.id, nombre: l.title }));
+}
+
+/**
+ * Correo de la cuenta, del id_token que Google entrega junto al access token
+ * (scope openid email). Viene directo del endpoint de token por TLS, así que
+ * no hace falta verificar la firma para solo mostrarlo.
+ */
+export function correoDelIdToken(idToken: string | undefined): string | null {
+  try {
+    const payload = JSON.parse(Buffer.from(idToken!.split(".")[1], "base64url").toString()) as { email?: string };
+    return payload.email ?? null;
+  } catch {
+    return null;
+  }
 }
 
 // ── Pangui ───────────────────────────────────────────────────────────────────
@@ -106,6 +147,6 @@ export async function adminActual(): Promise<{ uid: string; ws: string } | { err
 export async function accessTokenDelUsuario(uid: string): Promise<string> {
   const { data: refresh, error } = await supabaseAdmin().rpc("gcal_refresh_token", { p_usuario: uid });
   if (error) throw error;
-  if (!refresh) throw new Error("Google Calendar no está conectado");
+  if (!refresh) throw new Error("Tu cuenta de Google no está conectada");
   return accessToken(refresh as string);
 }

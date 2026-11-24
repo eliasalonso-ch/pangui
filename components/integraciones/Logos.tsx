@@ -32,6 +32,20 @@ export function LogoGoogleCalendar({ alto }: { alto: number }) {
   );
 }
 
+/** Ícono de la integración con Google Tasks (1280×1214). */
+export function LogoGoogleTasks({ alto }: { alto: number }) {
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src="/integraciones/google-tasks.svg"
+      alt="Google Tasks"
+      height={alto}
+      width={Math.round(alto * 1280 / 1214)}
+      style={{ height: alto, width: "auto", flexShrink: 0 }}
+    />
+  );
+}
+
 export function LogoPangui({ size }: { size: number }) {
   // eslint-disable-next-line @next/next/no-img-element
   return <img src="/logo.svg" alt="Pangui" width={size} height={size} style={{ objectFit: "contain", flexShrink: 0 }} />;

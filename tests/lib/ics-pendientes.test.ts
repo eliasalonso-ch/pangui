@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { construirIcs, escapar, eventoGoogle, plegar, utcDeSantiago, type PendienteIcs } from "@/supabase/functions/_shared/ics-pendientes";
+import { construirIcs, escapar, eventoGoogle, plegar, tareaGoogle, utcDeSantiago, type PendienteIcs } from "@/supabase/functions/_shared/ics-pendientes";
 
 const base: PendienteIcs = {
   id: "abc", nota: "Confirmar materiales, con Electrocom", fecha: "2026-11-24", hora: "18:00:00",
@@ -75,5 +75,22 @@ describe("eventoGoogle", () => {
     expect(min(40_320)).toBe(40_320);
     expect(min(86_400)).toBe(40_320); // 2 meses: Google avisa 4 semanas antes; el resto lo cubre Pangui
     expect(eventoGoogle(base, 60).reminders.useDefault).toBe(false);
+  });
+});
+
+describe("tareaGoogle", () => {
+  it("due es solo el día; la hora y el link van en las notas", () => {
+    const t = tareaGoogle(base);
+    expect(t.title).toBe("Confirmar materiales, con Electrocom");
+    expect(t.due).toBe("2026-11-24T00:00:00.000Z");
+    expect(t.notes).toBe("Hora: 18:00\nEstado: Por hacer · Prioridad: Alta\nhttps://app.getpangui.com/pendientes");
+    expect(t.status).toBe("needsAction");
+    expect(t).toHaveProperty("completed", null); // reabrir desmarca la tarea
+  });
+  it("hecho = completada; sin hora no hay línea de hora", () => {
+    const t = tareaGoogle({ ...base, hora: null, estado: "hecho" });
+    expect(t.status).toBe("completed");
+    expect(t).not.toHaveProperty("completed");
+    expect(t.notes.startsWith("Estado: Hecho")).toBe(true);
   });
 });
