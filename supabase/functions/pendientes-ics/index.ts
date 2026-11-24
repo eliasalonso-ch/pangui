@@ -1,10 +1,10 @@
-// Supabase Edge Function — feed iCalendar del calendario del equipo.
+// Supabase Edge Function — feed iCalendar de los pendientes de una persona.
 //
 //   GET /functions/v1/pendientes-ics/<token>.ics
 //
 // Público a propósito (Google, Apple y Outlook lo piden sin sesión): el token
 // de calendario_feeds es el secreto, de 64 hex. Devuelve los pendientes
-// abiertos de TODO el workspace dueño del token; los de OTs en la papelera no.
+// abiertos de la persona dueña del token; los de OTs en la papelera no.
 // Un pendiente que se cierra o se borra deja de venir y desaparece del calendario.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -37,7 +37,7 @@ Deno.serve(async (req) => {
 
   const { data: feed, error: e1 } = await sb
     .from("calendario_feeds")
-    .select("workspace_id, workspaces(nombre)")
+    .select("usuario_id, workspaces(nombre)")
     .eq("token", token)
     .maybeSingle();
   if (e1) return new Response("Error", { status: 500 });
@@ -46,7 +46,7 @@ Deno.serve(async (req) => {
   const { data, error } = await sb
     .from("ot_pendientes")
     .select("id, nota, fecha, hora, estado, prioridad, orden_id, usuario:usuarios(nombre), ordenes_trabajo!inner(numero, titulo)")
-    .eq("workspace_id", feed.workspace_id)
+    .eq("usuario_id", feed.usuario_id)
     .in("estado", ["por_hacer", "en_curso"])
     .is("ordenes_trabajo.deleted_at", null)
     .order("fecha");

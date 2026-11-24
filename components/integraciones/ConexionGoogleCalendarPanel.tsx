@@ -4,9 +4,9 @@
  * Panel de conexión Google Calendar (columna derecha de
  * /integraciones/google-calendar). Mismo formato que ConexionMeconectaPanel.
  *
- * Conectar lleva a /api/google/auth (OAuth). Al volver, el owner/admin elige
- * el calendario; desde ahí la edge function gcal-sync escribe un evento por
- * cada pendiente abierto del workspace.
+ * La conexión es personal. Conectar lleva a /api/google/auth (OAuth); al
+ * volver, la persona elige su calendario y desde ahí la edge function gcal-sync
+ * escribe un evento por cada uno de sus pendientes abiertos.
  */
 
 import { useEffect, useState, type CSSProperties } from "react";
@@ -76,7 +76,7 @@ export default function ConexionGoogleCalendarPanel({ vuelta }: {
     if (!c) throw new Error("Elige un calendario");
     await elegirCalendarioGoogle(c);
     setEligiendo(false);
-  }, "Listo: los pendientes se escriben en ese calendario en el próximo minuto.");
+  }, "Listo: tus pendientes se escriben en ese calendario en el próximo minuto.");
 
   const { estado, label } = estadoGoogle(conexion ?? null);
 
@@ -96,7 +96,7 @@ export default function ConexionGoogleCalendarPanel({ vuelta }: {
             <div><dt style={{ color: "var(--fg-3)" }}>Calendario</dt><dd style={{ margin: 0, color: "var(--fg-1)", wordBreak: "break-all" }}>{conexion.calendar_nombre}</dd></div>
           )}
           {revocado && (
-            <div><dt style={{ color: "var(--fg-3)" }}>Estado</dt><dd style={{ margin: 0, color: "var(--danger)" }}>Google dejó de aceptar la conexión: los pendientes no están llegando al calendario.</dd></div>
+            <div><dt style={{ color: "var(--fg-3)" }}>Estado</dt><dd style={{ margin: 0, color: "var(--danger)" }}>Google dejó de aceptar la conexión: tus pendientes no están llegando al calendario.</dd></div>
           )}
           {!revocado && conexion.ultimo_error && (
             <div><dt style={{ color: "var(--fg-3)" }}>Último error</dt><dd style={{ margin: 0, color: "var(--danger)" }}>{conexion.ultimo_error}</dd></div>
@@ -104,7 +104,7 @@ export default function ConexionGoogleCalendarPanel({ vuelta }: {
         </dl>
       ) : (
         <p style={{ margin: 0, fontSize: 14, lineHeight: 1.5, color: "var(--fg-2)" }}>
-          Conecta una cuenta de Google y elige el calendario donde quieres ver los pendientes de tus OTs.
+          Conecta tu cuenta de Google y elige el calendario donde quieres ver tus pendientes. Cada persona conecta la suya.
         </p>
       )}
 
@@ -126,7 +126,7 @@ export default function ConexionGoogleCalendarPanel({ vuelta }: {
                 <>
                   <button type="button" style={btn(false)} onClick={() => setEligiendo(false)}>Cancelar</button>
                   <span style={{ fontSize: 13, color: "var(--fg-4)", lineHeight: 1.5 }}>
-                    Los eventos ya creados en «{conexion.calendar_nombre}» se quedan ahí; los pendientes se crean de nuevo en el calendario nuevo.
+                    Los eventos ya creados en «{conexion.calendar_nombre}» se quedan ahí; tus pendientes se crean de nuevo en el calendario nuevo.
                   </span>
                 </>
               )}
@@ -146,7 +146,7 @@ export default function ConexionGoogleCalendarPanel({ vuelta }: {
           ) : (
             <>
               <button type="button" style={btn(false)} onClick={() => setEligiendo(true)}>Cambiar calendario</button>
-              <a href="/api/google/auth" style={btn(false)}>Conectar otra cuenta</a>
+              <a href="/api/google/auth" style={btn(false)}>Usar otra cuenta de Google</a>
             </>
           )}
           {conexion && (
@@ -160,7 +160,7 @@ export default function ConexionGoogleCalendarPanel({ vuelta }: {
       <ConfirmDeleteModal
         pending={confirmarBaja ? {
           title: "¿Desconectar Google Calendar?",
-          description: "Pangui deja de escribir en el calendario y Google revoca el acceso. Los eventos ya creados se quedan en el calendario.",
+          description: "Pangui deja de escribir tus pendientes en el calendario y Google revoca el acceso. Los eventos ya creados se quedan en el calendario.",
           confirmLabel: "Desconectar",
           onConfirm: async () => {
             await desconectarGoogle();

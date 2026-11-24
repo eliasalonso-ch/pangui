@@ -1,9 +1,9 @@
 "use client";
 
 /**
- * Link .ics de solo lectura (calendario_feeds + edge function pendientes-ics):
- * la alternativa sin conectar una cuenta, para Apple Calendar, Outlook o quien
- * no use Google. Va como sección en /integraciones/google-calendar.
+ * Link .ics personal de solo lectura (calendario_feeds + edge function
+ * pendientes-ics): la alternativa sin conectar una cuenta, para Apple Calendar,
+ * Outlook o quien no use Google. Va como sección en /integraciones/google-calendar.
  */
 
 import { useState } from "react";
@@ -50,8 +50,9 @@ export default function LinkCalendarioIcs() {
   return (
     <div style={{ display: "grid", gap: 12 }}>
       <p style={{ margin: 0 }}>
-        Si no quieres conectar una cuenta, o usas Apple Calendar u Outlook, puedes suscribirte con un link. Es de solo
-        lectura y el calendario lo actualiza cada cierto tiempo (Google, cada varias horas). <b>Quien tenga el link ve los eventos.</b>
+        Si no quieres conectar una cuenta, o usas Apple Calendar u Outlook, puedes suscribirte con un link a tus
+        pendientes. Es de solo lectura y el calendario lo actualiza cada cierto tiempo (Google, cada varias horas).
+        <b> Quien tenga tu link ve tus pendientes.</b>
       </p>
 
       {isPending ? null : !url ? (
@@ -68,14 +69,14 @@ export default function LinkCalendarioIcs() {
             </button>
           </div>
           <ul style={{ margin: 0, paddingLeft: 20, display: "grid", gap: 6, listStyle: "disc" }}>
-            <li><span style={{ color: "var(--fg-1)", fontWeight: 500 }}>Google Calendar.</span> En «Otros calendarios», <b>+</b> → «Desde URL» y pega el link. Cada persona lo agrega en su cuenta.</li>
+            <li><span style={{ color: "var(--fg-1)", fontWeight: 500 }}>Google Calendar.</span> En «Otros calendarios», <b>+</b> → «Desde URL» y pega el link.</li>
             <li><span style={{ color: "var(--fg-1)", fontWeight: 500 }}>Apple Calendar.</span> <a href={url.replace(/^https:/, "webcal:")} style={{ color: "var(--brand)" }}>Abrir en Calendario</a>.</li>
             <li><span style={{ color: "var(--fg-1)", fontWeight: 500 }}>Outlook.</span> «Agregar calendario» → «Suscribirse desde la web» y pega el link.</li>
           </ul>
           <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
             {confirmarNuevo ? (
               <>
-                <span>El link actual deja de funcionar para todos.</span>
+                <span>Tu link actual deja de funcionar.</span>
                 <button type="button" disabled={busy} onClick={() => correr(() => regenerarTokenFeed(token!))}
                   style={{ ...btn, color: "var(--danger)", borderColor: "var(--danger)" }}>
                   {busy ? "Generando…" : "Sí, generar link nuevo"}

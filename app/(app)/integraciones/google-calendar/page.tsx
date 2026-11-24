@@ -12,38 +12,38 @@ import {
 
 const FUNCIONALIDADES: { titulo: string; texto: string }[] = [
   { titulo: "Cada pendiente, un evento",
-    texto: "Los pendientes abiertos de todas las OTs del equipo aparecen en el calendario. El título dice qué hay que hacer y quién lo pidió; la descripción trae la OT, el estado, la prioridad y el enlace «Abrir en Pangui»." },
+    texto: "Tus pendientes abiertos aparecen en tu calendario. El título dice qué hay que hacer; la descripción trae la OT, el estado, la prioridad y el enlace «Abrir en Pangui»." },
   { titulo: "Siempre al día",
     texto: "Si cambias la fecha, la hora, la nota, el estado o el aviso de un pendiente, el evento se actualiza en el minuto siguiente. Al marcarlo hecho, cancelarlo o borrarlo, desaparece del calendario." },
   { titulo: "El aviso de cada pendiente",
-    texto: "El evento lleva el aviso que elegiste en el pendiente («Avisarme»): a la hora, días, semanas o meses antes. Google acepta hasta 4 semanas; para avisos más largos te avisa Pangui por notificación y correo." },
+    texto: "Google te avisa en tu celular y tu computador según el «Avisarme» del pendiente: a la hora, días, semanas o meses antes. Google acepta hasta 4 semanas; para avisos más largos te avisa Pangui por notificación y correo." },
   { titulo: "Pendientes que se repiten",
     texto: "Cada vez que se marca hecho un pendiente recurrente, la ocurrencia siguiente aparece como evento nuevo." },
-  { titulo: "En el calendario de tu equipo",
-    texto: "Elige cualquier calendario donde la cuenta conectada pueda editar eventos, como el calendario compartido de tu empresa." },
-  { titulo: "Control de tu empresa",
-    texto: "La conexión la autoriza y la revoca un owner o administrador. Pangui solo escribe los eventos de sus pendientes y no lee el resto de tu calendario." },
+  { titulo: "En el calendario que elijas",
+    texto: "El tuyo, o uno compartido del equipo donde puedas editar eventos. Si varias personas eligen el mismo calendario compartido, ahí se ven los pendientes de todas." },
+  { titulo: "Tu cuenta, tu conexión",
+    texto: "Cada persona conecta su propia cuenta de Google y la desconecta cuando quiere. Pangui solo escribe los eventos de tus pendientes y no lee el resto de tu calendario." },
 ];
 
 const PASOS: { titulo: string; texto: string }[] = [
   { titulo: "Conectar",
-    texto: "Un owner o administrador toca «Conectar con Google», inicia sesión con su cuenta y acepta los dos permisos que pide Pangui." },
+    texto: "Tocas «Conectar con Google», inicias sesión con tu cuenta y aceptas los dos permisos que pide Pangui. Cada persona del equipo conecta la suya." },
   { titulo: "Elegir el calendario",
-    texto: "Pangui muestra los calendarios donde esa cuenta puede editar eventos. Eliges uno, por ejemplo el del equipo." },
+    texto: "Pangui muestra los calendarios donde tu cuenta puede editar eventos. Eliges uno: el tuyo o uno compartido." },
   { titulo: "Sincronizar",
-    texto: "Cada minuto, Pangui escribe en ese calendario los pendientes nuevos o que cambiaron." },
+    texto: "Cada minuto, Pangui escribe en ese calendario tus pendientes nuevos o que cambiaron." },
   { titulo: "Avisar",
-    texto: "Google avisa según el «Avisarme» de cada pendiente. Ese aviso rige para la cuenta conectada; el resto del equipo recibe los suyos según su configuración de ese calendario." },
+    texto: "Google te avisa según el «Avisarme» de cada pendiente." },
   { titulo: "Mantener el control",
-    texto: "Cambia de calendario o desconecta cuando quieras. Si Google deja de aceptar la conexión, Pangui se detiene y avisa a los administradores." },
+    texto: "Cambia de calendario o desconecta cuando quieras. Si Google deja de aceptar la conexión, Pangui se detiene y te avisa." },
 ];
 
 // Ficha técnica para el equipo de TI de la empresa.
 const FICHA_TI: { dato: string; valor: string }[] = [
-  { dato: "Tipo de acceso", valor: "OAuth 2.0 de Google, autorizado por un owner o administrador de la empresa." },
+  { dato: "Tipo de acceso", valor: "OAuth 2.0 de Google. Cada persona autoriza su propia cuenta y solo se escriben sus pendientes." },
   { dato: "Permisos", valor: "Ver la lista de calendarios (calendarlist.readonly) y crear, modificar y borrar eventos (calendar.events). Pangui solo modifica los eventos que creó." },
   { dato: "Datos enviados", valor: "Nota, fecha, hora, aviso, estado y prioridad del pendiente; nombre de quien lo creó; número y título de la OT; enlace a Pangui." },
-  { dato: "Datos leídos", valor: "La lista de calendarios de la cuenta y su correo, para mostrar con qué cuenta está conectado. Pangui no lee los eventos de tus calendarios." },
+  { dato: "Datos leídos", valor: "La lista de calendarios de la cuenta y su correo, para mostrar con qué cuenta estás conectado. Pangui no lee los eventos de tus calendarios." },
   { dato: "Credencial", valor: "El token de acceso se guarda cifrado en Supabase Vault. Solo lo usa el proceso de sincronización del servidor; no se muestra en la aplicación." },
   { dato: "Frecuencia", valor: "Cada minuto, y solo cuando hay pendientes nuevos o modificados." },
   { dato: "Ubicación de datos", valor: "Supabase (AWS us-east-1, Estados Unidos)." },
@@ -52,17 +52,17 @@ const FICHA_TI: { dato: string; valor: string }[] = [
 
 const REQUISITOS = [
   "Una cuenta de Google, de Gmail o de Google Workspace, con permiso para «Hacer cambios en eventos» en el calendario elegido.",
-  "Rol owner o administrador en Pangui para conectar, cambiar de calendario o desconectar.",
+  "Rol owner o administrador en Pangui. Cada persona conecta su propia cuenta.",
   "Si tu empresa usa Google Workspace: que su administrador permita apps de terceros (es lo habitual).",
 ];
 
 const PREGUNTAS: { q: string; a: string }[] = [
   { q: "¿Necesito Google Workspace?",
     a: "No. Funciona igual con una cuenta de Gmail y con una de Google Workspace." },
+  { q: "¿Cada uno tiene que conectar su cuenta?",
+    a: "Sí. Los pendientes son de cada persona: cada uno conecta su cuenta, ve sus propios pendientes y recibe sus propios avisos. Tu conexión no le da al resto del equipo acceso a tu cuenta de Google." },
   { q: "¿Quién ve los eventos?",
-    a: "Todas las personas que tengan acceso al calendario elegido en Google. Elige un calendario compartido solo con quien corresponda." },
-  { q: "¿A todo el equipo le llegan los avisos?",
-    a: "El aviso que fija Pangui rige para la cuenta conectada. Cada persona que ve el calendario recibe los avisos según su propia configuración: en Google Calendar, Configuración → el calendario → «Notificaciones de eventos». Además, Pangui avisa al creador de cada pendiente por notificación y correo." },
+    a: "Quien tenga acceso al calendario que elegiste. En tu calendario personal, solo tú; en uno compartido, todos los que lo comparten." },
   { q: "¿Qué pasa si muevo o borro un evento en Google?",
     a: "La integración va en un solo sentido: Pangui no lee los cambios hechos en Google. La próxima vez que cambies ese pendiente en Pangui, el evento se vuelve a escribir (y si lo borraste, se crea de nuevo). Para mover un pendiente, muévelo en Pangui." },
   { q: "¿Por qué un pendiente sin hora aparece a las 08:30?",
@@ -70,9 +70,9 @@ const PREGUNTAS: { q: string; a: string }[] = [
   { q: "¿Qué pasa con los pendientes hechos, cancelados o de OTs borradas?",
     a: "Su evento se borra del calendario. El historial sigue en Pangui, en la Actividad de cada OT." },
   { q: "¿Qué pasa si Google corta la conexión?",
-    a: "Pangui detiene la sincronización, marca la conexión como «Reconectar» y avisa a los administradores. Al reconectar, el calendario se pone al día solo." },
+    a: "Pangui detiene la sincronización, marca tu conexión como «Reconectar» y te avisa. Al reconectar, tu calendario se pone al día solo." },
   { q: "¿Cómo se desconecta?",
-    a: "Un owner o administrador usa «Desconectar» en esta página: Pangui revoca el acceso en Google y borra el token. Los eventos ya creados se quedan en el calendario." },
+    a: "Con «Desconectar» en esta página: Pangui revoca el acceso en Google y borra el token. Los eventos ya creados se quedan en el calendario." },
 ];
 
 // Colores de la nube del lado de Google Calendar: los azules de su ícono.
@@ -106,13 +106,13 @@ export default function GoogleCalendarIntegracionPage() {
         <div style={{ display: "grid", gap: 20 }}>
           <Seccion icono={<Sparkles size={20} />} titulo="Resumen">
             <p style={{ margin: 0 }}>
-              Lleva los pendientes de tus órdenes de trabajo al calendario de Google que usa tu equipo. Cada pendiente
-              abierto aparece como evento, con su fecha, su hora y su aviso, y se actualiza solo cuando cambia en Pangui:
-              lo que falta hacer en cada OT queda a la vista de todos, en el mismo lugar donde ya organizan su semana.
+              Lleva tus pendientes de las órdenes de trabajo a tu Google Calendar. Cada pendiente abierto aparece como
+              evento, con su fecha, su hora y su aviso, y se actualiza solo cuando cambia en Pangui: lo que te falta hacer
+              en cada OT queda en el mismo lugar donde ya organizas tu semana.
             </p>
             <p style={{ margin: "10px 0 0" }}>
-              La conexión la autoriza un owner o administrador con su cuenta de Google, de Gmail o de Google Workspace.
-              Integración configurada y gestionada por Pangui.
+              La conexión es personal: cada persona conecta su propia cuenta de Google, de Gmail o de Google Workspace, y
+              recibe los avisos de sus pendientes. Integración configurada y gestionada por Pangui.
             </p>
           </Seccion>
 
@@ -147,8 +147,8 @@ export default function GoogleCalendarIntegracionPage() {
         <aside style={{ display: "grid", gap: 16, position: "sticky", top: 24 }}>
           <ConexionGoogleCalendarPanel vuelta={vuelta} />
           <TarjetaLateral
-            titulo="Los pendientes de tus OTs, en el calendario del equipo"
-            texto="Lo que falta hacer en cada orden de trabajo aparece en Google Calendar, con su aviso, y se actualiza solo."
+            titulo="Tus pendientes, en tu Google Calendar"
+            texto="Lo que te falta hacer en cada orden de trabajo aparece en tu calendario, con su aviso, y se actualiza solo."
             enlaces={[
               { href: "mailto:contacto@getpangui.com?subject=Integraci%C3%B3n%20Google%20Calendar", icono: <Mail size={15} />, label: "Contactar soporte" },
               { href: "https://calendar.google.com", icono: <ExternalLink size={15} />, label: "Abrir Google Calendar", externo: true },

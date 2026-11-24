@@ -1,16 +1,16 @@
 /**
  * GET /api/google/calendarios — calendarios de la cuenta conectada donde se
- * puede escribir, para que el owner/admin elija a cuál van los pendientes.
+ * puede escribir, para que la persona elija a cuál van sus pendientes.
  * 409 { revocado: true } si Google ya no acepta el token (hay que reconectar).
  */
 import { NextResponse } from "next/server";
-import { accessTokenDelWorkspace, adminActual, listarCalendarios } from "@/lib/google-calendar";
+import { accessTokenDelUsuario, adminActual, listarCalendarios } from "@/lib/google-calendar";
 
 export async function GET() {
   const yo = await adminActual();
   if ("error" in yo) return yo.error;
   try {
-    const access = await accessTokenDelWorkspace(yo.ws);
+    const access = await accessTokenDelUsuario(yo.uid);
     return NextResponse.json({ calendarios: await listarCalendarios(access) });
   } catch (e) {
     const codigo = (e as { codigo?: string }).codigo;

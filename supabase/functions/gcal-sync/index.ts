@@ -1,13 +1,13 @@
 // Supabase Edge Function — pendientes → Google Calendar (etapa 2, OAuth).
 //
 // La llama el cron 'gcal-sync' cada minuto, solo si hay alguna conexión activa
-// con calendario elegido. Por cada workspace conectado:
+// con calendario elegido. Por cada persona conectada (la conexión es personal):
 //   1. Pide un access token con el refresh token de Vault.
 //   2. Borra en Google los eventos de pendientes eliminados (gcal_borrados).
 //   3. Sube los pendientes encolados (gcal_sync = 'pendiente'): los abiertos se
 //      crean o actualizan; los cerrados, o de OTs en la papelera, se borran.
 // Errores por pendiente: reintento en el próximo tick, hasta MAX_INTENTOS.
-// Token revocado (invalid_grant): la conexión queda 'revocado' y se avisa a los admins.
+// Token revocado (invalid_grant): la conexión queda 'revocado' y se avisa a esa persona.
 //
 // Auth: solo el cron, con el JWT service_role (verify_jwt activo; ver _shared/es-service-role.ts).
 
@@ -54,7 +54,7 @@ Deno.serve(async (req) => {
 
     const { data: conexiones, error } = await sb
       .from("calendario_google")
-      .select("workspace_id, calendar_id")
+      .select("usuario_id, calendar_id")
       .eq("estado", "activo")
       .not("calendar_id", "is", null);
     if (error) throw error;
@@ -62,29 +62,26 @@ Deno.serve(async (req) => {
     const resumen: Record<string, { subidos: number; borrados: number; errores: number }> = {};
 
     for (const c of conexiones ?? []) {
-      const ws = c.workspace_id as string;
-      const r = resumen[ws] = { subidos: 0, borrados: 0, errores: 0 };
+      const yo = c.usuario_id as string;
+      const r = resumen[yo] = { subidos: 0, borrados: 0, errores: 0 };
       const marcarConexion = (estado: string, ultimo_error: string | null) =>
-        sb.from("calendario_google").update({ estado, ultimo_error, updated_at: new Date().toISOString() }).eq("workspace_id", ws);
+        sb.from("calendario_google").update({ estado, ultimo_error, updated_at: new Date().toISOString() }).eq("usuario_id", yo);
 
       let access: string;
       try {
-        const { data: refresh } = await sb.rpc("gcal_refresh_token", { p_workspace: ws });
+        const { data: refresh } = await sb.rpc("gcal_refresh_token", { p_usuario: yo });
         if (!refresh) continue;
         access = await accessToken(refresh as string);
       } catch (e) {
         if (e instanceof Revocado) {
           await marcarConexion("revocado", e.message);
-          const { data: admins } = await sb.from("usuarios").select("id").eq("workspace_id", ws).in("rol", ["owner", "admin"]).eq("activo", true);
-          if (admins?.length) {
-            await sb.from("notifications").insert(admins.map(a => ({
-              usuario_id: a.id,
-              titulo: "Google Calendar se desconectó",
-              mensaje: "Los pendientes dejaron de llegar al calendario. Reconéctalo en Mis pendientes → Calendario del equipo.",
-              tipo: "integracion",
-              url: "/pendientes",
-            })));
-          }
+          await sb.from("notifications").insert({
+            usuario_id: yo,
+            titulo: "Google Calendar se desconectó",
+            mensaje: "Tus pendientes dejaron de llegar a tu calendario. Reconéctalo en Integraciones → Google Calendar.",
+            tipo: "integracion",
+            url: "/integraciones/google-calendar",
+          });
         } else {
           await marcarConexion("activo", e instanceof Error ? e.message : String(e));
         }
@@ -104,7 +101,7 @@ Deno.serve(async (req) => {
       };
 
       // 2. Eventos de pendientes borrados.
-      const { data: borrados } = await sb.from("gcal_borrados").select("id, event_id, intentos").eq("workspace_id", ws).limit(LOTE);
+      const { data: borrados } = await sb.from("gcal_borrados").select("id, event_id, intentos").eq("usuario_id", yo).limit(LOTE);
       for (const b of borrados ?? []) {
         try {
           await borrar(b.event_id);
@@ -121,7 +118,7 @@ Deno.serve(async (req) => {
       const { data, error: e2 } = await sb
         .from("ot_pendientes")
         .select("id, nota, fecha, hora, estado, prioridad, orden_id, gcal_event_id, gcal_intentos, aviso_minutos, usuario:usuarios(nombre), ordenes_trabajo(numero, titulo, deleted_at)")
-        .eq("workspace_id", ws)
+        .eq("usuario_id", yo)
         .eq("gcal_sync", "pendiente")
         .order("created_at")
         .limit(LOTE);

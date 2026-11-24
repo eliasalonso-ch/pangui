@@ -4,7 +4,7 @@ import type { EstadoVisible } from "@/lib/meconecta-conexion";
 /**
  * Integración Google Calendar, lado cliente (/integraciones/google-calendar).
  * Lo que la UI puede ver de la conexión: el refresh token nunca sale de Vault.
- * RLS: solo owner/admin del propio workspace (calendario_google, calendario_feeds).
+ * RLS: cada persona ve solo su conexión y su link (calendario_google, calendario_feeds).
  */
 export interface ConexionGoogle {
   google_email: string;

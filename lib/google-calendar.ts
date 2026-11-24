@@ -9,8 +9,8 @@ import { esAdmin } from "@/lib/roles";
  * docs/superpowers/plans/2026-11-23-google-calendar-oauth.md.
  *
  * Flujo: /api/google/auth → Google → /api/google/callback (guarda el refresh
- * token en Vault) → el admin elige el calendario → la edge function gcal-sync
- * escribe los eventos.
+ * token en Vault) → la persona elige su calendario → la edge function gcal-sync
+ * escribe sus pendientes. La conexión es personal: una por usuario.
  */
 
 export const SCOPES = [
@@ -102,9 +102,9 @@ export async function adminActual(): Promise<{ uid: string; ws: string } | { err
   return { uid: auth.user.id, ws: perfil.workspace_id };
 }
 
-/** Access token del workspace, a partir del refresh token guardado en Vault. */
-export async function accessTokenDelWorkspace(ws: string): Promise<string> {
-  const { data: refresh, error } = await supabaseAdmin().rpc("gcal_refresh_token", { p_workspace: ws });
+/** Access token de la conexión de una persona, con el refresh token guardado en Vault. */
+export async function accessTokenDelUsuario(uid: string): Promise<string> {
+  const { data: refresh, error } = await supabaseAdmin().rpc("gcal_refresh_token", { p_usuario: uid });
   if (error) throw error;
   if (!refresh) throw new Error("Google Calendar no está conectado");
   return accessToken(refresh as string);
