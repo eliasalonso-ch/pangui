@@ -423,6 +423,14 @@ export default function AppSidebar() {
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={isActive("/pendientes")} tooltip="Mis pendientes">
+                  <Link href="/pendientes" prefetch={false} style={{ display: "flex", alignItems: "center", gap: collapsed ? 0 : 10 }}>
+                    <ListChecks size={16} style={{ flexShrink: 0 }} />
+                    {!collapsed && <span>Mis pendientes</span>}
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={isActive("/activos")} tooltip="Activos">
                   <Link href="/activos" prefetch={false} style={{ display: "flex", alignItems: "center", gap: collapsed ? 0 : 10 }}>
                     <Engine size={16} style={{ flexShrink: 0 }} />

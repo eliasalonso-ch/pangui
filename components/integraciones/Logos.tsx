@@ -18,13 +18,31 @@ export function LogoUdec({ alto, completo = false }: { alto: number; completo?: 
   );
 }
 
+/** Ícono de la integración con Google Calendar (1280×1375). */
+export function LogoGoogleCalendar({ alto }: { alto: number }) {
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src="/integraciones/google-calendar.webp"
+      alt="Google Calendar"
+      height={alto}
+      width={Math.round(alto * 1280 / 1375)}
+      style={{ height: alto, width: "auto", flexShrink: 0 }}
+    />
+  );
+}
+
 export function LogoPangui({ size }: { size: number }) {
   // eslint-disable-next-line @next/next/no-img-element
   return <img src="/logo.svg" alt="Pangui" width={size} height={size} style={{ objectFit: "contain", flexShrink: 0 }} />;
 }
 
-export function EstadoBadge({ estado }: { estado: EstadoVisible }) {
-  const e = ESTADO_VISIBLE[estado];
+export function EstadoBadge({ estado, label }: {
+  estado: EstadoVisible;
+  /** Texto propio con el color de `estado` (p. ej. Google Calendar: "Elige calendario"). */
+  label?: string;
+}) {
+  const e = { ...ESTADO_VISIBLE[estado], ...(label ? { label } : {}) };
   return (
     // Misma forma que la etiqueta del proveedor en la tarjeta del catálogo.
     <span style={{

@@ -74,12 +74,14 @@ function pageTrail(pathname: string): Crumb[] {
   if (pathname.startsWith("/mi-cuenta")) return ["Cuenta", "Mi cuenta"];
   if (pathname.startsWith("/espacio-trabajo")) return ["Cuenta", "Espacio de trabajo"];
   if (pathname.startsWith("/integraciones/meconecta")) return ["Cuenta", { label: "Integraciones", href: "/integraciones" }, "MeConecta"];
+  if (pathname.startsWith("/integraciones/google-calendar")) return ["Cuenta", { label: "Integraciones", href: "/integraciones" }, "Google Calendar"];
   if (pathname.startsWith("/integraciones")) return ["Cuenta", "Integraciones"];
   if (pathname.startsWith("/preferencias-notificaciones")) return ["Cuenta", "Notificaciones"];
   // These must precede `/ordenes`: a bare prefix would otherwise label
   // `/ordenes-compra` as work orders.
   // El primer crumb es el grupo de la barra lateral donde vive la página.
   if (pathname.startsWith("/ordenes-compra")) return ["Gestión", "Órdenes de compra"];
+  if (pathname.startsWith("/pendientes")) return ["Operaciones", "Mis pendientes"];
   if (pathname.startsWith("/proveedores")) return ["Gestión", "Proveedores"];
   if (pathname.startsWith("/ordenes/crear")) return ["Operaciones", "Órdenes", "Nueva orden"];
   // Las vistas van antes que el detalle: /ordenes/lista también calza con /ordenes/<id>.

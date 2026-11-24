@@ -70,7 +70,9 @@ export type ActividadTipo =
   | "completado"
   | "cancelado"
   | "comentario"
-  | "fotos_grupo_subidas";
+  | "fotos_grupo_subidas"
+  | "pendiente_creado"
+  | "pendiente_hecho";
 
 // DB role taxonomy (post role-system rewrite). `jefe`/`tecnico` are legacy
 // aliases kept only so old rows/string comparisons don't break; new data uses

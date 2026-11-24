@@ -3,20 +3,45 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Loader2, Plug, Send, ArrowRight } from "lucide-react";
-import { INTEGRACIONES } from "@/lib/integraciones";
+import { integracionesDe, type Integracion } from "@/lib/integraciones";
 import { getConexionMeconecta, estadoVisible, type EstadoVisible } from "@/lib/meconecta-conexion";
-import { LogoUdec, EstadoBadge } from "@/components/integraciones/Logos";
+import { leerConexionGoogle, estadoGoogle } from "@/lib/google-calendar-conexion";
+import { getPerfilUsuario } from "@/lib/perfil-usuario";
+import { LogoUdec, LogoGoogleCalendar, EstadoBadge } from "@/components/integraciones/Logos";
 import { useGateIntegraciones } from "@/components/integraciones/useGateIntegraciones";
+
+type Estado = { estado: EstadoVisible; label?: string };
+
+// Estado de cada conector; si falla la lectura, se muestra "sin conexión".
+const LEER_ESTADO: Record<string, () => Promise<Estado>> = {
+  "google-calendar": () => leerConexionGoogle().then(estadoGoogle),
+  meconecta: () => getConexionMeconecta().then(c => ({ estado: estadoVisible(c) })),
+};
+
+const LOGO: Record<string, React.ReactNode> = {
+  "google-calendar": <LogoGoogleCalendar alto={84} />,
+  meconecta: <LogoUdec completo alto={72} />,
+};
 
 export default function IntegracionesPage() {
   const gate = useGateIntegraciones();
-  const [estado, setEstado] = useState<EstadoVisible | null>(null);
+  const [lista, setLista] = useState<Integracion[]>([]);
+  const [estados, setEstados] = useState<Record<string, Estado>>({});
 
   useEffect(() => {
     if (gate !== "permitido") return;
-    getConexionMeconecta()
-      .then((c) => setEstado(estadoVisible(c)))
-      .catch(() => setEstado("sin_conexion"));
+    let activo = true;
+    getPerfilUsuario().then((p) => {
+      const ints = integracionesDe(p?.workspace_id);
+      if (!activo) return;
+      setLista(ints);
+      for (const i of ints) {
+        (LEER_ESTADO[i.slug]?.() ?? Promise.resolve<Estado>({ estado: "sin_conexion" }))
+          .catch((): Estado => ({ estado: "sin_conexion" }))
+          .then((e) => { if (activo) setEstados((s) => ({ ...s, [i.slug]: e })); });
+      }
+    });
+    return () => { activo = false; };
   }, [gate]);
 
   if (gate === "cargando") {
@@ -36,29 +61,32 @@ export default function IntegracionesPage() {
       </h2>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {INTEGRACIONES.map((i) => (
-          <div key={i.slug} style={{ display: "flex", flexDirection: "column", gap: 14, padding: 16, border: "1px solid var(--border)", borderRadius: "var(--r-lg)", background: "var(--surface-1)" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-              <span style={{ fontSize: 12, color: "var(--fg-3)", border: "1px solid var(--border)", borderRadius: "var(--r-md)", padding: "2px 8px" }}>{i.proveedor}</span>
-              {estado && <EstadoBadge estado={estado} />}
+        {lista.map((i) => {
+          const e = estados[i.slug];
+          return (
+            <div key={i.slug} style={{ display: "flex", flexDirection: "column", gap: 14, padding: 16, border: "1px solid var(--border)", borderRadius: "var(--r-lg)", background: "var(--surface-1)" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+                <span style={{ fontSize: 12, color: "var(--fg-3)", border: "1px solid var(--border)", borderRadius: "var(--r-md)", padding: "2px 8px" }}>{i.proveedor}</span>
+                {e && <EstadoBadge estado={e.estado} label={e.label} />}
+              </div>
+              {/* Blanco fijo en ambos temas: el logo completo de la UdeC trae texto negro. */}
+              <div style={{ height: 140, display: "grid", placeItems: "center", border: "1px solid var(--border)", borderRadius: "var(--r-md)", background: "#FFFFFF" }}>
+                {LOGO[i.slug]}
+              </div>
+              <div>
+                <p style={{ margin: 0, fontSize: 15, fontWeight: 500, color: "var(--fg-1)" }}>{i.nombre}</p>
+                <p style={{ margin: "4px 0 0", fontSize: 14, lineHeight: 1.5, color: "var(--fg-2)" }}>{i.descripcion}</p>
+              </div>
+              <Link
+                href={i.href}
+                prefetch={false}
+                style={{ marginTop: "auto", height: 38, display: "grid", placeItems: "center", borderRadius: "var(--r-md)", background: "var(--brand)", color: "var(--fg-on-brand)", fontSize: 14, fontWeight: 500, textDecoration: "none" }}
+              >
+                {e && e.estado !== "sin_conexion" ? "Administrar" : "Conectar"}
+              </Link>
             </div>
-            {/* Blanco fijo en ambos temas: el logo completo trae texto negro. */}
-            <div style={{ height: 140, display: "grid", placeItems: "center", border: "1px solid var(--border)", borderRadius: "var(--r-md)", background: "#FFFFFF" }}>
-              <LogoUdec completo alto={72} />
-            </div>
-            <div>
-              <p style={{ margin: 0, fontSize: 15, fontWeight: 500, color: "var(--fg-1)" }}>{i.nombre}</p>
-              <p style={{ margin: "4px 0 0", fontSize: 14, lineHeight: 1.5, color: "var(--fg-2)" }}>{i.descripcion}</p>
-            </div>
-            <Link
-              href={i.href}
-              prefetch={false}
-              style={{ marginTop: "auto", height: 38, display: "grid", placeItems: "center", borderRadius: "var(--r-md)", background: "var(--brand)", color: "var(--fg-on-brand)", fontSize: 14, fontWeight: 500, textDecoration: "none" }}
-            >
-              {estado && estado !== "sin_conexion" ? "Administrar" : "Conectar"}
-            </Link>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       <div style={{ marginTop: 32, padding: "28px 24px", border: "1px solid var(--border)", borderRadius: "var(--r-lg)", background: "var(--surface-1)", display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 16 }}>

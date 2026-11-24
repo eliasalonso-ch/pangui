@@ -16,7 +16,8 @@
  */
 
 import { flexRender, type Table } from "@tanstack/react-table";
-import { ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight, Search, X } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Search, X } from "lucide-react";
+import { Desplegable } from "@/components/Desplegable";
 
 /**
  * Páginas a mostrar, al estilo de la paginación de shadcn: primera, última, la
@@ -155,6 +156,73 @@ function BotonPagina({ activa = false, disabled, children, ...props }: {
       }}
       onMouseEnter={e => { if (!disabled && !activa) e.currentTarget.style.background = "var(--surface-hover)"; }}
       onMouseLeave={e => { if (!activa) e.currentTarget.style.background = "transparent"; }}
+    >
+      {children}
+    </button>
+  );
+}
+
+/**
+ * Pie del ejemplo "Tasks" de shadcn: a la izquierda "N de M fila(s)
+ * seleccionada(s)"; a la derecha "Filas por página", "Página X de Y" y
+ * primera / anterior / siguiente / última. Sirve igual con paginación en el
+ * servidor (`manualPagination` + `rowCount`): todo sale de la tabla.
+ */
+export function PaginacionFilas<T>({ tabla, seleccionadas, opciones = [10, 20, 30, 40, 50] }: {
+  tabla: Table<T>;
+  /** Seleccionadas en TODAS las páginas (con paginación en el servidor la tabla solo ve la actual). */
+  seleccionadas: number;
+  opciones?: number[];
+}) {
+  const { pageIndex, pageSize } = tabla.getState().pagination;
+  const total = tabla.getRowCount();
+  const paginas = Math.max(1, tabla.getPageCount());
+  return (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, flexWrap: "wrap", padding: "10px 16px", borderTop: "1px solid var(--border)" }}>
+      <span style={{ fontSize: 14, color: "var(--fg-4)" }}>
+        {seleccionadas} de {total} fila(s) seleccionada(s).
+      </span>
+      <div style={{ display: "flex", alignItems: "center", gap: 20, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ fontSize: 14, color: "var(--fg-2)", whiteSpace: "nowrap" }}>Filas por página</span>
+          <div style={{ width: 76 }}>
+            <Desplegable
+              ariaLabel="Filas por página"
+              anchoCompleto
+              alto={32}
+              value={String(pageSize)}
+              onChange={v => tabla.setPagination({ pageIndex: 0, pageSize: Number(v) })}
+              opciones={opciones.map(n => ({ value: String(n), label: String(n) }))}
+            />
+          </div>
+        </div>
+        <span style={{ fontSize: 14, color: "var(--fg-1)", whiteSpace: "nowrap" }}>
+          Página {Math.min(pageIndex + 1, paginas)} de {paginas}
+        </span>
+        <nav aria-label="Paginación" style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <BotonIconoPagina aria-label="Primera página" onClick={() => tabla.setPageIndex(0)} disabled={!tabla.getCanPreviousPage()}><ChevronsLeft size={15} /></BotonIconoPagina>
+          <BotonIconoPagina aria-label="Página anterior" onClick={() => tabla.previousPage()} disabled={!tabla.getCanPreviousPage()}><ChevronLeft size={15} /></BotonIconoPagina>
+          <BotonIconoPagina aria-label="Página siguiente" onClick={() => tabla.nextPage()} disabled={!tabla.getCanNextPage()}><ChevronRight size={15} /></BotonIconoPagina>
+          <BotonIconoPagina aria-label="Última página" onClick={() => tabla.setPageIndex(paginas - 1)} disabled={!tabla.getCanNextPage()}><ChevronsRight size={15} /></BotonIconoPagina>
+        </nav>
+      </div>
+    </div>
+  );
+}
+
+function BotonIconoPagina({ disabled, children, ...props }: { disabled?: boolean; children: React.ReactNode } & React.ButtonHTMLAttributes<HTMLButtonElement>) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      {...props}
+      style={{
+        width: 32, height: 32, display: "inline-flex", alignItems: "center", justifyContent: "center",
+        border: "1px solid var(--border)", borderRadius: "var(--r-sm)", background: "var(--surface-1)",
+        color: "var(--fg-2)", cursor: disabled ? "default" : "pointer", opacity: disabled ? 0.5 : 1, padding: 0,
+      }}
+      onMouseEnter={e => { if (!disabled) e.currentTarget.style.background = "var(--surface-hover)"; }}
+      onMouseLeave={e => { e.currentTarget.style.background = "var(--surface-1)"; }}
     >
       {children}
     </button>

@@ -1,12 +1,12 @@
 "use client";
 
-import { useState, type CSSProperties, type ReactNode } from "react";
-import { AnimatePresence, motion } from "framer-motion";
-import { Loader2, Sparkles, ListChecks, Workflow, CircleHelp, ExternalLink, Mail, Plus, Minus, ShieldCheck, ClipboardCheck, Globe } from "lucide-react";
-import { LogoUdec, LogoPangui } from "@/components/integraciones/Logos";
+import { Loader2, Sparkles, ListChecks, Workflow, CircleHelp, ExternalLink, Mail, ShieldCheck, ClipboardCheck, Globe } from "lucide-react";
+import { LogoUdec } from "@/components/integraciones/Logos";
 import { useGateIntegraciones } from "@/components/integraciones/useGateIntegraciones";
 import ConexionMeconectaPanel from "@/components/integraciones/ConexionMeconectaPanel";
-import BandaBlob from "@/components/integraciones/BandaBlob";
+import {
+  EncabezadoIntegracion, Seccion, ListaTitulada, FichaTecnica, PreguntasFrecuentes, TarjetaLateral,
+} from "@/components/integraciones/PaginaIntegracion";
 
 const PREGUNTAS: { q: string; a: string }[] = [
   { q: "¿Qué datos lee Pangui de MeConecta?",
@@ -75,110 +75,12 @@ const REQUISITOS = [
   "Para el cruce con OTs: el folio (SF…) de cada solicitud escrito en el campo N° de Serie / Folio de la OT.",
 ];
 
-// Colores de la nube. Pangui: el azul de su logo (public/logo.svg).
 // UdeC: azul y amarillo institucionales (Normas gráficas UdeC, PANTONE 541 C / 130 C).
-const PANGUI_AZUL_LOGO = "#273d88";
 const UDEC_AZUL = "#223c6a";
 const UDEC_AMARILLO = "#e69b0a";
 
-/** Lugar de cada logo en la banda (sin fondo propio). */
-function TileLogo({ style, children }: { style: CSSProperties; children: ReactNode }) {
-  return (
-    <div style={{
-      position: "absolute", top: "50%", transform: "translateY(-50%)", width: 80, height: 80,
-      display: "grid", placeItems: "center",
-      ...style,
-    }}>
-      {children}
-    </div>
-  );
-}
-
-/**
- * Banda superior: el logo de Pangui a la izquierda y el de la UdeC a la derecha,
- * cada uno en una tarjeta blanca a --a del borde. Sin fondo propio, corre
- * una nube de puntos (BandaBlob): azul del logo de Pangui de su lado, azul y
- * amarillo UdeC del lado de la UdeC. Al centro, un "+" (como
- * "Samsara + MaintainX"); el título queda solo para lectores de pantalla.
- */
-function Encabezado() {
-  return (
-    <>
-      <div
-        className="relative [--a:56px] md:[--a:90px]"
-        style={{
-          height: 148,
-          borderBottom: "1px solid var(--border)",
-        }}
-      >
-        {/* Nube de puntos animada de borde a borde, bajo los logos y el "+". */}
-        <BandaBlob izquierda={PANGUI_AZUL_LOGO} derecha={[UDEC_AZUL, UDEC_AMARILLO]} />
-        <TileLogo style={{ left: "calc(var(--a) - 40px)" }}><LogoPangui size={66} /></TileLogo>
-        <TileLogo style={{ right: "calc(var(--a) - 40px)" }}><LogoUdec alto={66} /></TileLogo>
-        <h1 className="sr-only">MeConecta y Pangui</h1>
-        <div style={{ position: "absolute", top: 0, bottom: 0, left: "calc(var(--a) * 2 + 24px)", right: "calc(var(--a) * 2 + 24px)", display: "grid", placeItems: "center" }}>
-          <Plus aria-hidden size={20} style={{ color: "#FFFFFF", filter: "drop-shadow(0 1px 2px rgba(0, 0, 0, 0.25))" }} />
-        </div>
-      </div>
-    </>
-  );
-}
-
-/** Mismo acordeón que las preguntas frecuentes de la landing, con los tokens de la app. */
-function PreguntasFrecuentes() {
-  const [abierta, setAbierta] = useState(-1);
-  return (
-    <div>
-      {PREGUNTAS.map((p, i) => {
-        const open = abierta === i;
-        const Icono = open ? Minus : Plus;
-        return (
-          <div key={p.q} style={{ borderTop: i === 0 ? "none" : "1px solid var(--border)" }}>
-            <button
-              type="button"
-              onClick={() => setAbierta(open ? -1 : i)}
-              aria-expanded={open}
-              style={{
-                width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16,
-                padding: "12px 0", background: "none", border: 0, cursor: "pointer", textAlign: "left",
-                font: "inherit", color: "var(--fg-1)",
-              }}
-            >
-              <span>{p.q}</span>
-              <Icono size={18} strokeWidth={2} aria-hidden style={{ flexShrink: 0, color: "var(--brand)" }} />
-            </button>
-            <AnimatePresence initial={false}>
-              {open && (
-                <motion.p
-                  initial={{ height: 0, opacity: 0 }}
-                  animate={{ height: "auto", opacity: 1 }}
-                  exit={{ height: 0, opacity: 0 }}
-                  style={{ margin: 0, overflow: "hidden", paddingBottom: 12, paddingRight: 32 }}
-                >
-                  {p.a}
-                </motion.p>
-              )}
-            </AnimatePresence>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-function Seccion({ icono, titulo, children }: { icono: ReactNode; titulo: string; children: ReactNode }) {
-  return (
-    <section style={{ padding: 24, border: "1px solid var(--border)", borderRadius: "var(--r-lg)", background: "var(--surface-1)" }}>
-      <h2 style={{ margin: "0 0 12px", display: "flex", alignItems: "center", gap: 10, fontSize: 20, fontWeight: 500, letterSpacing: "-0.01em", color: "var(--fg-1)" }}>
-        <span style={{ display: "inline-flex", color: "var(--brand)" }}>{icono}</span> {titulo}
-      </h2>
-      <div style={{ fontSize: 14, lineHeight: 1.6, color: "var(--fg-2)" }}>{children}</div>
-    </section>
-  );
-}
-
 export default function MeconectaIntegracionPage() {
-  const gate = useGateIntegraciones();
+  const gate = useGateIntegraciones("meconecta");
 
   if (gate === "cargando") {
     return <div style={{ minHeight: 320, display: "grid", placeItems: "center", color: "var(--fg-3)" }}><Loader2 size={20} className="animate-spin" /></div>;
@@ -189,7 +91,7 @@ export default function MeconectaIntegracionPage() {
 
   return (
     <div>
-      <Encabezado />
+      <EncabezadoIntegracion titulo="MeConecta y Pangui" logo={<LogoUdec alto={66} />} colores={[UDEC_AZUL, UDEC_AMARILLO]} />
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]" style={{ maxWidth: 1080, margin: "0 auto", padding: "32px 24px 56px", alignItems: "start" }}>
         <div style={{ display: "grid", gap: 20 }}>
@@ -207,35 +109,16 @@ export default function MeconectaIntegracionPage() {
           </Seccion>
 
           <Seccion icono={<ListChecks size={20} />} titulo="Funcionalidades clave">
-            <ul style={{ margin: 0, paddingLeft: 20, display: "grid", gap: 10, listStyle: "disc" }}>
-              {FUNCIONALIDADES.map((f) => (
-                <li key={f.titulo}>
-                  <span style={{ color: "var(--fg-1)", fontWeight: 500 }}>{f.titulo}.</span> {f.texto}
-                </li>
-              ))}
-            </ul>
+            <ListaTitulada items={FUNCIONALIDADES} />
           </Seccion>
 
           <Seccion icono={<Workflow size={20} />} titulo="Cómo funciona">
-            <ul style={{ margin: 0, paddingLeft: 20, display: "grid", gap: 10, listStyle: "disc" }}>
-              {PASOS.map((paso) => (
-                <li key={paso.titulo}>
-                  <span style={{ color: "var(--fg-1)", fontWeight: 500 }}>{paso.titulo}.</span> {paso.texto}
-                </li>
-              ))}
-            </ul>
+            <ListaTitulada items={PASOS} />
           </Seccion>
 
           <Seccion icono={<ShieldCheck size={20} />} titulo="Seguridad y acceso">
             <p style={{ margin: "0 0 12px" }}>Ficha para los equipos de TI de tu empresa y de la UdeC.</p>
-            <dl style={{ margin: 0, border: "1px solid var(--border)", borderRadius: "var(--r-md)", overflow: "hidden" }}>
-              {FICHA_TI.map((fila, i) => (
-                <div key={fila.dato} className="grid sm:grid-cols-[160px_minmax(0,1fr)]" style={{ borderTop: i === 0 ? "none" : "1px solid var(--border)" }}>
-                  <dt style={{ padding: "10px 14px", background: "var(--surface-2)", color: "var(--fg-1)" }}>{fila.dato}</dt>
-                  <dd style={{ margin: 0, padding: "10px 14px" }}>{fila.valor}</dd>
-                </div>
-              ))}
-            </dl>
+            <FichaTecnica filas={FICHA_TI} />
           </Seccion>
 
           <Seccion icono={<ClipboardCheck size={20} />} titulo="Requisitos">
@@ -245,7 +128,7 @@ export default function MeconectaIntegracionPage() {
           </Seccion>
 
           <Seccion icono={<CircleHelp size={20} />} titulo="Preguntas frecuentes">
-            <PreguntasFrecuentes />
+            <PreguntasFrecuentes preguntas={PREGUNTAS} />
           </Seccion>
 
           <section style={{ padding: 24, borderRadius: "var(--r-lg)", background: "var(--brand-tint)" }}>
@@ -269,33 +152,15 @@ export default function MeconectaIntegracionPage() {
 
         <aside style={{ display: "grid", gap: 16, position: "sticky", top: 24 }}>
           <ConexionMeconectaPanel />
-          <div style={{ padding: 20, border: "1px solid var(--border)", borderRadius: "var(--r-lg)", background: "var(--surface-1)", display: "grid", gap: 14, fontSize: 14 }}>
-            <div>
-              <p style={{ margin: 0, fontSize: 18, fontWeight: 500, letterSpacing: "-0.01em", lineHeight: 1.3, color: "var(--fg-1)" }}>
-                Ninguna solicitud de la UdeC sin su OT
-              </p>
-              <p style={{ margin: "8px 0 0", lineHeight: 1.55, color: "var(--fg-2)" }}>
-                Recibe cada solicitud que la UdeC asigna a tu empresa y confirma que todas tengan su orden de trabajo,
-                sin revisar el portal a mano.
-              </p>
-            </div>
-            <div>
-              <p style={{ margin: 0, color: "var(--fg-1)", fontWeight: 500 }}>Gestionado por:</p>
-              <p style={{ margin: 0, color: "var(--fg-2)" }}>Pangui</p>
-            </div>
-            <div style={{ display: "grid", gap: 8 }}>
-              <p style={{ margin: 0, color: "var(--fg-1)", fontWeight: 500 }}>Enlaces:</p>
-              <a href="mailto:contacto@getpangui.com?subject=Integraci%C3%B3n%20MeConecta" style={{ display: "inline-flex", alignItems: "center", gap: 8, color: "var(--brand)", textDecoration: "none" }}>
-                <Mail size={15} /> Contactar soporte
-              </a>
-              <a href="https://meconecta.udec.cl" target="_blank" rel="noopener noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 8, color: "var(--brand)", textDecoration: "none" }}>
-                <ExternalLink size={15} /> Abrir MeConecta
-              </a>
-              <a href="https://www.udec.cl" target="_blank" rel="noopener noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 8, color: "var(--brand)", textDecoration: "none" }}>
-                <Globe size={15} /> Sitio de la UdeC
-              </a>
-            </div>
-          </div>
+          <TarjetaLateral
+            titulo="Ninguna solicitud de la UdeC sin su OT"
+            texto="Recibe cada solicitud que la UdeC asigna a tu empresa y confirma que todas tengan su orden de trabajo, sin revisar el portal a mano."
+            enlaces={[
+              { href: "mailto:contacto@getpangui.com?subject=Integraci%C3%B3n%20MeConecta", icono: <Mail size={15} />, label: "Contactar soporte" },
+              { href: "https://meconecta.udec.cl", icono: <ExternalLink size={15} />, label: "Abrir MeConecta", externo: true },
+              { href: "https://www.udec.cl", icono: <Globe size={15} />, label: "Sitio de la UdeC", externo: true },
+            ]}
+          />
         </aside>
       </div>
     </div>

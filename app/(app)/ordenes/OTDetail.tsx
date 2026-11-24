@@ -58,6 +58,8 @@ import { notifyClasificacionCambiada } from "@/lib/notificar";
 import { esElevado, esAdmin } from "@/lib/roles";
 import EnvioContratista from "./EnvioContratista";
 import FichaPtsUdec from "./FichaPtsUdec";
+import PendientesOT from "@/components/ordenes/PendientesOT";
+import { fetchPendientes } from "@/lib/pendientes-api";
 import { armarFichaPts, PTS_PROCEDIMIENTO_ID, type FilaPts, type RespuestaPts } from "@/lib/pts-udec";
 import { CategoriaIcon } from "@/components/ordenes/categoria-icon";
 import ConfirmDeleteModal, { type ConfirmDelete } from "@/components/ConfirmDeleteModal";
@@ -363,6 +365,8 @@ const ACT_ICON: Record<ActividadTipo, React.ComponentType<{ className?: string; 
   cancelado:            XCircle,
   comentario:           Send,
   fotos_grupo_subidas:  Image,
+  pendiente_creado:     Clock,
+  pendiente_hecho:      CheckSquare,
 };
 
 const ACT_LABEL: Record<ActividadTipo, string> = {
@@ -379,6 +383,8 @@ const ACT_LABEL: Record<ActividadTipo, string> = {
   cancelado:            "Orden cancelada",
   comentario:           "",
   fotos_grupo_subidas:  "Fotos subidas al grupo",
+  pendiente_creado:     "Nuevo pendiente",
+  pendiente_hecho:      "Pendiente hecho",
 };
 
 function fmtTs(ts: string) {
@@ -626,7 +632,7 @@ interface Props {
   onToggleMarcada?: (id: string, next: boolean) => void;
 }
 
-type Tab = "detalle" | "actividad" | "fotos" | "materiales" | "hoja";
+type Tab = "detalle" | "actividad" | "pendientes" | "fotos" | "materiales" | "hoja";
 
 // ── Parts types ───────────────────────────────────────────────────────────────
 
@@ -685,6 +691,8 @@ export default function OTDetail({
   const router = useRouter();
   const queryClient = useQueryClient();
   const [tab, setTab] = useState<Tab>("detalle");
+  // Mismo key que PendientesOT: el contador de la pestaña y la lista comparten caché.
+  const { data: pendientes = [] } = useQuery({ queryKey: ["pendientes", orden.id], queryFn: () => fetchPendientes(orden.id) });
   /**
    * Tabs the user has actually opened for this OT.
    *
@@ -2778,6 +2786,7 @@ export default function OTDetail({
   const dashboardNav = ([
     { tab: "detalle", label: "Detalles", value: "Ver", caption: "información de la OT", icon: <Info size={16} /> },
     { tab: "actividad", label: "Actividad", value: String(actividad.length), caption: "eventos", icon: <MessageSquare size={16} /> },
+    { tab: "pendientes", label: "Pendientes", value: String(pendientes.length), caption: "por hacer", icon: <ListChecks size={16} /> },
     { tab: "fotos", label: "Fotos", value: String(totalFotos), caption: "fotos", icon: <Camera size={16} /> },
     { tab: "materiales", label: "Materiales", value: String(ordenPartes.length), caption: "ítems usados", icon: <Package size={16} /> },
     { tab: "hoja", label: "Hoja de cálculo", value: "Abrir", caption: "registros", icon: <Sheet size={16} /> },
@@ -4476,6 +4485,13 @@ export default function OTDetail({
                 </div>
               </>
             )}
+          </div>
+        )}
+
+        {/* ── Pendientes ── */}
+        {tab === "pendientes" && (
+          <div style={{ padding: "24px 28px 32px" }}>
+            <PendientesOT ordenId={orden.id} />
           </div>
         )}
 

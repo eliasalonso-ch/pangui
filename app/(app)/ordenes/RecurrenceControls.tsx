@@ -84,6 +84,12 @@ export function valueToPreset(recurrencia: Recurrencia, config: RecurrenciaConfi
   }
 }
 
+/** "Cada semana", "Entre semana"…; null si no se repite. */
+export function etiquetaRecurrencia(recurrencia: Recurrencia, config: RecurrenciaConfig | null | undefined): string | null {
+  const key = valueToPreset(recurrencia, config);
+  return key === "nunca" ? null : PRESETS.find(p => p.key === key)!.label;
+}
+
 // Plain interval/unit config for a non-custom recurrencia, used when an end date
 // forces promotion to personalizada.
 function recurrenciaToConfig(rec: Recurrencia): RecurrenciaConfig {

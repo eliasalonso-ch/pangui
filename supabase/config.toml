@@ -44,6 +44,13 @@ verify_jwt = false
 [functions.export-schedules-cron]
 verify_jwt = false
 
+# pendientes-digest y gcal-sync NO van acá: dejan verify_jwt activo (el gateway
+# verifica la firma del JWT del cron) y adentro miran el rol (_shared/es-service-role.ts).
+
+# Feed .ics público: lo piden Google/Apple/Outlook sin sesión; el token del path es el secreto.
+[functions.pendientes-ics]
+verify_jwt = false
+
 # Invoked by the notifications database webhook, not by an end-user session.
 # The handler validates the notification against the authoritative database row.
 [functions.send-push-notification]

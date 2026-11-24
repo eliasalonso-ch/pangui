@@ -7,14 +7,19 @@ const ELECTRILAM = "f1b64714-6de2-4d49-b6e4-5959553e94d7";
 afterEach(() => vi.unstubAllGlobals());
 
 describe("puedeVerIntegraciones", () => {
-  it("solo owner/admin de Electrilam y la UdeC", () => {
+  it("el menú es para owner/admin de cualquier workspace", () => {
     expect(puedeVerIntegraciones(ELECTRILAM, "owner")).toBe(true);
-    expect(puedeVerIntegraciones(ELECTRILAM, "admin")).toBe(true);
-    expect(puedeVerIntegraciones(UDEC_WORKSPACE_ID, "owner")).toBe(true);
+    expect(puedeVerIntegraciones("otro", "admin")).toBe(true);
     expect(puedeVerIntegraciones(UDEC_WORKSPACE_ID, "member")).toBe(false);
-    expect(puedeVerIntegraciones(ELECTRILAM, "member")).toBe(false);
-    expect(puedeVerIntegraciones("otro", "owner")).toBe(false);
+    expect(puedeVerIntegraciones("otro", "member")).toBe(false);
     expect(puedeVerIntegraciones(null, null)).toBe(false);
+  });
+  it("MeConecta solo en Electrilam y la UdeC; Google Calendar en todos", () => {
+    expect(puedeVerIntegraciones(ELECTRILAM, "admin", "meconecta")).toBe(true);
+    expect(puedeVerIntegraciones(UDEC_WORKSPACE_ID, "owner", "meconecta")).toBe(true);
+    expect(puedeVerIntegraciones("otro", "owner", "meconecta")).toBe(false);
+    expect(puedeVerIntegraciones("otro", "owner", "google-calendar")).toBe(true);
+    expect(puedeVerIntegraciones("otro", "member", "google-calendar")).toBe(false);
   });
 });
 
